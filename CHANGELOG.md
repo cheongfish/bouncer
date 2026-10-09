@@ -9,6 +9,10 @@
 
 ### Added
 
+- **`coordinate advance`** — `coordinate next`가 준 결정적 argv(`prepare`·
+  `integrate`·`verification_node`·`verify`·`commit`)를 CLI가 연쇄 실행하고,
+  `judge`·`worker`·`blocked`·`done`·`none`·`max-steps` 또는
+  `repeated-failure`·`unclear-result`·`advance-argv-invalid`에서 멈춘다.
 - **`bouncer config --help`** — `.bouncer/config.json`의 `subagents` 키 이름·허용값·
   기본값을 코드 상수에서 읽기 전용으로 출력한다. `docs/`가 플러그인 배포물에 없어
   init 세션이 `scripts/`를 읽던 틈을 메우고, 테스트가 `docs/configuration.md` 표와
@@ -39,6 +43,11 @@
 
 ### Changed
 
+- **판단 응답 문맥 제한** — `coordinate next`가 판단·worker 행동의
+  `payload.report`(`{ outcome, summary, attempt }`)와 `payload.evidence`
+  포인터만 싣고, 옛 `previous_outcome` 키는 쓰지 않는다. coordinator Procedure는
+  `coordinate advance` 호출과 정지 사유 처리의 반복이며, 원본 증거는 evidence
+  포인터의 경로를 hash 확인 후 읽는다.
 - **플러그인 문서 인용 접두** — `skills/**`·`rules/*.md`·`references/**`의
   플러그인 문서 인용(`rules/`·`references/`·`agents/`·`AGENTS.md`)을
   `${BOUNCER_ROOT}/…`로 통일한다. 스킬 로컬 `./references/…`와 Markdown 링크

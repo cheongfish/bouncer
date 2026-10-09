@@ -50,8 +50,9 @@ Do not scaffold tasks into a closed blueprint.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
+bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
@@ -64,6 +65,11 @@ pointer moves, scope revisions, result recording, fan-in, and repair.
 `coordinate` stdout is one-line JSON; a success response carries `checkpoint`
 (and prepare also `opened[]`) instead of ledger copies of `tasks` or
 `decisions`.
+`coordinate advance` runs deterministic `next` argv actions (`prepare`,
+`integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
+`worker`, `blocked`, `done`, `none`, `max-steps`, or a failure
+(`repeated-failure`, `unclear-result`, `advance-argv-invalid`, or the
+automatic action's reason).
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
 Use `coordinate revise` only from the assigned worker worktree with a reason

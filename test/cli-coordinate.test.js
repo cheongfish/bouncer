@@ -472,12 +472,12 @@ test('coordinate release is no longer a command', () => {
   const drive = preparedDrive();   // 기존 :472 테스트의 fixture
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 2);
-  assert.match(buf.err, /partial-close, critical-recovery, revoke, or next/);
+  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, or advance/);
   const help = capture(); runCli(['help'], help.io);
   assert.doesNotMatch(help.buf.out, /coordinate release/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, revoke, or next/);
+  assert.match(refused.buf.err, /critical-recovery, revoke, next, or advance/);
 });
 
 
@@ -813,6 +813,28 @@ test('coordinate next rejects a valueless --task', () => {
     assert.strictEqual(body.ok, false);
   }
   assert.doesNotMatch(missingValue.buf.out, /"action":"drive_tasks"/);
+});
+
+test('coordinate advance runs from the CLI and stops at worker', () => {
+  const drive = preparedDrive();
+  const { code, buf } = coordinateCli(drive.integration, 'advance', [
+    '--repo', drive.repo,
+  ], { fence: false });
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const body = JSON.parse(buf.out);
+  assert.strictEqual(body.ok, true);
+  assert.strictEqual(body.stop.reason, 'worker');
+  assert.strictEqual(body.stop.next.action, 'drive_tasks');
+  assert.ok(Array.isArray(body.executed));
+});
+
+test('coordinate advance rejects non-positive --max-steps', () => {
+  const drive = preparedDrive();
+  const bad = coordinateCli(drive.integration, 'advance', [
+    '--repo', drive.repo, '--max-steps', 'abc',
+  ], { fence: false });
+  assert.strictEqual(bad.code, 2);
+  assert.match(bad.buf.err, /max-steps/);
 });
 
 /** 정규식 메타문자를 이스케이프한다. 경로를 패턴에 그대로 넣기 위한 테스트 helper. */

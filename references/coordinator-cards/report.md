@@ -17,8 +17,10 @@ the coordinator Procedure step 3 (Drive) and step 5 (Judge).
   `task_change`, and `blocked`.
 - After `rework`, `scope_revision`, or `task_change`, revise only when the
   outcome requires it, then redispatch so runtime supplies the increased
-  `attempt` and `previous_outcome`. After `ok: false` or a fence refusal,
-  call `next` again; on mismatch re-run `coordinate status` and continue from
+  `attempt` and `payload.report`. After `ok: false` or a fence refusal,
+  call `advance` again; on mismatch re-run `coordinate status` and continue from
   that checkpoint.
+- Judge from `payload.report` and the `payload.evidence` pointers (confirm each
+  path hash, then read); do not load completed-task bodies or the raw ledger.
 - Every judgment gets a ledger entry via the fenced mutation that records it;
   ordinary rework follows the no-progress rule.

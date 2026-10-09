@@ -510,9 +510,10 @@ test('bouncer-coordinator bounds terminal CI repair and preserves partial-close 
   assert.match(outcome, /continue.*completed.*blocked.*partial_closed/i);
   assert.match(outcome, /exactly one/i);
   const integrate = md.slice(md.indexOf('4. **Integrate**'), md.indexOf('5. **Judge**'));
-  // F-SS-002: Integrate는 next가 준 argv만 실행한다. fence·lease를 문맥에서
-  // 조립하면 TASKS-002 Interface 거절을 다시 연다.
-  assert.match(integrate, /execute[\s\S]{0,80}argv/i);
+  // F1: integrate/verification_node는 advance AUTO_ACTIONS다. 수동 argv 재실행
+  // 문구가 남으면 advance-loop와 모순된다. fence·lease 조립도 금지.
+  assert.match(integrate, /(?:auto-runs?|already (?:runs?|executes?))[\s\S]{0,120}(?:integrate|verification_node)/i);
+  assert.match(integrate, /do not (?:re-)?(?:execute|re-run|run)[\s\S]{0,60}(?:that )?argv/i);
   assert.doesNotMatch(integrate, /--lease-id/);
   assert.doesNotMatch(integrate, /--generation/);
   assert.doesNotMatch(integrate, /--ledger-path <checkpoint\.ledger\.path>/);
@@ -558,12 +559,14 @@ test('bouncer-coordinator grounds on status checkpoint and fences mutations with
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   const authority = md.match(/## Authority\n([\s\S]*?)(?=\n## )/)?.[1] || '';
   const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
-  const ground = procedure.match(/1\.\s*\*\*Ground\*\*[\s\S]*?(?=\n2\.\s*\*\*|$)/)?.[0] || '';
+  const ground = procedure.match(/1\.\s*\*\*Advance\*\*[\s\S]*?(?=\n2\.\s*\*\*|$)/)?.[0] || '';
 
   assert.match(authority, /checkpoint/);
   assert.match(authority, /ledger:\s*\{\s*path\s*,\s*sha256\s*,\s*revision\s*\}/);
+  assert.match(authority, /payload carries only the matter under judgment|payload\.report/);
   assert.match(ground, /coordinate status/);
   assert.match(ground, /checkpoint/);
+  assert.match(ground, /payload\.evidence/);
   // open/active brief만 읽고 완료 task는 summary로만 남긴다.
   assert.match(ground, /open[\s\S]{0,40}task|active[\s\S]{0,40}task/i);
   assert.match(ground, /completed[\s\S]{0,80}summary|summary[\s\S]{0,80}completed/i);
@@ -785,6 +788,9 @@ test('bouncer-coordinator dispatches attempt metadata and rejects stale Brief re
   assert.match(body, /initial_worktree_state/);
   assert.match(body, /previous_outcome/);
   assert.match(body, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  // 판단 카드는 payload.report·evidence 포인터로 원본을 읽는다.
+  assert.match(body, /payload\.report/);
+  assert.match(body, /payload\.evidence/);
   // implementer 호출 직전/전에 dispatch를 연다.
   assert.match(
     body,
@@ -807,10 +813,10 @@ test('bouncer-coordinator dispatches attempt metadata and rejects stale Brief re
     body,
     /(?:stale|mismatch)[\s\S]{0,200}(?:accepted|coordinate record)|(?:do not|never)[\s\S]{0,80}(?:accepted|coordinate record)[\s\S]{0,120}(?:stale|mismatch|Brief revision)/i,
   );
-  // rework / scope_revision / task_change 뒤 재디스패치는 증가한 attempt와 previous_outcome.
+  // rework / scope_revision / task_change 뒤 재디스패치는 증가한 attempt와 report.
   assert.match(
     body,
-    /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|redispatch|re-?dispatch)/i,
+    /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|payload\.report|redispatch|re-?dispatch)/i,
   );
 });
 
@@ -859,15 +865,36 @@ test('bouncer-coordinator Task round is the drive round contract', () => {
   assert.match(dispatch, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
 });
 
-// Procedure는 next가 준 argv만 실행하고 judge만 판단한다. fence를 문맥에서
+// Procedure는 advance 호출 → 정지 reason 처리 → 다시 advance다. fence를 문맥에서
 // 조립하던 옛 단계는 여기서 막아서 coordinator가 다시 원장 값을 옮기지 않게 한다.
-test('bouncer-coordinator Procedure loops on coordinate next and names the commit step', () => {
+// F1: prepare/commit/integrate는 AUTO_ACTIONS — 수동 argv 재실행 문구가 없어야 한다.
+test('bouncer-coordinator Procedure loops on coordinate advance and names the commit step', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
-  assert.match(procedure, /coordinate next --blueprint/);
-  assert.match(procedure, /coordinate next --task/);
+  assert.match(procedure, /coordinate advance --blueprint/);
+  assert.match(procedure, /call `advance` again|call `bouncer coordinate advance`/i);
+  assert.match(procedure, /payload\.evidence/);
   assert.match(procedure, /`judge`/);
   assert.match(procedure, /bouncer commit --blueprint <dir> --yes/);
+  const prepare = procedure.slice(
+    procedure.indexOf('2. **Prepare**'),
+    procedure.indexOf('3. **Drive**'),
+  );
+  assert.match(prepare, /(?:auto-runs?|already (?:runs?|executes?))[\s\S]{0,80}`?prepare`?/i);
+  assert.match(prepare, /do not (?:re-)?(?:execute|re-run|run)[\s\S]{0,60}(?:that |prepare )?argv/i);
+  const drive = procedure.slice(
+    procedure.indexOf('3. **Drive**'),
+    procedure.indexOf('4. **Integrate**'),
+  );
+  assert.match(
+    drive,
+    /(?:already runs?|auto-runs?)[\s\S]{0,80}`?commit`?[\s\S]{0,160}bouncer commit --blueprint <dir> --yes/i,
+  );
+  assert.match(drive, /do not (?:re-)?(?:execute|re-run|run)[\s\S]{0,60}(?:that |commit )?argv/i);
+  // F2: report 카드 fence 복구도 advance-loop다 (call next again 금지).
+  const report = coordinatorCard('report');
+  assert.match(report, /call `advance` again/);
+  assert.doesNotMatch(report, /call `next` again/);
 });
 
 // Drive는 execute reference를 가리키지 않는다. 그 규칙은 계약 카드가 맡는다.

@@ -2802,6 +2802,45 @@ test('coordinate repair from review findings without a terminal uses the repair 
   assert.deepStrictEqual(result.repairTask.depends_on, ['001']);
 });
 
+test('repair stamps bouncer.verify from terminal without config.json', () => {
+  // G13: repair tasks.md에 verify가 없으면 readVerifyCommand가 config.json으로
+  // 폴백한다. 없는 저장소에서는 VERIFY_CONFIG_MISSING — terminal 선언을 그대로
+  // 심어야 config 없이도 통과한다.
+  const blueprint = '.bouncer/context/epics/084-x/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-repair-verify-', blueprint, [
+    ['001', '  depends_on: []\n  verify: npm run verify:strict\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: npm run verify:strict\n'],
+  ]);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.rmSync(path.join(repo, '.bouncer/config.json'), { force: true });
+  fs.rmSync(path.join(boot.integrationPath, '.bouncer/config.json'), { force: true });
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((entry) => entry.id === '001').status = 'integrated';
+  ledger.tasks.find((entry) => entry.id === '002').status = 'verifying';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  const repaired = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'npm run verify:strict', summary: 'terminal CI failed', paths: ['src/fix.js'],
+    decision: 'repair the failing source path',
+  });
+  assert.strictEqual(repaired.ok, true, JSON.stringify(repaired));
+  const repairId = repaired.repairTask.id;
+  const repairDoc = readDoc(path.join(
+    boot.integrationPath, blueprint, 'tasks', repairId, 'tasks.md',
+  ));
+  assert.strictEqual(repairDoc.data.bouncer.verify, 'npm run verify:strict');
+  const { readVerifyCommand } = require('../scripts/lib/verification');
+  assert.strictEqual(
+    readVerifyCommand(boot.integrationPath, blueprint, repairId),
+    'npm run verify:strict',
+  );
+});
+
 test('coordinate repair rejects mixed causes and non-integrated review repairs', () => {
   const blueprint = '.bouncer/context/epics/083-x/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-review-repair-reject-', blueprint, [
