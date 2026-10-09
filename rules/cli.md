@@ -10,7 +10,7 @@ actual write cwd.
 
 ```sh
 bouncer init [--upgrade-graphify]
-bouncer plan inspect [--epic-dir <dir>]
+bouncer plan inspect [--epic-dir <dir>] [--blueprint <dir>]
 bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 bouncer verify --blueprint <dir>
 bouncer execute prepare --blueprint <dir>
@@ -20,6 +20,10 @@ bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
 ```
 
+`plan inspect` prints next ids, verify signals, and pointer state as JSON.
+With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
+module/risk signals and a light/full recommendation); without that flag
+`routing` is `null`. The signal does not select or approve light.
 `validate` decides gate success. `verify` writes the evidence used by G13.
 `execute prepare` creates or reuses the correct standalone worktree; in a
 coordinator drive it reports the assigned worker instead. `commit --yes` is

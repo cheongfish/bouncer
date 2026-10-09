@@ -9,6 +9,10 @@
 
 ### Added
 
+- **`plan inspect --blueprint`** — 초안 task의 수·의존·접촉 모듈·위험 경로로
+  advisory `routing`(`light-candidate`/`full-candidate`와 reasons)을 낸다.
+  신호는 추천 근거만이며 light 선택·승인을 하지 않는다. 플래그 없으면
+  `routing: null`이다.
 - **`coordinate advance`** — `coordinate next`가 준 결정적 argv(`prepare`·
   `integrate`·`verification_node`·`verify`·`commit`)를 CLI가 연쇄 실행하고,
   `judge`·`worker`·`blocked`·`done`·`none`·`max-steps` 또는

@@ -229,3 +229,207 @@ test('plan without a subcommand exits 2', () => {
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /inspect/);
 });
+
+// --- routing signals (plan inspect --blueprint) ---
+// classifyRoutingPaths / summarizeRouting 는 I/O 없이 경로 규칙·추천 근거만
+// 고정한다. CLI 케이스는 초안 task fixture 위에서 routing 필드를 본다.
+
+const {
+  classifyRoutingPaths,
+  summarizeRouting,
+} = require('../scripts/lib/plan-inspect');
+
+test('classifyRoutingPaths tags security/manifest/build/migration and skips near-misses', () => {
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['src/auth/session.ts']),
+    [{ path: 'src/auth/session.ts', kind: 'security' }],
+  );
+  assert.deepStrictEqual(classifyRoutingPaths(['src/tokenizer.ts']), []);
+  assert.deepStrictEqual(classifyRoutingPaths(['docs/author.md']), []);
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['package.json']),
+    [{ path: 'package.json', kind: 'manifest' }],
+  );
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['requirements-dev.txt']),
+    [{ path: 'requirements-dev.txt', kind: 'manifest' }],
+  );
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['Dockerfile.prod']),
+    [{ path: 'Dockerfile.prod', kind: 'build' }],
+  );
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['.github/workflows/ci.yml']),
+    [{ path: '.github/workflows/ci.yml', kind: 'build' }],
+  );
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['tsconfig.build.json']),
+    [{ path: 'tsconfig.build.json', kind: 'build' }],
+  );
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['db/migrations/001_init.sql']),
+    [{ path: 'db/migrations/001_init.sql', kind: 'migration' }],
+  );
+  assert.deepStrictEqual(
+    classifyRoutingPaths(['src/schema/user.ts']),
+    [{ path: 'src/schema/user.ts', kind: 'migration' }],
+  );
+});
+
+test('summarizeRouting excludes test/docs/root files from modules and flags empty paths', () => {
+  const light = summarizeRouting([{
+    paths: ['scripts/lib/a.ts', 'test/a.test.js', 'docs/x.md', 'CHANGELOG.md'],
+    dependsOn: [],
+  }]);
+  assert.strictEqual(light.advisory, true);
+  assert.strictEqual(light.tasks, 1);
+  assert.strictEqual(light.dependencies, 0);
+  assert.deepStrictEqual(light.modules, ['scripts']);
+  assert.deepStrictEqual(light.riskPaths, []);
+  assert.strictEqual(light.recommendation, 'light-candidate');
+  assert.deepStrictEqual(light.reasons, []);
+
+  const empty = summarizeRouting([{ paths: [], dependsOn: [] }]);
+  assert.deepStrictEqual(empty.modules, []);
+  assert.ok(empty.reasons.includes('affected-paths-empty'));
+  assert.strictEqual(empty.recommendation, 'light-candidate');
+
+  const full = summarizeRouting([
+    { paths: ['a/x.ts', 'b/y.ts'], dependsOn: ['TASKS-001'] },
+    { paths: ['c/z.ts', 'package.json'], dependsOn: [] },
+  ]);
+  assert.strictEqual(full.tasks, 2);
+  assert.strictEqual(full.dependencies, 1);
+  assert.deepStrictEqual(full.modules, ['a', 'b', 'c']);
+  assert.strictEqual(full.recommendation, 'full-candidate');
+  assert.ok(full.reasons.includes('tasks'));
+  assert.ok(full.reasons.includes('dependencies'));
+  assert.ok(full.reasons.includes('modules'));
+  assert.ok(full.reasons.includes('riskPaths'));
+});
+
+function writeRoutingBlueprint(repo, {
+  tasks = [{
+    id: '001',
+    paths: ['scripts/src/lib/a.ts'],
+    dependsOn: [],
+    executionKind: 'commit',
+  }],
+} = {}) {
+  const epicDir = `${EPICS}/010-routing`;
+  const blueprintDir = `${epicDir}/blueprints/001-signals`;
+  mkdirp(repo, blueprintDir);
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'R', description: 'd',
+    resource: `${epicDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '010', epic_id: '010', status: 'approved' },
+  });
+  writeDoc(repo, `${blueprintDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'S', description: 'd',
+    resource: `${blueprintDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '010', blueprint_id: '001', status: 'draft', scale: 'full',
+    },
+  });
+  for (const task of tasks) {
+    writeDoc(repo, `${blueprintDir}/tasks/${task.id}/tasks.md`, {
+      type: 'bouncer.tasks', title: `T${task.id}`, description: 'd',
+      resource: `${blueprintDir}/tasks/${task.id}/tasks.md`,
+      tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${task.id}`,
+        epic_id: '010',
+        blueprint_id: '001',
+        status: 'draft',
+        execution_kind: task.executionKind || 'commit',
+        depends_on: task.dependsOn || [],
+        affected_paths: task.paths || [],
+      },
+    });
+  }
+  return blueprintDir;
+}
+
+test('plan inspect --blueprint reports full-candidate routing from drafted tasks', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [
+      {
+        id: '001',
+        paths: ['src/auth/session.ts', 'a/mod.ts'],
+        dependsOn: [],
+        executionKind: 'commit',
+      },
+      {
+        id: '002',
+        paths: ['b/mod.ts', 'c/mod.ts'],
+        dependsOn: ['TASKS-001'],
+        executionKind: 'commit',
+      },
+      {
+        id: '003',
+        paths: ['scripts/x.ts'],
+        dependsOn: ['TASKS-001', 'TASKS-002'],
+        executionKind: 'verification',
+      },
+    ],
+  });
+
+  const result = inspect(repo, ['--blueprint', blueprintDir]);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.routing.advisory, true);
+  assert.strictEqual(payload.routing.tasks, 2);
+  assert.strictEqual(payload.routing.dependencies, 1);
+  assert.strictEqual(payload.routing.recommendation, 'full-candidate');
+  assert.ok(payload.routing.riskPaths.some((entry) => entry.kind === 'security'));
+});
+
+test('plan inspect without --blueprint keeps prior fields and sets routing null', () => {
+  const repo = makeRepo();
+  writeIdTree(repo);
+
+  const result = inspect(repo);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.nextEpicId, '004');
+  assert.strictEqual(payload.epic, null);
+  assert.strictEqual(payload.maintenanceEpic, null);
+  assert.deepStrictEqual(payload.verifySignals, ['Makefile', 'package.json#scripts']);
+  assert.strictEqual(payload.current.status, 'empty');
+  assert.strictEqual(payload.routing, null);
+});
+
+test('plan inspect rejects a malformed or missing --blueprint with invalid-blueprint-dir', () => {
+  const repo = makeRepo();
+  writeIdTree(repo);
+
+  const badForm = inspect(repo, ['--blueprint', '001-x']);
+  const badFormPayload = parsePayload(badForm);
+  assert.strictEqual(badForm.code, 1);
+  assert.strictEqual(badFormPayload.ok, false);
+  assert.strictEqual(badFormPayload.reason, 'invalid-blueprint-dir');
+
+  const missing = inspect(repo, [
+    '--blueprint', `${EPICS}/003-b/blueprints/999-missing`,
+  ]);
+  const missingPayload = parsePayload(missing);
+  assert.strictEqual(missing.code, 1);
+  assert.strictEqual(missingPayload.ok, false);
+  assert.strictEqual(missingPayload.reason, 'invalid-blueprint-dir');
+});
+
+test('plan inspect rejects valueless --blueprint with exit 2', () => {
+  const repo = makeRepo();
+  writeIdTree(repo);
+  const result = inspect(repo, ['--blueprint']);
+  assert.strictEqual(result.code, 2);
+  assert.match(result.err, /blueprint/);
+});
