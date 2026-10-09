@@ -336,7 +336,9 @@ function previousPayload(result) {
   };
 }
 
-// follow_up·parts·scope_parts 계약. 일곱 판정 + skip 필드 부재 + previous 거절.
+// follow_up·parts·scope_parts 계약. 범위 필드는 각각 단독으로 full을 강제해야 한다
+// (한 테스트에서 Interface·Touch·affected_paths를 같이 바꾸면 어느 한 필드를
+// scopeMaterial에서 빼도 통과하므로 F-001 회귀가 안 잡힌다).
 test('plan follow_up without previous is full with empty changed_documents', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
@@ -422,15 +424,21 @@ test('plan follow_up blueprint index body change is full', () => {
   assert.deepStrictEqual(out.changed_documents, []);
 });
 
-test('plan follow_up scope_parts change (affected_paths / Interface / Touch) is full', () => {
+// writePlanTree(001) 기본 Touch/Interface. 단독 변이 시 다른 scope 입력은 이 값을 유지한다.
+const PLAN_TASK_001_INTERFACE = '- `sharedFn`\n';
+const PLAN_TASK_001_TOUCH = '- `src/shared.ts`\n- `src/a.ts`\n';
+const PLAN_TASK_001_AFFECTED = ['src/shared.ts', 'src/a.ts'];
+
+test('plan follow_up Interface-only scope_parts change is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
-  // Touch·affected_paths를 같이 바꿔 G11을 유지한 채 scope digest만 바꾼다.
+  // Interface만 바꾼다. Touch·affected_paths·depends_on은 그대로 — Interface가
+  // scopeMaterial에서 빠지면 follow_up이 partial로 기울어 F-001이 다시 열린다.
   writeCommitTask(repo, '001', {
     interfaceText: '- `sharedFn`\n- `newExport`\n',
-    touchText: '- `src/shared.ts`\n- `src/a.ts`\n- `src/extra.ts`\n',
-    affectedPaths: ['src/shared.ts', 'src/a.ts', 'src/extra.ts'],
+    touchText: PLAN_TASK_001_TOUCH,
+    affectedPaths: PLAN_TASK_001_AFFECTED,
   });
   const out = classifyPlanReview({
     repoRoot: repo,
@@ -443,6 +451,79 @@ test('plan follow_up scope_parts change (affected_paths / Interface / Touch) is 
   assert.notStrictEqual(
     out.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
     before.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
+  );
+});
+
+test('plan follow_up Touch-only scope_parts change is full', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  // 같은 백틱 경로를 유지해 G11·affected_paths는 고정하고 Touch 절 문구만 바꾼다.
+  writeCommitTask(repo, '001', {
+    interfaceText: PLAN_TASK_001_INTERFACE,
+    touchText: '- Modify `src/shared.ts`\n- Modify `src/a.ts`\n',
+    affectedPaths: PLAN_TASK_001_AFFECTED,
+  });
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+  assert.notStrictEqual(
+    out.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
+    before.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
+  );
+});
+
+test('plan follow_up affected_paths-only scope_parts change is full', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  // Touch 본문은 그대로 두고 affected_paths만 축소한다(여전히 Touch가 정당화 → G11 유지).
+  // frontmatter만 바뀌므로 parts는 같아도 scope_parts가 달라 full이어야 한다.
+  writeCommitTask(repo, '001', {
+    interfaceText: PLAN_TASK_001_INTERFACE,
+    touchText: PLAN_TASK_001_TOUCH,
+    affectedPaths: ['src/a.ts'],
+  });
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+  assert.notStrictEqual(
+    out.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
+    before.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
+  );
+});
+
+test('plan follow_up depends_on-only scope_parts change is full', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001', '002'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  // 002의 depends_on만 비운다. Interface·Touch·affected_paths는 writePlanTree(002)와 동일.
+  writeCommitTask(repo, '002', {
+    dependsOn: [],
+    interfaceText: '- `sharedFn`\n- `classifyPlanReview`\n',
+    touchText: '- `src/shared.ts`\n- `src/b.ts`\n',
+  });
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+  assert.notStrictEqual(
+    out.scope_parts[`${BP_REL}/tasks/002/tasks.md`],
+    before.scope_parts[`${BP_REL}/tasks/002/tasks.md`],
   );
 });
 
