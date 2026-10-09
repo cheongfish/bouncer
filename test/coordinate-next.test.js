@@ -18,7 +18,7 @@ const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/r
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -246,6 +246,34 @@ test('blueprint next: partial_closed is blocked', () => {
   assert.strictEqual(r.cause, NEXT_FAILURE_HINTS['partial-closed'].cause);
   assert.strictEqual(r.next, NEXT_FAILURE_HINTS['partial-closed'].next);
   assert.ok(!('tasks' in r) && !('decisions' in r));
+});
+
+test('blueprint next: promotion_stopped is blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/001-promote-stop';
+  const drive = preparedCommitDrive('bouncer-next-promote-', blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.status = 'promotion_stopped';
+  ledger.mode = 'light';
+  ledger.promotion = {
+    reason: 'task-split',
+    summary: 'needs full',
+    task: '001',
+    diff_sha: 'a'.repeat(64),
+  };
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
+  assert.strictEqual(r.reason, 'promotion-stopped');
+  assert.strictEqual(
+    r.cause,
+    __coordinatorMod.COORDINATE_FAILURE_HINTS['promotion-stopped'].cause,
+  );
+  assert.strictEqual(
+    r.next,
+    __coordinatorMod.COORDINATE_FAILURE_HINTS['promotion-stopped'].next,
+  );
 });
 
 test('blueprint next: awaiting_confirmation uses repair-wave-limit', () => {

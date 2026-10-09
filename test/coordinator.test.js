@@ -14,7 +14,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -3220,4 +3220,172 @@ test('light ledger rejects dispatch and record when workerPath is not integratio
   });
   assert.strictEqual(rejectedRecord.ok, false, JSON.stringify(rejectedRecord));
   assert.strictEqual(rejectedRecord.reason, 'unassigned-worker-worktree');
+});
+
+// --- promote-stop (TASKS-003 / epic 089 blueprint 003) ---
+
+const PROMOTE_REASONS = [
+  'security-risk', 'out-of-scope', 'task-split', 'interface-semantics', 'reviewer-wider-scope',
+];
+
+/**
+ * light bootstrap 뒤 prepared 상태까지 만든다. promote-stop 단언용.
+ *
+ * @param {string} prefix - tmpdir prefix
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {{ repo: string, blueprint: string, integrationPath: string, ledgerFile: string }}
+ */
+function lightPreparedDrive(prefix, blueprint) {
+  const { repo } = lightScaleRepo(prefix, blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  return {
+    repo,
+    blueprint,
+    integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+}
+
+test('promote-stop records each of the five reasons on a light ledger', () => {
+  for (const reason of PROMOTE_REASONS) {
+    const blueprint = `.bouncer/context/epics/089-light/blueprints/010-${reason}`;
+    const drive = lightPreparedDrive(`bouncer-promote-${reason}-`, blueprint);
+    fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), `changed-${reason}\n`);
+    const ledgerBefore = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+    ledgerBefore.tasks[0].verify_evidence_id = 'v'.repeat(64);
+    ledgerBefore.tasks[0].review_evidence_id = 'r'.repeat(64);
+    const faninBefore = ledgerBefore.fanin;
+    const terminalBefore = ledgerBefore.terminalFailure;
+    fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledgerBefore, null, 2)}\n`);
+    const porcelainBefore = execFileSync('git', ['status', '--porcelain'], {
+      cwd: drive.integrationPath, encoding: 'utf8',
+    });
+
+    const out = coordinate({
+      command: 'promote-stop', repoRoot: drive.repo, blueprint,
+      cwd: drive.integrationPath, reason, summary: `stop for ${reason}`,
+    });
+    assert.strictEqual(out.ok, true, JSON.stringify(out));
+    assert.strictEqual(out.status, 'promotion_stopped');
+    assert.strictEqual(out.promotion.reason, reason);
+    assert.strictEqual(out.promotion.summary, `stop for ${reason}`);
+    assert.strictEqual(out.promotion.task, '001');
+    assert.match(out.promotion.diff_sha, /^[a-f0-9]{64}$/);
+    assert.strictEqual(out.promotion.verify_evidence_id, 'v'.repeat(64));
+    assert.strictEqual(out.promotion.review_evidence_id, 'r'.repeat(64));
+
+    const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+    assert.strictEqual(after.status, 'promotion_stopped');
+    assert.deepStrictEqual(after.promotion, out.promotion);
+    assert.strictEqual(after.fanin, faninBefore);
+    assert.strictEqual(after.terminalFailure, terminalBefore);
+    assert.strictEqual(
+      execFileSync('git', ['status', '--porcelain'], {
+        cwd: drive.integrationPath, encoding: 'utf8',
+      }),
+      porcelainBefore,
+      'promote-stop must preserve worktree dirty state',
+    );
+  }
+});
+
+test('promote-stop-requires-light rejects a full ledger', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/011-full-stop';
+  const { repo } = lightScaleRepo('bouncer-promote-full-', blueprint, { scale: 'full' });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const out = coordinate({
+    command: 'promote-stop', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, reason: 'task-split', summary: 'need full',
+  });
+  assert.strictEqual(out.ok, false, JSON.stringify(out));
+  assert.strictEqual(out.reason, 'promote-stop-requires-light');
+});
+
+test('promote-reason-invalid rejects a reason outside the five enums', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/012-bad-reason';
+  const drive = lightPreparedDrive('bouncer-promote-bad-', blueprint);
+  const out = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'maybe-later', summary: 'nope',
+  });
+  assert.strictEqual(out.ok, false, JSON.stringify(out));
+  assert.strictEqual(out.reason, 'promote-reason-invalid');
+});
+
+test('promote-stop is idempotent for the same reason and summary', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/013-idem';
+  const drive = lightPreparedDrive('bouncer-promote-idem-', blueprint);
+  const first = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'out-of-scope', summary: 'same',
+  });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  assert.strictEqual(first.status, 'promotion_stopped');
+  const second = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'out-of-scope', summary: 'same',
+  });
+  assert.strictEqual(second.ok, true, JSON.stringify(second));
+  assert.strictEqual(second.status, 'promotion_stopped');
+  assert.deepStrictEqual(second.promotion, first.promotion);
+});
+
+test('promotion-already-stopped rejects a different reason or summary', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/014-already';
+  const drive = lightPreparedDrive('bouncer-promote-already-', blueprint);
+  const first = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'security-risk', summary: 'first',
+  });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  const differentSummary = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'security-risk', summary: 'second',
+  });
+  assert.strictEqual(differentSummary.ok, false, JSON.stringify(differentSummary));
+  assert.strictEqual(differentSummary.reason, 'promotion-already-stopped');
+  const differentReason = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'first',
+  });
+  assert.strictEqual(differentReason.ok, false, JSON.stringify(differentReason));
+  assert.strictEqual(differentReason.reason, 'promotion-already-stopped');
+});
+
+test('promotion_stopped refuses prepare dispatch report record integrate', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/015-refuse';
+  const drive = lightPreparedDrive('bouncer-promote-refuse-', blueprint);
+  const cwd = drive.integrationPath;
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const stopped = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd, reason: 'interface-semantics', summary: 'freeze',
+  });
+  assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
+  assert.strictEqual(stopped.status, 'promotion_stopped');
+
+  for (const command of ['prepare', 'dispatch', 'report', 'record', 'integrate']) {
+    const after = coordinate({
+      command, repoRoot: drive.repo, blueprint, cwd, task: '001',
+      attempt: dispatched.metadata.attempt,
+      taskBriefHash: dispatched.metadata.task_brief_hash,
+      outcome: 'accepted',
+      summary: 'should not land',
+    });
+    assert.strictEqual(after.ok, false, `${command}: ${JSON.stringify(after)}`);
+    assert.strictEqual(after.reason, 'promotion-stopped', command);
+  }
 });

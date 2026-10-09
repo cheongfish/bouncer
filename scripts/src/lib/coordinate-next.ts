@@ -504,6 +504,13 @@ function blueprintNext(ctx: {
       scope: 'blueprint', action: 'blocked', reason: 'partial-closed', cwd: integrationCwd,
     });
   }
+  // light 승격 정지는 repair 한도와 별개다. prepare/drive로 내려가기 전에 막아
+  // 정지 뒤 inline implement가 다시 열리지 않게 한다. hint는 COORDINATE_FAILURE_HINTS.
+  if (ledger.status === 'promotion_stopped') {
+    return ok({
+      scope: 'blueprint', action: 'blocked', reason: 'promotion-stopped', cwd: integrationCwd,
+    });
+  }
   if (ledger.status === 'awaiting_confirmation') {
     return ok({
       scope: 'blueprint', action: 'blocked', reason: 'repair-wave-limit', cwd: integrationCwd,

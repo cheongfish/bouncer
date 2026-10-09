@@ -16,7 +16,9 @@ const {
   DEFAULT_EXCLUSIVE_RESOURCES, executionKindOf,
 } = schema;
 import coordinator = require('./coordinator');
-const { readyWave } = coordinator;
+const { readyWave, loadLedger } = coordinator;
+import runtimeState = require('./runtime-state');
+const { coordinatorPathsFor } = runtimeState;
 import configMod = require('./config');
 const { readConfig, readCoordinatorPolicy } = configMod;
 
@@ -56,7 +58,8 @@ type PreflightOk = {
   readyWave: string[];
   autonomy: Autonomy;
   delegable: boolean;
-  reason: 'blueprint-closed' | 'no-open-task' | null;
+  // promotion-stopped는 원장 status만 본다. 원장 부재 시에는 이 값을 내지 않는다.
+  reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped' | null;
 };
 
 type PreflightFail = {
@@ -240,6 +243,8 @@ function collectTasks(repoRoot: string, blueprintDir: string): {
 /**
  * drive 시작에 필요한 pointer·blueprint·열린 task·DAG·autonomy를 한 JSON으로
  * 정규화한다. 파일을 쓰지 않으며, 위임 가능 여부는 상태만 보고 결정한다.
+ * integration 원장이 `promotion_stopped`이면 위임을 막고 그 reason을 낸다.
+ * 원장 부재는 정지를 알 수 없으므로 기존 blueprint/open-task 이유를 유지한다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 포인터와 plan 문서가 있는 checkout
@@ -271,6 +276,18 @@ function runPreflight({ repoRoot, blueprintDir }: {
   let reason: PreflightOk['reason'] = null;
   if (closed) reason = 'blueprint-closed';
   else if (openTasks.length === 0) reason = 'no-open-task';
+
+  // 원장이 있을 때만 승격 정지를 본다. 부재는 기존 blueprint/open-task 이유를 유지한다.
+  // 정지가 있으면 closed·no-open-task보다 우선해 위임이 다시 열리지 않게 한다.
+  try {
+    const paths = coordinatorPathsFor({ repoRoot, blueprint });
+    const ledger = loadLedger(paths.ledgerFile);
+    if (ledger && ledger.status === 'promotion_stopped') {
+      reason = 'promotion-stopped';
+    }
+  } catch (_error) {
+    // blueprint 경로에서 integration id를 못 뽑으면 정지 여부를 알 수 없다 — miss.
+  }
 
   // preflight는 repoRoot config를 본다. invalid면 1로 접어 ACQ 미리보기가
   // prepare보다 넓은 wave를 약속하지 않게 한다.

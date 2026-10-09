@@ -45,12 +45,27 @@ const LEDGER_REL = COORDINATOR_LEDGER_REL;
  */
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'revoke',
+  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
 const REPORT_OUTCOMES = ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'] as const;
 type ReportOutcome = (typeof REPORT_OUTCOMES)[number];
+
+/** light 승격 정지 사유. CLI·원장·힌트가 같은 다섯 값만 쓴다. */
+const PROMOTE_STOP_REASONS = [
+  'security-risk', 'out-of-scope', 'task-split', 'interface-semantics', 'reviewer-wider-scope',
+] as const;
+type PromoteStopReason = (typeof PROMOTE_STOP_REASONS)[number];
+
+type PromotionRecord = {
+  reason: PromoteStopReason;
+  summary: string;
+  task: string;
+  diff_sha: string;
+  verify_evidence_id?: string;
+  review_evidence_id?: string;
+};
 
 type DispatchState = {
   attempt: number; task_brief_hash: string; base_head: string; initial_worktree_state: string;
@@ -92,10 +107,13 @@ type Ledger = {
   version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
   seedManifest?: Array<{ path: string; sha256: string }>;
   decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
-  status?: 'active' | 'awaiting_confirmation' | 'partial_closed'; userConfirmed?: boolean; revision?: string;
+  status?: 'active' | 'awaiting_confirmation' | 'partial_closed' | 'promotion_stopped';
+  userConfirmed?: boolean; revision?: string;
   leaseSeq?: number;
   // light만 기록한다. 부재·undefined는 full(legacy 호환). 응답 mode는 항상 light|full.
   mode?: 'light';
+  // light 승격 정지 스냅샷. status가 promotion_stopped일 때만 쓴다. fanin·terminalFailure와 별개.
+  promotion?: PromotionRecord;
   // candidate fan-in 진행 상태. null/부재는 진행 없음. building→verified→null.
   fanin?: FaninState | null;
 };
@@ -977,6 +995,36 @@ function ledgerModeOf(ledger: Ledger): 'light' | 'full' {
 }
 
 /**
+ * integration HEAD 대비 작업 트리(staged+unstaged+porcelain) fingerprint.
+ * promote-stop이 worktree를 건드리지 않으므로 읽기만 한다. untracked는 porcelain에
+ * 남고 content는 diff HEAD에 없어, 둘을 이어 해 빈 트리와 dirty를 구분한다.
+ *
+ * @param {Exec} exec - 주입 Git 실행기
+ * @param {string} cwd - integration worktree
+ * @returns {string} 64자리 소문자 hex
+ */
+function worktreeDiffSha(exec: Exec, cwd: string): string {
+  const porcelain = initialWorktreeState(exec, cwd);
+  const diff = String(exec('git', ['diff', 'HEAD'], {
+    cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }));
+  return createHash('sha256').update(porcelain, 'utf8').update('\0').update(diff, 'utf8').digest('hex');
+}
+
+/**
+ * light 원장에서 promote-stop 스냅샷에 쓸 열린 commit task를 고른다.
+ * integrated가 아닌 첫 commit task를 쓰고, 없으면 단일 commit task로 폴백한다.
+ *
+ * @param {Task[]} tasks - 원장 tasks
+ * @returns {Task | null} 대상 task. commit task가 없으면 null
+ */
+function openPromoteTask(tasks: Task[]): Task | null {
+  const commits = tasks.filter((item) => (item.execution_kind || 'commit') !== 'verification');
+  if (commits.length === 0) return null;
+  return commits.find((item) => item.status !== 'integrated') || commits[0];
+}
+
+/**
  * light 원장에서 task cwd가 integration인지 본다. full의 registeredWorker와
  * 달리 integration 자체 배정만 허용하고 workers/ 경로는 거절한다.
  *
@@ -1393,6 +1441,11 @@ function prepareCoordinator({
     const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
     if (!fenced.ok) return fenced;
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
+    // 승격 정지는 재개 명령이 없다. prepare가 worker를 다시 열면 정지 스냅샷이
+    // 의미가 없어지므로 fence 통과 직후 막는다.
+    if (ledger.status === 'promotion_stopped') {
+      return { ok: false as const, reason: 'promotion-stopped' };
+    }
     let names: { integration: string; standalone: string; worker?: string };
     try {
       // verification-only wave는 worker branch를 만들지 않아 아래 branch 판정에서
@@ -1658,6 +1711,14 @@ function integrateTask({
     return { ok: false, reason: 'task-required' };
   }
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
+
+  // fan-in·verification 경로보다 앞에서 막아 후보 worktree를 만들지 않는다.
+  {
+    const peekStopped = loadLedger(integration.ledgerFile);
+    if (peekStopped?.status === 'promotion_stopped') {
+      return { ok: false, reason: 'promotion-stopped' };
+    }
+  }
 
   // verification --task는 기존 두 단계 경로. commit/wave는 candidate fan-in.
   if (task) {
@@ -2642,6 +2703,61 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       writeOwnedLedger(owns, writeLedger, integration.ledgerFile, ledger)
     );
 
+    // promote-stop만 멱등 재실행을 허용한다. 그 외 fence mutation은 정지 뒤 거절해
+    // 스냅샷(reason·diff·증적)이 바뀌지 않게 한다. 해제는 없다 — full 재계획은
+    // 새 bootstrap/current --set이다.
+    if (command === 'promote-stop') {
+      ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      if (ledgerModeOf(ledger) !== 'light') {
+        return { ok: false, reason: 'promote-stop-requires-light' };
+      }
+      if (typeof reason !== 'string'
+        || !(PROMOTE_STOP_REASONS as readonly string[]).includes(reason)) {
+        return { ok: false, reason: 'promote-reason-invalid' };
+      }
+      if (typeof summary !== 'string' || summary.trim() === '') {
+        return { ok: false, reason: 'summary-required' };
+      }
+      const promoteReason = reason as PromoteStopReason;
+      const promoteSummary = summary.trim();
+      if (ledger.status === 'promotion_stopped') {
+        const existing = ledger.promotion;
+        if (existing
+          && existing.reason === promoteReason
+          && existing.summary === promoteSummary) {
+          return withCheckpoint({
+            ok: true as const, command, status: 'promotion_stopped' as const,
+            promotion: existing,
+          }, ledger, integration.ledgerFile);
+        }
+        return { ok: false, reason: 'promotion-already-stopped' };
+      }
+      const openTask = openPromoteTask(ledger.tasks);
+      if (!openTask) return { ok: false, reason: 'task-outside-blueprint' };
+      // fanin·terminalFailure는 건드리지 않는다. 정지는 promotion 필드만으로 기록한다.
+      const promotion: PromotionRecord = {
+        reason: promoteReason,
+        summary: promoteSummary,
+        task: openTask.id,
+        diff_sha: worktreeDiffSha(exec, integration.integrationPath),
+      };
+      if (typeof openTask.verify_evidence_id === 'string' && openTask.verify_evidence_id !== '') {
+        promotion.verify_evidence_id = openTask.verify_evidence_id;
+      }
+      if (typeof openTask.review_evidence_id === 'string' && openTask.review_evidence_id !== '') {
+        promotion.review_evidence_id = openTask.review_evidence_id;
+      }
+      ledger.promotion = promotion;
+      ledger.status = 'promotion_stopped';
+      { const lost = commitWrite(); if (lost) return lost; }
+      return withCheckpoint({
+        ok: true as const, command, status: 'promotion_stopped' as const, promotion,
+      }, ledger, integration.ledgerFile);
+    }
+    if (ledger.status === 'promotion_stopped') {
+      return { ok: false, reason: 'promotion-stopped' };
+    }
+
     if (command === 'critical-recovery') {
       ensureIntegrationCwd(repoRoot, blueprint, cwd);
       const checked = runtime.validateCoordinatorLedger(ledger);
@@ -3271,6 +3387,25 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'Partial-close is allowed only while the drive is awaiting confirmation.',
     next: 'Run `bouncer coordinate status` and wait for awaiting_confirmation before '
       + '`bouncer coordinate partial-close`.',
+  },
+  'promote-reason-invalid': {
+    cause: 'promote-stop reason must be one of the five light promotion enums.',
+    next: 'Retry with --reason security-risk, out-of-scope, task-split, '
+      + 'interface-semantics, or reviewer-wider-scope.',
+  },
+  'promote-stop-requires-light': {
+    cause: 'promote-stop applies only to a light ledger (mode: light).',
+    next: 'Do not call promote-stop on a full ledger; continue with the full coordinate path.',
+  },
+  'promotion-already-stopped': {
+    cause: 'This light ledger is already promotion_stopped with a different reason or summary.',
+    next: 'Keep the recorded promotion snapshot; replan as full with a new bootstrap and '
+      + '`bouncer current --set` after the user approves.',
+  },
+  'promotion-stopped': {
+    cause: 'This light ledger was stopped for promotion; light mutations are refused.',
+    next: 'Report the promotion snapshot to the user; after full replan, run a new '
+      + '`bouncer coordinate bootstrap` and `bouncer current --set` — there is no resume command.',
   },
   'reason-required': {
     cause: 'Critical recovery requires a non-empty reason string.',

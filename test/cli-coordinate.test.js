@@ -472,12 +472,12 @@ test('coordinate release is no longer a command', () => {
   const drive = preparedDrive();   // 기존 :472 테스트의 fixture
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 2);
-  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, or advance/);
+  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, or promote-stop/);
   const help = capture(); runCli(['help'], help.io);
   assert.doesNotMatch(help.buf.out, /coordinate release/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, revoke, next, or advance/);
+  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, or promote-stop/);
 });
 
 

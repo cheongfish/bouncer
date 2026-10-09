@@ -19,6 +19,13 @@
 
 ### Added
 
+- **`coordinate promote-stop`** — light 원장에서 위험 신호 시
+  `status: promotion_stopped`와 `promotion` 스냅샷(reason·summary·task·
+  `diff_sha`·증적 id)을 기록한다. reason은 `security-risk`·`out-of-scope`·
+  `task-split`·`interface-semantics`·`reviewer-wider-scope`다. 이후
+  prepare/dispatch/report/record/integrate와 `run preflight` 위임은
+  `promotion-stopped`로 거부되며, 해제는 없고 full 재계획은 새 bootstrap·
+  `current --set`이다.
 - **`coordinate` light 원장 모드** — `bouncer.scale: light`이고 의존 없는 commit
   task가 정확히 하나일 때만 `mode: light` 원장을 만든다. prepare는 worker
   worktree 없이 `workerPath`를 integration으로 두고, `coordinate next`

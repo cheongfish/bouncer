@@ -177,6 +177,41 @@ test('run preflight marks a closed blueprint as not delegable', () => {
   assert.strictEqual(payload.reason, 'blueprint-closed');
 });
 
+test('run preflight marks promotion_stopped ledger as not delegable', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(
+    paths.ledgerFile,
+    `${JSON.stringify({
+      version: 1,
+      blueprint: BP_REL,
+      base: 'main',
+      mode: 'light',
+      status: 'promotion_stopped',
+      tasks: [],
+      decisions: [],
+      promotion: {
+        reason: 'out-of-scope',
+        summary: 'stop',
+        task: '001',
+        diff_sha: 'b'.repeat(64),
+      },
+    }, null, 2)}\n`,
+  );
+
+  const result = preflight(repo);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.delegable, false);
+  assert.strictEqual(payload.reason, 'promotion-stopped');
+});
+
 test('run preflight treats declared auto autonomy as no fallback', () => {
   const repo = makeRepo();
   writePlanTree(repo);

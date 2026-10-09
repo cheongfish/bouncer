@@ -54,9 +54,12 @@ Do not scaffold tasks into a closed blueprint.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|promote-stop> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
+bouncer coordinate promote-stop --blueprint <dir> \
+  --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
+  --summary <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
@@ -79,6 +82,13 @@ cherry-pick. Light `report --outcome accepted` requires blueprint-root
 `review.md` rounds from `bouncer review record` and document status `accepted`
 (`light-review-required` otherwise). A resume bootstrap against the opposite
 mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
+`coordinate promote-stop` (light only) records `status: promotion_stopped` and
+a `promotion` snapshot (`reason`, `summary`, open task, `diff_sha`, optional
+evidence ids). Reasons are `security-risk`, `out-of-scope`, `task-split`,
+`interface-semantics`, `reviewer-wider-scope`. Same reason+summary is
+idempotent; afterward `prepare`/`dispatch`/`report`/`record`/`integrate` and
+`run preflight` delegation fail with `promotion-stopped`. There is no resume —
+full replan needs a new `bootstrap` and `current --set`.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, or a failure

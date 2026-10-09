@@ -47,5 +47,15 @@ apply it to a full ledger.
 
 Stop the run and report to the user when any of these signals appear: security
 risk, out-of-scope change, needed task split, Interface semantics change, or a
-reviewer demand that widens approved scope. Commands that persist a stopped
-ledger state are owned by a later task — do not invent them here.
+reviewer demand that widens approved scope. Persist the stop with:
+
+```sh
+bouncer coordinate promote-stop --blueprint <dir> \
+  --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
+  --summary <text> --ledger-path <path> --ledger-hash <sha256>
+```
+
+That records `status: promotion_stopped` and a `promotion` snapshot (task,
+diff_sha, evidence ids). Further light mutations and `run preflight` delegation
+are refused. There is no resume command — after a full replan, start a new
+drive with `bouncer coordinate bootstrap` and `bouncer current --set`.
