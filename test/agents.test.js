@@ -510,9 +510,10 @@ test('bouncer-coordinator bounds terminal CI repair and preserves partial-close 
   assert.match(outcome, /continue.*completed.*blocked.*partial_closed/i);
   assert.match(outcome, /exactly one/i);
   const integrate = md.slice(md.indexOf('4. **Integrate**'), md.indexOf('5. **Judge**'));
-  // F-SS-002: Integrate는 next가 준 argv만 실행한다. fence·lease를 문맥에서
-  // 조립하면 TASKS-002 Interface 거절을 다시 연다.
-  assert.match(integrate, /execute[\s\S]{0,80}argv/i);
+  // F1: integrate/verification_node는 advance AUTO_ACTIONS다. 수동 argv 재실행
+  // 문구가 남으면 advance-loop와 모순된다. fence·lease 조립도 금지.
+  assert.match(integrate, /(?:auto-runs?|already (?:runs?|executes?))[\s\S]{0,120}(?:integrate|verification_node)/i);
+  assert.match(integrate, /do not (?:re-)?(?:execute|re-run|run)[\s\S]{0,60}(?:that )?argv/i);
   assert.doesNotMatch(integrate, /--lease-id/);
   assert.doesNotMatch(integrate, /--generation/);
   assert.doesNotMatch(integrate, /--ledger-path <checkpoint\.ledger\.path>/);
@@ -866,6 +867,7 @@ test('bouncer-coordinator Task round is the drive round contract', () => {
 
 // Procedure는 advance 호출 → 정지 reason 처리 → 다시 advance다. fence를 문맥에서
 // 조립하던 옛 단계는 여기서 막아서 coordinator가 다시 원장 값을 옮기지 않게 한다.
+// F1: prepare/commit/integrate는 AUTO_ACTIONS — 수동 argv 재실행 문구가 없어야 한다.
 test('bouncer-coordinator Procedure loops on coordinate advance and names the commit step', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
@@ -874,6 +876,25 @@ test('bouncer-coordinator Procedure loops on coordinate advance and names the co
   assert.match(procedure, /payload\.evidence/);
   assert.match(procedure, /`judge`/);
   assert.match(procedure, /bouncer commit --blueprint <dir> --yes/);
+  const prepare = procedure.slice(
+    procedure.indexOf('2. **Prepare**'),
+    procedure.indexOf('3. **Drive**'),
+  );
+  assert.match(prepare, /(?:auto-runs?|already (?:runs?|executes?))[\s\S]{0,80}`?prepare`?/i);
+  assert.match(prepare, /do not (?:re-)?(?:execute|re-run|run)[\s\S]{0,60}(?:that |prepare )?argv/i);
+  const drive = procedure.slice(
+    procedure.indexOf('3. **Drive**'),
+    procedure.indexOf('4. **Integrate**'),
+  );
+  assert.match(
+    drive,
+    /(?:already runs?|auto-runs?)[\s\S]{0,80}`?commit`?[\s\S]{0,160}bouncer commit --blueprint <dir> --yes/i,
+  );
+  assert.match(drive, /do not (?:re-)?(?:execute|re-run|run)[\s\S]{0,60}(?:that |commit )?argv/i);
+  // F2: report 카드 fence 복구도 advance-loop다 (call next again 금지).
+  const report = coordinatorCard('report');
+  assert.match(report, /call `advance` again/);
+  assert.doesNotMatch(report, /call `next` again/);
 });
 
 // Drive는 execute reference를 가리키지 않는다. 그 규칙은 계약 카드가 맡는다.

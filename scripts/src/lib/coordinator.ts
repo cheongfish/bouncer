@@ -618,11 +618,75 @@ function integratedLeaves(tasks: Task[], terminalId: string): string[] {
 }
 
 /**
+ * repair 문서 frontmatter에 심을 `bouncer.verify`를 고른다. terminal 선언을
+ * 우선하고, 없으면 repair가 매달린 integrated leaf(선행 commit) 문서에서
+ * 가져온다. `config.verify`는 쓰지 않는다 — repair가 전역 폴백 없이 G13을
+ * 통과해야 하고, 없는 config를 만들어 내면 정책 출처가 흐려진다.
+ *
+ * @param {string} integrationPath - integration checkout 절대 경로
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {Task} repair - 새로 쓸 repair task (`depends_on` = integrated leaves)
+ * @param {Record<string, unknown> | null} terminalData - terminal tasks.md data
+ * @returns {string | undefined} 비어 있지 않은 verify 문자열. 후보가 없으면 undefined
+ */
+function resolveRepairVerify(
+  integrationPath: string,
+  blueprint: string,
+  repair: Task,
+  terminalData: Record<string, unknown> | null,
+): string | undefined {
+  if (terminalData) {
+    const terminalBouncer = terminalData.bouncer;
+    if (terminalBouncer && typeof terminalBouncer === 'object') {
+      const terminalVerify = (terminalBouncer as Record<string, unknown>).verify;
+      if (typeof terminalVerify === 'string' && terminalVerify.trim() !== '') {
+        return terminalVerify;
+      }
+    }
+  }
+  // depends_on은 integratedLeaves가 준 leaf다. 번호 순 첫 선언을 취해
+  // readVerifyCommand의 earliest-numbered 쪽과 같은 후보를 고른다.
+  for (const id of [...(repair.depends_on || [])].sort()) {
+    const file = path.join(integrationPath, blueprint, 'tasks', id, 'tasks.md');
+    let raw: string;
+    try {
+      raw = fs.readFileSync(file, 'utf8');
+    } catch (error) {
+      // 선행 leaf 문서 부재(ENOENT)만 흡수하고 다음 leaf로 간다. EACCES 등을
+      // 조용히 넘기면 verify 선택이 비어 G13이 config 부재로 오진한다.
+      if (error && typeof error === 'object' && 'code' in error
+        && (error as { code?: unknown }).code === 'ENOENT') {
+        continue;
+      }
+      throw error;
+    }
+    let data: unknown;
+    try {
+      data = parseFrontmatter(raw).data;
+    } catch (_error) {
+      // frontmatter 부재·깨진 YAML — 이 leaf는 후보에서 빼고 다음으로.
+      // 한 문서 파손이 repair write 전체를 막으면 terminal CI 복구가 끊긴다.
+      continue;
+    }
+    if (!data || typeof data !== 'object') continue;
+    const bouncer = (data as Record<string, unknown>).bouncer;
+    if (!bouncer || typeof bouncer !== 'object') continue;
+    const verify = (bouncer as Record<string, unknown>).verify;
+    if (typeof verify === 'string' && verify.trim() !== '') {
+      return verify;
+    }
+  }
+  return undefined;
+}
+
+/**
  * repair task 문서와 (있으면) terminal edge를 한 revision으로 쓴다. 두 write
  * 중 하나가 실패하면 원래 terminal 문서를 복구하고 새 task를 지워, ledger만
  * 다음 graph를 가리키는 반쪽 상태가 생기지 않게 한다. 종단 verification이
  * 없는 blueprint는 terminal을 생략한다 — 없는 tasks.md를 만들어 의존 그래프를
- * 꾸며내지 않기 위해서다.
+ * 꾸며내지 않기 위해서다. repair frontmatter에는 terminal(또는 선행
+ * integrated commit)의 `bouncer.verify`를 심어 config 폴백 없이 G13이
+ * 명령을 읽게 한다.
  *
  * @param {{ integrationPath: string, blueprint: string, repair: Task, terminal?: Task }} opts
  *   integration 경로, blueprint, repair task, 선택적 종단 verification
@@ -650,6 +714,7 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
   const idMatch = /(?:^|\/)epics\/(\d{3})[^/]*\/blueprints\/(\d{3})[^/]*$/.exec(blueprint.replaceAll('\\', '/'));
   const epicId = idMatch ? idMatch[1] : '';
   const bpId = idMatch ? idMatch[2] : '';
+  const repairVerify = resolveRepairVerify(integrationPath, blueprint, repair, terminalData);
   const repairData = {
     type: 'bouncer.tasks', title: `CI repair wave ${repair.id}`, description: 'Repairs terminal CI failure.',
     resource: path.relative(integrationPath, repairFile).replaceAll('\\', '/'), tags: ['bouncer', 'repair-wave'],
@@ -658,6 +723,8 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
       status: 'ready', depends_on: (repair.depends_on || []).map((id) => `TASKS-${id}`),
       parallel_safe: false, dependency_gate: 'integrated', affected_paths: repair.scope?.paths || [],
       scope_revision: repair.scope?.revision,
+      // 후보가 있을 때만 심는다. 빈 문자열·날조 config는 S12/G13을 가린다.
+      ...(repairVerify !== undefined ? { verify: repairVerify } : {}),
     },
   };
   const timestamp = (repairData as { timestamp: string }).timestamp;

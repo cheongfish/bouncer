@@ -18,7 +18,7 @@ the coordinator Procedure step 3 (Drive) and step 5 (Judge).
 - After `rework`, `scope_revision`, or `task_change`, revise only when the
   outcome requires it, then redispatch so runtime supplies the increased
   `attempt` and `payload.report`. After `ok: false` or a fence refusal,
-  call `next` again; on mismatch re-run `coordinate status` and continue from
+  call `advance` again; on mismatch re-run `coordinate status` and continue from
   that checkpoint.
 - Judge from `payload.report` and the `payload.evidence` pointers (confirm each
   path hash, then read); do not load completed-task bodies or the raw ledger.

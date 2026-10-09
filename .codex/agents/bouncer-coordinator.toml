@@ -180,12 +180,11 @@ with `bouncer <command> <sub> --help`; do not read plugin sources for them.
    hash with the new `checkpoint.ledger.sha256`. Mutation `argv` already
    carries `--ledger-path <checkpoint.ledger.path> --ledger-hash
    <checkpoint.ledger.sha256>`.
-2. **Prepare** — When `advance` stops with `next.action` `prepare` still to
-   run, or when you execute a returned prepare `argv`, it opens the current
-   ready wave, assigns one worktree per task, and returns per-task `lease` and
-   `workerPath` on `opened[]`. Tasks the wave did not open stay closed. Do not
-   copy `opened[]`, lease, or hash from context into a hand-built command. Call
-   `advance` again after the wave is open.
+2. **Prepare** — `advance` already auto-runs `prepare` when that is next — do not re-execute that argv by hand.
+   The auto-run opens the current ready wave, assigns one worktree per task, and
+   leaves per-task `lease` and `workerPath` on `opened[]`. Tasks the wave did
+   not open stay closed. Do not copy `opened[]`, lease, or hash from context
+   into a hand-built command. Call `advance` again after the wave is open.
 3. **Drive** — When `advance` stops with `reason` `worker` or `judge` for a
    prepared task (including `drive_tasks` / `implement` / `review` / `report` /
    `record` / `revise` / `dispatch`), follow the returned `card` on
@@ -193,27 +192,28 @@ with `bouncer <command> <sub> --help`; do not read plugin sources for them.
    count, inside the configured parallel ceiling). The coordinator does not
    move the pointer per task. Each runner works in its worker cwd under that
    task's `effectiveTask`. `implement` and `review` dispatch workers through
-   Worker dispatch; `commit` runs `bouncer commit --blueprint <dir> --yes` from
-   the worker cwd before report or record; `report`, `record`, `revise`, and
-   `dispatch` fill `judge.fields` and execute the returned `argv`. Immediately
-   before `bouncer-implementer`, `coordinate dispatch` `argv` already includes
+   Worker dispatch; `advance` already runs `commit` (`bouncer commit --blueprint <dir> --yes`
+   from the worker cwd) before it stops for report or record — do not re-run
+   that commit argv by hand; `report`, `record`, `revise`, and `dispatch` fill
+   `judge.fields` and execute the returned `argv`. Immediately before
+   `bouncer-implementer`, `coordinate dispatch` `argv` already includes
    `--lease-id` / `--generation` plus the held `--ledger-path
    <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`. After
    `rework`, `scope_revision`, or `task_change`, follow the `card` so runtime
    supplies the increased `attempt` and `payload.report`. After handling the
    stop, call `advance` again; on mismatch re-run `coordinate status` and
    continue from that checkpoint.
-4. **Integrate** — When `advance` stops on or returns `integrate` or
-   `verification_node`, execute that action's `argv` in the returned `cwd`. Do
-   not assemble fence or lease flags; wave fan-in already omits `--task` on the
-   returned `argv`. On `fanin-conflict`, `wave-verification-failed`, or a
-   scope-conflict `revoked`, execute the returned `coordinate revoke` or
-   per-task `integrate` `argv` and requeue. A rejected fan-in is a decision to
-   record and resolve, not a retry to repeat blindly. After Integrate has made
-   every task this session prepared `integrated`, call
-   `bouncer coordinate advance --blueprint <dir>` again (the `checkpoint`
-   matches `coordinate status`). If only part of this session's prepared wave
-   is integrated, do not return `continue` and do not Close; stay in Drive/Judge
+4. **Integrate** — `advance` already auto-runs `integrate` and
+   `verification_node` when those are next — do not re-execute that argv by
+   hand. Do not assemble fence or lease flags; wave fan-in already omits
+   `--task` on integrate argv. On a `fanin-conflict`,
+   `wave-verification-failed`, or scope-conflict `revoked` stop, follow the
+   returned `card` and execute only non-auto `argv` such as `coordinate revoke`,
+   then requeue. A rejected fan-in is a decision to record and resolve, not a
+   retry to repeat blindly. After every task this session prepared is
+   `integrated`, call `bouncer coordinate advance --blueprint <dir>` again (the
+   `checkpoint` matches `coordinate status`). If only part of this session's
+   prepared wave is integrated, do not return `continue` and do not Close; stay in Drive/Judge
    (revoke/requeue/fan-in) until that wave is done. If `active_tasks` is
    non-empty after the prepared wave is fully `integrated`, do not prepare
    again and return `continue`; do not prepare, dispatch, or integrate more
