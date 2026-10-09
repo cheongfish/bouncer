@@ -279,7 +279,7 @@ test('usage lists coordinate repair review-finding and required-task CI forms', 
 
 const COORDINATE_SUBCOMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next',
+  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
 ];
 
 test('coordinate <sub> --help and -h print that subcommand usage on stdout', () => {
@@ -321,6 +321,21 @@ test('coordinate next --help lists flags, actions, and response fields', () => {
     r.out,
     /^.*\bcard\b.*\bdispatch, implement, verify, review, report, revise, record, final_review, blocked\b.*$/m,
   );
+});
+
+test('coordinate advance --help lists flags and stop reasons', () => {
+  const r = capture(['coordinate', 'advance', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(r.err, '');
+  assert.match(r.out, /--blueprint <dir>/);
+  assert.match(r.out, /\[--task <ddd>\]/);
+  assert.match(r.out, /\[--max-steps <n>\]/);
+  assert.match(r.out, /judge/);
+  assert.match(r.out, /worker/);
+  assert.match(r.out, /max-steps/);
+  assert.match(r.out, /repeated-failure/);
+  assert.match(r.out, /unclear-result/);
+  assert.match(r.out, /advance-argv-invalid/);
 });
 
 test('coordinate report --help lists report outcome enum', () => {

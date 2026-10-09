@@ -300,7 +300,7 @@ function cmdExecute(rest: string[], io: CliIo) {
 
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next',
+  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -488,12 +488,25 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   card { id, body } only on: dispatch, implement, verify, review, report, revise, record, final_review, blocked
 `,
   },
+  advance: {
+    registry: '  coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]\n'
+      + '             Run deterministic next argv actions until judge, worker, terminal, or error.\n',
+    help: `usage: bouncer coordinate advance
+  --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]
+  Not ledger-fenced. Calls coordinate next and runs argv for prepare, integrate,
+  verification_node, verify, and commit until a stop or failure.
+  Stop reasons (ok: true): judge, worker, blocked, done, none, max-steps
+  Failure reasons (ok: false): repeated-failure, unclear-result, advance-argv-invalid,
+  or the automatic action's failure reason.
+  Response fields: executed, stop.next (success) or reason, cause, next, executed (failure)
+`,
+  },
 };
 
 // 전역 help 조립 순서. 키를 빼거나 재정렬하면 전역 usage 바이트가 바뀐다.
 const COORDINATE_REGISTRY_ORDER: CoordinateCommand[] = [
   'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
-  'partial-close', 'critical-recovery', 'revise', 'next',
+  'partial-close', 'critical-recovery', 'revise', 'next', 'advance',
 ];
 
 /**
@@ -622,7 +635,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-      + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, or next\n',
+      + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, or advance\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -749,6 +762,40 @@ function cmdCoordinate(rest: string[], io: CliIo) {
         blueprint: f.blueprint,
         cwd: process.cwd(),
         task: typeof f.task === 'string' ? f.task : undefined,
+      }) as { ok: boolean };
+      io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
+      return result.ok ? 0 : 1;
+    } catch (error) {
+      io.err(`coordinate: ${catchMessage(error)}\n`);
+      return 1;
+    }
+  }
+  if (command === 'advance') {
+    // advance도 fence를 요구하지 않는다. 원장 쓰기는 next가 준 argv 명령이 맡는다.
+    if (Object.prototype.hasOwnProperty.call(f, 'task')
+      && (typeof f.task !== 'string' || f.task === '')) {
+      return failCoordinateUsage(
+        io, 'coordinate advance: --task requires a ddd value\n', command,
+      );
+    }
+    let maxSteps: number | undefined;
+    if (Object.prototype.hasOwnProperty.call(f, 'max-steps')) {
+      const raw = f['max-steps'];
+      // generation과 같이 양의 정수만. 0·음수·문자는 usage(2).
+      if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) {
+        return failCoordinateUsage(
+          io, 'coordinate advance: --max-steps must be a positive integer\n', command,
+        );
+      }
+      maxSteps = Number(raw);
+    }
+    const { advance } = require('./coordinate-advance') as typeof import('./coordinate-advance');
+    try {
+      const result = advance({
+        repoRoot: (f.repo || process.cwd()) as string,
+        blueprint: f.blueprint,
+        task: typeof f.task === 'string' ? f.task : undefined,
+        maxSteps,
       }) as { ok: boolean };
       io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
       return result.ok ? 0 : 1;

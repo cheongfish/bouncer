@@ -9,6 +9,10 @@
 
 ### Added
 
+- **`coordinate advance`** — `coordinate next`가 준 결정적 argv(`prepare`·
+  `integrate`·`verification_node`·`verify`·`commit`)를 CLI가 연쇄 실행하고,
+  `judge`·`worker`·`blocked`·`done`·`none`·`max-steps` 또는
+  `repeated-failure`·`unclear-result`·`advance-argv-invalid`에서 멈춘다.
 - **`bouncer config --help`** — `.bouncer/config.json`의 `subagents` 키 이름·허용값·
   기본값을 코드 상수에서 읽기 전용으로 출력한다. `docs/`가 플러그인 배포물에 없어
   init 세션이 `scripts/`를 읽던 틈을 메우고, 테스트가 `docs/configuration.md` 표와
