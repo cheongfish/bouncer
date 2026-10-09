@@ -43,6 +43,11 @@
 
 ### Changed
 
+- **판단 응답 문맥 제한** — `coordinate next`가 판단·worker 행동의
+  `payload.report`(`{ outcome, summary, attempt }`)와 `payload.evidence`
+  포인터만 싣고, 옛 `previous_outcome` 키는 쓰지 않는다. coordinator Procedure는
+  `coordinate advance` 호출과 정지 사유 처리의 반복이며, 원본 증거는 evidence
+  포인터의 경로를 hash 확인 후 읽는다.
 - **플러그인 문서 인용 접두** — `skills/**`·`rules/*.md`·`references/**`의
   플러그인 문서 인용(`rules/`·`references/`·`agents/`·`AGENTS.md`)을
   `${BOUNCER_ROOT}/…`로 통일한다. 스킬 로컬 `./references/…`와 Markdown 링크

@@ -62,10 +62,11 @@ findings, resolution, revision diff) when mode is delta.
   severity_changes and origin, then decide must_fix or advisory from the
   brief, evidence, and changed range — never a reviewer vote.
 - Fix, under a coordinator drive on the per-task path: judge the prior
-  implementer report (`coordinate report`), revise only when the outcome
-  requires it, then open a new `coordinate dispatch` so the fix implementer
-  receives the increased attempt, task_brief_hash, base_head,
-  initial_worktree_state, and previous_outcome.
+  implementer report from `payload.report` and `payload.evidence` pointers
+  (`coordinate report`), revise only when the outcome requires it, then open a
+  new `coordinate dispatch` so the fix implementer receives the increased
+  attempt, task_brief_hash, base_head, initial_worktree_state, and
+  `payload.report`.
 - After one aggregate and one fix batch, dispatch exactly one delta reviewer
   with previous findings and the revision diff — delta does not receive a
   discovery perspective. Fail-closed compares against that round's frozen

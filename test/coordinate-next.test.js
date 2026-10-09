@@ -7,7 +7,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { runCli } = require('../scripts/lib/cli');
-const { coordinateNext, NEXT_FAILURE_HINTS } = require('../scripts/lib/coordinate-next');
+const {
+  coordinateNext, NEXT_FAILURE_HINTS, attachJudgeContext,
+} = require('../scripts/lib/coordinate-next');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { renderDoc } = require('../scripts/lib/render');
 
@@ -548,6 +550,8 @@ test('task next: active dispatch at baseline is implement', () => {
   assert.strictEqual(r.payload.task_brief_hash, dispatched.metadata.task_brief_hash);
   assert.strictEqual(r.payload.base_head, dispatched.metadata.base_head);
   assert.strictEqual('previous_outcome' in r.payload, false);
+  // 첫 implement는 직전 report 결정이 없어 payload.report 키 자체가 없다.
+  assert.strictEqual('report' in r.payload, false);
 });
 
 test('task next: dirty worker without verified docs is verify', () => {
@@ -843,6 +847,232 @@ test('fixture tour: blueprint review mode reaches done', () => {
   assert.strictEqual(done.action, 'done');
 });
 
+function assertJudgePayloadShape(out, { requireEvidence = false } = {}) {
+  assert.ok(out.ok === true, JSON.stringify(out));
+  assert.ok(!('completed_tasks' in out) && !('decisions' in out) && !('tasks' in out));
+  assert.ok(out.payload && typeof out.payload === 'object', 'payload required');
+  assert.strictEqual('previous_outcome' in out.payload, false);
+  assert.deepStrictEqual(Object.keys(out.payload.report).sort(), ['attempt', 'outcome', 'summary']);
+  if (requireEvidence || 'evidence' in out.payload) {
+    assert.ok(Array.isArray(out.payload.evidence));
+    assert.ok(out.payload.evidence.length > 0);
+    for (const item of out.payload.evidence) {
+      assert.deepStrictEqual(Object.keys(item).sort(), ['kind', 'path', 'sha256']);
+      assert.ok(['report', 'verification', 'review'].includes(item.kind));
+      assert.match(item.sha256, /^[a-f0-9]{64}$/);
+    }
+  }
+}
+
+test('judge payload: record after accepted report carries report keys and evidence', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/034-judge-rec';
+  const drive = preparedCommitDrive('bouncer-next-judge-rec-', blueprint);
+  acceptDispatchReport(drive.repo, blueprint, drive.worker, '001');
+  const taskDir = path.join(drive.worker, blueprint, 'tasks', '001');
+  const reportPath = path.join(taskDir, 'report.md');
+  const verifyPath = path.join(taskDir, 'verification.md');
+  const reviewPath = path.join(taskDir, 'review.md');
+  fs.writeFileSync(reportPath, 'worker report body\n');
+  fs.writeFileSync(verifyPath, '---\nbouncer:\n  id: VERIFY-001\n  status: passed\n---\n# Verification\n');
+  fs.writeFileSync(reviewPath, '---\nbouncer:\n  id: REVIEW-001\n  status: accepted\n---\n# Review\n');
+  const hashes = {
+    report: crypto.createHash('sha256').update(fs.readFileSync(reportPath)).digest('hex'),
+    verification: crypto.createHash('sha256').update(fs.readFileSync(verifyPath)).digest('hex'),
+    review: crypto.createHash('sha256').update(fs.readFileSync(reviewPath)).digest('hex'),
+  };
+  const out = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(out.action, 'record');
+  assertCardFor(out);
+  assertJudgePayloadShape(out, { requireEvidence: true });
+  assert.deepStrictEqual(out.payload.report, {
+    outcome: 'accepted', summary: 'accepted 001', attempt: 1,
+  });
+  assert.deepStrictEqual(
+    out.payload.evidence.map((e) => e.kind).sort(),
+    ['report', 'review', 'verification'],
+  );
+  for (const item of out.payload.evidence) {
+    assert.strictEqual(item.sha256, hashes[item.kind]);
+    assert.ok(item.path.startsWith(drive.worker));
+  }
+});
+
+test('judge payload: rework then implement carries report without previous_outcome', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/035-judge-imp';
+  const drive = preparedCommitDrive('bouncer-next-judge-imp-', blueprint);
+  const first = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: first.metadata.attempt, taskBriefHash: first.metadata.task_brief_hash,
+    outcome: 'rework', summary: 'needs another pass',
+  });
+  const redisp = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(redisp.action, 'dispatch');
+  assertJudgePayloadShape(redisp);
+  assert.deepStrictEqual(redisp.payload.report, {
+    outcome: 'rework', summary: 'needs another pass', attempt: 1,
+  });
+  const again = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(again.ok, true);
+  const out = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(out.action, 'implement');
+  assertCardFor(out);
+  assertJudgePayloadShape(out);
+  assert.deepStrictEqual(out.payload.report, {
+    outcome: 'rework', summary: 'needs another pass', attempt: 1,
+  });
+  assert.strictEqual(out.payload.attempt, 2);
+});
+
+test('judge payload: first dispatch and first implement omit report key', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/036-judge-first';
+  const drive = preparedCommitDrive('bouncer-next-judge-first-', blueprint);
+  const dispatch = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(dispatch.action, 'dispatch');
+  assertCardFor(dispatch);
+  assert.ok(!('completed_tasks' in dispatch) && !('decisions' in dispatch) && !('tasks' in dispatch));
+  const dispatchPayload = dispatch.payload || {};
+  assert.strictEqual('report' in dispatchPayload, false);
+  assert.strictEqual('previous_outcome' in dispatchPayload, false);
+  coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  const implement = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(implement.action, 'implement');
+  assert.strictEqual('report' in implement.payload, false);
+  assert.strictEqual('previous_outcome' in implement.payload, false);
+});
+
+test('judge payload: readEvidence null drops that evidence item and keeps ok', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/037-judge-miss';
+  const drive = preparedCommitDrive('bouncer-next-judge-miss-', blueprint);
+  acceptDispatchReport(drive.repo, blueprint, drive.worker, '001');
+  const taskDir = path.join(drive.worker, blueprint, 'tasks', '001');
+  fs.writeFileSync(path.join(taskDir, 'verification.md'), 'verify\n');
+  fs.writeFileSync(path.join(taskDir, 'review.md'), 'review\n');
+  const out = assertNoWrite(drive, () => nextOf(drive, {
+    task: '001',
+    deps: {
+      readEvidence: (filePath) => {
+        // verification만 의도적 miss. 나머지 부재(report.md)도 null로 흡수해
+        // 기본 seam과 같이 throw하지 않는다.
+        if (filePath.endsWith(`${path.sep}verification.md`) || filePath.endsWith('/verification.md')) {
+          return null;
+        }
+        try {
+          const bytes = fs.readFileSync(filePath);
+          return { sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+        } catch (error) {
+          if (error && error.code === 'ENOENT') return null;
+          throw error;
+        }
+      },
+    },
+  }));
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.action, 'record');
+  assertJudgePayloadShape(out);
+  assert.ok(!out.payload.evidence.some((e) => e.kind === 'verification'));
+  assert.ok(out.payload.evidence.some((e) => e.kind === 'review'));
+});
+
+test('attachJudgeContext: candidates outside workerPath are excluded', () => {
+  const workerPath = path.join(os.tmpdir(), 'bouncer-judge-worker');
+  const outside = path.join(os.tmpdir(), 'bouncer-judge-outside.md');
+  fs.mkdirSync(workerPath, { recursive: true });
+  const inside = path.join(workerPath, 'review.md');
+  fs.writeFileSync(inside, 'inside\n');
+  fs.writeFileSync(outside, 'outside\n');
+  const sha = crypto.createHash('sha256').update('inside\n').digest('hex');
+  const result = attachJudgeContext({
+    ok: true,
+    scope: 'task',
+    action: 'record',
+    cwd: workerPath,
+    judge: { kind: 'record-decision', fields: ['--decision'] },
+    checkpoint: { ledger: { path: '.bouncer/runtime/coordinator.json', sha256: 'a'.repeat(64), revision: null } },
+  }, {
+    lastReport: { outcome: 'accepted', summary: 'ok', attempt: 1 },
+    workerPath,
+    candidates: [
+      { kind: 'review', path: inside },
+      { kind: 'report', path: outside },
+    ],
+    readEvidence: (filePath) => ({
+      sha256: crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'),
+    }),
+  });
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.payload.evidence, [
+    { kind: 'review', path: inside, sha256: sha },
+  ]);
+});
+
+test('judge payload: prepare integrate commit done omit report and evidence', () => {
+  function assertNoJudgeKeys(result, label) {
+    const payload = result.payload || {};
+    assert.strictEqual('report' in payload, false, `${label} report`);
+    assert.strictEqual('evidence' in payload, false, `${label} evidence`);
+    assert.strictEqual('previous_outcome' in payload, false, `${label} previous_outcome`);
+  }
+
+  const prepareBlueprint = '.bouncer/context/epics/088-n/blueprints/038-judge-prep';
+  const repo = uncommittedPlanRepo('bouncer-next-judge-prep-', prepareBlueprint, [
+    ['001', '  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: prepareBlueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepareDrive = {
+    repo, blueprint: prepareBlueprint, integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+  const prepare = assertNoWrite(prepareDrive, () => nextOf(prepareDrive));
+  assert.strictEqual(prepare.action, 'prepare');
+  assertNoJudgeKeys(prepare, 'prepare');
+
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: prepareBlueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  acceptDispatchReport(repo, prepareBlueprint, worker, '001');
+  const recorded = coordinate({
+    command: 'record', repoRoot: repo, blueprint: prepareBlueprint, cwd: worker, task: '001',
+    decision: 'fixture record',
+  });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+  const integrate = assertNoWrite(prepareDrive, () => nextOf(prepareDrive));
+  assert.strictEqual(integrate.action, 'integrate');
+  assertNoJudgeKeys(integrate, 'integrate');
+
+  const commitBlueprint = '.bouncer/context/epics/088-n/blueprints/039-judge-cmt';
+  const commitDrive = preparedCommitDrive('bouncer-next-judge-cmt-', commitBlueprint);
+  coordinate({
+    command: 'dispatch', repoRoot: commitDrive.repo, blueprint: commitBlueprint,
+    cwd: commitDrive.worker, task: '001',
+  });
+  commitInWorker(commitDrive.worker, 'src/a.js', 'a\n', 'feat: a');
+  writeBundle(commitDrive.worker, commitBlueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+  });
+  const commit = assertNoWrite(commitDrive, () => nextOf(commitDrive, { task: '001' }));
+  assert.strictEqual(commit.action, 'commit');
+  assertNoJudgeKeys(commit, 'commit');
+
+  const doneBlueprint = '.bouncer/context/epics/088-n/blueprints/041-judge-done';
+  const doneDrive = preparedCommitDrive('bouncer-next-judge-done-', doneBlueprint);
+  const ledger = loadLedger(doneDrive.ledgerFile);
+  ledger.tasks[0].status = 'integrated';
+  writeLedger(doneDrive.ledgerFile, ledger);
+  const done = assertNoWrite(doneDrive, () => nextOf(doneDrive));
+  assert.strictEqual(done.action, 'done');
+  assertNoJudgeKeys(done, 'done');
+});
+
 test('card: readCard failure is coordinator-card-missing with no checkpoint or action', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/030-card-miss';
   const drive = preparedCommitDrive('bouncer-next-card-miss-', blueprint);
@@ -1008,6 +1238,8 @@ test('card: concatenated cards satisfy the coordinator document rule regexes', (
   assert.match(md, /initial_worktree_state/);
   assert.match(md, /previous_outcome/);
   assert.match(md, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  assert.match(md, /payload\.report/);
+  assert.match(md, /payload\.evidence/);
   assert.match(
     md,
     /(?:before|immediately before)[\s\S]{0,120}(?:implementer|bouncer-implementer)|(?:implementer|bouncer-implementer)[\s\S]{0,80}(?:before|after)[\s\S]{0,40}dispatch|dispatch[\s\S]{0,120}(?:before|then)[\s\S]{0,80}(?:implementer|bouncer-implementer)/i,
@@ -1028,7 +1260,7 @@ test('card: concatenated cards satisfy the coordinator document rule regexes', (
   );
   assert.match(
     md,
-    /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|redispatch|re-?dispatch)/i,
+    /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|payload\.report|redispatch|re-?dispatch)/i,
   );
   // test/agents.test.js — Task round (heading assertion excluded)
   assert.doesNotMatch(md, /skills\/bouncer-execute\/SKILL\.md/);

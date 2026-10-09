@@ -242,6 +242,9 @@ test('coordinator Markdown and generated Codex TOML share the checkpoint ledger 
     '--ledger-path <checkpoint.ledger.path>',
     '--ledger-hash <checkpoint.ledger.sha256>',
     'coordinate status',
+    'coordinate advance',
+    'payload.evidence',
+    'payload.report',
   ]) {
     assert.ok(md.includes(needle), `coordinator md missing: ${needle}`);
     assert.ok(generated.includes(needle), `generated toml missing: ${needle}`);
