@@ -59,5 +59,6 @@ limits.
    named ones. Otherwise ignore this item.
 
 No workflow may add another provider setting or a subagent helper while applying this
-contract. Light and `/bouncer-run` exceptions remain with the execute workflow,
-not with this shared model rule.
+contract. Light and `/bouncer-run` exceptions remain with the execute workflow
+and `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`, not with this
+shared model rule.

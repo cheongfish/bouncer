@@ -330,7 +330,7 @@ const SKILL_LOCAL_REFS = {
     'draft-pr.md',
     'cleanup-handoff.md',
   ],
-  'bouncer-run': [],
+  'bouncer-run': ['light-run.md'],
 };
 
 test('workflow skills classify references as root or skill-local without bare collision', () => {

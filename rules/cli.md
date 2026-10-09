@@ -105,6 +105,8 @@ bouncer config --help
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
+  # light scale → strategy single / perspectives [combined] (diff size ignored);
+  # non-empty review_risk still appends security
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```

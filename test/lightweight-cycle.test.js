@@ -134,19 +134,39 @@ test('plan execute and run keep declaration-driven light routing', () => {
   assert.match(plan, /do not auto-judge/);
   assert.match(plan, /Skip this entire step when the blueprint's\n\s*`bouncer\.scale` is `light`/);
   assert.match(exec, /When the pointer \(`bouncer current`\) `scale` is `light`/);
-  assert.match(run, /do not use execute's inline branch during a drive/);
+  // light 원장은 coordinator가 아니라 light-run reference 절차다.
+  assert.match(run, /light-run\.md|references\/light-run/);
 });
 
-// light는 execute 안의 인라인 분기일 뿐 드라이브 형태를 바꾸지 않는다.
-// 별도 execution_mode opt-in을 만들면 두 실행 경로가 갈라진다.
-test('a light blueprint still runs through the coordinator inside a drive', () => {
+// light 원장은 run 세션이 light-run.md를 따르고, full만 예전 drive 예외를 유지한다.
+// 별도 execution_mode 문자열을 도입하면 두 실행 경로가 갈라진다.
+test('a light ledger drive follows light-run without coordinator', () => {
+  const lightRun = read('skills/bouncer-run/references/light-run.md');
   const run = read('skills/bouncer-run/SKILL.md');
   const exec = readWorkflowBundle('bouncer-execute');
+  assert.match(lightRun, /payload\.inline|inline:\s*`?true`?/i);
+  assert.match(lightRun, /bouncer-reviewer/);
+  assert.match(lightRun, /review-dispatch execute/);
+  assert.match(
+    lightRun,
+    /(?:do not|must not|금지|never).{0,80}(?:approv|승인|self.?review|자기).{0,40}(?:diff|변경)|구현 세션이 reviewer/i,
+  );
+  assert.match(
+    lightRun,
+    /security|out-of-scope|범위 밖|task.?split|interface|위험 신호/i,
+  );
+  assert.match(run, /light-run\.md|references\/light-run/);
+  // full 경로에만 coordinator·named orchestration 예외가 남는다.
   assert.match(run, /named `bouncer-coordinator`/);
-  assert.match(run, /Even when the blueprint was declared light,\s*\n?\s*do not use execute's inline branch during a drive/);
-  assert.match(exec, /`\/bouncer-run` always retains the named orchestration boundary/);
-  // 위임은 blueprint 선언이 아니라 /bouncer-run 진입으로 정해진다.
-  for (const md of [run, exec]) {
+  assert.match(
+    run,
+    /(?:full|scale:\s*`?full`?)[\s\S]{0,200}(?:coordinator|do not use execute's inline)|(?:When|For)\s+(?:a\s+)?(?:`?full`?|non-light)/i,
+  );
+  assert.match(
+    exec,
+    /(?:full|scale:\s*`?full`?)[\s\S]{0,240}(?:named orchestration|named dispatch)|`\/bouncer-run`[\s\S]{0,80}(?:full|named)/i,
+  );
+  for (const md of [run, exec, lightRun]) {
     assert.doesNotMatch(md, /execution_mode/);
   }
 });

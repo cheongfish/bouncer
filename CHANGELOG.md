@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **light run 경로** — light 원장(`mode: light`)이면 `/bouncer-run`이
+  coordinator 대신 `skills/bouncer-run/references/light-run.md`를 따른다.
+  run 세션이 `payload.inline`으로 구현하고 named `bouncer-reviewer` 한 세션이
+  사양·범위·정확성·회귀·테스트·위험 변경을 함께 본다. `review-dispatch
+  execute`는 blueprint `scale: light`이면 diff 크기와 무관하게
+  `single`/`combined`를 낸다. full 경로는 coordinator와 named orchestration
+  예외를 유지한다.
+
 ### Added
 
 - **`coordinate` light 원장 모드** — `bouncer.scale: light`이고 의존 없는 commit

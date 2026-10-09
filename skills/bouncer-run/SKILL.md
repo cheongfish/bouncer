@@ -21,22 +21,27 @@ scope, or ACQ.
 
 ## Role — delegation
 
-The drive has one controller, and after the start ACQ it is the coordinator, not
-this session. This session resolves the pointer, bootstraps the integration
-worktree, dispatches one `bouncer-coordinator` at a time, and on `continue`
-re-dispatches. It
-does not read and fix code directly, does not run `implementation`, `review`, or
-`debugging` inline, and does not reconstruct a worker's judgment from the diff —
-the coordinator already judged it. Even when the blueprint was declared light,
-do not use execute's inline branch during a drive.
+When the ledger is light (`mode: light` / pointer `scale` is `light`), this
+session owns the drive: implement via `payload.inline` and dispatch one named
+`bouncer-reviewer`. Do not dispatch `bouncer-coordinator`. The light-run
+procedure is loaded in step 1 after preflight confirms light.
+
+For a **full** ledger the drive has one controller, and after the start ACQ it
+is the coordinator, not this session. This session resolves the pointer,
+bootstraps the integration worktree, dispatches one `bouncer-coordinator` at a
+time, and on `continue` re-dispatches. It does not read and fix code directly,
+does not run `implementation`, `review`, or `debugging` inline, and does not
+reconstruct a worker's judgment from the diff — the coordinator already judged
+it. On a full drive, do not use execute's inline branch.
 
 Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
 dispatch, and coordinator output fields belong to
 `${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — do not repeat them here.
-For every commit task, the coordinator must require its implementer to read
-`${BOUNCER_ROOT}/references/implementation/index.md` before editing code. That
-reference's Korean docstring contract (Summary, Args, Returns) is mandatory;
-this root session still does not load it or implement inline.
+For every commit task on a full drive, the coordinator must require its
+implementer to read `${BOUNCER_ROOT}/references/implementation/index.md`
+before editing code. That reference's Korean docstring contract (Summary, Args,
+Returns) is mandatory; the full-path root session still does not load it or
+implement inline.
 
 For an in-blueprint blocker, the delegated coordinator is the autonomous
 decision-maker. It decides and executes the smallest scoped remediation —
@@ -73,10 +78,12 @@ stay on the execute round.
    `affected_paths`), DAG, and
    reporting cadence. Follow its status and `delegable` result; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
-   pointer return values. When nothing to delegate, tell the
-   user to run `/bouncer-finalize` themselves and stop. Finalize consent stays
-   with the user; this session and the coordinator never run `/bouncer-finalize`
-   or any part of it.
+   pointer return values. When the ledger / pointer `scale` is `light`, read
+   [light-run.md](./references/light-run.md) and follow that procedure for the
+   rest of the drive instead of coordinator dispatch. When nothing to delegate,
+   tell the user to run `/bouncer-finalize` themselves and stop. Finalize
+   consent stays with the user; this session and the coordinator never run
+   `/bouncer-finalize` or any part of it.
 
 2. **Start ACQ.** Show the blueprint, the remaining tasks with their
    `affected_paths`, and the DAG those `depends_on` edges form, then ask whether
