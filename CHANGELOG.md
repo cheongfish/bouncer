@@ -19,6 +19,14 @@
 
 ### Added
 
+- **`coordinate repair --kind supplement`** — 최종 리뷰의 범위 내 테스트 근거
+  보완 finding을 새 task·repair wave·`terminalFailure` 없이 제자리에서 닫는다.
+  테스트 경로이고 integrated task의 `affected_paths` 안이며 delta 라운드가 아직
+  없을 때만 접수하고(`supplement-paths-not-tests`, `repair-scope-out-of-bounds`,
+  `supplement-delta-used`), `--done`이 변경 경로와 관련 verify를 확인해
+  `verified`로 올린다. `coordinate next`는 `supplement` 행동과 카드를 내고,
+  `verified` 뒤에는 `final_review`를 `payload.mode: delta`로 낸다. 제품 동작
+  수정·새 의존성·공개 인터페이스는 기존 repair/`blocked` 경로 그대로다.
 - **`coordinate promote-stop`** — light 원장에서 위험 신호 시
   `status: promotion_stopped`와 `promotion` 스냅샷(reason·summary·task·
   `diff_sha`·증적 id)을 기록한다. reason은 `security-risk`·`out-of-scope`·

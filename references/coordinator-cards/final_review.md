@@ -35,12 +35,26 @@ review and Procedure step 6 (Close).
   `head`), `task_brief_hashes` (commit task id → brief hash),
   `intent_bundles` (commit task id → `{ id, revision }`), and each
   perspective's `target_head`.
-- When must_fix remains, open one repair with `bouncer coordinate repair …
-  --review-finding <id>` (repeat the flag per finding) so one repair task
-  fixes every must_fix. Re-run the terminal verification, then freeze the same
-  `base` and the post-repair integration HEAD and call `review-dispatch` once
-  for delta — do not reopen discovery. Fail-closed compares against that
+- Classify every open finding into one of three before acting, in this order:
+  `blocked` (needs a new product decision, dependency, or public interface),
+  `supplement` (an in-scope gap in test evidence that current product behavior
+  already satisfies, fixable by changing test paths only), or a `must_fix`
+  repair (everything else that changes product behavior). The CLI does not
+  classify; you declare it, and it only checks the path conditions.
+- When a `must_fix` repair remains, open one repair with `bouncer coordinate
+  repair … --review-finding <id>` (repeat the flag per finding) so one repair
+  task fixes every must_fix. Re-run the terminal verification, then freeze the
+  same `base` and the post-repair integration HEAD and call `review-dispatch`
+  once for delta — do not reopen discovery. Fail-closed compares against that
   round's frozen target.
+- When every open finding is a `supplement`, run `bouncer coordinate repair
+  --kind supplement --review-finding <id> … --summary <text> --paths
+  <test-path>` instead: no new task, no repair wave, no `terminalFailure`.
+  `next` then returns `supplement` (follow that card) and, once verified,
+  `final_review` with `payload.mode: delta`; run that one delta round. If
+  `supplement-paths-not-tests`, `repair-scope-out-of-bounds`, or
+  `supplement-delta-used` refuses it, take the repair path above or `blocked`.
+  Mixed findings take the repair path for all of them.
 - If repair returns `repair-wave-limit`, put the open must_fix findings in the
   Blocked report, end `blocked`, and do not record the review `accepted`. A
   finding that needs a new product decision, dependency, or public interface
@@ -81,7 +95,8 @@ Repair wave order:
 
 1. Discovery round: record a must_fix not yet fixed as `open` and the document
    `--status requested`.
-2. Fix: on the blueprint path open `coordinate repair --review-finding <id>`.
+2. Fix: on the blueprint path open `coordinate repair --review-finding <id>`,
+   or `coordinate repair --kind supplement` for a test-evidence-only gap.
 3. Delta round: send that finding again with every field, `status: resolved`,
    `last_seen_round` of the new round, and `--status accepted`.
 

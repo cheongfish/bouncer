@@ -41,6 +41,8 @@ type JudgeContext = {
 };
 type Ledger = {
   status?: string; base?: string; integrationHead?: string; fanin?: unknown;
+  // supplement 결정만 읽는다. 나머지 kind는 이 파일이 모른다.
+  decisions?: Array<{ kind?: string; outcome?: string; paths?: string[]; findings?: string[] }>;
   terminalFailure?: { task?: string }; tasks: LedgerTask[];
   revision?: string | null;
   // 부재는 full. light일 때만 implement payload.inline을 켠다.
@@ -52,7 +54,8 @@ type Judge = { kind: string; fields: string[]; allowed?: string[] };
 // argv만 실행하면 끝나는 prepare·drive_tasks·integrate·verification_node·commit·done·none은
 // 카드가 없다 — 응답을 키우지 않고, 그 행동의 규칙은 argv 자체가 담는다.
 const CARD_IDS = [
-  'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'blocked',
+  'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'supplement',
+  'blocked',
 ] as const;
 type CardId = typeof CARD_IDS[number];
 type Card = { id: CardId; body: string };
@@ -578,8 +581,19 @@ function blueprintNext(ctx: {
         ? ledger.integrationHead
         : git(exec, integrationCwd, ['rev-parse', 'HEAD']);
       const base = typeof ledger.base === 'string' ? ledger.base : head;
+      // 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가 테스트를
+      // 보완해야 하고, verified면 보완 뒤의 한 번뿐인 delta 라운드로 간다.
+      const supplement = [...(ledger.decisions || [])].reverse()
+        .find((entry) => entry && entry.kind === 'supplement');
+      if (supplement && supplement.outcome === 'pending') {
+        return ok({
+          scope: 'blueprint', action: 'supplement', cwd: integrationCwd,
+          payload: { paths: supplement.paths || [], findings: supplement.findings || [] },
+        });
+      }
       return ok({
         scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
+        ...(supplement && supplement.outcome === 'verified' ? { payload: { mode: 'delta' } } : {}),
         argv: [
           'bouncer', 'review-dispatch', 'execute', '--blueprint', blueprint,
           '--base', base, '--head', head,

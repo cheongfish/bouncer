@@ -3389,3 +3389,150 @@ test('promotion_stopped refuses prepare dispatch report record integrate', () =>
     assert.strictEqual(after.reason, 'promotion-stopped', command);
   }
 });
+
+// --- coordinate repair --kind supplement -----------------------------------
+// 범위 내 테스트 보완은 새 task·repair wave 없이 제자리에서 닫는다. 아래 fixture는
+// 모든 task가 integrated이고 테스트 경로가 affected_paths 안에 있는 integration이다.
+function supplementDrive(prefix, blueprint) {
+  const repo = uncommittedPlanRepo(prefix, blueprint, [
+    ['001', '  depends_on: []\n  affected_paths:\n    - test/a.test.js\n    - src/a.js\n  verify: node --test\n'],
+    ['002', '  depends_on: [TASKS-001]\n  affected_paths:\n    - test/a.test.js\n  verify: node --test\n'],
+  ]);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  return { repo, blueprint, integrationPath: boot.integrationPath, ledgerFile };
+}
+
+function supplementOpts(drive, extra = {}) {
+  return {
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
+    kind: 'supplement', reviewFindings: ['F1'], summary: 'missing test evidence',
+    paths: ['test/a.test.js'], decision: 'add the missing test',
+    ...extra,
+  };
+}
+
+function writeRootReview(drive, modes) {
+  const rounds = modes.map((mode, index) => `      - round: ${index + 1}\n        mode: ${mode}\n`).join('');
+  fs.writeFileSync(
+    path.join(drive.integrationPath, drive.blueprint, 'review.md'),
+    `---\nbouncer:\n  status: requested\n  review:\n    rounds:\n${rounds}---\n# Review\n`,
+  );
+}
+
+function readLedger(drive) {
+  return JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+}
+
+test('supplement repair is accepted without a new task, wave or terminalFailure', () => {
+  const drive = supplementDrive('bouncer-supp-ok-', '.bouncer/context/epics/090-x/blueprints/001-y');
+  const before = readLedger(drive);
+  const out = coordinate(supplementOpts(drive));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(out.kind, 'supplement');
+  assert.deepStrictEqual(out.paths, ['test/a.test.js']);
+  const ledger = readLedger(drive);
+  assert.strictEqual(ledger.tasks.length, before.tasks.length);
+  assert.strictEqual(ledger.repairWaves?.length ?? 0, before.repairWaves?.length ?? 0);
+  assert.strictEqual(ledger.terminalFailure, undefined);
+  assert.deepStrictEqual(ledger.decisions.at(-1), {
+    kind: 'supplement', outcome: 'pending', paths: ['test/a.test.js'], findings: ['F1'],
+  });
+});
+
+test('supplement repair is accepted after both repair waves are used', () => {
+  const drive = supplementDrive('bouncer-supp-waves-', '.bouncer/context/epics/090-x/blueprints/002-y');
+  const ledger = readLedger(drive);
+  ledger.repairWaves = [{ wave: 1 }, { wave: 2 }];
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const out = coordinate(supplementOpts(drive));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(readLedger(drive).repairWaves.length, 2);
+  // 기존 경로는 여전히 wave 한도로 막힌다.
+  const product = coordinate({ ...supplementOpts(drive), kind: undefined, paths: ['src/a.js'] });
+  assert.strictEqual(product.reason, 'repair-wave-limit');
+});
+
+test('supplement repair rejections name the reason and leave the ledger untouched', () => {
+  const drive = supplementDrive('bouncer-supp-reject-', '.bouncer/context/epics/090-x/blueprints/003-y');
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const reasonOf = (extra) => coordinate(supplementOpts(drive, extra)).reason;
+  assert.strictEqual(reasonOf({ paths: ['src/a.js'] }), 'supplement-paths-not-tests');
+  assert.strictEqual(reasonOf({ paths: ['test/fixtures/x.js'] }), 'supplement-paths-not-tests');
+  assert.strictEqual(reasonOf({ paths: ['test/other.test.js'] }), 'repair-scope-out-of-bounds');
+  assert.strictEqual(reasonOf({ paths: ['../x.test.js'] }), 'repair-scope-out-of-bounds');
+  assert.strictEqual(reasonOf({ failureCommand: 'npm test' }), 'repair-cause-ambiguous');
+  assert.strictEqual(reasonOf({ reviewFindings: [] }), 'failure-evidence-required');
+  assert.strictEqual(reasonOf({ done: true, reviewFindings: undefined, summary: 'x' }), 'supplement-not-pending');
+  writeRootReview(drive, ['discovery', 'delta']);
+  assert.strictEqual(reasonOf({}), 'supplement-delta-used');
+  fs.rmSync(path.join(drive.integrationPath, drive.blueprint, 'review.md'));
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+
+  const ledger = readLedger(drive);
+  ledger.tasks[1].status = 'prepared';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.strictEqual(reasonOf({}), 'review-repair-requires-integrated');
+});
+
+test('supplement --done verifies once per distinct verify command and marks the decision verified', () => {
+  const drive = supplementDrive('bouncer-supp-done-', '.bouncer/context/epics/090-x/blueprints/004-y');
+  assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
+  fs.mkdirSync(path.join(drive.integrationPath, 'test'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'test/a.test.js'), '// supplement\n');
+  const calls = [];
+  const out = coordinate(supplementOpts(drive, {
+    done: true, reviewFindings: undefined, summary: 'tests added',
+    deps: {
+      runVerification: (args) => {
+        calls.push(args.taskId);
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'b'.repeat(64) };
+      },
+    },
+  }));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  // 001·002가 같은 verify를 선언하므로 한 번만 돈다.
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(readLedger(drive).decisions.at(-1).outcome, 'verified');
+});
+
+test('supplement --done keeps the decision pending when verification fails or paths exceed', () => {
+  const drive = supplementDrive('bouncer-supp-fail-', '.bouncer/context/epics/090-x/blueprints/005-y');
+  assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
+  const doneOpts = (deps) => supplementOpts(drive, {
+    done: true, reviewFindings: undefined, summary: 'tests added', deps,
+  });
+  fs.mkdirSync(path.join(drive.integrationPath, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), '// product edit\n');
+  const exceeded = coordinate(doneOpts({
+    runVerification: () => { throw new Error('must not run'); },
+  }));
+  assert.strictEqual(exceeded.reason, 'supplement-paths-exceeded');
+  fs.rmSync(path.join(drive.integrationPath, 'src/a.js'));
+  fs.rmdirSync(path.join(drive.integrationPath, 'src'));
+
+  fs.mkdirSync(path.join(drive.integrationPath, 'test'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'test/a.test.js'), '// supplement\n');
+  const failed = coordinate(doneOpts({
+    runVerification: () => ({ ok: false, command: 'node --test', exitCode: 1 }),
+  }));
+  assert.strictEqual(failed.reason, 'supplement-verify-failed');
+  assert.strictEqual(readLedger(drive).decisions.at(-1).outcome, 'pending');
+});
+
+test('repair without --kind or with kind product keeps the wave-consuming path', () => {
+  const drive = supplementDrive('bouncer-supp-product-', '.bouncer/context/epics/090-x/blueprints/006-y');
+  const out = coordinate(supplementOpts(drive, { kind: 'product', paths: ['test/a.test.js'] }));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(out.wave, 1);
+  assert.ok(out.repairTask);
+  assert.strictEqual(readLedger(drive).repairWaves.length, 1);
+  assert.ok(readLedger(drive).terminalFailure);
+});

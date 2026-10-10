@@ -935,3 +935,21 @@ test('drive role Hard guards forbid re-reading documents already in context', ()
     assert.doesNotMatch(md, /(?:do not|never) (?:Read|open) (?:this|your) role document\b(?![^.]*already)/i);
   }
 });
+
+// supplement 분기는 카드·coordinator 본문·execute reference가 같은 세 분류를 말한다.
+test('supplement classification is stated in the cards, coordinator doc and review-round reference', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const ref = fs.readFileSync(
+    path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8',
+  );
+  const final = coordinatorCard('final_review');
+  const card = coordinatorCard('supplement');
+  assert.match(final, /`blocked`[\s\S]{0,400}`supplement`[\s\S]{0,400}`must_fix` repair/);
+  assert.match(final, /--kind supplement/);
+  assert.match(final, /classify; you declare it/);
+  assert.match(md, /--kind\s+supplement/);
+  assert.match(ref, /--kind\s+supplement/);
+  assert.match(card, /payload\.mode:\s+delta/);
+  assert.match(card, /supplement-delta-used/);
+  assert.match(card, /product defect[\s\S]{0,200}`blocked`/);
+});

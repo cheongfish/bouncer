@@ -431,7 +431,14 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
       + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Open a repair task from final-review must_fix findings (omit --task\n'
-      + '             when the blueprint has no terminal verification).\n',
+      + '             when the blueprint has no terminal verification).\n'
+      + '  coordinate repair --blueprint <dir> --kind supplement --review-finding <id>\n'
+      + '             [--review-finding <id>]... --summary <text> --paths <test-path>\n'
+      + '             --ledger-path <path> --ledger-hash <sha256>\n'
+      + '             Accept an in-scope test-evidence gap in place (no new task or wave).\n'
+      + '  coordinate repair --blueprint <dir> --kind supplement --done --summary <text>\n'
+      + '             --ledger-path <path> --ledger-hash <sha256>\n'
+      + '             Verify the finished supplement; then run the one delta review.\n',
     help: `usage: bouncer coordinate repair
   --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
   --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
@@ -440,6 +447,13 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   --summary <text> --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Open a repair task from final-review must_fix findings (omit --task
   when the blueprint has no terminal verification).
+  --kind <product|supplement> (default product, the forms above)
+  --blueprint <dir> --kind supplement --review-finding <id> [--review-finding <id>]...
+  --summary <text> --paths <test-path> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Accept an in-scope test-evidence gap in place: no new task, no repair wave.
+  --blueprint <dir> --kind supplement --done --summary <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Verify the finished supplement; the next final review is the one delta round.
+  Product-behavior fixes, new dependencies, and public interfaces are not supplements.
 `,
   },
   'partial-close': {
@@ -483,10 +497,10 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
     help: `usage: bouncer coordinate next
   --blueprint <dir> [--task <ddd>] [--repo <dir>]
   Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
-  Blueprint actions: prepare, drive_tasks, integrate, verification_node, final_review, done, blocked
+  Blueprint actions: prepare, drive_tasks, integrate, verification_node, supplement, final_review, done, blocked
   Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
   Response fields: action, cwd, argv, judge, task_ids, payload, card, checkpoint
-  card { id, body } only on: dispatch, implement, verify, review, report, revise, record, final_review, blocked
+  card {id,body} only on: dispatch, implement, verify, review, report, revise, record, supplement, final_review, blocked
 `,
   },
   advance: {
@@ -700,6 +714,28 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       return failCoordinateUsage(io, 'coordinate report: --summary is required\n', command);
     }
   }
+  // --kind/--done은 repair 전용이다. 값이 잘못되면 core로 넘기지 않고 usage(2)로 끝내
+  // 오타가 조용히 기존 wave 소모 경로(product)로 접히지 않게 한다.
+  let repairKind: string | undefined;
+  let repairDone = false;
+  if (command === 'repair') {
+    if (Object.prototype.hasOwnProperty.call(f, 'kind')) {
+      if (f.kind !== 'product' && f.kind !== 'supplement') {
+        return failCoordinateUsage(
+          io, 'coordinate repair: --kind must be product or supplement\n', command,
+        );
+      }
+      repairKind = f.kind;
+    }
+    if (Object.prototype.hasOwnProperty.call(f, 'done')) {
+      if (f.done !== true || repairKind !== 'supplement') {
+        return failCoordinateUsage(
+          io, 'coordinate repair: --done is a flag accepted only with --kind supplement\n', command,
+        );
+      }
+      repairDone = true;
+    }
+  }
   if (command === 'revoke') {
     if (typeof f.task !== 'string' || f.task === '') {
       return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
@@ -847,6 +883,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       paths: collectPathValues(rest.slice(1)),
       findings: collectFindingValues(rest.slice(1)),
       reviewFindings: collectReviewFindingValues(rest.slice(1)),
+      kind: repairKind,
+      done: repairDone,
       outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
       reason: typeof f.reason === 'string' ? f.reason : undefined,
       attempt: attemptNum,
