@@ -327,21 +327,27 @@ function extractSymbols(diffText: string): Array<{ path: string; names: string[]
  *   내림차순 최대 30개(바이너리는 `-`를 0/0으로 접는다). git 실패면 null
  */
 function collectDiffSummary(exec: GitExec, base: string, head: string): DiffSummary | null {
-  const result = exec(['diff', '--numstat', `${base}..${head}`]);
+  // --no-renames: 이름 변경 행(`old => new`·3필드 NUL 레코드)을 없애 삭제+추가로 접는다.
+  // -z: 경로를 C-quote(\\355...)하지 않고 NUL로 구분해 비ASCII 경로를 원문 그대로 받는다.
+  const result = exec(['diff', '--numstat', '--no-renames', '-z', `${base}..${head}`]);
   if (result.status !== 0) return null;
   const rows: Array<{ path: string; added: number; deleted: number }> = [];
   let insertions = 0;
   let deletions = 0;
-  for (const line of result.stdout.split('\n')) {
-    if (!line.trim()) continue;
-    const parts = line.split('\t');
+  for (const record of result.stdout.split('\0')) {
+    if (!record.trim()) continue;
+    const parts = record.split('\t');
     if (parts.length < 3) continue;
+    // 계획 문서(.bouncer/context/)는 changed_paths·extractSymbols와 같은 규칙으로 제외해
+    // diff.files가 changed_paths와 맞고 소스 파일이 per_file에서 밀리지 않게 한다.
+    const rowPath = toPosix(parts.slice(2).join('\t'));
+    if (rowPath.startsWith(CONTEXT_EXCLUDED)) continue;
     // 바이너리 파일은 두 열이 '-'라 숫자가 아니다 — 0으로 접는다.
     const added = /^\d+$/.test(parts[0]) ? Number(parts[0]) : 0;
     const deleted = /^\d+$/.test(parts[1]) ? Number(parts[1]) : 0;
     insertions += added;
     deletions += deleted;
-    rows.push({ path: toPosix(parts.slice(2).join('\t')), added, deleted });
+    rows.push({ path: rowPath, added, deleted });
   }
   // sort는 안정 정렬이라 동률은 git 출력(경로) 순서를 유지한다.
   const perFile = rows

@@ -726,7 +726,7 @@ test('digest v2 carries diff summary from numstat, sorted, capped, binary as 0/0
   const stubbed = prepareFinalizeDigest({
     repoRoot,
     blueprintDir,
-    exec: execWithNumstatStub(repoRoot, { status: 0, stdout: `${rows.join('\n')}\n` }),
+    exec: execWithNumstatStub(repoRoot, { status: 0, stdout: `${rows.join('\0')}\0` }),
   });
   assert.strictEqual(stubbed.ok, true, JSON.stringify(stubbed));
   assert.deepStrictEqual(stubbed.diff.per_file[0], { path: 'a.ts', added: 12, deleted: 3 });
@@ -740,9 +740,41 @@ test('digest v2 carries diff summary from numstat, sorted, capped, binary as 0/0
   const binaryOnly = prepareFinalizeDigest({
     repoRoot,
     blueprintDir,
-    exec: execWithNumstatStub(repoRoot, { status: 0, stdout: '-\t-\timg.png\n' }),
+    exec: execWithNumstatStub(repoRoot, { status: 0, stdout: '-\t-\timg.png\0' }),
   });
   assert.deepStrictEqual(binaryOnly.diff.per_file, [{ path: 'img.png', added: 0, deleted: 0 }]);
+});
+
+test('digest diff skips .bouncer/context rows and passes --no-renames/-z for raw paths', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  let seen = null;
+  const stub = execWithNumstatStub(repoRoot, {
+    status: 0,
+    stdout: [
+      '5\t1\t.bouncer/context/epics/x/review.md',
+      '9\t9\t.bouncer/context/epics/x/tasks.md',
+      '2\t1\tsrc/한글 파일.ts',
+      '1\t0\tsrc/new-name.ts',
+    ].join('\0') + '\0',
+  });
+  const d = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: (args) => {
+      if (args.includes('--numstat')) seen = args;
+      return stub(args);
+    },
+  });
+  assert.ok(seen.includes('--no-renames') && seen.includes('-z'), JSON.stringify(seen));
+  assert.deepStrictEqual(d.diff, {
+    files: 2,
+    insertions: 3,
+    deletions: 1,
+    per_file: [
+      { path: 'src/한글 파일.ts', added: 2, deleted: 1 },
+      { path: 'src/new-name.ts', added: 1, deleted: 0 },
+    ],
+  });
 });
 
 test('digest diff is null with diff-summary-unavailable when numstat fails', () => {
