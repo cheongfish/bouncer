@@ -1773,3 +1773,230 @@ test('without review_scope, root review.md survives closed transition', () => {
   assert.strictEqual(res.ok, true, JSON.stringify(res));
   assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/review.md`)), true);
 });
+
+// ---- 마감 검증 의존성 준비 (090/003) ----
+// finalize --yes는 integration checkout에서 검증하므로, git worktree가 가져오지 않는
+// node_modules를 검증 직전에 채워야 한다. 아래 fixture는 실제 package-lock 파일과
+// dependencyExec spy로 설치 호출 여부·순서·옵션을 고정한다.
+
+const NPM_CI_ARGV = ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'];
+
+function writeLockfile(repo, { marker = false } = {}) {
+  fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
+  if (marker) {
+    fs.mkdirSync(path.join(repo, 'node_modules'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'node_modules/.package-lock.json'), '{}\n');
+  }
+}
+
+function recordingDependencyExec(log, { fail = null, output = 'npm-capture-noise' } = {}) {
+  const fn = (file, argv, options) => {
+    fn.calls.push({ file, argv, options });
+    log.push('install');
+    if (fail) throw new Error(fail);
+    return Buffer.from(output);
+  };
+  fn.calls = [];
+  return fn;
+}
+
+function recordingVerify(log, result = { ok: true, exitCode: 0, output: '' }) {
+  const fn = () => {
+    fn.calls += 1;
+    log.push('verify');
+    return result;
+  };
+  fn.calls = 0;
+  return fn;
+}
+
+function snapshotDocs(repo) {
+  const rels = [
+    `${BP_REL}/index.md`,
+    `${BP_REL}/explain.md`,
+    `${BP_REL}/context-review.md`,
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+    `${BP_REL}/tasks/001/review.md`,
+  ];
+  return Object.fromEntries(rels.map((rel) => [rel, fs.readFileSync(path.join(repo, rel))]));
+}
+
+test('fresh lockfile installs once in repoRoot before verify with captured stdio', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeLockfile(repo);
+  const log = [];
+  const dependencyExec = recordingDependencyExec(log);
+  const verifyExec = recordingVerify(log);
+  const cleared = [];
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
+    clearPointer: (args) => { cleared.push(args.repoRoot); return true; },
+    verifyExec, dependencyExec,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(res.committed, true);
+  assert.deepStrictEqual(log, ['install', 'verify']);
+  assert.strictEqual(dependencyExec.calls.length, 1);
+  assert.deepStrictEqual(dependencyExec.calls[0], {
+    file: 'npm',
+    argv: NPM_CI_ARGV,
+    options: { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] },
+  });
+  // 검증 성공 뒤의 기존 닫힘·pointer 해제 계약은 그대로다.
+  assert.strictEqual(res.closed, `${BP_REL}/index.md`);
+  assert.deepStrictEqual(cleared, [repo]);
+  assert.strictEqual(g.calls.committed, finalizeMessage());
+  // capture한 npm 출력은 CLI가 JSON으로 직렬화하는 결과에 섞이지 않는다.
+  assert.ok(!JSON.stringify(res).includes('npm-capture-noise'));
+});
+
+test('missing lockfile or existing marker skips dependency install', () => {
+  for (const setup of ['no-lockfile', 'marker']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    fullBlueprint(repo);
+    if (setup === 'marker') writeLockfile(repo, { marker: true });
+    const log = [];
+    const dependencyExec = recordingDependencyExec(log);
+    const res = finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+      clearPointer: () => true, verifyExec: recordingVerify(log), dependencyExec,
+    });
+    assert.strictEqual(res.ok, true, `${setup}: ${JSON.stringify(res)}`);
+    assert.strictEqual(dependencyExec.calls.length, 0, setup);
+    assert.deepStrictEqual(log, ['verify'], setup);
+  }
+});
+
+test('dry-run, config error, gate refusal, scope refusal, and empty close never install', () => {
+  const cases = {
+    'dry-run': () => ({ yes: false, git: fakeGit(['src/auth/login.ts'], []).api }),
+    'config-missing': (repo) => {
+      fs.unlinkSync(path.join(repo, '.bouncer/config.json'));
+      return { yes: true, git: fakeGit(['src/auth/login.ts'], []).api };
+    },
+    'config-malformed': (repo) => {
+      fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{not json');
+      return { yes: true, git: fakeGit(['src/auth/login.ts'], []).api };
+    },
+    'out-of-scope': () => ({
+      yes: true, git: fakeGit(['src/payments/charge.ts'], []).api,
+    }),
+  };
+  for (const [name, arrange] of Object.entries(cases)) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    fullBlueprint(repo);
+    writeLockfile(repo);
+    const opts = arrange(repo);
+    const log = [];
+    const dependencyExec = recordingDependencyExec(log);
+    const res = finalize({
+      repoRoot: repo, blueprintDir: BP_REL, ...opts,
+      clearPointer: () => true, verifyExec: recordingVerify(log), dependencyExec,
+    });
+    assert.strictEqual(dependencyExec.calls.length, 0, `${name}: ${JSON.stringify(res)}`);
+    assert.deepStrictEqual(log, [], name);
+  }
+
+  // gate 거부: G16(이해 확인 누락)으로 validate에서 멈춘다.
+  const gateRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(gateRepo, { comprehensionOk: false });
+  writeLockfile(gateRepo);
+  const gateExec = recordingDependencyExec([]);
+  const gate = finalize({
+    repoRoot: gateRepo, blueprintDir: BP_REL, yes: true,
+    git: fakeGit(['src/auth/login.ts'], []).api, verifyExec: passVerify, dependencyExec: gateExec,
+  });
+  assert.strictEqual(gate.reason, 'validate');
+  assert.strictEqual(gateExec.calls.length, 0);
+
+  // 빈 종료: 첫 실행이 잠근 뒤 lockfile을 추가하고 다시 부르면 stage 대상이 없다.
+  const emptyRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(emptyRepo);
+  const first = finalize({
+    repoRoot: emptyRepo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api,
+    clearPointer: () => true, verifyExec: passVerify,
+  });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  writeLockfile(emptyRepo);
+  const emptyLog = [];
+  const emptyExec = recordingDependencyExec(emptyLog);
+  const empty = finalize({
+    repoRoot: emptyRepo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api,
+    clearPointer: () => true, verifyExec: recordingVerify(emptyLog), dependencyExec: emptyExec,
+  });
+  assert.strictEqual(empty.ok, true);
+  assert.strictEqual(empty.committed, false);
+  assert.strictEqual(emptyExec.calls.length, 0);
+  assert.deepStrictEqual(emptyLog, []);
+});
+
+test('dependency install failure returns DEPENDENCY_INSTALL_FAILED and preserves docs', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  writeLockfile(repo);
+  const before = snapshotDocs(repo);
+  const log = [];
+  const dependencyExec = recordingDependencyExec(log, { fail: 'npm ci exploded: ERESOLVE' });
+  const verifyExec = recordingVerify(log);
+  let clearCalls = 0;
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const dry = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
+    clearPointer: () => { clearCalls += 1; return true; },
+    verifyExec, dependencyExec,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'dependency-install-failed');
+  assert.strictEqual(res.code, 'DEPENDENCY_INSTALL_FAILED');
+  assert.strictEqual(typeof res.cause, 'string');
+  assert.match(res.cause, /npm ci exploded: ERESOLVE/);
+  assert.strictEqual(typeof res.next, 'string');
+  assert.ok(res.next.includes(`npm ${NPM_CI_ARGV.join(' ')}`), res.next);
+  assert.ok(res.next.includes(repo), res.next);
+  assert.match(res.next, /finalize/);
+  // provenance는 dry-run이 보고한 값과 같아야 한다.
+  assert.ok('integration' in res);
+  assert.deepStrictEqual(res.integration, dry.integration);
+  assert.strictEqual(res.branch, dry.branch);
+  assert.strictEqual(res.branch, 'work');
+  // 설치 실패는 검증 실패로 합쳐지지 않고, 뒤 단계는 하나도 돌지 않는다.
+  assert.deepStrictEqual(log, ['install']);
+  assert.strictEqual(verifyExec.calls, 0);
+  assert.strictEqual(g.calls.staged, null);
+  assert.strictEqual(g.calls.committed, null);
+  assert.strictEqual(clearCalls, 0);
+  assert.deepStrictEqual(snapshotDocs(repo), before);
+  assert.match(before[`${BP_REL}/index.md`].toString('utf8'), /status: approved/);
+});
+
+test('install success then verify failure keeps VERIFY_FAILED and preservation', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  writeLockfile(repo);
+  const before = snapshotDocs(repo);
+  const log = [];
+  const dependencyExec = recordingDependencyExec(log);
+  let clearCalls = 0;
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
+    clearPointer: () => { clearCalls += 1; return true; },
+    verifyExec: recordingVerify(log, { ok: false, exitCode: 1, output: 'boom' }),
+    dependencyExec,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'verify');
+  assert.strictEqual(res.code, 'VERIFY_FAILED');
+  assert.strictEqual(res.exitCode, 1);
+  assert.deepStrictEqual(log, ['install', 'verify']);
+  assert.strictEqual(g.calls.staged, null);
+  assert.strictEqual(g.calls.committed, null);
+  assert.strictEqual(clearCalls, 0);
+  assert.deepStrictEqual(snapshotDocs(repo), before);
+});

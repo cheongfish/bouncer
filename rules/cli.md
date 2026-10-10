@@ -29,6 +29,15 @@ module/risk signals and a light/full recommendation); without that flag
 coordinator drive it reports the assigned worker instead. `commit --yes` is
 the only normal task-commit command. `finalize --yes` may close the blueprint,
 so obtain the workflow-required user consent before calling it.
+Right after the verify command resolves, `finalize --yes` runs
+`npm ci --include=dev --ignore-scripts --no-audit --no-fund` once in the same
+checkout when `package-lock.json` exists and `node_modules/.package-lock.json`
+does not; npm output is captured and never reaches the JSON stdout. Dry-run,
+an empty close, config errors, and gate or scope refusals never install. An
+install failure exits 1 with `code: DEPENDENCY_INSTALL_FAILED`, `cause`, and
+`next` before verify, staging, commit, or pointer clearing — repair the
+install in that checkout as `next` says, then rerun the same finalize command.
+`VERIFY_FAILED` still means only that verify failed after dependencies were ready.
 `finalize release-main --blueprint <dir>` is main-checkout-only: it cleans
 main plan copies after a closed drive.
 
