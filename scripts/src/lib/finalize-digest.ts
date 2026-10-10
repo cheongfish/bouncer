@@ -64,11 +64,18 @@ type TaskDigest = {
   constraints: string | null;
 };
 
+type DiffSummary = {
+  files: number;
+  insertions: number;
+  deletions: number;
+  per_file: Array<{ path: string; added: number; deleted: number }>;
+};
+
 type Unverified = { kind: string; task?: string | null; path?: string; detail?: string };
 
 type FinalizeDigest = {
   ok: true;
-  version: 1;
+  version: 2;
   blueprint: {
     dir: string;
     stable_id: string;
@@ -83,6 +90,11 @@ type FinalizeDigest = {
   changed_paths: string[];
   symbols: Array<{ path: string; names: string[] }>;
   commits: Array<{ sha8: string; subject: string }>;
+  diff: DiffSummary | null;
+  evidence: {
+    verification: Array<{ task: string; evidence_id: string }>;
+    review: { path: string; rounds: number; target_digest: string | null } | null;
+  };
   unverified: Unverified[];
   out_of_scope: string[];
   blueprint_review: { findings: Finding[] } | null;
@@ -98,6 +110,7 @@ const SHORT_SHA_NUL_RE = /([0-9a-f]{7,40})\0/gi;
 const PER_FILE_SYMBOL_CAP = 10;
 const TOTAL_SYMBOL_CAP = 60;
 const COMMIT_LIST_CAP = 50;
+const DIFF_PER_FILE_CAP = 30;
 const CONTEXT_EXCLUDED = '.bouncer/context/';
 
 /**
@@ -300,6 +313,72 @@ function extractSymbols(diffText: string): Array<{ path: string; names: string[]
   }
 
   return [...byPath.entries()].map(([p, names]) => ({ path: p, names }));
+}
+
+/**
+ * `git diff --numstat base..head`로 diff 통계 요약을 만든다.
+ * explain-diff가 전체 diff 대신 이 요약으로 질문 대상 파일을 고르게 하는 입력이다.
+ * 읽기 전용이며 실패해도 throw하지 않는다.
+ *
+ * @param {GitExec} exec - `git` 뒤 argv seam
+ * @param {string} base - 범위 시작 ref
+ * @param {string} head - 범위 끝 ref
+ * @returns {DiffSummary | null} 합계는 전체 파일 기준, per_file은 변경 줄 수
+ *   내림차순 최대 30개(바이너리는 `-`를 0/0으로 접는다). git 실패면 null
+ */
+function collectDiffSummary(exec: GitExec, base: string, head: string): DiffSummary | null {
+  const result = exec(['diff', '--numstat', `${base}..${head}`]);
+  if (result.status !== 0) return null;
+  const rows: Array<{ path: string; added: number; deleted: number }> = [];
+  let insertions = 0;
+  let deletions = 0;
+  for (const line of result.stdout.split('\n')) {
+    if (!line.trim()) continue;
+    const parts = line.split('\t');
+    if (parts.length < 3) continue;
+    // 바이너리 파일은 두 열이 '-'라 숫자가 아니다 — 0으로 접는다.
+    const added = /^\d+$/.test(parts[0]) ? Number(parts[0]) : 0;
+    const deleted = /^\d+$/.test(parts[1]) ? Number(parts[1]) : 0;
+    insertions += added;
+    deletions += deleted;
+    rows.push({ path: toPosix(parts.slice(2).join('\t')), added, deleted });
+  }
+  // sort는 안정 정렬이라 동률은 git 출력(경로) 순서를 유지한다.
+  const perFile = rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => (b.row.added + b.row.deleted) - (a.row.added + a.row.deleted) || a.index - b.index)
+    .slice(0, DIFF_PER_FILE_CAP)
+    .map((entry) => entry.row);
+  return { files: rows.length, insertions, deletions, per_file: perFile };
+}
+
+/**
+ * blueprint 루트 review.md에서 라운드 수와 마지막 라운드의 target digest를 읽는다.
+ * 파일 부재·파싱 실패는 리뷰 기록 없음과 같아 null이다(digest는 throw하지 않는다).
+ *
+ * @param {string} absPath - 루트 review.md 절대 경로
+ * @param {string} relPath - digest에 싣는 저장소 상대 경로
+ * @returns {{ path: string, rounds: number, target_digest: string | null } | null}
+ */
+function readReviewEvidence(
+  absPath: string,
+  relPath: string,
+): { path: string; rounds: number; target_digest: string | null } | null {
+  if (!fs.existsSync(absPath)) return null;
+  try {
+    const { data } = readDoc(absPath);
+    const review = asRecord(asRecord(asRecord(data).bouncer).review);
+    const rounds = Array.isArray(review.rounds) ? review.rounds : [];
+    const last = asRecord(rounds[rounds.length - 1]);
+    // 라운드 digest는 target.digest가 정본이고 perspectives[].target_digest는 같은 값이다.
+    const perspective = asRecord(Array.isArray(last.perspectives) ? last.perspectives[0] : null);
+    const candidates = [last.target_digest, asRecord(last.target).digest, perspective.target_digest];
+    const digest = candidates.find((v): v is string => typeof v === 'string' && v !== '');
+    return { path: relPath, rounds: rounds.length, target_digest: digest ?? null };
+  } catch (_error) {
+    // YAML/frontmatter 파싱 실패만 흡수한다 — 읽을 수 없는 리뷰는 기록 없음과 같다.
+    return null;
+  }
 }
 
 /**
@@ -657,7 +736,9 @@ function prepareFinalizeDigest({
     },
   });
 
+  const diffSummary = collectDiffSummary(run, base, head);
   const unverified: Unverified[] = [];
+  if (!diffSummary) unverified.push({ kind: 'diff-summary-unavailable' });
   let terminalOk = false;
   for (const item of built) {
     const task = item.digest;
@@ -733,7 +814,7 @@ function prepareFinalizeDigest({
   // 먼저 조립한 뒤 buildPrDraft에 넘긴다.
   const body = {
     ok: true as const,
-    version: 1 as const,
+    version: 2 as const,
     blueprint: {
       dir: bp,
       stable_id: stableBlueprint,
@@ -755,6 +836,15 @@ function prepareFinalizeDigest({
     changed_paths: changedPaths,
     symbols,
     commits,
+    diff: diffSummary,
+    evidence: {
+      verification: built.flatMap((item) => (
+        item.digest.verification && item.digest.verification.evidence_id
+          ? [{ task: item.digest.stable_id, evidence_id: item.digest.verification.evidence_id }]
+          : []
+      )),
+      review: readReviewEvidence(path.join(checkoutRoot, `${bp}/review.md`), `${bp}/review.md`),
+    },
     unverified,
     out_of_scope: outOfScope,
     blueprint_review: blueprintReview,
