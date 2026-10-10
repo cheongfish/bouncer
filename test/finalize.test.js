@@ -2000,3 +2000,62 @@ test('install success then verify failure keeps VERIFY_FAILED and preservation',
   assert.strictEqual(clearCalls, 0);
   assert.deepStrictEqual(snapshotDocs(repo), before);
 });
+
+test('install success then commit failure still restores docs and approved status', () => {
+  // 설치가 성공해 검증·잠금까지 진행된 뒤 commit이 던져도, 기존 롤백 계약이
+  // 그대로 지켜져야 한다(설치 단계 추가가 롤백 경로를 건너뛰게 만들지 않음).
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  writeLockfile(repo);
+  const before = snapshotDocs(repo);
+  const log = [];
+  const dependencyExec = recordingDependencyExec(log);
+  const staged = [];
+  const api = {
+    changedFiles: () => ['src/auth/login.ts'],
+    untrackedFiles: () => [],
+    stage: (files) => { staged.push(...files); },
+    commit: () => { throw new Error('commit boom'); },
+  };
+  assert.throws(
+    () => finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: api,
+      verifyExec: recordingVerify(log), dependencyExec,
+    }),
+    /commit boom/,
+  );
+  assert.deepStrictEqual(log, ['install', 'verify']);
+  assert.strictEqual(dependencyExec.calls.length, 1);
+  assert.ok(staged.length > 0, 'stage ran before commit failed');
+  assert.deepStrictEqual(snapshotDocs(repo), before);
+  assert.match(
+    fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'),
+    /status: approved/,
+  );
+});
+
+test('dependency install failure without a usable message falls back to reason-prefixed cause', () => {
+  // Error가 아닌 값(문자열)이나 빈 message Error가 던져지면 helper의 message가
+  // 비어 있으므로, cause는 `dependency-install-failed: ...` 폴백 문자열이어야 한다.
+  const throwers = {
+    'non-error': () => { throw 'npm ci string failure'; },
+    'empty-message': () => { throw new Error(''); },
+  };
+  for (const [name, dependencyExec] of Object.entries(throwers)) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    fullBlueprint(repo);
+    writeLockfile(repo);
+    const log = [];
+    const res = finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+      clearPointer: () => true, verifyExec: recordingVerify(log), dependencyExec,
+    });
+    assert.strictEqual(res.ok, false, name);
+    assert.strictEqual(res.code, 'DEPENDENCY_INSTALL_FAILED', name);
+    assert.strictEqual(typeof res.cause, 'string', name);
+    assert.ok(res.cause.length > 0, name);
+    assert.ok(res.cause.startsWith('dependency-install-failed:'), `${name}: ${res.cause}`);
+    assert.deepStrictEqual(log, [], name);
+  }
+});
