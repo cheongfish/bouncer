@@ -2621,6 +2621,11 @@ test('verification integrate prepares integration dependencies before runVerific
     args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
     options: { cwd: boot.integrationPath, stdio: 'inherit' },
   }]);
+  // 설치 성공 뒤 lockfile sha256 stamp가 남아야 다음 호출이 재설치를 건너뛴다.
+  assert.strictEqual(
+    fs.readFileSync(path.join(boot.integrationPath, 'node_modules/.bouncer-lock-sha256'), 'utf8'),
+    `${crypto.createHash('sha256').update('{}\n').digest('hex')}\n`,
+  );
 });
 
 test('verification integrate does not run verification when dependency install fails', () => {
@@ -2655,6 +2660,7 @@ test('verification integrate does not run verification when dependency install f
   assert.strictEqual(failed.ok, false, JSON.stringify(failed));
   assert.strictEqual(failed.reason, 'dependency-install-failed');
   assert.strictEqual(verified, false);
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, 'node_modules/.bouncer-lock-sha256')), false);
 });
 
 test('verification integrate passes its own taskId to runVerification', () => {

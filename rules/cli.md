@@ -31,8 +31,9 @@ the only normal task-commit command. `finalize --yes` may close the blueprint,
 so obtain the workflow-required user consent before calling it.
 Right after the verify command resolves, `finalize --yes` runs
 `npm ci --include=dev --ignore-scripts --no-audit --no-fund` once in the same
-checkout when `package-lock.json` exists and `node_modules/.package-lock.json`
-does not; npm output is captured and never reaches the JSON stdout. Dry-run,
+checkout when `package-lock.json` exists and either `node_modules/.package-lock.json`
+is missing or `node_modules/.bouncer-lock-sha256` is missing or differs from the
+lockfile's sha256 (the stamp is written after a successful install); npm output is captured and never reaches the JSON stdout. Dry-run,
 an empty close, config errors, and gate or scope refusals never install. An
 install failure exits 1 with `code: DEPENDENCY_INSTALL_FAILED`, `cause`, and
 `next` before verify, staging, commit, or pointer clearing — repair the

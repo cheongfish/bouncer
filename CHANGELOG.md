@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **lockfile 변경 시 의존성 재설치** — `prepareDependencies`가 설치 성공 뒤
+  `node_modules/.bouncer-lock-sha256`에 `package-lock.json` sha256을 남기고,
+  marker나 stamp가 없거나 lockfile과 다르면 `npm ci`를 다시 실행한다. seed·fan-in·
+  verification·finalize 경로가 바뀐 lockfile의 오래된 node_modules로 검증하지 않는다.
 - **implementer 보고 파일 관측** — `coordinate dispatch`가 attempt별 `report_path`를
   발급하고(`coordinate next`의 implement payload에도 동일), 모든 checkpoint의
   active task가 `report: { path, attempt, state }`(present·absent)를 원장 변경
@@ -20,7 +24,7 @@
   동일). 3개 이상·스칼라·비한국어 문장과 빈 blueprint `## Intent`는 계속 거절한다.
 - **마감 검증 의존성 준비** — `finalize --yes`가 verify 명령 해석 직후 같은
   checkout에서 기존 `prepareDependencies`로 `npm ci --include=dev --ignore-scripts
-  --no-audit --no-fund`를 한 번 실행한다(lockfile이 있고 설치 marker가 없을 때만).
+  --no-audit --no-fund`를 한 번 실행한다(lockfile이 있고 설치 marker가 없거나 lockfile stamp가 다를 때만).
   npm 출력은 capture되어 JSON stdout에 섞이지 않는다. 설치 실패는
   `DEPENDENCY_INSTALL_FAILED`와 `cause`·`next`·`integration`·`branch`로 반환되고
   검증·stage·commit·pointer 해제 전에 멈춰 문서와 approved 상태를 보존한다.

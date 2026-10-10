@@ -30,23 +30,45 @@ type ConfigSeedStatus = 'copied' | 'preserved' | 'missing';
 // phase 2가 base config를 restore하거나 지운다.
 const CONFIG_REL = '.bouncer/config.json';
 
+// npm이 남기는 marker(`.package-lock.json`)는 lockfile이 바뀌어도 그대로 남으므로
+// "어떤 lockfile로 설치했는지"를 알려주지 못한다. 설치 성공 뒤 lockfile 해시를
+// 이 stamp에 남겨 두 값을 비교한다.
+const LOCK_STAMP_REL = path.join('node_modules', '.bouncer-lock-sha256');
+
 /**
- * lockfile이 있는데 npm 설치 marker가 없으면 `npm ci --include=dev`로 의존성을 채운다.
- * git worktree는 ignored `node_modules`를 가져오지 않으므로, fan-in candidate와
- * integration checkout이 검증 전에 같은 설치 계약을 타게 한다. marker가 있으면
- * 재설치하지 않는다 — 재사용 worktree가 매번 지워지지 않게 하려는 한도이다.
+ * lockfile이 있고 npm marker와 현재 lockfile에 맞는 stamp가 모두 있을 때만 설치를 건너뛰고,
+ * 그 밖에는 `npm ci --include=dev`로 의존성을 채운 뒤 lockfile sha256 stamp를 남긴다.
+ * git worktree는 ignored `node_modules`를 가져오지 않고, 브랜치가 lockfile을 바꾸면 남은
+ * marker만으로는 오래된 node_modules를 알아채지 못한다. fan-in candidate와 integration
+ * checkout, finalize가 같은 계약을 타게 한다. 설치 성공 뒤 stamp 쓰기가 실패해도
+ * 결과는 ok:true다(다음 호출이 stamp 부재로 재설치하므로 안전하다).
  *
  * @param {string} worktreePath - 설치 cwd. package-lock.json을 이 경로에서 본다
  * @param {SeedDeps} deps - execFileSync 주입. 테스트가 npm 호출을 가로채는 용도
  * @returns {{ ok: true } | { ok: false, reason: string, message: unknown }}
- *   설치 불필요·성공은 ok:true. npm ci 실패는 ok:false와 dependency-install-failed
+ *   lockfile 없음·stamp 일치·설치 성공은 ok:true. npm ci 실패는 ok:false와
+ *   dependency-install-failed이며 이때 stamp는 쓰지 않는다
  */
 function prepareDependencies(
   worktreePath: string,
   deps: SeedDeps,
 ): { ok: true } | { ok: false; reason: string; message: unknown } {
-  if (!fs.existsSync(path.join(worktreePath, 'package-lock.json'))
-    || fs.existsSync(path.join(worktreePath, 'node_modules', '.package-lock.json'))) return { ok: true };
+  const lockFile = path.join(worktreePath, 'package-lock.json');
+  if (!fs.existsSync(lockFile)) return { ok: true };
+  const lockHash = createHash('sha256').update(fs.readFileSync(lockFile)).digest('hex');
+  const stampFile = path.join(worktreePath, LOCK_STAMP_REL);
+  if (fs.existsSync(path.join(worktreePath, 'node_modules', '.package-lock.json'))) {
+    let stamp: string | null = null;
+    try {
+      stamp = fs.readFileSync(stampFile, 'utf8').trim();
+    } catch (error) {
+      // stamp 부재·디렉터리 등 읽기 실패는 "일치 확인 불가"일 뿐이므로 재설치로 간다.
+      // 그 밖의 오류는 의도하지 않은 상태이므로 숨기지 않는다.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT' && code !== 'EISDIR' && code !== 'ENOTDIR') throw error;
+    }
+    if (stamp === lockHash) return { ok: true };
+  }
   try {
     // 실행 host가 NODE_ENV=production 또는 omit=dev를 설정해도, execute의
     // 검증에는 devDependencies가 필요하다. 명시적으로 포함해 host 설정이
@@ -55,10 +77,17 @@ function prepareDependencies(
       cwd: worktreePath,
       stdio: 'inherit',
     });
-    return { ok: true };
   } catch (error) {
     return { ok: false, reason: 'dependency-install-failed', message: (error as { message: unknown }).message };
   }
+  try {
+    fs.mkdirSync(path.dirname(stampFile), { recursive: true });
+    fs.writeFileSync(stampFile, `${lockHash}\n`);
+  } catch {
+    // stamp 쓰기 실패(권한·경로가 디렉터리 등)만 흡수한다. 설치 자체는 성공했고,
+    // stamp가 없으면 다음 호출이 재설치하므로 오래된 node_modules로 검증하지 않는다.
+  }
+  return { ok: true };
 }
 
 // plan 워크플로에는 commit 단계가 없으므로 epic/blueprint 문서는 base working tree에만

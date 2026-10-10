@@ -29,6 +29,18 @@ function write(repo, rel, body) {
   return abs;
 }
 
+const STAMP = path.join('node_modules', '.bouncer-lock-sha256');
+
+function lockHash(repo) {
+  return createHash('sha256').update(fs.readFileSync(path.join(repo, 'package-lock.json'))).digest('hex');
+}
+
+// npm marker와 일치하는 lockfile stamp를 함께 써서 "이미 설치된 worktree"를 만든다.
+function writeInstalled(root) {
+  write(root, 'node_modules/.package-lock.json', '{}\n');
+  write(root, STAMP, `${lockHash(root)}\n`);
+}
+
 function read(root, rel) {
   return fs.readFileSync(path.join(root, rel), 'utf8');
 }
@@ -270,7 +282,7 @@ test('a reused worktree with npm’s lock marker does not reinstall dependencies
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(wt, 'package-lock.json', '{}\n');
-  write(wt, 'node_modules/.package-lock.json', '{}\n');
+  writeInstalled(wt);
   const calls = [];
 
   const res = seed(repo, wt, {
@@ -645,7 +657,7 @@ test('seedCoordinatorWorker skips npm ci when the lock marker is already present
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
   write(wt, 'package-lock.json', '{}\n');
-  write(wt, 'node_modules/.package-lock.json', '{}\n');
+  writeInstalled(wt);
   const calls = [];
 
   const res = seedCoordinatorWorker({
@@ -685,7 +697,7 @@ test('prepareDependencies runs npm ci --include=dev when lockfile exists without
 test('prepareDependencies skips npm ci when the lock marker is already present', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
-  write(repo, 'node_modules/.package-lock.json', '{}\n');
+  writeInstalled(repo);
   const calls = [];
 
   const res = prepareDependencies(repo, {
@@ -725,3 +737,77 @@ test('seedCoordinatorWorker skips an index absent on base', () => {
   assert.ok(!res.seeded.includes(`${EPIC_REL}/index.md`));
 });
 
+test('prepareDependencies reinstalls when only npm’s marker exists without a stamp', () => {
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+  write(repo, 'node_modules/.package-lock.json', '{}\n');
+  const calls = [];
+
+  const res = prepareDependencies(repo, { execFileSync(...args) { calls.push(args); } });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(read(repo, STAMP), `${lockHash(repo)}\n`);
+});
+
+test('prepareDependencies records the stamp after install and skips on the next call', () => {
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+  const calls = [];
+  const deps = { execFileSync(...args) { calls.push(args); } };
+
+  assert.strictEqual(prepareDependencies(repo, deps).ok, true);
+  assert.strictEqual(read(repo, STAMP), `${lockHash(repo)}\n`);
+  // mock npm은 marker를 만들지 않으므로 marker는 테스트가 npm 대신 채운다.
+  write(repo, 'node_modules/.package-lock.json', '{}\n');
+  assert.strictEqual(prepareDependencies(repo, deps).ok, true);
+  assert.strictEqual(calls.length, 1);
+});
+
+test('prepareDependencies reinstalls and refreshes the stamp when the lockfile changed', () => {
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+  writeInstalled(repo);
+  write(repo, 'package-lock.json', '{"changed":true}\n');
+  const calls = [];
+
+  const res = prepareDependencies(repo, { execFileSync(...args) { calls.push(args); } });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(read(repo, STAMP), `${lockHash(repo)}\n`);
+});
+
+test('prepareDependencies keeps ok:true when the stamp cannot be written and reinstalls next time', () => {
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+  write(repo, 'node_modules/.package-lock.json', '{}\n');
+  fs.mkdirSync(path.join(repo, STAMP), { recursive: true });
+  const calls = [];
+  const deps = { execFileSync(...args) { calls.push(args); } };
+
+  assert.strictEqual(prepareDependencies(repo, deps).ok, true);
+  assert.strictEqual(prepareDependencies(repo, deps).ok, true);
+  assert.strictEqual(calls.length, 2);
+});
+
+test('prepareDependencies reports install failure without writing a stamp', () => {
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+
+  const res = prepareDependencies(repo, { execFileSync() { throw new Error('boom'); } });
+
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'dependency-install-failed');
+  assert.strictEqual(fs.existsSync(path.join(repo, STAMP)), false);
+});
+
+test('prepareDependencies does nothing without a lockfile', () => {
+  const repo = makeRepo();
+  const calls = [];
+
+  const res = prepareDependencies(repo, { execFileSync(...args) { calls.push(args); } });
+
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(calls, []);
+});
