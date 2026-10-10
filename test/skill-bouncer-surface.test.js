@@ -136,7 +136,8 @@ const ENTRY_WORD_BASELINE = {
   'bouncer-plan': 2348,
   'bouncer-execute': 2018,
   'bouncer-commit': 943,
-  'bouncer-run': 1158,
+  // 090-002 repair: step 4 early-handback 복구 표·규칙이 더한 +199 단어만 반영한다.
+  'bouncer-run': 1357,
   'bouncer-finalize': 1002,
 };
 

@@ -226,6 +226,16 @@ test('run recovers early coordinator returns by observation state table', () => 
   assert.match(delegation, /second `continue` without a new integrated task[\s\S]{0,80}no-progress/i);
   assert.match(delegation, /raw report[\s\S]{0,120}as data/i);
   assert.match(delegation, /never judge, verify, integrate, or edit active metadata/i);
+  // 복구 재디스패치는 'did not grow' 중단의 유일한 예외로 앞에 명시된다.
+  assert.match(delegation, /stop here\s+— except the table's single recovery re-dispatch/);
+  assert.ok(delegation.indexOf('except the table') < delegation.indexOf('`no-progress`', delegation.indexOf('except the table')));
+  assert.match(delegation, /`worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer/);
+  // 원장·이전 보고서 첨부 금지는 미판정 raw report 한 건만 예외로 둔다.
+  assert.match(delegation, /never attach the raw ledger body[\s\S]{0,160}except the one undecided raw\s+report of the recovery re-dispatch[\s\S]{0,40}as data/);
+  // 표 뒤 문단과 표 사이에는 빈 줄이 있다.
+  assert.match(delegation, /stop `no-progress` \|\n\n/);
+  // 두 번째 continue 규칙은 한 번만 서술한다.
+  assert.equal((delegation.match(/second `continue` without a new integrated task/g) || []).length, 1);
   // 세션별 baseline 갱신과 보존 중단 규칙은 그대로다.
   assert.match(delegation, /baseline each session/i);
   assert.match(delegation, /preserve ledger, worktrees,\s+and pointer/);
