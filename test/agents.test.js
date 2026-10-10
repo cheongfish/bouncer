@@ -922,6 +922,22 @@ test('bouncer-coordinator Worker dispatch body stays at most 20 lines', () => {
   assert.ok(lines.length <= 20, `Worker dispatch is ${lines.length} lines`);
 });
 
+// 조기 continue 방지: 병렬 launch는 허용하되 모든 최종 보고 회수 전에는 반환하지 않는다.
+test('bouncer-coordinator waits for every worker report and gates continue on new integration', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const worker = md.match(/## Worker dispatch\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  assert.match(worker, /parallel/i);
+  assert.match(worker, /handle[\s\S]{0,160}wait|wait[\s\S]{0,160}handle/i);
+  assert.match(worker, /every[\s\S]{0,80}final report/i);
+  assert.match(worker, /blocked[\s\S]{0,120}(?:running|in flight)/i);
+  const integrate = md.match(/\*\*Integrate\*\*[\s\S]*?(?=\n5\. \*\*Judge)/)?.[0] || '';
+  assert.match(integrate, /newly integrated|new integrated|at least one (?:new|newly)/i);
+  assert.match(integrate, /empty[\s\S]{0,80}continue|continue[\s\S]{0,80}empty/i);
+  const output = md.slice(md.indexOf('## Output contract'));
+  assert.match(output, /\*\*Continue\*\*[\s\S]{0,300}checkpoint\.ledger/);
+  assert.match(output, /non-empty|at least one/i);
+});
+
 // 재읽기 금지는 이미 문맥에 있는 역할·payload 문서만 막는다. 역할 문서를
 // 무조건 읽지 말라는 문장은 inline fallback의 첫 Read를 깨뜨린다.
 test('drive role Hard guards forbid re-reading documents already in context', () => {

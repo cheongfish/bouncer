@@ -40,6 +40,10 @@ function buildCoordinatorInput(fields: {
     `checkpoint: ${JSON.stringify(checkpoint)}`,
     `autonomy: ${fields.autonomy} (reporting cadence only; open no per-task ACQ)`,
     `read-only provenance: ${fields.projectRoot} (base SHA provenance only; never a write cwd)`,
+    // 조기 반환 방지 가드: native/generic/print 모두 이 문자열을 그대로 받는다.
+    // 병렬 launch는 막지 않고, 핸들만 받은 상태를 보고로 오인하지 못하게 한다.
+    'Before returning, wait for every worker final report (a handle is not a report) and integrate your whole wave;',
+    'return continue only with at least one newly integrated task id, never an empty list or a partial wave.',
     '',
   ].join('\n');
 }

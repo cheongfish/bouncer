@@ -9,6 +9,9 @@
 
 ### Changed
 
+- **코디네이터 조기 반환 방지** — 코디네이터 본문과 dispatch 입력이 모든 워커 최종
+  보고 회수와 담당 wave 전체 통합 전에는 반환하지 않고, 신규 통합 task가 없는
+  `continue`를 거부하도록 명시했다. 병렬 wave launch는 그대로 허용한다.
 - **finalize digest v2** — `finalize prepare` digest가 `version: 2`로 올라가
   `diff`(`git diff --numstat` 합계와 변경 줄 수 내림차순 최대 30개의
   `per_file`)와 `evidence`(task별 `evidence_id`, 루트 review의
