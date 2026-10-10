@@ -174,7 +174,42 @@ type ActiveTaskProjection = {
   id: string; status: string; depends_on?: string[]; dependency_gate?: string;
   parallel_safe?: boolean; workerPath?: string; branch?: string;
   scope?: { revision: string; paths: string[] }; dispatch?: DispatchState;
+  report?: { path: string; attempt: number; state: 'present' | 'absent' };
 };
+/**
+ * implementer attempt의 최종 보고 파일 경로를 계산한다.
+ * dispatch 반환과 checkpoint 투영이 같은 경로를 쓰도록 계산을 이 한 곳에 둔다.
+ * `.bouncer/runtime/`은 gitignore라서 worker HEAD·porcelain 비교에 보이지 않는다.
+ *
+ * @param {string} workerPath - attempt를 수행하는 worker checkout 절대 경로
+ * @param {string} task - task 번호(예: '002')
+ * @param {number} attempt - dispatch attempt 번호
+ * @returns {string} `<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md` 절대 경로
+ */
+function reportPathFor(workerPath: string, task: string, attempt: number): string {
+  return path.join(workerPath, '.bouncer', 'runtime', 'reports', `${task}-${attempt}.md`);
+}
+
+/**
+ * 보고 파일의 존재를 투영 시점에 관측한다. 원장에는 기록하지 않는다.
+ * 일반 파일이고 크기가 0보다 클 때만 present다. 파일 없음·0바이트·디렉터리와
+ * 그 밖의 모든 stat 오류는 absent로 접는다 — 이 관측은 복구 재개 여부를 정하는
+ * 보수적 신호일 뿐이라 오류를 던지면 status 전체가 깨지고, absent는 기존
+ * 보존 중단 경로로 이어지므로 안전하다.
+ *
+ * @param {string} reportPath - 현재 attempt의 보고 파일 절대 경로
+ * @returns {'present' | 'absent'} 관측 결과
+ */
+function observeReport(reportPath: string): 'present' | 'absent' {
+  try {
+    const stat = fs.statSync(reportPath);
+    return stat.isFile() && stat.size > 0 ? 'present' : 'absent';
+  } catch (_error) {
+    // stat 실패(ENOENT·EACCES 등)는 모두 absent: 위 docstring의 보수적 접힘 근거 참조.
+    return 'absent';
+  }
+}
+
 /**
  * 현재 CLI는 호스트 실행기를 추적하지 않으므로 항상 관측 불가를 뜻하는 상수 모양이다.
  * running·terminated는 root가 실제 호스트 핸들로만 확인하며 여기서 만들지 않는다.
@@ -480,6 +515,13 @@ function projectActiveTask(task: Task): ActiveTaskProjection {
   if (task.branch) projected.branch = task.branch;
   if (task.scope) projected.scope = { revision: task.scope.revision, paths: [...task.scope.paths] };
   if (task.dispatch) projected.dispatch = { ...task.dispatch };
+  // active attempt에만 붙인다: reported 보고는 원장 outcome이 이미 정본이다.
+  if (task.dispatch?.status === 'active' && task.workerPath) {
+    const reportPath = reportPathFor(task.workerPath, task.id, task.dispatch.attempt);
+    projected.report = {
+      path: reportPath, attempt: task.dispatch.attempt, state: observeReport(reportPath),
+    };
+  }
   return projected;
 }
 
@@ -3367,8 +3409,10 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       initial_worktree_state: porcelain,
     };
       if (previousOutcome) metadata.previous_outcome = previousOutcome;
-      return withCheckpoint({ ok: true as const, command, metadata, task: item, decisions: ledger.decisions },
-        ledger, integration.ledgerFile);
+      const report_path = reportPathFor(item.workerPath as string, task, nextAttempt);
+      return withCheckpoint({
+        ok: true as const, command, metadata, report_path, task: item, decisions: ledger.decisions,
+      }, ledger, integration.ledgerFile);
     }
     if (command === 'report') {
       if (!item.dispatch || item.dispatch.status !== 'active') {
@@ -3871,4 +3915,5 @@ export = {
   projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
   registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
   isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
+  reportPathFor,
 };

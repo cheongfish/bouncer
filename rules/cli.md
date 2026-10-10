@@ -86,6 +86,16 @@ host launch) and a changed `ledger.sha256` (fencing token only) are not proof a
 worker is running or made progress; only the root session's real host handle
 can show running or terminated.
 
+`coordinate dispatch` also returns a top-level `report_path`
+(`<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md`, absolute) that the
+implementer fills with its final report; `coordinate next` carries the same
+`report_path` in the `implement` payload. Every checkpoint adds
+`active_tasks[].report: { path, attempt, state }` for a task whose
+`dispatch.status` is `active`: `present` when the current attempt's file is a
+non-empty regular file, otherwise `absent` (missing, empty, directory, an older
+attempt's file, or a stat error). It is computed at projection time and never
+stored in the ledger.
+
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, and repair.

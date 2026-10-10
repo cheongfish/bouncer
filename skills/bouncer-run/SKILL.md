@@ -32,7 +32,7 @@ bootstraps the integration worktree, dispatches one `bouncer-coordinator` at a
 time, and on `continue` re-dispatches. It does not read and fix code directly,
 does not run `implementation`, `review`, or `debugging` inline, and does not
 reconstruct a worker's judgment from the diff — the coordinator already judged
-it. On a full drive, do not use execute's inline branch.
+it.
 
 Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
 dispatch, and coordinator output fields belong to
@@ -73,10 +73,10 @@ stay on the execute round.
    ```bash
    bouncer run preflight --blueprint <dir>
    ```
-   Compact output follows that result; emit raw JSON only on `debug`. The payload
+   The payload
    holds the pointer, remaining-task presentation fields (including
    `affected_paths`), DAG, and
-   reporting cadence. Follow its status and `delegable` result; read
+   reporting cadence. Follow its status and `delegable`; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
    pointer return values. When the ledger / pointer `scale` is `light`, read
    [light-run.md](./references/light-run.md) and follow that procedure for the
@@ -86,8 +86,7 @@ stay on the execute round.
    `/bouncer-finalize` or any part of it.
 
 2. **Start ACQ.** Show the blueprint, the remaining tasks with their
-   `affected_paths`, and the DAG those `depends_on` edges form, then ask whether
-   to delegate the drive. Option order: recommended proceed → revise → cancel.
+   `affected_paths`, and the DAG those `depends_on` edges form, then ask whether to delegate. Option order: recommended proceed → revise → cancel.
    This is the only gate.
 
    **AskUserQuestion — run.start_drive**
@@ -111,7 +110,7 @@ stay on the execute round.
    ```
    This is the one command this session runs against the main checkout, and it
    writes no source there. Keep `integrationPath` from the JSON result. On
-   `ok: false`, report the reason and stop — do not retry into a different path.
+   `ok: false`, report the reason and stop.
 
 4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` one at a time
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
@@ -122,7 +121,7 @@ stay on the execute round.
    step 2 approval.
    From `integrationPath`, run
    `bouncer coordinate status --blueprint <dir> --write-input .bouncer/runtime/print/coordinator.input.md`
-   once. It writes the payload below as one text file (with its `checkpoint`, including
+   once. It writes the payload below as one file (with its `checkpoint`, including
    `ledger: { path, sha256, revision }`) — do not hand-write the payload, and
    pass that file as the print `--input` or as the Task / named dispatch
    payload. The payload is:
@@ -157,13 +156,15 @@ stay on the execute round.
    | observation | report / progress | root action |
    | --- | --- | --- |
    | running | none yet | wait on the same real handle, then re-check |
-   | unknown | any | stop `worker-state-unknown` |
+   | unknown | report present (`report.path`), no new integrated task | recovery re-dispatch once |
+   | unknown | report absent | stop `worker-state-unknown` |
    | terminated | none | stop `worker-report-missing` |
    | all terminated | new integrated task | continue the loop |
    | all terminated | undecided raw report, no new integrated task | recovery re-dispatch once |
    | all terminated | none, hash-only change, or after recovery | stop `no-progress` |
 
    Hand a raw report to the coordinator as data; never judge, verify, integrate, or edit active metadata.
+   A `report present` row hands that file body over as the raw report; it shares the single recovery with the `all terminated` undecided row.
    `worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer.
    If `completed_tasks.length` grew, dispatch a new coordinator
    with the same payload plus that checkpoint (no ACQ). Wait in the foreground
@@ -180,8 +181,7 @@ stay on the execute round.
    integration head and verification result, then tell the user to run `/bouncer-finalize` from `integrationPath`, including any draft PR; `blocked` with the failing
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
-   Report the coordinator's recorded decisions and actual paths as its findings,
-   not as your own re-judgment. This skill does not enter finalize.
+   Report the coordinator's recorded decisions and actual paths as its findings, not your re-judgment. This skill does not enter finalize.
    `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.

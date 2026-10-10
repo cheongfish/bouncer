@@ -735,6 +735,10 @@ function taskNext(ctx: {
       task_brief_hash: item.dispatch.task_brief_hash,
       base_head: item.dispatch.base_head,
       initial_worktree_state: item.dispatch.initial_worktree_state,
+      // dispatch가 발급한 것과 같은 경로: 원장 dispatch에서 다시 계산한다.
+      report_path: coordinator.reportPathFor(
+        item.workerPath || cwd, task, item.dispatch.attempt,
+      ),
     };
     if (ledger.mode === 'light') payload.inline = true;
     return ok({ scope: 'task', action: 'implement', cwd, payload });

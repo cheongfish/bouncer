@@ -969,3 +969,16 @@ test('supplement classification is stated in the cards, coordinator doc and revi
   assert.match(card, /supplement-delta-used/);
   assert.match(card, /product defect[\s\S]{0,200}`blocked`/);
 });
+
+// 코디네이터가 조기 반환해도 루트가 보고 존재를 확인할 수 있도록, dispatch가 report_path를
+// 발급하면 implementer가 같은 본문을 파일로도 남긴다. 없으면 파일을 쓰지 않는다.
+test('implementer writes the Output contract body to report_path only when issued', () => {
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(md, /report_path/);
+  assert.match(md, /report_path[\s\S]{0,300}(?:immediately before|right before)[\s\S]{0,40}return/i);
+  assert.match(md, /(?:no|without|absent)[\s\S]{0,40}report_path[\s\S]{0,80}(?:do not|never) write/i);
+  const toml = fs.readFileSync(path.join(root, '.codex/agents/bouncer-implementer.toml'), 'utf8');
+  assert.strictEqual(toml, mdToCodexToml(md));
+  assert.match(toml, /report_path/);
+});

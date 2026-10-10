@@ -9,6 +9,12 @@
 
 ### Changed
 
+- **implementer 보고 파일 관측** — `coordinate dispatch`가 attempt별 `report_path`를
+  발급하고(`coordinate next`의 implement payload에도 동일), 모든 checkpoint의
+  active task가 `report: { path, attempt, state }`(present·absent)를 원장 변경
+  없이 투영한다. implementer는 `report_path`가 있으면 최종 보고를 그 파일에도
+  쓰고, `/bouncer-run`은 `unknown`이어도 보고가 present면 복구 재개를 한 번만
+  하며 absent면 `worker-state-unknown`으로 보존 중단한다.
 - **빈 커밋 문장 목록 허용** — task의 `commit_intent`·`commit_summary`가 `[]`이면
   task 커밋 메시지가 거절하지 않고 해당 본문 줄을 생략한다(plan gate·scaffold와
   동일). 3개 이상·스칼라·비한국어 문장과 빈 blueprint `## Intent`는 계속 거절한다.
