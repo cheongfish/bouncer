@@ -210,3 +210,23 @@ test('run step 4 builds the coordinator payload file with coordinate status --wr
   const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'));
   assert.match(delegation, /coordinate status --blueprint .* --write-input/);
 });
+
+// 원장의 active는 워커 생존 증거가 아니다. 루트는 실제 호스트 핸들만 관측하고
+// 미판정 raw report는 데이터로만 coordinator에 넘긴다.
+test('run recovers early coordinator returns by observation state table', () => {
+  const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'), md.indexOf('5. **Report.**'));
+  assert.match(delegation, /executor_observation/);
+  assert.match(delegation, /ledger `active` or a changed `sha256` is not evidence/);
+  for (const row of [
+    /\| running \|/, /\| unknown \|/, /\| terminated \|/,
+    /worker-state-unknown/, /worker-report-missing/, /no-progress/,
+  ]) assert.match(delegation, row);
+  assert.match(delegation, /same real handle/);
+  assert.match(delegation, /recovery re-dispatch once/i);
+  assert.match(delegation, /second `continue` without a new integrated task[\s\S]{0,80}no-progress/i);
+  assert.match(delegation, /raw report[\s\S]{0,120}as data/i);
+  assert.match(delegation, /never judge, verify, integrate, or edit active metadata/i);
+  // 세션별 baseline 갱신과 보존 중단 규칙은 그대로다.
+  assert.match(delegation, /baseline each session/i);
+  assert.match(delegation, /preserve ledger, worktrees,\s+and pointer/);
+});

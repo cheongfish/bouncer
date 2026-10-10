@@ -875,6 +875,11 @@ test('coordinate status --write-input writes the coordinator dispatch input file
   assert.match(text, /read-only provenance: .+ \(base SHA provenance only; never a write cwd\)/);
   assert.match(text, new RegExp(`blueprint: ${escape(BP_REL)}`));
   assert.match(text, /checkpoint: \{.*\}\n/);
+  // 관측 불가 필드는 status JSON과 생성 입력 파일에 같은 값으로 실린다.
+  const unknownExecutor = { state: 'unknown', source: 'unavailable', reason: 'executor-state-not-tracked' };
+  assert.deepStrictEqual(out.checkpoint.executor_observation, unknownExecutor);
+  const inputCheckpoint = JSON.parse(text.match(/^checkpoint: (\{.*\})$/m)[1]);
+  assert.deepStrictEqual(inputCheckpoint.executor_observation, unknownExecutor);
 
   // 값 없는 플래그와 status 외 서브커맨드(ready 별칭 포함)는 usage(2)이고 파일을 만들지 않는다.
   const missing = path.join(drive.integration, 'never-missing.md');
