@@ -64,6 +64,9 @@ bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>
   --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
   [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>
+bouncer coordinate repair --blueprint <dir> --kind supplement --review-finding <id> \
+  [--review-finding <id>]... --summary <text> --paths <test-path>
+bouncer coordinate repair --blueprint <dir> --kind supplement --done --summary <text>
 ```
 
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
@@ -190,7 +193,11 @@ bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|co
 Do not invent a strategy when the command fails. `coordinate repair` takes
 either `--failure-command` (terminal CI) or repeated `--review-finding`
 (final-review must_fix), never both. Omit `--task` on the review-finding form
-when the blueprint has no terminal verification task.
+when the blueprint has no terminal verification task. `--kind supplement`
+accepts an in-scope test-evidence gap without a new task or repair wave (test
+paths inside an integrated task's `affected_paths`, no delta round yet);
+`--done` verifies it, and the next final review is the one delta round.
+`--kind` accepts only `product` (default) or `supplement`.
 
 ## Controlled migrations
 

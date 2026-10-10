@@ -178,7 +178,7 @@ test('prepareFinalizeDigest fills trailer commits, unverified, symbols, and refu
 
   const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
   assert.strictEqual(d.ok, true, JSON.stringify(d));
-  assert.strictEqual(d.version, 1);
+  assert.strictEqual(d.version, 2);
   assert.strictEqual(d.tasks[0].commit.source, 'trailer');
   assert.deepStrictEqual(
     d.unverified.map((u) => u.kind).sort(),
@@ -392,7 +392,7 @@ test('CLI finalize prepare prints digest JSON', () => {
   assert.strictEqual(code, 0, err || out);
   const parsed = JSON.parse(out);
   assert.strictEqual(parsed.ok, true);
-  assert.strictEqual(parsed.version, 1);
+  assert.strictEqual(parsed.version, 2);
   assert.strictEqual(parsed.tasks[0].commit.source, 'trailer');
 });
 
@@ -692,4 +692,138 @@ test('blueprint review mode digest carries root findings and unverified task nul
   assert.ok(d.unverified.some((u) => (
     u.kind === 'finding-accepted' && u.task === null
   )));
+});
+
+// numstat 응답만 바꿔 끼우는 seam. 나머지 git 호출은 실제 저장소로 보낸다.
+function execWithNumstatStub(repoRoot, numstat) {
+  return (args) => {
+    if (args[0] === 'diff' && args.includes('--numstat')) return numstat;
+    const r = spawnSync('git', args, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+    return { status: typeof r.status === 'number' ? r.status : 1, stdout: r.stdout || '' };
+  };
+}
+
+test('digest v2 carries diff summary from numstat, sorted, capped, binary as 0/0', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const real = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(real.version, 2);
+  assert.deepStrictEqual(real.diff, {
+    files: 2,
+    insertions: 4,
+    deletions: 0,
+    per_file: [
+      { path: 'src/greet.js', added: 3, deleted: 0 },
+      { path: 'src/helper.js', added: 1, deleted: 0 },
+    ],
+  });
+
+  const rows = ['1\t0\tsmall.ts', '12\t3\ta.ts', '-\t-\timg.png'];
+  for (let i = 0; i < 32; i += 1) rows.push(`2\t0\tf${i}.ts`);
+  const stubbed = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: execWithNumstatStub(repoRoot, { status: 0, stdout: `${rows.join('\0')}\0` }),
+  });
+  assert.strictEqual(stubbed.ok, true, JSON.stringify(stubbed));
+  assert.deepStrictEqual(stubbed.diff.per_file[0], { path: 'a.ts', added: 12, deleted: 3 });
+  assert.strictEqual(stubbed.diff.per_file.length, 30);
+  assert.strictEqual(stubbed.diff.files, 35);
+  assert.strictEqual(stubbed.diff.insertions, 1 + 12 + 64);
+  assert.strictEqual(stubbed.diff.deletions, 3);
+  // 바이너리(0/0)는 정렬상 맨 뒤라 상한 30에서 잘려 per_file에 없다.
+  assert.ok(!stubbed.diff.per_file.some((f) => f.path === 'img.png'));
+
+  const binaryOnly = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: execWithNumstatStub(repoRoot, { status: 0, stdout: '-\t-\timg.png\0' }),
+  });
+  assert.deepStrictEqual(binaryOnly.diff.per_file, [{ path: 'img.png', added: 0, deleted: 0 }]);
+});
+
+test('digest diff skips .bouncer/context rows and passes --no-renames/-z for raw paths', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  let seen = null;
+  const stub = execWithNumstatStub(repoRoot, {
+    status: 0,
+    stdout: [
+      '5\t1\t.bouncer/context/epics/x/review.md',
+      '9\t9\t.bouncer/context/epics/x/tasks.md',
+      '2\t1\tsrc/한글 파일.ts',
+      '1\t0\tsrc/new-name.ts',
+    ].join('\0') + '\0',
+  });
+  const d = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: (args) => {
+      if (args.includes('--numstat')) seen = args;
+      return stub(args);
+    },
+  });
+  assert.ok(seen.includes('--no-renames') && seen.includes('-z'), JSON.stringify(seen));
+  assert.deepStrictEqual(d.diff, {
+    files: 2,
+    insertions: 3,
+    deletions: 1,
+    per_file: [
+      { path: 'src/한글 파일.ts', added: 2, deleted: 1 },
+      { path: 'src/new-name.ts', added: 1, deleted: 0 },
+    ],
+  });
+});
+
+test('digest diff is null with diff-summary-unavailable when numstat fails', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const d = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: execWithNumstatStub(repoRoot, { status: 128, stdout: '' }),
+  });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.strictEqual(d.diff, null);
+  assert.ok(d.unverified.some((u) => u.kind === 'diff-summary-unavailable'));
+  assert.ok(Array.isArray(d.changed_paths));
+});
+
+test('digest evidence lists verification refs and root review rounds', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const none = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.deepStrictEqual(none.evidence.verification, [
+    { task: none.tasks[0].stable_id, evidence_id: 'e1' },
+    { task: none.tasks[1].stable_id, evidence_id: 'e2' },
+  ]);
+  assert.strictEqual(none.evidence.review, null);
+
+  const reviewPath = `${blueprintDir}/review.md`;
+  writeDoc(repoRoot, reviewPath, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: reviewPath,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: {
+        required: true,
+        findings: [],
+        rounds: [
+          { round: 1, mode: 'discovery', target: { digest: 'd1' } },
+          { round: 2, mode: 'delta', target: { digest: 'lastDigest' } },
+        ],
+      },
+    },
+  });
+  const withReview = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.deepStrictEqual(withReview.evidence.review, {
+    path: reviewPath, rounds: 2, target_digest: 'lastDigest',
+  });
+
+  fs.rmSync(path.join(repoRoot, blueprintDir, 'tasks/001/verification.md'));
+  const missing = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.deepStrictEqual(missing.evidence.verification, [
+    { task: missing.tasks[1].stable_id, evidence_id: 'e2' },
+  ]);
 });

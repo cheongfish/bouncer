@@ -925,3 +925,18 @@ process.stdout.write('{"type":"result","result":"REPORT","is_error":false}\\n');
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('CLI coordinate repair rejects an unknown --kind and a --done without supplement', () => {
+  const drive = preparedDrive();
+  const bad = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo, '--kind', 'bogus', '--review-finding', 'F1',
+    '--summary', 's', '--paths', 'test/a.test.js', '--decision', 'd',
+  ]);
+  assert.strictEqual(bad.code, 2, bad.buf.err + bad.buf.out);
+  assert.match(bad.buf.err, /--kind/);
+  const done = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo, '--done', '--summary', 's', '--paths', 'test/a.test.js',
+  ]);
+  assert.strictEqual(done.code, 2, done.buf.err + done.buf.out);
+  assert.match(done.buf.err, /--done/);
+});

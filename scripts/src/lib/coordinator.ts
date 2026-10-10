@@ -133,6 +133,9 @@ type RepairDecision = {
   nextDag: Array<{ id: string; depends_on: string[] }>;
   previousScope: string[]; nextScope: string[]; necessity: string; revision: string;
 };
+type SupplementDecision = {
+  kind: 'supplement'; outcome: 'pending' | 'verified'; paths: string[]; findings: string[];
+};
 type RerecordDecision = {
   task: string; kind: 'rerecord'; reason: string; previousSha: string;
   nextSha: string; integrationHead: string;
@@ -619,6 +622,254 @@ function sourceRepairPaths(paths: unknown): paths is string[] {
     return normalized !== '.' && normalized !== './' && normalized !== '..' && !normalized.startsWith('../')
       && normalized !== '.git' && !normalized.startsWith('.git/')
       && normalized !== '.bouncer' && !normalized.startsWith('.bouncer/');
+  });
+}
+
+/**
+ * supplement 경로 표기를 맞춘다. 역슬래시·`./` 접두를 정리해 포함 비교가 표기
+ * 차이로 어긋나지 않게 한다.
+ *
+ * @param {string} raw - `--paths` 항목 또는 task 경로
+ * @returns {string} posix 정규형(말미 `/` 제거)
+ */
+function normalizeSupplementPath(raw: string): string {
+  return normalizeOverlapPath(path.posix.normalize(raw.replaceAll('\\', '/').trim()));
+}
+
+/**
+ * 테스트 경로 판정. 첫 조각이 `test`·`tests`이거나 파일명이 `*.test.*`·`*.spec.*`이고
+ * 경로 어디에도 `fixtures` 조각이 없는 경로만 true다. fixtures는 테스트가 읽는
+ * 데이터라 제품 동작을 바꿀 수 있어 제자리 보완 대상에서 뺀다.
+ *
+ * @param {string} normalized - normalizeSupplementPath를 거친 경로
+ * @returns {boolean} 테스트 경로이면 true
+ */
+function isSupplementTestPath(normalized: string): boolean {
+  const parts = normalized.split('/');
+  if (parts.includes('fixtures')) return false;
+  const base = parts[parts.length - 1];
+  return parts[0] === 'test' || parts[0] === 'tests' || /\.(test|spec)\./.test(base);
+}
+
+/**
+ * 경로가 허용 경로 목록 중 하나와 같거나 그 아래인지 본다.
+ *
+ * @param {string} normalized - 비교할 정규형 경로
+ * @param {string[]} allowed - 정규형이 아니어도 되는 허용 경로(파일 또는 디렉터리)
+ * @returns {boolean} 포함되면 true
+ */
+function coveredByPaths(normalized: string, allowed: string[]): boolean {
+  return allowed.some((entry) => {
+    const base = normalizeSupplementPath(entry);
+    return normalized === base || normalized.startsWith(`${base}/`);
+  });
+}
+
+/**
+ * 원장에서 가장 최근 supplement 결정을 찾는다. 같은 kind가 여러 번 쌓여도
+ * 마지막 하나만 현재 상태를 말한다.
+ *
+ * @param {Ledger} ledger - 원장
+ * @returns {SupplementDecision | undefined} 최신 supplement 결정, 없으면 undefined
+ */
+function latestSupplementDecision(ledger: Ledger): SupplementDecision | undefined {
+  for (let i = ledger.decisions.length - 1; i >= 0; i -= 1) {
+    const entry = ledger.decisions[i] as { kind?: unknown } | null;
+    if (entry && typeof entry === 'object' && entry.kind === 'supplement') {
+      return entry as SupplementDecision;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * blueprint 루트 `review.md`에 delta 라운드가 이미 있는지 읽는다. review-record의
+ * helper가 아니라 문서를 직접 읽는 것은 그 모듈이 허용 시퀀스를 소유하기 때문이다.
+ * 문서가 없으면 아직 라운드가 없는 것으로 본다.
+ *
+ * @param {string} integrationPath - integration worktree
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {boolean} `bouncer.review.rounds[].mode`에 delta가 있으면 true
+ */
+function rootReviewHasDelta(integrationPath: string, blueprint: string): boolean {
+  let data: unknown;
+  try {
+    data = readDoc(path.join(integrationPath, blueprint, 'review.md')).data;
+  } catch (error) {
+    // 문서 부재(ENOENT)만 "라운드 없음"으로 흡수한다. YAML 파손 같은 다른 실패를
+    // 없음으로 접으면 delta를 이미 쓴 리뷰에 supplement가 한 번 더 열린다.
+    if ((error as { code?: string }).code === 'ENOENT') return false;
+    throw error;
+  }
+  const bouncer = (data as { bouncer?: { review?: { rounds?: unknown } } } | undefined)?.bouncer;
+  const rounds = bouncer?.review?.rounds;
+  return Array.isArray(rounds)
+    && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'delta');
+}
+
+/**
+ * integration worktree에서 커밋되지 않은 변경 경로를 모은다(추적·미추적 모두).
+ * `.bouncer/` 아래는 원장·증적이라 보완 범위 판정에서 뺀다. rename은 양쪽 경로를 낸다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} integrationPath - integration worktree
+ * @returns {string[]} 정규형 변경 경로
+ */
+function integrationChangedPaths(exec: Exec, integrationPath: string): string[] {
+  const raw = String(exec('git', ['status', '--porcelain', '-z', '-uall'], {
+    cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }));
+  const tokens = raw.split('\0').filter((token) => token !== '');
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const status = tokens[i].slice(0, 2);
+    out.push(normalizeSupplementPath(tokens[i].slice(3)));
+    // rename·copy는 다음 토큰이 원래 경로다.
+    if (/[RC]/.test(status) && i + 1 < tokens.length) {
+      i += 1;
+      out.push(normalizeSupplementPath(tokens[i]));
+    }
+  }
+  return out.filter((entry) => entry !== '.bouncer' && !entry.startsWith('.bouncer/'));
+}
+
+/**
+ * supplement 접수 검사. CLI는 경로 조건만 검증하고 finding이 정말 테스트 근거
+ * 보완인지는 coordinator가 선언한다 — 그래서 여기서는 선언이 기계적으로 닫을 수
+ * 있는 조건(테스트 경로, 승인 범위, 모든 task integrated, delta 미사용)만 본다.
+ * 거절 순서는 원인이 겹칠 때 어느 쪽이 먼저 보이는지만 정한다.
+ *
+ * @param {object} opts - 접수 입력
+ * @param {Ledger} opts.ledger - 원장(읽기 전용)
+ * @param {string} opts.integrationPath - integration worktree
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {string | undefined} opts.failureCommand - CI 원인 플래그(있으면 모호)
+ * @param {string[] | undefined} opts.reviewFindings - 최종 리뷰 finding id
+ * @param {string | undefined} opts.summary - 보완 필요 사유
+ * @param {unknown} opts.paths - `--paths`
+ * @returns {{ ok: true, paths: string[], findings: string[] } | { ok: false, reason: string }} 통과 시
+ *   정규화된 경로와 finding, 거절 시 reason
+ */
+function checkSupplementIntake({ ledger, integrationPath, blueprint, failureCommand, reviewFindings, summary, paths }: {
+  ledger: Ledger; integrationPath: string; blueprint: string; failureCommand?: string;
+  reviewFindings?: string[]; summary?: string; paths: unknown;
+}): { ok: true; paths: string[]; findings: string[] } | { ok: false; reason: string } {
+  if (typeof failureCommand === 'string') return { ok: false, reason: 'repair-cause-ambiguous' };
+  if (!Array.isArray(reviewFindings) || reviewFindings.length === 0
+    || reviewFindings.some((entry) => typeof entry !== 'string' || entry === '')
+    || typeof summary !== 'string' || summary === '') {
+    return { ok: false, reason: 'failure-evidence-required' };
+  }
+  if (!sourceRepairPaths(paths)) return { ok: false, reason: 'repair-scope-out-of-bounds' };
+  const normalized = paths.map(normalizeSupplementPath);
+  if (!normalized.every(isSupplementTestPath)) return { ok: false, reason: 'supplement-paths-not-tests' };
+  if (ledger.tasks.some((entry) => (entry.status || 'pending') !== 'integrated')) {
+    return { ok: false, reason: 'review-repair-requires-integrated' };
+  }
+  const approved = ledger.tasks.flatMap((entry) => pathSetOf(entry) || []);
+  if (!normalized.every((entry) => coveredByPaths(entry, approved))) {
+    return { ok: false, reason: 'repair-scope-out-of-bounds' };
+  }
+  if (rootReviewHasDelta(integrationPath, blueprint)) return { ok: false, reason: 'supplement-delta-used' };
+  return { ok: true, paths: normalized, findings: [...reviewFindings] };
+}
+
+/**
+ * `coordinate repair --kind supplement --done`. implementer가 integration에 남긴
+ * 변경이 접수된 경로 안인지 확인하고, 그 경로를 덮는 integrated task의 verify를
+ * 명령 중복 없이 기존 러너로 돌린 뒤 결정을 `verified`로 올린다. 검증은 오래 걸릴
+ * 수 있어 integrateVerificationTask와 같이 잠금 밖에서 돌리고, 두 번째 잠금에서
+ * 원장 bytes가 그대로일 때만 쓴다. 실패하면 결정은 pending에 남아 재시도할 수 있다.
+ *
+ * @param {object} opts - repair 인자
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {string} opts.integrationPath - integration worktree
+ * @param {string} opts.ledgerFile - 원장 절대 경로
+ * @param {string} [opts.ledgerPath] - fence 원장 상대 경로
+ * @param {string} [opts.ledgerHash] - fence sha256
+ * @param {Exec} opts.exec - git·npm 주입 실행기
+ * @param {Function} opts.writeLedger - 원장 원자 쓰기
+ * @param {{ runVerification?: VerificationRunner }} opts.deps - 검증 러너 주입
+ * @returns {unknown} 성공 시 ok:true와 결정, 실패 시 ok:false와 reason
+ */
+function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, ledgerHash, exec, writeLedger, deps }: {
+  blueprint: string; integrationPath: string; ledgerFile: string; ledgerPath?: string; ledgerHash?: string;
+  exec: Exec; writeLedger: (file: string, data: unknown) => void;
+  deps: { runVerification?: VerificationRunner };
+}): unknown {
+  let phase1Hash = '';
+  let plan: Array<{ taskId: string; verify: string }> = [];
+  let approvedPaths: string[] = [];
+  const phase1 = withLedgerLock(ledgerFile, () => {
+    const loaded = loadLedgerBytes(ledgerFile);
+    if (!loaded) return { ok: false, reason: 'missing-ledger' };
+    const { ledger, bytes } = loaded;
+    const leaseShape = assertLeaseShape(ledger);
+    if (!leaseShape.ok) return leaseShape;
+    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes: bytes });
+    if (!fenced.ok) return fenced;
+    if (ledger.status === 'promotion_stopped') return { ok: false, reason: 'promotion-stopped' };
+    const pending = latestSupplementDecision(ledger);
+    if (!pending || pending.outcome !== 'pending') return { ok: false, reason: 'supplement-not-pending' };
+    // 검증이 만드는 증적 파일이 변경 목록에 섞이지 않게 검증 전에 잰다.
+    const changed = integrationChangedPaths(exec, integrationPath);
+    if (!changed.every((entry) => coveredByPaths(entry, pending.paths))) {
+      return { ok: false, reason: 'supplement-paths-exceeded', paths: changed };
+    }
+    const seen = new Set<string>();
+    const next: Array<{ taskId: string; verify: string }> = [];
+    for (const entry of ledger.tasks) {
+      const own = pathSetOf(entry) || [];
+      if (!pending.paths.some((target) => coveredByPaths(target, own))) continue;
+      const block = readBouncerBlock(path.join(integrationPath, blueprint, 'tasks', entry.id, 'tasks.md'));
+      const verify = block && typeof block.verify === 'string' ? block.verify.trim() : '';
+      if (seen.has(verify)) continue;
+      seen.add(verify);
+      next.push({ taskId: entry.id, verify });
+    }
+    plan = next;
+    approvedPaths = [...pending.paths];
+    phase1Hash = ledgerBytesHash(bytes);
+    return { ok: true as const };
+  });
+  if (!phase1 || (phase1 as { ok?: boolean }).ok === false) return phase1;
+
+  // 잠금 밖: 의존성 준비 후 verify 실행. integration checkout은 추적 파일만 받아
+  // node_modules가 비어 있을 수 있다.
+  const prepared = prepareDependencies(integrationPath, { execFileSync: exec });
+  if (!prepared.ok) return { ok: false, reason: 'dependency-install-failed', message: prepared.message };
+  const runner = deps.runVerification
+    || (require('./verification').runVerification as VerificationRunner);
+  const { epicId, blueprintId } = parsePathIds(blueprint);
+  const head = git(exec, integrationPath, ['rev-parse', 'HEAD']);
+  const evidenceIds: string[] = [];
+  for (const step of plan) {
+    const result = runner({
+      repoRoot: integrationPath,
+      blueprintDir: blueprint,
+      taskId: step.taskId,
+      scope: { kind: 'wave', key: `EPIC-${epicId}/BP-${blueprintId}:supplement:${head}` },
+    });
+    if (!result.ok) {
+      return { ok: false, reason: 'supplement-verify-failed', verification: result };
+    }
+    if (typeof result.evidenceId === 'string' && result.evidenceId !== '') evidenceIds.push(result.evidenceId);
+  }
+
+  return withLedgerLock(ledgerFile, (owns) => {
+    const loaded = loadLedgerBytes(ledgerFile);
+    if (!loaded) return { ok: false, reason: 'missing-ledger' };
+    if (ledgerBytesHash(loaded.bytes) !== phase1Hash) return { ok: false, reason: 'stale-ledger-checkpoint' };
+    const { ledger } = loaded;
+    const decision = latestSupplementDecision(ledger);
+    if (!decision) return { ok: false, reason: 'supplement-not-pending' };
+    decision.outcome = 'verified';
+    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+    writeLedger(ledgerFile, ledger);
+    return withCheckpoint({
+      ok: true as const, command: 'repair', kind: 'supplement', done: true, paths: approvedPaths,
+      decision, evidence_ids: evidenceIds,
+    }, ledger, ledgerFile);
   });
 }
 
@@ -2531,6 +2782,8 @@ function finishFaninAfterFf({
  * @param {string[]} [opts.paths] - repair/revise 경로
  * @param {string[]} [opts.findings] - critical-recovery finding id
  * @param {string[]} [opts.reviewFindings] - 최종 리뷰 must_fix id. 없으면 CI 원인
+ * @param {string} [opts.kind] - repair 종류. `supplement`는 범위 내 테스트 보완, 그 밖은 기존 경로
+ * @param {boolean} [opts.done] - supplement 전용. 보완 완료를 알리고 검증을 돌린다
  * @param {string} [opts.outcome] - report 또는 critical-recovery 결과
  * @param {string} [opts.reason] - revoke·critical-recovery 사유
  * @param {number} [opts.attempt] - dispatch report attempt
@@ -2546,13 +2799,14 @@ function finishFaninAfterFf({
  *   만든 worker만 되돌린다.
  */
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
-  failureCommand, summary, paths: repairPaths, findings, reviewFindings, outcome, reason, attempt, taskBriefHash,
+  failureCommand, summary, paths: repairPaths, findings, reviewFindings, kind, done, outcome, reason, attempt,
+  taskBriefHash,
   leaseId, generation,
   ledgerPath, ledgerHash,
   userConfirmed = false, deps = {} }: {
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
-  findings?: string[]; reviewFindings?: string[]; outcome?: string; reason?: string;
+  findings?: string[]; reviewFindings?: string[]; kind?: string; done?: boolean; outcome?: string; reason?: string;
   attempt?: number; taskBriefHash?: string;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
@@ -2686,6 +2940,15 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     return { ok: false, reason: 'unknown-coordinate-command' };
   }
 
+  // supplement --done은 검증을 잠금 밖에서 돌려야 해서 공통 잠금 앞에서 갈라진다.
+  if (command === 'repair' && kind === 'supplement' && done === true) {
+    ensureIntegrationCwd(repoRoot, blueprint, cwd);
+    return supplementDone({
+      blueprint, integrationPath: integration.integrationPath, ledgerFile: integration.ledgerFile,
+      ledgerPath, ledgerHash, exec, writeLedger, deps,
+    });
+  }
+
   return withLedgerLock(integration.ledgerFile, (owns) => {
     const loaded = loadLedgerBytes(integration.ledgerFile);
     if (!loaded) return { ok: false, reason: 'missing-ledger' };
@@ -2813,6 +3076,23 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     }
     if (command === 'repair') {
       ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      // supplement는 wave 한도 검사보다 앞에서 처리한다. 새 task·wave를 쓰지 않으므로
+      // 두 wave를 쓴 뒤에도 접수되어야 한다.
+      if (kind === 'supplement') {
+        const intake = checkSupplementIntake({
+          ledger, integrationPath: integration.integrationPath, blueprint,
+          failureCommand, reviewFindings, summary, paths: repairPaths,
+        });
+        if (!intake.ok) return intake;
+        const supplement: SupplementDecision = {
+          kind: 'supplement', outcome: 'pending', paths: intake.paths, findings: intake.findings,
+        };
+        ledger.decisions.push(supplement);
+        { const lost = commitWrite(); if (lost) return lost; }
+        return withCheckpoint({
+          ok: true as const, command, kind: 'supplement', paths: intake.paths,
+        }, ledger, integration.ledgerFile);
+      }
       const waves = ledger.repairWaves || [];
       if (waves.length >= 2) return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
       const hasReviewCause = Array.isArray(reviewFindings);
@@ -3418,6 +3698,29 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'repair-scope-out-of-bounds': {
     cause: 'Repair paths are outside the blueprint-scoped source bound.',
     next: 'Retry `bouncer coordinate repair` with paths inside the blueprint source scope.',
+  },
+  'supplement-delta-used': {
+    cause: 'The blueprint root review already recorded its one delta round, so no in-place supplement may open.',
+    next: 'Use the existing `bouncer coordinate repair --review-finding` path or report the open finding as blocked.',
+  },
+  'supplement-not-pending': {
+    cause: 'There is no pending supplement decision to complete.',
+    next: 'Open one with `bouncer coordinate repair --kind supplement --review-finding <id> ...` first, '
+      + 'or use the existing repair path.',
+  },
+  'supplement-paths-exceeded': {
+    cause: 'The integration worktree changed paths outside the accepted supplement paths.',
+    next: 'Restore the extra changes; if product code must change, report it as blocked or use '
+      + '`bouncer coordinate repair --review-finding` instead.',
+  },
+  'supplement-paths-not-tests': {
+    cause: 'A supplement may change test paths only; a path is not a test path (or is under fixtures).',
+    next: 'Retry with test paths only, or use the existing `bouncer coordinate repair --review-finding` path.',
+  },
+  'supplement-verify-failed': {
+    cause: 'The relevant verify command failed after the supplement; the decision stays pending.',
+    next: 'Fix the supplement and retry `--done`; if the failure shows a product defect, report it as blocked '
+      + 'or use the existing repair path.',
   },
   'repair-wave-limit': {
     cause: 'This drive already used the maximum of two repair waves.',

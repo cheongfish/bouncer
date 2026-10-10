@@ -44,8 +44,13 @@ status published. Not a workflow entry point.
    is one blueprint entry, not a task chain. Prefer digest `range.diff_sha` when
    present so Explain and Quiz share the same hash the CLI already computed.
 
-3. **Quiz the user.** Adapt and run the quiz from the `range.base..range.head`
-   diff (agent judgment — no mechanical table). The quiz is **required** — if the
+3. **Quiz the user.** Adapt and run the quiz from the finalize prepare digest
+   (agent judgment — no mechanical table). Pick question targets from the
+   digest's `diff.per_file` (largest changes first) and `symbols`.
+   Do not read the full `range.base..range.head` diff; read only the files a question
+   targets, with `git diff <range.base>..<range.head> -- <path>`, and never
+   outside that range. When `diff` is `null` (`diff-summary-unavailable`), fall
+   back to `changed_paths` and `symbols` for target choice. The quiz is **required** — if the
    user does not answer, stop and tell `/bouncer-finalize` to abort (do not
    invent a skip path):
    1. Choose question count in **1–10** (minimum 1; never 0). State the

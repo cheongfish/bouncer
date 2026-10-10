@@ -9,6 +9,14 @@
 
 ### Changed
 
+- **finalize digest v2** — `finalize prepare` digest가 `version: 2`로 올라가
+  `diff`(`git diff --numstat` 합계와 변경 줄 수 내림차순 최대 30개의
+  `per_file`)와 `evidence`(task별 `evidence_id`, 루트 review의
+  `rounds`·`target_digest`)를 싣는다. numstat이 실패하면 `diff: null`과
+  `unverified`의 `diff-summary-unavailable`이고 prepare는 실패하지 않는다.
+  explain-diff는 퀴즈 대상을 `diff.per_file`·`symbols`에서 고르고 그 파일만
+  `range.base..range.head` diff로 읽으며, draft-pr는 `evidence`를 쓴다. 기존
+  필드와 이해 확인·잔여 처리·PR 동의는 그대로다.
 - **light run 경로** — light 원장(`mode: light`)이면 `/bouncer-run`이
   coordinator 대신 `skills/bouncer-run/references/light-run.md`를 따른다.
   run 세션이 `payload.inline`으로 구현하고 named `bouncer-reviewer` 한 세션이
@@ -19,6 +27,14 @@
 
 ### Added
 
+- **`coordinate repair --kind supplement`** — 최종 리뷰의 범위 내 테스트 근거
+  보완 finding을 새 task·repair wave·`terminalFailure` 없이 제자리에서 닫는다.
+  테스트 경로이고 integrated task의 `affected_paths` 안이며 delta 라운드가 아직
+  없을 때만 접수하고(`supplement-paths-not-tests`, `repair-scope-out-of-bounds`,
+  `supplement-delta-used`), `--done`이 변경 경로와 관련 verify를 확인해
+  `verified`로 올린다. `coordinate next`는 `supplement` 행동과 카드를 내고,
+  `verified` 뒤에는 `final_review`를 `payload.mode: delta`로 낸다. 제품 동작
+  수정·새 의존성·공개 인터페이스는 기존 repair/`blocked` 경로 그대로다.
 - **`coordinate promote-stop`** — light 원장에서 위험 신호 시
   `status: promotion_stopped`와 `promotion` 스냅샷(reason·summary·task·
   `diff_sha`·증적 id)을 기록한다. reason은 `security-risk`·`out-of-scope`·

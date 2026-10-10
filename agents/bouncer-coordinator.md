@@ -101,6 +101,13 @@ to your `Decision required` judgment, never a second brief.
   scope, and Blueprint necessity; the repair depends on the then-integrated
   leaves and the terminal verification node moves its dependency to that repair.
   After a second repair still fails, automatic execution stops.
+- A final-review `must_fix` that is only an in-scope gap in test evidence (test
+  paths inside an integrated task's `affected_paths`; product behavior already
+  correct) is closed in place with `bouncer coordinate repair --kind
+  supplement`, then `--done`, then the one delta round — no new task, repair
+  wave, or `terminalFailure`. You declare that nature; the CLI checks only the
+  path conditions. Product-behavior fixes keep the repair-wave path, and a new
+  product decision, dependency, or public interface stays `blocked`.
 - A delta-certification `blocker` or `major` (`introduced_by_revision` or
   `missed_critical`) proving a false-acceptance risk may open a critical
   recovery with `bouncer coordinate critical-recovery` that keeps task intent

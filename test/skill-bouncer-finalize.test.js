@@ -187,6 +187,26 @@ test('bouncer-finalize skill and references switch Explain/Quiz/PR inputs to fin
   assert.match(skill, /If the user does not answer\s+the quiz, \*\*stop\*\*/);
 });
 
+// digest v2의 diff 요약·증거 참조가 퀴즈·PR 근거이고, 전체 diff 대신 질문 대상 파일만 읽는다.
+test('bouncer-finalize docs use digest diff summary and evidence refs instead of the full diff', () => {
+  const explainDiff = fs.readFileSync(path.join(root, 'references', 'explain-diff', 'index.md'), 'utf8');
+  const explainQuiz = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
+  );
+  const draftPr = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'), 'utf8',
+  );
+  assert.match(explainDiff, /`diff\.per_file`/);
+  assert.match(explainDiff, /`symbols`/);
+  assert.match(explainDiff, /git diff <range\.base>\.\.<range\.head> -- <path>/);
+  assert.match(explainDiff, /Do not read the full `range\.base\.\.range\.head` diff/);
+  assert.match(explainDiff, /does not answer, stop/i);
+  assert.match(explainQuiz, /`evidence`/);
+  assert.match(explainQuiz, /`diff\.per_file`/);
+  assert.match(draftPr, /`evidence`/);
+  assert.match(draftPr, /Do not open verification or review logs/);
+});
+
 test('bouncer-finalize explain-quiz reference maintains canonical context boundary and cites explain-diff for question count', () => {
   const explainQuiz = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',

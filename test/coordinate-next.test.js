@@ -180,11 +180,12 @@ function capture() {
   };
 }
 
-// 계약 카드를 싣는 action 9개. 판단·worker 행동만 카드를 받고, argv만 실행하는
+// 계약 카드를 싣는 action 10개. 판단·worker 행동만 카드를 받고, argv만 실행하는
 // 기계적 action(prepare·drive_tasks·integrate·verification_node·commit·done·none)은
 // 카드 키 자체가 없어야 응답이 불필요하게 커지지 않는다.
 const CARD_ACTIONS = [
-  'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'blocked',
+  'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'supplement',
+  'blocked',
 ];
 const CARD_DIR = path.join(__dirname, '..', 'references', 'coordinator-cards');
 
@@ -408,6 +409,48 @@ test('blueprint next: all integrated in review mode without accepted root review
   assertCardFor(r);
   assert.ok(r.argv.includes('review-dispatch'));
   assert.strictEqual(r.judge.kind, 'review-round');
+});
+
+function supplementReviewDrive(prefix, blueprint, decisions) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  writeReviewScope(drive.integrationPath, blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.tasks.forEach((t) => { t.status = 'integrated'; });
+  ledger.decisions = decisions;
+  writeLedger(drive.ledgerFile, ledger);
+  return drive;
+}
+
+test('blueprint next: pending supplement decision yields the supplement action', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/020-supp';
+  const drive = supplementReviewDrive('bouncer-next-supp-', blueprint, [
+    { kind: 'supplement', outcome: 'pending', paths: ['test/a.test.js'], findings: ['F1'] },
+  ]);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'supplement');
+  assert.strictEqual(r.scope, 'blueprint');
+  assert.strictEqual(r.cwd, drive.integrationPath);
+  assert.deepStrictEqual(r.payload.paths, ['test/a.test.js']);
+  assertCardFor(r);
+});
+
+test('blueprint next: verified supplement returns final_review in delta mode', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/021-supp';
+  const drive = supplementReviewDrive('bouncer-next-supp-v-', blueprint, [
+    { kind: 'supplement', outcome: 'verified', paths: ['test/a.test.js'], findings: ['F1'] },
+  ]);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'final_review');
+  assert.strictEqual(r.payload.mode, 'delta');
+  assertCardFor(r);
+});
+
+test('blueprint next: without a supplement decision final_review carries no mode', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/022-supp';
+  const drive = supplementReviewDrive('bouncer-next-supp-n-', blueprint, []);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'final_review');
+  assert.strictEqual(r.payload, undefined);
 });
 
 test('blueprint next: all integrated is done', () => {

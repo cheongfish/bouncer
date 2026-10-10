@@ -65,7 +65,12 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             `bouncer coordinate repair … --review-finding <id>` task that
             fixes every must_fix together. Do not use that repair for a
             finding that needs a new product decision, dependency, or public
-            interface — those stay blocked. Under a coordinator drive on the
+            interface — those stay blocked. A must_fix that is only an
+            in-scope gap in test evidence (test paths inside an integrated
+            task's `affected_paths`, product behavior already correct) is
+            instead supplemented in place with `coordinate repair --kind
+            supplement`: no new task or repair wave, then the one delta round.
+            Under a coordinator drive on the
             per-task path: judge the prior implementer report
             (`coordinate report`), revise only when the outcome requires it,
             then open a new `coordinate dispatch` so the fix implementer
