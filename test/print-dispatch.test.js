@@ -405,6 +405,12 @@ test('coordinator prompt carries a buildCoordinatorInput file verbatim at the en
     const prompt = fs.readFileSync(path.join(tree.outDir, 'bouncer-coordinator.prompt.md'), 'utf8');
     assert.ok(prompt.startsWith(COORDINATOR_IDENTITY));
     assert.ok(prompt.endsWith(text));
+    // 고정 가드와 기존 필드가 함께 남는지 확인한다.
+    assert.match(text, /wait for every worker final report/i);
+    assert.match(text, /newly integrated task/i);
+    assert.match(text, /checkpoint\.ledger\.sha256: b{64}/);
+    assert.match(text, /autonomy: auto \(reporting cadence only; open no per-task ACQ\)/);
+    assert.match(text, /read-only provenance: \/w\/main/);
   } finally {
     fs.rmSync(tree.root, { recursive: true, force: true });
   }

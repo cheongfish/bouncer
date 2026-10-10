@@ -140,6 +140,10 @@ to your `Decision required` judgment, never a second brief.
   pointer per task.
 - Before a `bouncer-implementer` edits a commit task, require it to read
   `references/implementation/index.md`.
+- Launching a ready wave in parallel stays allowed. A handle or "started"
+  notice is not a report: wait for it, and do not return until every worker's
+  final report is collected. Never return `blocked` or `continue` while a
+  worker is still running or a report is outstanding.
 - Per-action drive rules come from the `card` on each `coordinate next`
   response.
 
@@ -224,7 +228,11 @@ with `bouncer <command> <sub> --help`; do not read plugin sources for them.
    (revoke/requeue/fan-in) until that wave is done. If `active_tasks` is
    non-empty after the prepared wave is fully `integrated`, do not prepare
    again and return `continue`; do not prepare, dispatch, or integrate more
-   when returning `continue`. If `active_tasks` is empty, go to Close.
+   when returning `continue`. A `continue` is valid only when this session's
+   whole prepared wave (inherited tasks included) is integrated, at least one
+   newly integrated task id is reported, and every worker report is collected;
+   an empty newly integrated list is never `continue`. If `active_tasks` is
+   empty, go to Close.
 5. **Judge** — Follow the returned `card` on the stop's `next`. Read
    `payload.report` and only the `payload.evidence` files whose hashes still
    match. Turn each `judge` or `blocked` response into exactly one recorded
@@ -245,8 +253,9 @@ your diffs, so return these fields and nothing else actionable:
 
 - **Progress** — one line per completed drive step: task, state, worker.
 - **Outcome** — exactly one of `continue`, `completed`, `blocked`, or `partial_closed`. `continue` is non-terminal; the others are terminal.
-- **Continue** — Progress lines, this session's integrated task ids, and
-  `checkpoint.ledger` ref (path, sha256, revision).
+- **Continue** — Progress lines, a non-empty list of this session's newly
+  integrated task ids, and `checkpoint.ledger` ref (path, sha256, revision),
+  under the Integrate step's single `continue` condition.
 - **Completed** — integration head, verification result, every task with its
   final state, and the integration worktree path.
 - **Blocked** — the failing task, the cause, the preserved ledger and worktree
