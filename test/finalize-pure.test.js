@@ -813,7 +813,7 @@ test('authored sentence check accepts identifiers and rejects only malformed sha
     'scripts/lib/finalize.js의 검사를 완화함.',
     '`bouncer finalize`가 기록된 값을 읽음.',
   ];
-  const rejected = [[], [''], ['가함.\n나함.'], ['가함.', '나함.', '다함.'], ['update branch name.'], ['branch 이름 계산']];
+  const rejected = [[''], ['가함.\n나함.'], ['가함.', '나함.', '다함.'], ['update branch name.'], ['branch 이름 계산']];
   for (const field of ['commit_intent', 'commit_summary']) {
     for (const line of accepted) assert.doesNotThrow(() => normalizeAuthoredLines([line], field));
     for (const bad of rejected) assert.throws(() => normalizeAuthoredLines(bad, field), /Korean terminal sentences/);
@@ -822,6 +822,13 @@ test('authored sentence check accepts identifiers and rejects only malformed sha
   assert.throws(() => parseIntentBody('## Intent\nupdate branch name.\n'), /Korean terminal sentences/);
   // 부재 필드는 기존 문서 호환을 위해 빈 배열로 읽는다.
   assert.deepStrictEqual(normalizeAuthoredLines(undefined, 'commit_intent'), []);
+  // scaffold와 plan gate(S32)가 허용하는 `[]`는 부재와 같게 읽는다.
+  for (const f of ['commit_intent', 'commit_summary']) {
+    assert.deepStrictEqual(normalizeAuthoredLines([], f), []);
+  }
+  // blueprint Intent는 빈 섹션(주석만 있는 섹션 포함)을 계속 거절한다.
+  assert.throws(() => parseIntentBody('## Intent\n\n## Next\n'), /blueprint Intent must contain 1-2 Korean terminal sentences/);
+  assert.throws(() => parseIntentBody('## Intent\n<!-- 작성 예정 -->\n\n## Next\n'), /blueprint Intent must contain 1-2 Korean terminal sentences/);
   // 문자열이 아닌 항목도 같은 문구로 거절한다.
   assert.throws(() => normalizeAuthoredLines([1], 'commit_intent'), /Korean terminal sentences/);
   assert.throws(() => normalizeAuthoredLines('가함.', 'commit_intent'), /YAML list/);
@@ -844,6 +851,31 @@ test('finalize message parses blueprint Intent and ignores task authored fields'
     '- 저작 맥락을 보존함',
     '- 단계별 메시지를 일관되게 만듦',
   ].join('\n'));
+});
+
+test('empty task commit lists omit body lines like absent fields', () => {
+  const docs = { blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } } };
+  const unit = (extra) => ({
+    number: 1,
+    dir: `${BP}/tasks/001`,
+    tasks: { data: { title: '변경', bouncer: taskBouncer(extra) }, rel: `${BP}/tasks/001/tasks.md` },
+    verification: { data: { title: '검증함' }, rel: `${BP}/tasks/001/verification.md` },
+  });
+  assert.strictEqual(
+    buildCommitMessage(docs, unit({ commit_intent: [], commit_summary: [] })),
+    withDefaultTrailers('feat: 변경'),
+  );
+  assert.strictEqual(
+    buildCommitMessage(docs, unit({ commit_intent: [], commit_summary: ['요약을 남김'] })),
+    withDefaultTrailers(['feat: 변경', '', '- 요약을 남김']),
+  );
+  assert.throws(() => buildCommitMessage(docs, unit({ commit_intent: [], commit_summary: ['가함.', '나함.', '다함.'] })), /commit_summary.*1-2/);
+});
+
+test('finalize rejects an empty blueprint Intent section', () => {
+  assert.throws(() => buildFinalizeCommitMessage({
+    blueprintIndex: { data: { title: '계약' }, body: '# Blueprint\n\n## Intent\n\n## Contract\n- 계약\n' },
+  }), /blueprint Intent must contain 1-2 Korean terminal sentences/);
 });
 
 test('finalize rejects an absent or malformed blueprint Intent', () => {

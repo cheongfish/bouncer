@@ -9,6 +9,9 @@
 
 ### Changed
 
+- **빈 커밋 문장 목록 허용** — task의 `commit_intent`·`commit_summary`가 `[]`이면
+  task 커밋 메시지가 거절하지 않고 해당 본문 줄을 생략한다(plan gate·scaffold와
+  동일). 3개 이상·스칼라·비한국어 문장과 빈 blueprint `## Intent`는 계속 거절한다.
 - **마감 검증 의존성 준비** — `finalize --yes`가 verify 명령 해석 직후 같은
   checkout에서 기존 `prepareDependencies`로 `npm ci --include=dev --ignore-scripts
   --no-audit --no-fund`를 한 번 실행한다(lockfile이 있고 설치 marker가 없을 때만).
