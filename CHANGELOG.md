@@ -9,6 +9,12 @@
 
 ### Changed
 
+- **조기 반환 탐지와 안전한 재개** — `coordinate status` checkpoint에
+  `executor_observation`(`unknown`/`unavailable`/`executor-state-not-tracked`)을
+  추가해 원장의 active·해시 변화를 워커 생존이나 진전으로 오인하지 않게 했다.
+  `/bouncer-run`은 실제 호스트 핸들이 있을 때만 running은 대기, 관측 불가는
+  `worker-state-unknown`, 보고 없는 종료는 `worker-report-missing`으로 보존 중단하고,
+  미판정 보고는 조기 반환당 한 번만 coordinator에 데이터로 넘겨 재개한다.
 - **코디네이터 조기 반환 방지** — 코디네이터 본문과 dispatch 입력이 모든 워커 최종
   보고 회수와 담당 wave 전체 통합 전에는 반환하지 않고, 신규 통합 task가 없는
   `continue`를 거부하도록 명시했다. 병렬 wave launch는 그대로 허용한다.

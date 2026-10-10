@@ -175,6 +175,16 @@ type ActiveTaskProjection = {
   parallel_safe?: boolean; workerPath?: string; branch?: string;
   scope?: { revision: string; paths: string[] }; dispatch?: DispatchState;
 };
+/**
+ * 현재 CLI는 호스트 실행기를 추적하지 않으므로 항상 관측 불가를 뜻하는 상수 모양이다.
+ * running·terminated는 root가 실제 호스트 핸들로만 확인하며 여기서 만들지 않는다.
+ */
+// 실패 사유가 아니므로 `reason: '...'` 리터럴 대신 상수로 두어 COORDINATE_FAILURE_HINTS
+// 전수 검사(실패 reason 리터럴 수집)에 섞이지 않게 한다.
+const EXECUTOR_NOT_TRACKED = 'executor-state-not-tracked' as const;
+type ExecutorObservation = {
+  state: 'unknown'; source: 'unavailable'; reason: typeof EXECUTOR_NOT_TRACKED;
+};
 type CoordinatorCheckpoint = {
   ready: string[];
   active_tasks: ActiveTaskProjection[];
@@ -184,6 +194,7 @@ type CoordinatorCheckpoint = {
   integration_head: string | null;
   revision: string | null;
   ledger: LedgerRef;
+  executor_observation: ExecutorObservation;
 };
 
 /**
@@ -521,6 +532,11 @@ function projectCheckpoint(
       path: LEDGER_REL,
       sha256,
       revision: typeof ledger.revision === 'string' ? ledger.revision : null,
+    },
+    // active는 launch 전에 기록되고 stale report도 해시를 바꾸므로, 원장 값은
+    // 워커 생존의 증거가 아니다. 프로세스 관측·원장 저장 없이 한계만 명시한다.
+    executor_observation: {
+      state: 'unknown', source: 'unavailable', reason: EXECUTOR_NOT_TRACKED,
     },
   };
 }

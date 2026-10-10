@@ -69,6 +69,14 @@ bouncer coordinate repair --blueprint <dir> --kind supplement --review-finding <
 bouncer coordinate repair --blueprint <dir> --kind supplement --done --summary <text>
 ```
 
+`coordinate status` checkpoints carry `executor_observation`
+(`{ state: 'unknown', source: 'unavailable', reason: 'executor-state-not-tracked' }`),
+a read-only projection that is never stored in the ledger. The CLI does not
+track host executors, so a task `dispatch.status: active` (recorded before the
+host launch) and a changed `ledger.sha256` (fencing token only) are not proof a
+worker is running or made progress; only the root session's real host handle
+can show running or terminated.
+
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, and repair.

@@ -1803,6 +1803,44 @@ test('status checkpoint keeps ready wave, active tasks, unresolved decisions, an
   assert.strictEqual(cp.ledger.sha256, expectedHash);
 });
 
+const UNKNOWN_EXECUTOR = {
+  state: 'unknown', source: 'unavailable', reason: 'executor-state-not-tracked',
+};
+
+test('status checkpoint reports executor_observation unknown without touching the ledger', () => {
+  const drive = checkpointFixture();
+  const before = fs.readFileSync(drive.ledgerFile);
+  const status = coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+  });
+  assert.strictEqual(status.ok, true, JSON.stringify(status));
+  assert.deepStrictEqual(status.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+  assert.ok(before.equals(fs.readFileSync(drive.ledgerFile)));
+});
+
+// active는 호스트 launch 이전에 기록되고 stale report도 해시를 바꾼다 —
+// 둘 다 생존 증거가 아니므로 관측 상태는 계속 unknown이어야 한다.
+test('executor_observation stays unknown for pre-launch active and hash-only changes', () => {
+  const blueprint = '.bouncer/context/epics/064-x/blueprints/065-y';
+  const drive = preparedCommitDrive('bouncer-executor-observation-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  assert.deepStrictEqual(dispatched.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+  const first = coordinate({ command: 'status', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath });
+  assert.strictEqual(first.checkpoint.active_tasks[0].dispatch.status, 'active');
+  assert.deepStrictEqual(first.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+  const stale = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: 9, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'late report',
+  });
+  assert.strictEqual(stale.reason, 'stale-report');
+  const second = coordinate({ command: 'status', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath });
+  assert.notStrictEqual(second.checkpoint.ledger.sha256, first.checkpoint.ledger.sha256);
+  assert.deepStrictEqual(second.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+});
+
 test('mutation ledger fence rejects missing, absolute, escaping, wrong path, and stale hash without writes', () => {
   const drive = checkpointFixture();
   const before = fs.readFileSync(drive.ledgerFile);

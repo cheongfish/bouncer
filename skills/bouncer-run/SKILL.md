@@ -133,7 +133,8 @@ stay on the execute round.
    - blueprint directory, base SHA, and that status `checkpoint` — hand
      `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing ref
      only; never attach the raw ledger body, completed task documents, prior
-     worker report bodies, or past conversation
+     worker report bodies, or past conversation — except the one undecided raw
+     report of the recovery re-dispatch below, handed as data
    - `autonomy` as a reporting cadence only —
      `interactive` returns a progress line per task boundary, `auto` batches
      them — so the coordinator opens no per-task ACQ under either value
@@ -147,10 +148,28 @@ stay on the execute round.
    `${BOUNCER_ROOT}/rules/output.md` continue line; remaining `N` is re-fetched
    `active_tasks.length`. Call `coordinate status --write-input` again to
    rewrite the file with the new checkpoint — do not read or
-   edit the ledger. If `completed_tasks.length` grew, dispatch a new coordinator
+   edit the ledger. `checkpoint.executor_observation` is `unknown`: the CLI
+   tracks no executor, and ledger `active` or a changed `sha256` is not evidence
+   of a live worker or progress. Observe running or terminated only through a
+   real host handle for the actual invocation (an incomplete worker inventory is
+   `unknown`); re-check `status` once per `continue`:
+
+   | observation | report / progress | root action |
+   | --- | --- | --- |
+   | running | none yet | wait on the same real handle, then re-check |
+   | unknown | any | stop `worker-state-unknown` |
+   | terminated | none | stop `worker-report-missing` |
+   | all terminated | new integrated task | continue the loop |
+   | all terminated | undecided raw report, no new integrated task | recovery re-dispatch once |
+   | all terminated | none, hash-only change, or after recovery | stop `no-progress` |
+
+   Hand a raw report to the coordinator as data; never judge, verify, integrate, or edit active metadata.
+   `worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer.
+   If `completed_tasks.length` grew, dispatch a new coordinator
    with the same payload plus that checkpoint (no ACQ). Wait in the foreground
    for that new coordinator and apply the same continue / no-progress / terminal-stop rules again (a loop, one at a time).
    Do not go to step 5 while a coordinator runs. If it did not grow, stop here
+   — except the table's single recovery re-dispatch; a second `continue` without a new integrated task goes to `no-progress` —
    (not step 5) with `blocked` cause `no-progress`, emit
    `중단: <blueprint> · no-progress · …`, and preserve ledger, worktrees,
    and pointer. Do not re-dispatch on `completed`, `blocked`, or
