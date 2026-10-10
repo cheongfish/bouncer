@@ -32,6 +32,10 @@ const { internalCommitEnv } = preCommitHook;
 // finalize → current → coordinator 경로가 이미 있으므로 직접 import해도 새 순환은
 // 없다(coordinator의 import 닫힘에는 finalize가 없다).
 import coordinatorLib = require('./coordinator');
+// seed-worktree는 paths·layout·scope만 import하므로 finalize를 끌어와 순환을 만들지 않는다.
+// 설치 판정(lockfile·marker)과 npm ci 인자를 seed/fan-in과 한 구현으로 공유하려는 import.
+import seedWorktree = require('./seed-worktree');
+const { prepareDependencies } = seedWorktree;
 const { readBouncerBlock } = coordinatorLib;
 const { normalizeAuthoredLines, parseIntentBody } = templates;
 
@@ -917,6 +921,50 @@ function readTaskStatus(file: string): string | null {
   return typeof status === 'string' ? status : null;
 }
 
+// prepareDependencies의 기본 stdio는 inherit이다. finalize 결과는 CLI가 stdout에
+// JSON으로 그대로 쓰므로, npm 출력이 같은 stdout에 섞이면 소비자가 결과를 파싱하지
+// 못한다. 그래서 finalize 경로만 capture로 고정하고 공유 helper는 바꾸지 않는다.
+const FINALIZE_INSTALL_STDIO: ['ignore', 'pipe', 'pipe'] = ['ignore', 'pipe', 'pipe'];
+// 복구 안내에 쓰는 명령. helper가 실행하는 argv와 같은 문자열이어야 사용자가
+// 손으로 같은 설치를 재현한다.
+const FINALIZE_INSTALL_COMMAND = 'npm ci --include=dev --ignore-scripts --no-audit --no-fund';
+
+type DependencyExec = typeof execFileSync;
+
+/**
+ * finalize 검증 직전에 repoRoot의 npm 의존성을 준비한다.
+ * 설치 필요 판정(lockfile 존재·marker 부재)과 npm ci 인자는 seed-worktree의
+ * prepareDependencies를 그대로 쓰고, 이 wrapper는 실행 seam만 바꿔 끼운다:
+ * cwd는 항상 repoRoot, stdio는 capture로 고정해 npm 출력이 CLI JSON stdout에
+ * 섞이지 않게 한다. 설치 실패(throw)는 helper가 ok:false로 변환한다.
+ *
+ * @param {string} repoRoot - 검증할 checkout 절대 경로. 설치 cwd이기도 하다
+ * @param {DependencyExec} dependencyExec - execFileSync 호환 실행 함수
+ * @returns {{ ok: true } | { ok: false, cause: string }} 설치 불필요·성공은 ok:true,
+ *   npm ci 실패면 ok:false와 helper message를 문자열로 바꾼 cause
+ */
+function prepareFinalizeDependencies(
+  repoRoot: string,
+  dependencyExec: DependencyExec,
+): { ok: true } | { ok: false; cause: string } {
+  const capture = ((file: string, argv: readonly string[], options?: object) => dependencyExec(
+    file,
+    argv,
+    // helper가 넘긴 옵션 위에 cwd·stdio를 덮어쓴다. helper 쪽 기본값(inherit)이
+    // 바뀌거나 다른 cwd가 들어와도 finalize 계약은 흔들리지 않는다.
+    { ...options, cwd: repoRoot, stdio: FINALIZE_INSTALL_STDIO },
+  )) as DependencyExec;
+  const prepared = prepareDependencies(repoRoot, { execFileSync: capture });
+  if (prepared.ok) return { ok: true };
+  // helper의 message는 Error.message(unknown)다. throw된 값이 Error가 아니면
+  // undefined일 수 있어, 원인 불명이라는 사실을 문자열로 남긴다.
+  const { message } = prepared;
+  const cause = typeof message === 'string' && message !== ''
+    ? message
+    : `${prepared.reason}: ${String(message)}`;
+  return { ok: false, cause };
+}
+
 /**
  * blueprint를 닫는다. dry-run은 계획만 보고, `--yes`는 검증·잠금·커밋까지 간다.
  * drive면 원장에서 읽은 정리 목록을 top-level `worktrees`에 싣고 cleanup이
@@ -932,11 +980,15 @@ function readTaskStatus(file: string): string | null {
  * @param {(opts: { repoRoot: string }) => boolean} [opts.clearPointer] - pointer 삭제 seam
  * @param {(opts: { repoRoot: string, blueprintDir: unknown }) => unknown} [opts.next] - next 후보 seam
  * @param {VerifyExec} [opts.verifyExec] - 검증 실행 seam
- * @returns {object} 성공이면 `ok: true`와 worktrees·branch, 실패면 reason
+ * @param {DependencyExec} [opts.dependencyExec] - 검증 전 npm ci 실행 seam. 기본은 Node execFileSync.
+ *   verifyExec 주입은 검증만 바꾸며 설치를 생략시키지 않는다
+ * @returns {object} 성공이면 `ok: true`와 worktrees·branch, 실패면 reason.
+ *   설치 실패는 `reason: 'dependency-install-failed'`·`code: 'DEPENDENCY_INSTALL_FAILED'`와
+ *   cause·next·integration·branch로, 검증 실패(`VERIFY_FAILED`)와 구분된다
  */
 function finalize({
   repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent,
-  next = nextBlueprint, verifyExec,
+  next = nextBlueprint, verifyExec, dependencyExec = execFileSync,
 }: {
   repoRoot: string;
   blueprintDir: string;
@@ -945,6 +997,7 @@ function finalize({
   clearPointer?: (opts: { repoRoot: string }) => boolean;
   next?: (opts: { repoRoot: string; blueprintDir: unknown }) => unknown;
   verifyExec?: VerifyExec;
+  dependencyExec?: DependencyExec;
 }) {
   const gitApi = git || realGit(repoRoot);
 
@@ -1116,6 +1169,24 @@ function finalize({
       return { ok: false, reason: 'verify', code, command: null, exitCode: null, integration, branch };
     }
     throw error;
+  }
+  // 설치는 verify config 해석이 성공한 뒤에만 한다 — 설정 오류·gate 거부·dry-run·
+  // 빈 종료는 위에서 이미 반환했으므로 npm을 부르지 않는다. integration checkout은
+  // git worktree라 ignored node_modules가 없으므로, 여기서 채우지 않으면 검증이
+  // 코드와 무관한 모듈 누락으로 실패한다. 설치 실패는 VERIFY_FAILED와 다른 원인이라
+  // 별도 코드로 반환하고, 문서 snapshot·삭제·stage·commit·pointer 해제 전에 멈춘다.
+  const deps = prepareFinalizeDependencies(repoRoot, dependencyExec);
+  if (!deps.ok) {
+    return {
+      ok: false,
+      reason: 'dependency-install-failed',
+      code: 'DEPENDENCY_INSTALL_FAILED',
+      cause: deps.cause,
+      next: `${repoRoot}에서 \`${FINALIZE_INSTALL_COMMAND}\`로 의존성을 복구한 뒤 `
+        + `같은 \`bouncer finalize --blueprint ${blueprintDir} --yes\` 명령을 다시 실행하세요.`,
+      integration,
+      branch,
+    };
   }
   const execution = executeVerify(command, {
     cwd: repoRoot,

@@ -9,6 +9,14 @@
 
 ### Changed
 
+- **마감 검증 의존성 준비** — `finalize --yes`가 verify 명령 해석 직후 같은
+  checkout에서 기존 `prepareDependencies`로 `npm ci --include=dev --ignore-scripts
+  --no-audit --no-fund`를 한 번 실행한다(lockfile이 있고 설치 marker가 없을 때만).
+  npm 출력은 capture되어 JSON stdout에 섞이지 않는다. 설치 실패는
+  `DEPENDENCY_INSTALL_FAILED`와 `cause`·`next`·`integration`·`branch`로 반환되고
+  검증·stage·commit·pointer 해제 전에 멈춰 문서와 approved 상태를 보존한다.
+  dry-run·빈 종료·설정 오류·gate 거부에서는 설치하지 않으며, `VERIFY_FAILED`는
+  설치 성공 뒤 검증 실패에만 쓴다.
 - **조기 반환 탐지와 안전한 재개** — `coordinate status` checkpoint에
   `executor_observation`(`unknown`/`unavailable`/`executor-state-not-tracked`)을
   추가해 원장의 active·해시 변화를 워커 생존이나 진전으로 오인하지 않게 했다.
