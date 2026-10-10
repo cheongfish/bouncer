@@ -18,7 +18,9 @@ from the coordinator Worker dispatch and the execute agent-dispatch reference.
   `{ outcome, summary }`. The first attempt has no `previous_outcome`. Named
   and fallback payloads receive the same shape; do not add the raw ledger, other
   task briefs, completed task documents, prior worker report bodies, or past
-  conversation.
+  conversation. Separately from the five metadata fields, also pass the
+  `report_path` that `coordinate dispatch` returned (or that `coordinate next`
+  put in the `implement` payload) so the implementer writes its final report there.
 - While that attempt is active, freeze the task brief: do not call
   `coordinate revise` and do not edit the brief until you have judged the
   implementer's report. If scope must change, wait for the report, record

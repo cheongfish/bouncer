@@ -1781,11 +1781,17 @@ test('without review_scope, root review.md survives closed transition', () => {
 
 const NPM_CI_ARGV = ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'];
 
-function writeLockfile(repo, { marker = false } = {}) {
+function writeLockfile(repo, { marker = false, stamp = false } = {}) {
   fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
   if (marker) {
     fs.mkdirSync(path.join(repo, 'node_modules'), { recursive: true });
     fs.writeFileSync(path.join(repo, 'node_modules/.package-lock.json'), '{}\n');
+  }
+  if (stamp) {
+    fs.mkdirSync(path.join(repo, 'node_modules'), { recursive: true });
+    const hash = require('node:crypto').createHash('sha256')
+      .update(fs.readFileSync(path.join(repo, 'package-lock.json'))).digest('hex');
+    fs.writeFileSync(path.join(repo, 'node_modules/.bouncer-lock-sha256'), `${hash}\n`);
   }
 }
 
@@ -1853,11 +1859,26 @@ test('fresh lockfile installs once in repoRoot before verify with captured stdio
   assert.ok(!JSON.stringify(res).includes('npm-capture-noise'));
 });
 
-test('missing lockfile or existing marker skips dependency install', () => {
+test('marker-only install reinstalls once because the lockfile stamp is missing', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeLockfile(repo, { marker: true });
+  const log = [];
+  const dependencyExec = recordingDependencyExec(log);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+    clearPointer: () => true, verifyExec: recordingVerify(log), dependencyExec,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(dependencyExec.calls.length, 1);
+  assert.deepStrictEqual(log, ['install', 'verify']);
+});
+
+test('missing lockfile or marker with matching stamp skips dependency install', () => {
   for (const setup of ['no-lockfile', 'marker']) {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
     fullBlueprint(repo);
-    if (setup === 'marker') writeLockfile(repo, { marker: true });
+    if (setup === 'marker') writeLockfile(repo, { marker: true, stamp: true });
     const log = [];
     const dependencyExec = recordingDependencyExec(log);
     const res = finalize({

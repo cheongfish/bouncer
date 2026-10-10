@@ -933,7 +933,7 @@ type DependencyExec = typeof execFileSync;
 
 /**
  * finalize 검증 직전에 repoRoot의 npm 의존성을 준비한다.
- * 설치 필요 판정(lockfile 존재·marker 부재)과 npm ci 인자는 seed-worktree의
+ * 설치 필요 판정(lockfile 존재, marker 부재 또는 lockfile sha256 stamp 불일치)과 npm ci 인자는 seed-worktree의
  * prepareDependencies를 그대로 쓰고, 이 wrapper는 실행 seam만 바꿔 끼운다:
  * cwd는 항상 repoRoot, stdio는 capture로 고정해 npm 출력이 CLI JSON stdout에
  * 섞이지 않게 한다. 설치 실패(throw)는 helper가 ok:false로 변환한다.

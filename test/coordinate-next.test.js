@@ -620,6 +620,8 @@ test('task next: active dispatch at baseline is implement', () => {
   assert.strictEqual(r.payload.attempt, 1);
   assert.strictEqual(r.payload.task_brief_hash, dispatched.metadata.task_brief_hash);
   assert.strictEqual(r.payload.base_head, dispatched.metadata.base_head);
+  assert.strictEqual(typeof r.payload.report_path, 'string');
+  assert.strictEqual(r.payload.report_path, dispatched.report_path);
   assert.strictEqual('previous_outcome' in r.payload, false);
   // 첫 implement는 직전 report 결정이 없어 payload.report 키 자체가 없다.
   assert.strictEqual('report' in r.payload, false);

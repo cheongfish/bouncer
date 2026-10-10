@@ -240,3 +240,12 @@ test('run recovers early coordinator returns by observation state table', () => 
   assert.match(delegation, /baseline each session/i);
   assert.match(delegation, /preserve ledger, worktrees,\s+and pointer/);
 });
+
+// unknown 행은 보고 파일 관측에 따라 갈린다: present면 복구 재개, absent면 보존 중단.
+test('run splits the unknown row by report presence and shares one recovery limit', () => {
+  const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'), md.indexOf('5. **Report.**'));
+  assert.match(delegation, /\| unknown \|[^\n]*report present[^\n]*\| recovery re-dispatch once \|/i);
+  assert.match(delegation, /\| unknown \|[^\n]*report absent[^\n]*\| stop `worker-state-unknown` \|/i);
+  assert.match(delegation, /report present[\s\S]{0,400}(?:share|same)[\s\S]{0,120}(?:single|one) recovery/i);
+  assert.match(delegation, /report\.path/);
+});

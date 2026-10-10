@@ -2621,6 +2621,11 @@ test('verification integrate prepares integration dependencies before runVerific
     args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
     options: { cwd: boot.integrationPath, stdio: 'inherit' },
   }]);
+  // 설치 성공 뒤 lockfile sha256 stamp가 남아야 다음 호출이 재설치를 건너뛴다.
+  assert.strictEqual(
+    fs.readFileSync(path.join(boot.integrationPath, 'node_modules/.bouncer-lock-sha256'), 'utf8'),
+    `${crypto.createHash('sha256').update('{}\n').digest('hex')}\n`,
+  );
 });
 
 test('verification integrate does not run verification when dependency install fails', () => {
@@ -2655,6 +2660,7 @@ test('verification integrate does not run verification when dependency install f
   assert.strictEqual(failed.ok, false, JSON.stringify(failed));
   assert.strictEqual(failed.reason, 'dependency-install-failed');
   assert.strictEqual(verified, false);
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, 'node_modules/.bouncer-lock-sha256')), false);
 });
 
 test('verification integrate passes its own taskId to runVerification', () => {
@@ -3573,4 +3579,61 @@ test('repair without --kind or with kind product keeps the wave-consuming path',
   assert.ok(out.repairTask);
   assert.strictEqual(readLedger(drive).repairWaves.length, 1);
   assert.ok(readLedger(drive).terminalFailure);
+});
+
+// 보고 파일 관측: dispatch가 attempt별 report_path를 발급하고 checkpoint가 투영 시점에만
+// present/absent를 계산한다. 원장 bytes는 관측으로 바뀌면 안 된다.
+test('dispatch issues report_path and status projects report present/absent without ledger writes', () => {
+  const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
+  const drive = preparedCommitDrive('bouncer-report-observation-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  assert.strictEqual(dispatched.report_path,
+    path.join(drive.worker, '.bouncer/runtime/reports', '001-1.md'));
+  assert.deepStrictEqual(Object.keys(dispatched.metadata).sort(),
+    ['attempt', 'base_head', 'initial_worktree_state', 'task_brief_hash']);
+  const statusOf = () => coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+  });
+  const before = fs.readFileSync(drive.ledgerFile);
+  const first = statusOf();
+  assert.deepStrictEqual(first.checkpoint.active_tasks[0].report,
+    { path: dispatched.report_path, attempt: 1, state: 'absent' });
+  assert.deepStrictEqual(first.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+
+  // 0바이트 파일은 absent
+  fs.mkdirSync(path.dirname(dispatched.report_path), { recursive: true });
+  fs.writeFileSync(dispatched.report_path, '');
+  assert.strictEqual(statusOf().checkpoint.active_tasks[0].report.state, 'absent');
+  fs.rmSync(dispatched.report_path);
+  // 디렉터리는 absent
+  fs.mkdirSync(dispatched.report_path);
+  assert.strictEqual(statusOf().checkpoint.active_tasks[0].report.state, 'absent');
+  fs.rmdirSync(dispatched.report_path);
+  // 정상 본문은 present
+  fs.writeFileSync(dispatched.report_path, 'report body\n');
+  const present = statusOf();
+  assert.strictEqual(present.checkpoint.active_tasks[0].report.state, 'present');
+  assert.ok(before.equals(fs.readFileSync(drive.ledgerFile)));
+  assert.strictEqual(present.checkpoint.ledger.sha256, first.checkpoint.ledger.sha256);
+  assert.deepStrictEqual(present.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+
+  // reported dispatch에는 report 키가 없다.
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.tasks[0].dispatch.status = 'reported';
+  ledger.tasks[0].dispatch.outcome = 'rework';
+  ledger.tasks[0].dispatch.summary = 'retry';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.strictEqual('report' in statusOf().checkpoint.active_tasks[0], false);
+
+  // attempt 2는 001-1.md만 있으면 absent
+  const second = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(second.ok, true, JSON.stringify(second));
+  assert.strictEqual(path.basename(second.report_path), '001-2.md');
+  assert.deepStrictEqual(statusOf().checkpoint.active_tasks[0].report,
+    { path: second.report_path, attempt: 2, state: 'absent' });
 });

@@ -31,8 +31,9 @@ the only normal task-commit command. `finalize --yes` may close the blueprint,
 so obtain the workflow-required user consent before calling it.
 Right after the verify command resolves, `finalize --yes` runs
 `npm ci --include=dev --ignore-scripts --no-audit --no-fund` once in the same
-checkout when `package-lock.json` exists and `node_modules/.package-lock.json`
-does not; npm output is captured and never reaches the JSON stdout. Dry-run,
+checkout when `package-lock.json` exists and either `node_modules/.package-lock.json`
+is missing or `node_modules/.bouncer-lock-sha256` is missing or differs from the
+lockfile's sha256 (the stamp is written after a successful install); npm output is captured and never reaches the JSON stdout. Dry-run,
 an empty close, config errors, and gate or scope refusals never install. An
 install failure exits 1 with `code: DEPENDENCY_INSTALL_FAILED`, `cause`, and
 `next` before verify, staging, commit, or pointer clearing — repair the
@@ -85,6 +86,16 @@ track host executors, so a task `dispatch.status: active` (recorded before the
 host launch) and a changed `ledger.sha256` (fencing token only) are not proof a
 worker is running or made progress; only the root session's real host handle
 can show running or terminated.
+
+`coordinate dispatch` also returns a top-level `report_path`
+(`<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md`, absolute) that the
+implementer fills with its final report; `coordinate next` carries the same
+`report_path` in the `implement` payload. Every checkpoint adds
+`active_tasks[].report: { path, attempt, state }` for a task whose
+`dispatch.status` is `active`: `present` when the current attempt's file is a
+non-empty regular file, otherwise `absent` (missing, empty, directory, an older
+attempt's file, or a stat error). It is computed at projection time and never
+stored in the ledger.
 
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns

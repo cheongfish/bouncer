@@ -945,3 +945,21 @@ test('CLI coordinate repair rejects an unknown --kind and a --done without suppl
   assert.strictEqual(done.code, 2, done.buf.err + done.buf.out);
   assert.match(done.buf.err, /--done/);
 });
+
+test('dispatch report_path and status report projection match the --write-input checkpoint', () => {
+  const drive = preparedDrive();
+  const dispatched = coordinateCli(drive.worker, 'dispatch', ['--repo', drive.repo, '--task', '001']);
+  assert.strictEqual(dispatched.code, 0, dispatched.buf.err + dispatched.buf.out);
+  const reportPath = JSON.parse(dispatched.buf.out).report_path;
+  assert.strictEqual(path.basename(reportPath), '001-1.md');
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  fs.writeFileSync(reportPath, 'report body\n');
+  const { code, buf } = coordinateCli(drive.integration, 'status', ['--write-input', 'out/report.input.md']);
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const out = JSON.parse(buf.out);
+  const expected = { path: reportPath, attempt: 1, state: 'present' };
+  assert.deepStrictEqual(out.checkpoint.active_tasks[0].report, expected);
+  const text = fs.readFileSync(out.input_file, 'utf8');
+  const inputCheckpoint = JSON.parse(text.match(/^checkpoint: (\{.*\})$/m)[1]);
+  assert.deepStrictEqual(inputCheckpoint.active_tasks[0].report, expected);
+});
