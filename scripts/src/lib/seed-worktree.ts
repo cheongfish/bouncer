@@ -38,6 +38,7 @@ const LOCK_STAMP_REL = path.join('node_modules', '.bouncer-lock-sha256');
 /**
  * lockfile이 있고 npm marker와 현재 lockfile에 맞는 stamp가 모두 있을 때만 설치를 건너뛰고,
  * 그 밖에는 `npm ci --include=dev`로 의존성을 채운 뒤 lockfile sha256 stamp를 남긴다.
+ * stamp를 읽을 수 없으면(errno 무관) stamp 없음으로 보고 재설치한다.
  * git worktree는 ignored `node_modules`를 가져오지 않고, 브랜치가 lockfile을 바꾸면 남은
  * marker만으로는 오래된 node_modules를 알아채지 못한다. fan-in candidate와 integration
  * checkout, finalize가 같은 계약을 타게 한다. 설치 성공 뒤 stamp 쓰기가 실패해도
@@ -61,11 +62,10 @@ function prepareDependencies(
     let stamp: string | null = null;
     try {
       stamp = fs.readFileSync(stampFile, 'utf8').trim();
-    } catch (error) {
-      // stamp 부재·디렉터리 등 읽기 실패는 "일치 확인 불가"일 뿐이므로 재설치로 간다.
-      // 그 밖의 오류는 의도하지 않은 상태이므로 숨기지 않는다.
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== 'ENOENT' && code !== 'EISDIR' && code !== 'ENOTDIR') throw error;
+    } catch {
+      // 읽기 실패(ENOENT·EISDIR·ENOTDIR·EACCES·EIO 등 모든 errno)는 "stamp 알 수 없음"으로
+      // 취급한다. stamp는 설치 최적화 장치일 뿐이라 읽지 못해도 재설치하면 안전하고,
+      // 여기서 던지면 의존성 준비 전체가 중단되므로 사유를 구분하지 않고 흡수한다.
     }
     if (stamp === lockHash) return { ok: true };
   }

@@ -791,6 +791,28 @@ test('prepareDependencies keeps ok:true when the stamp cannot be written and rei
   assert.strictEqual(calls.length, 2);
 });
 
+test('prepareDependencies treats an unreadable stamp as unknown and reinstalls without throwing', (t) => {
+  // root는 chmod 000 파일도 읽으므로 EACCES를 재현할 수 없다.
+  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+    t.skip('root can read mode 000 files');
+    return;
+  }
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+  writeInstalled(repo);
+  const stampAbs = path.join(repo, STAMP);
+  fs.chmodSync(stampAbs, 0o000);
+  const calls = [];
+
+  try {
+    const res = prepareDependencies(repo, { execFileSync(...args) { calls.push(args); } });
+    assert.strictEqual(res.ok, true, JSON.stringify(res));
+    assert.strictEqual(calls.length, 1);
+  } finally {
+    fs.chmodSync(stampAbs, 0o644);
+  }
+});
+
 test('prepareDependencies reports install failure without writing a stamp', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
