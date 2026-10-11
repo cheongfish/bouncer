@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+## [1.5.7] — 2026-10-11
+
+1.5.6 패치. 공용 helper 통합과 순환 의존 제거(EPIC 092 BP 001), 동작 중심 테스트 지침과
+테스트 unit·integration 계층 분리(BP 002)를 담는다. 제품 코드와 CLI 출력은 바뀌지 않는다.
+
 ### Changed
 
 - **공용 helper 통합 (EPIC 092 BP 001)** — digest와 판별 helper를 공용 모듈로 통합했다.
