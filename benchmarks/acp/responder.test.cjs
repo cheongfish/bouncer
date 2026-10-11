@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { driveState, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState, answerAskQuestion,
+const { loadPolicy, loadCatalog, readTextQuestions, turnQuestionState, answerAskQuestion,
   answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission, finalizeReady, gateIdOf,
   gitEnv, IMPLEMENTED_ANSWERS } = require('./responder.cjs');
 
@@ -376,15 +376,17 @@ test('answers structured quiz only with three options for every question', () =>
 });
 
 // 1790661115056 run: integration worktree에는 pointer가 없고 prepare에는 integration 필드가 없어 remainder에서 멈췄다.
-test('finalize readiness comes from the prepare coordinator section and a dry run', () => {
-  const prepare = { ok: true, coordinator: { status: 'ok', tasks: [{ id: '001', status: 'integrated' }] } };
+test('drive.ready true와 dry-run 성공 → finalizeReady true', () => {
   const dryRun = { ok: true, dryRun: true };
-  assert.equal(finalizeReady(prepare, dryRun), true);
-  assert.equal(finalizeReady({ ...prepare, coordinator: { status: 'ok', tasks: [] } }, dryRun), false);
-  assert.equal(finalizeReady({ ...prepare, coordinator: { status: 'ok',
-    tasks: [{ id: '001', status: 'integrated' }, { id: '002', status: 'ready' }] } }, dryRun), false);
-  assert.equal(finalizeReady(prepare, { ok: false }), false);
-  assert.equal(finalizeReady({ ok: true, integration: { complete: true } }, dryRun), false);
+  assert.equal(finalizeReady({ ok: true, drive: { ready: true, tasks: [] } }, dryRun), true);
+  assert.equal(finalizeReady({ ok: true, drive: { ready: false, tasks: [] } }, dryRun), false);
+  assert.equal(finalizeReady({ ok: false, drive: { ready: true, tasks: [] } }, dryRun), false);
+  assert.equal(finalizeReady({ ok: true, drive: { ready: true, tasks: [] } }, { ok: false }), false);
+});
+
+test('drive null → false', () => {
+  assert.equal(finalizeReady({ ok: true, drive: null }, { ok: true, dryRun: true }), false);
+  assert.equal(finalizeReady({ ok: true }, { ok: true, dryRun: true }), false);
 });
 
 // v088006-ledger-004-bouncer-full-3 ran from a checkout under `.worktrees/`, so the workspace path itself
@@ -484,28 +486,6 @@ test('answers pre-task state questions from the task policy and marks them synth
   assert.equal(answerAskQuestion(policy, 'bouncer-run', ask(['Leave them staged', 'Commit them'])), null);
   const unrelated = { questions: [{ id: 'q1', prompt: 'Which database?', options: [{ id: 'a', label: 'x' }, { id: 'b', label: 'y' }] }] };
   assert.equal(answerAskQuestion(task, 'bouncer-run', unrelated), null);
-});
-
-
-test('reads the drive state from the integration ledger once finalize prepare stops mirroring it', () => {
-  const { mkdirSync } = require('node:fs');
-  const checkout = mkdtempSync(path.join(tmpdir(), 'acp-ledger-'));
-  const prepare = { ok: true, blueprint: {}, tasks: [] };
-  const dryRun = { ok: true, dryRun: true };
-  assert.equal(driveState(prepare, checkout), null);
-  assert.equal(finalizeReady(prepare, dryRun, driveState(prepare, checkout)), false);
-  mkdirSync(path.join(checkout, '.bouncer', 'runtime'), { recursive: true });
-  const ledger = { version: 1, integrationHead: 'abc', integrationBranch: 'feat/x',
-    tasks: [{ id: 'TASKS-001', status: 'integrated', sha: 'abc' }] };
-  writeFileSync(path.join(checkout, '.bouncer', 'runtime', 'coordinator.json'), JSON.stringify(ledger));
-  assert.equal(driveState(prepare, checkout).integrationHead, 'abc');
-  assert.equal(finalizeReady(prepare, dryRun, driveState(prepare, checkout)), true);
-  ledger.tasks.push({ id: 'TASKS-002', status: 'verified' });
-  writeFileSync(path.join(checkout, '.bouncer', 'runtime', 'coordinator.json'), JSON.stringify(ledger));
-  assert.equal(finalizeReady(prepare, dryRun, driveState(prepare, checkout)), false);
-  // A digest that still mirrors the ledger wins over the file.
-  assert.equal(driveState({ ok: true, coordinator: { status: 'ok', tasks: [] } }, checkout).tasks.length, 0);
-  rmSync(checkout, { recursive: true });
 });
 
 

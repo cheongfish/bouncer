@@ -48,25 +48,17 @@ function soleBlueprint(workDir) {
   return found.length === 1 ? found[0] : null;
 }
 
-// Drive state: `finalize prepare` mirrored the coordinator ledger as `coordinator` until 1.5.4 (87cca19f)
-// dropped it from the result; from then on the ledger file in the integration worktree is read directly.
-function driveState(prepare, checkout) {
-  if (prepare?.coordinator) return prepare.coordinator;
-  let ledger;
-  try {
-    ledger = JSON.parse(readFileSync(path.join(checkout, '.bouncer', 'runtime', 'coordinator.json'), 'utf8'));
-  } catch {
-    return null;
-  }
-  return { status: 'ok', integrationHead: ledger.integrationHead ?? null, integrationBranch: ledger.integrationBranch ?? null,
-    tasks: (Array.isArray(ledger.tasks) ? ledger.tasks : []).map((task) => ({ id: task.id, status: task.status, sha: task.sha })) };
-}
-
-// `finalize prepare` is a read-only digest; the drive state says every task is integrated.
-function finalizeReady(prepare, dryRun, drive = prepare?.coordinator) {
-  const tasks = Array.isArray(drive?.tasks) ? drive.tasks : [];
-  return prepare?.ok === true && drive?.status === 'ok' && tasks.length > 0
-    && tasks.every((task) => task.status === 'integrated') && dryRun?.ok === true && dryRun.dryRun === true;
+/**
+ * `finalize prepare`의 drive 요약만으로 finalize 준비 여부를 판정한다.
+ * coordinator 원장 파일을 직접 읽지 않는 이유는 원장 형식이 버전마다 바뀌므로 CLI가 주는
+ * `drive.ready`(task가 하나 이상이고 전부 integrated)가 유일한 계약이기 때문이다.
+ *
+ * @param {object | null} prepare - `finalize prepare` JSON. 호출 실패면 null
+ * @param {object | null} dryRun - `finalize --blueprint` dry-run JSON. 호출 실패면 null
+ * @returns {boolean} prepare 성공, drive.ready true, dry-run 성공이 모두 맞을 때만 true
+ */
+function finalizeReady(prepare, dryRun) {
+  return prepare?.ok === true && prepare.drive?.ready === true && dryRun?.ok === true && dryRun.dryRun === true;
 }
 
 function finalizeEvidence(workDir) {
@@ -74,7 +66,7 @@ function finalizeEvidence(workDir) {
   const blueprint = currentBlueprint(workDir) ?? soleBlueprint(workDir);
   if (!blueprint) return false;
   const prepare = bouncerJson(workDir, ['finalize', 'prepare', '--blueprint', blueprint]);
-  return finalizeReady(prepare, bouncerJson(workDir, ['finalize', '--blueprint', blueprint]), driveState(prepare, workDir));
+  return finalizeReady(prepare, bouncerJson(workDir, ['finalize', '--blueprint', blueprint]));
 }
 
 function planGateEvidence(workDir) {
@@ -740,5 +732,5 @@ function answerPermission(params) {
   return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
 }
 
-module.exports = { IMPLEMENTED_ANSWERS, driveState, finalizeReady, gateIdOf, gitEnv, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState,
+module.exports = { IMPLEMENTED_ANSWERS, finalizeReady, gateIdOf, gitEnv, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState,
   decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission };

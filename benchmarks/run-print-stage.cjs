@@ -14,6 +14,8 @@ const { loadPolicy, answerQuizText, turnQuestionState } = require('./acp/respond
 const { normalizeUsage, sumUsage, transcriptFiles, usageCoverage, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
 const { loadCard } = require('./task-card.cjs');
+const { assertImagePluginVersion } = require('./plugin-version.cjs');
+const { writeUnansweredFixtures } = require('./unanswered-fixtures.cjs');
 
 const root = __dirname;
 const compose = path.join(root, 'docker', 'compose.cursor.yaml');
@@ -96,6 +98,9 @@ async function main() {
     cwd: root, env, stdio: 'inherit',
   });
   if (built.status !== 0) throw new Error(`Docker build failed: ${built.status}`);
+  // 유료 요청 전에 이미지 플러그인 버전이 checkout과 같은지 확인한다.
+  const pluginVersion = assertImagePluginVersion({ compose, env, cwd: root,
+    checkoutVersion: JSON.parse(readFileSync(path.join(root, '..', 'package.json'), 'utf8')).version });
   const startedAt = new Date().toISOString();
   const deadline = Date.now() + args.timeoutMs;
   const containerName = `cursor-bench-print-${process.pid}`;
@@ -179,8 +184,9 @@ async function main() {
   writeFileSync(path.join(runDir, 'decisions.json'), JSON.stringify({
     decisions, unanswered, shell_guard: shellGuard, subagent_guard: subagentGuard,
   }, null, 2) + '\n');
+  writeUnansweredFixtures(runDir, { source: path.relative(path.join(root, '..'), runDir), phase: stage, unanswered });
   writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({
-    stage, mode: 'print', status, session_id: sessionId, error,
+    stage, mode: 'print', status, session_id: sessionId, error, plugin_version: pluginVersion,
     evaluator_policy_version: policy.policy_version, evaluator_policy_sha256: policySha256,
     started_at: startedAt, ended_at: new Date().toISOString(),
     turns,

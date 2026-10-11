@@ -8,6 +8,7 @@ const { transcriptFiles, usageCoverage, usageFromCursorLogs, usageFromCursorStre
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
 const { applyWorkspaceSetup, loadRunnableCard, taskRecord } = require('./task-card.cjs');
+const { assertImagePluginVersion } = require('./plugin-version.cjs');
 const { clearTimeout, setTimeout } = require('node:timers');
 
 const root = __dirname;
@@ -159,9 +160,7 @@ async function main() {
     run_id: config.runId,
     ...taskRecord(task),
     condition,
-    plugin_version: condition === 'bouncer-full'
-      ? JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version
-      : null,
+    plugin_version: null, // bouncer-full은 이미지 빌드 뒤 이미지 안 값으로 채운다.
     model: config['--model'],
     ...sourceProvenance(projectRoot),
     workspace_setup: workspaceSetup,
@@ -180,6 +179,12 @@ async function main() {
   }
 
   runCompose(['build', service, 'verifier'], env);
+  // 에이전트 요청 전에 이미지 플러그인 버전이 checkout과 같은지 확인한다. vanilla는 플러그인이 없어 검사하지 않는다.
+  if (condition === 'bouncer-full') {
+    record.plugin_version = assertImagePluginVersion({ compose: composeFile, env, cwd: root,
+      checkoutVersion: JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version });
+    saveJson(path.join(runDir, 'run.json'), record);
+  }
   record.cursor_version = runCompose(
     ['run', '--rm', '--no-deps', '--entrypoint', 'cursor-agent', service, '--version'], env,
   ).trim();
