@@ -84,26 +84,59 @@ function planGateEvidence(workDir) {
   return bouncerJson(workDir, ['validate', '--blueprint', blueprint, '--gate', 'plan'])?.ok === true;
 }
 
-// ledger-001's approved policy predates `discovery_terms` and `reusable_draft`; these are its values.
-// Every later task's policy must state its own (loadPolicy enforces it).
-const LEDGER_001_FACTS = {
-  discovery_terms: ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1', 'list', 'total', 'cli.js'],
-  reusable_draft: { epic: '001-monthly-summary', blueprint: '001-summary-command' },
+/**
+ * 게이트별로 응답기가 실제로 결정을 구현한 정책 `answer` 표.
+ * 게이트 ID 집합이 아니라 "이 게이트가 어떤 답을 행동으로 옮길 수 있는가"의 표다. 정책 `answer`가
+ * `stop`이 아니면서 여기에 없으면 선언만 있고 실행이 멈추는 정책이므로 `loadPolicy`가 거부한다.
+ * 키는 카탈로그 ID와 legacy ID(`plan.activate_pointer`, `finalize.quiz`) 안에 있어야 한다(테스트가 검사).
+ */
+const IMPLEMENTED_ANSWERS = {
+  'init.graphify_promotion': ['enable_and_install'],
+  'init.gitignore': ['write_suggested_entries'],
+  'init.base_branch': ['main'],
+  'init.pre_commit_hook': ['install'],
+  'plan.request': ['repeat_request_file'],
+  'plan.discovery': ['confirm'],
+  'plan.id_allocation': ['accept_suggested_ids', 'accept_suggested_ids_or_reuse_sole_draft'],
+  'plan.light_scope': ['full'],
+  'plan.verify_command': ['npm test', 'recommended_package_script'],
+  'plan.affected_paths': ['confirm_proposed_paths'],
+  'plan.activate_pointer': ['set_sole_ready_blueprint'],
+  'plan.approval': ['approve'],
+  'run.start_drive': ['start'],
+  'commit.next_task': ['advance_to_next_task'],
+  'finalize.quiz': ['select_first_option_for_each_question'],
+  'finalize.remainder': ['finalize_yes_and_remove_worktrees'],
+  'finalize.pr': ['local_only'],
 };
 
-function taskFact(policy, name) {
-  return Object.hasOwn(policy.task_facts ?? {}, name) ? policy.task_facts[name] : LEDGER_001_FACTS[name];
-}
-
-function loadPolicy(file) {
+/**
+ * 평가자 정책 파일을 읽고 응답기가 따를 수 있는 정책인지 검증한다.
+ * 검증 순서는 버전 → task_facts 필수 키 → 카탈로그 커버리지 → 승인 상태 → 벤치마크 선택이다.
+ * 커버리지는 승인 상태보다 먼저 본다: 초안(proposed) 정책도 게이트 누락·미구현 답은 먼저 드러나야 한다.
+ *
+ * @param {string} file - 정책 JSON 경로
+ * @param {{catalog?: Record<string, string[]>}} [deps] - 카탈로그 주입(테스트용, 기본 `loadCatalog()`)
+ * @returns {object} 검증을 통과한 정책
+ * @throws {Error} 버전·필수 키·게이트 누락·미구현 답·미승인·미지원 선택 중 하나라도 어긋나면
+ */
+function loadPolicy(file, deps = {}) {
   const policy = JSON.parse(readFileSync(file, 'utf8'));
   // Each task has its own approved policy; runners match task_id against the task card they run.
   if (policy.policy_version !== 3 || !/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(policy.task_id ?? '')) {
     throw new Error('unsupported evaluator policy');
   }
-  if (policy.task_id !== 'ledger-001' && (!Array.isArray(policy.task_facts?.discovery_terms)
-    || !policy.task_facts.discovery_terms.length || !Object.hasOwn(policy.task_facts, 'reusable_draft'))) {
+  if (!Array.isArray(policy.task_facts?.discovery_terms)
+    || !policy.task_facts.discovery_terms.length || !Object.hasOwn(policy.task_facts, 'reusable_draft')) {
     throw new Error('evaluator policy must state task_facts.discovery_terms and task_facts.reusable_draft');
+  }
+  const decisions = Array.isArray(policy.bouncer_decisions) ? policy.bouncer_decisions : [];
+  for (const id of new Set(Object.values(deps.catalog ?? loadCatalog()).flat())) {
+    const decision = decisions.find((candidate) => candidate.gate === id);
+    if (!decision) throw new Error(`evaluator policy missing gate ${id}`);
+    if (decision.answer !== 'stop' && !IMPLEMENTED_ANSWERS[id]?.includes(decision.answer)) {
+      throw new Error(`evaluator policy answer ${decision.answer} for ${id} is not implemented`);
+    }
   }
   if (policy.approval_state !== 'approved') {
     throw new Error('evaluator policy is proposed; explicit user approval is required before sending gate answers');
@@ -184,7 +217,45 @@ function proposedPaths(text) {
     .filter((token) => /^[\w.@/*-]+$/.test(token) && (token.includes('/') || /\.[a-z]{1,5}$/i.test(token))))];
 }
 
+/**
+ * 정책이 해당 게이트에 선언한 답을 읽는다.
+ *
+ * @param {object} policy - 평가자 정책
+ * @param {string} gate - 게이트 ID
+ * @returns {string | undefined} 정책 `answer`. 항목이 없으면 undefined(호출자는 멈춘다)
+ */
+function policyAnswer(policy, gate) {
+  return policy.bouncer_decisions?.find((decision) => decision.gate === gate)?.answer;
+}
+
+/**
+ * 저장소 현재 브랜치 이름을 git으로 읽는다(`deps.currentBranch`의 기본 구현).
+ *
+ * @param {string} workDir - git을 실행할 작업 디렉터리
+ * @returns {string | null} 브랜치 이름. git 실패(저장소 아님 등)면 null
+ */
+function currentBranch(workDir) {
+  const result = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+    cwd: workDir, env: gitEnv(workDir), encoding: 'utf8' });
+  return result.status === 0 && !result.error ? result.stdout.trim() || null : null;
+}
+
 const gates = [
+  { gate: 'init.graphify_promotion', phase: 'bouncer-init',
+    decide({ policy, options }) {
+      if (policyAnswer(policy, 'init.graphify_promotion') !== 'enable_and_install') return null;
+      return chooseProceed(options, { require: /enable|install|활성|설치/i, deny: /skip|건너|않/i });
+    },
+    reason: 'policy enables and installs the Graphify promotion' },
+  { gate: 'init.base_branch', phase: 'bouncer-init',
+    decide({ policy, options, workDir, deps }) {
+      if (policyAnswer(policy, 'init.base_branch') !== 'main' || !workDir) return null;
+      // git 호출을 deps 뒤에 둔 이유: unit 테스트가 프로세스를 띄우지 않고 브랜치를 주입한다.
+      if ((deps?.currentBranch ?? currentBranch)(workDir) !== 'main') return null;
+      const option = labelMatch(options, /\bmain\b/i);
+      return option ? { option, basis: 'content' } : null;
+    },
+    reason: 'checkout is on main and main is the one offered base branch' },
   { gate: 'init.gitignore', phase: 'bouncer-init',
     decide({ policy, prompt, options, workDir }) {
       const expected = policy.task_facts.expected_gitignore_suggestions;
@@ -205,18 +276,26 @@ const gates = [
       return chooseProceed(options, { deny: /\bleave\b|untouched|\bskip\b|그대로|두기|건너/i });
     },
     reason: 'all expected entries present' },
-  // Added by 087 after the 1.5.4 policies were approved, so only a policy that states an answer opts in.
+  // 정책 답이 install일 때만 설치한다. stop이거나 항목이 없으면 사람에게 넘긴다.
   { gate: 'init.pre_commit_hook', phase: 'bouncer-init',
     decide({ policy, options }) {
-      const answer = policy.bouncer_decisions?.find((decision) => decision.gate === 'init.pre_commit_hook')?.answer;
-      if (answer !== 'install') return null;
+      if (policyAnswer(policy, 'init.pre_commit_hook') !== 'install') return null;
       return chooseProceed(options, { require: /install|설치/i, deny: /\bnot\b|don't|않|skip|건너/i });
     },
     reason: 'policy installs the git pre-commit hook' },
+  { gate: 'plan.request', phase: 'bouncer-plan',
+    decide({ policy, options, turnSize, deps }) {
+      // 다른 질문과 한 턴에 온 자유 입력은 요청 원문 하나로 모두를 답할 수 없으므로 멈춘다.
+      if (policyAnswer(policy, 'plan.request') !== 'repeat_request_file' || options.length || turnSize !== 1
+        || typeof policy.request_file !== 'string') return null;
+      const read = deps?.readRequest ?? ((file) => readFileSync(path.join(pluginRoot, file), 'utf8'));
+      return { replyText: read(policy.request_file) };
+    },
+    reason: 'policy repeats the public request file verbatim' },
   { gate: 'plan.discovery', phase: 'bouncer-plan',
     decide({ policy, prompt, context, options }) {
       const facts = `${context} ${prompt}`;
-      if (!taskFact(policy, 'discovery_terms').every((term) => facts.includes(term))
+      if (!policy.task_facts.discovery_terms.every((term) => facts.includes(term))
         || /\b(?:deploy|database migration|git push|pull request)\b/i.test(facts)) return null;
       return chooseProceed(options);
     },
@@ -230,7 +309,7 @@ const gates = [
         return chooseProceed(options, { require: /\b001\b|suggested|권장|제안/i, deny: /\b(?!001\b)\d{3}\b/ });
       }
       // A retried plan stage may find the draft an earlier attempt left; reuse only that known draft.
-      const draft = taskFact(policy, 'reusable_draft');
+      const draft = policy.task_facts.reusable_draft;
       if (!draft) return null;
       const reuse = path.join(epicRoot, draft.epic, 'blueprints', draft.blueprint, 'index.md');
       if (existing.length !== 1 || existing[0] !== draft.epic || !existsSync(reuse)) return null;
@@ -297,6 +376,12 @@ const gates = [
       return choice && planGateEvidence(workDir) ? choice : null;
     },
     reason: 'plan gate passed' },
+  { gate: 'commit.next_task', phase: 'bouncer-commit',
+    decide({ policy, options }) {
+      if (policyAnswer(policy, 'commit.next_task') !== 'advance_to_next_task') return null;
+      return chooseProceed(options, { require: /current\s+--set/i, deny: /finalize|report only|보고만/i });
+    },
+    reason: 'policy advances to the next task' },
   { gate: 'finalize.remainder', phase: 'bouncer-finalize',
     decide({ options, workDir, deps }) {
       // 증거 판정을 주입할 수 있게 한 이유: 실제 판정은 git·drive를 띄우므로 재생 테스트가 대신 값을 넣는다.
@@ -381,7 +466,8 @@ function decideGateQuestion(policy, phase, question, workDir, deps = {}) {
   const chosen = (deps.gates ?? gates).find((candidate) => candidate.gate === id && candidate.phase === phase);
   if (!chosen) return null;
   const identifiedBy = question.identifiedBy ?? 'gate_id';
-  const choice = chosen.decide({ policy, prompt, context: question.context ?? '', options, workDir, deps });
+  const choice = chosen.decide({ policy, prompt, context: question.context ?? '', options, workDir, deps,
+    turnSize: question.turnSize ?? 1 });
   if (!choice) return null;
   // 선택지 없는 자유 입력 질문은 글자가 아니라 응답 문장을 돌려받는다.
   if (typeof choice.replyText === 'string') {
@@ -631,7 +717,8 @@ function answerTextQuestion(policy, phase, text, workDir, deps = {}) {
   const decisions = [];
   for (const question of read.questions) {
     const decision = decideQuestion(policy, phase, { gate: question.gate, identifiedBy: question.identifiedBy,
-      heading: question.gate, prompt: question.body, context: question.context, options: question.options },
+      heading: question.gate, prompt: question.body, context: question.context, options: question.options,
+      turnSize: read.questions.length },
     workDir, deps);
     if (!decision) return null;
     decisions.push(decision);
@@ -653,5 +740,5 @@ function answerPermission(params) {
   return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
 }
 
-module.exports = { driveState, finalizeReady, gateIdOf, gitEnv, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState,
+module.exports = { IMPLEMENTED_ANSWERS, driveState, finalizeReady, gateIdOf, gitEnv, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState,
   decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission };

@@ -7,12 +7,15 @@ const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { driveState, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState, answerAskQuestion,
   answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission, finalizeReady, gateIdOf,
-  gitEnv } = require('./responder.cjs');
+  gitEnv, IMPLEMENTED_ANSWERS } = require('./responder.cjs');
 
 const policy = { benchmark_choices: { finalize_quiz: 'first_option_for_each_presented_question' },
   task_facts: { expected_gitignore_suggestions: [
     'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/', '.bouncer/runtime/',
-  ], product_paths: ['src/cli.js', 'src/ledger.js', 'test/ledger.test.js', 'test/cli.test.js', 'README.md'] } };
+  ], product_paths: ['src/cli.js', 'src/ledger.js', 'test/ledger.test.js', 'test/cli.test.js', 'README.md'],
+  // 응답기는 task_facts만 읽으므로 ledger-001 사실도 fixture가 직접 갖는다.
+  discovery_terms: ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1', 'list', 'total', 'cli.js'],
+  reusable_draft: { epic: '001-monthly-summary', blueprint: '001-summary-command' } } };
 
 
 test('answers only the exact expected init ignore proposal', () => {
@@ -458,7 +461,8 @@ test('requires later task policies to state their discovery terms and reusable d
   const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
   const policyFile = path.join(dir, 'policy.json');
   const approved = require('../configs/ledger-001-evaluator-policy.json');
-  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002' }));
+  const { discovery_terms: _terms, reusable_draft: _draft, ...bareFacts } = approved.task_facts;
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002', task_facts: bareFacts }));
   assert.throws(() => loadPolicy(policyFile), /discovery_terms and task_facts.reusable_draft/);
   writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002',
     task_facts: { ...approved.task_facts, discovery_terms: ['budget'], reusable_draft: null } }));
@@ -673,3 +677,128 @@ test('loadCatalog()[bouncer-plan] → the workflows entry of rules/acq-gates.jso
   assert.deepEqual(loadCatalog(), file.workflows);
 });
 
+
+// ---- 정책 커버리지와 네 게이트 ----
+const POLICY_NAMES = ['ledger-001', 'ledger-002', 'ledger-003', 'ledger-004', 'fastify-001'];
+const realPolicy = (name) => JSON.parse(readFileSync(path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`), 'utf8'));
+const policyFile = (value) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
+  const file = path.join(dir, 'policy.json');
+  writeFileSync(file, JSON.stringify(value));
+  return file;
+};
+const withAnswer = (gate, answer) => ({ ...policy,
+  bouncer_decisions: [{ gate, answer }] });
+
+test('init.pre_commit_hook 항목 없는 정책과 deps.catalog → loadPolicy throw missing gate', () => {
+  const approved = realPolicy('ledger-001');
+  const file = policyFile({ ...approved, bouncer_decisions: approved.bouncer_decisions
+    .filter((decision) => decision.gate !== 'init.pre_commit_hook') });
+  assert.throws(() => loadPolicy(file, { catalog: { 'bouncer-init': ['init.pre_commit_hook'] } }),
+    /evaluator policy missing gate init\.pre_commit_hook/);
+});
+
+test('구현 안 된 answer → loadPolicy throw not implemented', () => {
+  const approved = realPolicy('ledger-001');
+  const file = policyFile({ ...approved, bouncer_decisions: approved.bouncer_decisions
+    .map((decision) => (decision.gate === 'init.base_branch' ? { ...decision, answer: 'develop' } : decision)) });
+  assert.throws(() => loadPolicy(file), /evaluator policy answer develop for init\.base_branch is not implemented/);
+});
+
+test('ledger-001 정책 → discovery_terms와 reusable_draft가 정책 값과 같음', () => {
+  const facts = realPolicy('ledger-001').task_facts;
+  assert.deepEqual(facts.discovery_terms,
+    ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1', 'list', 'total', 'cli.js']);
+  assert.deepEqual(facts.reusable_draft, { epic: '001-monthly-summary', blueprint: '001-summary-command' });
+});
+
+test('discovery_terms나 reusable_draft 키가 없는 ledger-001 정책 → loadPolicy throw', () => {
+  const approved = realPolicy('ledger-001');
+  const { reusable_draft: _draft, ...facts } = approved.task_facts;
+  assert.throws(() => loadPolicy(policyFile({ ...approved, task_facts: facts })), /reusable_draft/);
+});
+
+test('다섯 실제 정책의 카탈로그 게이트 항목 → answer가 stop이거나 IMPLEMENTED_ANSWERS[gate]에 있음', () => {
+  const ids = Object.values(loadCatalog()).flat();
+  for (const name of POLICY_NAMES) {
+    const decisions = realPolicy(name).bouncer_decisions;
+    for (const id of ids) {
+      const decision = decisions.find((candidate) => candidate.gate === id);
+      assert.ok(decision, `${name}: ${id}`);
+      assert.ok(decision.answer === 'stop' || IMPLEMENTED_ANSWERS[id]?.includes(decision.answer), `${name}: ${id}`);
+    }
+  }
+});
+
+test('ledger-001~004 정책 → loadPolicy 통과, fastify-001 → proposed 오류로만 throw', () => {
+  for (const name of POLICY_NAMES.slice(0, 4)) {
+    assert.equal(loadPolicy(path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`)).task_id, name);
+  }
+  assert.throws(() => loadPolicy(path.join(__dirname, '..', 'configs', 'fastify-001-evaluator-policy.json')),
+    /explicit user approval/);
+});
+
+test('IMPLEMENTED_ANSWERS 키 → 모두 loadCatalog 결과 합집합이나 legacy ID 안', () => {
+  const known = new Set([...Object.values(loadCatalog()).flat(), 'plan.activate_pointer', 'finalize.quiz']);
+  for (const id of Object.keys(IMPLEMENTED_ANSWERS)) assert.ok(known.has(id), id);
+});
+
+const base = withAnswer('init.base_branch', 'main');
+
+test('init.base_branch, 현재 브랜치 main, main 선택지 하나 → 그 선택지', () => {
+  const text = acq('init.base_branch', '기준 브랜치', ['Use main as the base branch (Recommended)', 'Use develop']);
+  const answer = answerTextQuestion(base, 'bouncer-init', text, '/nonexistent', { currentBranch: () => 'main' });
+  assert.equal(answer.reply, 'A');
+});
+
+test('init.base_branch, 현재 브랜치 develop → null', () => {
+  const text = acq('init.base_branch', '기준 브랜치', ['Use main as the base branch (Recommended)', 'Use develop']);
+  assert.equal(answerTextQuestion(base, 'bouncer-init', text, '/nonexistent', { currentBranch: () => 'develop' }), null);
+  assert.equal(answerTextQuestion(base, 'bouncer-init', text, '/nonexistent', { currentBranch: () => null }), null);
+});
+
+test('init.base_branch, main 선택지가 둘 → null', () => {
+  const text = acq('init.base_branch', '기준 브랜치', ['Use main (Recommended)', 'Use main-2']);
+  assert.equal(answerTextQuestion(base, 'bouncer-init', text, '/nonexistent', { currentBranch: () => 'main' }), null);
+});
+
+test('init.graphify_promotion 권장 활성화 → 권장 선택지', () => {
+  const text = acq('init.graphify_promotion', '그래프', ['Enable and install Graphify (Recommended)', 'Skip']);
+  assert.equal(answerTextQuestion(withAnswer('init.graphify_promotion', 'enable_and_install'), 'bouncer-init', text, '/nonexistent').reply, 'A');
+});
+
+test('init.graphify_promotion 권장이 건너뛰기 → null', () => {
+  const text = acq('init.graphify_promotion', '그래프', ['Skip Graphify (Recommended)', 'Enable and install']);
+  assert.equal(answerTextQuestion(withAnswer('init.graphify_promotion', 'enable_and_install'), 'bouncer-init', text, '/nonexistent'), null);
+});
+
+test('commit.next_task 권장 current --set → 권장 선택지', () => {
+  const text = acq('commit.next_task', '다음 task', ['Run `bouncer current --set` for the next task (Recommended)', 'Finalize']);
+  assert.equal(answerTextQuestion(withAnswer('commit.next_task', 'advance_to_next_task'), 'bouncer-commit', text, '/nonexistent').reply, 'A');
+});
+
+test('commit.next_task 권장이 finalize·보고만 → null', () => {
+  const text = acq('commit.next_task', '다음 task', ['Finalize and report only (Recommended)', 'Run `bouncer current --set`']);
+  assert.equal(answerTextQuestion(withAnswer('commit.next_task', 'advance_to_next_task'), 'bouncer-commit', text, '/nonexistent'), null);
+});
+
+const freeInput = '**AskUserQuestion — plan.request**\n<!-- acq {"gate":"plan.request","options":[],"recommended":null} -->\n무엇을 만들까요?';
+
+test('plan.request 자유 입력 블록 단독 질문 → reply가 요청 원문', () => {
+  const request = withAnswer('plan.request', 'repeat_request_file');
+  const answer = answerTextQuestion({ ...request, request_file: 'benchmarks/tasks/x.prd.md' }, 'bouncer-plan', freeInput, '/nonexistent',
+    { readRequest: (file) => `원문:${file}` });
+  assert.equal(answer.reply, '원문:benchmarks/tasks/x.prd.md');
+});
+
+test('plan.request와 다른 질문이 한 턴 → null', () => {
+  const text = `${freeInput}\n\n${acq('plan.approval', '승인', ['Approve (Recommended)', 'Revise'])}`;
+  assert.equal(answerTextQuestion({ ...withAnswer('plan.request', 'repeat_request_file'), request_file: 'x' }, 'bouncer-plan', text, '/nonexistent',
+    { readRequest: () => '원문' }), null);
+});
+
+test('정책 answer stop → 구현된 게이트도 null', () => {
+  const stop = { ...policy, bouncer_decisions: [{ gate: 'init.pre_commit_hook', answer: 'stop' }] };
+  const text = acq('init.pre_commit_hook', 'hook', ['Install pre-commit hook (Recommended)', 'Skip']);
+  assert.equal(answerTextQuestion(stop, 'bouncer-init', text, '/nonexistent'), null);
+});
