@@ -109,7 +109,25 @@ function stage(config, policyFile, name, workspace, runDir, sessionCwd = workspa
 }
 
 function statusLines(workspace) {
-  return command('git', ['status', '--porcelain', '--untracked-files=all'], workspace).split('\n').filter(Boolean);
+  // command()가 stdout을 trim해 첫 줄의 선행 공백(` M .gitignore`)이 사라지므로 trim하지 않고 직접 읽는다.
+  const result = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: workspace, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (result.error || result.status !== 0) throw new Error(`git status: ${result.stderr || result.error?.message}`);
+  return result.stdout.split('\n').filter(Boolean);
+}
+
+/**
+ * init이 바꾼 .gitignore가 승인된 정책과 맞는지 판정한다.
+ * 과제 저장소가 원래 갖고 있던 항목은 허용하되(상류 저장소는 자체 .gitignore가 있다), init이 새로 더한 항목은
+ * 모두 정책의 제안 목록 안이어야 하고 기존 항목을 지우면 안 되며 제안 항목은 전부 무시 규칙으로 있어야 한다.
+ *
+ * @param {{ baseline: string[], current: string[], expected: string[] }} input - 기준 커밋, init 후, 정책 제안의 유효 항목
+ * @returns {{ ok: boolean }} 정책과 맞으면 ok true
+ */
+function gitignoreAgainstPolicy({ baseline, current, expected }) {
+  const added = current.filter((entry) => !baseline.includes(entry));
+  const removed = baseline.filter((entry) => !current.includes(entry));
+  const missing = expected.filter((entry) => !current.includes(entry));
+  return { ok: !removed.length && !missing.length && added.every((entry) => expected.includes(entry)) };
 }
 
 // `before` is the status after workspace_setup, so a task's pre-staged user work is neither judged as
@@ -127,12 +145,14 @@ function bootstrapCommit(workspace, policy, before) {
     throw new Error('Bouncer bootstrap configuration differs from policy');
   }
   if (existsSync(path.join(workspace, '.gitignore'))) {
-    const entries = readFileSync(path.join(workspace, '.gitignore'), 'utf8')
-      .split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
-    const expected = policy.task_facts.expected_gitignore_suggestions;
-    if (entries.length !== expected.length || entries.some((entry) => !expected.includes(entry))) {
-      throw new Error('gitignore entries differ from approved policy');
-    }
+    const read = (text) => text.split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+    const baseline = spawnSync('git', ['show', 'HEAD:.gitignore'], { cwd: workspace, encoding: 'utf8' });
+    const check = gitignoreAgainstPolicy({
+      baseline: baseline.status === 0 ? read(baseline.stdout) : [],
+      current: read(readFileSync(path.join(workspace, '.gitignore'), 'utf8')),
+      expected: policy.task_facts.expected_gitignore_suggestions,
+    });
+    if (!check.ok) throw new Error('gitignore entries differ from approved policy');
   }
   const paths = ['.bouncer'];
   if (existsSync(path.join(workspace, '.gitignore'))) paths.push('.gitignore');
@@ -372,4 +392,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages };
+module.exports = { gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages };
