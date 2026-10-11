@@ -48,3 +48,4 @@ bouncer_schema: '0.1'
 * [089 workflow-cost-and-light-path](epics/089-workflow-cost-and-light-path/index.md) - Cut planning, coordination, and closing round-trips for everyday tasks and rebuild the light path into a single-session implementation with one independent reviewer.
 * [090 drive-reliability](epics/090-drive-reliability/index.md) - Prevent premature coordinator handbacks, recover early returns safely, prepare dependencies before finalize verification, and close remaining drive gaps.
 * [091 drive-observation-cleanup](epics/091-drive-observation-cleanup/index.md) - Clean up digest and PR input noise, reconcile post-drive state, improve CLI error guidance, and cut duplicated context found in the 089/004 drive.
+* [092 source-test-hygiene](epics/092-source-test-hygiene/index.md) - Consolidate duplicated source helpers and shift tests to behavior-focused, tiered suites with consumer-facing testing guidance.
