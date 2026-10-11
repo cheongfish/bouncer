@@ -71,8 +71,8 @@ test('the benchmark evaluator policies are v3 and answer finalize.remainder with
     assert.equal(remainder.answer, 'finalize_yes_and_remove_worktrees', name);
     assert.match(policy.approval_record, /2026-10-08 conversation: 사용자 승인/, name);
   }
-  // 승인은 finalize 항목 변경에 대한 것이라 fastify-001의 초안 상태는 유지된다.
-  assert.equal(JSON.parse(read('benchmarks/configs/fastify-001-evaluator-policy.json')).approval_state, 'proposed');
+  // fastify-001은 2026-10-11 사용자 승인으로 실행 가능한 정책이 됐다.
+  assert.equal(JSON.parse(read('benchmarks/configs/fastify-001-evaluator-policy.json')).approval_state, 'approved');
 });
 
 test('다섯 정책 → 카탈로그 모든 게이트에 bouncer_decisions 항목 있음', () => {

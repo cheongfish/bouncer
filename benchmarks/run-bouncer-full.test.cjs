@@ -6,7 +6,7 @@ const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages } = require('./run-bouncer-full.cjs');
+const { gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages } = require('./run-bouncer-full.cjs');
 
 const BLUEPRINT = '.bouncer/context/epics/001-e/blueprints/001-x';
 const BRANCH = 'feat/001-001-x';
@@ -85,4 +85,23 @@ test('stage run.json plugin_version 1.5.7 → 최상위 record plugin_version 1.
   assert.equal(pluginVersionFromStages([{ plugin_version: '1.5.7' }, { plugin_version: '1.5.6' }]), '1.5.7');
   assert.equal(pluginVersionFromStages([{}]), null);
   assert.equal(pluginVersionFromStages([]), null);
+});
+
+const suggested = ['node_modules/', '.worktrees/', '.bouncer/runtime/'];
+
+test('상류 .gitignore에 제안 항목만 더함 → ok', () => {
+  const baseline = ['node_modules/', '*.log'];
+  assert.equal(gitignoreAgainstPolicy({ baseline, current: [...baseline, '.worktrees/', '.bouncer/runtime/'], expected: suggested }).ok, true);
+});
+
+test('제안 밖 항목을 더함 → not ok', () => {
+  assert.equal(gitignoreAgainstPolicy({ baseline: ['node_modules/'], current: ['node_modules/', '.worktrees/', '.bouncer/runtime/', 'extra/'], expected: suggested }).ok, false);
+});
+
+test('기존 항목을 지움 → not ok', () => {
+  assert.equal(gitignoreAgainstPolicy({ baseline: ['*.log', 'node_modules/'], current: suggested, expected: suggested }).ok, false);
+});
+
+test('제안 항목이 빠짐 → not ok', () => {
+  assert.equal(gitignoreAgainstPolicy({ baseline: [], current: ['node_modules/'], expected: suggested }).ok, false);
 });

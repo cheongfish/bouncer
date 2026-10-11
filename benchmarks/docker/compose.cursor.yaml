@@ -11,6 +11,10 @@ x-agent: &agent
     - ${BENCH_CURSOR_LOGS:?set BENCH_CURSOR_LOGS}:/tmp/cursor-agent-logs-${BENCH_UID:-1000}
   secrets:
     - cursor_api_key
+  # Docker bridge의 dual-stack localhost(::1 우선)에서 상류 저장소 테스트(예: fastify test/close.test.js)가
+  # 멈춘다. 검증기(network_mode: none)에서는 통과하므로 에이전트 컨테이너의 IPv6만 끈다.
+  sysctls:
+    net.ipv6.conf.all.disable_ipv6: 1
 
 services:
   vanilla:

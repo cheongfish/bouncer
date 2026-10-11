@@ -710,12 +710,10 @@ test('다섯 실제 정책의 카탈로그 게이트 항목 → answer가 stop�
   }
 });
 
-test('ledger-001~004 정책 → loadPolicy 통과, fastify-001 → proposed 오류로만 throw', () => {
-  for (const name of POLICY_NAMES.slice(0, 4)) {
+test('승인된 다섯 정책 → loadPolicy 통과', () => {
+  for (const name of POLICY_NAMES) {
     assert.equal(loadPolicy(path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`)).task_id, name);
   }
-  assert.throws(() => loadPolicy(path.join(__dirname, '..', 'configs', 'fastify-001-evaluator-policy.json')),
-    /explicit user approval/);
 });
 
 test('IMPLEMENTED_ANSWERS 키 → 모두 loadCatalog 결과 합집합이나 legacy ID 안', () => {
