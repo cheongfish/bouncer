@@ -44,7 +44,7 @@ services:
       context: ../..
       dockerfile: benchmarks/docker/Dockerfile.cursor
       target: verifier
-    image: bouncer-benchmark-ledger-verifier:local
+    image: bouncer-benchmark-verifier:local
     user: ${BENCH_UID:-1000}:${BENCH_GID:-1000}
     network_mode: none
     read_only: true

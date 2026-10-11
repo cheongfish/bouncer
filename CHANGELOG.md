@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **ledger 벤치마크 자산 삭제 (EPIC 094 BP 001)** — vanilla도 만점을 받아 비교 가치가 없던
+  ledger 합성 과제의 카드·PRD·루브릭·검증기·평가자 정책·fixture bundle·보고서를 지웠다.
+  `run-cursor.cjs`·`run-bouncer-full.cjs`·`stage-args.cjs`는 `--task`가 필수이고 없으면
+  `--task is required`로 끝난다(기본값 `ledger-001` 제거). verifier 이미지 이름은
+  `bouncer-benchmark-verifier:local`, 기본 진입점은 `upstream-tests.cjs`다.
+
 ### Added
 
 - **ACQ 기계 계약 (EPIC 093 BP 001)** — 게이트 ID 카탈로그를 테스트 상수에서

@@ -58,4 +58,4 @@ FROM node:24-bookworm-slim AS verifier
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /benchmark
-ENTRYPOINT ["node", "/benchmark/verifiers/ledger-001.cjs"]
+ENTRYPOINT ["node", "/benchmark/verifiers/upstream-tests.cjs"]

@@ -1,7 +1,7 @@
 'use strict';
 
-// Shared pieces for the ledger-v2 verifiers. The verifier container mounts only benchmarks/, so this
-// module uses Node built-ins alone. ledger-001.cjs predates it and stays unchanged with its v1 results.
+// Shared checkout and patch helpers for the verifiers (used by upstream-tests.cjs). The verifier
+// container mounts only benchmarks/, so this module uses Node built-ins alone.
 
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');

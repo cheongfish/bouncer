@@ -42,7 +42,9 @@ function configOf(argv) {
     out[argv[i]] = argv[i + 1];
   }
   if (!out['--model'] || !out['--key-file']) throw new Error('--model and --key-file are required');
-  out.taskId = out['--task'] ?? 'ledger-001';
+  // 기본 과제가 없다: 파일 검사 전에 --task 명시를 요구한다.
+  if (!out['--task']) throw new Error('--task is required');
+  out.taskId = out['--task'];
   out.runId = out['--run-id'] ?? `${Date.now()}-bouncer-full`;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$/.test(out.runId)) throw new Error('invalid run id');
   out.keyFile = path.resolve(out['--key-file']);
@@ -392,4 +394,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages };
+module.exports = { configOf, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages };

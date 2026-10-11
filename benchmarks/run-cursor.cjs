@@ -37,10 +37,12 @@ function options(argv) {
   if (parsed['--dry-run'] && parsed['--dry-run'] !== 'true') fail('--dry-run accepts true');
   if (parsed['--keep-workspace'] && parsed['--keep-workspace'] !== 'true') fail('--keep-workspace accepts true');
   if (!parsed['--dry-run'] && !parsed['--key-file']) fail('--key-file is required');
+  // 기본 과제가 없다: 합성 기본값에 기대면 과제 선택이 조용히 바뀌므로 파일 검사 전에 명시를 요구한다.
+  if (!parsed['--task']) fail('--task is required');
   const minutes = Number(parsed['--timeout-minutes'] ?? '30');
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) fail('--timeout-minutes must be 1..240');
   parsed.timeoutMs = minutes * 60_000;
-  parsed.taskId = parsed['--task'] ?? 'ledger-001';
+  parsed.taskId = parsed['--task'];
   parsed.runId = parsed['--run-id'] ?? `${Date.now()}-${parsed['--condition']}`;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$/.test(parsed.runId)) fail('invalid --run-id');
   if (parsed['--key-file']) {
@@ -253,7 +255,12 @@ async function main() {
   if (agentResult.exitCode !== 0 || verifierResult.exitCode !== 0) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error.message}\n`);
-  process.exitCode = 1;
-});
+// 테스트가 인자 파서만 불러올 수 있도록 직접 실행일 때만 main()을 돌린다.
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { options };
