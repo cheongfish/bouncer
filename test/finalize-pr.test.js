@@ -198,7 +198,8 @@ test('buildPrDraft review_points omit Epic/Blueprint stable ids from unverified'
   assert.ok(draft.sections.review_points.includes('payments'));
   assert.ok(draft.sections.review_points.includes('verification-not-passed'));
   assert.ok(draft.sections.review_points.includes('review-skipped'));
-  assert.ok(draft.sections.review_points.includes('finding-deferred: follow-up later'));
+  // unverified finding-* 행은 review_points로 옮기지 않는다(메모는 review.findings 경로만).
+  assert.ok(!draft.sections.review_points.includes('finding-deferred: follow-up later'));
   for (const point of draft.sections.review_points) {
     assert.doesNotMatch(point, /EPIC-/);
     assert.doesNotMatch(point, /BP-/);
@@ -640,4 +641,146 @@ test('buildPrDraft review_points include blueprint_review finding notes', () => 
     config: {},
   });
   assert.ok(draft.sections.review_points.includes('root finding note'));
+});
+
+test('buildPrDraft review_points dedupe finding notes and skip finding-* unverified', () => {
+  const note = 'shared deferred note';
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [
+      {
+        id: 'TASKS-001',
+        verification: { status: 'passed', command: 'npm test' },
+        review: {
+          required: true,
+          findings: [{ id: 'F-1', status: 'deferred', note }],
+        },
+      },
+    ],
+    out_of_scope: [],
+    unverified: [
+      { kind: 'finding-deferred', task: 'EPIC-001/BP-001/TASK-001', detail: note },
+      { kind: 'path-outside-scope', path: 'vendor/leak.js' },
+    ],
+    blueprint_review: {
+      findings: [{ id: 'F-ROOT', status: 'deferred', note }],
+    },
+  };
+  const draft = buildPrDraft(digest, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  const deferredHits = draft.sections.review_points.filter(
+    (p) => p === note || p === `finding-deferred: ${note}`,
+  );
+  assert.strictEqual(deferredHits.length, 1);
+  assert.strictEqual(deferredHits[0], note);
+  assert.ok(draft.sections.review_points.includes('path-outside-scope: vendor/leak.js'));
+
+  const acceptedNote = 'shared accepted note';
+  const accepted = buildPrDraft({
+    ...digest,
+    tasks: [
+      {
+        id: 'TASKS-001',
+        verification: { status: 'passed', command: 'npm test' },
+        review: {
+          required: true,
+          findings: [{ id: 'F-1', status: 'accepted', note: acceptedNote }],
+        },
+      },
+    ],
+    unverified: [
+      { kind: 'finding-accepted', task: 'EPIC-001/BP-001/TASK-001', detail: acceptedNote },
+    ],
+    blueprint_review: {
+      findings: [{ id: 'F-ROOT', status: 'accepted', note: acceptedNote }],
+    },
+  }, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  const acceptedHits = accepted.sections.review_points.filter(
+    (p) => p === acceptedNote || p === `finding-accepted: ${acceptedNote}`,
+  );
+  assert.strictEqual(acceptedHits.length, 1);
+  assert.strictEqual(acceptedHits[0], acceptedNote);
+});
+
+test('buildPrDraft keeps out_of_scope item even when finding note matches', () => {
+  // 중복 제거는 finding 메모끼리만 — out_of_scope와 같은 문자열이면 둘 다 남긴다.
+  const shared = 'payments';
+  const draft = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [
+      {
+        id: 'TASKS-001',
+        verification: null,
+        review: {
+          required: true,
+          findings: [{ id: 'F-1', status: 'accepted', note: shared }],
+        },
+      },
+    ],
+    out_of_scope: [shared],
+    unverified: [],
+  }, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  assert.deepStrictEqual(
+    draft.sections.review_points.filter((p) => p === shared),
+    [shared, shared],
+  );
+});
+
+test('buildPrDraft verification dedupes identical command result lines', () => {
+  const samePassed = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [
+      { id: 'TASKS-001', verification: { status: 'passed', command: 'npm run verify:strict' } },
+      { id: 'TASKS-002', verification: { status: 'passed', command: 'npm run verify:strict' } },
+      { id: 'TASKS-003', verification: { status: 'passed', command: 'npm run verify:strict' } },
+    ],
+    out_of_scope: [],
+    unverified: [],
+  }, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  assert.deepStrictEqual(
+    samePassed.sections.verification,
+    ['npm run verify:strict — passed'],
+  );
+
+  // 같은 명령이라도 passed/failed가 다르면 두 줄 모두 남긴다.
+  const mixed = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [
+      { id: 'TASKS-001', verification: { status: 'passed', command: 'npm run verify:strict' } },
+      { id: 'TASKS-002', verification: { status: 'failed', command: 'npm run verify:strict' } },
+    ],
+    out_of_scope: [],
+    unverified: [],
+  }, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  assert.strictEqual(mixed.sections.verification.length, 2);
+  assert.deepStrictEqual(mixed.sections.verification, [
+    'npm run verify:strict — passed',
+    'npm run verify:strict — failed',
+  ]);
 });

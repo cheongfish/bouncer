@@ -184,14 +184,16 @@ function collectCommitTypes(
 
 /**
  * task verification을 `command — passed|failed` 행으로 접는다.
- * 같은 명령이어도 task별 결과를 한 줄씩 남겨 draft-pr의 확인 방법이
- * 어느 task에서 실패했는지 보이게 한다.
+ * 같은 문자열은 첫 등장만 남긴다 — 동일 명령·동일 결과가 task마다 반복되면
+ * PR 확인 방법이 불필요하게 길어진다. 명령이 같아도 passed/failed가 다르면
+ * 문자열이 달라 두 줄 모두 남는다.
  *
  * @param {unknown[]} tasks - digest.tasks
  * @returns {string[]}
  */
 function buildVerificationLines(tasks: unknown[]): string[] {
   const lines: string[] = [];
+  const seen = new Set<string>();
   for (const entry of Array.isArray(tasks) ? tasks : []) {
     const task = asRecord(entry);
     const verification = asRecord(task.verification);
@@ -199,7 +201,10 @@ function buildVerificationLines(tasks: unknown[]): string[] {
       continue;
     }
     const passed = verification.status === 'passed';
-    lines.push(`${verification.command} — ${passed ? 'passed' : 'failed'}`);
+    const line = `${verification.command} — ${passed ? 'passed' : 'failed'}`;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    lines.push(line);
   }
   return lines;
 }
@@ -208,22 +213,32 @@ function buildVerificationLines(tasks: unknown[]): string[] {
  * accepted/deferred finding만 리뷰 포인트로 접는다.
  * task.review와 blueprint_review가 같은 규칙을 쓰게 한 헬퍼 —
  * 한쪽만 note 폴백을 바꾸면 PR 본문이 갈라진다.
+ * `seen`에 이미 있는 문자열은 건너뛴다 — finding 메모끼리만 첫 등장을 남기기 위함.
  *
  * @param {string[]} points - 누적 배열
+ * @param {Set<string>} seen - finding 메모 중복 집합(out_of_scope와 공유하지 않음)
  * @param {unknown} rawFindings - findings 원본
  * @returns {void}
  */
-function pushFindingPoints(points: string[], rawFindings: unknown): void {
+function pushFindingPoints(
+  points: string[],
+  seen: Set<string>,
+  rawFindings: unknown,
+): void {
   const findings = Array.isArray(rawFindings) ? rawFindings : [];
   for (const raw of findings) {
     const finding = asRecord(raw);
     if (finding.status !== 'accepted' && finding.status !== 'deferred') continue;
+    let text: string | null = null;
     if (typeof finding.note === 'string' && finding.note) {
-      points.push(finding.note);
+      text = finding.note;
     } else if (typeof finding.id === 'string' && finding.id) {
       // F3 accepted: note 없을 때 finding.id 폴백은 digest 진단값이라 유지한다.
-      points.push(finding.id);
+      text = finding.id;
     }
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    points.push(text);
   }
 }
 
@@ -233,6 +248,9 @@ function pushFindingPoints(points: string[], rawFindings: unknown): void {
  * unverified.task는 digest stable_id(EPIC-…/BP-…/TASK-…)라 본문에 넣지 않는다.
  * blueprint_review.findings는 루트 리뷰 경로이며 task.review와 같은 규칙으로
  * accepted/deferred note를 싣는다.
+ * finding 메모는 서로만 첫 등장 순서로 한 번 — out_of_scope와 같은 문자열이어도
+ * 둘 다 남긴다. digest가 같은 finding을 unverified `finding-*`로도 내므로 그 행은
+ * 재게시하지 않는다(path-outside-scope 등 다른 kind는 유지).
  *
  * @param {object} digest
  * @param {string[]} digest.out_of_scope
@@ -253,18 +271,22 @@ function buildReviewPoints(digest: {
     if (typeof item === 'string' && item) points.push(item);
   }
 
+  // finding 메모 중복 집합은 out_of_scope와 분리 — 같은 문자열도 출처가 다르면 둘 다.
+  const seenFindings = new Set<string>();
   const tasks = Array.isArray(digest.tasks) ? digest.tasks : [];
   for (const entry of tasks) {
     const review = asRecord(asRecord(entry).review);
-    pushFindingPoints(points, review.findings);
+    pushFindingPoints(points, seenFindings, review.findings);
   }
-  pushFindingPoints(points, asRecord(digest.blueprint_review).findings);
+  pushFindingPoints(points, seenFindings, asRecord(digest.blueprint_review).findings);
 
   const unverified = Array.isArray(digest.unverified) ? digest.unverified : [];
   for (const raw of unverified) {
     const row = asRecord(raw);
     const kind = typeof row.kind === 'string' ? row.kind : '';
     if (!kind) continue;
+    // review.findings 경로와 같은 메모를 다시 쓰지 않는다 — digest unverified 보존은 그대로.
+    if (kind === 'finding-accepted' || kind === 'finding-deferred') continue;
     if (typeof row.detail === 'string' && row.detail) {
       points.push(`${kind}: ${row.detail}`);
     } else if (typeof row.path === 'string' && row.path) {

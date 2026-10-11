@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **digest PR 입력 정리** — finalize digest의 `out_of_scope`가 다음 `## ` 제목에서
+  끊기고, `symbols`는 최상위 선언만 담으며, PR draft `review_points`는 finding
+  메모 중복과 `finding-*` unverified 재게시를 빼고 `verification`은 같은 줄을
+  한 번만 남긴다.
 - **lockfile 변경 시 의존성 재설치** — `prepareDependencies`가 설치 성공 뒤
   `node_modules/.bouncer-lock-sha256`에 `package-lock.json` sha256을 남기고,
   marker나 stamp가 없거나 lockfile과 다르면 `npm ci`를 다시 실행한다. seed·fan-in·
