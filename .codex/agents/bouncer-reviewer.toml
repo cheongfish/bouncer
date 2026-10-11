@@ -80,6 +80,10 @@ The permitted perspectives are:
   Review this perspective only when the controller assigns it for the change
   (non-empty `risk_flags`).
 
+Under `correctness_tests`, report a new or changed test that violates this rule:
+
+Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
+
 Legacy perspective names remain valid when the controller assigns them
 one-to-one. Do not report a finding outside the assigned perspective, even when
 it would otherwise be valid. Do not mix an unassigned `security` rubric into a
