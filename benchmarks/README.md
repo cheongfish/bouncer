@@ -1,31 +1,24 @@
 # 벤치마크 작업 카드와 결과 구조
 
 [실험 계획](../benchmark-plan.md)의 첫 비교는 `vanilla`와 `bouncer-full`이다.
-이 디렉터리는 과제 정의와 실행 증거를 분리한다. 현재는 첫 과제의 기준
-프로젝트·PRD·채점 루브릭과 Cursor CLI용 파일럿 실행기가 있다.
-실험 결과는 [`reports/`](reports/)에 보존한다. 최신 기준선은
-[2026-10-09 ledger-004 vanilla/full 비교](reports/2026-10-09-v155-ledger-004.md)다.
+이 디렉터리는 과제 정의와 실행 증거를 분리한다. 현재는 상류 저장소 커밋 과제 `fastify-001`의
+기준 프로젝트·PRD·채점 루브릭과 Cursor CLI용 파일럿 실행기가 있다. 과제 카드는 `--task <id>`로
+명시해야 하며 기본 과제는 없다.
 
 ```text
 benchmarks/
   README.md
-  fixtures/ledger-cli.bundle
-  fixtures/ledger-cli-v2.bundle
-  fixtures/ledger-003.wip.patch
-  fixtures/ledger-003.test-report.txt
   fixtures/README.md
   schemas/task-card.schema.json
   tasks/task-card.template.yaml
-  tasks/ledger-001.prd.md
-  tasks/ledger-v2-pilot.md
-  tasks/ledger-00{2,3,4}.prd.md
-  tasks/ledger-00{2,3,4}.yaml
-  rubrics/ledger-001.md
-  rubrics/ledger-001/entries.json
-  rubrics/ledger-001/month-boundary.json
-  verifiers/ledger-001.cjs
+  tasks/fastify-001.yaml
+  tasks/fastify-001.prd.md
+  tasks/fastify-001-pilot.md
+  rubrics/fastify-001.md
   verifiers/README.md
+  verifiers/upstream-tests.cjs
   configs/README.md
+  configs/fastify-001-evaluator-policy.json
   runs/README.md
   aggregate/README.md
   docker/compose.cursor.yaml
@@ -34,7 +27,6 @@ benchmarks/
   upstream/README.md
   upstream/fastify-001.json
   build-upstream-task.cjs
-  verifiers/upstream-tests.cjs
 ```
 
 공개 저장소의 실제 커밋을 과제로 쓰는 상류 과제(`fastify-001` 등)는 [`upstream/README.md`](upstream/README.md)에
@@ -45,7 +37,7 @@ benchmarks/
 실제 카드는 `tasks/<task-id>.yaml`에 둔다. `id`는 파일명과 같아야 한다.
 채점 기준은 `rubrics/<task-id>.md`, 기준 프로젝트는 `fixtures/`에 둔다.
 `base_commit`은 변경되지 않는 40자리 Git SHA이며, YAML이 숫자로 읽지 않도록
-따옴표로 감싼다. 실행기는 이 SHA를 head로 가진 `fixtures/*.bundle` 하나를 찾아
+따옴표로 감싼다. 실행기는 이 SHA를 head로 가진 `fixtures/*.bundle`(상류 과제는 `fixtures/upstream/*.bundle`) 하나를 찾아
 clone한다. `allowed_paths`·`forbidden_paths`와 `workspace_setup`의 `to`는 과제
 저장소 루트 기준이고, 요청 파일·설정 원본·verifier 스크립트 경로는 `benchmarks/`
 기준이다. 실행기는 `task-card.cjs`로 카드를 읽고 검사한다.

@@ -48,7 +48,7 @@ test('카탈로그 workflows 키 → ACQ 절을 가진 skills/*/SKILL.md의 skil
   assert.deepEqual(keys, ['bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-run', 'bouncer-finalize']);
 });
 
-const POLICY_NAMES = ['ledger-001', 'ledger-002', 'ledger-003', 'ledger-004', 'fastify-001'];
+const POLICY_NAMES = ['fastify-001'];
 
 test('the benchmark evaluator policies answer only catalogued gate IDs', () => {
   const known = new Set(Object.values(CATALOG).flat());

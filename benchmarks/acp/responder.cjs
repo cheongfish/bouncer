@@ -363,9 +363,11 @@ const gates = [
     },
     reason: 'benchmark policy approves the presented plan; quality is measured by gates and tests' },
   { gate: 'run.start_drive', phase: 'bouncer-run',
-    decide({ options, workDir }) {
+    decide({ options, workDir, deps }) {
       const choice = chooseProceed(options);
-      return choice && planGateEvidence(workDir) ? choice : null;
+      // 증거 판정을 주입할 수 있게 한 이유: 실제 판정은 `bouncer validate --gate plan`을 띄우므로 재생 테스트가 대신 값을 넣는다.
+      // 주입이 없으면 기존과 같이 실제 plan 게이트 결과만 본다.
+      return choice && (deps?.planGateEvidence ?? planGateEvidence)(workDir) ? choice : null;
     },
     reason: 'plan gate passed' },
   { gate: 'commit.next_task', phase: 'bouncer-commit',
@@ -398,7 +400,7 @@ function gateIdOf(text) {
   return GATE_ID.exec(String(text ?? ''))?.[1] ?? null;
 }
 
-// A task policy may answer questions about its pre-task state (ledger-003's staged user WIP) so the run
+// A task policy may answer questions about its pre-task state (예: 사용자가 미리 스테이징해 둔 변경) so the run
 // can reach finalize. Only questions matching the rule's trigger pattern are answered: the one option matching `prefer` and
 // not `deny`, otherwise the first option. Every such answer is marked synthetic in the decision record.
 // 정책 JSON의 트리거 필드 이름. 이 이름은 승인된 정책 파일(benchmarks/configs, 이 task 밖)이 정하므로
@@ -441,7 +443,7 @@ function decideQuestion(policy, phase, question, workDir, deps = {}) {
  * @param {string} phase - 현재 단계 이름
  * @param {object} question - prompt·options·gate 또는 heading/title을 가진 질문
  * @param {string} workDir - 작업 디렉터리
- * @param {{finalizeEvidence?: (workDir: string) => boolean, gates?: object[]}} [deps] - 증거 판정과 게이트 표 주입(테스트용)
+ * @param {{finalizeEvidence?: (workDir: string) => boolean, planGateEvidence?: (workDir: string) => boolean, gates?: object[]}} [deps] - 증거 판정과 게이트 표 주입(테스트용)
  * @returns {object | null} `{gate, identified_by, optionId, basis, reason}` 또는 선택지 없는 질문의
  *   `{gate, identified_by, replyText, reason}`. gate가 없거나 판단하지 못하면 null
  */
@@ -667,7 +669,7 @@ const OPEN_DECISIONS_REPLY = '이번 Open decisions 항목에 한해 판단을 �
  * @param {string} phase - 현재 단계 이름
  * @param {string} text - 에이전트 턴 텍스트
  * @param {string} workDir - 작업 디렉터리
- * @param {{catalog?: Record<string, string[]>, finalizeEvidence?: Function, gates?: object[]}} [deps] - 주입점
+ * @param {{catalog?: Record<string, string[]>, finalizeEvidence?: Function, planGateEvidence?: Function, gates?: object[]}} [deps] - 주입점
  * @returns {{kind: 'quiz' | 'open_decisions' | 'answer' | 'unanswerable' | 'violation' | 'none',
  *   reason?: string, decision?: object}}
  *   quiz는 호출자가 answerQuizText로 답한다. answer·open_decisions는 `decision`에 응답을 싣는다.
@@ -699,7 +701,7 @@ function turnQuestionState(policy, phase, text, workDir, deps = {}) {
  * @param {string} phase - 현재 단계 이름
  * @param {string} text - 에이전트가 낸 질문 본문
  * @param {string} workDir - 작업 디렉터리
- * @param {{catalog?: Record<string, string[]>, finalizeEvidence?: Function, gates?: object[]}} [deps] - 주입점(테스트용)
+ * @param {{catalog?: Record<string, string[]>, finalizeEvidence?: Function, planGateEvidence?: Function, gates?: object[]}} [deps] - 주입점(테스트용)
  * @returns {{gate: string, choices: object[], question: string, reply: string} | null}
  *   답 묶음. 게이트 결정이 `replyText`를 가지면 그 문자열이 `reply`에 들어간다. 질문이 없으면 null
  */

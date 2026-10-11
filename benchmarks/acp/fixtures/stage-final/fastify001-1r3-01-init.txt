@@ -1,0 +1,11 @@
+Applying both choices: writing the gitignore entries and installing the pre-commit hook.완료: consent 반영 · `.gitignore` 갱신 · pre-commit hook installed (`hooks/pre-commit`)
+
+Commit bootstrap now, before `/bouncer-plan`:
+
+```bash
+git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
+```
+
+(Include `.gitignore` / hook paths in that commit if you want them recorded together.)
+
+Next: `/bouncer-plan` with the `handlerTimeout` PRD. You can still tweak `.bouncer/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.

@@ -728,7 +728,7 @@ test('task next: dirty files besides tasks.md is commit-evidence-mismatch', () =
 });
 
 // /bouncer-plan leaves plan documents uncommitted until finalize, and seed copies them into the worker,
-// so the worker is already dirty when the attempt opens. v088 ledger-004 runs 1 and 2 both blocked here.
+// so the worker is already dirty when the attempt opens. Benchmark runs of a full bouncer drive were blocked here.
 test('task next: seeded plan documents left dirty from dispatch still allow report', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/040-seed';
   const repo = uncommittedPlanRepo('bouncer-next-seed-', blueprint, [

@@ -1,0 +1,14 @@
+Starting `/bouncer-plan` for the supplied request. Preflight is clear: no selection, next epic `001`.
+
+One behavior is still unsettled. Please answer before the Discover confirm.
+
+---
+
+**Open decision 1 — server option validation**
+
+The request does not say whether a negative server value is rejected at startup.
+
+- 1) Mirror the sibling timeout options and accept any integer
+- 2) Reject negative values with an init error
+
+Reply with `1` or `2` (or your own wording).

@@ -28,8 +28,10 @@ function argsOf(argv) {
   for (const required of ['--stage', '--work-dir', '--run-dir', '--model', '--key-file', '--policy']) {
     if (!out[required]) throw new Error(`${required} is required`);
   }
+  // 기본 과제가 없다: 단계·파일 검사보다 먼저 --task 명시를 요구한다.
+  if (!out['--task']) throw new Error('--task is required');
   if (!stages.has(out['--stage'])) throw new Error('unknown stage');
-  out.taskId = out['--task'] ?? 'ledger-001';
+  out.taskId = out['--task'];
   const minutes = Number(out['--timeout-minutes'] ?? 30);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) throw new Error('invalid timeout');
   out.timeoutMs = minutes * 60_000;

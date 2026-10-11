@@ -23,7 +23,7 @@ node benchmarks/run-cursor.cjs \
   --key-file /absolute/path/to/cursor-api-key
 ```
 
-`--task <task-id>`로 `tasks/<task-id>.yaml` 카드를 고른다(기본값 `ledger-001`).
+`--task <task-id>`로 `tasks/<task-id>.yaml` 카드를 고른다(필수, 기본값 없음).
 `run-bouncer-full.cjs`도 같은 옵션을 받는다. `--run-id`와 `--timeout-minutes`를 지정할 수 있다. 키 없이 작업 공간과 프롬프트만
 확인하려면 `--dry-run true`를 사용한다. Compose 이미지 빌드에는 인터넷 연결이
 필요하며, Cursor CLI는 빌드 시 공식 설치 스크립트로 설치된다. 실행 기록의
@@ -35,7 +35,7 @@ node benchmarks/run-cursor.cjs \
 
 ## 자료 경계
 
-- 에이전트: 새 `ledger-cli` 작업 공간(쓰기), 공통 PRD 프롬프트(읽기), API 키
+- 에이전트: 새 과제 작업 공간(쓰기), 공통 PRD 프롬프트(읽기), API 키
   secret. Bouncer 조건에는 플러그인이 이미지 내부에 추가된다.
 - 검증기: 최종 `diff.patch`, 기준 번들, 검증 코드·테스트 데이터. API 키가 없고
   `network_mode: none`이다.
@@ -111,7 +111,7 @@ node benchmarks/run-acp-stage.cjs \
   --run-dir /absolute/path/to/new/results \
   --model cursor-grok-4.5-high \
   --key-file /absolute/path/to/cursor-api-key \
-  --policy benchmarks/configs/ledger-001-evaluator-policy.json
+  --policy benchmarks/configs/fastify-001-evaluator-policy.json
 ```
 
 정책은 사용자 승인 뒤 `approved`로 활성화됐다. ACP 응답기는 실제로 질문이

@@ -4,7 +4,7 @@
 
 ## 1. 목적과 질문
 
-ledger 과제(모듈 6개, 323줄)에서는 vanilla도 100점이라 Bouncer의 이득을 측정할 수 없었다. 1.5.4
+이전 소형 합성 과제(모듈 6개, 323줄)에서는 vanilla도 100점이라 Bouncer의 이득을 측정할 수 없었다. 1.5.4
 bouncer-full은 같은 과제에서 vanilla보다 처리량(입력+캐시 읽기)을 약 70~100배 썼다. 이 파일럿은
 `lib/` 8,222줄, 테스트 234개인 fastify의 실제 기능 커밋(#6521, 24개 파일)에서 다음을 확인한다.
 
@@ -19,7 +19,7 @@ bouncer-full은 같은 과제에서 vanilla보다 처리량(입력+캐시 읽기
 | vanilla | 3 | `up1-fastify-001-vanilla-{1,2,3}` | `run-cursor.cjs` | `cursor-grok-4.5-medium` | 60분 |
 | bouncer-full | 3 | `up1-fastify-001-bouncer-full-{1,2,3}` | `run-bouncer-full.cjs` | `cursor-grok-4.5-medium` | 단계당 90분 |
 
-- 모델과 이미지는 ledger 1.5.4 재측정(`v154-*`)과 같다.
+- 모델과 이미지는 이전 1.5.4 재측정(`v154-*`)과 같다.
 - vanilla 3회를 먼저 돌린다. 짧고, 과제·검증기에 남은 문제를 싸게 드러낸다. 그다음 bouncer-full을
   차례로 돌린다.
 - 같은 조건 안에서는 순차로 돌린다. 두 조건을 동시에 돌려도 컨테이너·포트는 분리되지만, 소요
@@ -147,7 +147,7 @@ done
 | vanilla | 0.5~3M | 5~20분 | ~1시간 |
 | bouncer-full | 15~30M | 40~90분 | 2~4.5시간 |
 
-ledger-004에서는 vanilla 약 0.1M·2분, bouncer-full 약 10M·30분이었다. 코드베이스가 25배 크고
+이전 소형 합성 과제에서는 vanilla 약 0.1M·2분, bouncer-full 약 10M·30분이었다. 코드베이스가 크고
 변경이 24개 파일이라 양쪽 모두 늘어난다고 본다.
 
 ## 9. 알려진 위험
