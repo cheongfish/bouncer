@@ -9,13 +9,11 @@ const { loadPolicy, loadCatalog, readTextQuestions, turnQuestionState, answerAsk
   answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission, finalizeReady, gateIdOf,
   gitEnv, IMPLEMENTED_ANSWERS } = require('./responder.cjs');
 
+// 응답기는 task_facts만 읽으므로 fastify-001 사실은 승인된 정책 파일에서 그대로 가져온다.
+// bouncer_decisions는 일부러 싣지 않는다: 이 목록을 쓰는 테스트는 게이트 기본 동작만 본다.
+const fastifyPolicy = require('../configs/fastify-001-evaluator-policy.json');
 const policy = { benchmark_choices: { finalize_quiz: 'first_option_for_each_presented_question' },
-  task_facts: { expected_gitignore_suggestions: [
-    'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/', '.bouncer/runtime/',
-  ], product_paths: ['src/cli.js', 'src/ledger.js', 'test/ledger.test.js', 'test/cli.test.js', 'README.md'],
-  // 응답기는 task_facts만 읽으므로 ledger-001 사실도 fixture가 직접 갖는다.
-  discovery_terms: ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1', 'list', 'total', 'cli.js'],
-  reusable_draft: { epic: '001-monthly-summary', blueprint: '001-summary-command' } } };
+  task_facts: fastifyPolicy.task_facts };
 
 
 test('answers only the exact expected init ignore proposal', () => {
@@ -49,7 +47,7 @@ test('does not partially answer a bundle', () => {
 test('accepts only the approved benchmark policy version and choices', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
   const policyFile = path.join(dir, 'policy.json');
-  const approved = require('../configs/ledger-001-evaluator-policy.json');
+  const approved = fastifyPolicy;
   writeFileSync(policyFile, JSON.stringify(approved));
   assert.equal(loadPolicy(policyFile).policy_version, 3);
   writeFileSync(policyFile, JSON.stringify({ ...approved, policy_version: 2 }));
@@ -153,22 +151,30 @@ function workdirWith({ epics, ready, packageTest, gitignore } = {}) {
 
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'acq');
+// 녹취는 fastify-001 실행 run id, 합성 원문은 rules/acq.md 형식을 따른 손 작성 파일이다.
+const FIXTURE_SOURCE = /^(?:up1-fastify-001-bouncer-full-[123]r3\/0[1-3]-(?:init|plan|run)|synthetic:rules\/acq\.md)$/;
 
 // cases.json의 expect: 엄격 제목(카탈로그 ID)과 선택지 둘 이상을 가진 원문은 answer, 나머지 옛 표시는 violation.
 for (const fixture of require('./fixtures/acq/cases.json')) {
   test(`replays recorded ACQ ${fixture.file} → ${fixture.expect}`, () => {
     const workDir = workdirWith(fixture.workdir);
     const text = readFileSync(path.join(fixtureDir, fixture.file), 'utf8');
-    // finalize 증거 판정은 실제 git·drive가 필요하므로 case가 요구할 때만 참으로 주입한다.
-    const deps = fixture.finalizeEvidence ? { finalizeEvidence: () => true } : undefined;
+    // finalize·plan 게이트 증거 판정은 실제 git·drive·bouncer CLI가 필요하므로 case가 요구할 때만 참으로 주입한다.
+    const deps = fixture.finalizeEvidence || fixture.planGateEvidence
+      ? { finalizeEvidence: () => Boolean(fixture.finalizeEvidence), planGateEvidence: () => Boolean(fixture.planGateEvidence) }
+      : undefined;
+    const catalogIds = new Set(Object.values(loadCatalog()).flat());
+    assert.match(fixture.source, FIXTURE_SOURCE);
+    assert.ok(fixture.gates.every((gate) => catalogIds.has(gate)), `${fixture.file} has a gate outside the catalog`);
     try {
       if (fixture.expect === 'answer') {
-        const result = answerTextQuestion(policy, fixture.phase, text, workDir, deps);
+        // 녹취는 실제 fastify-001 정책(bouncer_decisions 포함)으로 재생한다.
+        const result = answerTextQuestion(fastifyPolicy, fixture.phase, text, workDir, deps);
         assert.ok(result, `${fixture.source} is unanswered`);
         assert.equal(result.reply, fixture.reply);
         assert.deepEqual(result.choices.map((choice) => choice.gate), fixture.gates);
       } else if (fixture.expect === 'violation') {
-        assert.equal(turnQuestionState(policy, fixture.phase, text, workDir, deps).kind, 'violation');
+        assert.equal(turnQuestionState(fastifyPolicy, fixture.phase, text, workDir, deps).kind, 'violation');
       } else {
         assert.fail(`unknown expect: ${fixture.expect}`);
       }
@@ -179,12 +185,13 @@ for (const fixture of require('./fixtures/acq/cases.json')) {
 }
 
 test('finalize.remainder is left unanswered when there is no finalize evidence', () => {
-  const text = readFileSync(path.join(fixtureDir, 'finalize-remainder-en.md'), 'utf8');
-  assert.equal(answerTextQuestion(policy, 'bouncer-finalize', text, '/nonexistent', { finalizeEvidence: () => false }), null);
+  const text = readFileSync(path.join(fixtureDir, 'synthetic-finalize-remainder.md'), 'utf8');
+  assert.equal(answerTextQuestion(fastifyPolicy, 'bouncer-finalize', text, '/nonexistent', { finalizeEvidence: () => false }), null);
 });
 
-const prdFacts = 'Goal: summary in cli.js with --file and --month YYYY-MM, ending in TOTAL. '
-  + 'Invalid options write stderr and exit 1; preserve list and total.';
+// fastify-001 policy discovery_terms를 모두 담은 목표 문장.
+const prdFacts = 'Goal: add handlerTimeout with request.signal; a timed-out request ends with FST_ERR_HANDLER_TIMEOUT '
+  + 'and a 503 response; existing behavior is unchanged.';
 
 const RECOMMENDED_MARK = /\((?:recommended|권장|추천)\)/i;
 
@@ -280,7 +287,7 @@ test('recommended option that is not an unambiguous proceed → unanswerable', (
   assert.equal(answerTextQuestion(policy, 'bouncer-init', extra, init), null);
   rmSync(init, { recursive: true });
   rmSync(existing, { recursive: true });
-  const missingFact = `${prdFacts.replace('exit 1', 'exit 2')}\n${acq('plan.discovery', 'Discovery 핸드오프를 확정할지',
+  const missingFact = `${prdFacts.replace('503', '504')}\n${acq('plan.discovery', 'Discovery 핸드오프를 확정할지',
     ['이대로 진행 (Recommended)', '수정 요청', '중단'])}`;
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', missingFact, '/nonexistent'), null);
 });
@@ -302,25 +309,26 @@ test('confirms affected_paths as proposed and records paths outside product scop
     acq('plan.affected_paths', 'TASKS-001의 `bouncer.affected_paths`를 위 경로로 확정할지',
       ['위 경로로 확정 (Recommended)', '수정 후 확정', '취소 / 중단'])].join('\n');
   const answer = (paths) => answerTextQuestion(policy, 'bouncer-plan', question(paths), '/nonexistent');
-  assert.equal(answer(['src/cli.js', 'test/ledger.test.js'])?.reply, 'A');
-  assert.doesNotMatch(answer(['src/cli.js', 'test/ledger.test.js']).choices[0].reason, /outside/);
-  const outside = answer(['src/cli.js', '.bouncer/config.json']);
+  // product_paths와 글자가 같은 항목만 범위 안으로 본다(glob 해석은 없다).
+  assert.equal(answer(['fastify.js', 'fastify.d.ts'])?.reply, 'A');
+  assert.doesNotMatch(answer(['fastify.js', 'fastify.d.ts']).choices[0].reason, /outside/);
+  const outside = answer(['fastify.js', '.bouncer/config.json']);
   assert.equal(outside?.reply, 'A');
   assert.match(outside.choices[0].reason, /outside product_paths: \.bouncer\/config\.json$/);
   assert.equal(answer([])?.reply, 'A');
 });
 
 test('reads affected_paths from the proposal list, not from prose that excludes paths', () => {
-  const question = (lines) => ['README/`data/entries.json` stay out.', '---',
+  const question = (lines) => ['docs/Guides/Recipes.md stay out.', '---',
     '**AskUserQuestion — plan.affected_paths**',
     '<!-- acq {"gate":"plan.affected_paths","options":["A","B","C"],"recommended":"A"} -->',
     '1. **Re-ground**: Confirm TASKS-001 `bouncer.affected_paths`',
     ...lines, '- **A)** 위 목록 그대로 확정 (Recommended)', '- **B)** 수정안 제시', '- **C)** 취소'].join('\n');
   const reason = (lines) => answerTextQuestion(policy, 'bouncer-plan', question(lines), '/nonexistent')
     ?.choices[0].reason;
-  const expected = /without filtering: src\/cli\.js, src\/ledger\.js$/;
-  assert.match(reason(['```yaml', 'affected_paths:', '  - src/cli.js', '  - src/ledger.js', '```']), expected);
-  assert.match(reason(['```', 'src/cli.js', 'src/ledger.js', '```']), expected);
+  const expected = /without filtering: fastify\.js, fastify\.d\.ts$/;
+  assert.match(reason(['```yaml', 'affected_paths:', '  - fastify.js', '  - fastify.d.ts', '```']), expected);
+  assert.match(reason(['```', 'fastify.js', 'fastify.d.ts', '```']), expected);
 });
 
 test('affected_paths without a recommended proceed option → unanswerable', () => {
@@ -329,7 +337,7 @@ test('affected_paths without a recommended proceed option → unanswerable', () 
 });
 
 test('sole ready blueprint pointer question → answered only for that blueprint', () => {
-  const target = '.bouncer/context/epics/001-monthly-summary/blueprints/001-summary-command';
+  const target = '.bouncer/context/epics/001-handler-timeout/blueprints/001-handler-timeout';
   const text = (label) => acq('plan.activate_pointer', '승인된 블루프린트를 current pointer로 설정할지',
     [label, '다른 blueprint로 설정', '취소']);
   // plan.activate_pointer는 카탈로그 밖이므로 카탈로그를 주입해 정책 판단만 본다.
@@ -340,18 +348,18 @@ test('sole ready blueprint pointer question → answered only for that blueprint
     rmSync(workDir, { recursive: true });
     return result;
   };
-  const sole = { ready: ['001-monthly-summary/001-summary-command'] };
+  const sole = { ready: ['001-handler-timeout/001-handler-timeout'] };
   assert.equal(answer(sole)?.choices[0].gate, 'plan.activate_pointer');
   assert.equal(answer(sole).reply, 'A');
   assert.equal(answer({ epics: [] }), null);
-  assert.equal(answer({ ready: ['001-monthly-summary/001-summary-command', '002-other/001-other'] }), null);
+  assert.equal(answer({ ready: ['001-handler-timeout/001-handler-timeout', '002-other/001-other'] }), null);
   assert.equal(answer(sole, '`bouncer current --set .bouncer/context/epics/002-other/blueprints/001-other` 실행 (Recommended)'),
     null);
   assert.equal(answer({ ready: ['002-other/001-other'] }), null);
 });
 
 test('plan.approval block → approved by the recommended option', () => {
-  const text = acq('plan.approval', 'blueprint `001-summary-command`를 승인할지', ['승인하고 /bouncer-run으로 (Recommended)',
+  const text = acq('plan.approval', 'blueprint `001-handler-timeout`를 승인할지', ['승인하고 /bouncer-run으로 (Recommended)',
     '수정 요청', '취소']);
   const result = answerTextQuestion(policy, 'bouncer-plan', text, '/nonexistent');
   assert.equal(result?.choices[0].gate, 'plan.approval');
@@ -389,8 +397,8 @@ test('drive null → false', () => {
   assert.equal(finalizeReady({ ok: true }, { ok: true, dryRun: true }), false);
 });
 
-// v088006-ledger-004-bouncer-full-3 ran from a checkout under `.worktrees/`, so the workspace path itself
-// held `.worktrees` and the first split pointed GIT_DIR at the outer repository.
+// A benchmark run from a checkout under `.worktrees/` made the workspace path itself hold `.worktrees`,
+// and the first split pointed GIT_DIR at the outer repository.
 test('host git calls map the gitdir link when the workspace sits under another .worktrees', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'responder-git-'));
   const workspace = path.join(root, '.worktrees', 'bench-fix', '.benchmarks', 'work', 'run');
@@ -447,28 +455,28 @@ test('gate IDs are read only from a heading or title position', () => {
 });
 
 
-test('checks discovery against the policy task terms instead of ledger-001 terms', () => {
+test('checks discovery against the policy task terms instead of fastify-001 terms', () => {
   const budget = { ...policy, task_facts: { ...policy.task_facts,
     discovery_terms: ['budget', '--budgets', 'NO_BUDGET'], reusable_draft: null } };
   const question = (goal) => [goal,
     acq('plan.discovery', 'framing', ['Confirm framing as written (Recommended)', 'Confirm framing, but revise'])].join('\n');
   const budgetGoal = 'Goal: add budget with --budgets; categories without a budget print NO_BUDGET.';
   assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(budgetGoal), '/nonexistent').reply, 'A');
-  const summaryGoal = 'Goal: add summary to cli.js with --file and --month YYYY-MM; print TOTAL. stderr exit 1; list total.';
-  assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(summaryGoal), '/nonexistent'), null);
-  assert.equal(answerTextQuestion(policy, 'bouncer-plan', question(summaryGoal), '/nonexistent').reply, 'A');
+  const timeoutGoal = 'Goal: add handlerTimeout with request.signal; FST_ERR_HANDLER_TIMEOUT answers 503.';
+  assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(timeoutGoal), '/nonexistent'), null);
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', question(timeoutGoal), '/nonexistent').reply, 'A');
 });
 
 test('requires later task policies to state their discovery terms and reusable draft', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
   const policyFile = path.join(dir, 'policy.json');
-  const approved = require('../configs/ledger-001-evaluator-policy.json');
+  const approved = fastifyPolicy;
   const { discovery_terms: _terms, reusable_draft: _draft, ...bareFacts } = approved.task_facts;
-  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002', task_facts: bareFacts }));
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'other-002', task_facts: bareFacts }));
   assert.throws(() => loadPolicy(policyFile), /discovery_terms and task_facts.reusable_draft/);
-  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002',
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'other-002',
     task_facts: { ...approved.task_facts, discovery_terms: ['budget'], reusable_draft: null } }));
-  assert.equal(loadPolicy(policyFile).task_id, 'ledger-002');
+  assert.equal(loadPolicy(policyFile).task_id, 'other-002');
   rmSync(dir, { recursive: true });
 });
 
@@ -615,7 +623,7 @@ test('open_decisions block and a delegating policy → open_decisions', () => {
 });
 
 test('open decisions message without the open_decisions block → violation unmarked-question', () => {
-  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088-plan-open-decision.txt'), 'utf8');
+  const text = readFileSync(path.join(__dirname, 'fixtures', 'synthetic-open-decisions-unmarked.txt'), 'utf8');
   assert.deepEqual(turnQuestionState(delegating, 'bouncer-plan', text, null), { kind: 'violation', reason: 'unmarked-question' });
 });
 
@@ -642,7 +650,7 @@ test('finalize quiz turn without a block → quiz', () => {
 
 test('stage-final completion reports → none', () => {
   const finals = readdirSync(path.join(__dirname, 'fixtures', 'stage-final')).filter((file) => file.endsWith('.txt'));
-  assert.equal(finals.length, 8);
+  assert.equal(finals.length, 3);
   for (const file of finals) {
     const text = readFileSync(path.join(__dirname, 'fixtures', 'stage-final', file), 'utf8');
     for (const phase of ['bouncer-init', 'bouncer-plan', 'bouncer-run', 'bouncer-finalize']) {
@@ -659,7 +667,7 @@ test('loadCatalog()[bouncer-plan] → the workflows entry of rules/acq-gates.jso
 
 
 // ---- 정책 커버리지와 네 게이트 ----
-const POLICY_NAMES = ['ledger-001', 'ledger-002', 'ledger-003', 'ledger-004', 'fastify-001'];
+const POLICY_NAMES = ['fastify-001'];
 const realPolicy = (name) => JSON.parse(readFileSync(path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`), 'utf8'));
 const policyFile = (value) => {
   const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
@@ -671,7 +679,7 @@ const withAnswer = (gate, answer) => ({ ...policy,
   bouncer_decisions: [{ gate, answer }] });
 
 test('init.pre_commit_hook 항목 없는 정책과 deps.catalog → loadPolicy throw missing gate', () => {
-  const approved = realPolicy('ledger-001');
+  const approved = realPolicy('fastify-001');
   const file = policyFile({ ...approved, bouncer_decisions: approved.bouncer_decisions
     .filter((decision) => decision.gate !== 'init.pre_commit_hook') });
   assert.throws(() => loadPolicy(file, { catalog: { 'bouncer-init': ['init.pre_commit_hook'] } }),
@@ -679,26 +687,25 @@ test('init.pre_commit_hook 항목 없는 정책과 deps.catalog → loadPolicy t
 });
 
 test('구현 안 된 answer → loadPolicy throw not implemented', () => {
-  const approved = realPolicy('ledger-001');
+  const approved = realPolicy('fastify-001');
   const file = policyFile({ ...approved, bouncer_decisions: approved.bouncer_decisions
     .map((decision) => (decision.gate === 'init.base_branch' ? { ...decision, answer: 'develop' } : decision)) });
   assert.throws(() => loadPolicy(file), /evaluator policy answer develop for init\.base_branch is not implemented/);
 });
 
-test('ledger-001 정책 → discovery_terms와 reusable_draft가 정책 값과 같음', () => {
-  const facts = realPolicy('ledger-001').task_facts;
-  assert.deepEqual(facts.discovery_terms,
-    ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1', 'list', 'total', 'cli.js']);
-  assert.deepEqual(facts.reusable_draft, { epic: '001-monthly-summary', blueprint: '001-summary-command' });
+test('fastify-001 정책 → discovery_terms와 reusable_draft가 정책 값과 같음', () => {
+  const facts = realPolicy('fastify-001').task_facts;
+  assert.deepEqual(facts.discovery_terms, ['handlerTimeout', 'request.signal', 'FST_ERR_HANDLER_TIMEOUT', '503']);
+  assert.equal(facts.reusable_draft, null);
 });
 
-test('discovery_terms나 reusable_draft 키가 없는 ledger-001 정책 → loadPolicy throw', () => {
-  const approved = realPolicy('ledger-001');
+test('discovery_terms나 reusable_draft 키가 없는 fastify-001 정책 → loadPolicy throw', () => {
+  const approved = realPolicy('fastify-001');
   const { reusable_draft: _draft, ...facts } = approved.task_facts;
   assert.throws(() => loadPolicy(policyFile({ ...approved, task_facts: facts })), /reusable_draft/);
 });
 
-test('다섯 실제 정책의 카탈로그 게이트 항목 → answer가 stop이거나 IMPLEMENTED_ANSWERS[gate]에 있음', () => {
+test('실제 정책의 카탈로그 게이트 항목 → answer가 stop이거나 IMPLEMENTED_ANSWERS[gate]에 있음', () => {
   const ids = Object.values(loadCatalog()).flat();
   for (const name of POLICY_NAMES) {
     const decisions = realPolicy(name).bouncer_decisions;
@@ -710,7 +717,7 @@ test('다섯 실제 정책의 카탈로그 게이트 항목 → answer가 stop�
   }
 });
 
-test('승인된 다섯 정책 → loadPolicy 통과', () => {
+test('승인된 정책 → loadPolicy 통과', () => {
   for (const name of POLICY_NAMES) {
     assert.equal(loadPolicy(path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`)).task_id, name);
   }

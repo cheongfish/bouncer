@@ -1,23 +1,11 @@
-Scaffolding the full epic and blueprint, then loading authoring rules.Authoring epic, blueprint, and task bodies next.Draft authored for epic `001-monthly-summary`, blueprint `001-summary-command`, task `TASKS-001` (full scale). Graph-suggest (advisory):
+Scaffolding epic `001` and full-scale blueprint `001`, then authoring from the spec-authoring skill.Collecting evidence inline (`dispatch: print`), then authoring epic, blueprint, and both task briefs.초안을 작성했습니다. 검증 명령을 확정합니다.
 
-| Role | Paths | Notes |
-| --- | --- | --- |
-| implementation | `src/cli.js`, `src/ledger.js` | confidence medium |
-| test | _(none)_ | — |
-| suggested_paths | `src/cli.js`, `src/ledger.js` | Touch also names `test/ledger.test.js`, `README.md` |
+**AskUserQuestion — plan.verify_command**
+<!-- acq {"gate":"plan.verify_command","options":["A","B","C"],"recommended":"A"} -->
 
-**basis:** source `updated` · test `updated` · query `monthly summary category aggregation`
-
----
-
-**AskUserQuestion (Verify command):**
-
-1. **Re-ground**: `package.json#scripts`가 있어 이 블루프린트 task에 `bouncer.verify`를 둘지
-2. **Recommend-why**: 수용 기준이 단위·CLI 회귀라 저장소 기본과 같은 `npm test` 한 argv면 재현 가능함
+1. **Re-ground**: Set each task’s `bouncer.verify` for this blueprint, or leave unset so execute uses global `config.verify` (`npm test`).
+2. **Recommend-why**: Project rules and CI use lint + unit + TypeScript via `npm test`, which matches `config.verify` and `package.json#scripts`.
 3. **Options**:
-   - A) Set `bouncer.verify: npm test` on `TASKS-001` (Recommended)
-   - B) Set a different single argv — reply with the exact command (no `&&`, pipes, `cd`)
-   - C) Leave unset — execute uses global `config.verify` (`npm test`)
-   - D) Cancel
-
-Reply **A**, **B** (+ command), **C**, or **D**.
+   - A) Set `bouncer.verify: npm test` on TASKS-001 and TASKS-002 (Recommended)
+   - B) Leave unset (use global `config.verify` only)
+   - C) Different single argv — reply with the command (no `&&` / pipes / `cd`)
