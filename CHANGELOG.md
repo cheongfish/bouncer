@@ -16,6 +16,13 @@
   원장이 없으면 `null`)을 추가했다. `ready`는 task가 하나 이상이고 모두 `integrated`일
   때만 true다. `pr` draft 입력과 출력은 바뀌지 않고 `version`은 2로 유지한다.
 
+- **응답기 계약 기반 판독 (EPIC 093 BP 002)** — 벤치마크 응답기가 판독 블록과 카탈로그
+  게이트 ID로 질문을 식별하고, 평가자 정책 커버리지를 카탈로그 기준으로 검사한다.
+  drive 준비 여부와 통합 head·branch는 `finalize prepare`의 `drive`·`range.head`·
+  `git.branch`에서 읽고 coordinator 원장 파일은 읽지 않는다. 실행기는 이미지 안 플러그인
+  버전이 checkout과 다르면 유료 요청 전에 멈추고(`plugin_version`은 이미지 값으로 기록),
+  답하지 못한 텍스트 질문은 run 디렉터리 `unanswered/`에 fixture 스텁으로 보관한다.
+
 ## [1.5.7] — 2026-10-11
 
 1.5.6 패치. 공용 helper 통합과 순환 의존 제거(EPIC 092 BP 001), 동작 중심 테스트 지침과

@@ -24,6 +24,18 @@ gate-results.json        Bouncer 게이트 결과; 해당하지 않으면 null
 원본 JSONL을 정규화한 값으로 대체하지 않는다. 사용량·명령 이벤트가 빠지면
 임의로 추정하지 않고 해당 필드를 `unknown` 또는 `unjudgeable`로 기록한다.
 
+## 플러그인 버전과 미답 질문
+
+- `plugin_version`: bouncer-full 조건에서는 이미지 빌드 직후 이미지 안
+  `/home/node/.cursor/plugins/local/bouncer/package.json`의 `version`을 읽어 기록한다.
+  checkout `package.json` 버전과 다르거나 읽지 못하면 에이전트 요청 전에
+  `plugin version mismatch`(또는 `image unreadable`)로 멈춘다. vanilla 조건은 `null`이다.
+  `run-bouncer-full.cjs`의 최상위 `run.json`은 첫 stage 기록의 값을 옮긴다.
+- `unanswered/`: stage가 답하지 못한 텍스트 질문이 있으면 stage 디렉터리에 `NN.md`(원문,
+  `decisions.json`의 `unanswered` 순서 기준 두 자리 번호)와 `cases.json`(재생 fixture 스텁,
+  `expect: null`)이 생긴다. 사람이 `answer`/`violation`을 정해 저장소 fixture로 옮긴다.
+  host `params` 항목은 `decisions.json`에만 남는다.
+
 ## 출처와 표본 자격
 
 단계 이미지는 작업 트리에서 빌드되므로 `run.json`은 측정한 코드를 함께 기록한다.

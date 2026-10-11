@@ -3,7 +3,7 @@
   "task_id": "ledger-001",
   "approval_state": "approved",
   "approved_by": "user",
-  "approval_record": "2026-09-29 conversation: 승인; benchmark plan approval and synthetic quiz response explicitly requested; 2026-09-29 conversation: product_paths adds test/cli.test.js and README.md, affected_paths confirmed without filtering; 2026-09-29 conversation: plan.activate_pointer added; 2026-10-06 conversation: 사용자 승인 — plan.open_decisions(1.5.4 discovery 전 미정 동작 질문)는 판단을 에이전트 권장안에 위임하는 중립 응답 한 줄로 synthetic 응답(요구사항 추가 없음); 2026-10-08 conversation: 사용자 승인 — finalize.remainder는 A(finalize --yes 커밋과 worktree 제거)로 응답하고 finalize.next_blueprint 항목을 지움, policy_version 3",
+  "approval_record": "2026-09-29 conversation: 승인; benchmark plan approval and synthetic quiz response explicitly requested; 2026-09-29 conversation: product_paths adds test/cli.test.js and README.md, affected_paths confirmed without filtering; 2026-09-29 conversation: plan.activate_pointer added; 2026-10-06 conversation: 사용자 승인 — plan.open_decisions(1.5.4 discovery 전 미정 동작 질문)는 판단을 에이전트 권장안에 위임하는 중립 응답 한 줄로 synthetic 응답(요구사항 추가 없음); 2026-10-08 conversation: 사용자 승인 — finalize.remainder는 A(finalize --yes 커밋과 worktree 제거)로 응답하고 finalize.next_blueprint 항목을 지움, policy_version 3; 2026-10-11 conversation: 사용자 승인 — ledger-001 task_facts에 discovery_terms와 reusable_draft를 명시하고(응답기 코드 보존 제거), 미선언 init.pre_commit_hook은 stop으로 명시",
   "base_commit": "a75fd4165864f1459221695012894d6333382bf7",
   "request_file": "benchmarks/tasks/ledger-001.prd.md",
   "purpose": "Answer benchmark user questions only when they are actually asked, so the Bouncer run can reach local finalize.",
@@ -37,6 +37,22 @@
     ],
     "verification_command": "npm test",
     "base_branch": "main",
+    "discovery_terms": [
+      "summary",
+      "--file",
+      "--month",
+      "YYYY-MM",
+      "TOTAL",
+      "stderr",
+      "exit 1",
+      "list",
+      "total",
+      "cli.js"
+    ],
+    "reusable_draft": {
+      "epic": "001-monthly-summary",
+      "blueprint": "001-summary-command"
+    },
     "expected_gitignore_suggestions": [
       "node_modules/",
       "graphify-out/",
@@ -78,6 +94,11 @@
       "gate": "init.gitignore",
       "answer": "write_suggested_entries",
       "when": "Only when every proposed entry is in expected_gitignore_suggestions and no existing ignore rule is removed or weakened."
+    },
+    {
+      "gate": "init.pre_commit_hook",
+      "answer": "stop",
+      "when": "Policy approved before this gate existed; stop for a human."
     },
     {
       "gate": "init.base_branch",

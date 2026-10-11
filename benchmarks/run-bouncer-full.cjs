@@ -5,7 +5,7 @@ const { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, s
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const path = require('node:path');
-const { driveState, loadPolicy } = require('./acp/responder.cjs');
+const { loadPolicy } = require('./acp/responder.cjs');
 const { sumUsage, usageTotalStatus } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
@@ -193,20 +193,41 @@ function checkPlanGate(workspace) {
   return blueprint;
 }
 
+/**
+ * `finalize prepare` 결과에서 통합 기록(head, branch, tasks)을 만든다.
+ * 원장 파일을 읽지 않고 CLI의 `drive` 요약과 `range.head`·`git.branch`만 쓴다.
+ * 통합이 끝나지 않았으면 유료 finalize stage로 넘어가지 않도록 throw한다.
+ *
+ * @param {object} prepare - `finalize prepare` JSON
+ * @returns {{ head: string, branch: string, tasks: object[] }} 통합 head·branch와 drive task 목록
+ */
+function integrationFromPrepare(prepare) {
+  const drive = prepare?.drive;
+  if (prepare?.ok !== true || !drive || drive.ready !== true) {
+    const tasks = Array.isArray(drive?.tasks) ? drive.tasks : [];
+    const open = tasks.filter((task) => task.status !== 'integrated').map((task) => `${task.id}:${task.status}`);
+    throw new Error(`integration incomplete: ${open.length ? `open tasks ${open.join(', ')}` : JSON.stringify(prepare)}`);
+  }
+  return { head: prepare.range?.head, branch: prepare.git?.branch, tasks: drive.tasks };
+}
+
+/**
+ * stage run.json 기록들에서 최상위 run.json에 옮길 플러그인 버전을 고른다.
+ * 모든 stage가 같은 이미지 검사를 통과했으므로 첫 기록이 대표값이다.
+ *
+ * @param {object[]} stageRecords - stage run.json 객체 목록
+ * @returns {string | null} 첫 기록의 `plugin_version`이 문자열이면 그 값, 아니면 null
+ */
+function pluginVersionFromStages(stageRecords) {
+  const version = stageRecords[0]?.plugin_version;
+  return typeof version === 'string' ? version : null;
+}
+
 function checkIntegration(workspace, integration) {
   const blueprint = blueprintRelative(integration);
   const output = command(process.execPath, [path.join(projectRoot, 'scripts', 'bouncer'),
     'finalize', 'prepare', '--blueprint', blueprint], integration, integrationGitEnv(workspace, integration));
-  // `finalize prepare` is the read-only digest; the drive state comes from it or, since 1.5.4, the ledger.
-  const result = JSON.parse(output);
-  const coordinator = driveState(result, integration);
-  const tasks = Array.isArray(coordinator?.tasks) ? coordinator.tasks : [];
-  const open = tasks.filter((task) => task.status !== 'integrated').map((task) => `${task.id}:${task.status}`);
-  if (!result.ok || coordinator?.status !== 'ok' || !tasks.length || open.length) {
-    throw new Error(`integration incomplete: ${open.length ? `open tasks ${open.join(', ')}` : output}`);
-  }
-  return { head: coordinator.integrationHead, branch: coordinator.integrationBranch,
-    tasks: tasks.map((task) => ({ id: task.id, status: task.status, sha: task.sha })) };
+  return integrationFromPrepare(JSON.parse(output));
 }
 
 /**
@@ -288,7 +309,7 @@ function main() {
   if (existsSync(workspace) || (existsSync(runDir) && !detachedChild)) throw new Error('run id already exists');
   mkdirSync(runDir, { recursive: true });
   const record = { run_id: config.runId, ...taskRecord(task), condition: 'bouncer-full', model: config['--model'],
-    ...sourceProvenance(projectRoot), workspace, status: 'running', stages: [],
+    ...sourceProvenance(projectRoot), workspace, plugin_version: null, status: 'running', stages: [],
     stage_usage: {},
     evaluator_policy_version: policy.policy_version,
     evaluator_policy_sha256: createHash('sha256').update(readFileSync(policyFile)).digest('hex'),
@@ -308,6 +329,7 @@ function main() {
       progress(`${name} returned`);
       record.stages.push(name);
       record.stage_usage[name] = stageRecord.usage;
+      record.plugin_version ??= pluginVersionFromStages([stageRecord]);
       // Task subagent attempts the guard refused: rule violations of rules/cursor-print-dispatch.md.
       record.subagent_denied = { ...record.subagent_denied, [name]: stageRecord.subagent_denied ?? 0 };
       record.usage_total = sumUsage(Object.values(record.stage_usage));
@@ -350,4 +372,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { collectFinalEvidence };
+module.exports = { collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages };

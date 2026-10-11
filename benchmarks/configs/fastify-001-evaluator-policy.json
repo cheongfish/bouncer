@@ -3,7 +3,7 @@
   "task_id": "fastify-001",
   "approval_state": "proposed",
   "approved_by": null,
-  "approval_record": "2026-10-06 초안: ledger-004 정책 형식을 따르고 fastify 과제 사실만 바꿈. 사용자 승인 전에는 실행기가 거절한다.; 2026-10-08 conversation: 사용자 승인 — finalize.remainder는 A(finalize --yes 커밋과 worktree 제거)로 응답하고 finalize.next_blueprint 항목을 지움, policy_version 3",
+  "approval_record": "2026-10-06 초안: ledger-004 정책 형식을 따르고 fastify 과제 사실만 바꿈. 사용자 승인 전에는 실행기가 거절한다.; 2026-10-08 conversation: 사용자 승인 — finalize.remainder는 A(finalize --yes 커밋과 worktree 제거)로 응답하고 finalize.next_blueprint 항목을 지움, policy_version 3; 2026-10-11 conversation: 사용자 승인 — 미선언 init.pre_commit_hook은 stop으로 명시(approval_state는 proposed 유지)",
   "base_commit": "42fe25fd2a151def098ef6b59dee18ec8ccac632",
   "request_file": "benchmarks/tasks/fastify-001.prd.md",
   "purpose": "Answer benchmark user questions only when they are actually asked, so the Bouncer run can reach local finalize.",
@@ -87,6 +87,11 @@
       "gate": "init.gitignore",
       "answer": "write_suggested_entries",
       "when": "Only when every proposed entry is in expected_gitignore_suggestions, every other expected entry is already ignored, and no existing ignore rule is removed or weakened."
+    },
+    {
+      "gate": "init.pre_commit_hook",
+      "answer": "stop",
+      "when": "Policy approved before this gate existed; stop for a human."
     },
     {
       "gate": "init.base_branch",

@@ -6,7 +6,7 @@ const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { collectFinalEvidence } = require('./run-bouncer-full.cjs');
+const { collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages } = require('./run-bouncer-full.cjs');
 
 const BLUEPRINT = '.bouncer/context/epics/001-e/blueprints/001-x';
 const BRANCH = 'feat/001-001-x';
@@ -58,4 +58,31 @@ test('rejects a blueprint that is not closed on the branch', () => {
   assert.throws(() => collectFinalEvidence({ workspace: dir, baseCommit: base, branch: BRANCH, blueprint: BLUEPRINT }),
     /blueprint not closed/);
   rmSync(dir, { recursive: true });
+});
+
+const readyPrepare = () => ({ ok: true, range: { head: 'abc' }, git: { branch: 'feat/x' },
+  drive: { ready: true, tasks: [{ id: 'TASKS-001', status: 'integrated', sha: 'abc' }] } });
+
+test('ready drive prepare → head·branch·tasks', () => {
+  assert.deepEqual(integrationFromPrepare(readyPrepare()), { head: 'abc', branch: 'feat/x',
+    tasks: [{ id: 'TASKS-001', status: 'integrated', sha: 'abc' }] });
+});
+
+test('drive null → throw integration incomplete', () => {
+  assert.throws(() => integrationFromPrepare({ ...readyPrepare(), drive: null }), /integration incomplete/);
+});
+
+test('drive ready false → throw integration incomplete with open tasks', () => {
+  const prepare = { ...readyPrepare(), drive: { ready: false, tasks: [{ id: 'TASKS-002', status: 'verified' }] } };
+  assert.throws(() => integrationFromPrepare(prepare), /integration incomplete: open tasks TASKS-002:verified/);
+});
+
+test('prepare.ok false → throw integration incomplete', () => {
+  assert.throws(() => integrationFromPrepare({ ...readyPrepare(), ok: false }), /integration incomplete/);
+});
+
+test('stage run.json plugin_version 1.5.7 → 최상위 record plugin_version 1.5.7', () => {
+  assert.equal(pluginVersionFromStages([{ plugin_version: '1.5.7' }, { plugin_version: '1.5.6' }]), '1.5.7');
+  assert.equal(pluginVersionFromStages([{}]), null);
+  assert.equal(pluginVersionFromStages([]), null);
 });

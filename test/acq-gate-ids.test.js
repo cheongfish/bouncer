@@ -75,6 +75,15 @@ test('the benchmark evaluator policies are v3 and answer finalize.remainder with
   assert.equal(JSON.parse(read('benchmarks/configs/fastify-001-evaluator-policy.json')).approval_state, 'proposed');
 });
 
+test('다섯 정책 → 카탈로그 모든 게이트에 bouncer_decisions 항목 있음', () => {
+  const ids = Object.values(CATALOG).flat();
+  for (const name of POLICY_NAMES) {
+    const gates = new Set(JSON.parse(read(`benchmarks/configs/${name}-evaluator-policy.json`)).bouncer_decisions
+      .map((decision) => decision.gate));
+    for (const id of ids) assert.ok(gates.has(id), `${name}: missing policy entry for ${id}`);
+  }
+});
+
 // ---- 판독 블록 검사 ----
 // 채팅 ACQ display의 제목 다음 줄 `<!-- acq {...} -->`는 외부 응답기가 문장 추측 없이
 // 게이트를 식별하게 하는 기계 계약이다. 형식(JSON)만 단언하고 문구는 보지 않는다.
