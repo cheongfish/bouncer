@@ -43,6 +43,14 @@ function cmdValidate(rest, io) {
     // ok=false는 실패 코드가 있는 검사 결과 — 사용법이 아니므로 1.
     return result.ok ? 0 : 1;
 }
+/**
+ * `--blueprint` 대상의 verify 명령을 실행하고 증적을 기록한다.
+ * 통과하면 lease·pointer commit task를 `ready`에서 `verified`로 올린다.
+ *
+ * @param {string[]} rest - CLI 나머지 인자(`--blueprint`, `--repo`)
+ * @param {CliIo} io - stdout/stderr 기록기
+ * @returns {number} 성공 0, 실행 실패 1, 플래그 누락 2
+ */
 function cmdVerify(rest, io) {
     const f = parseFlags(rest);
     // validate와 같은 2: 대상 없이 돌리면 게이트 실패로 위장된다.
@@ -54,6 +62,7 @@ function cmdVerify(rest, io) {
         const result = runVerification({
             repoRoot: (f.repo || process.cwd()),
             blueprintDir: f.blueprint,
+            markTaskVerified: true,
         });
         io.out(`${JSON.stringify(result, null, 2)}\n`);
         return result.ok ? 0 : 1;
@@ -193,7 +202,8 @@ function cmdScaffold(rest, io) {
 }
 /**
  * `plan inspect`만 받는다. 추천 JSON을 stdout에 내고, 거절은 같은 채널의
- * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드·값 없는
+ * `--blueprint`는 사용법(2).
  *
  * @param {string[]} rest - 서브커맨드와 플래그
  * @param {CliIo} io - stdout/stderr 싱크
@@ -208,9 +218,16 @@ function cmdPlan(rest, io) {
         io.err('plan: command must be inspect\n');
         return 2;
     }
+    // --blueprint는 선택이다. 플래그만 주고 값이 없으면 parseFlags가 true를
+    // 주므로 invalid-blueprint-dir(1)로 위장하지 않고 사용법(2)로 가른다.
+    if (Object.hasOwn(f, 'blueprint') && typeof f.blueprint !== 'string') {
+        io.err('plan inspect: --blueprint requires a directory\n');
+        return 2;
+    }
     const result = planInspect({
         repoRoot: (f.repo || process.cwd()),
         epicDir: f['epic-dir'],
+        blueprintDir: f.blueprint,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
@@ -245,8 +262,9 @@ module.exports = {
     },
     plan: {
         run: cmdPlan,
-        usage: `  plan       inspect [--epic-dir <dir>]
-             Print next ids, maintenance epic, verify signals, and pointer state as JSON.
+        usage: `  plan       inspect [--epic-dir <dir>] [--blueprint <dir>]
+             Print next ids, maintenance epic, verify signals, pointer state,
+             and optional advisory light routing as JSON.
 `,
     },
 };

@@ -11,7 +11,9 @@ const { toPosix } = paths;
 const schema = require("./schema");
 const { AUTONOMY_ENUM, DEFAULT_AUTONOMY, DEFAULT_SCALE, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, executionKindOf, } = schema;
 const coordinator = require("./coordinator");
-const { readyWave } = coordinator;
+const { readyWave, loadLedger } = coordinator;
+const runtimeState = require("./runtime-state");
+const { coordinatorPathsFor } = runtimeState;
 const configMod = require("./config");
 const { readConfig, readCoordinatorPolicy } = configMod;
 const OPEN_STATUS = ['ready', 'in_progress'];
@@ -72,6 +74,13 @@ function ledgerDependsOn(values) {
 function ledgerStatus(status) {
     return OPEN_STATUS.includes(status) ? 'pending' : status;
 }
+/**
+ * main worktree 설정에서 autonomy를 읽는다. 누락·잘못된 값은 기본값으로 접는다.
+ * coordinate status --write-input도 같은 규칙을 쓰도록 export한다.
+ *
+ * @param {string} repoRoot - `.bouncer/config.json`이 있는 main checkout
+ * @returns {Autonomy} 값과 기본값 폴백 여부
+ */
 function readAutonomy(repoRoot) {
     const parsed = readConfig(repoRoot);
     if (!isRecord(parsed) || !Object.prototype.hasOwnProperty.call(parsed, 'autonomy')) {
@@ -161,6 +170,8 @@ function collectTasks(repoRoot, blueprintDir) {
 /**
  * drive 시작에 필요한 pointer·blueprint·열린 task·DAG·autonomy를 한 JSON으로
  * 정규화한다. 파일을 쓰지 않으며, 위임 가능 여부는 상태만 보고 결정한다.
+ * integration 원장이 `promotion_stopped`이면 위임을 막고 그 reason을 낸다.
+ * 원장 부재는 정지를 알 수 없으므로 기존 blueprint/open-task 이유를 유지한다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 포인터와 plan 문서가 있는 checkout
@@ -194,6 +205,18 @@ function runPreflight({ repoRoot, blueprintDir }) {
         reason = 'blueprint-closed';
     else if (openTasks.length === 0)
         reason = 'no-open-task';
+    // 원장이 있을 때만 승격 정지를 본다. 부재는 기존 blueprint/open-task 이유를 유지한다.
+    // 정지가 있으면 closed·no-open-task보다 우선해 위임이 다시 열리지 않게 한다.
+    try {
+        const paths = coordinatorPathsFor({ repoRoot, blueprint });
+        const ledger = loadLedger(paths.ledgerFile);
+        if (ledger && ledger.status === 'promotion_stopped') {
+            reason = 'promotion-stopped';
+        }
+    }
+    catch (_error) {
+        // blueprint 경로에서 integration id를 못 뽑으면 정지 여부를 알 수 없다 — miss.
+    }
     // preflight는 repoRoot config를 본다. invalid면 1로 접어 ACQ 미리보기가
     // prepare보다 넓은 wave를 약속하지 않게 한다.
     const policy = readCoordinatorPolicy(repoRoot);
@@ -209,4 +232,4 @@ function runPreflight({ repoRoot, blueprintDir }) {
         reason,
     };
 }
-module.exports = { runPreflight };
+module.exports = { runPreflight, readAutonomy };

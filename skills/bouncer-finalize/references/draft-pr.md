@@ -1,6 +1,6 @@
 When the user chooses to consider a draft PR, read this reference.
 
-Use `rules/acq.md` for the shared ACQ display and chat fallback; this reference
+Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback; this reference
 only defines the draft-PR choices and their consequences below.
 
 ACQ `finalize.pr` before push or `gh pr create`: A) draft PR (recommended when remote and `gh` work), B) local only, C) cancel outward steps but continue cleanup. Decline skips push/PR. With no remote or no `gh`, skip gracefully after local finalize without PR ACQ. On acceptance, render title and body from the prepare digest kept through `--yes`, then push and create a draft without a further confirmation; push/create failures report their reason without re-asking.
@@ -37,7 +37,7 @@ checkboxes.
 | `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for changed files, behavior, and interfaces only. Do not write task DAG, task split/order, repair wave, scope revision, worker·agent, branch·sha, integration head, or 작업 과정. |
 | `로직 흐름` | Conditional Mermaid only (rules below). Omit the heading when skipped. |
 | `리뷰 포인트` | Digest `pr.sections.review_points` first, then Explain `## Code` + diff hot paths only where the digest left a gap. No guessed risk. |
-| `확인 방법` | Digest `pr.sections.verification` in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. Do not re-open task `verification.md` files. |
+| `확인 방법` | Digest `pr.sections.verification` in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. Do not re-open task `verification.md` files. Reference verification and review through the digest `evidence` field (`evidence.verification[].evidence_id`, `evidence.review`). Do not open verification or review logs. |
 
 ### Explain link
 

@@ -1,7 +1,7 @@
 'use strict';
 const path = require('node:path');
 const schema = require("./schema");
-const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM, isValidDependsOn, isValidExclusiveResources, executionKindOf, } = schema;
+const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM, isValidDependsOn, isValidExclusiveResources, isValidAuthoredLineList, executionKindOf, } = schema;
 const paths = require("./paths");
 const { parsePathIds, toPosix, isNumericContextId, } = paths;
 const verification = require("./verification");
@@ -230,6 +230,14 @@ function checkStructural(doc, failures, verifyAllowlist = DEFAULT_VERIFY_ALLOWLI
         }
         // S30: review_risk는 승인 enum의 중복 없는 배열만 받는다. 부재는 legacy []
         // 로 읽히므로 통과 — 새 문서의 malformed 값만 dispatch 전에 막는다.
+        // S32: commit_intent·commit_summary는 YAML 리스트만. 스칼라 문자열은
+        // `bouncer commit`이 스테이징 전에 같은 이유로 죽던 형태라 plan에서 거절한다.
+        // 부재·[]는 통과(작성 전 scaffold). 한국어 종결형은 커밋 정규화가 맡는다.
+        for (const field of ['commit_intent', 'commit_summary']) {
+            if (!isValidAuthoredLineList(bouncer[field])) {
+                add('S32', `${field} must be a YAML list of 0-2 strings`);
+            }
+        }
         if (bouncer.review_risk !== undefined) {
             if (!Array.isArray(bouncer.review_risk)) {
                 add('S30', 'review_risk must be an array');

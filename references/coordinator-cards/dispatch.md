@@ -34,3 +34,6 @@ from the coordinator Task round and Worker dispatch.
   `attempt` and `previous_outcome`. After `ok: false` or a fence refusal,
   call `next` again; on mismatch re-run `coordinate status` and continue from
   that checkpoint.
+- `coordinate dispatch` also returns a top-level `report_path` (the implementer's
+  per-attempt report file). Keep it and pass it to the `implement` step next to
+  the metadata; it is not one of the `metadata` keys.

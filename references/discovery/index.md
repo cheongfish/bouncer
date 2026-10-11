@@ -76,6 +76,8 @@ In one clarifying pass, cover at least:
   decision the framing never showed as open.
 - Do not stop discovery solely because epic indexes or intent provenance are
   missing; record the gap and continue.
+- For batching independent questions, light declaration versus approval, and
+  step handoff, see `${BOUNCER_ROOT}/skills/bouncer-plan/references/roundtrip.md`.
 
 ## Return
 

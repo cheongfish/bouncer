@@ -118,7 +118,11 @@ read code/tests/repo context needed to implement.
    running it is the only way to find that out. Then implement and re-run.
    Keep the project's verify command runnable; do not weaken assertions to
    force a pass.
-6. **Report** — Fill the Output contract below, then hand control back.
+6. **Report** — Fill the Output contract below, then hand control back. When
+   the dispatch payload carries `report_path`, write the same Output contract
+   body to that path (creating parent directories) immediately before you
+   return, so the root can observe the final report even if the coordinator
+   returns early. Without `report_path`, do not write any report file.
 
 ## Guardrails
 

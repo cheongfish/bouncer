@@ -14,7 +14,7 @@ the coordinator Hard guards (scope drift).
   refused without a reason.
 - A revision names repository source paths only — never an absolute or
   escaping path, the whole tree, `.git/`, or the `.bouncer/` governance tree —
-  and inside that boundary there is no ceiling (`rules/commit-scope.md`).
+  and inside that boundary there is no ceiling (`${BOUNCER_ROOT}/rules/commit-scope.md`).
   Refuse the drift and record rework instead when it belongs to another task.
 - While an implementer attempt is active, freeze the task brief: do not call
   `coordinate revise` and do not edit the brief until you have judged the

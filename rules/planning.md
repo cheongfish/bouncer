@@ -1,8 +1,8 @@
 # Planning
 
 계획 단계(plan · spec-authoring · template)가 읽는 계약이다.
-실행 범위·commit 계약은 `rules/commit-scope.md`, coordinator mutation 절차는
-`agents/bouncer-coordinator.md`에 있다.
+실행 범위·commit 계약은 `${BOUNCER_ROOT}/rules/commit-scope.md`, coordinator mutation 절차는
+`${BOUNCER_ROOT}/agents/bouncer-coordinator.md`에 있다.
 
 ## Blueprint sizing rule
 
@@ -35,8 +35,11 @@ A **lightweight cycle** is in
 effect only when the user **declares** a narrow-scope change at `/bouncer-plan`
 and the plan changes blueprint `index.md` `bouncer.scale` from the scaffold
 default `full` to `light`. There is no automatic sizing from diff size, path
-count, or file count. Without that declaration (`scale` absent or not
-`light`), the default path applies.
+count, or file count. `bouncer plan inspect --blueprint` may emit an advisory
+`routing` recommendation, but that signal is evidence only — there is no
+automatic light selection or approval from it. Without that declaration
+(`scale` absent or not `light`), the default path applies.
+선언은 작성 전, 최종 승인은 작성 뒤이며 선언은 승인이 아니다.
 
 The same declaration is the only way to reach the shrunken document set:
 `bouncer scaffold blueprint --scale light`. Omitting `--scale`, or passing
@@ -63,9 +66,11 @@ What shrinks (five things only):
    create it once with normal numbering, then keep stacking blueprints under it.
    Never close that epic.
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
-   by `skills/bouncer-execute/references/agent-dispatch.md`.
+   by `skills/bouncer-execute/references/agent-dispatch.md`. A light ledger
+   `/bouncer-run` drive follows
+   `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
 5. **Quiz size** — light quiz sizing is owned by
-   `references/explain-diff/index.md`.
+   `${BOUNCER_ROOT}/references/explain-diff/index.md`.
 
 What stays the same:
 
@@ -82,7 +87,9 @@ means authoring the missing sections and running
 If the separation between writer and named reviewer feels too thin, set
 `scale` back to `full` and return to the named-agent path for implement too —
 inline implement limits stay in
-`skills/bouncer-execute/references/agent-dispatch.md`.
+`skills/bouncer-execute/references/agent-dispatch.md`, and a light ledger
+`/bouncer-run` path stays in
+`${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
 
 ## Task DAG and approved scope
 
@@ -106,8 +113,8 @@ baseline for later coordinator revision; it does not freeze runtime ledger
 state.
 
 Coordinator-owned revision of approved `affected_paths` after plan time is
-owned by `rules/commit-scope.md` `## Approved and ledger scope`; the revision
-procedure itself is `agents/bouncer-coordinator.md`.
+owned by `${BOUNCER_ROOT}/rules/commit-scope.md` `## Approved and ledger scope`; the revision
+procedure itself is `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
 
 ## Epic naming
 

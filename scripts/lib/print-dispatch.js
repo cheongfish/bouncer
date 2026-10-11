@@ -10,7 +10,7 @@ const subagents = require("./subagents");
 const { resolveSubagentModel } = subagents;
 const codexAgents = require("./codex-agents");
 const { pluginAgentsDir } = codexAgents;
-const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'coordinator'];
+const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator'];
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -24,7 +24,7 @@ function isEnoentError(error) {
  * Cursor print 식별 줄. 문구는 `rules/cursor-print-dispatch.md` 3항과 바이트가
  * 같아야 한다. 역할이 named agent를 다시 띄우지 못하게 고정한 문장이다.
  *
- * @param {string} role - implementer|reviewer|debugger|coordinator
+ * @param {string} role - implementer|reviewer|debugger|context-reviewer|coordinator
  * @returns {string} prompt 첫 줄
  */
 function identityLine(role) {
@@ -37,19 +37,33 @@ function identityLine(role) {
         + 'Do this role\'s work directly and never dispatch any Bouncer agent.');
 }
 /**
+ * 플러그인 루트 절대 경로를 prompt에 실을 한 줄로 만든다. 문구는
+ * `rules/cursor-print-dispatch.md` 3항과 바이트가 같아야 한다 — 세션이
+ * `references/...`를 워크스페이스에서 찾지 않고 이 루트에 붙이게 한다.
+ *
+ * @param {string} pluginRoot - 플러그인 루트 절대 경로
+ * @returns {string} `Plugin root: …` 한 줄
+ */
+function pluginRootLine(pluginRoot) {
+    return (`Plugin root: ${pluginRoot}. `
+        + 'Resolve plugin-relative paths (rules/..., references/..., agents/...) against it.');
+}
+/**
  * 역할 본문·controller 입력을 prompt 파일 순서로 붙인다. 식별 줄을 맨 앞에
  * 두는 이유는 payload가 `---`로 시작하면 CLI가 옵션으로 읽기 때문이다.
+ * 루트 줄은 식별 줄 바로 뒤 — 탐색 없이 `references/`·`rules/`를 열게 한다.
  *
- * @param {{ role: string, roleMarkdown: string, input: string }} parts
+ * @param {{ role: string, roleMarkdown: string, input: string, pluginRoot: string }} parts
  * @param {string} parts.role - 짧은 역할 이름
  * @param {string} parts.roleMarkdown - frontmatter가 있는 역할 문서 전체
  * @param {string} parts.input - `--input` 파일 내용 그대로
+ * @param {string} parts.pluginRoot - 플러그인 루트 절대 경로(`agentsDir`의 부모)
  * @returns {string} 디스크에 쓸 prompt 본문
  */
-function assemblePrintPrompt({ role, roleMarkdown, input, }) {
+function assemblePrintPrompt({ role, roleMarkdown, input, pluginRoot, }) {
     const { body } = parseFrontmatter(roleMarkdown);
     const roleBody = body.replace(/^(?:\r?\n)+/, '').replace(/(?:\r?\n)+$/, '');
-    return `${identityLine(role)}\n\n${roleBody}\n\n${input}`;
+    return `${identityLine(role)}\n\n${pluginRootLine(pluginRoot)}\n\n${roleBody}\n\n${input}`;
 }
 function fail(reason, cause, next, extra) {
     return { ok: false, reason, cause, next, ...extra };
@@ -137,6 +151,9 @@ function runPrintDispatch({ repoRoot, role, cwd, inputFile, outDir, deps, }) {
         return fail('print-dispatch-disabled', '`.bouncer/config.json` is not `subagents.provider: "cursor"` and `subagents.dispatch: "print"`', 'dispatch using `rules/subagent-model.md` items 2-4, or set those keys and retry');
     }
     const agentsDir = deps && deps.agentsDir ? deps.agentsDir : pluginAgentsDir();
+    // agentsDir 부모 = 플러그인 루트. 테스트 seam의 임시 root와 프로덕션 설치
+    // 루트가 같은 규칙으로 잡혀야 prompt의 Plugin root 줄이 탐색 없이 동작한다.
+    const pluginRoot = path.resolve(path.dirname(agentsDir));
     const rolePath = path.join(agentsDir, `bouncer-${role}.md`);
     let roleMarkdown;
     try {
@@ -154,6 +171,7 @@ function runPrintDispatch({ repoRoot, role, cwd, inputFile, outDir, deps, }) {
             role,
             roleMarkdown,
             input: fs.readFileSync(inputFile, 'utf8'),
+            pluginRoot,
         });
     }
     catch (error) {

@@ -5,7 +5,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 const validateMod = require("./validate");
 const { validateBlueprint } = validateMod;
 const planSnapshot = require("./plan-snapshot");
-const { computePlanSnapshot } = planSnapshot;
+const { computePlanSnapshot, computePlanParts } = planSnapshot;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs, taskExecutionKind } = tasksDocs;
 const frontmatter = require("./frontmatter");
@@ -32,17 +32,70 @@ const REVIEW_RISK_ENUM = [
     'credential',
 ];
 /**
+ * 이전 plan payload와 현재 parts·scope_parts를 비교해 follow_up을 고른다.
+ * 문서 집합·에픽/blueprint 본문·어느 scope_parts라도 다르면 full이고,
+ * 그 밖에는 tasks.md 본문 차이만 partial의 changed_documents에 모은다.
+ *
+ * @param {{
+ *   documents: string[],
+ *   parts: Record<string, string>,
+ *   scope_parts: Record<string, string>,
+ *   previousParts: Record<string, string>,
+ *   previousScope: Record<string, string>,
+ * }} opts - 현재·이전 digest 맵과 문서 순서
+ * @returns {{ follow_up: 'partial' | 'full', changed_documents: string[] }}
+ */
+function decidePlanFollowUp({ documents, parts, scope_parts, previousParts, previousScope, }) {
+    const currentKeys = Object.keys(parts).sort();
+    const previousKeys = Object.keys(previousParts).sort();
+    // 1. task 추가·삭제는 부분 delta로 복구할 수 없다 — 집합 자체가 바뀌면 full.
+    if (currentKeys.length !== previousKeys.length
+        || currentKeys.some((key, i) => key !== previousKeys[i])) {
+        return { follow_up: 'full', changed_documents: [] };
+    }
+    // 2. 에픽·blueprint index 본문은 discovery 재시작 신호. documents[0]/[1]은
+    //    computePlanSnapshot과 같은 순서다.
+    const epicRel = documents[0];
+    const blueprintRel = documents[1];
+    if (parts[epicRel] !== previousParts[epicRel]
+        || parts[blueprintRel] !== previousParts[blueprintRel]) {
+        return { follow_up: 'full', changed_documents: [] };
+    }
+    // 3. affected_paths·depends_on·Interface·Touch는 집계 digest에 안 보이므로
+    //    scope_parts로만 잡는다. 하나라도 다르면 full.
+    for (const rel of Object.keys(scope_parts)) {
+        if (scope_parts[rel] !== previousScope[rel]) {
+            return { follow_up: 'full', changed_documents: [] };
+        }
+    }
+    // 4. 여기까지 오면 범위는 같고 tasks.md 본문(Goal 등)만 달랐을 수 있다.
+    const changed_documents = [];
+    for (const rel of currentKeys) {
+        if (!/\/tasks\/\d{3}\/tasks\.md$/.test(rel))
+            continue;
+        if (parts[rel] !== previousParts[rel])
+            changed_documents.push(rel);
+    }
+    return { follow_up: 'partial', changed_documents };
+}
+/**
  * Plan 리뷰 전략을 문서의 구조 신호만으로 분류한다.
  * reviewer 호출 전에 structural 검사와 plan draft 검사(G5·G10–G12·G19·G20)를
  * 통과해야 한다 — gate가 나중에 거절할 문서로 context review snapshot을 얼리지 않기 위해서다.
  * working tree와 review 문서는 쓰지 않으며, 실패 시 perspectives를 만들지 않는다.
+ * `previous`가 있으면 문서별 digest로 follow_up을 판정한다.
  *
- * @param {{ repoRoot: string, blueprintDir: string }} opts - 저장소와 blueprint 상대 경로
- * @returns {PlanDispatchResult} 성공 시 strategy·cluster·근거. 실패 시 ok:false —
+ * @param {{ repoRoot: string, blueprintDir: string, previous?: unknown }} opts
+ *   - repoRoot: 저장소 루트
+ *   - blueprintDir: blueprint 상대 경로
+ *   - previous: 이전 plan payload(없으면 follow_up=full). parts 없으면 거절
+ * @returns {PlanDispatchResult} 성공 시 strategy·cluster·근거와(single/clustered면)
+ *   parts·scope_parts·follow_up. 실패 시 ok:false —
  *   S 코드가 있으면 'structural validation failed', draft 검사 실패면
- *   'plan draft validation failed'(failures는 plan gate와 같은 항목)
+ *   'plan draft validation failed'(failures는 plan gate와 같은 항목),
+ *   previous 형식이 깨지면 reason 'previous-payload-invalid'
  */
-function classifyPlanReview({ repoRoot, blueprintDir }) {
+function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
     // 1. 구조·draft 실패를 축소 판정으로 덮지 않는다 — malformed review_risk·문서 부재·
     //    G19/G20 위반은 그대로 돌려 controller가 reviewer를 호출하지 않게 한다.
     //    validateBlueprint는 S 실패가 있으면 draft 검사를 건너뛰므로 한 결과에
@@ -88,6 +141,41 @@ function classifyPlanReview({ repoRoot, blueprintDir }) {
             reasons: ['blueprint scale is light — context review is skipped'],
         };
     }
+    // previous는 light skip 전에 검사하지 않는다 — skip 응답에 follow_up 자체가
+    // 없으므로 깨진 previous로 skip 경로를 막지 않는다. single/clustered만 본다.
+    let previousParts = null;
+    let previousScope = {};
+    if (previous !== undefined) {
+        // parts 없는 JSON·비객체는 부분 판정 입력이 아니다. error가 아니라 reason으로
+        // 돌려 CLI·controller가 기존 structural 실패와 구분하게 한다.
+        if (previous === null || typeof previous !== 'object'
+            || Array.isArray(previous)
+            || typeof previous.parts !== 'object'
+            || previous.parts === null
+            || Array.isArray(previous.parts)) {
+            return { ok: false, reason: 'previous-payload-invalid' };
+        }
+        previousParts = previous.parts;
+        const rawScope = previous.scope_parts;
+        if (rawScope !== undefined) {
+            if (rawScope === null || typeof rawScope !== 'object' || Array.isArray(rawScope)) {
+                return { ok: false, reason: 'previous-payload-invalid' };
+            }
+            previousScope = rawScope;
+        }
+    }
+    const partSnap = computePlanParts({ repoRoot, blueprintDir: bp });
+    if (!partSnap.ok)
+        return partSnap;
+    const follow = previousParts == null
+        ? { follow_up: 'full', changed_documents: [] }
+        : decidePlanFollowUp({
+            documents: snapshot.documents,
+            parts: partSnap.parts,
+            scope_parts: partSnap.scope_parts,
+            previousParts,
+            previousScope,
+        });
     const commitTasks = loadCommitTaskSignals({ repoRoot, blueprintDir: bp });
     if (!commitTasks.ok)
         return commitTasks;
@@ -113,6 +201,10 @@ function classifyPlanReview({ repoRoot, blueprintDir }) {
             reasons: [
                 `commit task count ${taskCount} <= ${PLAN_SMALL_MAX_TASKS} — single combined reviewer`,
             ],
+            parts: partSnap.parts,
+            scope_parts: partSnap.scope_parts,
+            follow_up: follow.follow_up,
+            changed_documents: follow.changed_documents,
         };
     }
     const clusters = buildClusters(commitTasks.tasks);
@@ -128,19 +220,26 @@ function classifyPlanReview({ repoRoot, blueprintDir }) {
             `commit task count ${taskCount} > ${PLAN_SMALL_MAX_TASKS} — clustered local+global review`,
             `formed ${clusters.length} cluster(s) from Interface backtick keys and Touch path overlap`,
         ],
+        parts: partSnap.parts,
+        scope_parts: partSnap.scope_parts,
+        follow_up: follow.follow_up,
+        changed_documents: follow.changed_documents,
     };
 }
 /**
  * frozen base/head의 numstat과 승인된 review_risk로 Execute 리뷰 전략을 고른다.
  * 경로명·diff 본문 키워드로 위험을 추측하지 않는다.
- * `taskId`가 없으면 같은 numstat을 blueprint 전체로 보고, commit task의
- * `review_risk` 합집합을 쓴다 — 최종 리뷰가 한 task 문서에 묶이면 빠진 위험을
- * 보안 관점에서 닫아버리기 때문이다.
+ * blueprint `bouncer.scale`이 `light`이면 diff 크기와 관계없이 `single`/
+ * `combined`다 — light run의 단일 reviewer 계약이 임계값에 갈리지 않게 하기
+ * 위함이다. `taskId`가 없으면 같은 numstat을 blueprint 전체로 보고, commit
+ * task의 `review_risk` 합집합을 쓴다 — 최종 리뷰가 한 task 문서에 묶이면
+ * 빠진 위험을 보안 관점에서 닫아버리기 때문이다.
  *
  * @param {{
  *   repoRoot: string, blueprintDir: string, taskId?: string,
  *   base: string, head: string, exec?: ExecFileSyncFn
- * }} opts
+ * }} opts - repoRoot는 저장소 루트, blueprintDir는 canonical blueprint 상대 경로,
+ *   taskId는 선택적 commit task 번호, base/head는 frozen git ref, exec는 git 호출기
  * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험, 실패 시 ok:false.
  *   blueprint 범위 성공의 `target.task`는 null. S30 위반이면 perspectives 없음.
  */
@@ -161,6 +260,22 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exe
         };
     }
     const bp = toPosix(blueprintDir);
+    // light 분기는 선언된 `bouncer.scale`만 본다. diff 크기·경로 수로 light를
+    // 추론하면 full 대규모 변경이 축소 리뷰로 빠지고, light 큰 diff는 parallel로
+    // 갈라져 단일 reviewer 계약이 깨진다.
+    let scale = 'full';
+    try {
+        const bpDoc = readDoc(path.join(repoRoot, bp, 'index.md'));
+        const bouncer = bpDoc.data?.bouncer;
+        if (bouncer && typeof bouncer.scale === 'string')
+            scale = bouncer.scale;
+    }
+    catch (error) {
+        // index 부재·파싱 실패를 기본 full로 접으면 light 선언을 놓친 채 parallel을
+        // 고른다. Plan 분류기와 같이 읽기 실패를 그대로 드러낸다.
+        const message = error instanceof Error ? error.message : String(error);
+        return { ok: false, error: `blueprint index unreadable: ${message}` };
+    }
     let targetTask = null;
     let risk;
     if (taskId == null || taskId === '') {
@@ -220,17 +335,22 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exe
     }
     const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
         && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
-    const strategy = small ? 'single' : 'parallel';
-    const perspectives = small
+    const lightScale = scale === 'light';
+    // light는 크기 임계를 건너뛴다. full만 EXECUTE_SMALL_*로 single/parallel을 고른다.
+    const single = lightScale || small;
+    const strategy = single ? 'single' : 'parallel';
+    const perspectives = single
         ? ['combined']
         : ['spec_scope', 'correctness_tests', 'minimality_maintainability'];
     if (risk.flags.length > 0)
         perspectives.push('security');
     const reasons = [
-        small
-            ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
-                + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
-            : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
+        lightScale
+            ? 'blueprint scale is light — single combined reviewer regardless of diff size'
+            : small
+                ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
+                    + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
+                : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
     ];
     if (risk.flags.length > 0) {
         reasons.push(`review_risk ${risk.flags.join(',')} adds security reviewer`);

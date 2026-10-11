@@ -25,6 +25,8 @@ const config = require("./config");
 const { readConfigResult, readVerifyPolicy, DEFAULT_VERIFY_ALLOWLIST, } = config;
 const commitSha = require("./commit-sha");
 const { buildStableProvenance } = commitSha;
+const schema = require("./schema");
+const { executionKindOf } = schema;
 const scope = require("./scope");
 const { isUnder, RUNTIME_ARTIFACTS } = scope;
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
@@ -1019,6 +1021,43 @@ ${evidence}`;
     }
     fs.writeFileSync(ledgerPaths.ledgerFile, `${JSON.stringify(record, null, 2)}\n`);
 }
+/**
+ * verify가 통과한 뒤 lease·pointer가 지목한 commit task만 `ready` → `verified`로 올린다.
+ * listing fallback이거나 조건이 아니면 쓰지 않는다(오류가 아님). `tasks.md` 읽기·쓰기
+ * 예외는 증적 기록 뒤에 그대로 던져, execute 게이트의 기존 catch가 G13으로 보고한다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} blueprintDir - 이번 실행 blueprint 상대 경로
+ * @param {string} entryRel - 이번 실행이 고른 tasks.md 상대 경로
+ * @param {VerificationDeps} [deps] - `resolveEffectiveTask`에 넘기는 주입 의존성
+ * @returns {void} 조건을 만족하면 상태를 쓰고, 아니면 파일을 바꾸지 않는다
+ */
+function maybeMarkCommitTaskVerified({ repoRoot, blueprintDir, entryRel, deps, }) {
+    // listing fallback을 전환 대상으로 쓰지 않는다. 묶음이 하나여도 lease·pointer가
+    // 없으면 이번 실행이 “정해진 task”가 아니다.
+    const effective = resolveEffectiveTask({
+        repoRoot,
+        deps: deps,
+    });
+    if (!effective || effective.source === null || typeof effective.path !== 'string')
+        return;
+    if (toPosix(effective.blueprint) !== toPosix(blueprintDir))
+        return;
+    if (toPosix(effective.path) !== toPosix(entryRel))
+        return;
+    const file = path.join(repoRoot, entryRel);
+    const document = readDoc(file);
+    const data = document.data;
+    const bouncer = (data.bouncer || {});
+    data.bouncer = bouncer;
+    // 필드 부재는 commit. verification kind와 ready가 아닌 상태(이미 verified 포함)는 둔다.
+    if (executionKindOf(bouncer) !== 'commit')
+        return;
+    if (bouncer.status !== 'ready')
+        return;
+    bouncer.status = 'verified';
+    fs.writeFileSync(file, renderDoc(data, document.body));
+}
 function resolveVerificationRel(repoRoot, blueprintDir, taskId) {
     // readVerifyCommand와 동일 entriesForVerify 폴백: 명시 taskId → 포인터 매칭 →
     // 번호 순 첫 묶음. listing이 비면 레거시 루트 경로.
@@ -1031,7 +1070,8 @@ function resolveVerificationRel(repoRoot, blueprintDir, taskId) {
 /**
  * 활성 task의 검증 명령을 실행하거나, 같은 identity·scope의 성공 원장이 있으면
  * process spawn 없이 재사용 증적을 기록한다. identity 계산 실패는 실행으로
- * 우회하지 않는다.
+ * 우회하지 않는다. `markTaskVerified`가 true이고 결과가 ok이면, 증적 기록 뒤에
+ * lease·pointer commit task의 `ready` → `verified` 전환을 시도한다.
  *
  * @param {object} opts - 실행 옵션
  * @param {string} opts.repoRoot - 저장소 루트 절대 경로
@@ -1041,12 +1081,13 @@ function resolveVerificationRel(repoRoot, blueprintDir, taskId) {
  * @param {VerifyExec} [opts.exec] - 주입 실행기(테스트용)
  * @param {() => Date} [opts.now] - 시각 주입
  * @param {VerificationDeps} [opts.deps] - git/readFile/platform 주입
+ * @param {boolean} [opts.markTaskVerified] - true면 통과 후 commit task 상태 전환. 기본 false
  * @returns {{
  *   ok: boolean, command: string, exitCode: number, evidenceId: string,
  *   reused: boolean, reusedFrom?: string
  * }}
  */
-function runVerification({ repoRoot, blueprintDir, scope: scopeInput, taskId, exec, now = () => new Date(), deps, }) {
+function runVerification({ repoRoot, blueprintDir, scope: scopeInput, taskId, exec, now = () => new Date(), deps, markTaskVerified = false, }) {
     // 1. blueprint·명령·문서 존재 — 기존 거절을 identity보다 먼저 유지한다.
     if (!isCanonicalBlueprintDir(blueprintDir)) {
         throw verificationError('VERIFY_BLUEPRINT_INVALID', 'blueprintDir must be under .bouncer/context/epics');
@@ -1076,6 +1117,24 @@ function runVerification({ repoRoot, blueprintDir, scope: scopeInput, taskId, ex
         verificationRel,
         evidenceId,
     });
+    const selected = entriesForVerify(repoRoot, blueprintDir, taskId)[0];
+    /**
+     * 증적 기록이 끝난 뒤에만 상태를 쓴다. 다음 dirty_digest는 달라져 재사용을 놓친다.
+     *
+     * @param {VerifyFinishResult} result - 이번 실행 또는 재사용 결과
+     * @returns {VerifyFinishResult} 호출자에게 그대로 돌려줄 결과
+     */
+    const finish = (result) => {
+        if (markTaskVerified && result.ok && selected && selected.rel) {
+            maybeMarkCommitTaskVerified({
+                repoRoot,
+                blueprintDir,
+                entryRel: selected.rel,
+                deps,
+            });
+        }
+        return result;
+    };
     if (!ledgerPaths.unavailable && ledgerPaths.ledgerFile) {
         const existing = readLedgerFile(ledgerPaths.ledgerFile);
         if (isReuseHit(existing, identity, evidenceId)) {
@@ -1099,14 +1158,14 @@ function runVerification({ repoRoot, blueprintDir, scope: scopeInput, taskId, ex
                     reusedFrom: existing.evidence_id,
                     deps,
                 });
-                return {
+                return finish({
                     ok: true,
                     command,
                     exitCode: 0,
                     evidenceId,
                     reused: true,
                     reusedFrom: existing.evidence_id,
-                };
+                });
             }
         }
     }
@@ -1130,13 +1189,13 @@ function runVerification({ repoRoot, blueprintDir, scope: scopeInput, taskId, ex
         reused: false,
         deps,
     });
-    return {
+    return finish({
         ok: execution.ok,
         command,
         exitCode: execution.exitCode,
         evidenceId,
         reused: false,
-    };
+    });
 }
 module.exports = {
     OUTPUT_TAIL_LINES,

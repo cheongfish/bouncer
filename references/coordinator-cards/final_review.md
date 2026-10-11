@@ -35,15 +35,163 @@ review and Procedure step 6 (Close).
   `head`), `task_brief_hashes` (commit task id → brief hash),
   `intent_bundles` (commit task id → `{ id, revision }`), and each
   perspective's `target_head`.
-- When must_fix remains, open one repair with `bouncer coordinate repair …
-  --review-finding <id>` (repeat the flag per finding) so one repair task
-  fixes every must_fix. Re-run the terminal verification, then freeze the same
-  `base` and the post-repair integration HEAD and call `review-dispatch` once
-  for delta — do not reopen discovery. Fail-closed compares against that
+- Classify every open finding into one of three before acting, in this order:
+  `blocked` (needs a new product decision, dependency, or public interface),
+  `supplement` (an in-scope gap in test evidence that current product behavior
+  already satisfies, fixable by changing test paths only), or a `must_fix`
+  repair (everything else that changes product behavior). The CLI does not
+  classify; you declare it, and it only checks the path conditions.
+- When a `must_fix` repair remains, open one repair with `bouncer coordinate
+  repair … --review-finding <id>` (repeat the flag per finding) so one repair
+  task fixes every must_fix. Re-run the terminal verification, then freeze the
+  same `base` and the post-repair integration HEAD and call `review-dispatch`
+  once for delta — do not reopen discovery. Fail-closed compares against that
   round's frozen target.
+- When every open finding is a `supplement`, run `bouncer coordinate repair
+  --kind supplement --review-finding <id> … --summary <text> --paths
+  <test-path>` instead: no new task, no repair wave, no `terminalFailure`.
+  `next` then returns `supplement` (follow that card) and, once verified,
+  `final_review` with `payload.mode: delta`; run that one delta round. If
+  `supplement-paths-not-tests`, `repair-scope-out-of-bounds`, or
+  `supplement-delta-used` refuses it, take the repair path above or `blocked`.
+  Mixed findings take the repair path for all of them.
 - If repair returns `repair-wave-limit`, put the open must_fix findings in the
   Blocked report, end `blocked`, and do not record the review `accepted`. A
   finding that needs a new product decision, dependency, or public interface
   is `blocked`, not a repair. Delta certification still runs once without a
   discovery perspective; critical recovery stays the drive-only one-fix
   ceiling.
+
+## Print dispatch input
+
+When `.bouncer/config.json` has `subagents.provider: "cursor"` and
+`subagents.dispatch: "print"`, write only a `--input` text file. Pass cwd
+as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
+Do not read `${BOUNCER_ROOT}/agents/*.md`, `reviewer-prompt.md`, or `review-rounds.md`.
+
+`--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
+Target, Brief (every commit task brief plus the blueprint Contract),
+Intent sections, Constraints, then delta inputs when mode is delta.
+
+## Finding status
+
+Finding `status` (in each `findings[]` entry) is separate from the review
+document `--status` (`review record --status`).
+
+| finding `status` | meaning |
+| --- | --- |
+| `open` | confirmed but not fixed yet; the document cannot be `accepted` while any finding is `open` |
+| `resolved` | fixed in the diff |
+| `accepted` | risk accepted, `note` required |
+| `deferred` | follow-up plan independent of the current task, `note` required |
+
+| document `--status` | meaning |
+| --- | --- |
+| `requested` | the review is open |
+| `addressed` | fixes applied, waiting for re-confirmation |
+| `accepted` | everything resolved; closes the review |
+
+Repair wave order:
+
+1. Discovery round: record a must_fix not yet fixed as `open` and the document
+   `--status requested`.
+2. Fix: on the blueprint path open `coordinate repair --review-finding <id>`,
+   or `coordinate repair --kind supplement` for a test-evidence-only gap.
+3. Delta round: send that finding again with every field, `status: resolved`,
+   `last_seen_round` of the new round, and `--status accepted`.
+
+Discovery round (`--status requested`):
+
+```json
+{
+  "round": {
+    "round": 1,
+    "mode": "discovery",
+    "target": {
+      "base": "aaa",
+      "head": "bbb"
+    },
+    "perspectives": [
+      {
+        "name": "combined",
+        "target_head": "bbb"
+      }
+    ],
+    "task_brief_hashes": {
+      "TASKS-001": "<hash>"
+    },
+    "intent_bundles": {
+      "TASKS-001": {
+        "id": "<id>",
+        "revision": 1
+      }
+    },
+    "previous_finding_ids": [],
+    "new": 1,
+    "resolved": 0,
+    "regressed": 0
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "status": "open",
+      "category": "correctness",
+      "brief_clause": "tasks/001 Interface",
+      "file": "scripts/lib/x.js",
+      "symbol": "f",
+      "fingerprint": "correctness:tasks/001 interface:scripts/lib/x.js#f",
+      "actionability": "must_fix",
+      "origin": "discovery",
+      "first_seen_round": 1,
+      "last_seen_round": 1
+    }
+  ]
+}
+```
+
+Delta round (`--status accepted`):
+
+```json
+{
+  "round": {
+    "round": 2,
+    "mode": "delta",
+    "target": {
+      "base": "aaa",
+      "head": "ccc"
+    },
+    "task_brief_hashes": {
+      "TASKS-001": "<hash>"
+    },
+    "intent_bundles": {
+      "TASKS-001": {
+        "id": "<id>",
+        "revision": 1
+      }
+    },
+    "previous_finding_ids": [
+      "F1"
+    ],
+    "new": 0,
+    "resolved": 1,
+    "regressed": 0
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "status": "resolved",
+      "category": "correctness",
+      "brief_clause": "tasks/001 Interface",
+      "file": "scripts/lib/x.js",
+      "symbol": "f",
+      "fingerprint": "correctness:tasks/001 interface:scripts/lib/x.js#f",
+      "actionability": "must_fix",
+      "origin": "discovery",
+      "first_seen_round": 1,
+      "last_seen_round": 2
+    }
+  ]
+}
+```

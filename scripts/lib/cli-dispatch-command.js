@@ -1,8 +1,8 @@
 'use strict';
 const cliFlags = require("./cli-flags");
 const { parseFlags } = cliFlags;
-const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'coordinator'];
-const USAGE_BLOCK = '  dispatch print --role <implementer|reviewer|debugger|coordinator>'
+const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator'];
+const USAGE_BLOCK = '  dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator>'
     + ' --cwd <dir> --input <file> --out <dir>\n'
     + '             Run one Cursor print dispatch (JSON).\n';
 const USAGE = `usage: bouncer dispatch print --role <role> --cwd <dir> --input <file> --out <dir> [--repo <dir>]
@@ -10,7 +10,7 @@ const USAGE = `usage: bouncer dispatch print --role <role> --cwd <dir> --input <
 ${USAGE_BLOCK}`;
 const HELP = `${USAGE}
 --input is a UTF-8 text file, not JSON. The command appends those bytes after the role body.
-Roles: implementer, reviewer, debugger, coordinator.
+Roles: implementer, reviewer, debugger, context-reviewer, coordinator.
 --out keeps bouncer-<role>.prompt.md, bouncer-<role>.jsonl, and bouncer-<role>.log.
 Payload rules: rules/cursor-print-dispatch.md
 `;
@@ -90,7 +90,7 @@ function parseDispatchPrintArgs(rest) {
     }
     const role = f.role;
     if (!PRINT_ROLES.includes(role)) {
-        return fail('--role must be implementer, reviewer, debugger, or coordinator');
+        return fail('--role must be implementer, reviewer, debugger, context-reviewer, or coordinator');
     }
     return {
         role,

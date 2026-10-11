@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
@@ -10,7 +11,8 @@ const { coordinatorPathsFor, runtimePaths } = runtime;
 // argv만 실행하면 끝나는 prepare·drive_tasks·integrate·verification_node·commit·done·none은
 // 카드가 없다 — 응답을 키우지 않고, 그 행동의 규칙은 argv 자체가 담는다.
 const CARD_IDS = [
-    'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'blocked',
+    'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'supplement',
+    'blocked',
 ];
 const NEXT_FAILURE_HINTS = {
     'partial-closed': {
@@ -111,6 +113,106 @@ function attachCard(result, readCard) {
         return fail('coordinator-card-missing');
     }
     return { ...result, card: { id, body } };
+}
+/**
+ * 증거 파일의 sha256을 계산한다. 읽기 실패는 null miss로 돌려 throw하지 않는다 —
+ * 없는 파일을 이유로 판단 응답 전체를 거절하면 카드·report 요약까지 잃는다.
+ *
+ * @param {string} filePath - 절대 또는 해석 가능한 증거 경로
+ * @returns {{ sha256: string } | null} 해시 또는 읽기 실패 시 null
+ */
+function readEvidenceFile(filePath) {
+    try {
+        const bytes = fs.readFileSync(filePath);
+        return { sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+    }
+    catch (_error) {
+        // ENOENT·EACCES·EISDIR 등 모든 읽기 실패를 같은 miss로 흡수한다. 항목만
+        // evidence에서 빠지며 ok:false로 올리지 않는 계약이다.
+        return null;
+    }
+}
+/**
+ * 후보 경로가 worker 루트 안(또는 루트 자체)인지 본다. 밖으로 나가면 포인터에
+ * 넣지 않는다 — 증거 포인터는 읽기 지침일 뿐 판단 범위를 넓히지 않는다.
+ *
+ * @param {string} candidatePath - 후보 절대/상대 경로
+ * @param {string} workerPath - 할당 worker 루트
+ * @returns {boolean} worker 안이면 true
+ */
+function isInsideWorkerPath(candidatePath, workerPath) {
+    const resolved = path.resolve(candidatePath);
+    const root = path.resolve(workerPath);
+    return resolved === root || resolved.startsWith(`${root}${path.sep}`);
+}
+/**
+ * 판단·worker 응답에 `payload.report`와 `payload.evidence`를 붙인다.
+ * `judge`도 worker 위임(`implement`)도 아니면 그대로 돌려 prepare·integrate·
+ * commit·done 등이 판단 문맥을 받지 않게 한다. 직전 report가 없으면 `report`
+ * 키를 만들지 않고, 읽기 실패·worker 밖 후보는 evidence에서만 뺀다.
+ *
+ * @param {NextOk} result - 카드 첨부 전·후의 성공 응답
+ * @param {JudgeContext} ctx - 직전 report·worker 루트·후보·읽기 seam
+ * @returns {NextOk} report/evidence가 병합된 응답, 또는 비대상 응답 그대로
+ */
+function attachJudgeContext(result, ctx) {
+    // 1. 판단(judge 필드)과 worker 위임(implement)만 대상. 그 밖은 payload를 건드리지 않는다.
+    const isJudge = result.judge !== undefined && result.judge !== null;
+    const isWorker = result.action === 'implement';
+    if (!isJudge && !isWorker)
+        return result;
+    const payload = { ...(result.payload || {}) };
+    // previous_outcome은 report로 대체한다. 옛 키를 남기면 클라이언트가 둘을 섞어 읽는다.
+    delete payload.previous_outcome;
+    // 2. 원장 마지막 kind:report만 요약으로 싣는다. 원문 outcome/summary는 자르지 않는다.
+    if (ctx.lastReport) {
+        payload.report = {
+            outcome: ctx.lastReport.outcome,
+            summary: ctx.lastReport.summary,
+            attempt: ctx.lastReport.attempt,
+        };
+    }
+    // 3. worker 안 후보만 읽고, null miss는 항목 생략. 빈 배열이면 evidence 키 자체를 빼
+    // "없음"과 빈 목록을 구분하지 않고 응답을 작게 유지한다.
+    const evidence = [];
+    for (const candidate of ctx.candidates) {
+        if (!isInsideWorkerPath(candidate.path, ctx.workerPath))
+            continue;
+        const read = ctx.readEvidence(candidate.path);
+        if (!read)
+            continue;
+        evidence.push({ kind: candidate.kind, path: candidate.path, sha256: read.sha256 });
+    }
+    if (evidence.length > 0)
+        payload.evidence = evidence;
+    else
+        delete payload.evidence;
+    if (!ctx.lastReport)
+        delete payload.report;
+    // payload가 비고 기존에도 없었으면 키 자체를 생략해 응답을 키우지 않는다.
+    if (Object.keys(payload).length === 0 && result.payload === undefined) {
+        const { payload: _dropped, ...rest } = result;
+        void _dropped;
+        return rest;
+    }
+    return { ...result, payload };
+}
+/**
+ * worker task 디렉터리의 기본 증거 후보. report.md는 선택 산출물이라 없어도
+ * miss로 빠지고, verification.md·review.md는 게이트 문서 경로다.
+ *
+ * @param {string} workerPath - 할당 worker 절대 경로
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task id
+ * @returns {EvidenceCandidate[]} kind·path 후보
+ */
+function defaultEvidenceCandidates(workerPath, blueprint, taskId) {
+    const taskDir = path.join(workerPath, blueprint.replaceAll('\\', '/'), 'tasks', taskId);
+    return [
+        { kind: 'report', path: path.join(taskDir, 'report.md') },
+        { kind: 'verification', path: path.join(taskDir, 'verification.md') },
+        { kind: 'review', path: path.join(taskDir, 'review.md') },
+    ];
 }
 /**
  * Git 한 번. trim은 rev-parse 비교용이고 porcelain은 별도 헬퍼가 원문을 지킨다.
@@ -247,7 +349,8 @@ function succeed(body, cwd, ledgerRef) {
  * @param {string} opts.blueprint - blueprint 상대 경로
  * @param {string} opts.cwd - 호출 cwd. integration worktree여야 한다
  * @param {string} [opts.task] - 있으면 task 범위
- * @param {{ execFileSync?: Exec, readCard?: (id: CardId) => string }} [opts.deps] - git·카드 읽기 주입(테스트 seam)
+ * @param {{ execFileSync?: Exec, readCard?: (id: CardId) => string, readEvidence?: ReadEvidence }} [opts.deps]
+ *   git·카드·증거 읽기 주입(테스트 seam)
  * @returns {NextOk | NextErr} 결정(카드 대상이면 card 포함) 또는 즉시 거절
  */
 function coordinateNext(opts) {
@@ -262,12 +365,13 @@ function coordinateNext(opts) {
  * @param {string} opts.blueprint - blueprint 상대 경로
  * @param {string} opts.cwd - 호출 cwd. integration worktree여야 한다
  * @param {string} [opts.task] - 있으면 task 범위
- * @param {{ execFileSync?: Exec }} [opts.deps] - git 주입
+ * @param {{ execFileSync?: Exec, readEvidence?: ReadEvidence }} [opts.deps] - git·증거 읽기 주입
  * @returns {NextOk | NextErr} 결정 또는 즉시 거절
  */
 function decideNext(opts) {
     const { repoRoot, blueprint, cwd, task } = opts;
     const exec = (opts.deps && opts.deps.execFileSync) || realExecFileSync;
+    const readEvidence = (opts.deps && opts.deps.readEvidence) || readEvidenceFile;
     // 1. status와 같은 원장 읽기 순서. 쓰기는 이 함수에 없다.
     const main = runtimePaths({ repoRoot, execFileSync: exec });
     if (main.unavailable)
@@ -290,6 +394,7 @@ function decideNext(opts) {
     if (task !== undefined && task !== '') {
         return taskNext({
             repoRoot, blueprint, task, exec, ledger, ledgerRef, checkpoint, integrationCwd, integration,
+            readEvidence,
         });
     }
     return blueprintNext({
@@ -314,6 +419,13 @@ function blueprintNext(ctx) {
     if (ledger.status === 'partial_closed') {
         return ok({
             scope: 'blueprint', action: 'blocked', reason: 'partial-closed', cwd: integrationCwd,
+        });
+    }
+    // light 승격 정지는 repair 한도와 별개다. prepare/drive로 내려가기 전에 막아
+    // 정지 뒤 inline implement가 다시 열리지 않게 한다. hint는 COORDINATE_FAILURE_HINTS.
+    if (ledger.status === 'promotion_stopped') {
+        return ok({
+            scope: 'blueprint', action: 'blocked', reason: 'promotion-stopped', cwd: integrationCwd,
         });
     }
     if (ledger.status === 'awaiting_confirmation') {
@@ -383,8 +495,19 @@ function blueprintNext(ctx) {
                 ? ledger.integrationHead
                 : git(exec, integrationCwd, ['rev-parse', 'HEAD']);
             const base = typeof ledger.base === 'string' ? ledger.base : head;
+            // 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가 테스트를
+            // 보완해야 하고, verified면 보완 뒤의 한 번뿐인 delta 라운드로 간다.
+            const supplement = [...(ledger.decisions || [])].reverse()
+                .find((entry) => entry && entry.kind === 'supplement');
+            if (supplement && supplement.outcome === 'pending') {
+                return ok({
+                    scope: 'blueprint', action: 'supplement', cwd: integrationCwd,
+                    payload: { paths: supplement.paths || [], findings: supplement.findings || [] },
+                });
+            }
             return ok({
                 scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
+                ...(supplement && supplement.outcome === 'verified' ? { payload: { mode: 'delta' } } : {}),
                 argv: [
                     'bouncer', 'review-dispatch', 'execute', '--blueprint', blueprint,
                     '--base', base, '--head', head,
@@ -403,7 +526,8 @@ function blueprintNext(ctx) {
 /**
  * task 범위. verification --task는 즉시 거절하고, prepared가 아닌 상태는 none이다.
  * reported `scope_revision`은 brief hash가 보고 때와 같으면 revise, 다르면
- * 개정이 반영된 것으로 보고 재디스패치한다.
+ * 개정이 반영된 것으로 보고 재디스패치한다. 판단·worker 행동에는
+ * `attachJudgeContext`로 `payload.report`·`evidence`를 붙인다.
  *
  * @param {object} ctx - 읽기 스냅샷
  * @param {string} ctx.repoRoot - 메인 루트
@@ -415,10 +539,11 @@ function blueprintNext(ctx) {
  * @param {{ ready: string[] }} ctx.checkpoint - unused, 시그니처 대칭
  * @param {string} ctx.integrationCwd - integration
  * @param {{ workerPath?: string }} ctx.integration - coordinatorPaths는 호출부에서 다시 계산
+ * @param {ReadEvidence} ctx.readEvidence - 증거 파일 읽기 seam
  * @returns {NextOk | NextErr} 판정
  */
 function taskNext(ctx) {
-    const { repoRoot, blueprint, task, exec, ledger, ledgerRef, integrationCwd } = ctx;
+    const { repoRoot, blueprint, task, exec, ledger, ledgerRef, integrationCwd, readEvidence } = ctx;
     if (!/^\d{3}$/.test(task))
         return fail('task-required');
     const item = ledger.tasks.find((entry) => entry.id === task);
@@ -428,7 +553,15 @@ function taskNext(ctx) {
         return fail('verification-task-uses-blueprint-next');
     const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath;
     const cwd = item.workerPath || worker;
-    const ok = (body) => succeed({ ...body, task }, body.cwd, ledgerRef);
+    const judgeCtx = {
+        lastReport: lastReportedOutcome(item),
+        workerPath: cwd,
+        candidates: defaultEvidenceCandidates(cwd, blueprint, task),
+        readEvidence,
+    };
+    // 성공 응답을 만든 뒤 판단·worker 행동에만 report/evidence를 붙인다. blocked·none·
+    // commit·verify는 judge/implement가 아니라서 attachJudgeContext가 no-op이다.
+    const ok = (body) => attachJudgeContext(succeed({ ...body, task }, body.cwd, ledgerRef), judgeCtx);
     const status = item.status || 'pending';
     if (status === 'recorded' || status === 'integrated' || status === 'pending' || status === 'ready') {
         return ok({
@@ -501,15 +634,19 @@ function taskNext(ctx) {
     const porcelainText = initialWorktreeState(exec, cwd);
     if (workerHead === item.dispatch.base_head
         && porcelainText === item.dispatch.initial_worktree_state) {
+        // dispatch metadata만 싣는다. 직전 보고는 attachJudgeContext가 payload.report로 붙인다
+        // (옛 previous_outcome 키는 쓰지 않는다). light는 run 세션이 같은
+        // integration cwd에서 직접 구현하도록 inline을 켠다 — worker 위임이 아니다.
         const payload = {
             attempt: item.dispatch.attempt,
             task_brief_hash: item.dispatch.task_brief_hash,
             base_head: item.dispatch.base_head,
             initial_worktree_state: item.dispatch.initial_worktree_state,
+            // dispatch가 발급한 것과 같은 경로: 원장 dispatch에서 다시 계산한다.
+            report_path: coordinator.reportPathFor(item.workerPath || cwd, task, item.dispatch.attempt),
         };
-        const previous = lastReportedOutcome(item);
-        if (previous)
-            payload.previous_outcome = previous;
+        if (ledger.mode === 'light')
+            payload.inline = true;
         return ok({ scope: 'task', action: 'implement', cwd, payload });
     }
     const tasksRel = `${blueprint.replaceAll('\\', '/')}/tasks/${task}/tasks.md`;
@@ -579,21 +716,21 @@ function taskNext(ctx) {
     });
 }
 /**
- * 재디스패치 뒤 implement payload용 직전 보고. dispatch 객체는 attempt를
- * 덮어쓰므로 decisions의 마지막 report만 복구한다.
+ * 원장 decisions의 마지막 kind:report를 복구한다. dispatch 객체는 재디스패치 때
+ * attempt·outcome을 덮어쓰므로, 판단 요약은 decisions 쪽만 믿을 수 있다.
  *
  * @param {LedgerTask} item - prepared task
- * @returns {{ outcome: string, summary: string } | undefined} 있으면 previous_outcome
+ * @returns {LastReport | undefined} 있으면 payload.report 후보
  */
 function lastReportedOutcome(item) {
     const decisions = Array.isArray(item.decisions) ? item.decisions : [];
     for (let i = decisions.length - 1; i >= 0; i -= 1) {
         const entry = decisions[i];
         if (entry && entry.kind === 'report' && typeof entry.outcome === 'string'
-            && typeof entry.summary === 'string') {
-            return { outcome: entry.outcome, summary: entry.summary };
+            && typeof entry.summary === 'string' && Number.isInteger(entry.attempt)) {
+            return { outcome: entry.outcome, summary: entry.summary, attempt: entry.attempt };
         }
     }
     return undefined;
 }
-module.exports = { coordinateNext, NEXT_FAILURE_HINTS };
+module.exports = { coordinateNext, NEXT_FAILURE_HINTS, attachJudgeContext };

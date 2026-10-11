@@ -287,7 +287,8 @@ function cmdExecute(rest, io) {
 }
 const COORDINATE_COMMANDS = [
     'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-    'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next',
+    'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
+    'promote-stop',
 ];
 const COORDINATE_USAGE_OVERVIEW = '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord'
     + '|integrate|status|revoke> --blueprint <dir>\n'
@@ -374,8 +375,10 @@ const COORDINATE_USAGE_BLOCKS = {
     },
     status: {
         help: `usage: bouncer coordinate status
-  --blueprint <dir> [--repo <dir>]
+  --blueprint <dir> [--repo <dir>] [--write-input <file>]
   Print the checkpoint (including checkpoint.ledger). Not ledger-fenced.
+  --write-input writes the coordinator print-dispatch input text to <file>
+  (status only; reports input_file) for \`dispatch print --role coordinator --input\`.
 `,
     },
     revise: {
@@ -401,7 +404,14 @@ const COORDINATE_USAGE_BLOCKS = {
             + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
             + '             --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Open a repair task from final-review must_fix findings (omit --task\n'
-            + '             when the blueprint has no terminal verification).\n',
+            + '             when the blueprint has no terminal verification).\n'
+            + '  coordinate repair --blueprint <dir> --kind supplement --review-finding <id>\n'
+            + '             [--review-finding <id>]... --summary <text> --paths <test-path>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Accept an in-scope test-evidence gap in place (no new task or wave).\n'
+            + '  coordinate repair --blueprint <dir> --kind supplement --done --summary <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Verify the finished supplement; then run the one delta review.\n',
         help: `usage: bouncer coordinate repair
   --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
   --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
@@ -410,6 +420,13 @@ const COORDINATE_USAGE_BLOCKS = {
   --summary <text> --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Open a repair task from final-review must_fix findings (omit --task
   when the blueprint has no terminal verification).
+  --kind <product|supplement> (default product, the forms above)
+  --blueprint <dir> --kind supplement --review-finding <id> [--review-finding <id>]...
+  --summary <text> --paths <test-path> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Accept an in-scope test-evidence gap in place: no new task, no repair wave.
+  --blueprint <dir> --kind supplement --done --summary <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Verify the finished supplement; the next final review is the one delta round.
+  Product-behavior fixes, new dependencies, and public interfaces are not supplements.
 `,
     },
     'partial-close': {
@@ -453,17 +470,41 @@ const COORDINATE_USAGE_BLOCKS = {
         help: `usage: bouncer coordinate next
   --blueprint <dir> [--task <ddd>] [--repo <dir>]
   Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
-  Blueprint actions: prepare, drive_tasks, integrate, verification_node, final_review, done, blocked
+  Blueprint actions: prepare, drive_tasks, integrate, verification_node, supplement, final_review, done, blocked
   Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
   Response fields: action, cwd, argv, judge, task_ids, payload, card, checkpoint
-  card { id, body } only on: dispatch, implement, verify, review, report, revise, record, final_review, blocked
+  card {id,body} only on: dispatch, implement, verify, review, report, revise, record, supplement, final_review, blocked
+`,
+    },
+    advance: {
+        registry: '  coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]\n'
+            + '             Run deterministic next argv actions until judge, worker, terminal, or error.\n',
+        help: `usage: bouncer coordinate advance
+  --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]
+  Not ledger-fenced. Calls coordinate next and runs argv for prepare, integrate,
+  verification_node, verify, and commit until a stop or failure.
+  Stop reasons (ok: true): judge, worker, blocked, done, none, max-steps
+  Failure reasons (ok: false): repeated-failure, unclear-result, advance-argv-invalid,
+  or the automatic action's failure reason.
+  Response fields: executed, stop.next (success) or reason, cause, next, executed (failure)
+`,
+    },
+    'promote-stop': {
+        registry: '  coordinate promote-stop --blueprint <dir> --reason <enum> --summary <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Stop a light ledger for promotion; records reason and state (no resume).\n',
+        help: `usage: bouncer coordinate promote-stop
+  --blueprint <dir> --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope>
+  --summary <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Record promotion_stopped on a light ledger with the open task's diff and evidence ids.
+  Same reason+summary is idempotent; other mutations then fail with promotion-stopped.
 `,
     },
 };
 // 전역 help 조립 순서. 키를 빼거나 재정렬하면 전역 usage 바이트가 바뀐다.
 const COORDINATE_REGISTRY_ORDER = [
     'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
-    'partial-close', 'critical-recovery', 'revise', 'next',
+    'partial-close', 'critical-recovery', 'revise', 'next', 'advance', 'promote-stop',
 ];
 /**
  * 전역·`coordinate --help`에 쓰는 registry usage. 맵의 registry 조각을
@@ -516,6 +557,45 @@ function failCoordinateUsage(io, message, command) {
     return 2;
 }
 /**
+ * status 성공 뒤 coordinator print 입력 파일을 쓴다. 값은 원장(`base`)과
+ * main worktree 설정(autonomy)에서 모은다 — lib status는 읽기 전용으로 두려고
+ * 파일 쓰기를 CLI 계층에 둔다. 부모 디렉터리가 없으면 만든다.
+ *
+ * @param {object} args - 쓰기 입력
+ * @param {string} args.file - 출력 경로. 상대 경로는 cwd 기준
+ * @param {string} args.repoRoot - status에 쓴 저장소 루트
+ * @param {string} args.blueprint - blueprint 디렉터리
+ * @param {Record<string, unknown>} args.checkpoint - status가 돌려준 checkpoint
+ * @returns {string} 쓴 파일의 절대 경로
+ */
+function writeCoordinatorInput(args) {
+    const fs = require('node:fs');
+    const nodePath = require('node:path');
+    const { coordinatorPathsFor, runtimePaths } = require('./runtime-state');
+    const { loadLedgerBytes } = require('./coordinator');
+    const { readAutonomy } = require('./run-preflight');
+    const { buildCoordinatorInput } = require('./coordinator-input');
+    const paths = coordinatorPathsFor({ repoRoot: args.repoRoot, blueprint: args.blueprint });
+    const loaded = loadLedgerBytes(paths.ledgerFile);
+    if (!loaded)
+        throw new Error('ledger missing while writing coordinator input');
+    // autonomy 설정은 gitignore라 main checkout에만 있다. integration cwd가 아니라
+    // git common dir 부모(projectRoot)에서 읽는다.
+    const { projectRoot } = runtimePaths({ repoRoot: args.repoRoot });
+    const text = buildCoordinatorInput({
+        integrationPath: paths.integrationPath,
+        blueprint: args.blueprint,
+        base: loaded.ledger.base,
+        checkpoint: args.checkpoint,
+        autonomy: readAutonomy(projectRoot).value,
+        projectRoot,
+    });
+    const target = nodePath.resolve(process.cwd(), args.file);
+    fs.mkdirSync(nodePath.dirname(target), { recursive: true });
+    fs.writeFileSync(target, text);
+    return target;
+}
+/**
  * coordinate 서브커맨드를 CLI 경계에서 해석한다.
  * `--help`/`-h`는 인자·fence·core보다 먼저 stdout으로 끝내고, 허용 목록 밖
  * 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은 알려진 명령의
@@ -545,14 +625,22 @@ function cmdCoordinate(rest, io) {
     // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
     const fencedCommands = new Set([
         'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-        'repair', 'partial-close', 'critical-recovery', 'revoke',
+        'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop',
     ]);
     if (!commands.includes(command)) {
         return failCoordinateUsage(io, 'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-            + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, or next\n');
+            + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, '
+            + 'advance, or promote-stop\n');
     }
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
         return failCoordinateUsage(io, 'coordinate: --blueprint is required\n', command);
+    }
+    // --write-input은 status 전용이다. 값 없는 플래그(true)와 다른 서브커맨드(ready 별칭
+    // 포함)는 파일을 쓰기 전에 usage(2)로 거절해 조용히 무시되지 않게 한다.
+    const hasWriteInput = Object.prototype.hasOwnProperty.call(f, 'write-input');
+    if (hasWriteInput && (command !== 'status' || typeof f['write-input'] !== 'string'
+        || f['write-input'] === '')) {
+        return failCoordinateUsage(io, 'coordinate: --write-input <file> is accepted by status only and needs a value\n', command);
     }
     const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
     const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
@@ -591,12 +679,41 @@ function cmdCoordinate(rest, io) {
             return failCoordinateUsage(io, 'coordinate report: --summary is required\n', command);
         }
     }
+    // --kind/--done은 repair 전용이다. 값이 잘못되면 core로 넘기지 않고 usage(2)로 끝내
+    // 오타가 조용히 기존 wave 소모 경로(product)로 접히지 않게 한다.
+    let repairKind;
+    let repairDone = false;
+    if (command === 'repair') {
+        if (Object.prototype.hasOwnProperty.call(f, 'kind')) {
+            if (f.kind !== 'product' && f.kind !== 'supplement') {
+                return failCoordinateUsage(io, 'coordinate repair: --kind must be product or supplement\n', command);
+            }
+            repairKind = f.kind;
+        }
+        if (Object.prototype.hasOwnProperty.call(f, 'done')) {
+            if (f.done !== true || repairKind !== 'supplement') {
+                return failCoordinateUsage(io, 'coordinate repair: --done is a flag accepted only with --kind supplement\n', command);
+            }
+            repairDone = true;
+        }
+    }
     if (command === 'revoke') {
         if (typeof f.task !== 'string' || f.task === '') {
             return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
         }
         if (typeof f.reason !== 'string' || f.reason === '') {
             return failCoordinateUsage(io, 'coordinate revoke: --reason is required\n', command);
+        }
+    }
+    if (command === 'promote-stop') {
+        // 빈 summary·reason은 usage(2). enum 밖 reason은 core가 promote-reason-invalid(1).
+        // CT-003: whitespace-only는 core summary-required(1)로 가지 않게 trim 후 검사 —
+        // Interface empty-summary와 CLI usage 채널을 맞춘다.
+        if (typeof f.reason !== 'string' || f.reason === '') {
+            return failCoordinateUsage(io, 'coordinate promote-stop: --reason is required\n', command);
+        }
+        if (typeof f.summary !== 'string' || f.summary.trim() === '') {
+            return failCoordinateUsage(io, 'coordinate promote-stop: --summary is required\n', command);
         }
     }
     if (command === 'revise') {
@@ -673,6 +790,37 @@ function cmdCoordinate(rest, io) {
             return 1;
         }
     }
+    if (command === 'advance') {
+        // advance도 fence를 요구하지 않는다. 원장 쓰기는 next가 준 argv 명령이 맡는다.
+        if (Object.prototype.hasOwnProperty.call(f, 'task')
+            && (typeof f.task !== 'string' || f.task === '')) {
+            return failCoordinateUsage(io, 'coordinate advance: --task requires a ddd value\n', command);
+        }
+        let maxSteps;
+        if (Object.prototype.hasOwnProperty.call(f, 'max-steps')) {
+            const raw = f['max-steps'];
+            // generation과 같이 양의 정수만. 0·음수·문자는 usage(2).
+            if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) {
+                return failCoordinateUsage(io, 'coordinate advance: --max-steps must be a positive integer\n', command);
+            }
+            maxSteps = Number(raw);
+        }
+        const { advance } = require('./coordinate-advance');
+        try {
+            const result = advance({
+                repoRoot: (f.repo || process.cwd()),
+                blueprint: f.blueprint,
+                task: typeof f.task === 'string' ? f.task : undefined,
+                maxSteps,
+            });
+            io.out(`${JSON.stringify(compactCoordinateOutput(command, result))}\n`);
+            return result.ok ? 0 : 1;
+        }
+        catch (error) {
+            io.err(`coordinate: ${catchMessage(error)}\n`);
+            return 1;
+        }
+    }
     try {
         // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.
         const attemptRaw = typeof f.attempt === 'string' ? f.attempt : undefined;
@@ -692,6 +840,8 @@ function cmdCoordinate(rest, io) {
             paths: collectPathValues(rest.slice(1)),
             findings: collectFindingValues(rest.slice(1)),
             reviewFindings: collectReviewFindingValues(rest.slice(1)),
+            kind: repairKind,
+            done: repairDone,
             outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
             reason: typeof f.reason === 'string' ? f.reason : undefined,
             attempt: attemptNum,
@@ -702,7 +852,18 @@ function cmdCoordinate(rest, io) {
             ledgerHash,
             userConfirmed: f['user-confirmed'] === true,
         });
-        io.out(`${JSON.stringify(compactCoordinateOutput(command, result))}\n`);
+        const compact = compactCoordinateOutput(command, result);
+        if (result.ok && hasWriteInput) {
+            // status가 모든 검사를 통과한 뒤에만 쓴다. 쓰기 오류는 아래 catch가
+            // `coordinate: <msg>` exit 1로 옮기고, 이 시점에는 stdout이 비어 있다.
+            compact.input_file = writeCoordinatorInput({
+                file: f['write-input'],
+                repoRoot: (f.repo || process.cwd()),
+                blueprint: f.blueprint,
+                checkpoint: result.checkpoint,
+            });
+        }
+        io.out(`${JSON.stringify(compact)}\n`);
         return result.ok ? 0 : 1;
     }
     catch (error) {

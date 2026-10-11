@@ -33,11 +33,15 @@ const { buildPrDraft } = finalizePr;
 const OUT_OF_SCOPE_DEFS = [
     { key: 'outOfScope', re: /^##\s+Out\s+of\s+scope\s*$/i },
 ];
-const SYMBOL_RE = /\b(?:function|class)\s+([A-Za-z_$][\w$]*)|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g;
+// 줄 머리 고정 — 들여쓰기·탭·호출 자리의 function/const를 심볼로 쓰지 않는다.
+// 접두(export/default/async)는 조합 가능하되 줄 시작에서만 허용한다.
+const SYMBOL_FN_RE = /^(?:export\s+(?:default\s+)?)?(?:async\s+)?(?:function(?:\s*\*\s*|\s+)|class\s+)([A-Za-z_$][\w$]*)/;
+const SYMBOL_VAR_RE = /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/;
 const SHORT_SHA_NUL_RE = /([0-9a-f]{7,40})\0/gi;
 const PER_FILE_SYMBOL_CAP = 10;
 const TOTAL_SYMBOL_CAP = 60;
 const COMMIT_LIST_CAP = 50;
+const DIFF_PER_FILE_CAP = 30;
 const CONTEXT_EXCLUDED = '.bouncer/context/';
 /**
  * 기본 git 실행기. 주입 exec와 같은 모양만 돌려 stderr 유무로 seam이
@@ -102,6 +106,8 @@ function resolvePrBase(repoRoot, run) {
 /**
  * blueprint `## Out of scope` bullet만 뽑아 digest에 싣는다.
  * Intent와 달리 없어도 실패하지 않는다 — 비어 있으면 빈 배열이다.
+ * 공유 `parseSections`는 이 정의에 다음 제목이 없어 뒤 절까지 이어지므로,
+ * 절 끝은 여기서 첫 `## ` 제목 앞에서 끊는다(공유 파서 의미는 그대로).
  *
  * @param {string | null | undefined} body - blueprint index 본문
  * @returns {string[]} bullet 텍스트
@@ -112,8 +118,11 @@ function parseOutOfScope(body) {
     const section = parseSections(body, OUT_OF_SCOPE_DEFS).outOfScope;
     if (typeof section !== 'string' || !section.trim())
         return [];
-    return section
-        .split('\n')
+    // 1. 다음 ## 제목(또는 EOF)까지만 — One-commit justification·Documents가 섞이지 않게.
+    const lines = section.split('\n');
+    const nextHeading = lines.findIndex((line) => /^##\s/.test(line));
+    const scoped = nextHeading === -1 ? lines : lines.slice(0, nextHeading);
+    return scoped
         .map((line) => line.trim())
         .filter(Boolean)
         .map((line) => line.replace(/^[-*]\s+/, '').trim())
@@ -175,9 +184,11 @@ function parseCommitSubjects(stdout) {
     return out;
 }
 /**
- * unified diff에서 파일별 심볼 이름을 뽑는다.
+ * unified diff에서 파일별 최상위 선언 이름을 뽑는다.
  * hunk header 뒤 문맥과 `+` 줄을 함께 본다 — 새 파일 hunk는 header 문맥이
  * 비어 `function greet()`가 `+` 줄에만 나타나기 때문이다.
+ * 검사 대상은 줄 머리 고정 규칙만: `+` 줄은 `+`를 뗀 나머지, hunk 문맥은
+ * 앞 공백 한 칸을 뗀 나머지. 들여쓰기·탭 시작 줄은 매칭되지 않는다.
  *
  * @param {string} diffText - `git diff -U0` 원문
  * @returns {Array<{ path: string, names: string[] }>} 파일당 ≤10, 전체 ≤60
@@ -201,16 +212,16 @@ function extractSymbols(diffText) {
         list.push(name);
         total += 1;
     };
-    const scan = (relPath, text) => {
-        SYMBOL_RE.lastIndex = 0;
-        let m;
-        while ((m = SYMBOL_RE.exec(text)) !== null) {
-            const name = m[1] || m[2];
-            if (name)
-                pushName(relPath, name);
-            if (total >= TOTAL_SYMBOL_CAP)
-                return;
+    // 줄 단위로만 적용 — 예전 전역 \b 스캔은 `  let i = 0`도 잡았다.
+    const scanLine = (relPath, text) => {
+        const fn = SYMBOL_FN_RE.exec(text);
+        if (fn?.[1]) {
+            pushName(relPath, fn[1]);
+            return;
         }
+        const v = SYMBOL_VAR_RE.exec(text);
+        if (v?.[1])
+            pushName(relPath, v[1]);
     };
     for (const rawLine of diffText.split('\n')) {
         const line = rawLine;
@@ -223,15 +234,90 @@ function extractSymbols(diffText) {
             continue;
         const hunk = /^@@[^@]*@@(.*)$/.exec(line);
         if (hunk) {
-            scan(currentPath, hunk[1] || '');
+            // unified hunk 문맥은 앞 공백 한 칸 관례 — 줄 머리 고정이 들여쓰기로 오인하지 않게.
+            const ctx = hunk[1] || '';
+            scanLine(currentPath, ctx.startsWith(' ') ? ctx.slice(1) : ctx);
             continue;
         }
         // 새 파일·순수 추가는 header 문맥이 비어 + 줄만 식별자를 담는다.
         if (line.startsWith('+') && !line.startsWith('+++')) {
-            scan(currentPath, line.slice(1));
+            scanLine(currentPath, line.slice(1));
         }
     }
     return [...byPath.entries()].map(([p, names]) => ({ path: p, names }));
+}
+/**
+ * `git diff --numstat base..head`로 diff 통계 요약을 만든다.
+ * explain-diff가 전체 diff 대신 이 요약으로 질문 대상 파일을 고르게 하는 입력이다.
+ * 읽기 전용이며 실패해도 throw하지 않는다.
+ *
+ * @param {GitExec} exec - `git` 뒤 argv seam
+ * @param {string} base - 범위 시작 ref
+ * @param {string} head - 범위 끝 ref
+ * @returns {DiffSummary | null} 합계는 전체 파일 기준, per_file은 변경 줄 수
+ *   내림차순 최대 30개(바이너리는 `-`를 0/0으로 접는다). git 실패면 null
+ */
+function collectDiffSummary(exec, base, head) {
+    // --no-renames: 이름 변경 행(`old => new`·3필드 NUL 레코드)을 없애 삭제+추가로 접는다.
+    // -z: 경로를 C-quote(\\355...)하지 않고 NUL로 구분해 비ASCII 경로를 원문 그대로 받는다.
+    const result = exec(['diff', '--numstat', '--no-renames', '-z', `${base}..${head}`]);
+    if (result.status !== 0)
+        return null;
+    const rows = [];
+    let insertions = 0;
+    let deletions = 0;
+    for (const record of result.stdout.split('\0')) {
+        if (!record.trim())
+            continue;
+        const parts = record.split('\t');
+        if (parts.length < 3)
+            continue;
+        // 계획 문서(.bouncer/context/)는 changed_paths·extractSymbols와 같은 규칙으로 제외해
+        // diff.files가 changed_paths와 맞고 소스 파일이 per_file에서 밀리지 않게 한다.
+        const rowPath = toPosix(parts.slice(2).join('\t'));
+        if (rowPath.startsWith(CONTEXT_EXCLUDED))
+            continue;
+        // 바이너리 파일은 두 열이 '-'라 숫자가 아니다 — 0으로 접는다.
+        const added = /^\d+$/.test(parts[0]) ? Number(parts[0]) : 0;
+        const deleted = /^\d+$/.test(parts[1]) ? Number(parts[1]) : 0;
+        insertions += added;
+        deletions += deleted;
+        rows.push({ path: rowPath, added, deleted });
+    }
+    // sort는 안정 정렬이라 동률은 git 출력(경로) 순서를 유지한다.
+    const perFile = rows
+        .map((row, index) => ({ row, index }))
+        .sort((a, b) => (b.row.added + b.row.deleted) - (a.row.added + a.row.deleted) || a.index - b.index)
+        .slice(0, DIFF_PER_FILE_CAP)
+        .map((entry) => entry.row);
+    return { files: rows.length, insertions, deletions, per_file: perFile };
+}
+/**
+ * blueprint 루트 review.md에서 라운드 수와 마지막 라운드의 target digest를 읽는다.
+ * 파일 부재·파싱 실패는 리뷰 기록 없음과 같아 null이다(digest는 throw하지 않는다).
+ *
+ * @param {string} absPath - 루트 review.md 절대 경로
+ * @param {string} relPath - digest에 싣는 저장소 상대 경로
+ * @returns {{ path: string, rounds: number, target_digest: string | null } | null}
+ */
+function readReviewEvidence(absPath, relPath) {
+    if (!fs.existsSync(absPath))
+        return null;
+    try {
+        const { data } = readDoc(absPath);
+        const review = asRecord(asRecord(asRecord(data).bouncer).review);
+        const rounds = Array.isArray(review.rounds) ? review.rounds : [];
+        const last = asRecord(rounds[rounds.length - 1]);
+        // 라운드 digest는 target.digest가 정본이고 perspectives[].target_digest는 같은 값이다.
+        const perspective = asRecord(Array.isArray(last.perspectives) ? last.perspectives[0] : null);
+        const candidates = [last.target_digest, asRecord(last.target).digest, perspective.target_digest];
+        const digest = candidates.find((v) => typeof v === 'string' && v !== '');
+        return { path: relPath, rounds: rounds.length, target_digest: digest ?? null };
+    }
+    catch (_error) {
+        // YAML/frontmatter 파싱 실패만 흡수한다 — 읽을 수 없는 리뷰는 기록 없음과 같다.
+        return null;
+    }
 }
 /**
  * verification.md frontmatter를 digest 요약으로 접는다.
@@ -562,7 +648,10 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
             return { status: r.status, stdout: r.stdout, stderr: '' };
         },
     });
+    const diffSummary = collectDiffSummary(run, base, head);
     const unverified = [];
+    if (!diffSummary)
+        unverified.push({ kind: 'diff-summary-unavailable' });
     let terminalOk = false;
     for (const item of built) {
         const task = item.digest;
@@ -638,7 +727,7 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
     // 먼저 조립한 뒤 buildPrDraft에 넘긴다.
     const body = {
         ok: true,
-        version: 1,
+        version: 2,
         blueprint: {
             dir: bp,
             stable_id: stableBlueprint,
@@ -660,6 +749,13 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         changed_paths: changedPaths,
         symbols,
         commits,
+        diff: diffSummary,
+        evidence: {
+            verification: built.flatMap((item) => (item.digest.verification && item.digest.verification.evidence_id
+                ? [{ task: item.digest.stable_id, evidence_id: item.digest.verification.evidence_id }]
+                : [])),
+            review: readReviewEvidence(path.join(checkoutRoot, `${bp}/review.md`), `${bp}/review.md`),
+        },
         unverified,
         out_of_scope: outOfScope,
         blueprint_review: blueprintReview,

@@ -63,10 +63,11 @@ perspective**: report every real issue found there, including `nit`.
 
 The permitted perspectives are:
 
-- `combined` — apply every non-security rubric (`spec_scope`,
-  `correctness_tests`, `minimality_maintainability`) in one pass. Do not mix
-  the `security` rubric into a combined judgment. For each finding, record
-  `category` as the actual sub-rubric name
+- `combined` — in one pass cover 사양·범위, 정확성, 회귀·테스트, and 위험 변경
+  by applying every non-security rubric (`spec_scope`, `correctness_tests`,
+  `minimality_maintainability`). Do not mix the `security` rubric into a
+  combined judgment. For each finding, record `category` as the actual
+  sub-rubric name
   (`spec_scope` | `correctness_tests` | `minimality_maintainability`), never
   `combined`.
 - `spec_scope` — Missing, Extra, Misunderstood, and Constraint breach.

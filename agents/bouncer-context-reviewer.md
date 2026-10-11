@@ -171,7 +171,7 @@ Return **only** a Findings list. For each finding include:
   `context:<category>:<brief_clause>:<file>#<symbol>`.
   Normalize each part with trim; lowercase category and brief_clause; use `/`
   as the file separator; strip a leading `./`. Example:
-  `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`.
+  `fingerprint: context:scope:tasks/001 touch:.bouncer/context/epics/014-auth/blueprints/001-signup/tasks/001/tasks.md#touch`.
 - summary
 - evidence (document path and a concrete quote or heading)
 - `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; new

@@ -268,7 +268,8 @@ const LEGACY_SCAFFOLD_COMMENT_BODIES = Object.freeze([
     'verification task는 source를 바꾸지 않는다. 이 절에 백틱 토큰이나 경로를\n적으면 G20이 source 변경 선언으로 보고 거절하므로 아래 문구를 그대로 둔다.',
     'finding: id, severity, status. mode를 쓰는 rounds[]면 category, brief_clause, file,\n' +
         'symbol, fingerprint, actionability, origin, first_seen_round, last_seen_round도 필수.\n' +
-        'severity: blocker | major | minor | nit\nstatus: resolved | accepted | deferred\n' +
+        'severity: blocker | major | minor | nit\n' +
+        'status: resolved | accepted | deferred | open (open은 해결 전 finding이며 accepted 리뷰에는 남을 수 없음)\n' +
         'actionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\n' +
         'fingerprint: <category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ 제거)\n' +
         'accepted note: 권한 있는 위험 수용 근거\ndeferred note: 현재 task와 독립인 후속 planning 항목 근거\n' +
@@ -337,9 +338,25 @@ function templateBody(templateName, vars) {
 // 커밋 본문은 저자가 쓴 문장만 받아야 한다. 빈 값을 걸러내거나 앞부분만
 // 잘라내면 잘못된 계획이 조용히 다른 메시지로 바뀌므로, 필드 단위로 원자적으로
 // 검증한다. 기존 문서의 필드 부재(undefined)는 호환을 위해 빈 배열로 둔다.
+//
+// 요약: task의 commit_intent/commit_summary 목록을 검증하고 정규화한다.
+// 인자:
+//   raw: frontmatter에서 읽은 원시 값(undefined, 배열, 그 외).
+//   field: 오류 메시지에 쓰는 필드 이름.
+// 반환: 트림된 1-2개 문장 배열. undefined와 `[]`는 본문 없음을 뜻하는 `[]`.
+// `[]`는 scaffold 기본값이자 plan gate(S32)가 허용하는 값이라 커밋에서도
+// 부재와 같게 취급한다. 빈 목록 거절이 필요한 blueprint Intent는
+// parseIntentBody가 직접 검사한다.
 function normalizeAuthoredLines(raw, field) {
     if (raw === undefined)
         return [];
+    if (Array.isArray(raw) && raw.length === 0)
+        return [];
+    // YAML `field: 한 문장`은 리스트가 아니다. 한 항목으로 접으면 잘못된
+    // 작성이 커밋에 그대로 실리므로, plan S32와 같이 리스트 형태만 받는다.
+    if (typeof raw === 'string') {
+        throw new Error(`${field} must be a YAML list of 1-2 Korean terminal sentences`);
+    }
     if (!Array.isArray(raw) || raw.length < 1 || raw.length > 2) {
         throw new Error(`${field} must contain 1-2 Korean terminal sentences`);
     }
@@ -363,6 +380,13 @@ function normalizeAuthoredLines(raw, field) {
 }
 // blueprint Intent는 문서 본문이 정본이다. heading 밖의 내용을 섞지 않고,
 // bullet 표식만 벗겨 같은 본문 렌더러가 task/finalize 양쪽을 조립하게 한다.
+//
+// 요약: blueprint 본문의 `## Intent` 섹션에서 1-2개 한국어 문장을 뽑는다.
+// 인자:
+//   body: blueprint index 문서 본문(문자열이 아니면 malformed).
+// 반환: bullet 표식을 벗긴 문장 배열.
+// 빈 섹션은 normalizeAuthoredLines가 `[]`를 허용하게 되었으므로 여기서 직접
+// 거절한다(기존과 같은 메시지 유지).
 function parseIntentBody(body) {
     if (typeof body !== 'string') {
         throw new Error('blueprint Intent is missing or malformed');
@@ -379,6 +403,9 @@ function parseIntentBody(body) {
         .map((line) => line.trim())
         .filter(Boolean)
         .map((line) => line.replace(/^[-*]\s+/, '').trim());
+    if (lines.length === 0) {
+        throw new Error('blueprint Intent must contain 1-2 Korean terminal sentences');
+    }
     return normalizeAuthoredLines(lines, 'blueprint Intent');
 }
 module.exports = {

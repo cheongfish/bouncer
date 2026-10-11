@@ -1,6 +1,12 @@
 'use strict';
 const config = require("./config");
 const { readConfig } = config;
+// `bouncer config --help`와 docs 일치 테스트의 원본 값 목록. provider 이름은
+// 그동안 init 기본 블록·print-dispatch·주석에만 흩어져 있어, 도움말이 문자열을
+// 다시 적지 않도록 여기 한 곳에 둔다. 값 검증 게이트로 쓰지 않는다(읽기 전용 안내).
+const SUBAGENT_PROVIDERS = ['claude', 'cursor', 'codex', 'antigravity'];
+// `subagents.dispatch`가 받는 값. 부재가 기본(호스트 Task 서브에이전트)이라 목록에 넣지 않는다.
+const SUBAGENT_DISPATCH_VALUES = ['print'];
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -66,4 +72,4 @@ function resolveSubagentModel({ repoRoot, agentName, provider: providerArg, } = 
     }
     return { model: value, provider };
 }
-module.exports = { resolveSubagentModel };
+module.exports = { resolveSubagentModel, SUBAGENT_PROVIDERS, SUBAGENT_DISPATCH_VALUES };

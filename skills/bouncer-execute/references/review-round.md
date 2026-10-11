@@ -65,7 +65,12 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             `bouncer coordinate repair … --review-finding <id>` task that
             fixes every must_fix together. Do not use that repair for a
             finding that needs a new product decision, dependency, or public
-            interface — those stay blocked. Under a coordinator drive on the
+            interface — those stay blocked. A must_fix that is only an
+            in-scope gap in test evidence (test paths inside an integrated
+            task's `affected_paths`, product behavior already correct) is
+            instead supplemented in place with `coordinate repair --kind
+            supplement`: no new task or repair wave, then the one delta round.
+            Under a coordinator drive on the
             per-task path: judge the prior implementer report
             (`coordinate report`), revise only when the outcome requires it,
             then open a new `coordinate dispatch` so the fix implementer
@@ -90,7 +95,7 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 
 ## Round ledger contract
 
-완결된 `rounds[]` 예제는 `references/spec-authoring/review-rounds.md`를 본다.
+완결된 `rounds[]` 예제는 `${BOUNCER_ROOT}/references/spec-authoring/review-rounds.md`를 본다.
 Do not edit `review.md` YAML by hand. Record every state transition with
 `bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file>
 [--status <requested|addressed|accepted>]` into `bouncer.review.rounds[]` and
@@ -126,8 +131,10 @@ The only complete mode sequences are `discovery`, `discovery → delta`, and the
 drive-only recovery sequence `discovery → delta → critical_recovery → delta`.
 An `advisory` is recorded once as `accepted` or `deferred` with a note; it never
 opens another implementer dispatch. Do not classify a current-task accuracy
-finding as `deferred` or `advisory`; an unresolved finding is never recorded as
-done.
+finding as `deferred` or `advisory`. An unresolved finding is never recorded as
+done: record it as `open` while the review is `requested`, then change it to
+`resolved` in the delta round before the review becomes `accepted` — an `open`
+finding cannot remain in an `accepted` review.
 
 After certification, a new blocker or major with an allowed origin uses one
 **critical recovery** only in a drive: one fix, verify, and final delta each.

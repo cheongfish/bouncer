@@ -11,14 +11,19 @@ const USAGE = 'usage: bouncer review record --blueprint <dir> [--task <ddd>] '
     + '--round <json-file> [--status <requested|addressed|accepted>] [--repo <dir>]\n'
     + '\n'
     + USAGE_BLOCK;
-// 도움말 예시는 검증기를 통과하는 discovery round 1이어야 한다. 펜스를 하나만
-// 써서 `review record --help` stdout에서 JSON을 잘라 바로 기록할 수 있게 한다.
+/**
+ * `review record --help`에 실리는 예시 round JSON.
+ * blueprint 모드에서 두 맵을 round 최상위에 두고 target 안에 넣지 않게 보여
+ * 준다. 검증기를 통과하는 discovery round 1이며 펜스는 하나다.
+ */
 const HELP_ROUND_EXAMPLE = `{
   "round": {
     "round": 1,
     "mode": "discovery",
     "target": { "base": "aaa", "head": "bbb" },
     "perspectives": [{ "name": "combined", "target_head": "bbb" }],
+    "task_brief_hashes": { "TASKS-001": "<hash>" },
+    "intent_bundles": { "TASKS-001": { "id": "...", "revision": 1 } },
     "previous_finding_ids": [],
     "new": 1,
     "resolved": 0,
@@ -28,7 +33,7 @@ const HELP_ROUND_EXAMPLE = `{
     {
       "id": "F1",
       "severity": "major",
-      "status": "resolved",
+      "status": "open",
       "category": "correctness",
       "brief_clause": "tasks/001 Interface",
       "file": "scripts/lib/x.js",
@@ -41,8 +46,14 @@ const HELP_ROUND_EXAMPLE = `{
     }
   ]
 }`;
+/**
+ * `review record --help` stdout 본문.
+ * 예시 JSON 앞에 blueprint 모드(`--task` 생략)가 두 맵을 싣는다는 한 줄을
+ * 두어 coordinator가 review-record 소스를 열지 않게 한다.
+ */
 const HELP = `${USAGE}
 --round file format: a JSON object { "round": object, "findings": array }.
+Blueprint review (omit --task) puts task_brief_hashes and intent_bundles on round.
 
 \`\`\`json
 ${HELP_ROUND_EXAMPLE}
@@ -50,7 +61,8 @@ ${HELP_ROUND_EXAMPLE}
 
 Enums:
   severity: blocker|major|minor|nit
-  finding status: resolved|accepted|deferred (accepted and deferred require note)
+  finding status: resolved|accepted|deferred|open (accepted and deferred require note;\
+ open is rejected when --status accepted)
   actionability: must_fix|advisory
   origin: discovery|introduced_by_revision|missed_critical
   round mode: discovery|delta|critical_recovery
@@ -59,6 +71,8 @@ Enums:
 
 fingerprint formula: lower(category):lower(brief_clause):posix(file)#symbol
 
+Repair wave example (open in discovery, resolved in delta): see the review and
+final_review coordinator cards, section "Finding status".
 Full ledger example: references/spec-authoring/review-rounds.md
 `;
 /**

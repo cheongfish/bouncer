@@ -1,5 +1,5 @@
 When dispatching a named agent or applying its fallback, read this reference.
-Apply [`rules/subagent-model.md`](../../../rules/subagent-model.md).
+Apply [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
 
 Every named and fallback payload for implementer, debugger, and reviewer carries
 the same `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`
@@ -27,14 +27,17 @@ When `bouncer.scale` is `light` (from pointer `scale`), run the implementer
 do not replace it with the light branch. Reviewer and `bouncer-debugger`
 stay named.
 
-During a `/bouncer-run` drive the loop keeps named dispatch for implement too
-even on `light`: the loop is an orchestrator that reads subagent reports, so it
-must not become the implementer.
+Outside `/bouncer-run`, that light inline implement branch applies. During a
+`/bouncer-run` drive on a **full** ledger the loop keeps named dispatch for
+implement — the loop is an orchestrator that reads subagent reports, so it
+must not become the implementer. A light ledger drive instead follows
+`${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md` (run session
+implements; one named reviewer).
 
 Limit of implement inline: the writing session still authored the change a
 named reviewer will score against **its own diff** (self-review pressure on
 the writer, not a same-session review verdict). Returning to `full` and
-restoring the missing plan documents is owned by `rules/planning.md`
+restoring the missing plan documents is owned by `${BOUNCER_ROOT}/rules/planning.md`
 `## Lightweight cycle`.
 
 ## Named implementer
@@ -73,7 +76,7 @@ coordinator. Other tasks' briefs, the ledger, and other workers' reports stay ou
 
 If the TOML is missing, has a mismatch, is user-owned (no generated marker),
 or named agents are unavailable, do not compact. Use a fresh generic subagent
-whose payload carries the entire body of `agents/bouncer-implementer.md` —
+whose payload carries the entire body of `${BOUNCER_ROOT}/agents/bouncer-implementer.md` —
 every section from Authority through Output contract, verbatim, so its
 Authority, Hard guards, tests-first, comments, and Output contract rules all
 arrive — plus the actual worktree cwd and the eight current-task sections
@@ -85,12 +88,12 @@ same `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
 five dispatch metadata fields (`attempt`, `task_brief_hash`, `base_head`,
 `initial_worktree_state`, and conditional `previous_outcome`) so **Brief revision**
 stays comparable. Or run `implementation` inline: the inline
-pass first reads `agents/bouncer-implementer.md` and follows every section with
+pass first reads `${BOUNCER_ROOT}/agents/bouncer-implementer.md` and follows every section with
 the same cwd and sections. Either path retains `affected_paths`, status, and
 commit prohibitions. The inline fallback still receives G6–G8 judgment after
 verify and review.
 
-For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, the light path may use the step-3 inline implementation branch; `/bouncer-run` always retains the named orchestration boundary.
+For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, or on a light ledger drive that follows `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`, the light path may use the step-3 inline implementation branch; a **full** `/bouncer-run` always retains the named orchestration boundary.
 
 For review, freeze the target first (base, HEAD, task-brief revision,
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and latest
@@ -116,13 +119,13 @@ the six brief sections, the reviewer's `intent_sections` projection from
 target (including the shared bundle identifiers), `strategy`, and `risk_flags`,
 and never another reviewer's findings or the full Explain body. If named agents
 are unavailable, dispatch fresh generic subagents in the same `perspectives`
-order, each carrying the entire body of `agents/bouncer-reviewer.md` — every
+order, each carrying the entire body of `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` — every
 section from Authority through Output contract, verbatim — plus its filled
 reviewer-prompt: frozen base and HEAD, task brief revision, `task_brief_hash`,
 `intent_bundle_id`, `intent_bundle_revision`, `intent_sections`, mode,
 perspective, strategy, risk_flags, latest verify, and for delta the previous
 findings and revision diff, with the read-only cwd. When no subagent tool
-exists, each inline read-only pass first reads `agents/bouncer-reviewer.md` and
+exists, each inline read-only pass first reads `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` and
 follows every section with that input. After one aggregate and one fix batch,
 dispatch exactly one delta reviewer with previous findings and the revision
 diff — delta does not receive a discovery perspective. Reviewers remain named

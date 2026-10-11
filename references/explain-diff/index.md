@@ -5,14 +5,14 @@ description: "Use from /bouncer-finalize after scaffold explain to author explai
 
 # Explain Diff
 
-**Plugin-root shell contract.** See `rules/plugin-root.md`; the CLI shell in this skill resolves independently.
+**Plugin-root shell contract.** See `${BOUNCER_ROOT}/rules/plugin-root.md`; the CLI shell in this skill resolves independently.
 
 Author and record comprehension for the active blueprint's `explain.md`.
 Called only from `/bouncer-finalize` after `scaffold explain`. This skill does
 **not** replace `scaffold explain` — if the file is missing, stop and tell the
 caller to scaffold first.
 
-`rules/acq.md` governs confirmation display, but the quiz collects one batch of
+`${BOUNCER_ROOT}/rules/acq.md` governs confirmation display, but the quiz collects one batch of
 answers and is **not an ACQ**.
 
 ## When this applies
@@ -35,7 +35,7 @@ status published. Not a workflow entry point.
    - `## Code` — key paths and files to read (no long dumps)
    - `## Quiz` — questions and three answer options each (no correct
      answers, no user responses)
-   Then apply `stop-slop` (`references/stop-slop/index.md`) (advisory) before the
+   Then apply `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) before the
    quiz — strip filler and formulaic closers from the four sections.
 
 2. **Resolve `range_from`.** Use the finalize prepare digest's `range.base`
@@ -44,8 +44,13 @@ status published. Not a workflow entry point.
    is one blueprint entry, not a task chain. Prefer digest `range.diff_sha` when
    present so Explain and Quiz share the same hash the CLI already computed.
 
-3. **Quiz the user.** Adapt and run the quiz from the `range.base..range.head`
-   diff (agent judgment — no mechanical table). The quiz is **required** — if the
+3. **Quiz the user.** Adapt and run the quiz from the finalize prepare digest
+   (agent judgment — no mechanical table). Pick question targets from the
+   digest's `diff.per_file` (largest changes first) and `symbols`.
+   Do not read the full `range.base..range.head` diff; read only the files a question
+   targets, with `git diff <range.base>..<range.head> -- <path>`, and never
+   outside that range. When `diff` is `null` (`diff-summary-unavailable`), fall
+   back to `changed_paths` and `symbols` for target choice. The quiz is **required** — if the
    user does not answer, stop and tell `/bouncer-finalize` to abort (do not
    invent a skip path):
    1. Choose question count in **1–10** (minimum 1; never 0). State the
