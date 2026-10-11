@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+## [1.5.6] — 2026-10-11
+
+1.5.5 패치. light run 경로와 coordinator 조기 반환 방지·재개를 더하고, finalize digest v2와
+lockfile 기반 의존성 재설치로 마감 검증 입력과 환경을 정리한다.
+
 ### Changed
 
 - **digest PR 입력 정리** — finalize digest의 `out_of_scope`가 다음 `## ` 제목에서
