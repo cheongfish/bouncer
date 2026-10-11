@@ -73,6 +73,11 @@ type DiffSummary = {
 
 type Unverified = { kind: string; task?: string | null; path?: string; detail?: string };
 
+type DriveSummary = {
+  ready: boolean;
+  tasks: Array<{ id: string; status: string | null; sha: string | null }>;
+};
+
 type FinalizeDigest = {
   ok: true;
   version: 2;
@@ -99,6 +104,7 @@ type FinalizeDigest = {
   out_of_scope: string[];
   blueprint_review: { findings: Finding[] } | null;
   pr: ReturnType<typeof buildPrDraft>;
+  drive: DriveSummary | null;
 };
 
 const OUT_OF_SCOPE_DEFS = [
@@ -497,11 +503,47 @@ function pathOutsideScope(changedPath: string, scopes: string[][]): boolean {
 }
 
 /**
+ * coordinator 원장을 외부 소비자가 원장 파일을 직접 읽지 않아도 되는 drive 요약으로
+ * 줄인다. 순수 함수이며 throw하지 않는다 — 형식이 깨진 원장은 값으로 표현한다.
+ * `ready`는 "task가 하나 이상이고 전부 integrated"일 때만 true다. id가 문자열이
+ * 아닌 task는 식별할 수 없어 목록에서 빼되, 조용히 건너뛰면 준비 완료로 오인되므로
+ * `ready`를 false로 만든다. 빈 목록도 같은 이유로 false다(아직 한 일이 없음).
+ *
+ * @param {unknown} ledger - 읽힌 원장 객체. 원장이 없으면 null
+ * @returns {DriveSummary | null} 원장 null이면 null. tasks가 배열이 아니면
+ *   `{ ready: false, tasks: [] }`. 그 외에는 원장 순서를 유지한 요약
+ */
+function summarizeDrive(ledger: unknown): DriveSummary | null {
+  if (ledger === null || ledger === undefined) return null;
+  const rawTasks = (ledger as { tasks?: unknown }).tasks;
+  if (!Array.isArray(rawTasks)) return { ready: false, tasks: [] };
+
+  const tasks: DriveSummary['tasks'] = [];
+  let dropped = false;
+  for (const raw of rawTasks as Array<Record<string, unknown> | null>) {
+    if (!raw || typeof raw.id !== 'string') {
+      dropped = true;
+      continue;
+    }
+    tasks.push({
+      id: raw.id,
+      status: typeof raw.status === 'string' ? raw.status : null,
+      sha: typeof raw.sha === 'string' ? raw.sha : null,
+    });
+  }
+  const ready = !dropped && tasks.length > 0
+    && tasks.every((task) => task.status === 'integrated');
+  return { ready, tasks };
+}
+
+/**
  * Explain·Quiz·PR에 필요한 finalize 입력을 한 JSON으로 모은다.
  * 문서·Git·원장을 쓰지 않는다. drive면 integration worktree에서 git을 읽고,
  * 깨진 원장은 기존 finalize와 같은 coordinator-ledger로 거절한다.
  * 성공 결과에는 최상위 `coordinator`와 `tasks[].actual_paths`를 싣지 않는다 —
- * 둘 다 drive 실행 기록이고 PR 초안은 읽지 않는다. `git.branch`만 원장
+ * 둘 다 drive 실행 기록이고 PR 초안은 읽지 않는다. 대신 최상위 `drive`
+ * (`summarizeDrive`: 준비 여부와 task별 status·sha, 원장 없으면 null)를 `pr`과
+ * 나란히 싣는다. `drive`는 PR 입력이 아니므로 buildPrDraft 뒤에 붙인다. `git.branch`만 원장
  * `integrationBranch`(없으면 checkout)로 정한다. 성공 시 `pr`는
  * buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로 조립하지 않게
  * 하기 위함이다. `review_scope: blueprint`이면 루트 리뷰 finding을
@@ -876,7 +918,9 @@ function prepareFinalizeDigest({
       now: now instanceof Date ? now : new Date(),
       config,
     }),
+    // PR draft 입력(body)에 섞이지 않도록 buildPrDraft 호출 뒤 반환 객체에만 붙인다.
+    drive: summarizeDrive(ledger),
   };
 }
 
-export = { prepareFinalizeDigest };
+export = { prepareFinalizeDigest, summarizeDrive };

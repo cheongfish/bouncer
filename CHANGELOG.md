@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- **ACQ 기계 계약 (EPIC 093 BP 001)** — 게이트 ID 카탈로그를 테스트 상수에서
+  `rules/acq-gates.json` 데이터 파일로 옮겼다. 채팅 ACQ 표시와 open decisions 메시지는
+  외부 응답기가 문장을 추측하지 않도록 한 줄 판독 블록을 요구한다. `bouncer finalize
+  prepare` 성공 결과에 최상위 `drive` 요약(`{ ready, tasks: [{ id, status, sha }] }`,
+  원장이 없으면 `null`)을 추가했다. `ready`는 task가 하나 이상이고 모두 `integrated`일
+  때만 true다. `pr` draft 입력과 출력은 바뀌지 않고 `version`은 2로 유지한다.
+
 ## [1.5.7] — 2026-10-11
 
 1.5.6 패치. 공용 helper 통합과 순환 의존 제거(EPIC 092 BP 001), 동작 중심 테스트 지침과

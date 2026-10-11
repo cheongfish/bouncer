@@ -186,6 +186,7 @@ test('prepareFinalizeDigest fills trailer commits, unverified, symbols, and refu
   );
   assert.ok(d.symbols.some((s) => s.names.includes('greet')));
   assert.ok(d.pr);
+  assert.strictEqual(d.drive, null);
   assert.strictEqual(d.git.pr_base, null);
   assert.strictEqual(d.pr.base, null);
   assert.strictEqual(d.pr.title_prefix, null);
@@ -255,6 +256,10 @@ test('prepareFinalizeDigest drive fixture prefers trailer integration SHA over w
   assert.strictEqual(d.ok, true, JSON.stringify(d));
   // digest는 PR 입력이다. drive 원장 색인·task별 actual_paths는 실행 기록이라
   // 싣지 않는다. git.branch만 원장 integrationBranch로 유지한다.
+  assert.deepStrictEqual(d.drive, { ready: true, tasks: [
+    { id: '001', status: 'integrated', sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+    { id: '002', status: 'integrated', sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+  ] });
   assert.strictEqual('coordinator' in d, false);
   assert.strictEqual(d.git.branch, 'feat/integ');
   assert.strictEqual(d.tasks[0].commit.source, 'trailer');
