@@ -1,6 +1,6 @@
 {
   "name": "bouncer",
-  "version": "1.5.6",
+  "version": "1.5.7",
   "private": true,
   "license": "Apache-2.0",
   "files": [
@@ -40,9 +40,11 @@
   },
   "scripts": {
     "test": "node --test",
+    "test:unit": "node scripts/test-tier.js unit",
+    "test:integration": "node scripts/test-tier.js integration",
     "check:emit": "node scripts/check-emit.js",
-    "test:coverage": "node --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include=scripts/lib/** --test-coverage-lines=94 --test-coverage-branches=82 --test-coverage-functions=96",
-    "ci": "npm run check:emit && npm run test:coverage && npm run lint && npm run lint:docs && npm run lint:context-comments && npm run typecheck && npm audit --audit-level=high",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=scripts/lib/** --test-coverage-lines=94 --test-coverage-branches=82 --test-coverage-functions=96",
+    "ci": "npm run check:emit && npm run test:coverage && npm run test:unit && npm run lint && npm run lint:docs && npm run lint:context-comments && npm run typecheck && npm audit --audit-level=high",
     "lint": "eslint .",
     "lint:docs": "node scripts/check-doc-shape.js",
     "lint:context-comments": "node scripts/check-context-comments.js",

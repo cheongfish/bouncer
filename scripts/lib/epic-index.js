@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const layout = require("./layout");
@@ -21,9 +23,6 @@ const EPIC_LINK_RE = /\]\(epics\/(\d{3}-[^/)]+)\/index\.md\)/g;
 const LEGACY_EPIC_LINK_RE = /\]\(epics\/(EPIC-\d{3}-[^/)]+)\/index\.md\)/g;
 const EPIC_DIR_NAME_RE = /^\d{3}-.+$/;
 const LEGACY_EPIC_DIR_NAME_RE = /^EPIC-\d{3}-.+$/;
-function isRecord(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 /**
  * canonical epic 문서에서 색인 파생값인 description을 읽는다.
  * 파일 읽기·frontmatter·값 검증 실패를 모두 호출자에게 전달해 scaffold와

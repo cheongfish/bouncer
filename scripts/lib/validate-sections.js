@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord } = guards;
 const paths = require("./paths");
 const { toPosix } = paths;
 const SECTION_DEFS = [
@@ -155,9 +157,6 @@ function pathJustifiedByTouch(ap, touchText) {
     if (touchText.includes(ap))
         return true;
     return extractPathCandidates(touchText).some((c) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`));
-}
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 function isPositiveInteger(value) {
     return typeof value === 'number' && Number.isInteger(value) && value > 0;

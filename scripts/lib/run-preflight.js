@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord } = guards;
 const path = require('node:path');
 const current = require("./current");
 const { readCurrent, CurrentSelectionError } = current;
@@ -19,9 +21,6 @@ const { readConfig, readCoordinatorPolicy } = configMod;
 const OPEN_STATUS = ['ready', 'in_progress'];
 const TASK_ID_RE = /^TASKS-(\d{3})$/;
 const TASK_DIR_RE = /(?:^|\/)tasks\/(\d{3})\/tasks\.md$/;
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 function isSelectionError(error) {
     return error instanceof CurrentSelectionError
         || (typeof error === 'object'

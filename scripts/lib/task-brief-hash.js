@@ -1,12 +1,11 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord } = guards;
 const frontmatter = require("./frontmatter");
 const { parseFrontmatter } = frontmatter;
 const approvalSnapshot = require("./approval-snapshot");
 const { sha256Canonical } = approvalSnapshot;
 const LIFECYCLE_KEYS = ['status', 'commit_sha'];
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && Array.isArray(value) === false;
-}
 /**
  * task brief의 canonical SHA-256을 계산한다.
  * dispatch·record·intent bundle이 같은 값을 써야, commit이 `status`/`commit_sha`만

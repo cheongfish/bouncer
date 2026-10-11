@@ -4,6 +4,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const graphify = require("./graphify");
 const { resolveGraphifyBin } = graphify;
+const posixPath = require("./posix-path");
+const { toPosix } = posixPath;
 // graphify 프로세스와 결과 경로 정규화. 해석기 PATH 탐색이
 // execFileSync('graphify', ['--version']) 를 돌리므로 realHasGraphify 도
 // 여기 둔다 — 이름은 판정처럼 보이지만 프로세스를 띄운다.
@@ -73,9 +75,6 @@ function normalizeGraphPaths(repoRoot, partOut, dir) {
     fs.writeFileSync(path.join(repoRoot, rel), JSON.stringify(graph));
     return rel;
 }
-function toPosixPath(p) {
-    return p.split('\\').join('/');
-}
 /**
  * source_file이 exclude prefix 아래인지 본다. `scripts/lib`가
  * `scripts/liberator`를 삼키지 않도록 exact 또는 `prefix/`만 인정한다.
@@ -87,9 +86,9 @@ function toPosixPath(p) {
 function matchesExcludePrefix(sourceFile, prefixes) {
     if (typeof sourceFile !== 'string' || !sourceFile)
         return false;
-    const posix = toPosixPath(sourceFile);
+    const posix = toPosix(sourceFile);
     return prefixes.some((raw) => {
-        const pref = toPosixPath(raw).replace(/\/+$/, '');
+        const pref = toPosix(raw).replace(/\/+$/, '');
         if (!pref)
             return false;
         return posix === pref || posix.startsWith(`${pref}/`);

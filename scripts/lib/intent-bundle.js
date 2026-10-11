@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isFsCode, isSkippableFsError } = guards;
 const fs = require("node:fs");
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -769,16 +771,6 @@ function assertIntentPathInCommonDir(intentFile, commonGitDir, io, opts = {}) {
     if (!isInsideRepo(dirReal, commonReal)) {
         throw new Error('intent cache directory escapes the Git common directory');
     }
-}
-function isFsCode(error, code) {
-    return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
-}
-function isSkippableFsError(error) {
-    return isFsCode(error, 'ENOENT')
-        || isFsCode(error, 'EACCES')
-        || isFsCode(error, 'EPERM')
-        || isFsCode(error, 'ELOOP')
-        || isFsCode(error, 'ENOTDIR');
 }
 /**
  * 역할 projection 실패를 reason·next가 붙은 Error로 올린다.

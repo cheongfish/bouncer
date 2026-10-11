@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { catchMessage } = guards;
 const INTENT_ROLES = new Set(['implementer', 'reviewer', 'debugger']);
 const SECTIONS_FAIL_REASONS = new Set([
     'intent-bundle-missing',
@@ -290,11 +292,6 @@ function parseSectionsArgs(rest) {
         return fail('--role <implementer|reviewer|debugger> is required');
     }
     return { mode: 'sections', task, role, repo };
-}
-function catchMessage(error) {
-    // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
-    // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
-    return error.message;
 }
 /**
  * 함수 의도 provenance를 조회하거나 task intent bundle·역할 절 projection을 만든다.

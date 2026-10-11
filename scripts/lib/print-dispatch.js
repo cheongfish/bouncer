@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord, isEnoentError } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -11,15 +13,6 @@ const { resolveSubagentModel } = subagents;
 const codexAgents = require("./codex-agents");
 const { pluginAgentsDir } = codexAgents;
 const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator'];
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-function isEnoentError(error) {
-    return typeof error === 'object'
-        && error !== null
-        && 'code' in error
-        && error.code === 'ENOENT';
-}
 /**
  * Cursor print 식별 줄. 문구는 `rules/cursor-print-dispatch.md` 3항과 바이트가
  * 같아야 한다. 역할이 named agent를 다시 띄우지 못하게 고정한 문장이다.

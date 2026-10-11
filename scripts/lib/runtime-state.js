@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord, catchMessage, isEnoentError } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -388,11 +390,6 @@ function validateCoordinatorCheckpoint(value) {
     }
     return { ok: true };
 }
-function catchMessage(error) {
-    // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
-    // TypeError 대신 undefined가 되어 unavailable reason이 바뀐다.
-    return error.message;
-}
 function runtimePaths({ repoRoot, execFileSync = realExecFileSync, 
 // env/platform은 호출부 호환용; worktree는 이제 repo 내부.
 platform = process.platform, }) {
@@ -666,12 +663,6 @@ function writeRuntimeCurrent({ repoRoot, blueprint, base, task, deps, }) {
     }
     return target;
 }
-function isEnoentError(error) {
-    return typeof error === 'object'
-        && error !== null
-        && 'code' in error
-        && error.code === 'ENOENT';
-}
 function approvalSnapshotPath(approvalsRoot, epicId, blueprintId, pathApi) {
     return pathApi.join(approvalsRoot, epicId, `${blueprintId}.json`);
 }
@@ -702,9 +693,6 @@ function atomicWriteFile(d, pathApi, target, payload, tmpName) {
         }
         throw error;
     }
-}
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && Array.isArray(value) === false;
 }
 function isApprovalParts(value) {
     if (!isRecord(value))

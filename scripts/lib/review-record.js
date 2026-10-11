@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const frontmatter = require("./frontmatter");
@@ -9,9 +11,6 @@ const paths = require("./paths");
 const { toPosix } = paths;
 const validateSections = require("./validate-sections");
 const { findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT, } = validateSections;
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 function fail(reason, cause, next) {
     return { ok: false, reason, cause, next };
 }

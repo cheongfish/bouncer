@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { catchMessage } = guards;
 const cliFlags = require("./cli-flags");
 const { parseFlags } = cliFlags;
 const initMod = require("./init");
@@ -279,11 +281,6 @@ function cmdProjectRoot(rest, io) {
     }
     io.out(`${paths.projectRoot}\n`);
     return 0;
-}
-function catchMessage(error) {
-    // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
-    // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
-    return error.message;
 }
 /**
  * `run preflight`만 받는다. 정규화 JSON을 stdout에 내고, 거절은 같은 채널의

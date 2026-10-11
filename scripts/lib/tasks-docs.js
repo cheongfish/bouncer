@@ -13,6 +13,8 @@ const NUMBERED_TASKS_RE = /^tasks-(\d{3})\.md$/;
 const TASK_DIR_RE = /^(\d{3})$/;
 const TASK_UNIT_BASENAMES = ['tasks.md', 'verification.md', 'review.md'];
 const schema = require("./schema");
+const posixPath = require("./posix-path");
+const { toPosix } = posixPath;
 const { executionKindOf } = schema;
 const frontmatter = require("./frontmatter");
 const { readDoc } = frontmatter;
@@ -102,9 +104,6 @@ function makeEntry({ dir, number, tasks, verification, review, executionKind, })
  * 그 외 문서 내용은 읽지 않으며 invalidDirs 거절은 002 게이트가 맡는다.
  */
 function listTasksDocs({ repoRoot, blueprintDir }) {
-    // paths ↔ tasks-docs 순환: 최상단 import = require는 로드 시점을 앞당겨
-    // 초기화 순환을 만든다. 호출 시점 지연 require를 유지한다.
-    const { parsePathIds, toPosix } = require('./paths');
     const bp = toPosix(blueprintDir);
     const absDir = path.join(repoRoot, bp);
     let names;
@@ -114,9 +113,6 @@ function listTasksDocs({ repoRoot, blueprintDir }) {
     catch (_e) {
         return { entries: [], mixed: false, legacy: false, invalidDirs: [] };
     }
-    // 반환 id는 목록에 쓰지 않는다. 순환 require로 paths를 로드한 뒤 같은
-    // 경로 문자열을 파서에 넘겨, 모듈 그래프와 입력 계약을 그대로 둔다.
-    void parsePathIds(bp);
     const entries = [];
     const invalidDirs = [];
     // --- 새 레이아웃: <bp>/tasks/<NNN>/ ---

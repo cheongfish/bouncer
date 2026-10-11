@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { catchMessage } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const schema = require("./schema");
@@ -83,9 +85,6 @@ function withGateFailureHints(result) {
             return { ...entry, next: hint.next };
         }),
     };
-}
-function catchMessage(error) {
-    return error.message;
 }
 /**
  * blueprint 문서를 로드해 structural(S) 검사와 선택한 gate 또는 plan draft 검사를 돌린다.

@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const frontmatter = require("./frontmatter");
@@ -16,9 +18,6 @@ const NAMED_AGENTS = [
 // 사용자 소유로 보고 덮지 않는다 — Codex는 플러그인 디렉터리를 스캔하지
 // 않으므로 이 사본이 유일한 로드 경로다.
 const GENERATED_MARKER = '# bouncer-generated';
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 /**
  * 플러그인 루트의 `agents/` 절대 경로를 돌려준다. print 디스패치와 Codex
  * 시드가 같은 기준을 써야 역할 문서와 TOML 소스가 갈라지지 않는다.

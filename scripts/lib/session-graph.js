@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { catchMessageOrString } = guards;
 const initMod = require("./init");
 const { init, inspectBootstrap } = initMod;
 const time = require("./time");
@@ -9,10 +11,6 @@ const graphExec = require("./graph-exec");
 const { realHasGraphify, defaultExecGraphify, normalizeGraphPaths, runGraphifyUpdate, partOutDir, } = graphExec;
 const graphify = require("./graphify");
 const { checkGraphifyCompatibility } = graphify;
-function catchMessageOrString(error) {
-    const message = error && error.message;
-    return message ? String(message) : String(error);
-}
 // 계획·오케스트레이션·경고 문구 + 공개 배럴.
 // 훅과 테스트는 이 파일 이름만 본다. 구현이 형제로 옮겨도 키 집합은 유지한다.
 /**

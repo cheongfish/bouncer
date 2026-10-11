@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const config = require("./config");
 const { readConfig } = config;
+const posixPath = require("./posix-path");
+const { toPosix } = posixPath;
 // 설정·디렉터리 존재·mtime 판정만. 프로세스를 띄우지 않고 graphify.ts 도
 // require 하지 않는다 — 그 모듈의 PATH 탐색이 execFileSync 를 돌리기 때문.
 // 신선도 계산이 graphify 설치 여부를 묻기 시작하면 테스트가 deps 없이
@@ -20,9 +22,6 @@ function configField(cfg, key) {
     // cfg?.key 와 같다. `'key' in cfg`로 바꾸면 프로토타입 필드가 생기고
     // null에서 단락되지 않을 수 있다.
     return cfg && typeof cfg === 'object' ? cfg[key] : undefined;
-}
-function toPosix(p) {
-    return p.split('\\').join('/');
 }
 /**
  * 저장소 상대 디렉터리만 허용한다. 절대 경로·`..` 탈출은 거부해

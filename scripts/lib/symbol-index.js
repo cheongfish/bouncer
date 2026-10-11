@@ -1,4 +1,8 @@
 'use strict';
+const guards = require("./guards");
+const { isFsCode, isSkippableFsError } = guards;
+const posixPath = require("./posix-path");
+const { toPosix } = posixPath;
 const fs = require("node:fs");
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -1381,18 +1385,5 @@ function compareCandidates(left, right) {
         return left.symbol_ref.kind < right.symbol_ref.kind ? -1 : 1;
     }
     return 0;
-}
-function toPosix(p) {
-    return p.split(path.sep).join('/');
-}
-function isFsCode(error, code) {
-    return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
-}
-function isSkippableFsError(error) {
-    return isFsCode(error, 'ENOENT')
-        || isFsCode(error, 'EACCES')
-        || isFsCode(error, 'EPERM')
-        || isFsCode(error, 'ELOOP')
-        || isFsCode(error, 'ENOTDIR');
 }
 module.exports = { resolveSymbol };

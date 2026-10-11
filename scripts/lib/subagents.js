@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isRecord } = guards;
 const config = require("./config");
 const { readConfig } = config;
 // `bouncer config --help`와 docs 일치 테스트의 원본 값 목록. provider 이름은
@@ -7,9 +9,6 @@ const { readConfig } = config;
 const SUBAGENT_PROVIDERS = ['claude', 'cursor', 'codex', 'antigravity'];
 // `subagents.dispatch`가 받는 값. 부재가 기본(호스트 Task 서브에이전트)이라 목록에 넣지 않는다.
 const SUBAGENT_DISPATCH_VALUES = ['print'];
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 /**
  * provider 해석 순서(먼저 맞는 것이 이김):
  *   1. 명시적 `provider` 인자(skill override)

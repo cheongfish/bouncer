@@ -1,5 +1,8 @@
 'use strict';
-const { createHash } = require('node:crypto');
+const canonicalJsonMod = require("./canonical-json");
+const { sha256Canonical } = canonicalJsonMod;
+const guards = require("./guards");
+const { isRecord } = guards;
 const path = require('node:path');
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
@@ -9,41 +12,6 @@ const config = require("./config");
 const { readVerifyPolicy } = config;
 const paths = require("./paths");
 const { toPosix } = paths;
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && Array.isArray(value) === false;
-}
-/**
- * 객체의 키를 재귀적으로 정렬한 뒤 UTF-8 JSON으로 직렬화한다.
- * 승인 digest가 키 삽입 순서에 흔들리면 같은 범위가 G24로 갈라진다.
- *
- * @param {unknown} value - 직렬화할 값
- * @returns {string} canonical JSON 문자열
- */
-function canonicalJson(value) {
-    const normalize = (input) => {
-        if (Array.isArray(input))
-            return input.map(normalize);
-        if (input && typeof input === 'object') {
-            const record = input;
-            const sorted = {};
-            for (const key of Object.keys(record).sort()) {
-                sorted[key] = normalize(record[key]);
-            }
-            return sorted;
-        }
-        return input;
-    };
-    return JSON.stringify(normalize(value));
-}
-/**
- * canonical JSON의 SHA-256 hex를 돌려준다.
- *
- * @param {unknown} value - 해시할 값
- * @returns {string} 64자 hex digest
- */
-function sha256Canonical(value) {
-    return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
-}
 function bouncerOf(data) {
     if (!isRecord(data) || !isRecord(data.bouncer))
         return {};

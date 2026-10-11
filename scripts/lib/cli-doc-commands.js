@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { catchMessage } = guards;
 const cliFlags = require("./cli-flags");
 const { parseFlags } = cliFlags;
 const validate = require("./validate");
@@ -17,11 +19,6 @@ const time = require("./time");
 const { nowIsoKst } = time;
 const planInspectMod = require("./plan-inspect");
 const { planInspect } = planInspectMod;
-function catchMessage(error) {
-    // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
-    // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
-    return error.message;
-}
 function cmdValidate(rest, io) {
     const f = parseFlags(rest);
     // 게이트 실패(1)와 구분: 필수 플래그 누락은 호출 형식 오류(2). 없으면

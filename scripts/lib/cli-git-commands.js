@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { catchMessage } = guards;
 const cliFlags = require("./cli-flags");
 const { parseFlags } = cliFlags;
 const finalizeMod = require("./finalize");
@@ -23,11 +25,6 @@ const coordinateOutputMod = require("./coordinate-output");
 const { compactCoordinateOutput } = coordinateOutputMod;
 const releaseMainMod = require("./finalize-release-main");
 const { releaseMain } = releaseMainMod;
-function catchMessage(error) {
-    // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
-    // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
-    return error.message;
-}
 function cmdCommit(rest, io) {
     const f = parseFlags(rest);
     // 커밋 대상이 없으면 commit-safety가 빈 범위를 검사하게 되므로 형식(2)으로 거절.

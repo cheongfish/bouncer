@@ -1,4 +1,6 @@
 'use strict';
+const guards = require("./guards");
+const { isSkippableFsError } = guards;
 const fs = require("node:fs");
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -882,16 +884,6 @@ function isInsideRepo(absPath, repoReal) {
         return true;
     const prefix = repoReal.endsWith(path.sep) ? repoReal : `${repoReal}${path.sep}`;
     return absPath.startsWith(prefix);
-}
-function isFsCode(error, code) {
-    return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
-}
-function isSkippableFsError(error) {
-    return isFsCode(error, 'ENOENT')
-        || isFsCode(error, 'EACCES')
-        || isFsCode(error, 'EPERM')
-        || isFsCode(error, 'ELOOP')
-        || isFsCode(error, 'ENOTDIR');
 }
 module.exports = {
     resolveIntentProvenance,
