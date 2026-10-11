@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **공용 helper 통합 (EPIC 092 BP 001)** — digest와 판별 helper를 공용 모듈로 통합했다.
+  `toPosix`는 의존성 없는 `posix-path` 한 곳에서 정의하고 `paths`가 re-export하며,
+  graph-*·`symbol-index`의 복사본을 지웠다. 동작 변화: Linux에서 `symbol-index`가
+  백슬래시가 든 파일 이름을 받으면 결과 경로가 `/`로 바뀐다(일반 경로 결과는 같다).
+  `tasks-docs`가 `paths`를 import하지 않아 `paths` ↔ `tasks-docs` 순환과 함수 안
+  지연 `require`가 사라졌다.
+
 ## [1.5.6] — 2026-10-11
 
 1.5.5 패치. light run 경로와 coordinator 조기 반환 방지·재개를 더하고, finalize digest v2와

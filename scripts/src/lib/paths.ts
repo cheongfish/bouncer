@@ -1,7 +1,10 @@
 'use strict';
 
 import tasksDocs = require('./tasks-docs');
+import posixPath = require('./posix-path');
 const { unitDocKind } = tasksDocs;
+// 기존 31개 import 호환을 위해 posix-path 정본을 그대로 re-export한다.
+const { toPosix } = posixPath;
 
 const FILE_KIND: Record<string, string> = {
   // verification.md / review.md / tasks.md 는 tasks-docs.unitDocKind 로만 판정.
@@ -14,10 +17,6 @@ const FILE_KIND: Record<string, string> = {
 // 정본 epic/bp id는 접두 없는 zero-pad 세 자리다.
 const EPIC_SEG_RE = /(?:^|\/)epics\/(\d{3})(?=-|\/|$)/;
 const BP_SEG_RE = /(?:^|\/)blueprints\/(\d{3})(?=-|\/|$)/;
-
-function toPosix(p: unknown): string {
-  return String(p).split('\\').join('/');
-}
 
 function isNumericContextId(id: unknown): id is string {
   return typeof id === 'string' && /^\d{3}$/.test(id);

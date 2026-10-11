@@ -59,3 +59,10 @@ test('isNumericContextId accepts only zero-padded three digits', () => {
   assert.strictEqual(isNumericContextId('EPIC-001'), false);
   assert.strictEqual(isNumericContextId('BP-001'), false);
 });
+
+test('toPosix: 단일 정의이며 백슬래시와 비문자열 입력을 처리한다', () => {
+  const { toPosix } = require('../scripts/lib/posix-path');
+  assert.strictEqual(toPosix('a\\b\\c.md'), 'a/b/c.md');
+  assert.strictEqual(toPosix(undefined), 'undefined');
+  assert.strictEqual(require('../scripts/lib/paths').toPosix, toPosix);
+});

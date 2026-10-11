@@ -14,6 +14,8 @@ const NUMBERED_TASKS_RE = /^tasks-(\d{3})\.md$/;
 const TASK_DIR_RE = /^(\d{3})$/;
 const TASK_UNIT_BASENAMES = ['tasks.md', 'verification.md', 'review.md'];
 import schema = require('./schema');
+import posixPath = require('./posix-path');
+const { toPosix } = posixPath;
 const { executionKindOf } = schema;
 import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
@@ -145,9 +147,6 @@ function listTasksDocs({ repoRoot, blueprintDir }: {
   repoRoot: string;
   blueprintDir: string;
 }): TasksDocsListing {
-  // paths ↔ tasks-docs 순환: 최상단 import = require는 로드 시점을 앞당겨
-  // 초기화 순환을 만든다. 호출 시점 지연 require를 유지한다.
-  const { parsePathIds, toPosix } = require('./paths');
   const bp = toPosix(blueprintDir);
   const absDir = path.join(repoRoot, bp);
   let names: string[];
@@ -157,9 +156,6 @@ function listTasksDocs({ repoRoot, blueprintDir }: {
     return { entries: [], mixed: false, legacy: false, invalidDirs: [] };
   }
 
-  // 반환 id는 목록에 쓰지 않는다. 순환 require로 paths를 로드한 뒤 같은
-  // 경로 문자열을 파서에 넘겨, 모듈 그래프와 입력 계약을 그대로 둔다.
-  void parsePathIds(bp);
   const entries: TasksEntry[] = [];
   const invalidDirs: string[] = [];
 

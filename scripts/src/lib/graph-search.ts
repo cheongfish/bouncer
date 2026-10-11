@@ -8,6 +8,8 @@ const {
   DEFAULT_TEST_OUT,
   realExcludeDirs,
 } = graphScope;
+import posixPath = require('./posix-path');
+const { toPosix } = posixPath;
 // 점수표는 Task 003·평가 corpus가 같은 숫자를 재사용하므로 상수로 고정한다.
 // contextHit(+4)는 문서 seed 폭증·저신뢰 유발로 제거했다(TASKS-002).
 const SCORE = {
@@ -180,10 +182,6 @@ const GENERIC_WORDS = new Set([
   'query', 'seed', 'run', 'call', 'import', 'module', 'index', 'main', 'util',
   'helper', 'config', 'option', 'error', 'status', 'state', 'context', 'source',
 ]);
-
-function toPosix(p: string): string {
-  return p.split('\\').join('/');
-}
 
 // Graphify는 함수 노드 label을 `setupGraphify()`처럼 후행 괄호로 쓰고, tokenize는
 // 괄호를 구분자로 잘라 `setupGraphify`만 seed로 남긴다. 원본 label·norm_label·
