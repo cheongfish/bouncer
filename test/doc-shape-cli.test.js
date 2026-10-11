@@ -79,3 +79,83 @@ test('runCli accepts argv file args and opts streams', () => {
   assert.strictEqual(code, 1);
   assert.match(err, /missing-on-purpose|not found|ENOENT|missing/i);
 });
+
+/**
+ * 실제 저장소 문서를 임시 디렉터리의 같은 상대 경로로 복사한다.
+ * 경로 계약은 상대 경로를 키로 삼으므로 사본도 같은 경로에 있어야 한다.
+ *
+ * @param {string} rel - 저장소 루트 기준 상대 경로
+ * @returns {{dir: string, abs: string, markdown: string}} 임시 cwd, 사본 경로, 원문
+ */
+function copyDocToTmp(rel) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-path-contract-'));
+  const abs = path.join(dir, rel);
+  const markdown = fs.readFileSync(path.join(root, rel), 'utf8');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, markdown);
+  return { dir, abs, markdown };
+}
+
+/**
+ * runCli를 호출해 종료 코드와 stderr를 함께 돌려준다.
+ *
+ * @param {string[]} argv - 검사할 상대 경로
+ * @param {string} cwd - 검사 루트
+ * @returns {{code: number, err: string}} 종료 코드와 stderr 누적 문자열
+ */
+function runInTmp(argv, cwd) {
+  let err = '';
+  const code = runCli(argv, {
+    cwd,
+    stderr: { write(chunk) { err += String(chunk); } },
+    stdout: { write() {} },
+  });
+  return { code, err };
+}
+
+// 종류(agent)가 있는 문서: 종류 계약은 Procedure를 요구하지 않으므로, 이 제목이 빠지면
+// 경로 계약만이 잡아낼 수 있다.
+test('path contract rejects an agent copy that lost a path-only required heading', () => {
+  const rel = 'agents/bouncer-implementer.md';
+  const { dir, abs, markdown } = copyDocToTmp(rel);
+  try {
+    assert.strictEqual(runInTmp([rel], dir).code, 0);
+    fs.writeFileSync(abs, markdown.replace(/^## Procedure$/m, 'Procedure (demoted)'));
+    const { code, err } = runInTmp([rel], dir);
+    assert.strictEqual(code, 1, err);
+    assert.ok(err.includes(rel), err);
+    assert.ok(err.includes('Procedure'), err);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// classifyDocPath가 null인 rules 문서도 표에 있으면 경로 계약만 적용해 검사한다.
+test('path contract checks a null-kind rules document without a skill-shape error', () => {
+  const rel = 'rules/commit-scope.md';
+  const { dir, abs, markdown } = copyDocToTmp(rel);
+  try {
+    const ok = runInTmp([rel], dir);
+    assert.strictEqual(ok.code, 0, ok.err);
+    fs.writeFileSync(abs, markdown.replace(/^## Approved and ledger scope$/m, 'Approved scope (demoted)'));
+    const { code, err } = runInTmp([rel], dir);
+    assert.strictEqual(code, 1, err);
+    assert.ok(err.includes(rel), err);
+    assert.ok(err.includes('Approved and ledger scope'), err);
+    assert.ok(!err.includes('no skill-shape contract'), err);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 인자 없는 기본 스캔은 표의 모든 키를 포함하므로, 빈 cwd에서는 키 파일 부재로 실패한다.
+test('argument-less runCli reports every missing path-contract file in an empty cwd', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-path-contract-empty-'));
+  try {
+    const { code, err } = runInTmp([], dir);
+    assert.strictEqual(code, 1, err);
+    assert.ok(err.includes('missing file'), err);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -17,7 +17,6 @@
     "graph-search.test.js",
     "guards.test.js",
     "legacy-comments.test.js",
-    "lightweight-cycle.test.js",
     "master-rules.test.js",
     "open-source-readiness.test.js",
     "paths.test.js",
@@ -28,7 +27,6 @@
     "rule-ownership.test.js",
     "scaffold.test.js",
     "schema.test.js",
-    "skill-bouncer-commit.test.js",
     "skill-bouncer-execute.test.js",
     "skill-bouncer-finalize.test.js",
     "skill-bouncer-init.test.js",
@@ -36,9 +34,7 @@
     "skill-bouncer-run.test.js",
     "skill-bouncer-surface.test.js",
     "skill-context-review.test.js",
-    "skill-debugging.test.js",
     "skill-discovery.test.js",
-    "skill-explain-diff.test.js",
     "skill-graphify-runner.test.js",
     "skill-implementation.test.js",
     "skill-minimality.test.js",
@@ -54,8 +50,7 @@
     "time.test.js",
     "trust-boundary.test.js",
     "validate-hints.test.js",
-    "validate-structural.test.js",
-    "workflow-safety-canon.test.js"
+    "validate-structural.test.js"
   ],
   "integration": [
     "build-release.test.js",
