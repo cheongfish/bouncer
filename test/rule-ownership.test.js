@@ -412,62 +412,11 @@ test('load graph declarations follow the current consumer phase sections', () =>
   }
 });
 
-test('current owner preserves sizing, light, DAG, and coordinator contracts', () => {
+// 소유 문구의 내용이 아니라 표가 선언한 소유 구조를 본다: 행의 locator는 선언된 owner에
+// 있어야 하고, 같은 locator가 다른 .md owner에 복제돼 정본이 둘이 되면 안 된다.
+test('each ownership locator lives only in its declared owner', () => {
   const markdown = read(ownershipPath);
   const ownership = parseOwnership(markdown);
-  const ownerCache = new Map();
-
-  /**
-   * ownership 행 id로 current-owner heading 절만 반환한다.
-   * 파일 전체 grep은 다른 절의 같은 단어로 계약을 통과시키므로 행 locator 절로 잠근다.
-   *
-   * @param {string} id - ownership 표의 id
-   * @returns {string} 해당 행 heading 절 본문
-   */
-  function sectionForOwnershipId(id) {
-    const row = ownership.find((entry) => entry.id === id);
-    assert.ok(row, `ownership map missing row ${id}`);
-    const [heading, locator] = row.source.split(' / ').map((part) => stripTicks(part));
-    assert.ok(heading && locator, `row ${id}: source must contain heading and locator`);
-    const ownerPath = stripTicks(row['current owner']);
-    if (!ownerCache.has(ownerPath)) {
-      const absoluteOwner = path.join(root, ownerPath);
-      assert.ok(fs.existsSync(absoluteOwner), `missing current owner ${ownerPath}`);
-      ownerCache.set(ownerPath, fs.readFileSync(absoluteOwner, 'utf8'));
-    }
-    const ownerText = ownerCache.get(ownerPath);
-    assert.ok(
-      ownerSectionHasLocator(ownerText, heading, locator),
-      `row ${id}: missing locator ${locator} in ${ownerPath}`,
-    );
-    const section = ownerSection(ownerText, heading);
-    assert.ok(section, `row ${id}: missing heading ${heading} in ${ownerPath}`);
-    return section;
-  }
-
-  const required = [
-    // BP2 sizing/light/DAG는 planning 정본 절에만 있다. BP3 실행 구절과 한 파일에
-    // 걸쳐 맞추면 owner가 갈라진 뒤에도 옛 governance 절을 통과시키므로 분리한다.
-    ['Blueprint sizing', 'GOV-SIZING-ONE-COMMIT', /one reviewable commit/],
-    ['verification node shape', 'GOV-SIZING-VERIFY-SHAPE', /source diff/],
-    ['verification fail stay', 'GOV-SIZING-VERIFY-RUN', /integrated로 전이하지 않는다/],
-    ['light/full', 'GOV-LIGHT-DECLARATION', /no automatic sizing[\s\S]*?100 lines or fewer/],
-    ['light inline', 'GOV-LIGHT-INLINE-DISPATCH', /named agents are unavailable/],
-    ['DAG and approved scope', 'GOV-DAG-FIELDS', /depends_on[\s\S]*?dependency_gate[\s\S]*?initial\s+baseline/],
-    ['coordinator revision', 'GOV-COORD-REVISION', /revision[\s\S]*?refused without a reason/],
-    ['actual worktree', 'GOV-COORD-COMMIT-WORKTREE', /assigned worktree[\s\S]*?main checkout stays read-only/],
-    // Coordinator mode 정본 순서: "weaker of the three" 다음에 **G17**. Lightweight-cycle의
-    // 앞선 G17을 [\s\S]*?로 가로질러 맞추면 상대 강도 문장이 사라져도 통과한다.
-    ['G17 relative strength', 'GOV-COORD-G17', /weaker of the three layers\.\s*\*\*G17\*\*/],
-    ['repair ceiling', 'GOV-COORD-REPAIR', /at most two dynamic repair[\s\S]*?After a second repair still fails/],
-  ];
-  for (const [name, rowId, pattern] of required) {
-    assert.match(
-      sectionForOwnershipId(rowId),
-      pattern,
-      `current owners: missing ${name} characterization contract in ownership row ${rowId}`,
-    );
-  }
 
   // 이전이 진행 중인 동안 owner는 rule 문서와 코드 파일에 걸쳐 있다. migration BP 열로
   // 경로를 고정하면 같은 BP의 일부만 옮긴 중간 commit이 전부 거짓 실패한다.

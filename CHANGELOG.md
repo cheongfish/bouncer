@@ -15,6 +15,18 @@
   백슬래시가 든 파일 이름을 받으면 결과 경로가 `/`로 바뀐다(일반 경로 결과는 같다).
   `tasks-docs`가 `paths`를 import하지 않아 `paths` ↔ `tasks-docs` 순환과 함수 안
   지연 `require`가 사라졌다.
+- **동작 중심 테스트와 테스트 계층 분리 (EPIC 092 BP 002)** — 소비 프로젝트 워커가
+  따르는 테스트 원칙을 implementer·spec-authoring·reviewer 지침에 같은 내용으로 넣었다
+  (관찰 가능한 결과 단언, 문구·내부 구현 단언 금지, 형식 자체가 계약일 때만 정규식,
+  실제 git·프로세스는 integration에서만). 테스트는 `test/tiers.json`이 unit·integration에
+  배정하고, `npm run test:unit`은 자식 프로세스 생성을 막는 guard를 로드한 채 실행한다.
+  `npm run test:integration`을 더했고 `npm test`는 전체를 계속 실행하며 `test:coverage`는
+  병렬로 돈다. `npm run ci`는 `test:coverage` 다음에 `test:unit`을 실행한다.
+  느린 git 테스트는 fixture 저장소를 복사해 재사용하고, 문서 문구만 지키던 정규식 테스트는
+  지우거나 CLI·라이브러리 동작 테스트로 바꿨으며 문서 구조 규칙은 `npm run lint:docs`가
+  경로별 계약(`PATH_CONTRACTS`)으로 검사한다. 제품 코드와 CLI 출력은 바뀌지 않는다.
+  이 저장소의 `.bouncer/config.json` `verify`는 그대로이며, 더 빠른 검증이 필요하면 직접
+  `npm run test:unit`으로 바꿀 수 있다.
 
 ## [1.5.6] — 2026-10-11
 

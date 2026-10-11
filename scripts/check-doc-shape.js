@@ -881,6 +881,53 @@ const PATH_CONTRACTS = {
     },
     acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [1, 2, 3, 4, 6], only: true },
   },
+  // init 워크플로: 네 번호 단계. 결과 처리 reference는 단계 2에서만 적재하고 부트스트랩보다
+  // 앞서지 않는다(단계 번호 순서가 그 선후를 고정한다). 동의 ACQ 색인은 단계 2 하나다.
+  'skills/bouncer-init/SKILL.md': {
+    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-init' } },
+    steps: {
+      required: [1, 2, 3, 4],
+      order: true,
+      links: { 2: ['./references/init-result.md'] },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [2], only: true },
+  },
+  // 출력 계약 규칙: 보고 형식 절. 워크플로가 이 문서를 적재하므로 절이 사라지면 안 된다.
+  'rules/output.md': {
+    headings: { required: ['compact', 'coordinator 실행', 'debug', '숨길 수 없는 항목'] },
+  },
+  // 루트 README: 라이선스·보안·행동강령 문서로 가는 링크(실재해야 한다).
+  'README.md': {
+    links: [
+      { href: 'LICENSE', resolve: true },
+      { href: 'SECURITY.md', resolve: true },
+      { href: 'CODE_OF_CONDUCT.md', resolve: true },
+    ],
+  },
+  // 보조 스킬(subskill): frontmatter 정체성과 절차 번호. 종류별 계약은 frontmatter를 보지 않는다.
+  'references/graphify-runner/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'graphify-runner' } },
+    steps: { required: [1, 2, 3, 4, 5], order: true },
+  },
+  'references/implementation/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'implementation' } },
+    headings: {
+      required: ['When this applies', 'Steps', 'Language and detailed comments', 'Guardrails', 'Return'],
+      order: ['When this applies', 'Steps', 'Language and detailed comments', 'Guardrails', 'Return'],
+    },
+  },
+  // minimality 사다리는 일곱 단이며 단 번호가 갈라져 있어야 native/stdlib가 한 단으로 합쳐지지 않는다.
+  'references/minimality/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'minimality' } },
+    steps: { required: [1, 2, 3, 4, 5, 6, 7], order: true },
+  },
+  'references/discovery/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'discovery' } },
+    steps: { required: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], order: true },
+  },
+  'references/stop-slop/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'stop-slop' } },
+  },
 };
 
 /**
