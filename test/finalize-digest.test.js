@@ -827,3 +827,62 @@ test('digest evidence lists verification refs and root review rounds', () => {
     { task: missing.tasks[1].stable_id, evidence_id: 'e2' },
   ]);
 });
+
+test('prepareFinalizeDigest out_of_scope stops at the next ## heading', () => {
+  // parseSections는 OUT_OF_SCOPE_DEFS에 다음 제목이 없어 뒤 절까지 이어진다.
+  // digest는 Out of scope bullet만 남기고 다음 ## 제목에서 끊어야 한다.
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  writeDoc(repoRoot, `${blueprintDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login', description: 'd',
+    resource: `${blueprintDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+      commit_type: 'feat', scale: 'full',
+    },
+  }, [
+    '# Blueprint',
+    '',
+    '## Intent',
+    '- digest input',
+    '',
+    '## Out of scope',
+    '- A',
+    '',
+    '## One-commit justification',
+    '- B',
+    '## Documents',
+    '* [x](y)',
+    '',
+  ].join('\n'));
+
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.deepStrictEqual(d.out_of_scope, ['A']);
+});
+
+test('prepareFinalizeDigest symbols keep only top-level declarations', () => {
+  // 들여쓰기된 const/let과 줄 중간 function 호출은 빼고 최상위 선언만 남긴다.
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  fs.writeFileSync(path.join(repoRoot, 'src/symbols.js'), [
+    'function topLevel() {',
+    '  const parts = x;',
+    '  let i = 0;',
+    '}',
+    'export async function asyncTop() {',
+    '}',
+    'export const LIMIT = 3;',
+    '',
+  ].join('\n'));
+  git(repoRoot, ['add', 'src/symbols.js']);
+  git(repoRoot, [
+    'commit', '-m',
+    'feat: symbols\n\nBouncer-Task: EPIC-001/BP-001/TASK-001\nBouncer-Intent: EPIC-001/BP-001\n',
+  ]);
+
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  const entry = d.symbols.find((s) => s.path === 'src/symbols.js');
+  assert.ok(entry, JSON.stringify(d.symbols));
+  assert.deepStrictEqual(entry.names, ['topLevel', 'asyncTop', 'LIMIT']);
+});
