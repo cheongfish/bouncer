@@ -750,6 +750,221 @@ function contractForKind(kind, markdown) {
   };
 }
 
+// 경로별 문서 구조 계약 표. 키는 저장소 상대 경로, 값은 checkDocShape의 두 번째 인자와
+// 같은 계약 객체다. 종류별 고정 계약(classifyDocPath)이 표현하지 못하는 문서별 제목·단계·
+// 링크 규칙을 테스트의 인라인 계약 대신 여기에 둔다. 새 검사 종류(문장 정규식 등)는
+// 넣지 않는다 — 문구 고정은 문서를 다듬을 때마다 깨질 뿐 구조를 지키지 못한다.
+const READONLY_ROLE_GUARDS = 'Hard guards (read-only)';
+const PATH_CONTRACTS = {
+  // 역할 문서: Authority → Hard guards → 역할 절차/rubric → Output contract 순서.
+  'agents/bouncer-implementer.md': {
+    headings: {
+      required: ['Authority', 'Hard guards', 'Procedure', 'Output contract'],
+      order: ['Authority', 'Hard guards', 'Procedure', 'Output contract'],
+    },
+  },
+  'agents/bouncer-coordinator.md': {
+    headings: {
+      required: ['Authority', 'Hard guards', 'Worker dispatch', 'Task round', 'Procedure', 'Output contract'],
+      order: ['Authority', 'Hard guards', 'Worker dispatch', 'Task round', 'Procedure', 'Output contract'],
+    },
+  },
+  'agents/bouncer-debugger.md': {
+    headings: {
+      required: ['Authority', READONLY_ROLE_GUARDS, 'Procedure', 'Output contract'],
+      order: ['Authority', READONLY_ROLE_GUARDS, 'Procedure', 'Output contract'],
+    },
+  },
+  'agents/bouncer-reviewer.md': {
+    headings: {
+      required: ['Authority', READONLY_ROLE_GUARDS, 'Review modes', 'Output contract'],
+      order: ['Authority', READONLY_ROLE_GUARDS, 'Review modes', 'Output contract'],
+    },
+  },
+  'agents/bouncer-context-reviewer.md': {
+    headings: {
+      required: ['Authority', READONLY_ROLE_GUARDS, 'Review modes', 'Output contract'],
+      order: ['Authority', READONLY_ROLE_GUARDS, 'Review modes', 'Output contract'],
+    },
+  },
+  // 루트 마스터 규칙: 하드룰 절과 검증 reference 링크(실재해야 한다).
+  'AGENTS.md': {
+    headings: { required: ['Hard rules'], order: ['Hard rules'] },
+    links: [{ href: 'references/verification/index.md', resolve: true }],
+  },
+  // 제품 규칙 문서: 소유 절 제목.
+  'rules/commit-scope.md': {
+    headings: {
+      required: ['Commit unit and staging', 'Approved and ledger scope', 'Worktree and enforcement layers'],
+      order: ['Commit unit and staging', 'Approved and ledger scope', 'Worktree and enforcement layers'],
+    },
+  },
+  'rules/current-pointer.md': {
+    headings: {
+      required: ['Read and task selection', 'Moves and clears'],
+      order: ['Read and task selection', 'Moves and clears'],
+    },
+  },
+  'rules/plugin-root.md': { headings: { required: ['Master and product rules'] } },
+  'rules/planning.md': { headings: { required: ['Lightweight cycle'] } },
+  // subskill frontmatter 정체성(종류별 계약은 frontmatter를 보지 않는다).
+  'references/debugging/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'debugging' } },
+  },
+  'references/explain-diff/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'explain-diff' } },
+  },
+  'references/context-review/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'context-review' } },
+  },
+  // commit 워크플로: 다섯 번호 단계, 마지막 포인터 ACQ만 색인.
+  'skills/bouncer-commit/SKILL.md': {
+    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-commit' } },
+    headings: { required: ['ACQ (AskUserQuestion) gates'] },
+    steps: { required: [1, 2, 3, 4, 5], order: true, acq: [5], acqOptions: [5] },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [5], only: true },
+  },
+  // execute 워크플로: 여섯 번호 단계, ACQ 없음(색인은 비어 있어야 한다). 단계 3·4·5가 각
+  // reference를 조건부로 적재한다.
+  'skills/bouncer-execute/SKILL.md': {
+    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-execute' } },
+    links: [
+      {
+        href: './references/agent-dispatch.md',
+        resolve: true,
+        referencePreamble: true,
+        conditionalLoad: { triggers: ['dispatch', 'fallback'] },
+      },
+      {
+        href: './references/verification-recovery.md',
+        resolve: true,
+        referencePreamble: true,
+        conditionalLoad: { triggers: ['verify', 'recover'] },
+      },
+      {
+        href: './references/review-round.md',
+        resolve: true,
+        referencePreamble: true,
+        conditionalLoad: { triggers: ['review', 'round'] },
+      },
+    ],
+    steps: {
+      required: [1, 2, 3, 4, 5, 6],
+      order: true,
+      noAcq: true,
+      links: {
+        3: ['./references/agent-dispatch.md'],
+        4: ['./references/verification-recovery.md'],
+        5: ['./references/review-round.md'],
+      },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },
+  },
+  // plan 워크플로: 여덟 번호 단계, ACQ는 1·2·3·4·6단계에만 둔다.
+  'skills/bouncer-plan/SKILL.md': {
+    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-plan' } },
+    links: [{
+      href: './references/scope-confirm.md',
+      resolve: true,
+      referencePreamble: true,
+      conditionalLoad: { triggers: ['confirm', 'affected_paths'] },
+    }],
+    steps: {
+      required: [1, 2, 3, 4, 5, 6, 7, 8],
+      order: true,
+      acq: [1, 2, 3, 4, 6],
+      links: {
+        3: ['./references/evidence-dispatch.md', './references/graphify-suggestions.md'],
+        4: ['./references/scope-confirm.md'],
+        5: ['./references/context-review.md'],
+      },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [1, 2, 3, 4, 6], only: true },
+  },
+  // init 워크플로: 네 번호 단계. 결과 처리 reference는 단계 2에서만 적재하고 부트스트랩보다
+  // 앞서지 않는다(단계 번호 순서가 그 선후를 고정한다). 동의 ACQ 색인은 단계 2 하나다.
+  'skills/bouncer-init/SKILL.md': {
+    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-init' } },
+    steps: {
+      required: [1, 2, 3, 4],
+      order: true,
+      links: { 2: ['./references/init-result.md'] },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [2], only: true },
+  },
+  // 출력 계약 규칙: 보고 형식 절. 워크플로가 이 문서를 적재하므로 절이 사라지면 안 된다.
+  'rules/output.md': {
+    headings: { required: ['compact', 'coordinator 실행', 'debug', '숨길 수 없는 항목'] },
+  },
+  // 루트 README: 라이선스·보안·행동강령 문서로 가는 링크(실재해야 한다).
+  'README.md': {
+    links: [
+      { href: 'LICENSE', resolve: true },
+      { href: 'SECURITY.md', resolve: true },
+      { href: 'CODE_OF_CONDUCT.md', resolve: true },
+    ],
+  },
+  // 보조 스킬(subskill): frontmatter 정체성과 절차 번호. 종류별 계약은 frontmatter를 보지 않는다.
+  'references/graphify-runner/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'graphify-runner' } },
+    steps: { required: [1, 2, 3, 4, 5], order: true },
+  },
+  'references/implementation/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'implementation' } },
+    headings: {
+      required: ['When this applies', 'Steps', 'Language and detailed comments', 'Guardrails', 'Return'],
+      order: ['When this applies', 'Steps', 'Language and detailed comments', 'Guardrails', 'Return'],
+    },
+  },
+  // minimality 사다리는 일곱 단이며 단 번호가 갈라져 있어야 native/stdlib가 한 단으로 합쳐지지 않는다.
+  'references/minimality/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'minimality' } },
+    steps: { required: [1, 2, 3, 4, 5, 6, 7], order: true },
+  },
+  'references/discovery/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'discovery' } },
+    steps: { required: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], order: true },
+  },
+  'references/stop-slop/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'stop-slop' } },
+  },
+};
+
+/**
+ * 경로 계약 표에서 상대 경로의 계약을 찾는다.
+ *
+ * @param {string} relPath - cwd 기준 상대 경로
+ * @returns {object|null} 표에 있으면 계약 객체, 없으면 null
+ */
+function pathContractFor(relPath) {
+  const norm = relPath.replace(/\\/g, '/').replace(/^\.\//, '');
+  return Object.prototype.hasOwnProperty.call(PATH_CONTRACTS, norm) ? PATH_CONTRACTS[norm] : null;
+}
+
+/**
+ * 종류별 계약과 경로 계약을 하나로 합친다. 같은 키(제목·링크·단계 목록)는 이어 붙여
+ * 둘 다 만족해야 하게 하고, 순서 규칙도 둘 다 적용한다.
+ *
+ * @param {object|null} kindContract - contractForKind 결과(종류 없으면 null)
+ * @param {object|null} pathContract - PATH_CONTRACTS 항목(표에 없으면 null)
+ * @returns {object} checkDocShape에 넘길 계약
+ */
+function mergeContracts(kindContract, pathContract) {
+  if (!kindContract) return pathContract || {};
+  if (!pathContract) return kindContract;
+  const merged = { ...kindContract, ...pathContract };
+  merged.frontmatter = { ...(kindContract.frontmatter || {}), ...(pathContract.frontmatter || {}) };
+  merged.headings = {
+    required: [...new Set([
+      ...(kindContract.headings?.required || []), ...(pathContract.headings?.required || []),
+    ])],
+    // 순서 규칙은 checkOrder가 하나의 목록만 받으므로, 경로 계약이 있으면 그 목록이
+    // 종류 계약 목록의 상위 집합이어야 한다 — 표를 쓸 때 지킨다.
+    order: pathContract.headings?.order || kindContract.headings?.order || [],
+  };
+  return merged;
+}
+
 /**
  * 필수 H2가 문서의 마지막 H2인지 확인한다.
  * checkOrder는 나열된 항목의 상대 순서만 보므로, ACQ/Output/Return 말미 계약을
@@ -782,7 +997,10 @@ function defaultScanFiles(cwd) {
     if (!fs.existsSync(absTree)) continue;
     collectMarkdown(absTree, cwd, found);
   }
-  return found.filter((rel) => classifyDocPath(rel) !== null).sort();
+  const scanned = found.filter((rel) => classifyDocPath(rel) !== null);
+  // 경로 계약 표의 키는 종류가 없어도(rules/·루트 문서) 항상 검사 대상이다. 파일이 없으면
+  // runCli가 missing file로 실패시켜 표와 저장소가 어긋난 것을 드러낸다.
+  return [...new Set([...scanned, ...Object.keys(PATH_CONTRACTS)])].sort();
 }
 
 /**
@@ -837,8 +1055,9 @@ function runCli(argv = [], opts = {}) {
     }
 
     const kind = classifyDocPath(rel.replace(/\\/g, '/'));
-    if (!kind) {
-      // 인자를 준 경로는 계약이 있어야 한다. 기본 스캔은 이미 필터했다.
+    const pathContract = pathContractFor(rel);
+    if (!kind && !pathContract) {
+      // 인자를 준 경로는 종류 또는 경로 계약이 있어야 한다. 기본 스캔은 이미 필터했다.
       stderr.write(`check-doc-shape: no skill-shape contract for: ${rel}\n`);
       failed = true;
       continue;
@@ -853,14 +1072,17 @@ function runCli(argv = [], opts = {}) {
       continue;
     }
 
-    const contract = contractForKind(kind, markdown);
+    const contract = mergeContracts(kind ? contractForKind(kind, markdown) : null, pathContract);
     const result = checkDocShape(markdown, { ...contract, filePath: abs });
-    const lastExpected = kind === 'workflow'
-      ? ACQ_GATES
-      : kind === 'agent'
-        ? 'Output contract'
-        : 'Return';
-    requireLastH2(result.shape, lastExpected, result.errors);
+    // 마지막 H2 규칙은 종류가 있는 문서에만 적용한다.
+    if (kind) {
+      const lastExpected = kind === 'workflow'
+        ? ACQ_GATES
+        : kind === 'agent'
+          ? 'Output contract'
+          : 'Return';
+      requireLastH2(result.shape, lastExpected, result.errors);
+    }
     if (result.errors.length > 0) {
       failed = true;
       stderr.write(`check-doc-shape: ${rel}\n`);

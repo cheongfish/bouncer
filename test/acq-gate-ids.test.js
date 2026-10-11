@@ -28,17 +28,6 @@ function skillFiles(skill) {
   return [path.join('skills', skill, 'SKILL.md'), ...refs];
 }
 
-test('acq display contract requires one gate ID heading per display', () => {
-  const acq = read('rules/acq.md');
-  assert.match(acq, /stable ID of the form `<workflow>\.<gate>`/);
-  assert.match(acq, /Ask only gates that index lists/);
-  assert.match(acq, /`\*\*AskUserQuestion —\s+<gate-id>\*\*` in chat, and the question title in the host UI/);
-  assert.match(acq, /One display holds\s+exactly one gate/);
-  assert.match(acq, /`- X\) label`/);
-  assert.match(acq, /^\*\*AskUserQuestion — <gate-id>\*\*$/m);
-  assert.doesNotMatch(acq, /^\*\*AskUserQuestion:\*\*$/m);
-});
-
 for (const [skill, ids] of Object.entries(CATALOG)) {
   test(`${skill} indexes exactly its gate IDs and uses each one where the gate runs`, () => {
     const body = read(path.join('skills', skill, 'SKILL.md'));

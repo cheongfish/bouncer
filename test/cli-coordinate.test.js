@@ -8,6 +8,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
+const { createGitTemplate } = require('./helpers/git-fixture');
 
 const __coordinatorMod = require('../scripts/lib/coordinator');
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
@@ -51,12 +52,10 @@ function capture() {
   };
 }
 
-/**
- * 계획 문서만 커밋된 저장소. CLI bootstrap/prepare 계약 테스트가 lib
- * coordinate()를 거치지 않고 같은 fixture를 쓰도록 분리한다.
- */
-function planCommittedRepo() {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+// 계획 문서까지 커밋한 저장소를 파일당 한 번만 만들고 테스트마다 복사한다.
+// worktree(bootstrap·prepare)는 절대 경로를 담으므로 복사 뒤 각 테스트가 만든다.
+// 문서 내용이 고정이라 테스트 사이에 템플릿을 공유해도 결과가 달라지지 않는다.
+const planTemplate = createGitTemplate((repo) => {
   const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
   run(['init', '-b', 'work']);
   run(['config', 'user.email', 't@example.com']);
@@ -81,7 +80,17 @@ function planCommittedRepo() {
   });
   run(['add', '-A']);
   run(['commit', '-m', 'plan']);
-  return repo;
+});
+test.after(() => planTemplate.dispose());
+
+/**
+ * 계획 문서만 커밋된 저장소. CLI bootstrap/prepare 계약 테스트가 lib
+ * coordinate()를 거치지 않고 같은 fixture를 쓰도록 분리한다.
+ *
+ * @returns {string} 템플릿에서 복사한 새 저장소 절대 경로
+ */
+function planCommittedRepo() {
+  return planTemplate.copy();
 }
 
 /**

@@ -118,6 +118,7 @@ read code/tests/repo context needed to implement.
    running it is the only way to find that out. Then implement and re-run.
    Keep the project's verify command runnable; do not weaken assertions to
    force a pass.
+   Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
 6. **Report** — Fill the Output contract below, then hand control back. When
    the dispatch payload carries `report_path`, write the same Output contract
    body to that path (creating parent directories) immediately before you

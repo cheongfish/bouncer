@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
+const { createGitTemplate } = require('./helpers/git-fixture');
 const { commitTask } = require('../scripts/lib/commit');
 const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
@@ -40,7 +41,9 @@ function writeDoc(repo, rel, data, body = '# x\n') {
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
 }
 
-function initGitWithChange(repo) {
+// base·develop·변경 커밋까지의 저장소를 파일당 한 번만 만들고 호출마다 복사한다.
+// worktree는 이 템플릿에 넣지 않는다(절대 경로 메타데이터가 복사본에서 깨짐).
+const gitChangeTemplate = createGitTemplate((repo) => {
   const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
   run(['init', '-b', 'work']);
   run(['config', 'user.email', 't@example.com']);
@@ -53,6 +56,19 @@ function initGitWithChange(repo) {
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export {}\n');
   run(['add', 'src/auth/login.ts']);
   run(['commit', '-m', 'change']);
+});
+test.after(() => gitChangeTemplate.dispose());
+
+/**
+ * 호출자가 이미 만든 빈 임시 디렉터리에 템플릿 저장소를 채운다.
+ * 호출부 24곳 이상이 `mkdtemp`한 경로를 그대로 넘기므로 시그니처를 유지하고,
+ * `copy()`로 새 디렉터리를 또 만드는 대신 `dir`을 직접 복사한다.
+ *
+ * @param {string} repo - 비어 있는 대상 저장소 디렉터리 절대 경로
+ * @returns {void}
+ */
+function initGitWithChange(repo) {
+  fs.cpSync(gitChangeTemplate.dir, repo, { recursive: true });
 }
 
 /**

@@ -26,7 +26,6 @@ test('LICENSE is unmodified Apache License 2.0 text', () => {
   assert.match(license, /Apache License\s+Version 2\.0/);
   assert.match(license, /January 2004/);
   assert.match(license, /END OF TERMS AND CONDITIONS/);
-  assert.doesNotMatch(license, /사내/);
 });
 
 test('package.json SPDX and Git plugin metadata match deployment', () => {
@@ -43,29 +42,13 @@ test('package.json SPDX and Git plugin metadata match deployment', () => {
   assert.match(String(pkg.engines.node), /24/);
 });
 
-test('README points at Apache-2.0, security, and conduct — not an unspecified license', () => {
-  const readme = read('README.md');
-  assert.doesNotMatch(readme, /라이선스를 아직 지정하지 않았습니다/);
-  assert.match(readme, /\[Apache-2\.0\]\(LICENSE\)|\[Apache License 2\.0\]\(LICENSE\)/);
-  assert.match(readme, /SECURITY\.md/);
-  assert.match(readme, /CODE_OF_CONDUCT\.md/);
-});
-
-test('SECURITY.md supports the latest release and private reports only', () => {
-  const security = read('SECURITY.md');
-  assert.match(security, new RegExp(AUTHOR_EMAIL.replace('.', '\\.')));
-  assert.match(security, /지원/);
-  assert.doesNotMatch(security, /GitHub Security Advisory를 사용하지 않는 공개 이슈로 취약점을 제보/);
-  assert.doesNotMatch(security, /공개 이슈로 보안 취약점을 제보/);
-  assert.match(security, /이슈/);
-  assert.match(security, /응답|조율/);
-});
-
-test('CODE_OF_CONDUCT.md is Contributor Covenant 2.1 with the published author email', () => {
+// README의 LICENSE·SECURITY·CODE_OF_CONDUCT 링크는 `npm run lint:docs`의 PATH_CONTRACTS가
+// 검사한다. 두 문서의 문장은 고정하지 않고, 공개 연락처 값과 미치환 템플릿 표식만 본다.
+test('SECURITY.md and CODE_OF_CONDUCT.md publish the author contact and no template placeholder', () => {
+  const email = new RegExp(AUTHOR_EMAIL.replace('.', '\\.'));
+  assert.match(read('SECURITY.md'), email);
   const coc = read('CODE_OF_CONDUCT.md');
-  assert.match(coc, /Contributor Covenant Code of Conduct/);
-  assert.match(coc, /version 2\.1/);
-  assert.match(coc, new RegExp(AUTHOR_EMAIL.replace('.', '\\.')));
+  assert.match(coc, email);
   assert.doesNotMatch(coc, /\[INSERT CONTACT METHOD\]/);
 });
 

@@ -3,32 +3,12 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
-const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
-const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
-const md = readWorkflowBundle('bouncer-finalize');
 
-test('bouncer-finalize remainder.md is the canon for gate, dry-run, scope, and verify', () => {
-  const remainder = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'remainder.md'),
-    'utf8',
-  );
-  assert.match(remainder, /`--yes`\s+runs verification commands before staging|스테이징 전에 검증 명령을 실행한다/);
-  assert.match(remainder, /reason: 'verify'/);
-  assert.match(
-    remainder,
-    /no bypass other than[\s\S]{0,40}fixing the cause and rerunning|원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다/,
-  );
-  assert.match(remainder, /CLI owns the finalize gate, allowed paths, deletions, status transition/);
-  assert.match(remainder, /preserve documents and worktree/);
-  assert.match(remainder, /validator code, cause, path, and\n?\s*recovery action/);
-  assert.match(remainder, /hard abort — nothing staged/);
-});
-
-
-test('draft PR body follows review-flow sections and omits legacy meta', () => {
+// PR 본문 절 순서가 계약이다. 템플릿(lib·GitHub·GitLab)과 draft-pr 참조가 같은 절을 같은
+// 순서로 가져야 PR 생성 결과가 일관된다. 문장 표현은 고정하지 않는다.
+test('PR templates and draft-pr reference share the review-flow section order', () => {
   const draftPr = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'),
     'utf8',
@@ -57,217 +37,12 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
       prev = idx;
     }
   }
-
-  // Explain은 실제 열리는 Markdown 링크. 평문 경로·Bouncer 메타 절은 없다.
-  assert.match(PR_TEMPLATE, /Explain:.*\[[^\]]+\]\([^)]+\)/);
-  assert.match(draftPr, /Explain[\s\S]{0,120}\[[^\]]+\]\([^)]+\)|Markdown link|head branch|commit/);
-  assert.match(draftPr, /pushed head|head branch|commit/i);
-  for (const doc of [PR_TEMPLATE, githubTpl, gitlabTpl]) {
-    assert.doesNotMatch(doc, /## 🚦 Bouncer/);
-    assert.doesNotMatch(doc, /Features\s*&\s*Improvements|신규 기능 및 개선/);
-    assert.doesNotMatch(doc, /버그 수정 \(Fixes\)|### 🐛/);
-    assert.doesNotMatch(doc, /- Epic:|- Blueprint:/);
-  }
-  assert.match(draftPr, /Bouncer meta|Bouncer 메타|Features\/Fixes/i);
-  assert.match(draftPr, /Never emit|넣지 않|출력하지/i);
-
-  // Quiz and quiz results stay out of the PR; create command has no --label.
-  assert.match(draftPr, /Never copy Quiz|퀴즈[^\n]*PR/);
-  assert.match(draftPr, /Never copy|옮기지 않|넣지 않|제외/i);
-  const createBlock = (draftPr.match(/```bash\n([\s\S]*?)```/) || [])[1] || '';
-  assert.match(createBlock, /git push -u origin <finalize payload branch>/);
-  assert.doesNotMatch(createBlock, /<type>\/<BP-id>-<slug>/);
-  assert.match(draftPr, /branch.*null|null.*branch/i);
-  assert.match(draftPr, /do not push|no push|push하지 않|push.*skip/i);
-  assert.match(createBlock, /gh pr create/);
-  assert.doesNotMatch(createBlock, /--label/);
-  assert.doesNotMatch(createBlock, /pr\.labels/);
-  assert.match(draftPr, /라벨|label/i);
-  assert.match(draftPr, /붙이지 않|미부착|never attached|Do not pass|No `--label`/i);
-
-  // 검증: 다중 task 번호순 집계 + finalize --yes 최종 결과 우선.
-  assert.match(draftPr, /verification|검증/);
-  assert.match(draftPr, /번호|number|task/i);
-  assert.match(draftPr, /finalize\s+--yes|final verify|최종 검증/);
-  assert.match(draftPr, /우선|most recent|최근/i);
-
-  // Mermaid: 조건 충족 시에만, 아니면 제목까지 제거.
-  assert.match(draftPr, /[Mm]ermaid|로직 흐름/);
-  assert.match(draftPr, /생략|제목까지|remove.*title|조건/i);
-  assert.match(githubTpl, /<!--[\s\S]*로직 흐름[\s\S]*-->/);
-  assert.match(gitlabTpl, /<!--[\s\S]*로직 흐름[\s\S]*-->/);
-  assert.match(githubTpl, /<!--[\s\S]*Explain[\s\S]*-->/);
-  assert.match(gitlabTpl, /<!--[\s\S]*Explain[\s\S]*-->/);
 });
 
-test('bouncer-finalize cleanup runs release-main then force-removes and auto-sets next', () => {
-  const handoff = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8');
-  const pointer = fs.readFileSync(path.join(root, 'rules', 'current-pointer.md'), 'utf8');
-  const workflowDoc = fs.readFileSync(path.join(root, 'docs', 'workflow.md'), 'utf8');
-  const release = handoff.indexOf('bouncer finalize release-main --blueprint <pointer.blueprint>');
-  assert.ok(release > -1 && release < handoff.indexOf('git worktree remove --force'));
-  for (const doc of [md, handoff]) {
-    assert.doesNotMatch(doc, /coordinate release|keep worktree|commit only|finalize\.next_blueprint|dirty-tree warning ACQ/);
-  }
-  assert.match(mainMd, /- A\) `finalize --yes`[^\n]*\n\s*- C\)[^\n]*\n\s*- D\)/);
-  assert.match(handoff, /remove the worker worktrees first, then the integration one/);
-  assert.match(handoff, /from the main worktree[\s\S]{0,200}bouncer current --set <next\.blueprint>/);
-  assert.match(handoff, /without asking/);
-  assert.match(handoff, /plan gate[\s\S]{0,120}leave the pointer cleared/);
-  assert.match(handoff, /`next` is `null`[\s\S]{0,160}\/bouncer-plan/);
-  assert.match(handoff, /leave the worktrees and the ledger/);
-  assert.match(pointer, /without asking[\s\S]{0,200}finalize release-main/);
-  assert.match(pointer, /confirm-then-set/);
-  assert.doesNotMatch(pointer, /every next-blueprint handoff require[\s\S]{0,80}never automatic/);
-  assert.match(workflowDoc, /finalize release-main/);
-});
-
-test('bouncer-finalize documents sibling follow-up after G16 and cites remainder for retention', () => {
-  const { body } = parseFrontmatter(mainMd);
-  const remainder = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'remainder.md'),
-    'utf8',
+// 사라진 reference는 부활하지 않는다.
+test('bouncer-finalize does not ship the retired distill promotion reference', () => {
+  assert.strictEqual(
+    fs.existsSync(path.join(root, 'skills', 'bouncer-finalize', 'references', 'distill-promotion.md')),
+    false,
   );
-  assert.match(remainder, /CLI owns the finalize gate, allowed paths, deletions, status transition/);
-  assert.match(remainder, /preserve documents and worktree/);
-  assert.match(remainder, /validator code, cause, path, and\n?\s*recovery action/);
-  assert.match(body, /finalize\s+--yes/);
-  assert.match(body, /sibling|형제 Blueprint|형제 blueprint/i);
-  assert.match(body, /\/bouncer-plan|new Epic|새 Epic/);
-});
-
-test('bouncer-finalize cleans every drive worktree but preserves a blocked drive', () => {
-  const { body } = parseFrontmatter(mainMd);
-  const handoff = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8',
-  );
-  assert.match(body, /`worktrees` inventory names them all/);
-  assert.match(handoff, /one integration worktree and one worker worktree per prepared task/);
-  assert.match(handoff, /remove the worker worktrees first, then the integration one/);
-  assert.match(handoff, /Preserve the whole inventory/);
-  assert.match(handoff, /stopped as blocked/);
-  assert.match(handoff, /Cleanup is for a closed blueprint only/);
-});
-
-// explain과 PR은 drive 실행 기록(DAG·actualPaths·scopeRevision)을 쓰지 않는다.
-test('bouncer-finalize explain and PR omit drive execution records', () => {
-  const explainQuiz = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
-  );
-  const draftPr = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'), 'utf8',
-  );
-  assert.doesNotMatch(explainQuiz, /actualPaths|scopeRevision|integrationHead|previousDag/);
-  assert.doesNotMatch(explainQuiz, /five Korean sections|quiz_score/);
-  assert.doesNotMatch(draftPr, /Plan versus execution|actualPaths|scopeRevision|previousDag/);
-  assert.match(draftPr, /`주요 변경 내용`[^\n]*(DAG|작업 과정)/);
-});
-
-// Finalize Explain·Quiz·PR의 사실 입력은 prepare digest 하나며, Explain 링크는
-// push 뒤 finalize links가 돌려준 URL만 쓴다. 원장·task·verification 재독은 금지.
-test('bouncer-finalize skill and references switch Explain/Quiz/PR inputs to finalize digest', () => {
-  const { body: skill } = parseFrontmatter(mainMd);
-  const explainQuiz = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
-  );
-  const draftPr = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'), 'utf8',
-  );
-  assert.match(skill, /bouncer finalize prepare --blueprint/);
-  assert.match(draftPr, /bouncer finalize links --blueprint/);
-  assert.doesNotMatch(explainQuiz, /Audit those against the ledger's decision log/);
-  assert.doesNotMatch(draftPr, /Every task `verification\.md` evidence/);
-  assert.match(draftPr, /pr\.title_prefix/);
-  assert.doesNotMatch(draftPr, /--base <config\.base_branch>/);
-  assert.match(draftPr, /--base <pr\.base>/);
-  assert.match(draftPr, /title_prefix_template/);
-  assert.match(draftPr, /`pr\.base` is `null`/);
-  assert.match(explainQuiz, /Do not re-read the coordinator ledger, task documents, or verification logs\./);
-  assert.match(skill, /bouncer\.comprehension|explain-diff/);
-  assert.match(skill, /If the user does not answer\s+the quiz, \*\*stop\*\*/);
-});
-
-// digest v2의 diff 요약·증거 참조가 퀴즈·PR 근거이고, 전체 diff 대신 질문 대상 파일만 읽는다.
-test('bouncer-finalize docs use digest diff summary and evidence refs instead of the full diff', () => {
-  const explainDiff = fs.readFileSync(path.join(root, 'references', 'explain-diff', 'index.md'), 'utf8');
-  const explainQuiz = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
-  );
-  const draftPr = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'), 'utf8',
-  );
-  assert.match(explainDiff, /`diff\.per_file`/);
-  assert.match(explainDiff, /`symbols`/);
-  assert.match(explainDiff, /git diff <range\.base>\.\.<range\.head> -- <path>/);
-  assert.match(explainDiff, /Do not read the full `range\.base\.\.range\.head` diff/);
-  assert.match(explainDiff, /does not answer, stop/i);
-  assert.match(explainQuiz, /`evidence`/);
-  assert.match(explainQuiz, /`diff\.per_file`/);
-  assert.match(draftPr, /`evidence`/);
-  assert.match(draftPr, /Do not open verification or review logs/);
-});
-
-test('bouncer-finalize explain-quiz reference maintains canonical context boundary and cites explain-diff for question count', () => {
-  const explainQuiz = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
-  );
-  assert.match(explainQuiz, /Canonical context remains the only repository-knowledge source at finalize|Canonical context remains/i);
-  assert.match(explainQuiz, /references\/explain-diff\/index\.md/);
-});
-
-test('bouncer-finalize uses the shortened context-only sequence', () => {
-  const { body } = parseFrontmatter(mainMd);
-  assert.doesNotMatch(body, /distill/i);
-  assert.match(body, /^1\. \*\*Explain \+ quiz/m);
-  assert.match(body, /^2\. \*\*Remainder/m);
-  assert.match(body, /^3\. \*\*PR/m);
-  assert.match(body, /^4\. \*\*Cleanup/m);
-  assert.match(body, /^5\. \*\*Handoff/m);
-  assert.doesNotMatch(body, /^6\. /m);
-  assert.match(body, /\.\/references\/explain-quiz\.md/);
-  assert.match(body, /\.\/references\/remainder\.md/);
-  assert.match(body, /\.\/references\/draft-pr\.md/);
-  assert.match(body, /\.\/references\/cleanup-handoff\.md/);
-  assert.match(body, /`integration`/);
-  assert.match(body, /openTasks/);
-  assert.match(body, /headVerified/);
-  assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-finalize/references/distill-promotion.md')), false);
-});
-
-// remainder는 task commit과 다른 staging 책임을 가진다. integration worktree
-// 경계와 commit 범위 정본은 공유 문서에 있고, finalize 본문은 그 정본을 step 2에서만
-// 적재한다 — 파일 전체 대신 구간을 보는 이유는 다른 단계의 인용이 부재를 가리기 때문이다.
-test('bouncer-finalize step 2 loads the commit-scope canon for the integration boundary', () => {
-  const { body } = parseFrontmatter(mainMd);
-  const step2 = body.slice(body.indexOf('2. **Remainder.**'), body.indexOf('3. **PR'));
-  assert.match(step2, /rules\/commit-scope\.md/);
-  assert.match(step2, /integration worktree/);
-  // 옛 정본을 다시 가리키면 이전한 구절이 두 경로로 읽힌다.
-  assert.doesNotMatch(step2, /rules\/governance\.md/);
-  // remainder의 로컬 절차(게이트·dry-run·실패 처리)는 여전히 skill-local reference다.
-  assert.match(step2, /\.\/references\/remainder\.md/);
-});
-
-test('cleanup-handoff releases main plan copies before any worktree removal', () => {
-  const handoff = fs.readFileSync(
-    path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8',
-  );
-  const pointer = fs.readFileSync(path.join(root, 'rules', 'current-pointer.md'), 'utf8');
-  const workflowDoc = fs.readFileSync(path.join(root, 'docs', 'workflow.md'), 'utf8');
-  const release = handoff.indexOf('bouncer finalize release-main --blueprint <pointer.blueprint>');
-  assert.ok(release > -1 && release < handoff.indexOf('git worktree remove --force'));
-  for (const doc of [md, handoff]) {
-    assert.doesNotMatch(doc, /coordinate release|keep worktree|commit only|finalize\.next_blueprint|dirty-tree warning ACQ/);
-  }
-  assert.match(mainMd, /- A\) `finalize --yes`[^\n]*\n\s*- C\)[^\n]*\n\s*- D\)/);
-  assert.match(handoff, /remove the worker worktrees first, then the integration one/);
-  assert.match(handoff, /from the main worktree[\s\S]{0,200}bouncer current --set <next\.blueprint>/);
-  assert.match(handoff, /without asking/);
-  assert.match(handoff, /plan gate[\s\S]{0,120}leave the pointer cleared/);
-  assert.match(handoff, /`next` is `null`[\s\S]{0,160}\/bouncer-plan/);
-  assert.match(handoff, /leave the worktrees and the ledger/);
-  assert.match(pointer, /without asking[\s\S]{0,200}finalize release-main/);
-  assert.match(pointer, /confirm-then-set/);
-  assert.doesNotMatch(pointer, /every next-blueprint handoff require[\s\S]{0,80}never automatic/);
-  assert.match(workflowDoc, /finalize release-main/);
 });

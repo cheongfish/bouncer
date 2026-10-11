@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { runCli } = require('../scripts/lib/cli');
+const { createGitTemplate } = require('./helpers/git-fixture');
 const {
   coordinateNext, NEXT_FAILURE_HINTS, attachJudgeContext,
 } = require('../scripts/lib/coordinate-next');
@@ -92,14 +93,20 @@ function writeReviewScope(root, blueprint) {
   );
 }
 
-function uncommittedPlanRepo(prefix, blueprint, tasks) {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+// init·로컬 config·README 커밋까지를 파일당 한 번만 만들고 테스트마다 복사한다.
+// bootstrap·prepare가 만드는 worktree는 절대 경로를 담으므로 복사 뒤에 실행한다.
+const fixtureTemplate = createGitTemplate((repo) => {
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
   execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
   execFileSync('git', ['add', 'README.md'], { cwd: repo });
   execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
+});
+test.after(() => fixtureTemplate.dispose());
+
+function uncommittedPlanRepo(prefix, blueprint, tasks) {
+  const repo = fixtureTemplate.copy();
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{"verify":"/bin/true"}\n');
   fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
@@ -112,13 +119,7 @@ function uncommittedPlanRepo(prefix, blueprint, tasks) {
 }
 
 function preparedCommitDrive(prefix, blueprint) {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
+  const repo = fixtureTemplate.copy();
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),

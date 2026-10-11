@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { readyWave, transition } = require('../scripts/lib/coordinator');
+const { createGitTemplate } = require('./helpers/git-fixture');
 
 const __coordinatorMod = require('../scripts/lib/coordinator');
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
@@ -40,6 +41,33 @@ const { writeCurrent } = require('../scripts/lib/current');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { renderDoc } = require('../scripts/lib/render');
 const { taskBriefHash } = require('../scripts/lib/task-brief-hash');
+
+// 기본 저장소(init·로컬 identity·README 커밋)를 파일당 한 번만 만들고 테스트마다 복사한다.
+// identity는 저장소 로컬 config로 두어 호스트 전역 설정이 없어도 fan-in cherry-pick이 돈다.
+// bootstrap·prepare가 만드는 worktree는 절대 경로를 담으므로 복사 뒤에 실행한다.
+const repoTemplate = createGitTemplate((repo) => {
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
+  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
+});
+// light-scale 테스트는 기본 커밋에 src/a.js가 더 있어야 하므로 별도 템플릿을 쓴다.
+const lightTemplate = createGitTemplate((repo) => {
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
+  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.js'), 'a\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
+});
+test.after(() => {
+  repoTemplate.dispose();
+  lightTemplate.dispose();
+});
 
 function writeCoordinatorConfig(repoRoot, coordinator) {
   const dir = path.join(repoRoot, '.bouncer');
@@ -165,11 +193,7 @@ test('readCoordinatorPolicy accepts integers >= 1 and rejects invalid max_parall
 });
 
 test('prepare rejects invalid max_parallel before creating workers and honors max_parallel 1', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coord-prepare-limit-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/078-x/blueprints/001-y';
   for (const [id, leaf] of [['001', 'a'], ['002', 'b'], ['003', 'c']]) {
     fs.mkdirSync(path.join(repo, blueprint, 'tasks', id), { recursive: true });
@@ -216,11 +240,7 @@ test('verification tasks use the ready-verifying-integrated state path', () => {
 });
 
 test('critical recovery records one prepared-task recovery and rejects invalid repeats', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-critical-recovery-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, `${blueprint}/index.md`), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
@@ -267,11 +287,7 @@ test('critical recovery records one prepared-task recovery and rejects invalid r
 });
 
 test('verification integrate runs CI without a worker or commit and advances only on success', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/011-x/blueprints/012-y';
   for (const [id, metadata] of [
     ['001', 'depends_on: []\n'],
@@ -415,13 +431,7 @@ test('verification integrate runs CI without a worker or commit and advances onl
 });
 
 test('verification integrate seeds the terminal bundle and uses the real runner', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-real-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'node --test' }));
   const blueprint = '.bouncer/context/epics/013-x/blueprints/014-y';
@@ -461,11 +471,7 @@ test('verification integrate seeds the terminal bundle and uses the real runner'
 });
 
 test('bootstrap creates only an integration worktree and resumes its ledger', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\n');
@@ -479,11 +485,7 @@ test('bootstrap creates only an integration worktree and resumes its ledger', ()
 });
 
 test('bootstrap seeds an untracked blueprint once and preserves the integration copy on resume', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/030-x/blueprints/031-y';
   const task = `${blueprint}/tasks/001/tasks.md`;
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
@@ -507,11 +509,7 @@ test('bootstrap seeds an untracked blueprint once and preserves the integration 
 });
 
 test('bootstrap rejects a third integration plan version without creating its ledger', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/032-x/blueprints/033-y';
   const task = `${blueprint}/tasks/001/tasks.md`;
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
@@ -532,11 +530,7 @@ test('bootstrap rejects a third integration plan version without creating its le
 });
 
 test('prepare backfills a legacy prepared worker branch without renaming its checkout', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/015-x/blueprints/016-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'), '---\nbouncer:\n  depends_on: []\n---\n');
@@ -560,11 +554,7 @@ test('prepare backfills a legacy prepared worker branch without renaming its che
 });
 
 test('prepare validates the integration commit type even when the ready wave is verification-only', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/021-x/blueprints/022-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),
@@ -581,11 +571,7 @@ test('prepare validates the integration commit type even when the ready wave is 
 });
 
 test('standalone branch and a later ready-wave conflict create no coordinator worktree', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const standaloneBlueprint = '.bouncer/context/epics/017-x/blueprints/018-y';
   fs.mkdirSync(path.join(repo, standaloneBlueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, standaloneBlueprint, 'tasks/001/tasks.md'), '---\nbouncer: {}\n---\n');
@@ -610,12 +596,8 @@ test('standalone branch and a later ready-wave conflict create no coordinator wo
 });
 
 test('bootstrap rejects a symlink substituted for its registered integration checkout', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
+  const repo = repoTemplate.copy();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-integration-target-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
   const blueprint = '.bouncer/context/epics/009-x/blueprints/010-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n---\n');
@@ -634,11 +616,7 @@ test('bootstrap rejects a symlink substituted for its registered integration che
 });
 
 test('prepare seeds each assigned worker and record accepts the worker boundary', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/002-x/blueprints/003-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\nbrief\n');
@@ -659,15 +637,8 @@ test('prepare seeds each assigned worker and record accepts the worker boundary'
 // 계획 문서를 커밋하지 않은 fixture. bootstrap이 integration에 seed한 뒤로는
 // integration 사본만 정본이므로, main 사본을 지워도 drive가 이어져야 한다.
 function uncommittedPlanRepo(prefix, blueprint, tasks) {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  // fan-in은 coordinator가 identity 인자 없이 cherry-pick한다. 전역 git identity가
-  // 없는 CI runner에서도 같은 결과가 나오도록 worktree가 공유하는 저장소 config에 둔다.
-  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  // identity는 템플릿의 저장소 config에 있어, fan-in cherry-pick이 전역 identity 없이 돈다.
+  const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{"verify":"node --test"}\n');
   fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
@@ -1244,11 +1215,7 @@ test('a non-conflict cherry-pick failure aborts candidate without fanin-conflict
 });
 
 test('record refuses a SHA that is not the assigned worker HEAD', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/004-x/blueprints/005-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\n');
@@ -1264,14 +1231,8 @@ test('record refuses a SHA that is not the assigned worker HEAD', () => {
 });
 
 test('record rejects a prepared worker path replaced by an external symlink', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-worker-target-'));
-  for (const directory of [repo, outside]) {
-    execFileSync('git', ['init', '--quiet'], { cwd: directory });
-    fs.writeFileSync(path.join(directory, 'README.md'), 'fixture\n');
-    execFileSync('git', ['add', 'README.md'], { cwd: directory });
-    execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: directory });
-  }
+  const repo = repoTemplate.copy();
+  const outside = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/005-x/blueprints/006-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\n');
@@ -1291,11 +1252,7 @@ test('record rejects a prepared worker path replaced by an external symlink', ()
 });
 
 test('integrate rejects a recorded worker path replaced by a symlink to main', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/007-x/blueprints/008-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\n');
@@ -1317,11 +1274,7 @@ test('integrate rejects a recorded worker path replaced by a symlink to main', (
 });
 
 test('prepare refuses an ordinary directory at an assigned worker path', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/006-x/blueprints/007-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\n');
@@ -1338,12 +1291,8 @@ test('prepare refuses an ordinary directory at an assigned worker path', () => {
 });
 
 test('prepare refuses a symlink at an assigned worker path before seeding', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
+  const repo = repoTemplate.copy();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-worker-target-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
   const blueprint = '.bouncer/context/epics/008-x/blueprints/009-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\n');
@@ -1365,11 +1314,7 @@ test('prepare refuses a symlink at an assigned worker path before seeding', () =
  * prepared commit task fixture. bootstrap·prepare만 끝내 worker를 돌려준다.
  */
 function preparedCommitDrive(prefix, blueprint) {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),
@@ -1671,12 +1616,7 @@ const LEDGER_REL = '.bouncer/runtime/coordinator.json';
  * unresolved decision·terminalFailure를 원장에만 남겨 projection을 검증한다.
  */
 function checkpointFixture() {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-checkpoint-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
-    'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/076-x/blueprints/001-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/002'), { recursive: true });
@@ -2784,11 +2724,7 @@ test('blueprint review mode is judged from integration index not worker index', 
 });
 
 test('coordinate repair from review findings reopens an integrated terminal verification', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-review-repair-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/081-x/blueprints/001-y';
   for (const [id, metadata] of [
     ['001', 'depends_on: []\n'],
@@ -2913,11 +2849,7 @@ test('bootstrap refuses leftover scaffold comments before creating a worktree', 
   const git = (repo, args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
   const blueprint = '.bouncer/context/epics/084-x/blueprints/002-y';
   const bp = blueprint;
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-scaffold-boot-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, bp, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, bp, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
   fs.writeFileSync(path.join(repo, bp, 'review.md'), '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n');
@@ -2944,11 +2876,7 @@ test('bootstrap refuses leftover scaffold comments before creating a worktree', 
 
 test('resumed bootstrap skips the scaffold comment scan when the ledger exists', () => {
   const blueprint = '.bouncer/context/epics/084-x/blueprints/003-z';
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-scaffold-resume-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
   fs.writeFileSync(
@@ -2979,15 +2907,7 @@ function lightScaleRepo(prefix, blueprint, opts = {}) {
   const scale = opts.scale === undefined ? 'light' : opts.scale;
   const tasks = opts.tasks || [{ id: '001', depends_on: [] }];
   const reviewScope = opts.review_scope === undefined ? 'blueprint' : opts.review_scope;
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(repo, 'src/a.js'), 'a\n');
-  execFileSync('git', ['add', '-A'], { cwd: repo });
-  execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
+  const repo = lightTemplate.copy();
   fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
   const scopeLine = reviewScope ? `  review_scope: ${reviewScope}\n` : '';
   const scaleLine = scale ? `  scale: ${scale}\n` : '';

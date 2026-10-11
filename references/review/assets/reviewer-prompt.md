@@ -107,6 +107,10 @@ perspective.
   Use only when the controller assigned this perspective (non-empty
   `risk_flags`).
 
+Under `correctness_tests`, report a new or changed test that violates this rule:
+
+Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
+
 ### Delta rules
 
 When mode is `delta`, certify previous-finding resolution and regressions in
