@@ -7,6 +7,7 @@ const {
   buildFinalizeCommitMessage,
   buildTaskContext,
 } = require('../scripts/lib/finalize');
+const { summarizeDrive } = require('../scripts/lib/finalize-digest');
 const { makeAllowed, isUnder } = require('../scripts/lib/scope');
 const { buildStableProvenance, COMMIT_SHA_LEN } = require('../scripts/lib/commit-sha');
 
@@ -1070,4 +1071,76 @@ test('coordinator provenance keeps a malformed ledger task id visibly null', () 
   }, { integrationPath: '/w/i' });
   // id가 없어도 workerPath가 있으면 정리 대상이다. 빈 workerPath는 목록에서 뺀다.
   assert.deepStrictEqual(provenance.worktrees, ['/w/i', '/w/workers/001']);
+});
+
+const SHA_A = 'a'.repeat(40);
+const SHA_B = 'b'.repeat(40);
+
+test('summarizeDrive: 원장 null → drive null', () => {
+  assert.strictEqual(summarizeDrive(null), null);
+});
+
+test('summarizeDrive: task 둘 모두 integrated → ready true, 순서·sha 유지', () => {
+  const drive = summarizeDrive({
+    tasks: [
+      { id: '001', status: 'integrated', sha: SHA_A },
+      { id: '002', status: 'integrated', sha: SHA_B },
+    ],
+  });
+  assert.deepStrictEqual(drive, {
+    ready: true,
+    tasks: [
+      { id: '001', status: 'integrated', sha: SHA_A },
+      { id: '002', status: 'integrated', sha: SHA_B },
+    ],
+  });
+});
+
+test('summarizeDrive: 한 task가 recorded → ready false', () => {
+  const drive = summarizeDrive({
+    tasks: [
+      { id: '001', status: 'integrated', sha: SHA_A },
+      { id: '002', status: 'recorded', sha: SHA_B },
+    ],
+  });
+  assert.strictEqual(drive.ready, false);
+  assert.strictEqual(drive.tasks.length, 2);
+});
+
+test('summarizeDrive: status 없는 task → status null, ready false', () => {
+  const drive = summarizeDrive({ tasks: [{ id: '001', sha: SHA_A }] });
+  assert.deepStrictEqual(drive, {
+    ready: false,
+    tasks: [{ id: '001', status: null, sha: SHA_A }],
+  });
+});
+
+test('summarizeDrive: tasks 빈 배열 → ready false', () => {
+  assert.deepStrictEqual(summarizeDrive({ tasks: [] }), { ready: false, tasks: [] });
+});
+
+test('summarizeDrive: tasks가 배열 아님 → { ready: false, tasks: [] }', () => {
+  assert.deepStrictEqual(summarizeDrive({ tasks: 'x' }), { ready: false, tasks: [] });
+  assert.deepStrictEqual(summarizeDrive({}), { ready: false, tasks: [] });
+});
+
+test('summarizeDrive: id가 숫자인 task와 integrated task 하나 → 숫자 id task 빠짐, ready false', () => {
+  const drive = summarizeDrive({
+    tasks: [
+      { id: 1, status: 'integrated', sha: SHA_A },
+      { id: '002', status: 'integrated', sha: SHA_B },
+    ],
+  });
+  assert.deepStrictEqual(drive, {
+    ready: false,
+    tasks: [{ id: '002', status: 'integrated', sha: SHA_B }],
+  });
+});
+
+test('summarizeDrive: sha가 숫자인 integrated task → sha null, ready true', () => {
+  const drive = summarizeDrive({ tasks: [{ id: '001', status: 'integrated', sha: 5 }] });
+  assert.deepStrictEqual(drive, {
+    ready: true,
+    tasks: [{ id: '001', status: 'integrated', sha: null }],
+  });
 });

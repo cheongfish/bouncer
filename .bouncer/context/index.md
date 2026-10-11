@@ -49,3 +49,4 @@ bouncer_schema: '0.1'
 * [090 drive-reliability](epics/090-drive-reliability/index.md) - Prevent premature coordinator handbacks, recover early returns safely, prepare dependencies before finalize verification, and close remaining drive gaps.
 * [091 drive-observation-cleanup](epics/091-drive-observation-cleanup/index.md) - Clean up digest and PR input noise, reconcile post-drive state, improve CLI error guidance, and cut duplicated context found in the 089/004 drive.
 * [092 source-test-hygiene](epics/092-source-test-hygiene/index.md) - Consolidate duplicated source helpers and shift tests to behavior-focused, tiered suites with consumer-facing testing guidance.
+* [093 benchmark-contract-stability](epics/093-benchmark-contract-stability/index.md) - 벤치마크 응답기가 채팅 문장 추측 대신 Bouncer의 기계 판독 계약(게이트 카탈로그·ACQ 블록·drive 요약)만 읽게 해 버전·문구 변화마다 하네스를 고치는 반복을 없앤다.

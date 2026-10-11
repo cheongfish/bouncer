@@ -90,12 +90,12 @@ stay on the execute round.
    This is the only gate.
 
    **AskUserQuestion — run.start_drive**
-   1. **Re-ground**: Whether to hand the remaining tasks to a coordinator drive.
+   <!-- acq {"gate":"run.start_drive","options":["A","B","C"],"recommended":"A"} -->
+   1. **Re-ground**: Hand remaining tasks to a coordinator drive?
    2. **Recommend-why**: Given the task list, the DAG, and `affected_paths`,
       delegating now covers each ready wave until the blueprint is done. This
       approval covers the whole drive: neither autonomy value asks again per
-      task, and `interactive` now only means progress is reported at each task
-      boundary.
+      task; `interactive` only reports progress at each task boundary.
    3. **Options**:
       - A) Start drive (Recommended)
       - B) Revise list/scope and reconfirm
