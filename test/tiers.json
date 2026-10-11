@@ -84,6 +84,7 @@
     "finalize-pr.test.js",
     "finalize-release-main.test.js",
     "finalize.test.js",
+    "git-fixture.test.js",
     "graphify.test.js",
     "import-history.test.js",
     "init.test.js",
