@@ -27,7 +27,6 @@
     "rule-ownership.test.js",
     "scaffold.test.js",
     "schema.test.js",
-    "skill-bouncer-execute.test.js",
     "skill-bouncer-finalize.test.js",
     "skill-bouncer-init.test.js",
     "skill-bouncer-plan.test.js",

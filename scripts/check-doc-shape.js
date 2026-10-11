@@ -824,6 +824,63 @@ const PATH_CONTRACTS = {
     steps: { required: [1, 2, 3, 4, 5], order: true, acq: [5], acqOptions: [5] },
     acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [5], only: true },
   },
+  // execute 워크플로: 여섯 번호 단계, ACQ 없음(색인은 비어 있어야 한다). 단계 3·4·5가 각
+  // reference를 조건부로 적재한다.
+  'skills/bouncer-execute/SKILL.md': {
+    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-execute' } },
+    links: [
+      {
+        href: './references/agent-dispatch.md',
+        resolve: true,
+        referencePreamble: true,
+        conditionalLoad: { triggers: ['dispatch', 'fallback'] },
+      },
+      {
+        href: './references/verification-recovery.md',
+        resolve: true,
+        referencePreamble: true,
+        conditionalLoad: { triggers: ['verify', 'recover'] },
+      },
+      {
+        href: './references/review-round.md',
+        resolve: true,
+        referencePreamble: true,
+        conditionalLoad: { triggers: ['review', 'round'] },
+      },
+    ],
+    steps: {
+      required: [1, 2, 3, 4, 5, 6],
+      order: true,
+      noAcq: true,
+      links: {
+        3: ['./references/agent-dispatch.md'],
+        4: ['./references/verification-recovery.md'],
+        5: ['./references/review-round.md'],
+      },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },
+  },
+  // plan 워크플로: 여덟 번호 단계, ACQ는 1·2·3·4·6단계에만 둔다.
+  'skills/bouncer-plan/SKILL.md': {
+    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-plan' } },
+    links: [{
+      href: './references/scope-confirm.md',
+      resolve: true,
+      referencePreamble: true,
+      conditionalLoad: { triggers: ['confirm', 'affected_paths'] },
+    }],
+    steps: {
+      required: [1, 2, 3, 4, 5, 6, 7, 8],
+      order: true,
+      acq: [1, 2, 3, 4, 6],
+      links: {
+        3: ['./references/evidence-dispatch.md', './references/graphify-suggestions.md'],
+        4: ['./references/scope-confirm.md'],
+        5: ['./references/context-review.md'],
+      },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [1, 2, 3, 4, 6], only: true },
+  },
 };
 
 /**

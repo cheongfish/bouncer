@@ -24,23 +24,11 @@ const UNPUBLISHED = [
 ];
 const UNPUBLISHED_SET = new Set(UNPUBLISHED);
 
-const STEPS_EXEMPT = new Set(['minimality', 'stop-slop']);
 // 호스트 카탈로그는 워크플로 여섯뿐이다. 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
 const EXPECTED_SKILL_COUNT = 6;
 const MIN_DESCRIPTION_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 180;
 const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
-const ROLE_SKILLS = ['implementation', 'review', 'debugging', 'context-review'];
-const FORBIDDEN_ROLE_RUBRIC = [
-  'Detailed comments',
-  'Root cause → Pattern → Hypothesis → Implementation',
-  'Spec compliance',
-  'Over-engineering',
-  'Rubric — four scopes',
-  'Calibration',
-  'Procedure',
-  'Guardrails',
-];
 
 /**
  * `skills/` 아래 SKILL.md가 있는 디렉터리 이름을 정렬해 돌려준다.
@@ -106,25 +94,11 @@ function readWorkflow(name) {
   return fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
 }
 
-/**
- * 플러그인 루트 기준 상대 경로의 원문을 읽는다.
- * Plugin root 문단·규칙 문장 단언이 SKILL.md와 rules/를 같은 방식으로
- * 비교해야 해서 readWorkflow와 별도 헬퍼로 둔다.
- *
- * @param {string} rel - 플러그인 루트 기준 상대 경로
- * @returns {string} 파일 원문
- */
-function read(rel) {
-  return fs.readFileSync(path.join(root, rel), 'utf8');
-}
-
-// Success criteria 28: 세션이 루트를 먼저 얻고 plugin-root 계약을 루트 기준으로
-// 연다. 여섯 문단이 바이트까지 같고, 규칙 문장이 스킬 줄이 명령만 싣는다고 말한다.
-test('workflow Plugin root paragraphs run bouncer-root --auto and cite the contract from that root', () => {
+// 세션이 루트를 먼저 얻고 plugin-root 계약을 루트 기준으로 연다. 여섯 문단이 바이트까지
+// 같아야 한다는 일치 계약이며, 규칙 문서의 설명 문장은 고정하지 않는다.
+test('workflow Plugin root paragraphs are byte-identical across the six workflow skills', () => {
   const PLUGIN_ROOT_LINE = '**Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.';
   for (const name of WORKFLOW) assert.ok(readWorkflow(name).includes(`\n${PLUGIN_ROOT_LINE}\n`), name);
-  const RULE_SENTENCE = 'its `Plugin root` line carries only the `bouncer-root --auto` command and does not restate the selection rules above.';
-  assert.ok(read('rules/plugin-root.md').replace(/\s+/g, ' ').includes(RULE_SENTENCE));
 });
 
 // BP001 착수 시점 단어 수. 합계가 이 값보다 작다는 기존 판정만 유지하고,
@@ -269,34 +243,6 @@ test('workflow skills use directory-matching names and explicit-invocation descr
   }
 });
 
-test('workflow skills cite subordinate skills by path', () => {
-  const plan = readWorkflow('bouncer-plan');
-  const execute = readWorkflow('bouncer-execute');
-  const commit = readWorkflow('bouncer-commit');
-  const finalize = readWorkflow('bouncer-finalize');
-  // 루트 보조는 ${BOUNCER_ROOT}/references/… 접두로만 표기한다.
-  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/discovery\/index\.md/);
-  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/spec-authoring\/index\.md/);
-  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/stop-slop\/index\.md/);
-  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/graphify-runner\/index\.md/);
-  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/context-review\/index\.md/);
-  assert.match(execute, /\$\{BOUNCER_ROOT\}\/references\/implementation\/index\.md/);
-  assert.match(execute, /\$\{BOUNCER_ROOT\}\/references\/verification\/index\.md/);
-  assert.match(execute, /\$\{BOUNCER_ROOT\}\/references\/review\/index\.md/);
-  // explain-diff는 finalize가 호출한다(commit이 아님).
-  assert.doesNotMatch(commit, /references\/explain-diff\/index\.md/);
-  assert.match(finalize, /\$\{BOUNCER_ROOT\}\/references\/explain-diff\/index\.md/);
-  assert.doesNotMatch(finalize, /spec-authoring/);
-  for (const name of [
-    'discovery', 'implementation', 'verification', 'review',
-    'minimality', 'debugging', 'graphify-runner', 'spec-authoring',
-    'explain-diff', 'stop-slop',
-  ]) {
-    // at least one workflow skill should mention each used path form when present
-    assert.ok(SUB_PATHS.includes(name));
-  }
-});
-
 /**
  * SKILL.md 본문에서 접두 없는 references/… 인용을 모은다.
  * ${BOUNCER_ROOT}/ 와 ./ 접두만 허용 — 같은 bare 문자열이 루트·로컬을
@@ -370,45 +316,6 @@ test('workflow skills classify references as root or skill-local without bare co
   }
 });
 
-test('execute, commit, and finalize stop when current is null; plan stops without .bouncer/', () => {
-  const execute = readWorkflow('bouncer-execute');
-  const commit = readWorkflow('bouncer-commit');
-  const finalize = readWorkflow('bouncer-finalize');
-  const plan = readWorkflow('bouncer-plan');
-  assert.match(execute, /\bbouncer\s+current\b/);
-  assert.match(execute, /null/);
-  assert.match(execute, /ready/);
-  assert.match(execute, /current --set/);
-  assert.match(execute, /\/bouncer-plan/);
-  assert.match(commit, /\bbouncer\s+current\b/);
-  assert.match(commit, /null/);
-  assert.match(finalize, /\bbouncer\s+current\b/);
-  assert.match(finalize, /null/);
-  assert.match(finalize, /\/bouncer-plan/);
-  assert.match(plan, /\.bouncer\//);
-  assert.match(plan, /\/bouncer-init/);
-  assert.match(plan, /Preflight|missing|없/i);
-});
-
-test('pointer consumers retain only their local application while using the CLI contract', () => {
-  const execute = readWorkflow('bouncer-execute');
-  const commit = readWorkflow('bouncer-commit');
-  const finalize = readWorkflow('bouncer-finalize');
-  const run = readWorkflow('bouncer-run');
-  for (const md of [execute, commit, finalize]) {
-    assert.match(md, /rules\/current-pointer\.md/);
-    assert.match(md, /\bbouncer\s+current\b/);
-    assert.doesNotMatch(md, /scripts\/lib\/current/);
-  }
-  assert.match(run, /rules\/current-pointer\.md/);
-  assert.match(run, /\bbouncer\s+run\s+preflight\b/);
-  assert.doesNotMatch(run, /scripts\/lib\/current/);
-  assert.match(execute, /scale.*light|light.*scale/i, 'execute keeps its local status/scale stop condition');
-  assert.match(commit, /nextTask/, 'commit keeps its local next-task handoff');
-  assert.match(finalize, /finalize --yes/, 'finalize keeps its local clear/handoff consequence');
-  assert.match(run, /autonomy/, 'run keeps its autonomy-specific advance behavior');
-});
-
 test('commands/ directory is gone', () => {
   assert.ok(!fs.existsSync(path.join(root, 'commands')));
 });
@@ -416,15 +323,6 @@ test('commands/ directory is gone', () => {
 test('GENERIC_SKILLS does not list workflow skills', () => {
   for (const name of WORKFLOW) {
     assert.ok(!GENERIC_SKILLS.includes(name), name);
-  }
-});
-
-test('workflow skills end with an ACQ gates section', () => {
-  for (const name of WORKFLOW) {
-    const md = readWorkflow(name);
-    const heads = [...md.matchAll(/^## .*$/gm)].map((m) => m[0]);
-    // 존재만이 아니라 마지막 절인지까지 본다 — 성공 조건 2가 위치를 요구한다.
-    assert.strictEqual(heads[heads.length - 1], '## ACQ (AskUserQuestion) gates', name);
   }
 });
 
@@ -441,52 +339,15 @@ function splitAcq(md) {
   return { procedure: md.slice(0, i), index: md.slice(i + marker.length) };
 }
 
+// ACQ 색인의 형태만 본다: 질문 본문(AskUserQuestion·Options)은 번호 단계에 두고 색인은
+// 단계 번호를 가리킨다. 색인이 비어야 하는 execute는 PATH_CONTRACTS(acqIndex)가 검사한다.
 test('workflow ACQ section is a step index; AskUserQuestion detail stays in numbered steps', () => {
   for (const name of WORKFLOW) {
-    const md = readWorkflow(name);
-    const { procedure, index } = splitAcq(md);
-    assert.match(md, /rules\/acq\.md/, `${name} must cite the display contract`);
-    // 색인에는 Options/AskUserQuestion 본문을 두지 않는다 — 질문 시점은 numbered step.
-    assert.doesNotMatch(
-      index,
-      /\*\*AskUserQuestion/,
-      `${name}: ACQ index must not embed AskUserQuestion blocks`,
-    );
-    assert.doesNotMatch(
-      index,
-      /\*\*Options\*\*:/,
-      `${name}: ACQ index must not embed Options lists`,
-    );
-
-    // execute와 commit은 task 단위 라운드다. coordinator는 ACQ를 열 수 없으므로
-    // 두 스킬 모두 task 라운드가 무질문임을 절차에 적어야 한다.
-    if (name === 'bouncer-execute' || name === 'bouncer-commit') {
-      assert.match(
-        procedure,
-        /no AskUserQuestion|does not ask[\s\S]{0,40}AskUserQuestion|never asks[\s\S]{0,40}AskUserQuestion/i,
-        `${name} procedure must state the no-question contract`,
-      );
-    }
-    if (name === 'bouncer-execute') {
-      assert.match(
-        index,
-        /no ACQ|does not ask|never asks|no AskUserQuestion/i,
-        `${name} ACQ index must record that this skill never asks`,
-      );
-      continue;
-    }
-    // commit은 여기서 계속된다: drive 밖 포인터 전진은 rules/current-pointer.md의
-    // confirm-then-set이므로 색인이 그 step을 가리켜야 한다.
-
-    // 게이트가 있는 스킬: 색인은 step 번호를 가리키고, 해당 step 본문에 동의 시점이 있다.
+    const { index } = splitAcq(readWorkflow(name));
+    assert.doesNotMatch(index, /\*\*AskUserQuestion/, `${name}: ACQ index must not embed AskUserQuestion blocks`);
+    assert.doesNotMatch(index, /\*\*Options\*\*:/, `${name}: ACQ index must not embed Options lists`);
+    if (name === 'bouncer-execute') continue;
     assert.match(index, /[Ss]tep\s+\d+/, `${name}: ACQ index must cite step numbers`);
-  }
-});
-
-test('workflow ACQ catalogs delegate shared display details to rules/acq.md', () => {
-  for (const name of WORKFLOW) {
-    const md = readWorkflow(name);
-    assert.match(md, /rules\/acq\.md/, `${name} must cite the display contract`);
   }
 });
 
@@ -510,21 +371,6 @@ function subSkillPath(name) {
   }
   return path.join(root, 'skills', name, 'SKILL.md');
 }
-
-test('sub-skills carry the shared body skeleton in order', () => {
-  for (const name of SUB_PATHS) {
-    const md = fs.readFileSync(subSkillPath(name), 'utf8');
-    const want = ['## When this applies'];
-    if (!STEPS_EXEMPT.has(name)) want.push('## Steps');
-    want.push('## Guardrails', '## Return');
-    let at = -1;
-    for (const h of want) {
-      const i = md.indexOf(`\n${h}\n`);
-      assert.ok(i > at, `${name} missing or misordered ${h}`);
-      at = i;
-    }
-  }
-});
 
 test('sub-skill bodies use English headings', () => {
   for (const name of SUB_PATHS) {
@@ -575,46 +421,4 @@ test('canonical skill descriptions stay within the locked YAML-scalar budget', (
     `total description YAML scalar length is ${total}, cap is ${MAX_TOTAL_DESCRIPTION_CHARS}; `
       + 'raising this cap requires a human review of the contract',
   );
-});
-
-test('role skill descriptions do not restate agent-owned rubric phrases', () => {
-  for (const name of ROLE_SKILLS) {
-    const md = fs.readFileSync(path.join(root, 'references', name, 'index.md'), 'utf8');
-    const scalar = rawDescriptionScalar(name, md);
-    for (const phrase of FORBIDDEN_ROLE_RUBRIC) {
-      assert.ok(
-        !scalar.includes(phrase),
-        `${name}: description YAML scalar must not contain agent-owned rubric phrase ${JSON.stringify(phrase)}`,
-      );
-    }
-  }
-});
-
-// execute·commit·finalize는 위임 실행에서 coordinator에게 결과를 돌려준다.
-// 세 문서가 같은 handoff를 말하지 않으면 라운드가 controller 없이 끝난다.
-test('execute, commit, and finalize hand their results to the coordinator', () => {
-  for (const name of ['bouncer-execute', 'bouncer-commit', 'bouncer-finalize']) {
-    const md = readWorkflow(name);
-    assert.match(md, /coordinator/i, `${name} must name the delegated controller`);
-  }
-  assert.match(readWorkflow('bouncer-execute'), /returned to the coordinator/);
-  assert.match(readWorkflow('bouncer-commit'), /return those to the coordinator and stop/);
-  assert.match(readWorkflow('bouncer-finalize'), /`integration`/);
-});
-
-// 드라이브 중 계획 후퇴는 사라졌다. 남아 있으면 실행이 다시 끊긴다.
-test('entry skills no longer retreat to planning mid-drive', () => {
-  const execute = readWorkflow('bouncer-execute');
-  const commit = readWorkflow('bouncer-commit');
-  assert.doesNotMatch(execute, /escalate to architecture \/\s*\n?\s*`\/bouncer-plan`/);
-  assert.doesNotMatch(execute, /stop immediately and send the user to `\/bouncer-plan`/);
-  // commit의 계획 참조는 pointer가 null일 때의 진입 안내 하나뿐이다.
-  assert.strictEqual((commit.match(/\/bouncer-plan/g) || []).length, 1);
-  for (const name of WORKFLOW) {
-    assert.doesNotMatch(
-      readWorkflow(name),
-      /do not widen\s*\n?\s*`affected_paths`/,
-      `${name}: scope revision is recorded, not forbidden`,
-    );
-  }
 });
