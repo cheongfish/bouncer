@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { isRecord, isEnoentError } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -48,10 +50,6 @@ const DEFAULT_VERIFY_ALLOWLIST: readonly string[] = Object.freeze([
   'false',
 ]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /**
  * 이미 파싱된 config 객체에서 허용 목록만 고른다. 키가 없거나 배열이 아니면
  * 기본값을 쓴다 — 잘못된 형태를 빈 목록으로 접으면 모든 verify가 거절되어
@@ -73,15 +71,6 @@ function getVerifyAllowlist(config: unknown = {}): readonly string[] {
   // 문자열만 남긴다. 숫자·객체 항목은 무시해 basename 비교가 항상 문자열끼리만
   // 이뤄지게 한다.
   return raw.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
-}
-
-function isEnoentError(error: unknown): boolean {
-  // catch 변수는 strict에서 unknown이다. code를 읽기 전에 객체인지 좁히지
-  // 않으면 권한 오류와 파일 부재를 같은 분기로 합치게 된다.
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === 'ENOENT';
 }
 
 /**

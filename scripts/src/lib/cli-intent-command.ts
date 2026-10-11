@@ -1,5 +1,7 @@
 'use strict';
 
+import guards = require('./guards');
+const { catchMessage } = guards;
 type CliIo = {
   out: (s: string) => void;
   err: (s: string) => void;
@@ -327,12 +329,6 @@ function parseSectionsArgs(rest: string[]): SectionsArgs {
     return fail('--role <implementer|reviewer|debugger> is required');
   }
   return { mode: 'sections', task, role, repo };
-}
-
-function catchMessage(error: unknown): string {
-  // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
-  // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
-  return (error as { message: string }).message;
 }
 
 /**

@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { isRecord, catchMessage, isEnoentError } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -455,12 +457,6 @@ function validateCoordinatorCheckpoint(
   return { ok: true };
 }
 
-function catchMessage(error: unknown): unknown {
-  // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
-  // TypeError 대신 undefined가 되어 unavailable reason이 바뀐다.
-  return (error as { message: unknown }).message;
-}
-
 function runtimePaths({
   repoRoot,
   execFileSync = realExecFileSync as ExecFileSyncFn,
@@ -483,7 +479,7 @@ function runtimePaths({
       stdio: ['ignore', 'pipe', 'ignore'],
     }) as string).trim();
   } catch (error) {
-    return { unavailable: true, reason: catchMessage(error) as string || 'Git common directory unavailable' };
+    return { unavailable: true, reason: catchMessage(error) || 'Git common directory unavailable' };
   }
   if (!commonDir) {
     return { unavailable: true, reason: 'Git common directory unavailable' };
@@ -643,7 +639,7 @@ function parsePointerBody(raw: string): { pointer: RuntimePointer } | { reason: 
     const task = typeof data.task === 'string' ? toPosix(data.task) : null;
     return { pointer: { blueprint: toPosix(data.blueprint), base: data.base, task } };
   } catch (error) {
-    return { reason: catchMessage(error) as string || 'invalid JSON' };
+    return { reason: catchMessage(error) || 'invalid JSON' };
   }
 }
 
@@ -709,7 +705,7 @@ function listNamespacePointers({ repoRoot, deps }: {
       } catch (error) {
         entries.push({
           key, path: filePath, pointer: null,
-          issue: { path: filePath, reason: catchMessage(error) as string || 'unreadable pointer file' },
+          issue: { path: filePath, reason: catchMessage(error) || 'unreadable pointer file' },
         });
       }
     }
@@ -781,13 +777,6 @@ type ApprovalRead =
   | { ok: false; path: string }
   | null;
 
-function isEnoentError(error: unknown): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && (error as { code: unknown }).code === 'ENOENT';
-}
-
 function approvalSnapshotPath(
   approvalsRoot: string,
   epicId: string,
@@ -828,10 +817,6 @@ function atomicWriteFile(
     }
     throw error;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && Array.isArray(value) === false;
 }
 
 function isApprovalParts(value: unknown): value is Record<string, string> {

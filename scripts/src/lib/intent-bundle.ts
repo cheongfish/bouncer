@@ -1,5 +1,7 @@
 'use strict';
 
+import guards = require('./guards');
+const { isFsCode, isSkippableFsError } = guards;
 import fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -924,18 +926,6 @@ function assertIntentPathInCommonDir(
   if (!isInsideRepo(dirReal, commonReal)) {
     throw new Error('intent cache directory escapes the Git common directory');
   }
-}
-
-function isFsCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
-}
-
-function isSkippableFsError(error: unknown): boolean {
-  return isFsCode(error, 'ENOENT')
-    || isFsCode(error, 'EACCES')
-    || isFsCode(error, 'EPERM')
-    || isFsCode(error, 'ELOOP')
-    || isFsCode(error, 'ENOTDIR');
 }
 
 /**

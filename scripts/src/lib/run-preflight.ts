@@ -1,5 +1,7 @@
 'use strict';
 
+import guards = require('./guards');
+const { isRecord } = guards;
 const path = require('node:path');
 import current = require('./current');
 const { readCurrent, CurrentSelectionError } = current;
@@ -80,10 +82,6 @@ type WaveTask = {
   affected_paths?: string[];
   exclusive_resources?: string[];
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function isSelectionError(error: unknown): error is InstanceType<typeof CurrentSelectionError> {
   return error instanceof CurrentSelectionError

@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { catchMessage } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 import schema = require('./schema');
@@ -125,10 +127,6 @@ type BlueprintDocs = {
   taskUnits?: TaskUnit[];
 };
 
-function catchMessage(error: unknown): unknown {
-  return (error as { message: unknown }).message;
-}
-
 /**
  * blueprint 문서를 로드해 structural(S) 검사와 선택한 gate 또는 plan draft 검사를 돌린다.
  * `gate: 'execute'`는 검사 전에 verify 명령을 실행해 증적을 새로 쓰고,
@@ -218,7 +216,7 @@ function validateBlueprint({
     } catch (error) {
       executionFailures.push({
         code: 'G13',
-        message: catchMessage(error) as string,
+        message: catchMessage(error),
         file: verificationFile,
       });
     }

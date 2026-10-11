@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { isRecord } = guards;
 import paths = require('./paths');
 const { toPosix } = paths;
 
@@ -187,10 +189,6 @@ function pathJustifiedByTouch(ap: string, touchText: string): boolean {
   return extractPathCandidates(touchText).some(
     (c) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`),
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isPositiveInteger(value: unknown): boolean {

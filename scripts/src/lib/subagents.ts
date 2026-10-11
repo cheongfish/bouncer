@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { isRecord } = guards;
 import config = require('./config');
 const { readConfig } = config;
 
@@ -8,10 +10,6 @@ const { readConfig } = config;
 const SUBAGENT_PROVIDERS = ['claude', 'cursor', 'codex', 'antigravity'] as const;
 // `subagents.dispatch`가 받는 값. 부재가 기본(호스트 Task 서브에이전트)이라 목록에 넣지 않는다.
 const SUBAGENT_DISPATCH_VALUES = ['print'] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * provider 해석 순서(먼저 맞는 것이 이김):

@@ -1,4 +1,8 @@
 'use strict';
+import canonicalJsonMod = require('./canonical-json');
+const { canonicalJson, sha256Canonical } = canonicalJsonMod;
+import guards = require('./guards');
+const { isRecord } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -554,40 +558,6 @@ function defaultReadVerifyLedger({
 }
 
 /**
- * 객체의 키를 재귀적으로 정렬한 뒤 UTF-8 JSON으로 직렬화한다.
- * verification runner의 identity hash와 같은 규칙이어야 손기록이
- * 키 순서로 evidence_id를 위조하지 못한다.
- *
- * @param {unknown} value - 직렬화할 값
- * @returns {string} canonical JSON 문자열
- */
-function canonicalJson(value: unknown): string {
-  const normalize = (input: unknown): unknown => {
-    if (Array.isArray(input)) return input.map(normalize);
-    if (input && typeof input === 'object') {
-      const record = input as Record<string, unknown>;
-      const sorted: Record<string, unknown> = {};
-      for (const key of Object.keys(record).sort()) {
-        sorted[key] = normalize(record[key]);
-      }
-      return sorted;
-    }
-    return input;
-  };
-  return JSON.stringify(normalize(value));
-}
-
-/**
- * canonical JSON의 SHA-256 hex를 돌려준다.
- *
- * @param {unknown} value - 해시할 값
- * @returns {string} 64자 hex digest
- */
-function sha256Canonical(value: unknown): string {
-  return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
-}
-
-/**
  * 객체를 키 정렬 JSON으로 비교한다. G13 identity/scope 대조가 삽입 순서에
  * 흔들리지 않게 한다.
  *
@@ -840,10 +810,6 @@ function checkG24(
     message: `approved scope changed after activation: ${names.join(', ')}`,
     file,
   });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function checkGate(
