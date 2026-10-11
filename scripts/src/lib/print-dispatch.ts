@@ -1,5 +1,7 @@
 'use strict';
 
+import guards = require('./guards');
+const { isRecord, isEnoentError } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -43,17 +45,6 @@ type PrintDispatchFail = {
 };
 
 type PrintDispatchResult = PrintDispatchOk | PrintDispatchFail;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isEnoentError(error: unknown): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && (error as { code?: unknown }).code === 'ENOENT';
-}
 
 /**
  * Cursor print 식별 줄. 문구는 `rules/cursor-print-dispatch.md` 3항과 바이트가

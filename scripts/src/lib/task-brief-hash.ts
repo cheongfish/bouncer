@@ -1,15 +1,13 @@
 'use strict';
 
+import guards = require('./guards');
+const { isRecord } = guards;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 import approvalSnapshot = require('./approval-snapshot');
 const { sha256Canonical } = approvalSnapshot;
 
 const LIFECYCLE_KEYS = ['status', 'commit_sha'];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && Array.isArray(value) === false;
-}
 
 /**
  * task brief의 canonical SHA-256을 계산한다.

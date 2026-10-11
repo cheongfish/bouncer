@@ -1,4 +1,8 @@
 'use strict';
+import canonicalJsonMod = require('./canonical-json');
+const { canonicalJson, sha256Canonical } = canonicalJsonMod;
+import guards = require('./guards');
+const { isRecord } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -107,10 +111,6 @@ function errorCode(error: unknown): unknown {
     return error.code;
   }
   return undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // 실행 가능한 argv 문자열 하나만: 셸 체이닝, 리다이렉션, `cd` 접두사 없음.
@@ -510,39 +510,6 @@ function executeVerify(command: string, { cwd, exec, allowlist }: {
       output: outputTail(stdout, stderr),
     };
   }
-}
-
-/**
- * 객체의 키를 재귀적으로 정렬한 뒤 UTF-8 JSON으로 직렬화한다.
- * identity·environment 해시가 키 삽입 순서에 흔들리지 않게 한다.
- *
- * @param {unknown} value - 직렬화할 값
- * @returns {string} canonical JSON 문자열
- */
-function canonicalJson(value: unknown): string {
-  const normalize = (input: unknown): unknown => {
-    if (Array.isArray(input)) return input.map(normalize);
-    if (input && typeof input === 'object') {
-      const record = input as Record<string, unknown>;
-      const sorted: Record<string, unknown> = {};
-      for (const key of Object.keys(record).sort()) {
-        sorted[key] = normalize(record[key]);
-      }
-      return sorted;
-    }
-    return input;
-  };
-  return JSON.stringify(normalize(value));
-}
-
-/**
- * canonical JSON의 SHA-256 hex를 돌려준다.
- *
- * @param {unknown} value - 해시할 값
- * @returns {string} 64자 hex digest
- */
-function sha256Canonical(value: unknown): string {
-  return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
 }
 
 /**

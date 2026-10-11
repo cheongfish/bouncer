@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { isRecord } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 import layout = require('./layout');
@@ -25,10 +27,6 @@ const EPIC_LINK_RE = /\]\(epics\/(\d{3}-[^/)]+)\/index\.md\)/g;
 const LEGACY_EPIC_LINK_RE = /\]\(epics\/(EPIC-\d{3}-[^/)]+)\/index\.md\)/g;
 const EPIC_DIR_NAME_RE = /^\d{3}-.+$/;
 const LEGACY_EPIC_DIR_NAME_RE = /^EPIC-\d{3}-.+$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 /**
  * canonical epic 문서에서 색인 파생값인 description을 읽는다.

@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { catchMessageOrString } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
@@ -194,13 +196,6 @@ function pluginRootFromLib(): string {
 
 function defaultManifestPath(): string {
   return path.join(pluginRootFromLib(), 'resources', 'graphify-compat.json');
-}
-
-function catchMessageOrString(error: unknown): string {
-  // 예전 `e && e.message ? e.message : String(e)` 와 같다. extra null 가드를
-  // 넣으면 throw null이 TypeError 대신 'null' 문자열이 된다.
-  const message = error && (error as { message?: unknown }).message;
-  return message ? String(message) : String(error);
 }
 
 function parseDottedVersion(text: string): string | null {

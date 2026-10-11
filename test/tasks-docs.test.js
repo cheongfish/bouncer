@@ -117,3 +117,11 @@ test('expectedTaskDocIds returns the three task-unit ids', () => {
     review: 'REVIEW-002',
   });
 });
+
+test('tasks-docs 단독 로드는 paths 모듈을 끌어오지 않는다', () => {
+  // 같은 파일의 다른 테스트와 모듈 인스턴스가 섞이지 않게 마지막의 별도 test()에 둔다.
+  const repo = mkBp(['index.md']);
+  for (const key of Object.keys(require.cache)) if (key.includes('/scripts/lib/')) delete require.cache[key];
+  require('../scripts/lib/tasks-docs').listTasksDocs({ repoRoot: repo, blueprintDir: BP });
+  assert.ok(!Object.keys(require.cache).some((k) => k.endsWith('/scripts/lib/paths.js')));
+});

@@ -1,4 +1,6 @@
 'use strict';
+import guards = require('./guards');
+const { catchMessageOrString } = guards;
 import initMod = require('./init');
 const { init, inspectBootstrap } = initMod;
 import time = require('./time');
@@ -76,11 +78,6 @@ type SessionDecision = {
   missing?: string[];
   compatibility?: unknown;
 };
-
-function catchMessageOrString(error: unknown): string {
-  const message = error && (error as { message?: unknown }).message;
-  return message ? String(message) : String(error);
-}
 
 // 계획·오케스트레이션·경고 문구 + 공개 배럴.
 // 훅과 테스트는 이 파일 이름만 본다. 구현이 형제로 옮겨도 키 집합은 유지한다.

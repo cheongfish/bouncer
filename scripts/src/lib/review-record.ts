@@ -1,5 +1,7 @@
 'use strict';
 
+import guards = require('./guards');
+const { isRecord } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 import frontmatter = require('./frontmatter');
@@ -37,10 +39,6 @@ type RecordReviewFail = {
 };
 
 type RecordReviewResult = RecordReviewOk | RecordReviewFail;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function fail(reason: string, cause: string | string[], next: string): RecordReviewFail {
   return { ok: false, reason, cause, next };
