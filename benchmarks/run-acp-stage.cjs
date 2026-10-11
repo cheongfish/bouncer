@@ -7,8 +7,7 @@ const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { setTimeout, clearTimeout } = require('node:timers');
 const { AcpClient } = require('./acp/client.cjs');
-const { acqMarkers, loadPolicy, answerAskQuestion, answerTextQuestion, answerQuizText,
-  looksLikeQuizRequest, answerPermission, unreadQuestion } = require('./acp/responder.cjs');
+const { loadPolicy, answerAskQuestion, answerQuizText, answerPermission, turnQuestionState } = require('./acp/responder.cjs');
 const { transcriptFiles, usageFromAcp, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
 const { loadCard } = require('./task-card.cjs');
@@ -127,16 +126,20 @@ async function main() {
         break;
       }
       if (unanswered.length) break;
-      const acq = acqMarkers(turnText).length > 0;
-      const quiz = stage === 'bouncer-finalize' && !acq && looksLikeQuizRequest(turnText);
-      if (!acq && !quiz && unreadQuestion(turnText)) {
-        unanswered.push({ at: new Date().toISOString(), method: 'text/unread-question', text: turnText });
+      // 한 턴의 질문 판독은 응답기의 turnQuestionState 하나가 정한다: 실행기가 문구로 따로 추측하지 않는다.
+      const state = turnQuestionState(policy, stage, turnText, args.sessionCwd);
+      if (state.kind === 'none') break;
+      if (state.kind === 'violation') {
+        unanswered.push({ at: new Date().toISOString(), method: 'text/contract-violation', reason: state.reason,
+          text: turnText });
         break;
       }
-      if (!acq && !quiz) break;
-      const decision = acq ? answerTextQuestion(policy, stage, turnText, args.sessionCwd)
-        : answerQuizText(policy, stage, turnText);
-      const method = acq ? 'text/AskUserQuestion' : 'text/Quiz';
+      if (state.kind === 'unanswerable') {
+        unanswered.push({ at: new Date().toISOString(), method: 'text/AskUserQuestion', text: turnText });
+        break;
+      }
+      const method = { quiz: 'text/Quiz', open_decisions: 'text/OpenDecisions' }[state.kind] ?? 'text/AskUserQuestion';
+      const decision = state.kind === 'quiz' ? answerQuizText(policy, stage, turnText) : state.decision;
       if (!decision) {
         unanswered.push({ at: new Date().toISOString(), method, text: turnText });
         break;

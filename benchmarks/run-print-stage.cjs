@@ -10,8 +10,7 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { acqMarkers, delegateOpenDecisions, loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest, unhandledQuestionMethod,
-} = require('./acp/responder.cjs');
+const { loadPolicy, answerQuizText, turnQuestionState } = require('./acp/responder.cjs');
 const { normalizeUsage, sumUsage, transcriptFiles, usageCoverage, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
 const { loadCard } = require('./task-card.cjs');
@@ -129,26 +128,19 @@ async function main() {
         break;
       }
       sessionId = result.session_id ?? sessionId;
-      // Discovery open decisions come in no fixed format, often without an AskUserQuestion marker.
-      const delegated = delegateOpenDecisions(policy, stage, text);
-      if (delegated) {
-        decisions.push({ at: new Date().toISOString(), method: 'text/OpenDecisions', decision: delegated });
-        nextPrompt = delegated.reply;
-        if (turn === maxTurns - 1) unanswered.push({ at: new Date().toISOString(), method: 'turn-limit' });
-        continue;
-      }
-      const acq = acqMarkers(text).length > 0;
-      const quiz = stage === 'bouncer-finalize' && !acq && looksLikeQuizRequest(text);
-      // unread AskUserQuestion names and unrecognized option lists both stop here; method comes from the
-      // pure helper so the harness does not invent a third quiet-exit path.
-      if (!acq && !quiz) {
-        const method = unhandledQuestionMethod(text);
-        if (method) unanswered.push({ at: new Date().toISOString(), method, text });
+      // 한 턴의 질문 판독은 응답기의 turnQuestionState 하나가 정한다: 실행기가 문구로 따로 추측하지 않는다.
+      const state = turnQuestionState(policy, stage, text, args.sessionCwd);
+      if (state.kind === 'none') break;
+      if (state.kind === 'violation') {
+        unanswered.push({ at: new Date().toISOString(), method: 'text/contract-violation', reason: state.reason, text });
         break;
       }
-      const decision = acq ? answerTextQuestion(policy, stage, text, args.sessionCwd)
-        : answerQuizText(policy, stage, text);
-      const method = acq ? 'text/AskUserQuestion' : 'text/Quiz';
+      if (state.kind === 'unanswerable') {
+        unanswered.push({ at: new Date().toISOString(), method: 'text/AskUserQuestion', text });
+        break;
+      }
+      const method = { quiz: 'text/Quiz', open_decisions: 'text/OpenDecisions' }[state.kind] ?? 'text/AskUserQuestion';
+      const decision = state.kind === 'quiz' ? answerQuizText(policy, stage, text) : state.decision;
       if (!decision) {
         unanswered.push({ at: new Date().toISOString(), method, text });
         break;

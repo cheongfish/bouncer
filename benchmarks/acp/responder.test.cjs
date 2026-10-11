@@ -5,21 +5,24 @@ const assert = require('node:assert/strict');
 const { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { acqMarkers: acqMarkersOf, delegateOpenDecisions, driveState, loadPolicy, classifyGate, answerAskQuestion, answerTextQuestion, answerQuizText, looksLikeQuizRequest,
-  answerPermission, finalizeReady, gateIdOf, gitEnv, unrecognizedQuestion, unhandledQuestionMethod } = require('./responder.cjs');
+const { driveState, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState, answerAskQuestion,
+  answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission, finalizeReady, gateIdOf,
+  gitEnv } = require('./responder.cjs');
 
 const policy = { benchmark_choices: { finalize_quiz: 'first_option_for_each_presented_question' },
   task_facts: { expected_gitignore_suggestions: [
     'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/', '.bouncer/runtime/',
   ], product_paths: ['src/cli.js', 'src/ledger.js', 'test/ledger.test.js', 'test/cli.test.js', 'README.md'] } };
 
+
 test('answers only the exact expected init ignore proposal', () => {
   const workDir = mkdtempSync(path.join(tmpdir(), 'acp-responder-'));
   const question = {
     id: 'q1',
+    title: 'init.gitignore',
     prompt: `Add ${policy.task_facts.expected_gitignore_suggestions.map((p) => `\`${p}\``).join(', ')} to .gitignore?`
       + ' Also ignore `node_modules/`.',
-    options: [{ id: 'a', label: 'Write suggested .gitignore entries' }, { id: 'b', label: 'Leave unchanged' }],
+    options: [{ id: 'a', label: 'Write suggested .gitignore entries (Recommended)' }, { id: 'b', label: 'Leave unchanged' }],
   };
   assert.deepEqual(answerAskQuestion(policy, 'bouncer-init', { questions: [question] }, workDir).outcome,
     { outcome: 'answered', answers: [{ questionId: 'q1', selectedOptionIds: ['a'] }] });
@@ -59,7 +62,7 @@ test('accepts only the approved benchmark policy version and choices', () => {
 });
 
 test('approves the explicit plan question without quality preselection', () => {
-  const questions = [{ id: 'approve', prompt: 'Plan approval?', options: [
+  const questions = [{ id: 'approve', title: 'plan.approval', prompt: 'Plan approval?', options: [
     { id: 'a', label: 'Approve plan (Recommended)' },
     { id: 'b', label: 'Revise plan' },
     { id: 'c', label: 'Cancel' },
@@ -67,16 +70,9 @@ test('approves the explicit plan question without quality preselection', () => {
   const result = answerAskQuestion(policy, 'bouncer-plan', { questions }, '/nonexistent');
   assert.equal(result.decisions[0].gate, 'plan.approval');
   assert.deepEqual(result.outcome.answers[0].selectedOptionIds, ['a']);
-});
-
-test('answers Markdown fallback with bold option letters', () => {
-  const workDir = mkdtempSync(path.join(tmpdir(), 'acp-responder-'));
-  const entries = policy.task_facts.expected_gitignore_suggestions.map((entry) => `\`${entry}\``).join(', ');
-  const message = `**AskUserQuestion:**\nAdd ${entries} to .gitignore?\n`
-    + '- **A)** Write suggested ignores via `bouncer init --write-gitignore`\n'
-    + '- **B)** Leave unchanged\n';
-  assert.equal(answerTextQuestion(policy, 'bouncer-init', message, workDir).reply, 'A');
-  rmSync(workDir, { recursive: true });
+  // 제목에 게이트 ID가 없으면 문구가 같아도 답하지 않는다.
+  delete questions[0].title;
+  assert.equal(answerAskQuestion(policy, 'bouncer-plan', { questions }, '/nonexistent'), null);
 });
 
 test('tool permission chooses allow once but refuses external push', () => {
@@ -85,90 +81,12 @@ test('tool permission chooses allow once but refuses external push', () => {
   assert.equal(answerPermission({ toolCall: { title: 'git push origin main' }, options }), null);
 });
 
-test('answers bundled discovery, full scope, and first ID questions in order', () => {
-  const workDir = mkdtempSync(path.join(tmpdir(), 'acp-responder-'));
-  const { mkdirSync } = require('node:fs');
-  mkdirSync(path.join(workDir, '.bouncer', 'context', 'epics'), { recursive: true });
-  const prompt = [
-    'Goal: summary --file --month YYYY-MM TOTAL stderr exit 1 list total cli.js',
-    '**AskUserQuestion (ACQ — Discover):**',
-    '- A) 위 framing 승인 (Recommended)',
-    '- B) 수정',
-    '**AskUserQuestion (ACQ — Light scope):**',
-    '- A) full (Recommended)',
-    '- B) light',
-    '**AskUserQuestion (ACQ — ID allocation):**',
-    'nextEpicId: 001',
-    '- A) Epic 001, Blueprint 001 (Recommended)',
-    '- B) 다른 id 지정',
-  ].join('\n');
-  assert.equal(answerTextQuestion(policy, 'bouncer-plan', prompt, workDir).reply, 'A / A / A');
-  rmSync(workDir, { recursive: true });
-});
-
-test('confirms discovery framing from the plan agent Markdown question', () => {
-  const prompt = [
-    'Goal: add summary to cli.js with --file and --month YYYY-MM; print TOTAL.',
-    'Errors go to stderr with exit 1; preserve list and total.',
-    '**AskUserQuestion:**',
-    '1. **Re-ground**: Confirm discovery framing before scaffolding.',
-    '   - **A)** Confirm framing as written (Recommended)',
-    '   - **B)** Confirm framing, but revise',
-    '   - **C)** Cancel / stop planning',
-  ].join('\n');
-  const result = answerTextQuestion(policy, 'bouncer-plan', prompt, '/nonexistent');
-  assert.equal(result.reply, 'A');
-  assert.equal(result.choices[0].gate, 'plan.discovery');
-});
-
-test('answers the plan bundle that says proceed with framing and puts 001 in the other-id example', () => {
-  const workDir = mkdtempSync(path.join(tmpdir(), 'acp-responder-'));
-  const { mkdirSync } = require('node:fs');
-  mkdirSync(path.join(workDir, '.bouncer', 'context', 'epics'), { recursive: true });
-  const prompt = [
-    'Goal: summary --file --month YYYY-MM TOTAL stderr exit 1 list total cli.js',
-    '**AskUserQuestion — Discover confirm**',
-    '- **A)** 위 프레이밍으로 진행 (Recommended)',
-    '- **B)** 수정 후 재확인 (어떤 항목을 바꿀지 적어 주세요)',
-    '- **C)** 취소',
-    '**AskUserQuestion — Light scope**',
-    '- **A)** Light (Recommended) — `maintenance` epic + `--scale light`',
-    '- **B)** Full — 신규 epic + 전체 blueprint/context-review',
-    '- **C)** 취소',
-    '**AskUserQuestion — ID allocation**',
-    '- **A)** Suggested ids 사용 — epic `001`(+ slug), blueprint `001` (Recommended)',
-    '- **B)** 다른 id/slug 지정 (예: epic `001-monthly-summary`, bp `001-summary-command`)',
-    '- **C)** 취소',
-    '이후 게이트: **Verify command** (`npm test` 후보)',
-  ].join('\n');
-  const result = answerTextQuestion(policy, 'bouncer-plan', prompt, workDir);
-  assert.equal(result.reply, 'A / B / A');
-  assert.deepEqual(result.choices.map((choice) => choice.gate),
-    ['plan.discovery', 'plan.light_scope', 'plan.id_allocation']);
-  rmSync(workDir, { recursive: true });
-});
-
-test('confirms the Korean discovery framing option', () => {
-  const prompt = [
-    'Goal: summary in cli.js with --file and --month YYYY-MM, ending in TOTAL.',
-    'Invalid options write stderr and exit 1; preserve list and total.',
-    '**AskUserQuestion:**',
-    '1. **Re-ground**: Discovery 핸드오프를 이대로 확정할지',
-    '   - A) 위 프레이밍 승인하고 Step 2로 진행 (Recommended)',
-    '   - B) 수정 후 재확인',
-    '   - C) 중단',
-  ].join('\n');
-  const result = answerTextQuestion(policy, 'bouncer-plan', prompt, '/nonexistent');
-  assert.equal(result.reply, 'A');
-  assert.equal(result.choices[0].gate, 'plan.discovery');
-});
 
 test('selects explicit task verify command when another option mentions npm test', () => {
   const workDir = mkdtempSync(path.join(tmpdir(), 'acp-responder-'));
-  const { writeFileSync } = require('node:fs');
   writeFileSync(path.join(workDir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
-  const question = { id: 'verify', prompt: 'Verify command for bouncer.verify?', options: [
-    { id: 'a', label: 'Set `bouncer.verify: npm test` on `TASKS-001`' },
+  const question = { id: 'verify', title: 'plan.verify_command', prompt: 'Verify command for bouncer.verify?', options: [
+    { id: 'a', label: 'Set `bouncer.verify: npm test` on `TASKS-001` (Recommended)' },
     { id: 'c', label: 'Leave unset — execute uses global `config.verify` (`npm test`)' },
   ] };
   assert.equal(answerAskQuestion(policy, 'bouncer-plan', { questions: [question] }, workDir)
@@ -230,19 +148,30 @@ function workdirWith({ epics, ready, packageTest, gitignore } = {}) {
   return workDir;
 }
 
+
 const fixtureDir = path.join(__dirname, 'fixtures', 'acq');
 
+// cases.json의 expect: 엄격 제목(카탈로그 ID)과 선택지 둘 이상을 가진 원문은 answer, 나머지 옛 표시는 violation.
 for (const fixture of require('./fixtures/acq/cases.json')) {
-  test(`replays recorded ACQ ${fixture.file}`, () => {
+  test(`replays recorded ACQ ${fixture.file} → ${fixture.expect}`, () => {
     const workDir = workdirWith(fixture.workdir);
     const text = readFileSync(path.join(fixtureDir, fixture.file), 'utf8');
     // finalize 증거 판정은 실제 git·drive가 필요하므로 case가 요구할 때만 참으로 주입한다.
     const deps = fixture.finalizeEvidence ? { finalizeEvidence: () => true } : undefined;
-    const result = answerTextQuestion(policy, fixture.phase, text, workDir, deps);
-    rmSync(workDir, { recursive: true });
-    assert.ok(result, `${fixture.source} is unanswered`);
-    assert.equal(result.reply, fixture.reply);
-    assert.deepEqual(result.choices.map((choice) => choice.gate), fixture.gates);
+    try {
+      if (fixture.expect === 'answer') {
+        const result = answerTextQuestion(policy, fixture.phase, text, workDir, deps);
+        assert.ok(result, `${fixture.source} is unanswered`);
+        assert.equal(result.reply, fixture.reply);
+        assert.deepEqual(result.choices.map((choice) => choice.gate), fixture.gates);
+      } else if (fixture.expect === 'violation') {
+        assert.equal(turnQuestionState(policy, fixture.phase, text, workDir, deps).kind, 'violation');
+      } else {
+        assert.fail(`unknown expect: ${fixture.expect}`);
+      }
+    } finally {
+      rmSync(workDir, { recursive: true });
+    }
   });
 }
 
@@ -254,17 +183,24 @@ test('finalize.remainder is left unanswered when there is no finalize evidence',
 const prdFacts = 'Goal: summary in cli.js with --file and --month YYYY-MM, ending in TOTAL. '
   + 'Invalid options write stderr and exit 1; preserve list and total.';
 
-function acq(reground, options, header = '**AskUserQuestion:**') {
-  return [header, `1. **Re-ground**: ${reground}`, '2. **Recommend-why**: fits the request',
-    '3. **Options** (recommended-first):', ...options.map((label, index) =>
-      `   - ${String.fromCharCode(65 + index)}) ${label}`)].join('\n');
+const RECOMMENDED_MARK = /\((?:recommended|권장|추천)\)/i;
+
+// 판독 블록이 붙은 표시. 권장 글자는 `(Recommended)` 표시가 달린 첫 선택지이거나 `recommended` 인자다.
+function acq(gate, reground, labels, { recommended } = {}) {
+  const letters = labels.map((_, index) => String.fromCharCode(65 + index));
+  const marked = labels.findIndex((label) => RECOMMENDED_MARK.test(label));
+  const rec = recommended !== undefined ? recommended : (marked < 0 ? null : letters[marked]);
+  return [`**AskUserQuestion — ${gate}**`,
+    `<!-- acq ${JSON.stringify({ gate, options: letters, recommended: rec })} -->`, '',
+    `1. **Re-ground**: ${reground}`, '2. **Recommend-why**: fits the request', '3. **Options**:',
+    ...labels.map((label, index) => `   - ${letters[index]}) ${label}`)].join('\n');
 }
 
 test('selects the recommended proceed option however it is worded', () => {
   const entries = policy.task_facts.expected_gitignore_suggestions.map((entry) => `\`${entry}\``).join(', ');
   const init = workdirWith();
   for (const label of ['권장 항목 추가 (Recommended)', 'Apply the ignore rules (권장)', '.gitignore 갱신 (추천)']) {
-    const text = acq(`.gitignore에 ${entries}를 추가할지`, [label, '그대로 두기', '취소']);
+    const text = acq('init.gitignore', `.gitignore에 ${entries}를 추가할지`, [label, '그대로 두기', '취소']);
     const result = answerTextQuestion(policy, 'bouncer-init', text, init);
     assert.equal(result?.reply, 'A', label);
     assert.equal(result.choices[0].basis, 'recommended');
@@ -272,22 +208,44 @@ test('selects the recommended proceed option however it is worded', () => {
   rmSync(init, { recursive: true });
   for (const label of ['이대로 진행 (Recommended)', 'Looks right — go to scaffold (Recommended)',
     '핸드오프 확정 후 Step 2로 (권장)']) {
-    const text = `${prdFacts}\n${acq('Discovery 핸드오프를 확정할지', [label, '수정 요청', '중단'])}`;
+    const text = `${prdFacts}\n${acq('plan.discovery', 'Discovery 핸드오프를 확정할지', [label, '수정 요청', '중단'])}`;
     assert.equal(answerTextQuestion(policy, 'bouncer-plan', text, '/nonexistent')?.reply, 'A', label);
   }
+});
+
+test('the block recommended letter decides the proceed option, not a label mark', () => {
+  const init = workdirWith();
+  const entries = policy.task_facts.expected_gitignore_suggestions.map((entry) => `\`${entry}\``).join(', ');
+  const labels = ['항목 추가', '그대로 두기 (Recommended)', '취소'];
+  const reground = `.gitignore에 ${entries}를 추가할지`;
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', acq('init.gitignore', reground, labels, { recommended: 'A' }), init)?.reply, 'A');
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', acq('init.gitignore', reground, labels, { recommended: null }), init), null);
+  rmSync(init, { recursive: true });
+});
+
+test('answers bundled discovery, light scope, and first ID blocks in order', () => {
+  const workDir = workdirWith({ epics: [] });
+  const text = [prdFacts,
+    acq('plan.discovery', '위 framing 승인', ['위 framing 승인 (Recommended)', '수정']),
+    acq('plan.light_scope', 'scope', ['light (Recommended)', 'full']),
+    acq('plan.id_allocation', 'nextEpicId: 001', ['Epic 001, Blueprint 001 (Recommended)', '다른 id 지정'])].join('\n\n');
+  const result = answerTextQuestion(policy, 'bouncer-plan', text, workDir);
+  assert.equal(result.reply, 'A / B / A');
+  assert.deepEqual(result.choices.map((choice) => choice.gate), ['plan.discovery', 'plan.light_scope', 'plan.id_allocation']);
+  assert.ok(result.choices.every((choice) => choice.identified_by === 'block'));
+  rmSync(workDir, { recursive: true });
 });
 
 test('reads ignore entries only up to the rule that closes the question', () => {
   const init = workdirWith();
   const list = policy.task_facts.expected_gitignore_suggestions.map((entry) => `- \`${entry}\``).join('\n');
-  const options = '3. **Options** (recommended-first):\n'
-    + '   - A) Write suggested entries via `bouncer init --write-gitignore` (Recommended)\n'
+  const options = '3. **Options**:\n   - A) Write suggested entries via `bouncer init --write-gitignore` (Recommended)\n'
     + '   - B) Leave `.gitignore` untouched\n';
+  const head = '**AskUserQuestion — init.gitignore**\n<!-- acq {"gate":"init.gitignore","options":["A","B"],"recommended":"A"} -->\n\n';
   const after = '\n---\n\nCommit the bootstrap yourself.`bouncer init` finished: `.bouncer/` is scaffolded.';
-  const inReground = `**AskUserQuestion — init.gitignore**\n\n1. **Re-ground**: \`.gitignore\`가 없음.\n${list}\n`
-    + `2. **Recommend-why**: keep artifacts out.\n${options}${after}`;
-  const afterOptions = `**AskUserQuestion — init.gitignore**\n\n1. **Re-ground**: Suggested ignore entries\n`
-    + `2. **Recommend-why**: keep artifacts out.\n${options}\nSuggested entries:\n${list}\n\nReply **A** or **B**.${after}`;
+  const inReground = `${head}1. **Re-ground**: \`.gitignore\`가 없음.\n${list}\n2. **Recommend-why**: keep artifacts out.\n${options}${after}`;
+  const afterOptions = `${head}1. **Re-ground**: Suggested ignore entries\n2. **Recommend-why**: keep artifacts out.\n`
+    + `${options}\nSuggested entries:\n${list}\n\nReply **A** or **B**.${after}`;
   for (const text of [inReground, afterOptions]) {
     assert.equal(answerTextQuestion(policy, 'bouncer-init', text, init)?.reply, 'A');
   }
@@ -296,41 +254,41 @@ test('reads ignore entries only up to the rule that closes the question', () => 
   rmSync(init, { recursive: true });
 });
 
-test('stops when the recommended option is not an unambiguous proceed', () => {
+test('recommended option that is not an unambiguous proceed → unanswerable', () => {
   const entries = policy.task_facts.expected_gitignore_suggestions.map((entry) => `\`${entry}\``).join(', ');
   const init = workdirWith();
   const reground = `.gitignore에 ${entries}를 추가할지`;
   const stops = [
     ['Leave `.gitignore` untouched (Recommended)', 'Write entries', 'Cancel'],
     ['Write entries', 'Leave untouched (Recommended)', 'Cancel'],
-    ['Write entries (Recommended)', 'Write only some (Recommended)', 'Cancel'],
     ['Write entries but revise the list (Recommended)', 'Leave untouched', 'Cancel'],
     ['Cancel for now (Recommended)', 'Write entries', 'Leave untouched'],
   ];
   for (const options of stops) {
-    assert.equal(answerTextQuestion(policy, 'bouncer-init', acq(reground, options), init), null, options[0]);
+    const state = turnQuestionState(policy, 'bouncer-init', acq('init.gitignore', reground, options), init);
+    assert.equal(state.kind, 'unanswerable', options[0]);
   }
   // An existing .gitignore that already ignores some expected entry: proposing that entry again is not the
   // init proposal, so it stops (the append case is covered in its own test).
   const existing = workdirWith({ gitignore: 'node_modules/\n' });
   assert.equal(answerTextQuestion(policy, 'bouncer-init',
-    acq(reground, ['Write entries (Recommended)', 'Leave', 'Cancel']), existing), null);
-  const extra = acq(`.gitignore에 ${entries}, \`secrets/\`를 추가할지`, ['Write entries (Recommended)', 'Leave', 'Cancel']);
+    acq('init.gitignore', reground, ['Write entries (Recommended)', 'Leave', 'Cancel']), existing), null);
+  const extra = acq('init.gitignore', `.gitignore에 ${entries}, \`secrets/\`를 추가할지`, ['Write entries (Recommended)', 'Leave', 'Cancel']);
   assert.equal(answerTextQuestion(policy, 'bouncer-init', extra, init), null);
   rmSync(init, { recursive: true });
   rmSync(existing, { recursive: true });
-  const missingFact = `${prdFacts.replace('exit 1', 'exit 2')}\n${acq('Discovery 핸드오프를 확정할지',
+  const missingFact = `${prdFacts.replace('exit 1', 'exit 2')}\n${acq('plan.discovery', 'Discovery 핸드오프를 확정할지',
     ['이대로 진행 (Recommended)', '수정 요청', '중단'])}`;
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', missingFact, '/nonexistent'), null);
 });
 
 test('keeps policy answers that differ from the recommendation', () => {
   const workDir = workdirWith({ epics: [] });
-  const light = acq('narrow-scope light로 갈지', ['경량(light) — maintenance epic (Recommended)',
-    '일반 경로 — 신규 epic과 전체 문서', '취소'], '**AskUserQuestion — Light scope**');
+  const light = acq('plan.light_scope', 'narrow-scope light로 갈지', ['경량(light) — maintenance epic (Recommended)',
+    '일반 경로 — 신규 epic과 전체 문서', '취소']);
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', light, workDir)?.reply, 'B');
-  const otherId = acq('epic/blueprint id를 정할지', ['epic `002` + blueprint `001` (Recommended)',
-    '다른 id 지정', '취소'], '**AskUserQuestion — ID allocation**');
+  const otherId = acq('plan.id_allocation', 'epic/blueprint id를 정할지', ['epic `002` + blueprint `001` (Recommended)',
+    '다른 id 지정', '취소']);
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', otherId, workDir), null);
   rmSync(workDir, { recursive: true });
 });
@@ -338,8 +296,8 @@ test('keeps policy answers that differ from the recommendation', () => {
 test('confirms affected_paths as proposed and records paths outside product scope', () => {
   const question = (paths) => [`### 제안 \`affected_paths\` (TASKS-001)`,
     ...paths.map((entry, index) => `${index + 1}. \`${entry}\``), '---',
-    acq('TASKS-001의 `bouncer.affected_paths`를 위 경로로 확정할지',
-      ['위 경로로 확정 (Recommended)', '수정 후 확정', '취소 / 중단'], '**AskUserQuestion — ACQ affected_paths**')].join('\n');
+    acq('plan.affected_paths', 'TASKS-001의 `bouncer.affected_paths`를 위 경로로 확정할지',
+      ['위 경로로 확정 (Recommended)', '수정 후 확정', '취소 / 중단'])].join('\n');
   const answer = (paths) => answerTextQuestion(policy, 'bouncer-plan', question(paths), '/nonexistent');
   assert.equal(answer(['src/cli.js', 'test/ledger.test.js'])?.reply, 'A');
   assert.doesNotMatch(answer(['src/cli.js', 'test/ledger.test.js']).choices[0].reason, /outside/);
@@ -351,7 +309,9 @@ test('confirms affected_paths as proposed and records paths outside product scop
 
 test('reads affected_paths from the proposal list, not from prose that excludes paths', () => {
   const question = (lines) => ['README/`data/entries.json` stay out.', '---',
-    '**AskUserQuestion (ACQ — affected_paths):**', '1. **Re-ground**: Confirm TASKS-001 `bouncer.affected_paths`',
+    '**AskUserQuestion — plan.affected_paths**',
+    '<!-- acq {"gate":"plan.affected_paths","options":["A","B","C"],"recommended":"A"} -->',
+    '1. **Re-ground**: Confirm TASKS-001 `bouncer.affected_paths`',
     ...lines, '- **A)** 위 목록 그대로 확정 (Recommended)', '- **B)** 수정안 제시', '- **C)** 취소'].join('\n');
   const reason = (lines) => answerTextQuestion(policy, 'bouncer-plan', question(lines), '/nonexistent')
     ?.choices[0].reason;
@@ -360,19 +320,20 @@ test('reads affected_paths from the proposal list, not from prose that excludes 
   assert.match(reason(['```', 'src/cli.js', 'src/ledger.js', '```']), expected);
 });
 
-test('stops affected_paths when no recommended proceed option is offered', () => {
-  const text = acq('TASKS-001의 `bouncer.affected_paths`를 확정할지', ['수정안 제시', '취소'],
-    '**AskUserQuestion — affected_paths**');
+test('affected_paths without a recommended proceed option → unanswerable', () => {
+  const text = acq('plan.affected_paths', 'TASKS-001의 `bouncer.affected_paths`를 확정할지', ['수정안 제시', '취소']);
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', text, '/nonexistent'), null);
 });
 
-test('sets the initial pointer only to the sole ready blueprint', () => {
+test('sole ready blueprint pointer question → answered only for that blueprint', () => {
   const target = '.bouncer/context/epics/001-monthly-summary/blueprints/001-summary-command';
-  const text = (label) => acq('승인된 블루프린트를 current pointer로 설정할지', [label, '다른 blueprint로 설정', '취소'],
-    '**AskUserQuestion (ACQ — Activate pointer):**');
+  const text = (label) => acq('plan.activate_pointer', '승인된 블루프린트를 current pointer로 설정할지',
+    [label, '다른 blueprint로 설정', '취소']);
+  // plan.activate_pointer는 카탈로그 밖이므로 카탈로그를 주입해 정책 판단만 본다.
+  const deps = { catalog: { 'bouncer-plan': ['plan.activate_pointer'] } };
   const answer = (workdir, label = `\`bouncer current --set ${target}\` 실행 (Recommended)`) => {
     const workDir = workdirWith(workdir);
-    const result = answerTextQuestion(policy, 'bouncer-plan', text(label), workDir);
+    const result = answerTextQuestion(policy, 'bouncer-plan', text(label), workDir, deps);
     rmSync(workDir, { recursive: true });
     return result;
   };
@@ -386,39 +347,18 @@ test('sets the initial pointer only to the sole ready blueprint', () => {
   assert.equal(answer({ ready: ['002-other/001-other'] }), null);
 });
 
-test('recognizes the plan Approval ACQ header', () => {
-  const text = acq('blueprint `001-summary-command`를 승인할지', ['승인하고 /bouncer-run으로 (Recommended)',
-    '수정 요청', '취소'], '**AskUserQuestion — ACQ Approval**');
+test('plan.approval block → approved by the recommended option', () => {
+  const text = acq('plan.approval', 'blueprint `001-summary-command`를 승인할지', ['승인하고 /bouncer-run으로 (Recommended)',
+    '수정 요청', '취소']);
   const result = answerTextQuestion(policy, 'bouncer-plan', text, '/nonexistent');
   assert.equal(result?.choices[0].gate, 'plan.approval');
   assert.equal(result.reply, 'A');
 });
 
-test('classifies Start drive wordings and leaves finalize consent in the run stage unclassified', () => {
-  for (const cue of ['**AskUserQuestion — Start drive** Whether to hand the remaining tasks to one coordinator.',
-    '**AskUserQuestion:** 남은 task를 coordinator 하나에 맡겨 드라이브를 시작할지',
-    '**AskUserQuestion:** 남은 작업을 coordinator에게 위임할지',
-    '**AskUserQuestion:** Delegate the remaining tasks to the coordinator?']) {
-    assert.equal(classifyGate('bouncer-run', cue)?.gate, 'run.start_drive', cue);
-  }
-  for (const cue of ['**AskUserQuestion — Explain quiz** Q1~Q3에 답할지',
-    '**AskUserQuestion:** 남은 변경을 커밋하고 worktree를 유지할지',
-    '**AskUserQuestion — PR** draft PR을 만들지']) {
-    assert.equal(classifyGate('bouncer-run', cue), null, cue);
-  }
-});
-
 test('Start drive stops without plan gate evidence', () => {
-  const text = acq('Whether to hand the remaining tasks to one coordinator.',
-    ['Start drive (Recommended)', 'Revise list/scope and reconfirm', 'Cancel'], '**AskUserQuestion — Start drive**');
+  const text = acq('run.start_drive', 'Whether to hand the remaining tasks to one coordinator.',
+    ['Start drive (Recommended)', 'Revise list/scope and reconfirm', 'Cancel']);
   assert.equal(answerTextQuestion(policy, 'bouncer-run', text, workdirWith()), null);
-});
-
-test('a classified gate that cannot decide does not fall through to a later gate', () => {
-  const workDir = workdirWith({ epics: [] });
-  const text = acq('Discovery 핸드오프와 light scope를 확정할지', ['Light로 진행 (Recommended)', 'Full', '취소']);
-  assert.equal(answerTextQuestion(policy, 'bouncer-plan', text, workDir), null);
-  rmSync(workDir, { recursive: true });
 });
 
 test('answers structured quiz only with three options for every question', () => {
@@ -474,26 +414,19 @@ test('host git calls map a container gitdir link inside a stage worktree', () =>
   }
 });
 
-test('classifies the Korean remainder question as the remainder gate', () => {
-  const gate = classifyGate('bouncer-finalize', 'context remainder를 `finalize --yes`로 커밋할지');
-  assert.equal(gate?.gate, 'finalize.remainder');
-});
-
-// rules/acq.md: 표시 제목의 gate ID가 질문을 결정한다 — 문구 추측(cue)은 ID 없는 과거 표시에만 쓴다.
-test('a gate ID heading selects the gate without cue words', () => {
+// rules/acq.md: 게이트는 카탈로그 ID로만 식별한다 — 문구가 같아도 ID가 다르면 다른 게이트다.
+test('a block gate selects the gate without wording hints', () => {
   const workDir = workdirWith({ epics: [] });
   try {
-    const text = acq('위 내용을 이대로 확정할지', ['이대로 진행 (Recommended)', '수정 후 재확인', '중단'],
-      '**AskUserQuestion — plan.light_scope**').replace('이대로 진행 (Recommended)', 'Full plan (Recommended)')
-      .replace('수정 후 재확인', 'Light plan');
+    const text = acq('plan.light_scope', '위 내용을 이대로 확정할지', ['Full plan (Recommended)', 'Light plan', '중단']);
     const result = answerTextQuestion(policy, 'bouncer-plan', text, workDir);
     assert.equal(result.reply, 'A');
     assert.equal(result.choices[0].gate, 'plan.light_scope');
-    assert.equal(result.choices[0].identified_by, 'gate_id');
-    // 다른 단계의 ID, 정책이 없는 ID는 cue로 넘어가지 않고 멈춘다.
+    assert.equal(result.choices[0].identified_by, 'block');
+    // 다른 단계의 ID, 정책이 없는 ID는 멈춘다.
     assert.equal(answerTextQuestion(policy, 'bouncer-run', text, workDir), null);
     assert.equal(answerTextQuestion(policy, 'bouncer-plan',
-      text.replace('plan.light_scope', 'plan.request'), workDir), null);
+      acq('plan.request', 'x', ['Full plan (Recommended)', 'Light plan']), workDir), null);
   } finally {
     rmSync(workDir, { recursive: true });
   }
@@ -508,15 +441,12 @@ test('gate IDs are read only from a heading or title position', () => {
   assert.equal(gateIdOf('**AskUserQuestion — Start drive**'), null);
 });
 
+
 test('checks discovery against the policy task terms instead of ledger-001 terms', () => {
   const budget = { ...policy, task_facts: { ...policy.task_facts,
     discovery_terms: ['budget', '--budgets', 'NO_BUDGET'], reusable_draft: null } };
-  const question = (goal) => [
-    goal,
-    '**AskUserQuestion — plan.discovery**',
-    '- A) Confirm framing as written (Recommended)',
-    '- B) Confirm framing, but revise',
-  ].join('\n');
+  const question = (goal) => [goal,
+    acq('plan.discovery', 'framing', ['Confirm framing as written (Recommended)', 'Confirm framing, but revise'])].join('\n');
   const budgetGoal = 'Goal: add budget with --budgets; categories without a budget print NO_BUDGET.';
   assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(budgetGoal), '/nonexistent').reply, 'A');
   const summaryGoal = 'Goal: add summary to cli.js with --file and --month YYYY-MM; print TOTAL. stderr exit 1; list total.';
@@ -552,95 +482,6 @@ test('answers pre-task state questions from the task policy and marks them synth
   assert.equal(answerAskQuestion(task, 'bouncer-run', unrelated), null);
 });
 
-test('reads a heading-form AskUserQuestion and flags one it cannot read', () => {
-  const { acqMarkers, unreadQuestion } = require('./responder.cjs');
-  const heading = [
-    '퀴즈 **0/3** 기록·publish 완료. Finalize dry-run은 통과했습니다.',
-    '### AskUserQuestion — `finalize.remainder`',
-    '- **A)** `finalize --yes` 커밋 + worktree 제거 (Recommended)',
-    '- **B)** `finalize --yes` 커밋만 — worktree 유지',
-    '- **C)** 메시지/스테이징 수정 후 재확인',
-    '- **D)** 취소 — `--yes` 실행 안 함',
-  ].join('\n');
-  assert.equal(acqMarkers(heading).length, 1);
-  assert.equal(gateIdOf(acqMarkers(heading)[0][0]), 'finalize.remainder');
-  assert.equal(unreadQuestion(heading), false);
-  assert.equal(acqMarkers('**AskUserQuestion — plan.approval**\n- A) Approve').length, 1);
-  assert.equal(unreadQuestion('Please answer the AskUserQuestion above: A or B?'), true);
-  assert.equal(unreadQuestion('Done. No questions.'), false);
-});
-
-test('reads a trailing lettered choice without an AskUserQuestion marker as one question', () => {
-  const { acqMarkers } = require('./responder.cjs');
-  const text = [
-    '**Remainder dry-run** — clean. Integration complete (`openTasks: []`).',
-    '---',
-    '**Decision — remainder commit + worktree**',
-    '',
-    'Task commits are done; after close the execute/integration checkouts are usually unnecessary.',
-    '',
-    '- **A)** `finalize --yes` commit + remove worktrees *(Recommended)*',
-    '- **B)** `finalize --yes` commit only — keep worktrees',
-    '- **C)** Fix message/staging and re-check',
-    '- **D)** Cancel — do not run `--yes`',
-    '',
-    'Reply with **A**, **B**, **C**, or **D**.',
-  ].join('\n');
-  const markers = acqMarkers(text);
-  assert.equal(markers.length, 1);
-  assert.equal(markers[0][0], '**Decision — remainder commit + worktree**');
-  assert.equal(classifyGate('bouncer-finalize', markers[0][0]).gate, 'finalize.remainder');
-  // Options in the middle of a report, or with no reply instruction, are not a question.
-  assert.equal(acqMarkers(`${text}\n\nDone; nothing else to decide.`).length, 0);
-  assert.equal(acqMarkers('Plan:\n- A) parse\n- B) print').length, 0);
-  // A quiz keeps its own path.
-  const quiz = '**Quiz:** 2 questions.\n**Q1.** Why?\nA) x\nB) y\nC) z\n**Q2.** What?\nA) x\nB) y\nC) z\nReply with both answers (Q1: A, Q2: B).';
-  assert.equal(acqMarkers(quiz).length, 0);
-});
-
-
-const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
-  open_decisions: 'delegate_to_agent_recommendation' } };
-
-// 1.5.4 discovery open decisions recorded in v154-ledger-00{1,4}-bouncer-full-{2,3}: four formats, two of them
-// with no recommendation marker. Each is handed back to the agent with one neutral line.
-for (const file of ['plan-open-decisions-ko-numbered.md', 'plan-open-decisions-gate-id.md',
-  'plan-open-decisions-en-reply-hint.md', 'plan-open-decisions-bold-options.md',
-  // v154-ledger-004-bouncer-full-5: `- **1A)**` options and a preview marker ending the sentence with `.`.
-  'plan-open-decisions-numbered-options.md']) {
-  test(`delegates recorded open decisions ${file}`, () => {
-    const text = readFileSync(path.join(fixtureDir, file), 'utf8');
-    const result = delegateOpenDecisions(delegating, 'bouncer-plan', text);
-    assert.equal(result?.gate, 'plan.open_decisions');
-    assert.equal(result.choices[0].synthetic, true);
-    assert.match(result.reply, /판단을 맡깁니다/);
-    assert.doesNotMatch(result.reply, /\b[A-C]\b/);
-    assert.equal(delegateOpenDecisions(policy, 'bouncer-plan', text), null);
-    assert.equal(delegateOpenDecisions(delegating, 'bouncer-run', text), null);
-  });
-}
-
-test('does not delegate a gate question that only mentions open decisions', () => {
-  const discovery = '**Open decisions**: none (request settles every behavior)\n\n---\n\n'
-    + '**AskUserQuestion — plan.approval**\n1. **Re-ground**: approve the plan\n'
-    + '- A) Approve (Recommended)\n- B) Revise\n- C) Cancel';
-  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', discovery), null);
-  // v154-ledger-004-bouncer-full-4: the Discover confirm lists the answered open decisions; delegating it
-  // made the agent take every later gate, plan approval included, as delegated.
-  const confirm = '---\n\n**AskUserQuestion — plan.discovery**\n\n1. **Re-ground**: Goal / Scope 확인\n'
-    + '3. **Options** (recommended-first):\n   - A) Confirm this discovery framing (Recommended)\n'
-    + '   - B) Revise (reply with what to change)\n   - C) Cancel planning\n\n### Open decisions\n'
-    + '1. Unknown shorts → **A**\n\nReply **A**, **B** (+ revisions), or **C**.';
-  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', confirm), null);
-});
-
-test('ignores an AskUserQuestion marker that only previews the next question inside a sentence', () => {
-  assert.deepEqual(acqMarkersOf('**AskUserQuestion — plan.open_decisions**\n- A) one\n- B) two\n\n'
-    + '답 받은 뒤 **AskUserQuestion — plan.discovery**로 확정하겠습니다.').map((m) => m[0]),
-  ['**AskUserQuestion — plan.open_decisions**']);
-  // A streamed turn may glue a real marker to the previous sentence; it still opens a question.
-  assert.equal(acqMarkersOf('Next are the Step 2 decisions.**AskUserQuestion (1/2) — ID allocation**\n').length, 1);
-});
 
 test('reads the drive state from the integration ledger once finalize prepare stops mirroring it', () => {
   const { mkdirSync } = require('node:fs');
@@ -663,10 +504,11 @@ test('reads the drive state from the integration ledger once finalize prepare st
   rmSync(checkout, { recursive: true });
 });
 
+
 test('appends the missing ignore entries to an existing .gitignore', () => {
   const repo = workdirWith({ gitignore: 'coverage\nnode_modules/\n' });
   const missing = policy.task_facts.expected_gitignore_suggestions.filter((entry) => entry !== 'node_modules/');
-  const ask = (entries) => acq(`.gitignore에 ${entries.map((entry) => `\`${entry}\``).join(', ')}를 추가할지`,
+  const ask = (entries) => acq('init.gitignore', `.gitignore에 ${entries.map((entry) => `\`${entry}\``).join(', ')}를 추가할지`,
     ['Write entries (Recommended)', 'Leave', 'Cancel']);
   assert.equal(answerTextQuestion(policy, 'bouncer-init', ask(missing), repo)?.reply, 'A');
   // Leaving out an expected entry the file lacks, or adding an unexpected one, still stops.
@@ -678,7 +520,7 @@ test('appends the missing ignore entries to an existing .gitignore', () => {
 test('sets a verify command named by the project scripts when the test script is not node --test', () => {
   const repo = workdirWith({ packageTest: 'npm run lint && npm run unit' });
   writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'npm run lint && npm run unit', unit: 'borp' } }));
-  const ask = (options) => acq('`bouncer.verify` 검증 명령을 정할지', options, '**AskUserQuestion — plan.verify_command**');
+  const ask = (options) => acq('plan.verify_command', '`bouncer.verify` 검증 명령을 정할지', options);
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `npm run unit` (Recommended)', 'Leave unset', 'Cancel']), repo)?.reply, 'A');
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `npm test` (Recommended)', 'Leave unset', 'Cancel']), repo)?.reply, 'A');
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `npm run e2e` (Recommended)', 'Leave unset', 'Cancel']), repo), null);
@@ -687,52 +529,147 @@ test('sets a verify command named by the project scripts when the test script is
 });
 
 test('installs the pre-commit hook only when the policy states install', () => {
-  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088-init-reply.txt'), 'utf8');
-  assert.equal(answerTextQuestion(policy, 'bouncer-init', text, mkdtempSync(path.join(tmpdir(), 'acp-responder-'))), null);
+  const entries = policy.task_facts.expected_gitignore_suggestions.map((entry) => `\`${entry}\``).join(', ');
+  const text = [acq('init.gitignore', `.gitignore에 ${entries}를 추가할지`, ['Write entries (Recommended)', 'Leave', 'Cancel']),
+    acq('init.pre_commit_hook', 'pre-commit hook 설치', ['Install pre-commit hook (Recommended)', 'Skip'])].join('\n\n');
+  const fresh = () => mkdtempSync(path.join(tmpdir(), 'acp-responder-'));
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', text, fresh()), null);
   const withHook = { ...policy, bouncer_decisions: [{ gate: 'init.pre_commit_hook', answer: 'install' }] };
-  const answer = answerTextQuestion(withHook, 'bouncer-init', text, mkdtempSync(path.join(tmpdir(), 'acp-responder-')));
+  const answer = answerTextQuestion(withHook, 'bouncer-init', text, fresh());
   assert.equal(answer.gate, 'init.gitignore,init.pre_commit_hook');
   assert.equal(answer.reply, 'A / A');
   const declined = { ...policy, bouncer_decisions: [{ gate: 'init.pre_commit_hook', answer: 'do_not_install' }] };
-  assert.equal(answerTextQuestion(declined, 'bouncer-init', text, mkdtempSync(path.join(tmpdir(), 'acp-responder-'))), null);
+  assert.equal(answerTextQuestion(declined, 'bouncer-init', text, fresh()), null);
 });
 
-// v088006-ledger-004-bouncer-full-1: the open decisions sat between two `---` rules and a draft framing table
-// followed them, so the last section had no options and the stage ended without an answer.
-test('delegates open decisions followed by a draft framing section', () => {
-  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088006-plan-open-decisions-trailing-framing.txt'),
-    'utf8');
-  const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
-    open_decisions: 'delegate_to_agent_recommendation' } };
-  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', text)?.gate, 'plan.open_decisions');
+const catalogOf = (...ids) => ({ 'bouncer-plan': ids, 'bouncer-init': ids, 'bouncer-finalize': ids });
+const proceedFirst = (gate) => ({ gate, phase: 'bouncer-plan', decide: ({ options }) => ({ option: options[0], basis: 'recommended' }) });
+const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
+  open_decisions: 'delegate_to_agent_recommendation' } };
+
+test('block options matching the body → answer, replied by the block gate', () => {
+  const text = ['**AskUserQuestion — plan.discovery**',
+    '<!-- acq {"gate":"plan.discovery","options":["A","B"],"recommended":"A"} -->', '- A) Write (Recommended)', '- B) Skip'].join('\n');
+  const read = readTextQuestions(text, ['plan.discovery']);
+  assert.equal(read.questions[0].gate, 'plan.discovery');
+  assert.equal(read.questions[0].recommended, 'A');
+  assert.equal(read.openDecisions, false);
+  const state = turnQuestionState(policy, 'bouncer-plan', text, null,
+    { catalog: catalogOf('plan.discovery'), gates: [proceedFirst('plan.discovery')] });
+  assert.equal(state.kind, 'answer');
+  assert.equal(state.decision.choices[0].gate, 'plan.discovery');
+  assert.equal(state.decision.reply, 'A');
 });
 
-// Without a delegation policy the trailing-framing incident is an unanswered option list; normal stage
-// finals that only mention "선택/답변" words must stay silent so the harness does not false-stop.
-test('flags unrecognized option-list questions and leaves normal stage finals alone', () => {
-  const incident = readFileSync(path.join(__dirname, 'fixtures', 'v088006-plan-open-decisions-trailing-framing.txt'), 'utf8');
-  assert.equal(unrecognizedQuestion(incident), true);
-  assert.equal(unhandledQuestionMethod(incident), 'text/unrecognized-question');
-  const finals = readdirSync(path.join(__dirname, 'fixtures', 'stage-final')).filter((f) => f.endsWith('.txt'));
+test('block options in another order than the body → violation options-mismatch', () => {
+  const text = '**AskUserQuestion — plan.discovery**\n<!-- acq {"gate":"plan.discovery","options":["B","A"],"recommended":"A"} -->\n- A) one\n- B) two';
+  assert.deepEqual(readTextQuestions(text, ['plan.discovery']), { violation: { reason: 'options-mismatch' } });
+});
+
+test('block JSON that does not parse, or names neither gate nor kind → violation block-json', () => {
+  assert.deepEqual(readTextQuestions('<!-- acq {"gate":"plan.discovery", -->\n- A) one\n- B) two', ['plan.discovery']),
+    { violation: { reason: 'block-json' } });
+  assert.deepEqual(readTextQuestions('<!-- acq {"options":["A","B"]} -->\n- A) one\n- B) two', ['plan.discovery']),
+    { violation: { reason: 'block-json' } });
+});
+
+test('block gate outside the catalog → violation unknown-gate', () => {
+  const text = '<!-- acq {"gate":"plan.nope","options":["A","B"],"recommended":"A"} -->\n- A) one\n- B) two';
+  assert.deepEqual(readTextQuestions(text, ['plan.discovery']), { violation: { reason: 'unknown-gate' } });
+});
+
+test('block with options but at most one body option → violation too-few-options', () => {
+  const text = '<!-- acq {"gate":"plan.discovery","options":["A","B"],"recommended":"A"} -->\n- A) only';
+  assert.deepEqual(readTextQuestions(text, ['plan.discovery']), { violation: { reason: 'too-few-options' } });
+});
+
+test('strict title with an ID outside the catalog → violation unknown-gate', () => {
+  assert.deepEqual(readTextQuestions('**AskUserQuestion — plan.nope**\n- A) one\n- B) two', ['plan.discovery']),
+    { violation: { reason: 'unknown-gate' } });
+  assert.deepEqual(readTextQuestions('**AskUserQuestion — Light scope**\n- A) one\n- B) two', ['plan.light_scope']),
+    { violation: { reason: 'unknown-gate' } });
+});
+
+test('strict title with two options and no block → answer', () => {
+  const text = '**AskUserQuestion — plan.discovery (1/2)**\n- A) one (Recommended)\n- B) two';
+  const state = turnQuestionState(policy, 'bouncer-plan', text, null,
+    { catalog: catalogOf('plan.discovery'), gates: [proceedFirst('plan.discovery')] });
+  assert.equal(state.kind, 'answer');
+  assert.equal(state.decision.reply, 'A');
+});
+
+test('strict title without options → violation too-few-options', () => {
+  assert.deepEqual(readTextQuestions('**AskUserQuestion — plan.discovery**\n질문만 있음', ['plan.discovery']),
+    { violation: { reason: 'too-few-options' } });
+});
+
+test('strict title followed by a sentence on the same line → none', () => {
+  const text = '답을 받은 뒤 이어서\n**AskUserQuestion — plan.discovery** 로 확정하겠습니다.\n끝.';
+  assert.deepEqual(readTextQuestions(text, ['plan.discovery']), { questions: [], openDecisions: false });
+  assert.equal(turnQuestionState(policy, 'bouncer-plan', text, null, { catalog: catalogOf('plan.discovery') }).kind, 'none');
+});
+
+test('two option lines with no title and a reply request → violation unmarked-question', () => {
+  const state = turnQuestionState(policy, 'bouncer-plan', '어느 쪽으로 할까요?\n- A) one\n- B) two\n답해 주세요', null,
+    { catalog: catalogOf('plan.discovery') });
+  assert.deepEqual(state, { kind: 'violation', reason: 'unmarked-question' });
+  assert.equal(readTextQuestions('Please answer the AskUserQuestion above.', []).violation.reason, 'unmarked-question');
+});
+
+test('open_decisions block and a delegating policy → open_decisions', () => {
+  const text = '**Open decisions**\n<!-- acq {"kind":"open_decisions"} -->\n- 1) a\n- 2) b\n';
+  assert.deepEqual(readTextQuestions(text, ['plan.discovery']), { questions: [], openDecisions: true });
+  const state = turnQuestionState(delegating, 'bouncer-plan', text, null, { catalog: catalogOf('plan.discovery') });
+  assert.equal(state.kind, 'open_decisions');
+  assert.equal(state.decision.gate, 'plan.open_decisions');
+  assert.equal(state.decision.choices[0].synthetic, true);
+  assert.match(state.decision.reply, /판단을 맡깁니다/);
+  assert.doesNotMatch(state.decision.reply, /\b[A-C]\b/);
+  // 위임 정책이 없거나 plan stage가 아니면 형식은 맞아도 답하지 않는다.
+  assert.equal(turnQuestionState(policy, 'bouncer-plan', text, null, { catalog: catalogOf() }).kind, 'unanswerable');
+  assert.equal(turnQuestionState(delegating, 'bouncer-run', text, null, { catalog: catalogOf() }).kind, 'unanswerable');
+});
+
+test('open decisions message without the open_decisions block → violation unmarked-question', () => {
+  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088-plan-open-decision.txt'), 'utf8');
+  assert.deepEqual(turnQuestionState(delegating, 'bouncer-plan', text, null), { kind: 'violation', reason: 'unmarked-question' });
+});
+
+test('free-input block and a gate decision with replyText → answer, reply is that text', () => {
+  const text = '**AskUserQuestion — plan.request**\n<!-- acq {"gate":"plan.request","options":[],"recommended":null} -->\n무엇을 만들까요?';
+  const gate = { gate: 'plan.request', phase: 'bouncer-plan', decide: () => ({ replyText: '요청' }) };
+  const state = turnQuestionState(policy, 'bouncer-plan', text, null, { gates: [gate] });
+  assert.equal(state.kind, 'answer');
+  assert.equal(state.decision.reply, '요청');
+  assert.equal(state.decision.choices[0].gate, 'plan.request');
+});
+
+test('free-input block and no gate decision → unanswerable', () => {
+  const text = '**AskUserQuestion — plan.request**\n<!-- acq {"gate":"plan.request","options":[],"recommended":null} -->\n무엇을 만들까요?';
+  assert.deepEqual(turnQuestionState(policy, 'bouncer-plan', text, null), { kind: 'unanswerable' });
+});
+
+test('finalize quiz turn without a block → quiz', () => {
+  const quiz = ['## Quiz', 'Q1. Which command lists entries?', '- A) list', '- B) total', '- C) summary',
+    'Reply with all answers.'].join('\n');
+  assert.equal(turnQuestionState(policy, 'bouncer-finalize', quiz, null).kind, 'quiz');
+  assert.equal(turnQuestionState(policy, 'bouncer-plan', quiz, null).kind, 'violation');
+});
+
+test('stage-final completion reports → none', () => {
+  const finals = readdirSync(path.join(__dirname, 'fixtures', 'stage-final')).filter((file) => file.endsWith('.txt'));
   assert.equal(finals.length, 8);
   for (const file of finals) {
     const text = readFileSync(path.join(__dirname, 'fixtures', 'stage-final', file), 'utf8');
-    assert.equal(unrecognizedQuestion(text), false, file);
-    assert.equal(unhandledQuestionMethod(text), null, file);
+    for (const phase of ['bouncer-init', 'bouncer-plan', 'bouncer-run', 'bouncer-finalize']) {
+      assert.equal(turnQuestionState(delegating, phase, text, null).kind, 'none', `${file} ${phase}`);
+    }
   }
-  assert.equal(unrecognizedQuestion('- A) one\n- B) two\n'), false); // 요청 문구 없음
-  assert.equal(unrecognizedQuestion('선택: A\n완료.'), false); // 선택지 없음
-  assert.equal(unrecognizedQuestion('- A) one\n답해 주세요'), false); // 선택지 하나
-  assert.equal(unrecognizedQuestion('- A) one\n- B) two\n답해 주세요'), true); // 경계: 선택지 둘
-  assert.equal(unhandledQuestionMethod('AskUserQuestion above: A or B?'), 'text/unread-question'); // 기존 분기가 먼저
 });
 
-test('delegates a single open decision with numbered options', () => {
-  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088-plan-open-decision.txt'), 'utf8');
-  const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
-    open_decisions: 'delegate_to_agent_recommendation' } };
-  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', text).gate, 'plan.open_decisions');
-  // Without the delegation the numbered question still stops for a human instead of ending the stage.
-  assert.equal(acqMarkersOf(text).length, 1);
-  assert.equal(answerTextQuestion(policy, 'bouncer-plan', text, null), null);
+test('loadCatalog()[bouncer-plan] → the workflows entry of rules/acq-gates.json', () => {
+  const file = JSON.parse(readFileSync(path.join(__dirname, '..', '..', 'rules', 'acq-gates.json'), 'utf8'));
+  assert.deepEqual(loadCatalog()['bouncer-plan'], file.workflows['bouncer-plan']);
+  assert.deepEqual(loadCatalog(), file.workflows);
 });
+
