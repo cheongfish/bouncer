@@ -9,8 +9,9 @@ const { tmpdir } = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const {
-  applyWorkspaceSetup, bundleFor, checkCard, loadCard, missingVerifierScripts, renderArgv, verifierInvocation,
+  applyWorkspaceSetup, bundleFor, checkCard, listCardIds, loadCard, missingVerifierScripts, renderArgv, verifierInvocation,
 } = require('./task-card.cjs');
+const yaml = require('js-yaml');
 
 const tasksDir = path.join(__dirname, 'tasks');
 
@@ -21,10 +22,9 @@ function git(args, cwd) {
 }
 
 test('every task card loads and matches its request file hash', () => {
-  const ids = readdirSync(tasksDir).filter((name) => /^[a-z][a-z0-9-]*-[0-9]{3}\.yaml$/.test(name))
-    .map((name) => name.slice(0, -'.yaml'.length));
-  assert.ok(ids.includes('fastify-001'));
-  for (const id of ids) {
+  const { ready, unprepared } = listCardIds(tasksDir);
+  assert.ok(ready.includes('fastify-001'));
+  for (const id of ready) {
     const task = loadCard(id);
     assert.equal(task.card.id, id);
     assert.ok(task.requestText.length > 0);
@@ -32,6 +32,8 @@ test('every task card loads and matches its request file hash', () => {
     if (existsSync(path.join(__dirname, 'upstream', `${id}.json`))) continue;
     assert.ok(existsSync(bundleFor(task.card.base_commit)));
   }
+  // 준비되지 않은 DeepSWE 카드는 지시문이 gitignore돼 loadCard를 못 하므로 카드 구조 검사만 CI에서 받는다.
+  for (const id of unprepared) checkCard(yaml.load(readFileSync(path.join(tasksDir, `${id}.yaml`), 'utf8')), id);
 });
 
 test('a card whose request file changed is rejected', (t) => {
@@ -121,4 +123,99 @@ test('card without workspace_setup → no setup record', (t) => {
 test('copy target outside the workspace → rejected', () => {
   const card = { id: 'x-001', workspace_setup: [{ copy: 'tasks/fastify-001.prd.md', to: '../escape.txt' }] };
   assert.throws(() => applyWorkspaceSetup(tmpdir(), card), /relative path without \.\./);
+});
+
+// restore_untracked: 임시 root에 fixtures/deepswe/<id>/{untracked.tar,prepared.json}를 두고 임시 git 저장소에 적용한다.
+// tar 항목 목록·브랜치 확인이 계약 자체라 실제 git·tar를 쓴다.
+function restoreFixture(t, { branch = 'develop', preparedBranch = branch, tarEntries } = {}) {
+  const base = mkdtempSync(path.join(tmpdir(), 'task-restore-'));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const work = path.join(base, 'work');
+  mkdirSync(work);
+  git(['init', '--quiet', '-b', branch], work);
+  git(['config', 'user.email', 't@example.com'], work);
+  git(['config', 'user.name', 't'], work);
+  writeFileSync(path.join(work, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], work);
+  git(['commit', '--quiet', '-m', 'base'], work);
+  const root = path.join(base, 'root');
+  const dir = path.join(root, 'fixtures', 'deepswe', 'x-001');
+  mkdirSync(dir, { recursive: true });
+  const stage = path.join(base, 'stage');
+  mkdirSync(path.join(stage, 'sub'), { recursive: true });
+  writeFileSync(path.join(stage, 'sub', 'b.txt'), 'restored\n');
+  const entries = tarEntries ?? ['sub/b.txt'];
+  const made = spawnSync('tar', ['-cPf', path.join(dir, 'untracked.tar'), '-C', stage, ...entries]);
+  assert.equal(made.status, 0, String(made.stderr));
+  writeFileSync(path.join(dir, 'prepared.json'),
+    JSON.stringify({ base_branch: preparedBranch, untracked_paths: ['sub/b.txt'] }));
+  return { work, root, dir };
+}
+
+const restoreCard = { id: 'x-001', workspace_setup: [{ restore_untracked: 'x-001' }] };
+
+test('branch develop checked out in a bundle clone → symbolic-ref is develop', (t) => {
+  const { work } = restoreFixture(t);
+  const bundle = path.join(path.dirname(work), 'b.bundle');
+  git(['bundle', 'create', bundle, 'HEAD', 'develop'], work);
+  const clone = path.join(path.dirname(work), 'w');
+  git(['clone', '--quiet', bundle, clone], path.dirname(work));
+  assert.equal(git(['symbolic-ref', '--short', 'HEAD'], clone), 'develop');
+});
+
+test('restore_untracked on a clone → untracked files restored, index tree unchanged, record has sha and paths', (t) => {
+  const { work, root } = restoreFixture(t);
+  const before = git(['write-tree'], work);
+  const record = applyWorkspaceSetup(work, restoreCard, root);
+  assert.equal(readFileSync(path.join(work, 'sub', 'b.txt'), 'utf8'), 'restored\n');
+  assert.equal(record.index_tree, before);
+  assert.equal(record.steps[0].kind, 'restore_untracked');
+  assert.match(record.steps[0].source_sha256, /^[0-9a-f]{64}$/);
+  assert.deepEqual(record.steps[0].paths, ['sub/b.txt']);
+});
+
+test('archive entry with .. → rejected before extraction', (t) => {
+  const { work, root } = restoreFixture(t, { tarEntries: ['../stage/sub/b.txt'] });
+  assert.throws(() => applyWorkspaceSetup(work, restoreCard, root), /untracked archive entry must be a relative path without \.\./);
+});
+
+test('no untracked archive → rejected with the prepare command', (t) => {
+  const { work, root, dir } = restoreFixture(t);
+  rmSync(path.join(dir, 'untracked.tar'));
+  assert.throws(() => applyWorkspaceSetup(work, restoreCard, root), /untracked archive missing; run node benchmarks\/prepare-deepswe-task\.cjs/);
+});
+
+test('restore_untracked value that is not a card id → rejected', () => {
+  const card = { id: 'x-001', workspace_setup: [{ restore_untracked: '../x' }] };
+  assert.throws(() => applyWorkspaceSetup(tmpdir(), card), /restore_untracked must name a card id/);
+});
+
+test('workspace on main but prepared base_branch develop → rejected', (t) => {
+  const { work, root } = restoreFixture(t, { branch: 'main', preparedBranch: 'develop' });
+  assert.throws(() => applyWorkspaceSetup(work, restoreCard, root), /differs from prepared base_branch/);
+});
+
+test('bundle under fixtures/deepswe of the given root → bundleFor finds it', (t) => {
+  const { work, root } = restoreFixture(t);
+  const bundle = path.join(root, 'fixtures', 'deepswe', 'x-001.bundle');
+  git(['bundle', 'create', bundle, 'HEAD', 'develop'], work);
+  assert.equal(bundleFor(git(['rev-parse', 'HEAD'], work), root), bundle);
+});
+
+test('restore_untracked card without prepared.json → listed as unprepared, others ready', (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'task-list-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(path.join(dir, 'plain-001.yaml'), 'id: plain-001\n');
+  writeFileSync(path.join(dir, 'x-001.yaml'), 'id: x-001\nworkspace_setup:\n  - restore_untracked: x-001\n');
+  const root = path.join(dir, 'root');
+  assert.deepEqual(listCardIds(dir, root), { ready: ['plain-001'], unprepared: ['x-001'] });
+  mkdirSync(path.join(root, 'fixtures', 'deepswe', 'x-001'), { recursive: true });
+  writeFileSync(path.join(root, 'fixtures', 'deepswe', 'x-001', 'prepared.json'), '{}');
+  assert.deepEqual(listCardIds(dir, root), { ready: ['plain-001', 'x-001'], unprepared: [] });
+});
+
+test('unprepared card with an unknown field → checkCard rejects it through the loop path', () => {
+  const { card } = loadCard('fastify-001');
+  const unprepared = { ...card, workspace_setup: [{ restore_untracked: 'fastify-001' }], extra: 1 };
+  assert.throws(() => checkCard(unprepared, 'fastify-001'), /unknown card fields extra/);
 });

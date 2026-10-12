@@ -85,7 +85,54 @@ function setupStep(step, taskId) {
     if (!/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(step.install_dependencies ?? '')) fail(`${taskId}: install_dependencies names an upstream task`);
     return { kind: 'install_dependencies', source: step.install_dependencies };
   }
+  if (keys === 'restore_untracked') {
+    if (!/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(step.restore_untracked ?? '')) fail(`${taskId}: restore_untracked must name a card id`);
+    return { kind: 'restore_untracked', source: step.restore_untracked };
+  }
   return fail(`${taskId}: unsupported workspace_setup step {${keys}}`);
+}
+
+/**
+ * 미추적 파일 묶음 항목 경로가 작업 공간 밖으로 나가지 못하게 검사한다.
+ * 묶음은 준비 명령이 만들지만 풀기 전에 다시 검사해, 손상되거나 바뀐 묶음이 작업 공간 밖을 쓰지 못하게 한다.
+ *
+ * @param {string} entry - `tar -tf` 목록의 항목 경로(예: `node_modules/`, `target/debug`).
+ * @returns {void} 안전한 상대 경로면 아무것도 돌려주지 않고, `..`를 포함하거나 절대 경로면 throw한다.
+ */
+function assertArchiveEntry(entry) {
+  if (typeof entry !== 'string' || !entry || path.isAbsolute(entry) || entry.split(/[\\/]/).includes('..')) {
+    fail(`untracked archive entry must be a relative path without ..: ${entry}`);
+  }
+}
+
+/**
+ * `prepare-deepswe-task.cjs`가 만든 미추적 파일 묶음을 clone한 작업 공간에 푼다.
+ * 풀기 전에 작업 공간 브랜치가 준비 때 기록한 기준 브랜치와 같은지, 묶음의 모든 항목이 안전한 경로인지 확인한다.
+ * 심볼릭 링크는 `tar`가 그대로 복원한다.
+ *
+ * @param {string} workDir - `git clone`으로 만든 작업 공간 경로.
+ * @param {string} cardId - 카드 id(`fixtures/deepswe/<cardId>/`를 가리킨다).
+ * @param {string} [root=benchmarkRoot] - `fixtures/deepswe/`를 찾을 benchmarks 루트(테스트가 임시 경로를 넘긴다).
+ * @returns {{kind: string, source: string, source_sha256: string, paths: string[]}} run.json에 기록할 항목.
+ */
+function restoreUntracked(workDir, cardId, root = benchmarkRoot) {
+  const dir = path.join(root, 'fixtures', 'deepswe', cardId);
+  const archive = path.join(dir, 'untracked.tar');
+  const preparedFile = path.join(dir, 'prepared.json');
+  if (!existsSync(archive) || !existsSync(preparedFile)) {
+    fail(`${cardId}: untracked archive missing; run node benchmarks/prepare-deepswe-task.cjs ${cardId}`);
+  }
+  const prepared = JSON.parse(readFileSync(preparedFile, 'utf8'));
+  const listing = spawnSync('tar', ['-tf', archive], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  if (listing.error || listing.status !== 0) fail(`tar -tf ${archive}: ${listing.stderr || listing.error?.message}`);
+  for (const entry of listing.stdout.split('\n').filter(Boolean)) assertArchiveEntry(entry);
+  const branch = git(['symbolic-ref', '--short', 'HEAD'], workDir);
+  if (branch !== prepared.base_branch) {
+    fail(`${cardId}: workspace branch ${branch} differs from prepared base_branch ${prepared.base_branch}`);
+  }
+  const extract = spawnSync('tar', ['-xf', archive, '-C', workDir], { encoding: 'utf8' });
+  if (extract.error || extract.status !== 0) fail(`tar -xf ${archive}: ${extract.stderr || extract.error?.message}`);
+  return { kind: 'restore_untracked', source: cardId, source_sha256: sha256(readFileSync(archive)), paths: prepared.untracked_paths };
 }
 
 // Replaces `{name}` placeholders in verifier argv. Unknown names and missing values stop the run, so a
@@ -100,11 +147,12 @@ function renderArgv(argv, values) {
 
 // The fixture bundle whose recorded heads include the card's base commit. Upstream-commit tasks keep
 // their generated bundles in fixtures/upstream/ (build-upstream-task.cjs).
-function bundleFor(baseCommit) {
-  const dirs = [path.join(benchmarkRoot, 'fixtures'), path.join(benchmarkRoot, 'fixtures', 'upstream')];
+// DeepSWE 과제 bundle은 prepare-deepswe-task.cjs가 fixtures/deepswe/에 만든다. `root`는 테스트 seam이다.
+function bundleFor(baseCommit, root = benchmarkRoot) {
+  const dirs = [path.join(root, 'fixtures'), path.join(root, 'fixtures', 'upstream'), path.join(root, 'fixtures', 'deepswe')];
   const matches = dirs.filter((dir) => existsSync(dir))
     .flatMap((dir) => readdirSync(dir).filter((name) => name.endsWith('.bundle')).map((name) => path.join(dir, name)))
-    .filter((file) => git(['bundle', 'list-heads', file], benchmarkRoot)
+    .filter((file) => git(['bundle', 'list-heads', file], root)
       .split('\n').some((line) => line.split(' ')[0] === baseCommit));
   if (matches.length !== 1) fail(`expected one fixture bundle with head ${baseCommit}, found ${matches.length}`);
   return matches[0];
@@ -134,9 +182,14 @@ function loadCard(taskId, tasksDir = path.join(benchmarkRoot, 'tasks')) {
 
 // Applies the card's pre-task workspace state after clone and before the agent starts. Returns a record
 // of what was applied, including the resulting index tree, for run.json.
-function applyWorkspaceSetup(workDir, card) {
+// `root`는 restore_untracked 원본(fixtures/deepswe/)의 위치이며 다른 종류의 원본은 언제나 benchmarkRoot 기준이다.
+function applyWorkspaceSetup(workDir, card, root = benchmarkRoot) {
   const applied = [];
   for (const step of (card.workspace_setup ?? []).map((raw) => setupStep(raw, card.id))) {
+    if (step.kind === 'restore_untracked') {
+      applied.push(restoreUntracked(workDir, step.source, root));
+      continue;
+    }
     if (step.kind === 'install_dependencies') {
       applied.push(installDependencies(workDir, step.source));
       continue;
@@ -182,6 +235,28 @@ function verifierInvocation(card) {
   return { id: verifier.id, timeoutMs: verifier.timeout_ms, composeArgs: ['--entrypoint', entrypoint, 'verifier', ...args] };
 }
 
+/**
+ * 카드 YAML을 `loadCard` 없이 파싱해 실행 준비 여부로 나눈다.
+ * `restore_untracked` 카드는 지시문과 작업 공간 원본이 gitignore돼 있어 준비 명령을 돌리기 전에는 `loadCard`할 수 없다.
+ *
+ * @param {string} tasksDir - 카드 YAML 디렉터리.
+ * @param {string} [root=benchmarkRoot] - `fixtures/deepswe/<id>/prepared.json`을 찾을 benchmarks 루트.
+ * @returns {{ready: string[], unprepared: string[]}} `restore_untracked`가 있는데 `prepared.json`이 없는 카드는 unprepared, 나머지는 ready.
+ */
+function listCardIds(tasksDir, root = benchmarkRoot) {
+  const ready = [];
+  const unprepared = [];
+  const ids = readdirSync(tasksDir).filter((name) => /^[a-z][a-z0-9-]*-[0-9]{3}\.yaml$/.test(name))
+    .map((name) => name.slice(0, -'.yaml'.length)).sort();
+  for (const id of ids) {
+    const card = yaml.load(readFileSync(path.join(tasksDir, `${id}.yaml`), 'utf8'));
+    const restores = (card?.workspace_setup ?? []).some((step) => step && 'restore_untracked' in step);
+    const prepared = existsSync(path.join(root, 'fixtures', 'deepswe', id, 'prepared.json'));
+    (restores && !prepared ? unprepared : ready).push(id);
+  }
+  return { ready, unprepared };
+}
+
 // Loads a card and refuses tasks whose verifier scripts are not written yet, before any paid run.
 function loadRunnableCard(taskId) {
   const task = loadCard(taskId);
@@ -203,6 +278,6 @@ function taskRecord(task) {
 }
 
 module.exports = {
-  CONTAINER_VALUES, PLACEHOLDERS, applyWorkspaceSetup, bundleFor, checkCard, loadCard, loadRunnableCard,
-  missingVerifierScripts, renderArgv, taskRecord, verifierInvocation,
+  CONTAINER_VALUES, PLACEHOLDERS, applyWorkspaceSetup, assertArchiveEntry, bundleFor, checkCard, listCardIds, loadCard,
+  loadRunnableCard, missingVerifierScripts, renderArgv, restoreUntracked, taskRecord, verifierInvocation,
 };
