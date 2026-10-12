@@ -9,7 +9,7 @@
 
 ### Changed
 
-- **Intent 코드 펜스 가드 (EPIC 096 BP 001)** — `## Intent` 아래 mermaid·코드 펜스는
+- **Intent 코드 펜스 가드 (EPIC 097 BP 001)** — `## Intent` 아래 mermaid·코드 펜스는
   문장 집계에서 건너뛰고, 깨진 Intent는 plan·finalize gate와 `finalize prepare`가
   `S33`(`blueprint Intent invalid: …`)으로 거절한다. draft와 Intent 헤딩 부재는
   예전처럼 `S33`을 내지 않는다.

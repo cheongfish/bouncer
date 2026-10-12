@@ -2,7 +2,7 @@
 type: bouncer.blueprint
 title: blueprint Intent 코드 펜스 검사 보강
 description: Skip code fences when parsing blueprint Intent and fail malformed Intent early with a structured result.
-resource: .bouncer/context/epics/096-intent-fence-guard/blueprints/001-intent-fence-guard/index.md
+resource: .bouncer/context/epics/097-intent-fence-guard/blueprints/001-intent-fence-guard/index.md
 tags:
   - bouncer
   - blueprint
@@ -12,7 +12,7 @@ tags:
 timestamp: '2026-10-12T17:16:17.923+09:00'
 bouncer:
   id: '001'
-  epic_id: '096'
+  epic_id: '097'
   blueprint_id: '001'
   status: closed
   commit_type: fix
@@ -22,7 +22,7 @@ bouncer:
 ---
 # 001 blueprint Intent 코드 펜스 검사 보강
 
-Epic: [096](../../index.md)
+Epic: [097](../../index.md)
 
 ## Intent
 `## Intent` 아래의 코드 펜스를 문장으로 읽어 finalize가 마지막 단계에서 스택 트레이스로 중단되던 문제를 고친다.
@@ -42,7 +42,7 @@ flowchart LR
   - `prepareFinalizeDigest`: `## Intent` 헤딩이 있는 본문의 파싱 오류를 `intent = []`로 삼키지 않고 `{ ok: false, reason: 'validate', failures: [S33] }`(`next` 없음)로 돌려준다. 헤딩 부재는 기존처럼 `intent: []`로 통과한다.
   - `finalize()`: 코드 변경 없음. 기존 finalize gate 호출(`reason: 'validate'`)이 `S33`을 돌려주므로, 커밋 메시지 생성의 던지는 경로에 닿기 전에 구조화된 실패로 끝난다.
 - 데이터·상태: 문서 스키마와 frontmatter 변경 없음. `DigestFail`에 `failures?: { code: string; message: string; file: string }[]`를 추가한다.
-- 수용 기준: epic 096 Success criteria 1~8.
+- 수용 기준: epic 097 Success criteria 1~8.
 - 검증 명령: `npm run ci`.
 - 실패 모드·엣지 케이스:
   - 불릿 안 펜스(`- ```mermaid`)와 들여쓰기된 펜스는 펜스로 본다.

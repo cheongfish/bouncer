@@ -2,7 +2,7 @@
 type: bouncer.epic
 title: blueprint Intent 코드 펜스 방어
 description: Make blueprint Intent parsing skip code fences and report malformed Intent as a structured failure before finalize reaches commit message generation.
-resource: .bouncer/context/epics/096-intent-fence-guard/index.md
+resource: .bouncer/context/epics/097-intent-fence-guard/index.md
 tags:
   - bouncer
   - epic
@@ -11,12 +11,12 @@ tags:
   - validate
 timestamp: '2026-10-12T17:16:17.805+09:00'
 bouncer:
-  id: '096'
-  epic_id: '096'
+  id: '097'
+  epic_id: '097'
   status: approved
   supersedes: []
 ---
-# 096 blueprint Intent 코드 펜스 방어
+# 097 blueprint Intent 코드 펜스 방어
 
 ## Intent
 blueprint `## Intent` 아래에 mermaid 같은 코드 펜스가 있으면 파서가 펜스 줄을 문장으로 읽어, `finalize` 마지막 단계(커밋 메시지 생성)에서 스택 트레이스와 함께 중단됨. plan gate와 `finalize prepare`는 이 구조를 통과시켜 사용자가 finalize 직전까지 알 수 없음.

@@ -2,14 +2,14 @@
 type: bouncer.explain
 title: 001 explain
 description: Explain for 001
-resource: .bouncer/context/epics/096-intent-fence-guard/blueprints/001-intent-fence-guard/explain.md
+resource: .bouncer/context/epics/097-intent-fence-guard/blueprints/001-intent-fence-guard/explain.md
 tags:
   - bouncer
   - explain
 timestamp: '2026-10-13T08:11:51.312+09:00'
 bouncer:
   id: EXPLAIN-001
-  epic_id: '096'
+  epic_id: '097'
   blueprint_id: '001'
   status: published
   comprehension:
@@ -18,7 +18,7 @@ bouncer:
       diff_sha: 684529e40788a3f53aa78e3db85209162cb51db989a2032a62b36138373b5512
       recorded_at: '2026-10-13T08:12:00+09:00'
   task_commits:
-    - task: EPIC-096/BP-001/TASK-001
+    - task: EPIC-097/BP-001/TASK-001
       sha: 76020ede
       intent_anchor: task-001
 ---
@@ -61,11 +61,11 @@ Intent는 문장만 남기고 다이어그램은 옆 절로 보낸다. 검사도
 
 ## Tasks
 
-### EPIC-096/BP-001/TASK-001 · `76020ede`
+### EPIC-097/BP-001/TASK-001 · `76020ede`
 
 #### Goal & intent
 
-`## Intent` 아래 코드 펜스를 문장으로 읽지 않고, 올바르지 않은 Intent는 plan·finalize gate(`S33`), `finalize prepare`, `finalize`가 모두 `{ ok: false, reason: 'validate', failures }` 형태로 보고한다. 완료 판정은 epic 096 Success criteria 1~8이며, 최종 검증 명령은 `npm run ci`다.
+`## Intent` 아래 코드 펜스를 문장으로 읽지 않고, 올바르지 않은 Intent는 plan·finalize gate(`S33`), `finalize prepare`, `finalize`가 모두 `{ ok: false, reason: 'validate', failures }` 형태로 보고한다. 완료 판정은 epic 097 Success criteria 1~8이며, 최종 검증 명령은 `npm run ci`다.
 
 #### Current behavior
 
