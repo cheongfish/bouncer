@@ -10,7 +10,7 @@ const { isRecord } = guards;
 import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import planSnapshot = require('./plan-snapshot');
-const { computePlanSnapshot, computePlanParts } = planSnapshot;
+const { SNAPSHOT_VERSION, computePlanSnapshot, computePlanParts } = planSnapshot;
 import scaffold = require('./scaffold');
 const { scaffoldContextReview } = scaffold;
 import paths = require('./paths');
@@ -284,13 +284,23 @@ function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Dispa
     || JSON.stringify(snap.documents) !== JSON.stringify(payload.target.documents)) {
     return targetInvalid(`dispatch is stale: ${payload.target.digest} != ${snap.digest}`, next);
   }
-  // payload가 실어 온 parts·scope_parts는 믿지 않는다: 현재 blueprint에서 다시 계산해 같아야
-  // 한다. 위조된 문서별 digest로 follow_up 판정을 흔들지 못하게 한다.
+  // 새로 기록하는 dispatch는 v2여야 한다. snapshot_version이 없는 digest-only payload는
+  // 새 digest 알고리즘과 맞지 않아 위 digest 대조에서 이미 stale로 걸리지만, 우연히 맞는
+  // 경우에도 내용 없는 payload를 cycle 증거로 저장하지 않도록 형식을 따로 거절한다.
+  if (payload.snapshot_version !== SNAPSHOT_VERSION) {
+    return targetInvalid(
+      `dispatch snapshot_version ${String(payload.snapshot_version)} is not ${SNAPSHOT_VERSION}`, next);
+  }
+  // payload가 실어 온 parts·scope_parts·structure_parts·documents_content는 믿지 않는다:
+  // 현재 blueprint에서 다시 계산해 같아야 한다. 위조된 문서별 digest나 before/after 내용으로
+  // follow_up 판정과 reviewer 입력이 흔들리지 못하게 한다.
   const partSnap = computePlanParts({ repoRoot, blueprintDir: bp });
   if (!partSnap.ok) return targetInvalid(partSnap.error, next);
   if (!isDeepStrictEqual(payload.parts, partSnap.parts)
-    || !isDeepStrictEqual(payload.scope_parts, partSnap.scope_parts)) {
-    return targetInvalid('dispatch parts/scope_parts differ from the current blueprint', next);
+    || !isDeepStrictEqual(payload.scope_parts, partSnap.scope_parts)
+    || !isDeepStrictEqual(payload.structure_parts, partSnap.structure_parts)
+    || !isDeepStrictEqual(payload.documents_content, partSnap.documents_content)) {
+    return targetInvalid('dispatch parts/content differ from the current blueprint', next);
   }
   return { sha256: sha256(bytes), digest: snap.digest, text: bytes.toString('utf8') };
 }

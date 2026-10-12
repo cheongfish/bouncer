@@ -113,18 +113,35 @@ Do not compute the digest. Copy \`target.digest\` from the JSON that
 places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
 
 Plan fields (\`single\` / \`clustered\` only; absent on \`skip\` and failures):
+  snapshot_version 2. target.digest hashes the ordered {file, body, structure} of
+                   every plan document; status/title/timestamp/commit evidence are excluded
   parts            per-document body sha256 (epic index, blueprint index, each tasks.md)
-  scope_parts      per-tasks.md scope sha256 (sorted affected_paths + depends_on +
-                   Interface body + Touch body)
+  structure_parts  per-document sha256 of the normalized judgement structure
+                   (task: affected_paths, depends_on, parallel_safe, dependency_gate,
+                   exclusive_resources, execution_kind; blueprint: scale, review_scope)
+  scope_parts      observation only (Interface/Touch/affected_paths/depends_on hash);
+                   never used to choose follow_up
+  documents_content  path -> {body, structure}; the immutable content a later
+                   \`--previous\` run diffs against (no git or working-tree lookup)
   follow_up        \`full\` | \`partial\` — compare with \`--previous <file>\` (the
                    stored prior plan JSON). Omit \`--previous\` only for a first
-                   classification with no review evidence → \`full\`, empty
-                   changed_documents.
-  changed_documents tasks.md paths whose body alone changed (\`partial\` only)
+                   classification with no review evidence → \`full\`, every current
+                   document in changed_documents, before null.
+  changed_documents sorted union of added/removed/body-changed/structure-changed paths
+  related_documents contract references for the delta reviewer: changed tasks' previous
+                   and current cluster neighbours, DAG predecessors/successors (transitive),
+                   epic and blueprint; all tasks when epic/blueprint changed; the whole
+                   current set on \`full\`. Changed documents are not repeated (partial).
+  revision_diff    [{file, before, after}] with {body, structure}; added/removed
+                   documents null their missing side
 
-\`full\` when the document set, epic/blueprint index body, or any scope_parts
-differs; otherwise \`partial\`. Once a cycle or recorded rounds exist, \`--previous\`
-is required and must equal the cycle latest_dispatch. Failures print
+\`full\` when the document set or any document's normalized structure differs (task
+added/removed, affected_paths, depends_on, parallel_safe, exclusive_resources,
+execution_kind, scale/review_scope) or when \`--previous\` is a digest-only legacy
+payload (before null, reason legacy-payload-no-content, counts as a restart);
+otherwise every prose edit, including epic/blueprint, Interface and Touch, is
+\`partial\`. Once a cycle or recorded rounds exist, \`--previous\` is required and
+must equal the cycle latest_dispatch. Failures print
 \`{ ok: false, reason, cause, next }\` (exit 1) with reason
 previous-payload-required | previous-payload-invalid | previous-payload-stale.
 `;
