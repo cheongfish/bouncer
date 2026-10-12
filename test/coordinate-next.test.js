@@ -443,6 +443,7 @@ test('blueprint next: verified supplement returns final_review in delta mode', (
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'final_review');
   assert.strictEqual(r.payload.mode, 'delta');
+  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
   assertCardFor(r);
 });
 
@@ -452,6 +453,34 @@ test('blueprint next: without a supplement decision final_review carries no mode
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'final_review');
   assert.strictEqual(r.payload, undefined);
+  assert.ok(!r.argv.includes('--mode'));
+});
+
+test('root review에 discovery round → final_review argv 끝이 --mode delta이고 payload.mode delta', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/023-disc';
+  const drive = supplementReviewDrive('bouncer-next-disc-', blueprint, []);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'final_review');
+  assert.strictEqual(r.payload.mode, 'delta');
+  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
+  assertCardFor(r);
+});
+
+test('root review.md YAML이 깨짐 → final_review argv에 --mode 없음, 예외 없음', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/024-bad-yaml';
+  const drive = supplementReviewDrive('bouncer-next-bad-yaml-', blueprint, []);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer: [\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'final_review');
+  assert.strictEqual(r.payload, undefined);
+  assert.ok(!r.argv.includes('--mode'));
 });
 
 test('blueprint next: all integrated is done', () => {

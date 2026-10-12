@@ -879,6 +879,98 @@ test('execute risk flags append security on single and parallel', () => {
   ]);
 });
 
+// parallel+review_risk fixture를 CLI --mode 계약에 재사용한다. delta는 reviewer만
+// combined 하나로 접고, discovery 통계·risk_flags는 그대로 둔다.
+test('parallel diff와 review_risk에 --mode delta → strategy single, perspectives [combined]', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  for (const name of ['a', 'b', 'c', 'd']) {
+    fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
+  }
+  git(repo, ['add', 'src']);
+  git(repo, ['commit', '-qm', 'many files risk delta']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const discovery = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', base, '--head', head,
+    '--repo', repo,
+  ]);
+  assert.strictEqual(discovery.code, 0);
+  const d = JSON.parse(discovery.out);
+  assert.strictEqual(d.strategy, 'parallel');
+  const delta = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', base, '--head', head,
+    '--repo', repo, '--mode', 'delta',
+  ]);
+  assert.strictEqual(delta.code, 0);
+  const json = JSON.parse(delta.out);
+  assert.strictEqual(json.ok, true);
+  assert.strictEqual(json.strategy, 'single');
+  assert.deepStrictEqual(json.perspectives, ['combined']);
+  assert.deepStrictEqual(json.target, d.target);
+  assert.deepStrictEqual(json.changed_files, d.changed_files);
+  assert.deepStrictEqual(json.changed_lines, d.changed_lines);
+  assert.deepStrictEqual(json.risk_flags, d.risk_flags);
+  assert.strictEqual(json.reasons.length, d.reasons.length + 1);
+});
+
+test('--mode discovery → --mode 생략과 같은 JSON', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  for (const name of ['a', 'b', 'c', 'd']) {
+    fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
+  }
+  git(repo, ['add', 'src']);
+  git(repo, ['commit', '-qm', 'many files discovery mode']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const omitted = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', base, '--head', head,
+    '--repo', repo,
+  ]);
+  const explicit = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', base, '--head', head,
+    '--repo', repo, '--mode', 'discovery',
+  ]);
+  assert.strictEqual(omitted.code, 0);
+  assert.strictEqual(explicit.code, 0);
+  assert.deepStrictEqual(JSON.parse(explicit.out), JSON.parse(omitted.out));
+});
+
+test('--mode bogus → exit 2', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  const bad = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', 'HEAD', '--head', 'HEAD',
+    '--repo', repo, '--mode', 'bogus',
+  ]);
+  assert.strictEqual(bad.code, 2);
+  assert.strictEqual(bad.out, '');
+  assert.match(bad.err, /review-dispatch execute/);
+});
+
+test('--mode 값 없음 → exit 2', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  const bare = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', 'HEAD', '--head', 'HEAD',
+    '--repo', repo, '--mode',
+  ]);
+  assert.strictEqual(bare.code, 2);
+  assert.strictEqual(bare.out, '');
+  assert.match(bare.err, /review-dispatch execute/);
+});
+
 test('execute rejects non-canonical blueprintDir escape without perspectives', () => {
   // SEC-001: Plan은 validateBlueprint/isCanonicalBlueprintDir로 ../ 를 막지만
   // Execute가 path.join만 하면 repo 밖 tasks.md의 review_risk로 security를 연다.
