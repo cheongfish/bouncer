@@ -30,8 +30,8 @@ ledger 합성 과제와 fastify-001에서 vanilla가 매번 만점을 받아 Bou
 5. 네 과제 `deepswe-quill-001`(TypeScript), `deepswe-expr-001`(Go), `deepswe-statemachine-001`(Python), `deepswe-oxvg-001`(Rust) 각각에서 정답 확인 명령이 손대지 않은 작업 공간은 `reward` 0, `solution/` 적용은 `reward` 1로 채점한다.
 6. DeepSWE 과제의 vanilla 에이전트는 과제 이미지에 cursor-agent를 얹은 이미지에서, bouncer-full 에이전트는 여기에 플러그인까지 얹은 이미지에서 실행된다. 두 실행기(`run-cursor.cjs`, `run-bouncer-full.cjs`)의 `run.json` `image_id`는 그 과제별 이미지를 가리킨다.
 7. DeepSWE 채점은 과제 `tests/Dockerfile` 이미지를 네트워크 없이 실행한 공식 `tests/test.sh` 결과이고, `run.json`에 `reward`(주점수), `f2p_passed`·`f2p_total`·`p2p_passed`·`p2p_total`, `apply_failed`, `deviations: ["agent_network"]`가 남는다. `reward.json`이 없으면 `judge_status`는 `unjudgeable`이다.
-8. 제출 patch는 기준 커밋 대비 작업 트리 diff이며 `.bouncer/`·`.worktrees/`·실행기가 복사한 파일을 포함하지 않는다.
-9. bouncer-full 실행의 `--timeout-minutes`는 단계 합계 예산이고 기본값은 180분이며, 실행은 그 예산을 넘겨 다음 단계를 시작하지 않는다. bootstrap 검사는 정책 `task_facts.base_branch`를 기준 브랜치로 쓴다.
+8. 제출 patch는 조건별로 만든다. vanilla는 기준 커밋 대비 작업 트리 diff이고, bouncer-full과 아카이브 재채점은 기준 커밋 대비 integration 브랜치 커밋 diff다(bouncer-full finalize가 integration worktree를 지운 뒤에도 만들 수 있다). 세 경로 모두 `.bouncer/`·`.worktrees/`·`restore_untracked`로 복원한 경로를 포함하지 않는다.
+9. bouncer-full 실행의 `--timeout-minutes`는 실행 전체 wall-clock 예산이다. 범위는 1..240, 기본값은 180분이며, 남은 예산이 1분 미만이면 다음 단계를 시작하지 않는다. bootstrap 검사는 정책 `task_facts.base_branch`를 기준 브랜치로 쓴다.
 10. 새 `test/*.test.js`는 `test/tiers.json`에 배정되고, CHANGELOG `[Unreleased]`에 BP별 항목이 있으며, `npm run ci`가 통과한다.
 
 ## Out of scope
