@@ -244,6 +244,23 @@ test('approved broken Intent on plan and finalize gates → each reports S33 wit
   }
 });
 
+// S33는 plan/finalize 전용. execute·commit·partial-close는 Intent 파싱을
+// 돌리지 않으므로, 동일하게 깨진 Intent fixture에서도 S33가 없어야 한다.
+test('approved broken Intent on execute, commit, and partial-close gates → no S33', () => {
+  for (const gate of ['execute', 'commit', 'partial-close']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-s33-skip-'));
+    writeMinimalBlueprint(repo, {
+      status: 'approved',
+      intentBody: '## Intent\n- English only\n',
+    });
+    const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate });
+    assert.ok(
+      !res.failures.some((f) => f.code === 'S33'),
+      `unexpected S33 on ${gate}: ${JSON.stringify(res.failures)}`,
+    );
+  }
+});
+
 test('approved fenced valid Intent on plan and finalize gates → no S33', () => {
   for (const gate of ['plan', 'finalize']) {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-s33-ok-'));
