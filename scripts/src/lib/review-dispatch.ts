@@ -2,7 +2,6 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { createHash } = require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 
@@ -21,6 +20,7 @@ const { toPosix } = paths;
 import layout = require('./layout');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
 import guards = require('./guards');
+import contextReviewState = require('./context-review-state');
 const { isRecord } = guards;
 import schema = require('./schema');
 const { executionKindOf } = schema;
@@ -224,45 +224,28 @@ function checkPreviousShape(previous: unknown, bp: string): PreviousFail | null 
  */
 function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): PreviousFail | null {
   const recover = 'restore the stored payload from the cycle (latest_dispatch) and pass it as --previous';
-  const nsRel = `.bouncer/runtime/context-review/${bp.split('/').join('__')}`;
 
-  // 1. cycle state 유무. ENOENT 외 오류는 증거 판정을 못 하므로 invalid.
-  let stateRaw: string | null = null;
-  try {
-    stateRaw = fs.readFileSync(path.join(repoRoot, nsRel, 'state.json'), 'utf8');
-  } catch (error) {
-    if (!isRecord(error) || error.code !== 'ENOENT') {
-      const code = String(isRecord(error) ? error.code : error);
-      return previousFail('previous-payload-invalid', `cycle state unreadable: ${code}`, recover);
-    }
+  // 1. cycle state와 latest_dispatch 저장본은 context-review-state의 읽기 전용 helper로 읽는다.
+  //    쓰기 쪽과 같은 검증을 공유해 경로·id 규칙이 두 곳에서 어긋나지 않게 한다.
+  const stored = contextReviewState.readStoredLatest(repoRoot, bp);
+  if (!stored.ok) {
+    return previousFail('previous-payload-invalid', `cycle state invalid: ${stored.cause}`, recover);
   }
 
-  // 2. state가 없으면 context-review.md의 기존 증거(rounds/findings/cycle)를 본다.
+  // 2. state가 없으면 context-review.md의 증거(rounds/findings/restart_count 표식)를 본다.
+  //    표식은 restart가 남기는 값이라 runtime state가 지워져도 증거로 남는다.
   let legacyDigest: string | null = null;
-  let hasEvidence = stateRaw !== null;
-  if (stateRaw === null) {
-    const crAbs = path.join(repoRoot, bp, 'context-review.md');
-    if (fs.existsSync(crAbs)) {
-      let data: unknown;
-      try {
-        ({ data } = readDoc(crAbs));
-      } catch (error) {
-        // 파싱 실패 문서를 "증거 없음"으로 보면 후속 리뷰가 최초처럼 전체 재리뷰된다.
-        return previousFail('previous-payload-invalid',
-          `context-review.md unreadable: ${error instanceof Error ? error.message : String(error)}`,
-          'fix the context-review.md frontmatter, then retry');
-      }
-      const bouncer = isRecord(data) && isRecord(data.bouncer) ? data.bouncer : {};
-      const cr = isRecord(bouncer.context_review) ? bouncer.context_review : {};
-      const rounds = Array.isArray(cr.rounds) ? cr.rounds : [];
-      const findings = Array.isArray(cr.findings) ? cr.findings : [];
-      hasEvidence = rounds.length > 0 || findings.length > 0 || cr.cycle !== undefined;
-      for (const r of rounds) {
-        if (isRecord(r) && isRecord(r.target) && typeof r.target.digest === 'string') {
-          legacyDigest = r.target.digest;
-        }
-      }
+  let hasEvidence = stored.state !== null;
+  if (stored.state === null) {
+    const legacy = contextReviewState.readLegacyEvidence(repoRoot, bp);
+    if (!legacy.ok) {
+      // 파싱 실패 문서를 "증거 없음"으로 보면 후속 리뷰가 최초처럼 전체 재리뷰된다.
+      return previousFail('previous-payload-invalid',
+        `context-review.md unreadable: ${legacy.cause}`,
+        'fix the context-review.md frontmatter, then retry');
     }
+    hasEvidence = legacy.present || legacy.marker >= 1;
+    legacyDigest = legacy.digest;
   }
 
   if (!hasEvidence) return null;
@@ -274,7 +257,7 @@ function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): 
   if (shape) return shape;
 
   // 3a. legacy: 마지막 round가 인증한 digest와 previous digest가 같아야 한다.
-  if (stateRaw === null) {
+  if (stored.state === null) {
     const digest = (previous as { target: { digest: string } }).target.digest;
     if (legacyDigest !== null && legacyDigest !== digest) {
       return previousFail('previous-payload-stale',
@@ -283,42 +266,8 @@ function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): 
     return null;
   }
 
-  // 3b. cycle: latest_dispatch가 가리키는 저장 파일(sha256 확인)과 payload가 같아야 한다.
-  let ref: unknown;
-  try {
-    const state = JSON.parse(stateRaw) as unknown;
-    ref = isRecord(state) && isRecord(state.cycle) ? state.cycle.latest_dispatch : undefined;
-  } catch (error) {
-    if (!(error instanceof SyntaxError)) throw error;
-    return previousFail('previous-payload-invalid', `cycle state is corrupt: ${error.message}`,
-      'restore state.json from backup');
-  }
-  if (!isRecord(ref) || typeof ref.path !== 'string' || typeof ref.sha256 !== 'string'
-    || !ref.path.startsWith(`${nsRel}/cycles/`) || ref.path.split('/').includes('..')) {
-    return previousFail('previous-payload-invalid', 'cycle latest_dispatch reference is malformed',
-      'restore state.json from backup');
-  }
-  let storedText: string;
-  try {
-    storedText = fs.readFileSync(path.join(repoRoot, ref.path), 'utf8');
-  } catch (error) {
-    return previousFail('previous-payload-invalid',
-      `stored latest_dispatch unreadable: ${String(isRecord(error) ? error.code : error)}`,
-      'restore the stored dispatch file from backup');
-  }
-  if (createHash('sha256').update(storedText).digest('hex') !== ref.sha256) {
-    return previousFail('previous-payload-invalid', 'stored latest_dispatch digest mismatch',
-      'restore the stored dispatch file from backup');
-  }
-  let stored: unknown;
-  try {
-    stored = JSON.parse(storedText);
-  } catch (error) {
-    if (!(error instanceof SyntaxError)) throw error;
-    return previousFail('previous-payload-invalid', 'stored latest_dispatch is not JSON',
-      'restore the stored dispatch file');
-  }
-  if (!isDeepStrictEqual(stored, previous)) {
+  // 3b. cycle: latest_dispatch 저장본(sha256 확인됨)과 payload가 같아야 한다.
+  if (!isDeepStrictEqual(stored.payload, previous)) {
     return previousFail('previous-payload-stale',
       'previous differs from the cycle latest_dispatch', recover);
   }

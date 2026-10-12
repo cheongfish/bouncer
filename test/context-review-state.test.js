@@ -8,7 +8,10 @@ const path = require('node:path');
 
 const { runCli } = require('../scripts/lib/cli');
 const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
-const { computePlanSnapshot } = require('../scripts/lib/plan-snapshot');
+const { computePlanSnapshot, computePlanParts } = require('../scripts/lib/plan-snapshot');
+const { validateBlueprint } = require('../scripts/lib/validate');
+const crState = require('../scripts/lib/context-review-state');
+const { readDoc } = require('../scripts/lib/frontmatter');
 
 const TS = '2026-07-01T00:00:00+09:00';
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -65,11 +68,15 @@ function writeJson(repo, name, value) {
 /** 현재 snapshot과 일치하는 review-dispatch plan 형태의 payload 파일을 쓴다. */
 function dispatchFile(repo, name = 'dispatch.json', overrides = {}) {
   const snap = computePlanSnapshot({ repoRoot: repo, blueprintDir: BP });
+  // 실제 review-dispatch plan 출력처럼 parts·scope_parts를 싣는다(loadDispatch가 재계산 대조한다).
+  const partSnap = computePlanParts({ repoRoot: repo, blueprintDir: BP });
   return writeJson(repo, name, {
     ok: true,
     phase: 'plan',
     target: { digest: snap.digest, documents: snap.documents },
     strategy: 'single',
+    parts: partSnap.parts,
+    scope_parts: partSnap.scope_parts,
     ...overrides,
   });
 }
@@ -449,4 +456,192 @@ test('--help와 -h → stdout usage와 exit 0을 낸다', () => {
     assert.ok(r.out.startsWith('usage: bouncer context-review'));
     assert.equal(r.err, '');
   }
+});
+
+// --- repair TASKS-003: restart 앵커·경로 검증·symlink·parts 재계산 -------------------
+
+const crDoc = (repo) => readDoc(path.join(repo, BP, 'context-review.md'));
+const marker = (repo) => crDoc(repo).data.bouncer.context_review.restart_count;
+
+/** 한 번 restart한 repo를 만든다. */
+function restartedRepo() {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  changeDocs(repo);
+  const r = restart(repo, dispatchFile(repo, 'dispatch2.json'));
+  assert.equal(r.code, 0, r.out + r.err);
+  return repo;
+}
+
+test('restart 성공 → context-review.md에 restart_count 표식이 쓰이고 다른 키와 본문은 그대로다', () => {
+  const repo = makeRepo();
+  const before = crDoc(repo);
+  start(repo, dispatchFile(repo));
+  assert.equal(marker(repo), undefined);
+  changeDocs(repo);
+  assert.equal(restart(repo, dispatchFile(repo, 'dispatch2.json')).code, 0);
+  const after = crDoc(repo);
+  assert.equal(marker(repo), 1);
+  assert.deepEqual(after.data.bouncer.context_review.findings, []);
+  assert.equal(after.data.bouncer.status, before.data.bouncer.status);
+  assert.equal(after.body, before.body);
+});
+
+test('restart 뒤 runtime state를 지우고 start → 새 cycle을 만들지 않고 거부한다', () => {
+  const repo = restartedRepo();
+  fs.unlinkSync(findState(repo));
+  const r = start(repo, dispatchFile(repo, 'dispatch3.json'));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-state-conflict');
+  assert.equal(fs.existsSync(findState(repo) || '/nonexistent'), false);
+});
+
+test('restart 뒤 runtime state를 지우고 restart → 한도 소진으로 거부한다', () => {
+  const repo = restartedRepo();
+  fs.unlinkSync(findState(repo));
+  changeDocs(repo);
+  const r = restart(repo, dispatchFile(repo, 'dispatch3.json'));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-restart-limit');
+});
+
+test('표식이 1인데 state의 restart_count가 더 낮으면 → 손상으로 모든 전이를 거부한다', () => {
+  const repo = restartedRepo();
+  const statePath = findState(repo);
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  state.cycle.restart_count = 0;
+  state.cycle.history = [];
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  const d = dispatchFile(repo, 'dispatch3.json');
+  const r = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [ADVISORY]));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-state-conflict');
+  assert.equal(restart(repo, d).code, 1);
+});
+
+test('legacy import restart → 표식을 남겨 state 삭제 뒤 restart가 한도 소진으로 거부된다', () => {
+  const repo = makeRepo();
+  const crPath = path.join(repo, BP, 'context-review.md');
+  const snap = computePlanSnapshot({ repoRoot: repo, blueprintDir: BP });
+  fs.writeFileSync(crPath, fs.readFileSync(crPath, 'utf8').replace(
+    'findings: []',
+    `rounds:\n    - round: 1\n      mode: discovery\n      target: { digest: ${snap.digest} }\n    findings: []`,
+  ));
+  changeDocs(repo);
+  assert.equal(restart(repo, dispatchFile(repo, 'dispatch2.json')).code, 0);
+  assert.equal(marker(repo), 1);
+  fs.unlinkSync(findState(repo));
+  assert.equal(restart(repo, dispatchFile(repo, 'dispatch2.json')).json.reason, 'context-review-restart-limit');
+});
+
+/** state.json을 읽어 수정한 뒤 다시 쓴다. */
+function tamperState(repo, mutate) {
+  const statePath = findState(repo);
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  mutate(state);
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  return statePath;
+}
+
+test('state의 cycle.id가 cr-<16hex> 형식이 아니면 → 참조가 일관돼도 손상으로 거부한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  tamperState(repo, (s) => {
+    const old = s.cycle.id;
+    s.cycle.id = 'evil';
+    s.cycle.latest_dispatch.path = s.cycle.latest_dispatch.path.replace(old, 'evil');
+  });
+  const r = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [ADVISORY]));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-state-conflict');
+});
+
+test('state의 참조 경로에 .. 구간이 있으면 → cycle prefix로 시작해도 손상으로 거부한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  tamperState(repo, (s) => {
+    s.cycle.latest_dispatch.path = `${path.posix.dirname(s.cycle.latest_dispatch.path)}/../../../../../../x.json`;
+  });
+  const r = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [ADVISORY]));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-state-conflict');
+});
+
+test('cycles 아래 dispatch 디렉터리가 symlink이면 → 쓰기를 거부하고 밖에 파일을 만들지 않는다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  const started = start(repo, d);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cr-outside-'));
+  const dispatchDir = path.join(path.dirname(findState(repo)), 'cycles', started.json.cycle.id, 'dispatch');
+  fs.rmSync(dispatchDir, { recursive: true });
+  fs.symlinkSync(outside, dispatchDir);
+  changeDocs(repo);
+  const d2 = dispatchFile(repo, 'dispatch2.json');
+  const r = record(repo, d2, roundFile(repo, 'r1.json', 1, 'discovery', [ADVISORY]));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-target-invalid');
+  assert.deepEqual(fs.readdirSync(outside), []);
+});
+
+test('writeImmutable → 대상 파일이 symlink이면 거부하고 내용이 다른 기존 파일도 거부한다', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cr-wi-'));
+  const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cr-out-')), 'victim');
+  fs.writeFileSync(outside, 'keep');
+  fs.symlinkSync(outside, path.join(root, 'link.json'));
+  assert.throws(() => crState.writeImmutable(root, path.join(root, 'link.json'), 'x'), /symlink/);
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'keep');
+  const file = path.join(root, 'sub', 'a.json');
+  crState.writeImmutable(root, file, 'one');
+  crState.writeImmutable(root, file, 'one');
+  assert.throws(() => crState.writeImmutable(root, file, 'two'), /differs/);
+  assert.equal(fs.readFileSync(file, 'utf8'), 'one');
+});
+
+test('writeAtomic → 대상이 symlink이면 거부하고 tmp 파일을 남기지 않는다', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cr-wa-'));
+  const outside = path.join(root, 'victim');
+  fs.writeFileSync(outside, 'keep');
+  fs.symlinkSync(outside, path.join(root, 'state.json'));
+  assert.throws(() => crState.writeAtomic(path.join(root, 'state.json'), 'x'), /symlink/);
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'keep');
+  assert.deepEqual(fs.readdirSync(root).sort(), ['state.json', 'victim']);
+  crState.writeAtomic(path.join(root, 'ok.json'), 'a');
+  crState.writeAtomic(path.join(root, 'ok.json'), 'b');
+  assert.equal(fs.readFileSync(path.join(root, 'ok.json'), 'utf8'), 'b');
+  assert.deepEqual(fs.readdirSync(root).sort(), ['ok.json', 'state.json', 'victim']);
+});
+
+test('dispatch의 parts가 현재 blueprint 재계산과 다르면 → target-invalid로 거부한다', () => {
+  const repo = makeRepo();
+  const real = computePlanParts({ repoRoot: repo, blueprintDir: BP });
+  const [first] = Object.keys(real.parts);
+  const forged = { ...real.parts, [first]: 'f'.repeat(64) };
+  const r = start(repo, dispatchFile(repo, 'forged.json', { parts: forged }));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-target-invalid');
+  assert.equal(findState(repo), null);
+  const forgedScope = start(repo, dispatchFile(repo, 'forged2.json', { scope_parts: { x: 'y' } }));
+  assert.equal(forgedScope.json.reason, 'context-review-target-invalid');
+});
+
+test('dispatch에 parts·scope_parts가 없으면 → target-invalid로 거부한다', () => {
+  const repo = makeRepo();
+  const r = start(repo, dispatchFile(repo, 'noparts.json', { parts: undefined, scope_parts: undefined }));
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-target-invalid');
+});
+
+test('restart 표식이 있는 context-review.md → 구조·plan 검증에 표식 때문의 실패가 늘지 않는다', () => {
+  const repo = makeRepo();
+  start(repo, dispatchFile(repo));
+  const failuresOf = () => validateBlueprint({ repoRoot: repo, blueprintDir: BP, planDraft: true })
+    .failures.map((f) => `${f.code} ${f.message}`).filter((m) => /context|CTXREVIEW|restart_count/i.test(m));
+  const before = failuresOf();
+  changeDocs(repo);
+  assert.equal(restart(repo, dispatchFile(repo, 'dispatch2.json')).code, 0);
+  assert.equal(marker(repo), 1);
+  assert.deepEqual(failuresOf(), before);
 });

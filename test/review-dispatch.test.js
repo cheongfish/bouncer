@@ -1445,3 +1445,58 @@ test('손상된 previous 파일 → CLI가 cause와 next를 붙여 exit 1로 거
   assert.strictEqual(body.reason, 'previous-payload-invalid');
   assert.ok(body.cause && body.next);
 });
+
+// --- repair TASKS-003: 표식 증거·공유 읽기 helper ------------------------------------
+
+test('cycle 없이 restart_count 표식만 있는 context-review → 증거로 보고 previous를 요구한다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Login context review',
+    description: 'd',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'pending',
+      context_review: { findings: [], restart_count: 1 },
+    },
+  });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'previous-payload-required');
+});
+
+test('restart 뒤 runtime state를 지워도 → 표식이 증거라 previous를 요구한다', () => {
+  const { repo, first } = startedRepo();
+  rewriteTasksGoal(repo, '001', 'Ship a rewritten plan.');
+  const second = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  const file = saveJson(repo, 'second.json', second);
+  const restarted = capture([
+    'context-review', 'restart', '--repo', repo, '--blueprint', BP_REL, '--dispatch', file, '--reason', 'rewritten',
+  ]);
+  assert.strictEqual(restarted.code, 0, restarted.out + restarted.err);
+  fs.rmSync(path.join(repo, '.bouncer', 'runtime'), { recursive: true });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.reason, 'previous-payload-required');
+});
+
+test('변조된 cycle.id의 state → 공유 검증으로 previous-payload-invalid 거부하고 bytes를 바꾸지 않는다', () => {
+  const { repo, first } = startedRepo();
+  const root = path.join(repo, '.bouncer', 'runtime', 'context-review');
+  const statePath = path.join(root, fs.readdirSync(root)[0], 'state.json');
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  // 파일도 옮겨 참조가 실제로 읽히게 한다: id 형식 검증만이 이 변조를 막는다.
+  fs.renameSync(
+    path.join(path.dirname(statePath), 'cycles', state.cycle.id),
+    path.join(path.dirname(statePath), 'cycles', 'evil'),
+  );
+  state.cycle.id = 'evil';
+  state.cycle.latest_dispatch.path = state.cycle.latest_dispatch.path.replace(/cr-[0-9a-f]{16}/, 'evil');
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  const before = runtimeBytes(repo);
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  assert.strictEqual(result.reason, 'previous-payload-invalid');
+  assert.deepStrictEqual(runtimeBytes(repo), before);
+});

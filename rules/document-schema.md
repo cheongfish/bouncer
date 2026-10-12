@@ -129,11 +129,17 @@ plan, rerun the designated step, or return to planning.
 
 Plan context-review state is owned by `bouncer context-review start|record|restart`.
 Its cycle (`id`, `restart_count` capped at 1, `history`, `active_reports`,
-`latest_dispatch`) lives under `.bouncer/runtime/context-review/`, reports and
-dispatch payloads are referenced by path and sha256, and only an accepted record
-returns the canonical `rounds`/`findings` projection (`resolved` or `accepted`
-with a note). A recorded disposition is not a plan gate pass. A follow-up
-`review-dispatch plan` needs the stored `latest_dispatch` payload as `--previous`.
+`latest_dispatch`) lives in the canonical runtime state
+`.bouncer/runtime/context-review/<blueprint path with / as __>/state.json`, with
+immutable reports and dispatch payloads under `cycles/<id>/...` referenced by path
+and sha256. `restart_count` is also anchored in the blueprint-root
+`context-review.md` as `bouncer.context_review.restart_count`, written only by
+`restart`, so deleting the runtime state cannot reset it: with a marker of 1 and no
+`state.json`, `start` and `restart` refuse, and a state count below the marker is
+corrupt. Only an accepted record returns the canonical `rounds`/`findings`
+projection (`resolved` or `accepted` with a note). A recorded disposition is not a
+plan gate pass. A follow-up `review-dispatch plan` needs the stored `latest_dispatch`
+payload as `--previous`.
 
 ## Task bundle and commit records
 
