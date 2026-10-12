@@ -139,14 +139,16 @@ unchanged code. A new finding must be either:
 
 Return **only** a Findings list. For each finding include:
 
-- stable `id` and relation: `new | resolved | regressed`
+- stable `id` and relation: `new | resolved | regressed | unresolved`
+  `unresolved` is a previous finding still present under the same id and not a regression; the controller keeps it `status: open`.
 - `severity`: `blocker | major | minor | nit`
 - `category`, `brief_clause`, `file`, `symbol`, and their TASKS-001 fingerprint
   form: `<category>:<brief_clause>:<file>#<symbol>`
 - summary and evidence (`file:line` or concrete diff reference)
 - `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; for a
   new delta finding, include its revision-diff location or false-acceptance path
-- actionability hint: `must_fix | advisory` (`advisory` only)
+- actionability hint: `must_fix | advisory` (`advisory` only for a finding the
+  controller may accept with a note)
 
 Add one **Scope/task impact** line — `none`, or the paths and tasks the
 findings reach beyond the current `affected_paths`. Do **not** set review

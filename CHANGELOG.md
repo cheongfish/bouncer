@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **delta 리뷰 단일 reviewer (EPIC 088 BP 008)** — `review-dispatch execute
+  --mode delta`는 `combined` reviewer 하나만 돌리고, `coordinate next`는
+  discovery round 뒤 `final_review` argv 끝에 그 표시를 붙인다. delta round에
+  관점이 둘 이상이면 `review record`와 G14·G21이 거절한다. execute reviewer
+  relation에 `unresolved`(같은 id로 남은 이전 finding, `status: open`)를 더했다.
+
 ### Removed
 
 - **ledger 벤치마크 자산 삭제 (EPIC 094 BP 001)** — vanilla도 만점을 받아 비교 가치가 없던

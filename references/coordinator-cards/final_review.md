@@ -21,11 +21,13 @@ review and Procedure step 6 (Close).
   base/head, or when `risk_flags` disagree with the union of commit-task
   `review_risk`, stop — do not open a review round, do not call reviewers, and
   do not record the review `accepted`.
-- Walk the CLI `perspectives` array in order as the only discovery fan-out —
-  do not also branch on `strategy` to invent calls, and do not append
-  `security` from `risk_flags` separately (the CLI list already includes it
-  when required; for example small risk → `combined` then `security`). Named
-  and fallback review paths walk the same `perspectives` sequence.
+- In discovery, walk the CLI `perspectives` array in order as the only
+  discovery fan-out — do not also branch on `strategy` to invent calls, and do
+  not append `security` from `risk_flags` separately (the CLI list already
+  includes it when required; for example small risk → `combined` then
+  `security`). Named and fallback review paths walk the same `perspectives`
+  sequence. Delta does not walk that discovery list — see the must_fix
+  repair and supplement bullets below.
 - Give each reviewer every commit task brief (Goal & intent, Interface, Touch,
   Do not touch, Constraints, Checklist) and the blueprint Contract.
 - Record `bouncer.review.findings[]` and `rounds[]` on the blueprint-root
@@ -44,23 +46,31 @@ review and Procedure step 6 (Close).
 - When a `must_fix` repair remains, open one repair with `bouncer coordinate
   repair … --review-finding <id>` (repeat the flag per finding) so one repair
   task fixes every must_fix. Re-run the terminal verification, then freeze the
-  same `base` and the post-repair integration HEAD and call `review-dispatch`
-  once for delta — do not reopen discovery. Fail-closed compares against that
-  round's frozen target.
+  same `base` and the post-repair integration HEAD and run the `final_review`
+  argv from `coordinate next` as returned (it ends with `--mode delta`) — for
+  example `bouncer review-dispatch execute --blueprint <dir> --base <sha>
+  --head <sha> --mode delta`. That result's `perspectives` is one `combined`;
+  dispatch that single reviewer with every previous finding and the revision
+  diff. Do not reopen discovery or walk the discovery perspective list again.
+  Record the round with `mode: delta`; if you list perspectives, list only
+  `combined` (two or more and `review record` rejects the round). Fail-closed
+  compares against that round's frozen target.
 - When every open finding is a `supplement`, run `bouncer coordinate repair
   --kind supplement --review-finding <id> … --summary <text> --paths
   <test-path>` instead: no new task, no repair wave, no `terminalFailure`.
   `next` then returns `supplement` (follow that card) and, once verified,
-  `final_review` with `payload.mode: delta`; run that one delta round. If
+  `final_review` with `payload.mode: delta`; run that one delta round the same
+  way as the must_fix repair bullet (argv ends with `--mode delta`, one
+  `combined` reviewer, do not reopen discovery). If
   `supplement-paths-not-tests`, `repair-scope-out-of-bounds`, or
   `supplement-delta-used` refuses it, take the repair path above or `blocked`.
   Mixed findings take the repair path for all of them.
 - If repair returns `repair-wave-limit`, put the open must_fix findings in the
   Blocked report, end `blocked`, and do not record the review `accepted`. A
   finding that needs a new product decision, dependency, or public interface
-  is `blocked`, not a repair. Delta certification still runs once without a
-  discovery perspective; critical recovery stays the drive-only one-fix
-  ceiling.
+  is `blocked`, not a repair. Delta certification still runs once with one
+  `combined` reviewer instead of walking the discovery perspective list;
+  critical recovery stays the drive-only one-fix ceiling.
 
 ## Print dispatch input
 
