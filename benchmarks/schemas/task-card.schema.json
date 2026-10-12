@@ -77,7 +77,11 @@
             "type": "array", "minItems": 1,
             "items": { "type": "string", "minLength": 1 }
           },
-          "timeout_ms": { "type": "integer", "minimum": 1 }
+          "timeout_ms": { "type": "integer", "minimum": 1 },
+          "runtime": {
+            "description": "host runs argv[0] directly on the host (benchmarks/ as the working directory) instead of the compose verifier container; omit it for the container.",
+            "enum": ["host"]
+          }
         }
       }
     },

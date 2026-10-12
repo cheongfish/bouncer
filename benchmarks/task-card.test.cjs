@@ -9,7 +9,8 @@ const { tmpdir } = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const {
-  applyWorkspaceSetup, bundleFor, checkCard, listCardIds, loadCard, missingVerifierScripts, renderArgv, verifierInvocation,
+  applyWorkspaceSetup, bundleFor, checkCard, hostVerifierArgv, listCardIds, loadCard, missingVerifierScripts, renderArgv,
+  setupExcludes, verdictFields, verifierInvocation,
 } = require('./task-card.cjs');
 const yaml = require('js-yaml');
 
@@ -218,4 +219,68 @@ test('unprepared card with an unknown field → checkCard rejects it through the
   const { card } = loadCard('fastify-001');
   const unprepared = { ...card, workspace_setup: [{ restore_untracked: 'fastify-001' }], extra: 1 };
   assert.throws(() => checkCard(unprepared, 'fastify-001'), /unknown card fields extra/);
+});
+
+// DeepSWE 카드는 아직 없어 fastify-001 카드의 검증기 항목만 바꿔 host 검증기 카드를 만든다.
+function hostCard(overrides = {}) {
+  const { card } = loadCard('fastify-001');
+  return { ...card, external_verifiers: [{ id: 'deepswe', runtime: 'host', timeout_ms: 1000,
+    argv: ['node', 'verifiers/deepswe.cjs', '--task', 'x-001', '--patch', '{submission_patch}', '--out-dir', '{eval_dir}',
+      '--output', '{result_json}'], ...overrides }] };
+}
+
+test('runtime host card → verifierInvocation keeps placeholders and hostVerifierArgv renders run paths with node once', () => {
+  const invocation = verifierInvocation(hostCard());
+  assert.equal(invocation.runtime, 'host');
+  assert.equal(invocation.composeArgs, undefined);
+  assert.equal(invocation.argv.includes('{submission_patch}'), true);
+  const argv = hostVerifierArgv(invocation, { runDir: '/r', workDir: '/w' });
+  assert.equal(argv[0], 'node');
+  assert.equal(argv.filter((token) => token === 'node').length, 1);
+  assert.equal(argv[argv.indexOf('--patch') + 1], '/r/diff.patch');
+  assert.equal(argv[argv.indexOf('--out-dir') + 1], '/r/verify-work');
+  assert.equal(argv[argv.indexOf('--output') + 1], '/r/verifier.json');
+});
+
+test('runtime docker → rejected with runtime must be host', () => {
+  assert.throws(() => checkCard(hostCard({ runtime: 'docker' }), 'fastify-001'), /runtime must be host/);
+});
+
+test('verifier entry with an extra key → rejected with unknown fields', () => {
+  assert.throws(() => checkCard(hostCard({ extra: 1 }), 'fastify-001'), /unknown fields: extra/);
+});
+
+test('runtime host card → checkCard accepts it', () => {
+  checkCard(hostCard(), 'fastify-001');
+});
+
+test('applyWorkspaceSetup restore_untracked record → setupExcludes returns its paths', (t) => {
+  const { work, root } = restoreFixture(t);
+  const record = applyWorkspaceSetup(work, restoreCard, root);
+  assert.deepEqual(setupExcludes(record.steps), ['sub/b.txt']);
+});
+
+test('copy, install_dependencies and apply_index_patch records → setupExcludes returns none', () => {
+  assert.deepEqual(setupExcludes([
+    { kind: 'copy', source: 's', target: 't', source_sha256: 'x' },
+    { kind: 'install_dependencies', source: 'fastify-001', source_sha256: 'x' },
+    { kind: 'apply_index_patch', source: 's', source_sha256: 'x' },
+  ]), []);
+});
+
+test('null steps → setupExcludes returns none', () => {
+  assert.deepEqual(setupExcludes(null), []);
+});
+
+test('graded verifier.json → verdictFields copies the nine keys', () => {
+  const fields = verdictFields({ judge_status: 'graded', score: 100, outcome_success: true, reward: 1, f2p_passed: 13,
+    f2p_total: 13, p2p_passed: 5, p2p_total: 5, apply_failed: false, error: null, task_id: 'x-001' });
+  assert.deepEqual(fields, { judge_status: 'graded', score: 100, outcome_success: true, reward: 1, f2p_passed: 13,
+    f2p_total: 13, p2p_passed: 5, p2p_total: 5, apply_failed: false });
+});
+
+test('fastify verifier.json without DeepSWE keys → verdictFields fills them with null', () => {
+  assert.deepEqual(verdictFields({ judge_status: 'graded', score: 80, outcome_success: true }),
+    { judge_status: 'graded', score: 80, outcome_success: true, reward: null, f2p_passed: null, f2p_total: null,
+      p2p_passed: null, p2p_total: null, apply_failed: null });
 });

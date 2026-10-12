@@ -6,7 +6,8 @@ const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
+const { setupExcludes } = require('./task-card.cjs');
+const { applyVerdict, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
   bootstrapCommit, configOf, runtimeFieldsFor } = require('./run-bouncer-full.cjs');
 
 const BLUEPRINT = '.bouncer/context/epics/001-e/blueprints/001-x';
@@ -45,6 +46,23 @@ test('collects closed blueprint, head and patch from the branch ref without a wo
   assert.equal(evidence.integration_head, head);
   assert.equal(evidence.blueprint, BLUEPRINT);
   assert.match(evidence.patch.toString(), /diff --git/);
+});
+
+test('branch commits .bouncer and a restored path → patch has neither, built without a worktree', () => {
+  const { dir, base } = repoWith('closed');
+  git(dir, 'checkout', '--quiet', BRANCH);
+  mkdirSync(path.join(dir, 'vendor'), { recursive: true });
+  writeFileSync(path.join(dir, 'vendor', 'z'), 'z\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '--quiet', '-m', 'restored');
+  git(dir, 'checkout', '--quiet', 'main');
+  const excludes = setupExcludes([{ kind: 'restore_untracked', paths: ['vendor/z'] }]);
+  const patch = collectFinalEvidence({ workspace: dir, baseCommit: base, branch: BRANCH, blueprint: BLUEPRINT, excludes })
+    .patch.toString();
+  rmSync(dir, { recursive: true });
+  assert.doesNotMatch(patch, /diff --git a\/\.bouncer\//);
+  assert.doesNotMatch(patch, /diff --git a\/vendor\/z/);
+  assert.match(patch, /diff --git a\/a\.txt/);
 });
 
 test('rejects a missing integration branch', () => {
@@ -173,4 +191,25 @@ test('prepared null → runtimeFieldsFor가 기존 bouncer 이미지 태그와 �
   const fields = runtimeFieldsFor(config, null, { runDocker: (args) => { calls.push(args); return 'sha256:def'; } });
   assert.deepEqual(fields, { image_id: 'sha256:def', deviations: [] });
   assert.equal(calls[0].at(-1), 'bouncer-benchmark-cursor-bouncer:local');
+});
+
+const GRADED = { judge_status: 'graded', score: 100, outcome_success: true, reward: 1, f2p_passed: 13, f2p_total: 13,
+  p2p_passed: 5, p2p_total: 5, apply_failed: false };
+
+test('unjudgeable verifier.json → recorded without throwing, reward null', () => {
+  const record = {};
+  applyVerdict(record, { verifierJson: { judge_status: 'unjudgeable', score: null, outcome_success: null, reward: null,
+    error: 'verifier timeout' } });
+  assert.equal(record.judge_status, 'unjudgeable');
+  assert.equal(record.reward, null);
+});
+
+test('missing verifier.json → throws external verifier failed', () => {
+  assert.throws(() => applyVerdict({}, { verifierJson: null }), /external verifier failed: verifier\.json missing/);
+});
+
+test('graded verifier.json → nine verdict fields copied to the record', () => {
+  const record = {};
+  applyVerdict(record, { verifierJson: { ...GRADED, error: null } });
+  assert.deepEqual(record, GRADED);
 });

@@ -7,7 +7,8 @@ const path = require('node:path');
 const { transcriptFiles, usageCoverage, usageFromCursorLogs, usageFromCursorStream } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
-const { applyWorkspaceSetup, loadRunnableCard, taskRecord } = require('./task-card.cjs');
+const { applyWorkspaceSetup, loadRunnableCard, runHostVerifier, setupExcludes, taskRecord, verdictFields } = require('./task-card.cjs');
+const { submissionDiff } = require('./submission-diff.cjs');
 const { assertImagePluginVersion } = require('./plugin-version.cjs');
 const { loadPrepared } = require('./prepare-deepswe-task.cjs');
 const { agentRuntime, runtimeRecordFields, withOwnershipRestore } = require('./agent-runtime.cjs');
@@ -284,22 +285,28 @@ async function main() {
   }
   writeFileSync(path.join(runDir, 'final-answer.txt'), cursorStream.answer);
 
-  command('git', ['-C', workDir, 'add', '-N', '--all']);
-  const patch = command('git', ['-C', workDir, 'diff', '--binary', '--no-ext-diff', baseCommit, '--']);
+  // 소유권 복원(withOwnershipRestore) 뒤라 호스트 git이 읽을 수 있다. Bouncer 관리 경로와 복원 파일은 제출에서 뺀다.
+  const patch = submissionDiff({ mode: 'worktree', cwd: workDir, base: baseCommit,
+    excludes: setupExcludes(workspaceSetup?.steps ?? null) });
   writeFileSync(path.join(runDir, 'diff.patch'), patch);
   saveJson(path.join(runDir, 'run.json'), record);
 
-  const verifierResult = await streamCompose(
-    ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-verify`, ...task.verifier.composeArgs], env,
-    path.join(runDir, 'verifier.stdout.json'), path.join(runDir, 'verifier.stderr.log'), task.verifier.timeoutMs,
-    `cursor-bench-${config.runId}-verify`,
-  );
+  let verifierResult;
+  if (task.verifier.runtime === 'host') {
+    // 과제 이미지가 카드마다 달라 compose verifier 대신 호스트에서 채점기를 직접 띄운다.
+    const hostResult = runHostVerifier(task.verifier, { runDir, workDir });
+    verifierResult = { exitCode: hostResult.status, signal: hostResult.signal, timedOut: hostResult.error?.code === 'ETIMEDOUT',
+      error: hostResult.error?.message ?? null };
+  } else {
+    verifierResult = await streamCompose(
+      ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-verify`, ...task.verifier.composeArgs], env,
+      path.join(runDir, 'verifier.stdout.json'), path.join(runDir, 'verifier.stderr.log'), task.verifier.timeoutMs,
+      `cursor-bench-${config.runId}-verify`,
+    );
+  }
   record.verifier = verifierResult;
   if (existsSync(path.join(runDir, 'verifier.json'))) {
-    const result = JSON.parse(readFileSync(path.join(runDir, 'verifier.json'), 'utf8'));
-    record.judge_status = result.judge_status;
-    record.score = result.score;
-    record.outcome_success = result.outcome_success;
+    Object.assign(record, verdictFields(JSON.parse(readFileSync(path.join(runDir, 'verifier.json'), 'utf8'))));
   } else {
     record.judge_status = 'unjudgeable';
   }

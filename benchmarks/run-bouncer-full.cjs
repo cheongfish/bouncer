@@ -9,7 +9,8 @@ const { loadPolicy } = require('./acp/responder.cjs');
 const { sumUsage, usageTotalStatus } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
-const { applyWorkspaceSetup, loadRunnableCard, taskRecord } = require('./task-card.cjs');
+const { applyWorkspaceSetup, loadRunnableCard, runHostVerifier, setupExcludes, taskRecord, verdictFields } = require('./task-card.cjs');
+const { submissionPathspec } = require('./submission-diff.cjs');
 const { loadPrepared } = require('./prepare-deepswe-task.cjs');
 const { agentRuntime, runtimeRecordFields, withOwnershipRestore, runStagesWithBudget, budgetStopRecord,
   exitCodeFor } = require('./agent-runtime.cjs');
@@ -289,11 +290,12 @@ function checkIntegration(workspace, integration) {
  * @param {string} args.baseCommit - patch 기준 커밋
  * @param {string} args.branch - integration 브랜치 이름
  * @param {string} args.blueprint - workspace 기준 blueprint 상대 디렉터리
+ * @param {string[]} [args.excludes=[]] - patch에서 뺄 복원 경로(`setupExcludes` 결과). `.bouncer/`·`.worktrees/`는 언제나 뺀다.
  * @param {{git?: (args: string[], cwd: string) => {status: number, stdout: Buffer|string}}} [args.deps] - git 실행 주입(없으면 spawnSync)
  * @returns {{blueprint: string, integration_head: string, patch: Buffer}} 상대 blueprint, 브랜치 HEAD, 바이너리 patch
  * @throws {Error} 브랜치 ref가 없거나(`integration branch missing`) blueprint가 closed가 아닐 때(`blueprint not closed`)
  */
-function collectFinalEvidence({ workspace, baseCommit, branch, blueprint, deps = {} }) {
+function collectFinalEvidence({ workspace, baseCommit, branch, blueprint, excludes = [], deps = {} }) {
   const git = deps.git ?? ((args, cwd) => spawnSync('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 }));
   const run = (args) => git(args, workspace);
   // 1. ref가 없을 때 rev-parse 실패는 "브랜치 없음"으로만 해석한다. 다른 git 실패는 patch 단계에서 따로 드러난다.
@@ -304,7 +306,7 @@ function collectFinalEvidence({ workspace, baseCommit, branch, blueprint, deps =
   if (index.status !== 0 || !/^\s*status:\s*closed\s*$/m.test(index.stdout.toString())) {
     throw new Error(`blueprint not closed on ${branch}`);
   }
-  const patch = run(['diff', '--binary', '--no-ext-diff', baseCommit, branch, '--']);
+  const patch = run(['diff', '--binary', '--no-ext-diff', baseCommit, branch, '--', ...submissionPathspec(excludes)]);
   if (patch.status !== 0) throw new Error(`could not collect integration patch: ${patch.stderr ?? ''}`);
   return { blueprint, integration_head: head.stdout.toString().trim(), patch: Buffer.from(patch.stdout) };
 }
@@ -322,20 +324,23 @@ function verifyPatch(config, task, workspace, runDir, record) {
     BENCH_CURSOR_LOGS: path.join(runDir, '04-finalize', 'cursor-logs'),
   };
   const compose = path.join(root, 'docker', 'compose.cursor.yaml');
-  command('docker', ['compose', '-f', compose, 'build', 'verifier'], projectRoot, env);
-  const result = spawnSync('docker', ['compose', '-f', compose, 'run', '--rm', '--no-deps', ...task.verifier.composeArgs], {
-    cwd: projectRoot, env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: task.verifier.timeoutMs,
-  });
-  writeFileSync(path.join(runDir, 'verifier.stdout.json'), result.stdout ?? '');
-  writeFileSync(path.join(runDir, 'verifier.stderr.log'), result.stderr ?? '');
-  if (result.error || result.status !== 0 || !existsSync(path.join(runDir, 'verifier.json'))) {
+  let result;
+  if (task.verifier.runtime === 'host') {
+    result = runHostVerifier(task.verifier, { runDir, workDir: workspace });
+  } else {
+    command('docker', ['compose', '-f', compose, 'build', 'verifier'], projectRoot, env);
+    result = spawnSync('docker', ['compose', '-f', compose, 'run', '--rm', '--no-deps', ...task.verifier.composeArgs], {
+      cwd: projectRoot, env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: task.verifier.timeoutMs,
+    });
+    writeFileSync(path.join(runDir, 'verifier.stdout.json'), result.stdout ?? '');
+    writeFileSync(path.join(runDir, 'verifier.stderr.log'), result.stderr ?? '');
+  }
+  const verifierFile = path.join(runDir, 'verifier.json');
+  // 종료 코드가 0이 아니어도 verifier.json이 있으면 판정을 기록한다. 파일이 없을 때만 실행 실패로 던진다.
+  if (!existsSync(verifierFile) && (result.error || result.status !== 0)) {
     throw new Error(`external verifier failed: ${result.error?.message ?? result.stderr}`);
   }
-  const verdict = JSON.parse(readFileSync(path.join(runDir, 'verifier.json'), 'utf8'));
-  record.judge_status = verdict.judge_status;
-  record.score = verdict.score;
-  record.outcome_success = verdict.outcome_success;
-  if (verdict.judge_status !== 'graded') throw new Error('external verifier did not grade the patch');
+  applyVerdict(record, { verifierJson: existsSync(verifierFile) ? JSON.parse(readFileSync(verifierFile, 'utf8')) : null });
 }
 
 /**
@@ -449,7 +454,8 @@ async function main() {
       Object.assign(record, budgetStopRecord(skipped));
     } else {
       // finalize --yes cleanup이 worktree를 지우므로 브랜치 ref에서 증거를 모은다.
-      const evidence = collectFinalEvidence({ workspace, baseCommit, branch: record.integration.branch, blueprint: record.blueprint });
+      const evidence = collectFinalEvidence({ workspace, baseCommit, branch: record.integration.branch, blueprint: record.blueprint,
+        excludes: setupExcludes(record.workspace_setup?.steps ?? null) });
       record.blueprint = evidence.blueprint;
       record.integration_head = evidence.integration_head;
       writeFileSync(path.join(runDir, 'diff.patch'), evidence.patch);
@@ -487,5 +493,18 @@ if (require.main === module) {
   });
 }
 
-module.exports = { configOf, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
+/**
+ * 검증기 결과를 `run.json` 기록에 옮긴다. 파일이 있으면 판정과 상관없이 복사만 한다:
+ * `unjudgeable`은 던질 오류가 아니라 `sampleEligibility`가 표본에서 빼는 기록이고, 던지면 run이 `stopped`로 바뀌어 증거가 사라진다.
+ *
+ * @param {object} record - 갱신할 `run.json` 객체.
+ * @param {{verifierJson: object|null}} input - 읽은 `verifier.json` 객체, 파일이 없으면 null.
+ * @returns {void} `verifierJson`이 null이면 `external verifier failed: verifier.json missing`으로 throw한다.
+ */
+function applyVerdict(record, { verifierJson }) {
+  if (!verifierJson) throw new Error('external verifier failed: verifier.json missing');
+  Object.assign(record, verdictFields(verifierJson));
+}
+
+module.exports = { applyVerdict, configOf, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
   bootstrapCommit, runtimeFieldsFor };
