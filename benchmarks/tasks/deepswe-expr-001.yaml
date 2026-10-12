@@ -1,0 +1,25 @@
+# DeepSWE 과제 expr-try-catch-errors(커밋 0b9fabbb). 지시문·작업 공간·채점 설정은 prepare-deepswe-task.cjs가 fixtures/deepswe/deepswe-expr-001/에 만든다.
+# 지시문은 영어 원문 그대로다. 채점: verifiers/deepswe.cjs(공식 tests/test.sh), 루브릭: rubrics/deepswe.md
+id: deepswe-expr-001
+set: general
+benchmark_version: deepswe-v1.1
+base_commit: "851b241a301f7c74646e65e4009c69cf290993a8"
+user_request_file: fixtures/deepswe/deepswe-expr-001/task/instruction.md
+user_request_sha256: "6f19f8363f75963c69072f03aa7515ffa304d6b726f85b09188760ae682e3447"
+allowed_paths:
+  - "**"
+forbidden_paths:
+  - .git/**
+workspace_setup:
+  - restore_untracked: deepswe-expr-001
+failure_opportunities: []
+external_verifiers:
+  - id: deepswe
+    runtime: host
+    argv: [node, verifiers/deepswe.cjs, --task, deepswe-expr-001, --patch, "{submission_patch}", --out-dir, "{eval_dir}", --output, "{result_json}"]
+    timeout_ms: 2100000
+success_checklist:
+  - 공식 채점기(tests/test.sh)의 reward가 1이다.
+manual_rubric: deepswe
+evaluator_facts:
+  commit: 커밋은 하지 않아도 됩니다. 변경을 작업 트리에 남겨 주세요.

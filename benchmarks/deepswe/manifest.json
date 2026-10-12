@@ -1,5 +1,10 @@
 {
   "repo": "https://github.com/datacurve-ai/deep-swe",
   "commit": "0b9fabbb63b9104d678fe965e1632f2dd9eaa2ea",
-  "tasks": {}
+  "tasks": {
+    "deepswe-quill-001": "quill-shared-toolbar-focus",
+    "deepswe-expr-001": "expr-try-catch-errors",
+    "deepswe-statemachine-001": "python-statemachine-state-data-scoping",
+    "deepswe-oxvg-001": "oxvg-structural-selector-preservation"
+  }
 }

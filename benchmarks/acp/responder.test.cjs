@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
+const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { loadPolicy, loadCatalog, readTextQuestions, turnQuestionState, answerAskQuestion,
@@ -668,7 +668,13 @@ test('loadCatalog()[bouncer-plan] → the workflows entry of rules/acq-gates.jso
 
 // ---- 정책 커버리지와 네 게이트 ----
 const POLICY_NAMES = ['fastify-001'];
-const realPolicy = (name) => JSON.parse(readFileSync(path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`), 'utf8'));
+// 사용자 승인 전의 DeepSWE 정책. 실행기는 거절하지만 구조는 loadPolicy 승인 검사 직전까지 맞아야 한다.
+const PROPOSED_POLICY_NAMES = ['deepswe-quill-001', 'deepswe-expr-001', 'deepswe-statemachine-001', 'deepswe-oxvg-001'];
+const policyPath = (name) => path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`);
+const realPolicy = (name) => {
+  assert.ok(existsSync(policyPath(name)), `benchmarks/configs/${name}-evaluator-policy.json`);
+  return JSON.parse(readFileSync(policyPath(name), 'utf8'));
+};
 const policyFile = (value) => {
   const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
   const file = path.join(dir, 'policy.json');
@@ -707,7 +713,7 @@ test('discovery_terms나 reusable_draft 키가 없는 fastify-001 정책 → loa
 
 test('실제 정책의 카탈로그 게이트 항목 → answer가 stop이거나 IMPLEMENTED_ANSWERS[gate]에 있음', () => {
   const ids = Object.values(loadCatalog()).flat();
-  for (const name of POLICY_NAMES) {
+  for (const name of [...POLICY_NAMES, ...PROPOSED_POLICY_NAMES]) {
     const decisions = realPolicy(name).bouncer_decisions;
     for (const id of ids) {
       const decision = decisions.find((candidate) => candidate.gate === id);
@@ -720,6 +726,13 @@ test('실제 정책의 카탈로그 게이트 항목 → answer가 stop이거나
 test('승인된 정책 → loadPolicy 통과', () => {
   for (const name of POLICY_NAMES) {
     assert.equal(loadPolicy(path.join(__dirname, '..', 'configs', `${name}-evaluator-policy.json`)).task_id, name);
+  }
+});
+
+test('proposed 정책 → loadPolicy가 explicit user approval로 거부', () => {
+  for (const name of PROPOSED_POLICY_NAMES) {
+    assert.ok(existsSync(policyPath(name)), `benchmarks/configs/${name}-evaluator-policy.json`);
+    assert.throws(() => loadPolicy(policyPath(name)), /explicit user approval/, name);
   }
 });
 
