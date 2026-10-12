@@ -53,3 +53,4 @@ bouncer_schema: '0.1'
 * [094 deepswe-benchmark](epics/094-deepswe-benchmark/index.md) - 벤치마크를 ledger 합성 과제에서 DeepSWE의 어려운 상류 과제로 옮겨 vanilla와 bouncer-full의 차이가 드러나게 한다
 * [095 coding-standards-pr-retro](epics/095-coding-standards-pr-retro/index.md) - Give implementers and reviewers one canonical coding and test standard, add test-trust review and a test-name lint, require change diagrams and decision data in every PR, and run an evidence-based retro after finalize.
 * [096 plan-review-convergence](epics/096-plan-review-convergence/index.md) - Bound planning review restarts, preserve review history, and certify document revisions without resetting the review cycle.
+* [097 intent-fence-guard](epics/097-intent-fence-guard/index.md) - Make blueprint Intent parsing skip code fences and report malformed Intent as a structured failure before finalize reaches commit message generation.

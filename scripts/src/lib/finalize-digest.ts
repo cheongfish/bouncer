@@ -41,6 +41,8 @@ type DigestFail = {
   code?: string;
   ledgerFile?: string | null;
   integrationPath?: string | null;
+  // validate 경로(S33 등)만 채운다. withGateFailureHints를 타지 않으므로 next는 없다.
+  failures?: { code: string; message: string; file: string }[];
 };
 
 type Finding = { id: string; severity: string; status: string; note?: string };
@@ -651,11 +653,24 @@ function prepareFinalizeDigest({
       outOfScope = parseOutOfScope(bpBody);
       try {
         intent = parseIntentBody(bpBody);
-      } catch (_error) {
-        // Intent 절 형식 오류(파싱 throw)만 흡수한다. Intent는 digest 필수
-        // 필드지만 절이 깨져도 blueprint 자체는 유효하므로 빈 배열로 두고
-        // Explain이 원문을 다시 읽게 한다 — no-base/거절 경로로 승격하지 않는다.
-        intent = [];
+      } catch (error) {
+        // 헤딩 부재만 예전처럼 intent:[]로 흡수한다(draft·구형 fixture 호환).
+        // 헤딩이 있는데 내용이 깨진 경우는 prepare가 조용히 통과하면
+        // finalize 커밋 직전에 스택으로 터지므로 S33 validate 실패로 승격한다.
+        const message = (error as { message?: string }).message || String(error);
+        if (/blueprint Intent is missing or malformed/.test(message)) {
+          intent = [];
+        } else {
+          return {
+            ok: false,
+            reason: 'validate',
+            failures: [{
+              code: 'S33',
+              message: `blueprint Intent invalid: ${message}`,
+              file: bpIndexRel,
+            }],
+          };
+        }
       }
     } catch (_error) {
       // index 파싱 실패는 blueprint-not-found가 아니다 — 디렉터리는 있다.

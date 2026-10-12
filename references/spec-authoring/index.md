@@ -280,14 +280,17 @@ setting these fields:
 | `tasks` `bouncer.commit_intent` (1–2 strings) | task-commit 배경·의도 bullets (`- …함`) |
 | `tasks` `bouncer.commit_summary` (1–2 strings) | task-commit 변경 요약 bullets after intent |
 | `blueprint` `title` | finalize remainder subject; also the fallback when a task title is empty |
-| blueprint `## Intent` (1–2 Korean sentences) | finalize remainder body bullets; malformed or absent Intent rejects message generation |
+| blueprint `## Intent` (1–2 Korean sentences) | finalize remainder body bullets; malformed Intent with a heading fails as `S33` on plan/finalize and on `finalize prepare` |
 
 `commit_intent` and `commit_summary` must each be a YAML list of 1–2 Korean
 terminal sentences, written on the **task** document only. A missing field is
 compatible with existing tasks and contributes no bullets; a present malformed
 field rejects message generation rather than being partly omitted. Finalize
 reads only the blueprint `## Intent` section, which must contain 1–2 Korean
-terminal sentences.
+terminal sentences. Put mermaid or other code fences under a separate `##`
+heading (for example `## Contract` or `## Diagram`) — fences inside `## Intent`
+are skipped when collecting sentences, and a fence-only or otherwise invalid
+Intent raises `S33` once the blueprint is past `draft`.
 
 Leave Epic / Blueprint identifiers out of titles,
 `commit_intent`, and `commit_summary` — they belong in the blueprint docs and PR body, not the commit

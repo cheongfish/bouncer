@@ -83,7 +83,7 @@ function buildStandaloneFixture() {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
       commit_type: 'feat', scale: 'full',
     },
-  }, '# Blueprint\n\n## Intent\n- digest input\n\n## Out of scope\n- payments\n');
+  }, '# Blueprint\n\n## Intent\n- digest 입력을 모은다\n\n## Out of scope\n- payments\n');
 
   const taskMeta = (id, title) => ({
     type: 'bouncer.tasks', title, description: 'd',
@@ -305,7 +305,7 @@ test('a missing trailer → prepareFinalizeDigest falls back to tasks.md commit_
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
       commit_type: 'feat', scale: 'full',
     },
-  }, '# Blueprint\n\n## Intent\n- digest input\n');
+  }, '# Blueprint\n\n## Intent\n- digest 입력을 모은다\n');
 
   writeDoc(repoRoot, `${BP}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Greet', description: 'd',
@@ -493,7 +493,7 @@ test('CURRENT_AMBIGUOUS → prepareFinalizeDigest treats it as no-base', () => {
       id: '001', epic_id: '002', blueprint_id: '001', status: 'approved',
       commit_type: 'feat',
     },
-  }, '# Blueprint\n\n## Intent\n- x\n');
+  }, '# Blueprint\n\n## Intent\n- 다른 blueprint 포인터를 둔다\n');
   writeCurrent({ repoRoot, blueprint: otherBp, base: git(repoRoot, ['rev-parse', 'HEAD']) });
   // 두 pointer가 공존하면 readCurrent가 CURRENT_AMBIGUOUS를 throw한다.
   const result = prepareFinalizeDigest({ repoRoot, blueprintDir });
@@ -849,7 +849,7 @@ test('out_of_scope followed by a ## heading → prepareFinalizeDigest stops at t
     '# Blueprint',
     '',
     '## Intent',
-    '- digest input',
+    '- digest 입력을 모은다',
     '',
     '## Out of scope',
     '- A',

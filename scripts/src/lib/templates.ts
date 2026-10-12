@@ -403,11 +403,15 @@ function normalizeAuthoredLines(raw: unknown, field: string): string[] {
 
 // blueprint Intent는 문서 본문이 정본이다. heading 밖의 내용을 섞지 않고,
 // bullet 표식만 벗겨 같은 본문 렌더러가 task/finalize 양쪽을 조립하게 한다.
+// mermaid·코드 펜스는 문장이 아니므로 집계에서 뺀다 — 펜스를 문장으로 읽으면
+// 다이어그램이 있는 승인 문서가 finalize 직전에 터진다(S33이 막는 실패 모드).
+// 섹션 경계(`## `)는 펜스보다 먼저 자르므로, 펜스 안의 `## `도 예전처럼
+// Intent를 끝낸다(펜스 인식으로 섹션 길이를 늘리지 않는다).
 //
 // 요약: blueprint 본문의 `## Intent` 섹션에서 1-2개 한국어 문장을 뽑는다.
 // 인자:
 //   body: blueprint index 문서 본문(문자열이 아니면 malformed).
-// 반환: bullet 표식을 벗긴 문장 배열.
+// 반환: bullet 표식·코드 펜스를 벗긴 문장 배열.
 // 빈 섹션은 normalizeAuthoredLines가 `[]`를 허용하게 되었으므로 여기서 직접
 // 거절한다(기존과 같은 메시지 유지).
 function parseIntentBody(body: unknown): string[] {
@@ -420,11 +424,37 @@ function parseIntentBody(body: unknown): string[] {
   const afterHeading = withoutComments.slice(heading.index + heading[0].length);
   const nextHeading = /^##\s+/m.exec(afterHeading);
   const section = nextHeading ? afterHeading.slice(0, nextHeading.index) : afterHeading;
-  const lines = section
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/^[-*]\s+/, '').trim());
+  // 펜스 판정은 불릿·공백을 벗긴 뒤 한다. 여는 줄은 ` 또는 ~ 3개 이상이면
+  // 언어 태그가 있어도 열고, 닫는 줄은 같은 문자만·개수 ≥ 열림이어야 한다
+  // (```x 처럼 뒤에 글자가 있으면 닫히지 않음 — CommonMark에 맞춤).
+  const lines: string[] = [];
+  let fenceChar: '`' | '~' | null = null;
+  let fenceLen = 0;
+  for (const raw of section.split('\n')) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const content = trimmed.replace(/^[-*+]\s+/, '').trim();
+    const fence = /^(?<marker>[`~]{3,})(?<rest>.*)$/.exec(content);
+    if (fence && fence.groups) {
+      const marker = fence.groups.marker;
+      const rest = fence.groups.rest;
+      const char = marker[0] as '`' | '~';
+      const len = marker.length;
+      if (fenceChar === null) {
+        fenceChar = char;
+        fenceLen = len;
+        continue;
+      }
+      // 닫힘: 같은 문자·길이 이상·뒤에 다른 글자 없음. 아니면 펜스 안 줄로 건너뛴다.
+      if (char === fenceChar && len >= fenceLen && rest === '') {
+        fenceChar = null;
+        fenceLen = 0;
+      }
+      continue;
+    }
+    if (fenceChar !== null) continue;
+    lines.push(content);
+  }
   if (lines.length === 0) {
     throw new Error('blueprint Intent must contain 1-2 Korean terminal sentences');
   }
