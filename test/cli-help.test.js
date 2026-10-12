@@ -428,6 +428,15 @@ test('review-dispatch에 --help/-h를 주면 → context review 예시와 함께
   }
 });
 
+test('review-dispatch --help → previous 거부 reason 세 가지와 context-review record 안내를 공개한다', () => {
+  const r = capture(['review-dispatch', '--help']);
+  assert.strictEqual(r.code, 0);
+  for (const reason of ['previous-payload-required', 'previous-payload-invalid', 'previous-payload-stale']) {
+    assert.ok(r.out.includes(reason), reason);
+  }
+  assert.ok(r.out.includes('context-review record'));
+});
+
 test('잘못된 호출의 review-dispatch → 계속 거부하고 플래그 값 -h는 값으로 취급한다', () => {
   const valueH = capture(['review-dispatch', 'plan', '--blueprint', '-h']);
   assert.doesNotMatch(valueH.out, /```yaml/);

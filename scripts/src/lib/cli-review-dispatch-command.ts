@@ -90,7 +90,9 @@ const HELP_CONTEXT_REVIEW_EXAMPLE = `context_review:
  * G18을 통과하는 기록을 쓰도록 형식·enum·digest 출처를 한곳에 모은다.
  */
 const HELP = `${USAGE}
-Context review record (plan): paste this under \`bouncer:\` in context-review.md.
+Context review record shape (plan). Reports are recorded with
+\`bouncer context-review record\`; the projection it returns on --status accepted has
+this shape and goes under \`bouncer:\` in context-review.md. Do not hand-write rounds.
 
 \`\`\`yaml
 ${HELP_CONTEXT_REVIEW_EXAMPLE}
@@ -114,13 +116,17 @@ Plan fields (\`single\` / \`clustered\` only; absent on \`skip\` and failures):
   parts            per-document body sha256 (epic index, blueprint index, each tasks.md)
   scope_parts      per-tasks.md scope sha256 (sorted affected_paths + depends_on +
                    Interface body + Touch body)
-  follow_up        \`full\` | \`partial\` — compare with \`--previous <file>\` (a prior
-                   plan JSON). Omit \`--previous\` → \`full\` and empty changed_documents.
+  follow_up        \`full\` | \`partial\` — compare with \`--previous <file>\` (the
+                   stored prior plan JSON). Omit \`--previous\` only for a first
+                   classification with no review evidence → \`full\`, empty
+                   changed_documents.
   changed_documents tasks.md paths whose body alone changed (\`partial\` only)
 
 \`full\` when the document set, epic/blueprint index body, or any scope_parts
-differs; otherwise \`partial\`. Invalid \`--previous\` (missing file, non-JSON, or
-no \`parts\`) prints \`{ ok: false, reason: "previous-payload-invalid" }\` (exit 1).
+differs; otherwise \`partial\`. Once a cycle or recorded rounds exist, \`--previous\`
+is required and must equal the cycle latest_dispatch. Failures print
+\`{ ok: false, reason, cause, next }\` (exit 1) with reason
+previous-payload-required | previous-payload-invalid | previous-payload-stale.
 `;
 
 /**
@@ -181,6 +187,11 @@ function parsePlanArgs(rest: string[]): ParsedPlan {
   if (Object.prototype.hasOwnProperty.call(f, 'previous')
     && (typeof f.previous !== 'string' || f.previous === '')) {
     return fail('--previous requires a file');
+  }
+  // parseFlags는 중복 플래그에서 마지막 값을 조용히 택한다. 어느 previous가 대조되는지
+  // 모호해지므로 분류기 전에 사용법 오류(exit 2)로 막는다.
+  for (const flag of ['--blueprint', '--previous']) {
+    if (rest.filter((tok) => tok === flag).length > 1) return fail(`${flag} may be given only once`);
   }
   if (f.repo !== undefined && (typeof f.repo !== 'string' || f.repo === '')) {
     return fail('--repo requires a directory');
@@ -280,7 +291,12 @@ function cmdReviewDispatch(rest: string[], io: CliIo): number {
       } catch {
         // ENOENT·SyntaxError·권한 오류를 모두 같은 reason으로 접는다. 운영자가
         // 경로/형식을 고치면 되고, 세부 errno를 strategy 실패와 섞지 않기 위함.
-        io.out(`${JSON.stringify({ ok: false, reason: 'previous-payload-invalid' }, null, 2)}\n`);
+        io.out(`${JSON.stringify({
+          ok: false,
+          reason: 'previous-payload-invalid',
+          cause: 'previous file is missing, unreadable, or not JSON',
+          next: 'pass the unmodified JSON that review-dispatch plan printed (the stored cycle latest_dispatch)',
+        }, null, 2)}\n`);
         return 1;
       }
     }

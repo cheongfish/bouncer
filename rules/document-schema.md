@@ -127,6 +127,14 @@ record their respective workflow evidence. Treat all of them as data produced by
 their designated step. Do not manufacture values to satisfy a gate; correct the
 plan, rerun the designated step, or return to planning.
 
+Plan context-review state is owned by `bouncer context-review start|record|restart`.
+Its cycle (`id`, `restart_count` capped at 1, `history`, `active_reports`,
+`latest_dispatch`) lives under `.bouncer/runtime/context-review/`, reports and
+dispatch payloads are referenced by path and sha256, and only an accepted record
+returns the canonical `rounds`/`findings` projection (`resolved` or `accepted`
+with a note). A recorded disposition is not a plan gate pass. A follow-up
+`review-dispatch plan` needs the stored `latest_dispatch` payload as `--previous`.
+
 ## Task bundle and commit records
 
 A task unit is the commit-task bundle

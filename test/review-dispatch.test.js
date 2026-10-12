@@ -327,13 +327,10 @@ function rewriteTasksGoal(repo, number, goalLine) {
   fs.writeFileSync(abs, updated);
 }
 
+// 공개 분류 결과를 그대로 직렬화한 정상 payload. 일부 필드만 골라 만든 축소본은
+// 엄격한 previous 검사를 피해 가므로 실제 출력 모양을 보존한다.
 function previousPayload(result) {
-  return {
-    ok: true,
-    parts: result.parts,
-    scope_parts: result.scope_parts,
-    target: result.target,
-  };
+  return JSON.parse(JSON.stringify(result));
 }
 
 // follow_up·parts·scope_parts 계약. 범위 필드는 각각 단독으로 full을 강제해야 한다
@@ -1270,4 +1267,181 @@ test('review-dispatch --help yaml example with <target.digest> replaced → pass
   }, '# Context review\n\n## Findings\n- CR-1 advisory, accepted with note.\n');
   const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
   assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G18'), []);
+});
+
+// --- 후속 리뷰 previous 결속(BP 096/001 task 002) ---------------------------------
+
+const planArgs = (repo, extra = []) => [
+  'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo, ...extra,
+];
+
+/** 분류 결과를 파일로 저장한다. start·--previous 입력으로 쓴다. */
+function saveJson(repo, name, value) {
+  const file = path.join(repo, name);
+  fs.writeFileSync(file, `${JSON.stringify(value)}\n`);
+  return file;
+}
+
+/** 최초 분류 → start까지 마친 repo와 저장된 최초 payload를 만든다. */
+function startedRepo() {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(first.ok, true);
+  const file = saveJson(repo, 'first.json', first);
+  const started = capture(['context-review', 'start', '--repo', repo, '--blueprint', BP_REL, '--dispatch', file]);
+  assert.strictEqual(started.code, 0, started.out + started.err);
+  return { repo, first, file };
+}
+
+function runtimeBytes(repo) {
+  const out = {};
+  const walk = (dir) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(abs);
+      else out[abs] = fs.readFileSync(abs, 'utf8');
+    }
+  };
+  const root = path.join(repo, '.bouncer', 'runtime');
+  if (fs.existsSync(root)) walk(root);
+  return out;
+}
+
+test('start 뒤 previous 없는 후속 분류 → previous-payload-required로 거부하고 cause와 next를 준다', () => {
+  const { repo } = startedRepo();
+  const followUp = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(followUp.ok, false);
+  assert.strictEqual(followUp.reason, 'previous-payload-required');
+  assert.ok(followUp.cause && followUp.next);
+  const cli = capture(planArgs(repo));
+  assert.strictEqual(cli.code, 1);
+  assert.strictEqual(JSON.parse(cli.out).reason, 'previous-payload-required');
+});
+
+test('start로 저장한 payload를 previous로 주면 → 후속 분류가 통과하고 저장 bytes를 바꾸지 않는다', () => {
+  const { repo, first } = startedRepo();
+  const before = runtimeBytes(repo);
+  const followUp = classifyPlanReview({
+    repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first),
+  });
+  assert.strictEqual(followUp.ok, true);
+  assert.strictEqual(followUp.follow_up, 'partial');
+  assert.deepStrictEqual(followUp.changed_documents, []);
+  assert.deepStrictEqual(runtimeBytes(repo), before);
+});
+
+test('저장 최신 payload와 다른 previous → previous-payload-stale로 거부한다', () => {
+  const { repo, first } = startedRepo();
+  const altered = { ...previousPayload(first), reasons: ['edited by hand'] };
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: altered });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'previous-payload-stale');
+  const reduced = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: { ok: true, parts: first.parts, scope_parts: first.scope_parts, target: first.target },
+  });
+  assert.strictEqual(reduced.reason, 'previous-payload-invalid');
+});
+
+test('다른 blueprint의 previous → previous-payload-invalid로 거부한다', () => {
+  const { repo, first } = startedRepo();
+  const foreign = { ...previousPayload(first), blueprint: `${EPIC_REL}/blueprints/002-other` };
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: foreign });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'previous-payload-invalid');
+  const docs = { ...previousPayload(first), target: { ...first.target, documents: [`${EPIC_REL}/index.md`] } };
+  assert.strictEqual(
+    classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: docs }).reason,
+    'previous-payload-invalid',
+  );
+});
+
+test('restart 뒤 옛 payload를 previous로 주면 → stale이고 새 payload는 통과한다', () => {
+  const { repo, first } = startedRepo();
+  rewriteTasksGoal(repo, '001', 'Ship a rewritten plan.');
+  const second = classifyPlanReview({
+    repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first),
+  });
+  assert.strictEqual(second.ok, true);
+  const file = saveJson(repo, 'second.json', second);
+  const restarted = capture([
+    'context-review', 'restart', '--repo', repo, '--blueprint', BP_REL,
+    '--dispatch', file, '--reason', 'plan rewritten',
+  ]);
+  assert.strictEqual(restarted.code, 0, restarted.out + restarted.err);
+  const old = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  assert.strictEqual(old.reason, 'previous-payload-stale');
+  const fresh = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(second) });
+  assert.strictEqual(fresh.ok, true);
+});
+
+test('cycle 없는 legacy 증거 → previous 없이는 거부하고 digest가 다른 previous는 stale이다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Login context review',
+    description: 'd',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'requested',
+      context_review: {
+        rounds: [{ round: 1, mode: 'discovery', target: { digest: first.target.digest } }],
+        findings: [],
+      },
+    },
+  });
+  const required = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(required.reason, 'previous-payload-required');
+  const ok = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  assert.strictEqual(ok.ok, true);
+  const otherDigest = { ...previousPayload(first), target: { ...first.target, digest: 'f'.repeat(64) } };
+  assert.strictEqual(
+    classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: otherDigest }).reason,
+    'previous-payload-stale',
+  );
+});
+
+test('깨진 context-review 메타데이터 → 최초 상태로 보지 않고 reviewer 호출 전에 구조 실패로 거부한다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  fs.writeFileSync(path.join(repo, BP_REL, 'context-review.md'), '---\nbouncer: [unclosed\n---\n# x\n');
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'structural validation failed');
+  assert.strictEqual(result.perspectives, undefined);
+});
+
+test('light blueprint → cycle이 있어도 previous 검사 없이 skip을 유지한다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  const dir = path.join(repo, '.bouncer', 'runtime', 'context-review');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${BP_REL.split('/').join('__')}`), 'noise');
+  const skip = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(skip.ok, true);
+  assert.strictEqual(skip.strategy, 'skip');
+});
+
+test('--previous를 두 번 주면 → 사용법 오류 exit 2이고 분류하지 않는다', () => {
+  const { repo, file } = startedRepo();
+  const dup = capture(planArgs(repo, ['--previous', file, '--previous', file]));
+  assert.strictEqual(dup.code, 2);
+  assert.strictEqual(dup.out, '');
+});
+
+test('손상된 previous 파일 → CLI가 cause와 next를 붙여 exit 1로 거부한다', () => {
+  const { repo } = startedRepo();
+  const bad = path.join(repo, 'bad.json');
+  fs.writeFileSync(bad, '{ not json');
+  const r = capture(planArgs(repo, ['--previous', bad]));
+  assert.strictEqual(r.code, 1);
+  const body = JSON.parse(r.out);
+  assert.strictEqual(body.reason, 'previous-payload-invalid');
+  assert.ok(body.cause && body.next);
 });

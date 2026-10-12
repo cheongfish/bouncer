@@ -186,11 +186,19 @@ clustered`) or Execute (`single | parallel`, with `security` when
 `review_risk` is non-empty). Plan `single` / `clustered` also include
 `parts` (per-document body sha256), `scope_parts` (per-`tasks.md` scope
 sha256), `follow_up` (`full` | `partial`), and `changed_documents`. Pass
-`--previous <file>` (a prior plan JSON with `parts`) to compare; omit it for
-`follow_up: full` and an empty `changed_documents`. Those fields are absent
-on `skip` and on failures. Invalid `--previous` (missing file, non-JSON, or
-no `parts`) is `{ ok: false, reason: "previous-payload-invalid" }` (exit 1);
-`--previous` without a path is exit 2. Omit `--task` on execute to classify
+`--previous <file>` (the unmodified prior plan payload) to compare. Omitting it is
+valid only for a first classification of a blueprint with no review evidence
+(`follow_up: full`, empty `changed_documents`); once a cycle or recorded
+rounds/findings exist, `previous` is required. Those fields are absent on `skip`
+(light never checks `previous`) and on failures. Failures are
+`{ ok: false, reason, cause, next }` (exit 1) with `previous-payload-required`
+(missing), `previous-payload-invalid` (not JSON, wrong shape, another blueprint,
+unreadable stored reference), or `previous-payload-stale` (differs from the
+cycle `latest_dispatch`). `--previous` without a path or a repeated
+`--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|restart
+--blueprint <dir> --dispatch <json>` owns cycle state (`record` also takes
+`--round <json>`, `--status`, `--accept-risk`; `restart` takes `--reason`, at most
+once); run `bouncer context-review --help`. Omit `--task` on execute to classify
 the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
