@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+## [1.5.8] — 2026-10-12
+
+1.5.7 패치. 코딩 표준 정본과 Red run 리뷰(EPIC 095 BP 001), 테스트 이름 형식 검사(BP 002),
+PR 변경 그림·판단 자료 필수화(BP 003), 세션 근거 retro(BP 004), DeepSWE 과제 어댑터와
+공식 채점 연결(EPIC 094 BP 002)을 담는다.
+
 ### Changed
 
 - **세션 근거 retro (EPIC 095 BP 004)** — `/bouncer-finalize` 5단계(Handoff) 끝에서 finalize가
