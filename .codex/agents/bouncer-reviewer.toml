@@ -171,7 +171,8 @@ defect. Simpler-is-possible is not a blocker.
 Return **only** a Findings list. For each finding include:
 
 - stable `id` — reuse a previous ID when the same finding returns
-- relation to previous findings: `new | resolved | regressed`
+- relation to previous findings: `new | resolved | regressed | unresolved`
+  `unresolved` is a previous finding still present under the same id and not a regression; the controller keeps it `status: open`.
 - `severity`: `blocker | major | minor | nit`
 - `category`, `brief_clause`, `file`, and `symbol` — the components of the
   TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`).

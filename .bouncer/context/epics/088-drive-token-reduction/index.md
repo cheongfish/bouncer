@@ -53,6 +53,10 @@ bouncer:
 28. 여섯 `skills/bouncer-*/SKILL.md`의 `**Plugin root.**` 문단은 한 문단 안에 `BOUNCER_ROOT="$(bouncer-root --auto)"`와 `${BOUNCER_ROOT}/rules/plugin-root.md`를 담는다.
 29. `skills/**/*.md`, `rules/*.md`, `references/**/*.md`에 접두 없는 플러그인 문서 인용(`rules/…`, `references/…`, `agents/…`, 플러그인 `AGENTS.md`)이 없다. 테스트가 이를 판정하고, 예외는 테스트에 이름이 적힌 위치뿐이다.
 30. 위임 정책 없이 v088006-1 plan 메시지 fixture를 넣으면 응답기 `unrecognizedQuestion`이 true이고, v088005·v088006 정상 단계의 마지막 메시지 fixture는 false다. 응답기 `unhandledQuestionMethod`는 그 fixture에 `text/unrecognized-question`을, `AskUserQuestion` 글자만 있는 텍스트에 `text/unread-question`을, 정상 fixture에 `null`을 돌려주고, `run-print-stage.cjs`는 ACQ·quiz가 처리하지 않은 턴에서 이 값을 `unanswered` method로 남긴다.
+31. `bouncer review-dispatch execute`에 `--mode delta`를 주면 diff 크기와 `review_risk`에 상관없이 `strategy: single`, `perspectives: ["combined"]`를 돌려준다. `--mode`를 생략하거나 `discovery`를 주면 출력이 지금과 같고, 그 밖의 값은 exit 2로 거절한다.
+32. blueprint 리뷰 모드에서 root `review.md`의 `bouncer.review.rounds[]`에 `mode: discovery` round가 있으면 `coordinate next`의 `final_review`는 argv 끝에 `--mode delta`를 붙이고 `payload.mode: delta`를 싣는다. 최신 supplement 결정이 `verified`일 때도 같다. 둘 다 아니면 argv와 payload는 지금과 같다.
+33. execute 리뷰의 `mode: delta` round에 perspective가 2개 이상이면 `review record`가 `review-ledger-invalid`로 거절하고 G14·G21이 실패한다. perspective가 0~1개인 delta round와 context review(G18) round의 판정은 바뀌지 않는다.
+34. execute reviewer 문서 `agents/bouncer-reviewer.md`와 `references/review/assets/reviewer-prompt.md`의 relation 값은 `new | resolved | regressed | unresolved`로 같고, `unresolved`는 finding을 `status: open`으로 둔다고 적는다. `reviewer-prompt.md`의 actionability 문장은 `bouncer-reviewer.md`와 같다. `final_review.md` 카드는 delta에서 `next`가 준 argv(`--mode delta`)를 그대로 실행하고 reviewer 하나에 이전 finding 전부를 준다고 적는다.
 
 ## Out of scope
 - 재측정 실행 자체와 그 결과 해석. 이 epic은 측정 대상 코드와 하네스만 바꾼다.
@@ -67,3 +71,4 @@ bouncer:
 * [005 리뷰 기록 형식과 finalize 정책](blueprints/005-review-format-finalize-policy/index.md) - `review-dispatch plan --help` context review 예시, `review record` finding status `open`과 review·final_review 카드 예시, ledger 평가자 정책 `finalize.remainder`·응답기·`run-bouncer-full.cjs` 증거 수집을 고침
 * [006 print dispatch 계약 빈칸 채우기](blueprints/006-print-dispatch-contract-gaps/index.md) - `print-dispatch.ts`·`cli-dispatch-command.ts` context-reviewer role과 plan context-review 명령, `coordinate status --write-input`과 run 스킬 4단계, `bouncer config --help`와 init 안내
 * [007 플러그인 문서 경로를 루트 기준으로 열기](blueprints/007-plugin-root-resolution/index.md) - `print-dispatch.ts` prompt 루트 줄, 여섯 SKILL.md `Plugin root` 줄, `skills/**`·`rules/`·`references/**` 인용 표기, 벤치마크 응답기·`run-print-stage.cjs` 질문 판정
+* [008 delta 리뷰를 reviewer 하나로](blueprints/008-delta-single-reviewer/index.md) - `review-dispatch execute --mode delta`, `coordinate-next.ts` final_review delta 판정, `validate-sections.ts` delta 관점 수 검증, reviewer relation `unresolved`와 `final_review.md` 카드

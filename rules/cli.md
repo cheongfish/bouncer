@@ -145,7 +145,8 @@ bouncer subagent-model --agent <name> [--provider <name>]
 bouncer config --help
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
-bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
+bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
+  # --mode delta → strategy single / perspectives [combined] (delta certification)
   # light scale → strategy single / perspectives [combined] (diff size ignored);
   # non-empty review_risk still appends security
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \

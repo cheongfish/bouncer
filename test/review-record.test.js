@@ -403,3 +403,65 @@ test('review record --help lists open and shows an open example', () => {
   const example = JSON.parse(help.out.match(/```json\n([\s\S]*?)\n```/)[1]);
   assert.equal(example.findings[0].status, 'open');
 });
+
+// ---- execute delta round: reviewer 하나 규칙 (perspective 수) ----
+
+/** round 1 discovery를 기록한 뒤 round 2 delta payload를 돌려준다. */
+function recordDiscoveryThenDeltaPayload(repo, deltaPerspectives) {
+  const { recordReview } = require('../scripts/lib/review-record');
+  const r1 = writeJson(repo, 'round-1.json', roundPayload(EXAMPLE_ROUND, [EXAMPLE_FINDING]));
+  const discovery = recordReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    roundFile: r1,
+  });
+  assert.equal(discovery.ok, true, discovery.reason);
+  const resolvedFinding = {
+    ...EXAMPLE_FINDING,
+    status: 'resolved',
+    first_seen_round: 1,
+    last_seen_round: 2,
+  };
+  return {
+    recordReview,
+    roundFile: writeJson(repo, 'round-2.json', roundPayload({
+      round: 2,
+      mode: 'delta',
+      perspectives: deltaPerspectives,
+      previous_finding_ids: ['F1'],
+      new: 0,
+      resolved: 1,
+      regressed: 0,
+    }, [resolvedFinding])),
+  };
+}
+
+test('관점 2개인 delta round 기록 → review-ledger-invalid', () => {
+  const { repo } = makeBlueprintRepo();
+  const head = EXAMPLE_ROUND.target.head;
+  const { recordReview, roundFile } = recordDiscoveryThenDeltaPayload(repo, [
+    { name: 'spec_scope', target_head: head },
+    { name: 'security', target_head: head },
+  ]);
+  const result = recordReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    roundFile,
+  });
+  assert.strictEqual(result.reason, 'review-ledger-invalid');
+  assert.ok(result.cause.includes('review round 2 delta perspectives invalid: 2'));
+});
+
+test('관점 1개인 delta round 기록 → ok', () => {
+  const { repo } = makeBlueprintRepo();
+  const head = EXAMPLE_ROUND.target.head;
+  const { recordReview, roundFile } = recordDiscoveryThenDeltaPayload(repo, [
+    { name: 'combined', target_head: head },
+  ]);
+  const result = recordReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    roundFile,
+  });
+  assert.equal(result.ok, true, result.reason);
+});
