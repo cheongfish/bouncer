@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { taskBriefHash } = require('../scripts/lib/task-brief-hash');
 
-test('taskBriefHash ignores lifecycle keys and YAML quoting, not body or other keys', () => {
+test('taskBriefHash → ignores lifecycle keys and YAML quoting, not body or other keys', () => {
   const base = '---\nbouncer:\n  status: ready\n  affected_paths:\n    - a.ts\n---\nbrief\n';
   const later = '---\nbouncer:\n  affected_paths: [a.ts]\n  status: verified\n  commit_sha: abcd1234\n---\nbrief\n';
   assert.strictEqual(taskBriefHash(base), taskBriefHash(later));

@@ -34,7 +34,7 @@ test.after(() => {
   }
 });
 
-test('function declaration, exported function, arrow function, and class/object methods resolve', () => {
+test('function declaration, exported function, arrow function, and class/object methods → resolve', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/decl.ts', 'function declaredFn() {\n  return 1;\n}\n');
   writeFile(repo, 'src/exported.ts', 'export function exportedFn() {\n  return 2;\n}\n');
@@ -97,7 +97,7 @@ test('function declaration, exported function, arrow function, and class/object 
   assert.equal(objectMethod.symbol_ref.qualified_name, 'demo.objectMethod');
 });
 
-test('unsupported syntax is not promoted from string occurrence, callbacks, or computed names', () => {
+test('unsupported syntax → is not promoted from string occurrence, callbacks, or computed names', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/unsupported.ts', [
     'const decoy = "function decoyFn() { return 1; }";',
@@ -119,7 +119,7 @@ test('unsupported syntax is not promoted from string occurrence, callbacks, or c
   }
 });
 
-test('same-named source definitions are ambiguous and reselected by opaque candidate ref', () => {
+test('same-named source definitions → are ambiguous and reselected by opaque candidate ref', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/one.ts', 'export function shared() { return 1; }\n');
   writeFile(repo, 'src/two.ts', 'export function shared() { return 2; }\n');
@@ -148,7 +148,7 @@ test('same-named source definitions are ambiguous and reselected by opaque candi
   );
 });
 
-test('scripts/src wins over corresponding scripts/lib emit and generated-only stays unresolved', () => {
+test('scripts/src → wins over corresponding scripts/lib emit and generated-only stays unresolved', () => {
   const repo = tmpRepo();
   writeFile(repo, 'scripts/src/example.ts', 'export function example() { return 1; }\n');
   writeFile(repo, 'scripts/lib/example.js', 'function example() { return 1; }\n');
@@ -166,7 +166,7 @@ test('scripts/src wins over corresponding scripts/lib emit and generated-only st
   assert.ok(generatedOnly.candidates.every((item) => item.role === 'generated'));
 });
 
-test('deleted current definition and missing names are unresolved', () => {
+test('deleted current definition and missing → names are unresolved', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/gone.ts', 'function gone() { return 1; }\n');
   const before = resolveSymbol({ repoRoot: repo, symbol: 'gone' });
@@ -181,7 +181,7 @@ test('deleted current definition and missing names are unresolved', () => {
   assert.equal(missing.candidates.length, 0);
 });
 
-test('test and vendor definitions stay diagnostic and do not replace source', () => {
+test('test and vendor definitions → stay diagnostic and do not replace source', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/app.ts', 'export function overlap() { return 1; }\n');
   writeFile(repo, 'test/app.test.js', 'function overlap() { return 2; }\n');
@@ -204,7 +204,7 @@ test('test and vendor definitions stay diagnostic and do not replace source', ()
   assert.ok(vendorOnly.candidates.every((item) => item.role === 'vendor'));
 });
 
-test('empty symbol and outside-repo definitions are rejected', () => {
+test('empty symbol and outside-repo definitions → are rejected', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/ok.ts', 'function keep() { return 1; }\n');
 
@@ -224,7 +224,7 @@ test('empty symbol and outside-repo definitions are rejected', () => {
   assert.equal(leaked.status, 'unresolved');
 });
 
-test('a parse error in one file does not fabricate candidates from other files', () => {
+test('a parse error in one file → does not fabricate candidates from other files', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/broken.ts', 'function {{{ not valid\n');
   writeFile(repo, 'src/ok.ts', 'function keep() { return 1; }\n');
@@ -234,13 +234,13 @@ test('a parse error in one file does not fabricate candidates from other files',
   assert.equal(result.symbol_ref.path, 'src/ok.ts');
 });
 
-test('shipped symbol-index requires no typescript package', () => {
+test('shipped symbol-index → requires no typescript package', () => {
   const shipped = fs.readFileSync(path.join(__dirname, '../scripts/lib/symbol-index.js'), 'utf8');
   assert.equal(/require\(\s*['"]typescript['"]\s*\)/.test(shipped), false);
   assert.equal(/from\s+['"]typescript['"]/.test(shipped), false);
 });
 
-test('typescript annotations, comments, and templates do not invent or hide definitions', () => {
+test('typescript annotations, comments, and templates → do not invent or hide definitions', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/typed.ts', [
     '/** function decoyFromComment() { return 0; } */',
@@ -314,7 +314,7 @@ test('typescript annotations, comments, and templates do not invent or hide defi
   }
 });
 
-test('nested declarations, export default, and unmatched files keep isolation', () => {
+test('nested declarations, export default, and unmatched files → keep isolation', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/nested.ts', [
     'function outer() {',
@@ -346,7 +346,7 @@ test('nested declarations, export default, and unmatched files keep isolation', 
   assert.equal(stillThere.status, 'resolved');
 });
 
-test('template interpolations, control blocks, and shebangs still collect nested declarations', () => {
+test('template interpolations, control blocks, and shebangs → still collect nested declarations', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/extra.ts', [
     '#!/usr/bin/env node',
@@ -380,7 +380,7 @@ test('template interpolations, control blocks, and shebangs still collect nested
   assert.equal(visible.status, 'resolved');
 });
 
-test('imports, namespaces, control forms, and type syntax keep supported definitions', () => {
+test('imports, namespaces, control forms, and type syntax → keep supported definitions', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/imports.ts', [
     'import fs from "fs";',
@@ -490,7 +490,7 @@ test('imports, namespaces, control forms, and type syntax keep supported definit
   assert.ok(specOnly.candidates.every((item) => item.role === 'test'));
 });
 
-test('empty candidate ref, non-identifier symbol, and bad repoRoot are rejected', () => {
+test('empty candidate ref, non-identifier symbol, and bad repoRoot → are rejected', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/ok.ts', 'function keep() { return 1; }\n');
 
@@ -516,7 +516,7 @@ test('empty candidate ref, non-identifier symbol, and bad repoRoot are rejected'
   );
 });
 
-test('ASI and semicolon bodies of the same function stay ambiguous', () => {
+test('ASI and semicolon bodies of the same function → stay ambiguous', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/one.ts', 'function shared() { return 1 }\n');
   writeFile(repo, 'src/two.ts', 'function shared() { return 2; }\n');
@@ -529,7 +529,7 @@ test('ASI and semicolon bodies of the same function stay ambiguous', () => {
   );
 });
 
-test('postfix increment division does not drop earlier function definitions', () => {
+test('postfix increment division → does not drop earlier function definitions', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/keep.ts', 'function keep() { return 1; }\ni++ / 2\n');
 
@@ -538,7 +538,7 @@ test('postfix increment division does not drop earlier function definitions', ()
   assert.equal(result.symbol_ref.path, 'src/keep.ts');
 });
 
-test('type predicate return types keep the rest of the file indexed', () => {
+test('type predicate return types → keep the rest of the file indexed', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/pred.ts', [
     'function isStr(v: unknown): v is string { return typeof v === "string"; }',

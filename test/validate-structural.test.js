@@ -105,7 +105,7 @@ function epicDoc(epicRel = '.bouncer/context/epics/001-auth/index.md', id = '001
   };
 }
 
-test('S1: missing OKF field is reported', () => {
+test('S1: missing OKF field → is reported', () => {
   const repo = mkRepo();
   const t = goodTasks();
   delete t.description;
@@ -116,7 +116,7 @@ test('S1: missing OKF field is reported', () => {
   assert.ok(res.failures.some((f) => f.code === 'S1'));
 });
 
-test('S3/S6/S7 detect resource, status, affected_paths problems', () => {
+test('S3/S6/S7 on resource, status, affected_paths problems → detect them', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.resource = 'context/wrong/path.md';
@@ -132,7 +132,7 @@ test('S3/S6/S7 detect resource, status, affected_paths problems', () => {
   assert.ok(codes.includes('S7'));
 });
 
-test('S4: rejects child id that is not KIND-\\d{3}', () => {
+test('S4: → rejects child id that is not KIND-\\d{3}', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, {
     ...goodTasks(),
@@ -147,7 +147,7 @@ test('S4: rejects child id that is not KIND-\\d{3}', () => {
   assert.ok(res.failures.some((f) => f.code === 'S4' && /bogus/.test(f.message)));
 });
 
-test('S8: leaf present but blueprint index absent', () => {
+test('S8 with leaf present but blueprint index absent → reports it', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
@@ -155,7 +155,7 @@ test('S8: leaf present but blueprint index absent', () => {
   assert.ok(res.failures.some((f) => f.code === 'S8'));
 });
 
-test('a fully valid numeric blueprint passes structural checks', () => {
+test('a fully valid numeric blueprint → passes structural checks', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -165,7 +165,7 @@ test('a fully valid numeric blueprint passes structural checks', () => {
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
-test('S5: legacy-prefixed frontmatter fails on a canonical path', () => {
+test('S5: legacy-prefixed frontmatter → fails on a canonical path', () => {
   const repo = mkRepo();
   const tasks = goodTasks();
   tasks.bouncer.id = 'TASKS-BP-001';
@@ -182,7 +182,7 @@ test('S5: legacy-prefixed frontmatter fails on a canonical path', () => {
   assert.ok(res.failures.some((f) => f.code === 'S5' && /id TASKS-BP-001/.test(f.message)));
 });
 
-test('S10: legacy-prefixed blueprint path is not canonical', () => {
+test('S10: legacy-prefixed blueprint path → is not canonical', () => {
   const repo = mkRepo();
   const legacyBp = '.bouncer/context/epics/' + 'EPIC-001-auth/blueprints/' + 'BP-001-login';
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: legacyBp });
@@ -190,7 +190,7 @@ test('S10: legacy-prefixed blueprint path is not canonical', () => {
   assert.deepStrictEqual(res.failures.map((f) => f.code), ['S10']);
 });
 
-test('S5: legacy-prefixed epic id fails even when digits match', () => {
+test('S5: legacy-prefixed epic id → fails even when digits match', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, {
     ...goodTasks(),
@@ -207,7 +207,7 @@ test('S5: legacy-prefixed epic id fails even when digits match', () => {
   assert.ok(res.failures.some((f) => f.code === 'S5' && /epic_id/.test(f.message)));
 });
 
-test('S13: epic directory missing from bundle context index', () => {
+test('S13 with epic directory missing from bundle context index → reports it', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -219,7 +219,7 @@ test('S13: epic directory missing from bundle context index', () => {
   assert.ok(res.failures.some((f) => f.code === 'S13' && /not listed/.test(f.message)));
 });
 
-test('S13: bundle context index lists a missing epic directory', () => {
+test('S13: bundle context index → lists a missing epic directory', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -229,7 +229,7 @@ test('S13: bundle context index lists a missing epic directory', () => {
   assert.ok(res.failures.some((f) => f.code === 'S13' && /missing epic/.test(f.message)));
 });
 
-test('S13: epic description mismatch is reported as a summary mismatch', () => {
+test('S13: epic description → mismatch is reported as a summary mismatch', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -241,7 +241,7 @@ test('S13: epic description mismatch is reported as a summary mismatch', () => {
   assert.ok(failures.some((f) => f.code === 'S13' && /summary mismatch/.test(f.message)));
 });
 
-test('S13: malformed or invalid epic frontmatter reports the source error', () => {
+test('S13: malformed or invalid epic frontmatter → reports the source error', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -256,7 +256,7 @@ test('S13: malformed or invalid epic frontmatter reports the source error', () =
   assert.ok(fs.existsSync(epicPath));
 });
 
-test('S13: legacy-prefixed epic directory alone fails', () => {
+test('S13: legacy-prefixed epic directory alone → fails', () => {
   const repo = mkRepo();
   // 정본 blueprint로 validate가 S10 early-return 없이 진행하게 두고,
   // 옆에 구형 EPIC- 디렉터리·index 링크만 남겨 S13이 거절하는지 본다.
@@ -282,7 +282,7 @@ test('S13: legacy-prefixed epic directory alone fails', () => {
   assert.ok(res.failures.some((f) => f.code === 'S13' && /legacy-prefixed epic link/.test(f.message)));
 });
 
-test('S13: legacy-only tree fails without a canonical epic present', () => {
+test('S13: legacy-only tree → fails without a canonical epic present', () => {
   const repo = mkRepo();
   const legacyEpic = '.bouncer/context/epics/' + 'EPIC-001-auth';
   writeDoc(repo, `${legacyEpic}/index.md`, epicDoc());
@@ -300,7 +300,7 @@ test('S13: legacy-only tree fails without a canonical epic present', () => {
   assert.ok(failures.some((f) => f.code === 'S13' && /legacy-prefixed epic link/.test(f.message)));
 });
 
-test('S0: malformed frontmatter is collected as a failure, not thrown', () => {
+test('S0: malformed frontmatter → is collected as a failure, not thrown', () => {
   const repo = mkRepo();
   const abs = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -312,7 +312,7 @@ test('S0: malformed frontmatter is collected as a failure, not thrown', () => {
   assert.ok(res.failures.some((f) => f.code === 'S0'));
 });
 
-test('legacy sdd frontmatter is rejected with bouncer-init guidance', () => {
+test('legacy sdd frontmatter → is rejected with bouncer-init guidance', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
     type: 'sdd.tasks',
@@ -336,7 +336,7 @@ test('legacy sdd frontmatter is rejected with bouncer-init guidance', () => {
   assert.ok(res.failures.some((f) => /bouncer-init/.test(f.message)));
 });
 
-test('structural check ignores legacy scope evidence fields', () => {
+test('structural check → ignores legacy scope evidence fields', () => {
   const t = goodTasks();
   t.bouncer.scope_evidence = { producer: 'other', basis: [] };
   t.bouncer.graph = { basis: '' };
@@ -348,7 +348,7 @@ test('structural check ignores legacy scope evidence fields', () => {
   assert.deepStrictEqual(failures.filter((f) => f.code === 'S9'), []);
 });
 
-test('legacy root context blueprint is not a canonical validation target', () => {
+test('legacy root context blueprint → is not a canonical validation target', () => {
   const repo = mkRepo();
   const legacyBp = 'context/epics/001-auth/blueprints/001-login';
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: legacyBp });
@@ -360,7 +360,7 @@ test('legacy root context blueprint is not a canonical validation target', () =>
 // P2: a nonexistent blueprint used to surface as a finalize comprehension
 // failure (historically G15, now G16 on finalize), which sends the reader
 // looking for a document problem instead of a typo.
-test('S11: a blueprint with no documents is reported as absent, not as a gate failure', () => {
+test('S11: a blueprint with no documents → is reported as absent, not as a gate failure', () => {
   const repo = mkRepo();
   for (const gate of [undefined, 'plan', 'execute', 'finalize']) {
     const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate });
@@ -371,7 +371,7 @@ test('S11: a blueprint with no documents is reported as absent, not as a gate fa
   }
 });
 
-test('S11 does not mask a partially scaffolded blueprint', () => {
+test('S11 → does not mask a partially scaffolded blueprint', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, {
     type: 'bouncer.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks.md`,
@@ -387,7 +387,7 @@ test('S11 does not mask a partially scaffolded blueprint', () => {
   assert.ok(codes.includes('S8'), `expected S8 for the absent index: ${codes.join(',')}`);
 });
 
-test('S12: invalid tasks.bouncer.verify is reported', () => {
+test('S12: invalid tasks.bouncer.verify → is reported', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.bouncer.verify = 'cd x && npm test';
@@ -398,7 +398,7 @@ test('S12: invalid tasks.bouncer.verify is reported', () => {
   assert.ok(res.failures.some((f) => f.code === 'S12'));
 });
 
-test('S12: unclosed quotes are reported as invalid verify', () => {
+test('S12: unclosed quotes → are reported as invalid verify', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.bouncer.verify = 'node -e "unclosed';
@@ -409,7 +409,7 @@ test('S12: unclosed quotes are reported as invalid verify', () => {
   assert.ok(res.failures.some((f) => f.code === 'S12'));
 });
 
-test('S12: argv0 outside the default verify allowlist is reported', () => {
+test('S12: argv0 outside the default verify allowlist → is reported', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.bouncer.verify = 'curl https://example.invalid';
@@ -420,7 +420,7 @@ test('S12: argv0 outside the default verify allowlist is reported', () => {
   assert.ok(res.failures.some((f) => f.code === 'S12'));
 });
 
-test('S12 does not fire when tasks.bouncer.verify is absent', () => {
+test('S12 when tasks.bouncer.verify is absent → does not fire', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -431,7 +431,7 @@ test('S12 does not fire when tasks.bouncer.verify is absent', () => {
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
-test('S5: legacy tasks.md expects TASKS-{blueprint id}', () => {
+test('S5 with legacy tasks.md → expects TASKS-{blueprint id}', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -441,7 +441,7 @@ test('S5: legacy tasks.md expects TASKS-{blueprint id}', () => {
   assert.ok(!res.failures.some((f) => f.code === 'S5'));
 });
 
-test('S5: tasks-002.md expects TASKS-002 (not blueprint id)', () => {
+test('S5 with tasks-002.md → expects TASKS-002 (not blueprint id)', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.resource = `${BP_REL}/tasks/002/tasks.md`;
@@ -454,7 +454,7 @@ test('S5: tasks-002.md expects TASKS-002 (not blueprint id)', () => {
   assert.ok(!res.failures.some((f) => f.code === 'S5'), JSON.stringify(res.failures));
 });
 
-test('S5: wrong id on numbered tasks file is rejected', () => {
+test('S5: wrong id on numbered tasks file → is rejected', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.resource = `${BP_REL}/tasks/002/tasks.md`;
@@ -468,7 +468,7 @@ test('S5: wrong id on numbered tasks file is rejected', () => {
   assert.ok(res.failures.some((f) => f.code === 'S5' && /TASKS-002/.test(f.message)));
 });
 
-test('S15: legacy root task files are rejected', () => {
+test('S15: legacy root task files → are rejected', () => {
   const repo = mkRepo();
   const legacy = { ...goodTasks(), resource: `${BP_REL}/tasks.md` };
   const abs = path.join(repo, `${BP_REL}/tasks.md`);
@@ -485,7 +485,7 @@ test('S15: legacy root task files are rejected', () => {
   assert.ok(res.failures.some((f) => f.code === 'S15'));
 });
 
-test('loadBlueprintDocs: empty tasks listing falls back to tasks/001 not legacy root', () => {
+test('loadBlueprintDocs: empty tasks listing → falls back to tasks/001 not legacy root', () => {
   const repo = mkRepo();
   // tasks/ 묶음이 없는 blueprint — 대표 경로가 레거시 루트 basename이면 안 된다.
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -508,7 +508,7 @@ function writeImportedIndexes(repo) {
   writeBundleIndex(repo);
 }
 
-test('S18: imported blueprint is out of gate scope (plan)', () => {
+test('S18: imported blueprint → is out of gate scope (plan)', () => {
   const repo = mkRepo();
   writeImportedIndexes(repo);
   const r = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
@@ -523,7 +523,7 @@ test('S18: imported blueprint is out of gate scope (plan)', () => {
   )));
 });
 
-test('S18: imported blueprint rejected without gate too', () => {
+test('S18 imported blueprint without gate → rejected too', () => {
   const repo = mkRepo();
   writeImportedIndexes(repo);
   const r = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
@@ -533,7 +533,7 @@ test('S18: imported blueprint rejected without gate too', () => {
   assert.ok(!codes.some((c) => c.startsWith('G')));
 });
 
-test('S19: tasks.md with wrong type reports expected and actual', () => {
+test('S19: tasks.md with wrong type → reports expected and actual', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.type = 'bouncer.review';
@@ -560,7 +560,7 @@ test('S19: tasks.md with wrong type reports expected and actual', () => {
   assert.match(msg, /bouncer\.review/);
 });
 
-test('S19: paths without a location rule do not emit S19', () => {
+test('S19: paths without a location rule → do not emit S19', () => {
   const outside = {
     type: 'bouncer.tasks',
     title: 't',
@@ -618,7 +618,7 @@ function contextReviewDoc(bpRel = BP_REL) {
   };
 }
 
-test('context-review.md with matching type passes structural checks', () => {
+test('context-review.md with matching type → passes structural checks', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -629,7 +629,7 @@ test('context-review.md with matching type passes structural checks', () => {
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
-test('S19: context-review.md with bouncer.review type reports expected and actual', () => {
+test('S19: context-review.md with bouncer.review type → reports expected and actual', () => {
   const repo = mkRepo();
   const doc = contextReviewDoc();
   doc.type = 'bouncer.review';
@@ -657,7 +657,7 @@ test('S19: context-review.md with bouncer.review type reports expected and actua
 // 파일이 있는데 frontmatter 파싱이 깨지면 loader는 docs.contextReview를
 // 비우고 S0만 남긴다. plan 게이트가 이를 부재로 오인하면 scaffold 안내가
 // 나오므로, 통합 fixture로 S0 + invalid-frontmatter G18 페어링을 고정한다.
-test('plan gate: existing context-review with backtick-leading note yields S0 and invalid-frontmatter G18', () => {
+test('plan gate: existing context-review with backtick-leading note → yields S0 and invalid-frontmatter G18', () => {
   const repo = mkRepo();
   const epic = epicDoc();
   epic.bouncer.status = 'approved';
@@ -718,14 +718,14 @@ bouncer:
   assert.ok(!g18.some((f) => /context-review\.md missing/.test(f.message)));
 });
 
-test('S20: scale missing or valid values pass; lite fails', () => {
+test('S20: scale missing or valid values pass; lite → fails', () => {
   assert.deepStrictEqual(codesFor({}), []);
   assert.deepStrictEqual(codesFor({ scale: 'light' }), []);
   assert.deepStrictEqual(codesFor({ scale: 'full' }), []);
   assert.deepStrictEqual(codesFor({ scale: 'lite' }), ['S20']);
 });
 
-test('S27: supersedes missing or path arrays pass; non-array and blank entries fail', () => {
+test('S27 supersedes missing or path arrays → pass; non-array and blank entries fail', () => {
   assert.deepStrictEqual(codesFor({}), []);
   assert.deepStrictEqual(codesFor({ supersedes: [] }), []);
   assert.deepStrictEqual(
@@ -755,7 +755,7 @@ test('S27: supersedes missing or path arrays pass; non-array and blank entries f
   assert.ok(!epicOk.some((f) => f.code === 'S27'));
 });
 
-test('draft and approved blueprints require a complete task unit bundle (S17)', () => {
+test('draft and approved blueprints → require a complete task unit bundle (S17)', () => {
   for (const status of ['draft', 'approved']) {
     const repo = mkRepo();
     writeDoc(repo, `${BP_REL}/index.md`, {
@@ -789,7 +789,7 @@ test('draft and approved blueprints require a complete task unit bundle (S17)', 
   }
 });
 
-test('closed blueprint allows compact layout without task leaves or context-review.md', () => {
+test('closed blueprint allows compact layout without task → leaves or context-review.md', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/index.md`, {
     ...blueprintDoc(),
@@ -836,7 +836,7 @@ function writeTasksVerifyFixture(verify, config) {
   return repo;
 }
 
-test('S12: project allowlist bun accepts bun test and rejects npm test', () => {
+test('S12: project allowlist bun → accepts bun test and rejects npm test', () => {
   const config = { verify: 'npm test', verify_allowlist: ['bun'] };
   const bunRepo = writeTasksVerifyFixture('bun test', config);
   const bunRes = validateBlueprint({ repoRoot: bunRepo, blueprintDir: BP_REL });
@@ -853,7 +853,7 @@ test('S12: project allowlist bun accepts bun test and rejects npm test', () => {
   );
 });
 
-test('S12: empty verify_allowlist, shell operators, and unclosed quotes are rejected', () => {
+test('S12: empty verify_allowlist, shell operators, and unclosed quotes → are rejected', () => {
   const emptyRepo = writeTasksVerifyFixture('npm test', {
     verify: 'npm test',
     verify_allowlist: [],
@@ -876,14 +876,14 @@ test('S12: empty verify_allowlist, shell operators, and unclosed quotes are reje
   assert.ok(quoteRes.failures.some((f) => f.code === 'S12'));
 });
 
-test('S12: missing config uses the default allowlist', () => {
+test('S12: missing config → uses the default allowlist', () => {
   const repo = writeTasksVerifyFixture('npm test');
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.ok(!res.failures.some((f) => f.code === 'S12'));
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
-test('S12: broken JSON and unreadable config fail plan without default fallback', () => {
+test('S12 with broken JSON and unreadable config → fail plan without default fallback', () => {
   const broken = writeTasksVerifyFixture('npm test');
   writeRaw(broken, '.bouncer/config.json', '{not json');
   const brokenRes = validateBlueprint({ repoRoot: broken, blueprintDir: BP_REL });
@@ -907,7 +907,7 @@ test('S12: broken JSON and unreadable config fail plan without default fallback'
   );
 });
 
-test('light open blueprint still requires the full task unit bundle', () => {
+test('light open blueprint still → requires the full task unit bundle', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/index.md`, {
     ...blueprintDoc(),
@@ -946,7 +946,7 @@ function taskDagFailures(extra = {}) {
   return failures.filter((f) => f.code === 'S28');
 }
 
-test('S28: absent DAG fields and valid shapes pass; bad shape and enum fail', () => {
+test('S28 with absent DAG fields and valid shapes → pass; bad shape and enum fail', () => {
   // 부재는 기존 plan 호환 — S28을 내지 않는다.
   assert.deepStrictEqual(taskDagFailures({}), []);
   assert.deepStrictEqual(taskDagFailures({
@@ -991,7 +991,7 @@ test('S28: absent DAG fields and valid shapes pass; bad shape and enum fail', ()
     .some((f) => f.message === 'exclusive_resources must be an array of unique resource ids'));
 });
 
-test('S29: verification execution_kind requires empty scope, fan-in metadata, and executable verify', () => {
+test('S29: verification execution_kind → requires empty scope, fan-in metadata, and executable verify', () => {
   const failuresFor = (extra) => {
     const failures = [];
     const base = goodTasks();
@@ -1013,7 +1013,7 @@ test('S29: verification execution_kind requires empty scope, fan-in metadata, an
   assert.ok(failuresFor({ execution_kind: 'commit', status: 'integrated' }).length > 0);
 });
 
-test('S30: review_risk must be a unique enum array; absent is legacy-compatible', () => {
+test('S30: review_risk must be a unique enum array; absent → is legacy-compatible', () => {
   const failuresFor = (extra) => {
     const failures = [];
     const base = goodTasks();
@@ -1051,7 +1051,7 @@ function rootReviewDoc(overrides = {}) {
   };
 }
 
-test('root review.md expects bouncer.review and REVIEW-<blueprint id>', () => {
+test('root review.md → expects bouncer.review and REVIEW-<blueprint id>', () => {
   const ok = [];
   checkStructural({ data: rootReviewDoc(), rel: `${BP_REL}/review.md` }, ok);
   assert.ok(!ok.some((f) => f.code === 'S19' || f.code === 'S5'), JSON.stringify(ok));
@@ -1074,7 +1074,7 @@ test('root review.md expects bouncer.review and REVIEW-<blueprint id>', () => {
   assert.ok(wrongId.some((f) => f.code === 'S5'), JSON.stringify(wrongId));
 });
 
-test('S32: commit_intent and commit_summary must be YAML lists, not scalars', () => {
+test('S32 commit_intent and commit_summary as scalars → rejected; must be YAML lists', () => {
   const failuresFor = (extra) => {
     const failures = [];
     const base = goodTasks();
@@ -1095,7 +1095,7 @@ test('S32: commit_intent and commit_summary must be YAML lists, not scalars', ()
   assert.ok(failuresFor({ commit_intent: [1] }).length > 0);
 });
 
-test('S31: review_scope other than blueprint is rejected', () => {
+test('S31: review_scope other than blueprint → is rejected', () => {
   const failures = [];
   const data = {
     ...blueprintDoc(),

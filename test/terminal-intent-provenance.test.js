@@ -264,7 +264,7 @@ test.after(() => {
   }
 });
 
-test('terminal intent provenance joins selection, commits, freshness, and graph scope', () => {
+test('terminal intent provenance with selection, commits, freshness, and graph scope → joins them', () => {
   const repo = tmpRepo();
   initGit(repo);
 

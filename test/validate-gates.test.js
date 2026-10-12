@@ -53,7 +53,7 @@ function repairDecision(task, wave, terminal, pathName) {
   };
 }
 
-test('partial-close gate requires two waves, failure evidence, untracked plan, and confirmation', () => {
+test('partial-close gate → requires two waves, failure evidence, untracked plan, and confirmation', () => {
   const { checkPartialCloseEvidence } = require('../scripts/lib/validate-gates');
   const wave1 = repairDecision('003', 1, '002', 'src/a.js');
   const wave2 = repairDecision('004', 2, '002', 'src/b.js');
@@ -120,7 +120,7 @@ function doc(status, extra = {}, body) {
   return d;
 }
 
-test('parseTasksSections reads English headings', () => {
+test('parseTasksSections → reads English headings', () => {
   const s = parseTasksSections(READY_BODY);
   assert.ok(s.goal.includes('Ship login'));
   assert.ok(s.interface.includes('validateLogin'));
@@ -129,14 +129,14 @@ test('parseTasksSections reads English headings', () => {
   assert.ok(s.checklist.includes('implement validateLogin'));
 });
 
-test('explain parser recognizes optional Tasks without changing required sections', () => {
+test('explain parser with optional Tasks → recognizes them without changing required sections', () => {
   const sections = parseExplainSections(
     `${EXPLAIN_BODY_OK || '# Explain'}\n\n## Tasks\n\n### Task 001\n\n#### Interface\nkept`,
   );
   assert.ok(sections.tasks.includes('### Task 001'));
 });
 
-test('parseTasksSections accepts Korean aliases', () => {
+test('parseTasksSections → accepts Korean aliases', () => {
   const body = '## 목적·의도\nwhy\n\n## 인터페이스\napi\n\n## 수정할 부분\n`src/x.js`\n\n'
     + '## 절대 수정 금지\n`src/y.js`\n\n## 체크리스트\n- [ ] a\n';
   const s = parseTasksSections(body);
@@ -147,7 +147,7 @@ test('parseTasksSections accepts Korean aliases', () => {
   assert.ok(s.checklist.includes('- [ ] a'));
 });
 
-test('Constraints bounds the preceding section instead of folding into it', () => {
+test('Constraints section → bounds the preceding section instead of folding into it', () => {
   const body = READY_BODY.replace(
     '## Checklist',
     '## Constraints\n- keep `src/auth/login.js` backward compatible\n\n## Checklist',
@@ -168,19 +168,19 @@ test('Constraints bounds the preceding section instead of folding into it', () =
   assert.deepStrictEqual(failures.filter((f) => f.code === 'G12'), []);
 });
 
-test('extractPathCandidates finds backtick and bare paths', () => {
+test('extractPathCandidates on backtick and bare paths → finds both', () => {
   const paths = extractPathCandidates('- `src/auth/login.js`\n- test/auth/login.test.js\n');
   assert.ok(paths.includes('src/auth/login.js'));
   assert.ok(paths.includes('test/auth/login.test.js'));
 });
 
-test('plan gate passes when all conditions met including G10–G12', () => {
+test('plan gate when all conditions met including G10–G12 → passes', () => {
   const failures = [];
   checkGate('plan', planDocs(READY_BODY), rels, failures);
   assert.deepStrictEqual(failures, []);
 });
 
-test('plan gate flags G3 and G5', () => {
+test('plan gate → flags G3 and G5', () => {
   const docs = {
     epicIndex: doc('approved'),
     blueprintIndex: doc('approved'),
@@ -194,7 +194,7 @@ test('plan gate flags G3 and G5', () => {
   assert.ok(codes.includes('G5'));
 });
 
-test('plan gate G2 on a closed blueprint reports lock wording distinct from draft', () => {
+test('plan gate G2 on a closed blueprint → reports lock wording distinct from draft', () => {
   const draftDocs = {
     epicIndex: doc('approved'),
     blueprintIndex: doc('draft'),
@@ -220,7 +220,7 @@ test('plan gate G2 on a closed blueprint reports lock wording distinct from draf
   assert.doesNotMatch(closedG2.message, /!= approved/);
 });
 
-test('plan gate G3 accepts ready, in_progress, and verified', () => {
+test('plan gate G3 → accepts ready, in_progress, and verified', () => {
   for (const status of ['ready', 'in_progress', 'verified']) {
     const docs = {
       epicIndex: doc('approved'),
@@ -242,7 +242,7 @@ test('plan gate G3 accepts ready, in_progress, and verified', () => {
   }
 });
 
-test('plan gate G10 fails when a section is missing', () => {
+test('plan gate G10 when a section is missing → fails', () => {
   const body = '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n`src/`\n\n## Checklist\n- [ ] a\n';
   const docs = {
     epicIndex: doc('approved'),
@@ -269,7 +269,7 @@ function planDocs(body) {
   };
 }
 
-test('plan gate accepts a commit task without scope evidence', () => {
+test('plan gate → accepts a commit task without scope evidence', () => {
   const docs = planDocs(READY_BODY);
   delete docs.tasks.data.bouncer.graph;
   delete docs.tasks.data.bouncer.scope_evidence;
@@ -278,7 +278,7 @@ test('plan gate accepts a commit task without scope evidence', () => {
   assert.deepStrictEqual(failures, []);
 });
 
-test('plan gate ignores malformed legacy scope evidence', () => {
+test('plan gate → ignores malformed legacy scope evidence', () => {
   const docs = planDocs(READY_BODY);
   docs.tasks.data.bouncer.scope_evidence = { producer: 'other', basis: [] };
   docs.tasks.data.bouncer.graph = { suggested_paths: 'x', basis: [] };
@@ -287,7 +287,7 @@ test('plan gate ignores malformed legacy scope evidence', () => {
   assert.deepStrictEqual(failures, []);
 });
 
-test('plan gate G10 fails when a section holds only guidance comments', () => {
+test('plan gate G10 when a section holds only guidance comments → fails', () => {
   const body = READY_BODY.replace('Ship login validation.', '<!-- 여기에 목표를 적습니다 -->');
   const failures = [];
   checkGate('plan', planDocs(body), rels, failures);
@@ -296,7 +296,7 @@ test('plan gate G10 fails when a section holds only guidance comments', () => {
   assert.match(g10[0].message, /missing implementation-ready sections: goal/);
 });
 
-test('plan gate G10 fails when a TODO placeholder survives', () => {
+test('plan gate G10 when a TODO placeholder survives → fails', () => {
   const body = READY_BODY.replace('- [ ] implement validateLogin', '- [ ] <TODO: 작업 항목>');
   const failures = [];
   checkGate('plan', planDocs(body), rels, failures);
@@ -305,7 +305,7 @@ test('plan gate G10 fails when a TODO placeholder survives', () => {
   assert.match(g10[0].message, /placeholders: checklist/);
 });
 
-test('plan gate tolerates guidance comments alongside real content', () => {
+test('plan gate → tolerates guidance comments alongside real content', () => {
   const body = READY_BODY.replace(
     '## Touch',
     '## Touch\n<!-- affected_paths의 모든 경로가 여기서 정당화되어야 합니다 (G11) -->',
@@ -315,7 +315,7 @@ test('plan gate tolerates guidance comments alongside real content', () => {
   assert.deepStrictEqual(failures, []);
 });
 
-test('plan gate does not mistake a generic parameter for a placeholder', () => {
+test('plan gate → does not mistake a generic parameter for a placeholder', () => {
   const body = READY_BODY.replace('`validateLogin(input) -> Result`', '`validateLogin<T>(input: T) -> Result<T>`');
   const failures = [];
   checkGate('plan', planDocs(body), rels, failures);
@@ -325,7 +325,7 @@ test('plan gate does not mistake a generic parameter for a placeholder', () => {
 // The safety property the guidance-heavy templates must not cost us: prose in a
 // section makes it non-empty, so `<TODO:` detection is the only thing keeping an
 // untouched template out of the plan gate.
-test('the shipped tasks template cannot pass the plan gate untouched', () => {
+test('the shipped tasks template → cannot pass the plan gate untouched', () => {
   const failures = [];
   checkGate('plan', planDocs(TEMPLATES['tasks.md']), rels, failures);
   const g10 = failures.filter((f) => f.code === 'G10');
@@ -333,7 +333,7 @@ test('the shipped tasks template cannot pass the plan gate untouched', () => {
   assert.match(g10[0].message, /placeholders: goal, interface, touch, doNotTouch, checklist/);
 });
 
-test('parseTasksSections reads Current and Target behavior as distinct keys', () => {
+test('parseTasksSections → reads Current and Target behavior as distinct keys', () => {
   const s = parseTasksSections(
     '## Goal & intent\ng\n## Current behavior\nc\n## Target behavior\nt\n## Interface\ni',
   );
@@ -343,7 +343,7 @@ test('parseTasksSections reads Current and Target behavior as distinct keys', ()
   assert.strictEqual(s.interface, 'i');
 });
 
-test('plan gate G10 rejects TODO placeholders in optional behavior sections', () => {
+test('plan gate G10 → rejects TODO placeholders in optional behavior sections', () => {
   // 문서 lint가 자리표시 원문을 막으므로 조합한다.
   const todo = '<' + 'TODO: x>';
   const withTarget = READY_BODY + `\n## Target behavior\n${todo}\n`;
@@ -367,7 +367,7 @@ test('plan gate G10 rejects TODO placeholders in optional behavior sections', ()
   assert.deepStrictEqual(absentFailures.filter((f) => f.code === 'G10'), []);
 });
 
-test('plan gate G11 accepts backtick paths inside a Touch table cell', () => {
+test('plan gate G11 → accepts backtick paths inside a Touch table cell', () => {
   const body = READY_BODY.replace(
     '## Touch\n- `src/auth/`\n- `test/auth/`',
     '## Touch\n| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |\n'
@@ -388,7 +388,7 @@ test('plan gate G11 accepts backtick paths inside a Touch table cell', () => {
   assert.deepStrictEqual(failures.filter((f) => f.code === 'G11'), []);
 });
 
-test('plan gate G11 fails when affected_paths not justified by Touch', () => {
+test('plan gate G11 when affected_paths not justified by Touch → fails', () => {
   const docs = {
     epicIndex: doc('approved'),
     blueprintIndex: doc('approved'),
@@ -402,7 +402,7 @@ test('plan gate G11 fails when affected_paths not justified by Touch', () => {
   assert.ok(failures.some((f) => f.code === 'G11'));
 });
 
-test('plan gate G12 fails when do-not-touch intersects affected_paths', () => {
+test('plan gate G12 when do-not-touch intersects affected_paths → fails', () => {
   const body = `# Tasks
 
 ## Goal & intent
@@ -433,7 +433,7 @@ y
   assert.ok(failures.some((f) => f.code === 'G12'));
 });
 
-test('plan gate G18 fails when context-review.md is missing', () => {
+test('plan gate G18 when context-review.md is missing → fails', () => {
   const docs = planDocs(READY_BODY);
   delete docs.contextReview;
   const failures = [];
@@ -447,7 +447,7 @@ test('plan gate G18 fails when context-review.md is missing', () => {
 
 // 파싱 실패는 docs.contextReview가 비어 보이지만 파일이 없는 것과 다르다.
 // parseErrors에 해당 경로 S0이 있으면 scaffold가 아니라 frontmatter 수정을 안내한다.
-test('plan gate G18 reports invalid frontmatter when parseErrors has context-review S0', () => {
+test('plan gate G18 when parseErrors has context-review S0 → reports invalid frontmatter', () => {
   const docs = planDocs(READY_BODY);
   delete docs.contextReview;
   const failures = [];
@@ -466,7 +466,7 @@ test('plan gate G18 reports invalid frontmatter when parseErrors has context-rev
   assert.strictEqual(g18[0].file, rels.contextReview);
 });
 
-test('plan gate G18 keeps missing scaffold guidance when the file is truly absent', () => {
+test('plan gate G18 when the file is truly absent → keeps missing scaffold guidance', () => {
   const docs = planDocs(READY_BODY);
   delete docs.contextReview;
   const failures = [];
@@ -477,7 +477,7 @@ test('plan gate G18 keeps missing scaffold guidance when the file is truly absen
   assert.match(g18[0].message, /scaffold context-review/);
 });
 
-test('plan gate G18 fails when context-review.status is pending', () => {
+test('plan gate G18 when context-review.status is pending → fails', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = contextReviewDoc('pending');
   const failures = [];
@@ -485,7 +485,7 @@ test('plan gate G18 fails when context-review.status is pending', () => {
   assert.ok(failures.some((f) => f.code === 'G18' && /status != accepted/.test(f.message)));
 });
 
-test('plan gate G18 fails when context-review body lacks Findings heading', () => {
+test('plan gate G18 when context-review body lacks Findings heading → fails', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = contextReviewDoc('accepted', [], '# Context review\n\nnothing structured\n');
   const failures = [];
@@ -493,7 +493,7 @@ test('plan gate G18 fails when context-review body lacks Findings heading', () =
   assert.ok(failures.some((f) => f.code === 'G18' && /missing ## Findings/.test(f.message)));
 });
 
-test('plan gate G18 fails when a finding severity is invalid', () => {
+test('plan gate G18 when a finding severity is invalid → fails', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = contextReviewDoc('accepted', [
     { id: 'CR-1', severity: 'critical', status: 'resolved' },
@@ -505,7 +505,7 @@ test('plan gate G18 fails when a finding severity is invalid', () => {
   )));
 });
 
-test('plan gate G18 fails when an accepted finding has no note', () => {
+test('plan gate G18 when an accepted finding has no note → fails', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = contextReviewDoc('accepted', [
     { id: 'CR-2', severity: 'major', status: 'accepted' },
@@ -517,7 +517,7 @@ test('plan gate G18 fails when an accepted finding has no note', () => {
   )));
 });
 
-test('plan gate G18 fails when a finding status is deferred', () => {
+test('plan gate G18 when a finding status is deferred → fails', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = contextReviewDoc('accepted', [
     { id: 'CR-3', severity: 'minor', status: 'deferred', note: 'next epic' },
@@ -529,7 +529,7 @@ test('plan gate G18 fails when a finding status is deferred', () => {
   )));
 });
 
-test('plan gate G18 fails when context_review.findings is not an array', () => {
+test('plan gate G18 when context_review.findings is not an array → fails', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = doc(
     'accepted',
@@ -541,7 +541,7 @@ test('plan gate G18 fails when context_review.findings is not an array', () => {
   assert.ok(failures.some((f) => f.code === 'G18'));
 });
 
-test('plan gate G18 passes for an accepted context-review with empty findings', () => {
+test('plan gate G18 → passes for an accepted context-review with empty findings', () => {
   const failures = [];
   checkGate('plan', planDocs(READY_BODY), rels, failures);
   assert.deepStrictEqual(failures.filter((f) => f.code === 'G18'), []);
@@ -583,7 +583,7 @@ function contextReviewFailures(contextReview) {
   return failures.filter((f) => f.code === 'G18');
 }
 
-test('findingFingerprint prefixes the context namespace', () => {
+test('findingFingerprint with the context namespace → prefixes it', () => {
   assert.strictEqual(
     findingFingerprint({
       category: 'scope', brief_clause: 'tasks/002 Interface', file: `./${CONTEXT_TASK_FILE}`, symbol: 'interface',
@@ -592,13 +592,13 @@ test('findingFingerprint prefixes the context namespace', () => {
   );
 });
 
-test('plan gate G18 accepts a context finding in the context namespace', () => {
+test('plan gate G18 → accepts a context finding in the context namespace', () => {
   assert.deepStrictEqual(contextReviewFailures({
     findings: [contextFinding()], rounds: [contextRound()],
   }), []);
 });
 
-test('plan gate G18 accepts adaptive combined local global perspectives', () => {
+test('plan gate G18 → accepts adaptive combined local global perspectives', () => {
   assert.deepStrictEqual(contextReviewFailures({
     findings: [contextFinding()],
     rounds: [contextRound({
@@ -618,7 +618,7 @@ test('plan gate G18 accepts adaptive combined local global perspectives', () => 
   }), []);
 });
 
-test('execute gate G14 accepts combined perspective and still rejects bad target', () => {
+test('execute gate G14 → accepts combined perspective and still rejects bad target', () => {
   assert.deepStrictEqual(executeReviewFailures({
     findings: [convergenceFinding()],
     rounds: [convergenceRound({ perspectives: [{ name: 'combined', target_head: 'head-sha' }] })],
@@ -630,7 +630,7 @@ test('execute gate G14 accepts combined perspective and still rejects bad target
   assert.ok(mismatch.some((f) => /round 1 target mismatch combined/.test(f.message)));
 });
 
-test('plan gate G18 enforces the context convergence contract', () => {
+test('plan gate G18 → enforces the context convergence contract', () => {
   const duplicate = contextReviewFailures({
     findings: [contextFinding(), contextFinding({ id: 'CR-2' })], rounds: [contextRound()],
   });
@@ -702,7 +702,7 @@ test('plan gate G18 enforces the context convergence contract', () => {
   }), []);
 });
 
-test('plan gate G18 rejects context category, target, and delta origin violations', () => {
+test('plan gate G18 → rejects context category, target, and delta origin violations', () => {
   // category는 context 관점 이름이어야 한다. execute 관점 이름을 fingerprint까지 맞춰
   // 적어도 계획 원장에 들어올 수 없다.
   const category = contextReviewFailures({
@@ -744,7 +744,7 @@ test('plan gate G18 rejects context category, target, and delta origin violation
 
 // rounds 없는 구문서는 이번 계약 이전과 같은 판정을 받는다: finding 정체성 필드와
 // namespace를 요구하지 않고, deferred 거부 같은 기존 실패만 그대로 남는다.
-test('plan gate G18 keeps legacy context-review results when rounds are absent', () => {
+test('plan gate G18 when rounds are absent → keeps legacy context-review results', () => {
   assert.deepStrictEqual(contextReviewFailures({
     findings: [{ id: 'CR-1', severity: 'minor', status: 'resolved', fingerprint: 'scope:legacy#x' }],
   }), []);
@@ -777,7 +777,7 @@ function freshnessRun({
   return { g18: failures.filter((f) => f.code === 'G18'), calls };
 }
 
-test('plan gate G18 rejects a stale context review digest', () => {
+test('plan gate G18 → rejects a stale context review digest', () => {
   const { g18, calls } = freshnessRun({ current: { ok: true, digest: 'digest-2', documents: [] } });
   assert.strictEqual(calls, 1);
   assert.strictEqual(g18.length, 1);
@@ -789,7 +789,7 @@ test('plan gate G18 rejects a stale context review digest', () => {
   assert.strictEqual(g18[0].file, rels.contextReview);
 });
 
-test('plan gate G18 passes when the last round digest matches the current snapshot', () => {
+test('plan gate G18 when the last round digest matches the current snapshot → passes', () => {
   assert.deepStrictEqual(freshnessRun().g18, []);
   const twoRounds = freshnessRun({
     contextReview: {
@@ -807,7 +807,7 @@ test('plan gate G18 passes when the last round digest matches the current snapsh
 
 // 기록값은 마지막 round의 target.digest 하나다. 앞 round에 문자열 digest가 있으면
 // 마지막 round 값이 문자열이 아니어도 대조를 생략하지 않고 stale로 거절한다.
-test('plan gate G18 rejects a non-string last round digest when an earlier round has one', () => {
+test('plan gate G18 with a non-string last round digest when an earlier round has one → rejects it', () => {
   const { g18, calls } = freshnessRun({
     contextReview: {
       findings: [],
@@ -828,14 +828,14 @@ test('plan gate G18 rejects a non-string last round digest when an earlier round
   assert.strictEqual(stale[0].file, rels.contextReview);
 });
 
-test('plan gate G18 reports unavailable freshness when the snapshot fails', () => {
+test('plan gate G18 when the snapshot fails → reports unavailable freshness', () => {
   const { g18 } = freshnessRun({ current: { ok: false, error: 'boom' } });
   assert.strictEqual(g18.length, 1);
   assert.match(g18[0].message, /freshness unavailable: boom/);
   assert.strictEqual(g18[0].file, rels.contextReview);
 });
 
-test('plan gate G18 skips the freshness check outside its conditions', () => {
+test('plan gate G18 → skips the freshness check outside its conditions', () => {
   const stale = { ok: true, digest: 'digest-2', documents: [] };
   const cases = {
     'task in_progress': { mutate: (docs) => { docs.tasks.data.bouncer.status = 'in_progress'; } },
@@ -962,7 +962,7 @@ function g13ThreeWay(gate, extraDeps = {}) {
   return { missing, mismatch, ok };
 }
 
-test('execute gate flags G13 when harness metadata is present but the verify ledger is missing', () => {
+test('execute gate when harness metadata is present but the verify ledger is missing → flags G13', () => {
   // 프론트매터만 손으로 채운 verification.md — 원장 없음
   const result = checkGate({
     gate: 'execute',
@@ -973,14 +973,14 @@ test('execute gate flags G13 when harness metadata is present but the verify led
   assert.ok(result.failures.some((f) => f.code === 'G13'));
 });
 
-test('execute gate: review optional satisfies G8 (with verification body)', () => {
+test('execute gate with optional review and a verification body → satisfies G8', () => {
   const docs = executeDocs();
   const failures = [];
   checkGate('execute', docs, rels, failures, { deps: ledgerDeps(docs.verification) });
   assert.deepStrictEqual(failures, []);
 });
 
-test('execute gate accepts an integrated verification node without review', () => {
+test('execute gate → accepts an integrated verification node without review', () => {
   const verification = passingVerificationDoc();
   const failures = [];
   checkGate('execute', {
@@ -990,7 +990,7 @@ test('execute gate accepts an integrated verification node without review', () =
   assert.deepStrictEqual(failures, []);
 });
 
-test('execute gate G13 ledger missing, ran_at mismatch, and matching record', () => {
+test('execute gate G13 with ledger missing, ran_at mismatch, and matching record → reports each case', () => {
   const { missing, mismatch, ok } = g13ThreeWay('execute');
   assert.ok(missing.failures.some((f) => f.code === 'G13' && /missing harness verify ledger record/.test(f.message)));
   assert.ok(mismatch.failures.some((f) => f.code === 'G13' && /does not match verify ledger/.test(f.message)));
@@ -998,7 +998,7 @@ test('execute gate G13 ledger missing, ran_at mismatch, and matching record', ()
   assert.deepStrictEqual(ok.failures, []);
 });
 
-test('execute gate G13 hashes output_tail after trailing space and CRLF survive in-memory', () => {
+test('execute gate G13 → hashes output_tail after trailing space and CRLF survive in-memory', () => {
   const tail = 'ok  \r\nline two  ';
   const verification = passingVerificationDoc();
   verification.data.bouncer.verification.output_tail = tail;
@@ -1012,7 +1012,7 @@ test('execute gate G13 hashes output_tail after trailing space and CRLF survive 
   assert.deepStrictEqual(result.failures, []);
 });
 
-test('execute gate G13 accepts reused evidence and rejects lineage or hash tampering', () => {
+test('execute gate G13 → accepts reused evidence and rejects lineage or hash tampering', () => {
   const verification = passingVerificationDoc();
   const evidenceId = verification.data.bouncer.verification.evidence_id;
   verification.data.bouncer.verification.reused = true;
@@ -1068,7 +1068,7 @@ test('execute gate G13 accepts reused evidence and rejects lineage or hash tampe
   }).failures.some((f) => f.code === 'G13' && /output_sha/.test(f.message)));
 });
 
-test('execute gate flags G13 when verification lacks harness metadata', () => {
+test('execute gate when verification lacks harness metadata → flags G13', () => {
   const docs = {
     tasks: doc('verified'),
     verification: doc('passed', {}, VERIFY_BODY_OK),
@@ -1079,7 +1079,7 @@ test('execute gate flags G13 when verification lacks harness metadata', () => {
   assert.ok(failures.some((f) => f.code === 'G13'));
 });
 
-test('execute gate flags G13 when verification body lacks Command/Evidence', () => {
+test('execute gate when verification body lacks Command/Evidence → flags G13', () => {
   const docs = {
     tasks: doc('verified'),
     verification: doc('passed', {}, '# Verification\n\nno structured sections\n'),
@@ -1096,7 +1096,7 @@ const REVIEW_BODY_OK = `# Review
 - F1 (minor): naming — resolved by rename.
 `;
 
-test('execute gate accepts review with valid findings schema', () => {
+test('execute gate → accepts review with valid findings schema', () => {
   const docs = {
     tasks: doc('verified'),
     verification: passingVerificationDoc(),
@@ -1109,7 +1109,7 @@ test('execute gate accepts review with valid findings schema', () => {
   assert.deepStrictEqual(failures, []);
 });
 
-test('execute gate flags G14 when accepted finding has no note', () => {
+test('execute gate when accepted finding has no note → flags G14', () => {
   const docs = {
     tasks: doc('verified'),
     verification: doc('passed', {}, VERIFY_BODY_OK),
@@ -1122,7 +1122,7 @@ test('execute gate flags G14 when accepted finding has no note', () => {
   assert.ok(failures.some((f) => f.code === 'G14'));
 });
 
-test('execute gate flags G14 when review body lacks Findings heading', () => {
+test('execute gate when review body lacks Findings heading → flags G14', () => {
   const docs = {
     tasks: doc('verified'),
     verification: doc('passed', {}, VERIFY_BODY_OK),
@@ -1133,7 +1133,7 @@ test('execute gate flags G14 when review body lacks Findings heading', () => {
   assert.ok(failures.some((f) => f.code === 'G14'));
 });
 
-test('execute gate skips G14 when review.required is false', () => {
+test('execute gate when review.required is false → skips G14', () => {
   const docs = {
     tasks: doc('verified'),
     verification: doc('passed', {}, VERIFY_BODY_OK),
@@ -1185,14 +1185,14 @@ function convergenceRound(overrides = {}) {
   });
 }
 
-test('findingFingerprint normalizes its identity components', () => {
+test('findingFingerprint identity components → are normalized', () => {
   assert.strictEqual(
     findingFingerprint({ category: ' Spec ', brief_clause: 'Interface.거부', file: './a/b.ts', symbol: 'f' }),
     'spec:interface.거부:a/b.ts#f',
   );
 });
 
-test('execute gate G14 enforces the mode convergence contract', () => {
+test('execute gate G14 → enforces the mode convergence contract', () => {
   const missing = executeReviewFailures({
     findings: [convergenceFinding({ first_seen_round: undefined })], rounds: [convergenceRound()],
   });
@@ -1258,14 +1258,14 @@ test('execute gate G14 enforces the mode convergence contract', () => {
   assert.ok(openMustFix.some((f) => /accepted with open must_fix F1/.test(f.message)));
 });
 
-test('execute gate G14 leaves mode-less legacy rounds unchanged', () => {
+test('execute gate G14 → leaves mode-less legacy rounds unchanged', () => {
   assert.deepStrictEqual(executeReviewFailures({
     findings: [{ id: 'F3', severity: 'nit', status: 'deferred', note: 'independent follow-up' }],
     rounds: [roundEntry({ new: 1 })],
   }), []);
 });
 
-test('execute gate G14 accepts deferred finding with note and a valid rounds ledger', () => {
+test('execute gate G14 → accepts deferred finding with note and a valid rounds ledger', () => {
   const g14 = executeReviewFailures({
     findings: [{ id: 'F3', severity: 'nit', status: 'deferred', note: 'independent follow-up' }],
     rounds: [
@@ -1282,14 +1282,14 @@ test('execute gate G14 accepts deferred finding with note and a valid rounds led
   assert.deepStrictEqual(g14, []);
 });
 
-test('execute gate G14 fails when deferred finding has no note', () => {
+test('execute gate G14 when deferred finding has no note → fails', () => {
   const g14 = executeReviewFailures({
     findings: [{ id: 'F4', severity: 'minor', status: 'deferred' }],
   });
   assert.ok(g14.some((f) => /finding F4 deferred without note/.test(f.message)));
 });
 
-test('execute gate G14 fails when rounds is not an array', () => {
+test('execute gate G14 when rounds is not an array → fails', () => {
   const g14 = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: { round: 1 },
@@ -1297,7 +1297,7 @@ test('execute gate G14 fails when rounds is not an array', () => {
   assert.ok(g14.some((f) => /rounds must be an array/.test(f.message)));
 });
 
-test('execute gate G14 fails when rounds counts are negative or not integers', () => {
+test('execute gate G14 when rounds counts are negative or not integers → fails', () => {
   const negative = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ new: -1 })],
@@ -1310,7 +1310,7 @@ test('execute gate G14 fails when rounds counts are negative or not integers', (
   assert.ok(nonInteger.some((f) => /round 1 resolved invalid: 1\.5/.test(f.message)));
 });
 
-test('execute gate G14 fails when rounds are duplicated or out of order', () => {
+test('execute gate G14 when rounds are duplicated or out of order → fails', () => {
   const duplicate = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ round: 1 }), roundEntry({ round: 1, previous_finding_ids: ['F1'] })],
@@ -1323,7 +1323,7 @@ test('execute gate G14 fails when rounds are duplicated or out of order', () => 
   assert.ok(reversed.some((f) => /rounds out of order/.test(f.message)));
 });
 
-test('execute gate G14 fails when round types are invalid', () => {
+test('execute gate G14 when round types are invalid → fails', () => {
   const badRound = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ round: 0 })],
@@ -1419,7 +1419,7 @@ function commitCtx(stagedFiles) {
   };
 }
 
-test('finalize gate G16 rejects the shipped explain template as unwritten', () => {
+test('finalize gate G16 → rejects the shipped explain template as unwritten', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1429,7 +1429,7 @@ test('finalize gate G16 rejects the shipped explain template as unwritten', () =
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 fails when explain sections are unwritten', () => {
+test('finalize gate G16 when explain sections are unwritten → fails', () => {
   const failures = [];
   const emptySections = `# Explain
 
@@ -1457,7 +1457,7 @@ test('finalize gate G16 fails when explain sections are unwritten', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 fails when comprehension record is missing for a task', () => {
+test('finalize gate G16 when comprehension record is missing for a task → fails', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1468,7 +1468,7 @@ test('finalize gate G16 fails when comprehension record is missing for a task', 
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 fails when explain.status is not published', () => {
+test('finalize gate G16 when explain.status is not published → fails', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1478,7 +1478,7 @@ test('finalize gate G16 fails when explain.status is not published', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 passes when all tasks verified and comprehension covers them', () => {
+test('finalize gate G16 when all tasks verified and comprehension covers them → passes', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1487,7 +1487,7 @@ test('finalize gate G16 passes when all tasks verified and comprehension covers 
   assert.deepStrictEqual(failures, []);
 });
 
-test('finalize treats integrated verification nodes as closed while commit tasks stay verified', () => {
+test('finalize → treats integrated verification nodes as closed while commit tasks stay verified', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: [
@@ -1499,7 +1499,7 @@ test('finalize treats integrated verification nodes as closed while commit tasks
   assert.deepStrictEqual(failures, []);
 });
 
-test('finalize gate G16 fails when explain.md is absent', () => {
+test('finalize gate G16 when explain.md is absent → fails', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1509,7 +1509,7 @@ test('finalize gate G16 fails when explain.md is absent', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 rejects legacy object comprehension', () => {
+test('finalize gate G16 → rejects legacy object comprehension', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1522,7 +1522,7 @@ test('finalize gate G16 rejects legacy object comprehension', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 fails when diff_sha does not match range_from..HEAD', () => {
+test('finalize gate G16 when diff_sha does not match range_from..HEAD → fails', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1533,7 +1533,7 @@ test('finalize gate G16 fails when diff_sha does not match range_from..HEAD', ()
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 fails when diff_sha cannot be computed (no-base)', () => {
+test('finalize gate G16 when diff_sha cannot be computed (no-base) → fails', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
@@ -1678,7 +1678,7 @@ function writePlanBlueprint(repo, tasksBody) {
   );
 }
 
-test('validateBlueprint plan gate loads tasks body from disk for G10–G12 pass', () => {
+test('validateBlueprint plan gate → loads tasks body from disk for G10–G12 pass', () => {
   const repo = mkRepo();
   writePlanBlueprint(repo, planReadyTasksBody());
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
@@ -1722,7 +1722,7 @@ function writePlanBlueprintWithPaths(repo, pathCount) {
   );
 }
 
-test('plan gate warns only when affected_paths exceeds 20 (non-blocking)', () => {
+test('plan gate when affected_paths exceeds 20 (non-blocking) → warns only', () => {
   const atThreshold = mkRepo();
   writePlanBlueprintWithPaths(atThreshold, 20);
   const under = validateBlueprint({
@@ -1771,7 +1771,7 @@ test('plan gate warns only when affected_paths exceeds 20 (non-blocking)', () =>
   );
 });
 
-test('validateBlueprint plan gate G10 fails via file-loaded body when section missing', () => {
+test('validateBlueprint plan gate G10 when section missing → fails via file-loaded body', () => {
   const repo = mkRepo();
   const body = `# Tasks
 
@@ -1793,7 +1793,7 @@ y
   assert.ok(res.failures.some((f) => f.code === 'G10'));
 });
 
-test('plan gate applies per task document and reports the failing file', () => {
+test('plan gate → applies per task document and reports the failing file', () => {
   const repo = mkRepo();
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -1978,7 +1978,7 @@ function setPointerTask(repo, taskRel) {
   writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop', task: taskRel });
 }
 
-test('execute gate promotes ready pointer commit task so G6 does not fire', () => {
+test('execute gate → promotes ready pointer commit task so G6 does not fire', () => {
   const repo = mkRepo();
   const { u1 } = writeTaskDirExecuteFixture(repo);
   writeDoc(repo, `${u1}/tasks.md`, unitTasksData('001', 'ready', `${u1}/tasks.md`), planReadyTasksBody());
@@ -1990,7 +1990,7 @@ test('execute gate promotes ready pointer commit task so G6 does not fire', () =
   assert.strictEqual(readDoc(path.join(repo, `${u1}/tasks.md`)).data.bouncer.status, 'verified');
 });
 
-test('execute gate passes when pointer targets a complete tasks/001 unit despite draft sibling', () => {
+test('execute gate when pointer targets a complete tasks/001 unit despite draft sibling → passes', () => {
   const repo = mkRepo();
   const { u1 } = writeTaskDirExecuteFixture(repo);
   setPointerTask(repo, `${u1}/tasks.md`);
@@ -1999,7 +1999,7 @@ test('execute gate passes when pointer targets a complete tasks/001 unit despite
   assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
 });
 
-test('execute gate G6 G7 G8 report files under the pointer tasks/002 unit', () => {
+test('execute gate with files under the pointer tasks/002 unit → G6 G7 G8 report them', () => {
   const repo = mkRepo();
   // verify 실패 → 대상 verification.status=failed 이므로 G7도 함께 뜬다.
   const { u2 } = writeTaskDirExecuteFixture(repo, {
@@ -2021,7 +2021,7 @@ test('execute gate G6 G7 G8 report files under the pointer tasks/002 unit', () =
   assert.ok(g8.every((f) => f.file.startsWith(`${u2}/`)), JSON.stringify(g8));
 });
 
-test('execute gate G13 only inspects the pointer unit verification.md', () => {
+test('execute gate G13 → only inspects the pointer unit verification.md', () => {
   const repo = mkRepo();
   const { u1, u2 } = writeTaskDirExecuteFixture(repo);
   // 다른 묶음의 증적을 고의로 깨도 포인터 대상(001)만 보면 통과해야 한다.
@@ -2043,7 +2043,7 @@ test('execute gate G13 only inspects the pointer unit verification.md', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G13' && String(f.file).includes('tasks/002')));
 });
 
-test('execute gate G6 when pointer unit tasks.md is missing does not use sibling tasks', () => {
+test('execute gate G6 when pointer unit tasks.md is missing → does not use sibling tasks', () => {
   const repo = mkRepo();
   const { u2 } = writeTaskDirExecuteFixture(repo);
   fs.unlinkSync(path.join(repo, `${u2}/tasks.md`));
@@ -2094,7 +2094,7 @@ function writeFinalizeG16Fixture(repo, {
   }
 }
 
-test('finalize G16 fails when an open task remains (TASKS-002 ready)', () => {
+test('finalize G16 when an open task remains (TASKS-002 ready) → fails', () => {
   const repo = mkRepo();
   writeFinalizeG16Fixture(repo, {
     task2Status: 'ready',
@@ -2114,7 +2114,7 @@ test('finalize G16 fails when an open task remains (TASKS-002 ready)', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 passes when comprehension entry has no quiz_score or disposition', () => {
+test('finalize G16 when comprehension entry has no quiz_score or disposition → passes', () => {
   // 점수·처분은 더 이상 G16 필수가 아니다. 키 자체를 지운 새 엔트리도 통과해야 한다.
   const withoutScore = {
     task: '001',
@@ -2142,7 +2142,7 @@ test('finalize G16 passes when comprehension entry has no quiz_score or disposit
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 fails when comprehension entry is incomplete (empty range_from)', () => {
+test('finalize G16 when comprehension entry is incomplete (empty range_from) → fails', () => {
   // BP 단일 엔트리 계약: task 번호 커버가 아니라 엔트리 완전성·해시가 판정 주체.
   const repo = mkRepo();
   writeFinalizeG16Fixture(repo, {
@@ -2163,7 +2163,7 @@ test('finalize G16 fails when comprehension entry is incomplete (empty range_fro
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 passes when legacy understanding section is empty', () => {
+test('finalize G16 when legacy understanding section is empty → passes', () => {
   // 옛 ## 이해 상태는 파싱만 하고 G16 필수에서 빠진다. 빈 절이 quiz에 흡수되면 안 된다.
   const emptyUnderstanding = `# Explain
 
@@ -2189,7 +2189,7 @@ Q1: where is validation?
   assert.deepStrictEqual(failures, []);
 });
 
-test('finalize G16 does not require Distill files or promotion metadata', () => {
+test('finalize G16 → does not require Distill files or promotion metadata', () => {
   const repo = mkRepo();
   writeFinalizeG16Fixture(repo, {
     task2Status: 'verified',
@@ -2213,7 +2213,7 @@ test('finalize G16 does not require Distill files or promotion metadata', () => 
   assert.ok(!res.failures.some((f) => f.code === 'G16' && /distill|promotion/i.test(f.message)));
 });
 
-test('finalize G16 passes with a single complete entry when all tasks are verified', () => {
+test('finalize G16 when all tasks are verified → passes with a single complete entry', () => {
   const repo = mkRepo();
   // 0.7 다중 엔트리도 마지막만 보면 통과 — 마이그레이션 없이 읽기 호환.
   writeFinalizeG16Fixture(repo, {
@@ -2236,7 +2236,7 @@ test('finalize G16 passes with a single complete entry when all tasks are verifi
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 rejects legacy object comprehension on disk', () => {
+test('finalize G16 → rejects legacy object comprehension on disk', () => {
   const repo = mkRepo();
   writeFinalizeG16Fixture(repo, {
     task2Status: 'verified',
@@ -2260,7 +2260,7 @@ test('finalize G16 rejects legacy object comprehension on disk', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('commit gate G17 fails when a staged path is outside affected_paths', () => {
+test('commit gate G17 when a staged path is outside affected_paths → fails', () => {
   const failures = [];
   checkGate('commit', {}, rels, failures, commitCtx([
     'src/auth/login.ts',
@@ -2270,7 +2270,7 @@ test('commit gate G17 fails when a staged path is outside affected_paths', () =>
   assert.match(failures[0].message, /src\/other\.ts/);
 });
 
-test('commit gate G17 fails when staged files cannot be read', () => {
+test('commit gate G17 when staged files cannot be read → fails', () => {
   const failures = [];
   checkGate('commit', {}, rels, failures, commitCtx(() => ({
     ok: false,
@@ -2280,7 +2280,7 @@ test('commit gate G17 fails when staged files cannot be read', () => {
   assert.match(failures[0].message, /could not read staged files \(not-a-repo\)/);
 });
 
-test('commit gate passes when only blueprint docs and runtime artifacts are staged', () => {
+test('commit gate when only blueprint docs and runtime artifacts are staged → passes', () => {
   const failures = [];
   const bp = '.bouncer/context/epics/001-auth/blueprints/001-login';
   checkGate('commit', {}, rels, failures, commitCtx([
@@ -2291,7 +2291,7 @@ test('commit gate passes when only blueprint docs and runtime artifacts are stag
   assert.deepStrictEqual(failures, []);
 });
 
-test('commit gate G6 fails when pointer tasks are not verified', () => {
+test('commit gate G6 when pointer tasks are not verified → fails', () => {
   const failures = [];
   const ctx = commitCtx([]);
   ctx.taskUnit = commitReadyUnit();
@@ -2302,7 +2302,7 @@ test('commit gate G6 fails when pointer tasks are not verified', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('commit gate G13 ledger missing, ran_at mismatch, and matching record', () => {
+test('commit gate G13 with ledger missing, ran_at mismatch, and matching record → reports each case', () => {
   const { missing, mismatch, ok } = g13ThreeWay('commit');
   assert.ok(missing.failures.some((f) => f.code === 'G13' && /missing harness verify ledger record/.test(f.message)));
   assert.ok(mismatch.failures.some((f) => f.code === 'G13' && /does not match verify ledger/.test(f.message)));
@@ -2328,7 +2328,7 @@ function g23CommitCtx({ sourceDigest, head = 'abc123', ledgerOverrides = {} } = 
   return ctx;
 }
 
-test('commit gate G23 fails when sources or HEAD change after verify', () => {
+test('commit gate G23 when sources or HEAD change after verify → fails', () => {
   const sourcesChanged = [];
   checkGate('commit', {}, rels, sourcesChanged, g23CommitCtx({
     sourceDigest: () => 'b'.repeat(64),
@@ -2349,7 +2349,7 @@ test('commit gate G23 fails when sources or HEAD change after verify', () => {
   assert.ok(!legacy.some((f) => f.code === 'G23'));
 });
 
-test('unknown gate still throws', () => {
+test('unknown gate → still throws', () => {
   assert.throws(
     () => checkGate('nope', {}, rels, [], commitCtx([])),
     /unknown gate: nope/,
@@ -2383,13 +2383,13 @@ function lightPlanDocs(body, tasksExtra = {}) {
   };
 }
 
-test('plan gate on scale light passes without a context-review document', () => {
+test('plan gate on scale light → passes without a context-review document', () => {
   const failures = [];
   checkGate('plan', lightPlanDocs(LIGHT_READY_BODY), rels, failures);
   assert.deepStrictEqual(failures, []);
 });
 
-test('plan gate on scale full still demands context-review (no light exemption)', () => {
+test('plan gate on scale full → still demands context-review (no light exemption)', () => {
   const docs = lightPlanDocs(LIGHT_READY_BODY);
   docs.blueprintIndex = doc('approved', { scale: 'full' });
   const failures = [];
@@ -2401,7 +2401,7 @@ test('plan gate on scale full still demands context-review (no light exemption)'
   ));
 });
 
-test('plan gate G10 on scale light requires only goal, touch, checklist', () => {
+test('plan gate G10 on scale light → requires only goal, touch, checklist', () => {
   for (const heading of ['## Goal & intent', '## Touch', '## Checklist']) {
     const body = LIGHT_READY_BODY.replace(`${heading}\n`, '');
     const failures = [];
@@ -2413,7 +2413,7 @@ test('plan gate G10 on scale light requires only goal, touch, checklist', () => 
   }
 });
 
-test('plan gate G10 on scale light reports the three-section list when no tasks doc exists', () => {
+test('plan gate G10 on scale light when no tasks doc exists → reports the three-section list', () => {
   const failures = [];
   const docs = { epicIndex: doc('approved'), blueprintIndex: doc('approved', { scale: 'light' }) };
   checkGate('plan', docs, rels, failures);
@@ -2422,7 +2422,7 @@ test('plan gate G10 on scale light reports the three-section list when no tasks 
   assert.match(g10[0].message, /sections: goal, touch, checklist$/);
 });
 
-test('the shipped light tasks template cannot pass the plan gate untouched', () => {
+test('the shipped light tasks template → cannot pass the plan gate untouched', () => {
   const failures = [];
   checkGate('plan', lightPlanDocs(TEMPLATES['tasks-light.md']), rels, failures);
   const g10 = failures.filter((f) => f.code === 'G10');
@@ -2430,7 +2430,7 @@ test('the shipped light tasks template cannot pass the plan gate untouched', () 
   assert.match(g10[0].message, /placeholders: goal, touch, checklist/);
 });
 
-test('scale light keeps G5, G11, and G12 identical to full', () => {
+test('scale light → keeps G5, G11, and G12 identical to full', () => {
   // G5 — 빈 affected_paths는 light에서도 통과하지 못한다. G4는 결번이라 내지 않는다.
   const bare = {
     epicIndex: doc('approved'),
@@ -2459,7 +2459,7 @@ test('scale light keeps G5, G11, and G12 identical to full', () => {
   assert.ok(g12.some((f) => f.code === 'G12' && /src\/auth\/login\.js/.test(f.message)));
 });
 
-test('an unknown scale value is not treated as light', () => {
+test('an unknown scale value → is not treated as light', () => {
   const docs = lightPlanDocs(LIGHT_READY_BODY);
   docs.blueprintIndex = doc('approved', { scale: 'tiny' });
   const failures = [];
@@ -2492,7 +2492,7 @@ function planDocsWithTasks(taskDocs) {
   };
 }
 
-test('plan gate G19 accepts a valid DAG and tasks without DAG fields', () => {
+test('plan gate G19 → accepts a valid DAG and tasks without DAG fields', () => {
   const withDag = [];
   checkGate('plan', planDocsWithTasks([
     planTaskDoc('001', {
@@ -2516,7 +2516,7 @@ test('plan gate G19 accepts a valid DAG and tasks without DAG fields', () => {
   assert.deepStrictEqual(legacy, []);
 });
 
-test('plan gate G19 rejects missing, self, duplicate, and cyclic dependencies', () => {
+test('plan gate G19 → rejects missing, self, duplicate, and cyclic dependencies', () => {
   const missing = [];
   checkGate('plan', planDocsWithTasks([
     planTaskDoc('001', { depends_on: ['TASKS-999'] }),
@@ -2559,7 +2559,7 @@ test('plan gate G19 rejects missing, self, duplicate, and cyclic dependencies', 
   );
 });
 
-test('plan gate accepts terminal verification fan-in and rejects source scope or commit successors', () => {
+test('plan gate → accepts terminal verification fan-in and rejects source scope or commit successors', () => {
   const verificationBody = READY_BODY.replace(
     /## Touch[\s\S]*?## Do not touch/,
     '## Touch\n- Source changes: none; record full CI evidence only.\n\n## Do not touch',
@@ -2625,7 +2625,7 @@ function assertNoStatusCodes(codes, label) {
   }
 }
 
-test('checkPlanDraft reports G5, G10, G11, G12, G19, G20 without status codes', () => {
+test('checkPlanDraft → reports G5, G10, G11, G12, G19, G20 without status codes', () => {
   const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
   const avoidBody = READY_BODY.replace(
     /## Do not touch[\s\S]*?## Checklist/,
@@ -2659,7 +2659,7 @@ test('checkPlanDraft reports G5, G10, G11, G12, G19, G20 without status codes', 
   }
 });
 
-test('checkPlanDraft on light blueprint requires only goal, touch, checklist', () => {
+test('checkPlanDraft on light blueprint → requires only goal, touch, checklist', () => {
   const light = { scale: 'light' };
   const ok = draftCodes(draftPlanDocs([draftTaskDoc('001', {}, LIGHT_READY_BODY)], light));
   assert.ok(!ok.includes('G10'), JSON.stringify(ok));
@@ -2671,7 +2671,7 @@ test('checkPlanDraft on light blueprint requires only goal, touch, checklist', (
   assertNoStatusCodes(missing, 'light missing checklist');
 });
 
-test('plan gate keeps per-task failure order G3 then task checks', () => {
+test('plan gate → keeps per-task failure order G3 then task checks', () => {
   const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
   const docs = planDocsWithTasks([
     planTaskDoc('001', { status: 'draft' }, noChecklist),
@@ -2723,52 +2723,52 @@ function finalizeG21(docs, extraDeps = {}) {
   return failures;
 }
 
-test('finalize G21: blueprint review missing', () => {
+test('finalize G21 with blueprint review missing → fails', () => {
   const failures = finalizeG21({});
   assert.ok(failures.some((f) => (
     f.code === 'G21' && f.message === 'blueprint review missing' && f.file === rels.review
   )), JSON.stringify(failures));
 });
 
-test('finalize G21: pending is not accepted', () => {
+test('finalize G21: pending → is not accepted', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('pending', { rounds: g21ValidRounds() }),
   });
   assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review not accepted'));
 });
 
-test('finalize G21: review.required false still not accepted', () => {
+test('finalize G21 with review.required false → still not accepted', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('pending', { required: false, rounds: g21ValidRounds() }),
   });
   assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review not accepted'));
 });
 
-test('finalize G21: accepted without rounds', () => {
+test('finalize G21 with accepted review without rounds → fails', () => {
   const failures = finalizeG21({ review: g21ReviewDoc('accepted', {}) });
   assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review has no rounds'));
 });
 
-test('finalize G21: accepted with empty rounds', () => {
+test('finalize G21 with accepted review and empty rounds → fails', () => {
   const failures = finalizeG21({ review: g21ReviewDoc('accepted', { rounds: [] }) });
   assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review has no rounds'));
 });
 
-test('finalize G21: last round missing target.head', () => {
+test('finalize G21 with last round missing target.head → fails', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', { rounds: [roundEntry({ target: { base: 'abc' } })] }),
   });
   assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review has no rounds'));
 });
 
-test('finalize G21: accepted with valid rounds has no G21', () => {
+test('finalize G21 with accepted review and valid rounds → has no G21', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
   });
   assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
 });
 
-test('finalize G21 stale: no ledger skips git and G21', () => {
+test('finalize G21 stale: no ledger → skips git and G21', () => {
   let execCalls = 0;
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
@@ -2783,7 +2783,7 @@ test('finalize G21 stale: no ledger skips git and G21', () => {
   assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
 });
 
-test('finalize G21 stale: merge-base status 1', () => {
+test('finalize G21 stale check with merge-base status 1 → reports it', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
   }, {
@@ -2796,7 +2796,7 @@ test('finalize G21 stale: merge-base status 1', () => {
   assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review is stale'));
 });
 
-test('finalize G21 stale: non-governance diff', () => {
+test('finalize G21 stale check with a non-governance diff → reports it', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
   }, {
@@ -2810,7 +2810,7 @@ test('finalize G21 stale: non-governance diff', () => {
   assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review is stale'));
 });
 
-test('finalize G21 stale: only .bouncer/ diff is fresh', () => {
+test('finalize G21 stale: only .bouncer/ diff → is fresh', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
   }, {
@@ -2824,7 +2824,7 @@ test('finalize G21 stale: only .bouncer/ diff is fresh', () => {
   assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
 });
 
-test('finalize G21 stale: merge-base failure reports stderr', () => {
+test('finalize G21 stale: merge-base failure → reports stderr', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
   }, {
@@ -2846,7 +2846,7 @@ const leftoverReviewFinding = {
   id: 'F2', severity: 'major', status: 'accepted',
 };
 
-test('blueprint review mode execute/commit skip G8 when task review.md is absent', () => {
+test('blueprint review mode execute/commit when task review.md is absent → skip G8', () => {
   const verification = passingVerificationDoc();
   const docs = {
     blueprintIndex: blueprintReviewIndex(),
@@ -2875,7 +2875,7 @@ test('blueprint review mode execute/commit skip G8 when task review.md is absent
   assert.ok(!commitFailures.some((f) => f.code === 'G8'), JSON.stringify(commitFailures));
 });
 
-test('blueprint review mode execute/commit ignore leftover task review.md for G8 and G14', () => {
+test('blueprint review mode execute/commit with leftover task review.md → ignore it for G8 and G14', () => {
   const verification = passingVerificationDoc();
   const docs = {
     blueprintIndex: blueprintReviewIndex(),
@@ -2900,7 +2900,7 @@ test('blueprint review mode execute/commit ignore leftover task review.md for G8
   assert.ok(!commitFailures.some((f) => f.code === 'G8' || f.code === 'G14'), JSON.stringify(commitFailures));
 });
 
-test('without review_scope, missing task review.md is still S17 even with root review.md', () => {
+test('without review_scope, missing task review.md → is still S17 even with root review.md', () => {
   const repo = mkRepo();
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -2927,7 +2927,7 @@ test('without review_scope, missing task review.md is still S17 even with root r
   assert.ok(res.failures.some((f) => f.code === 'S17' && /review\.md/.test(f.message)), JSON.stringify(res.failures));
 });
 
-test('without review_scope, pending task review is still G8', () => {
+test('without review_scope, pending task review → is still G8', () => {
   const docs = {
     tasks: doc('verified'),
     verification: passingVerificationDoc(),
@@ -2938,7 +2938,7 @@ test('without review_scope, pending task review is still G8', () => {
   assert.ok(failures.some((f) => f.code === 'G8'));
 });
 
-test('without review_scope, accepted finding without note is still G14', () => {
+test('without review_scope, accepted finding without note → is still G14', () => {
   const docs = {
     tasks: doc('verified'),
     verification: passingVerificationDoc(),
@@ -2960,7 +2960,7 @@ function writeG22Rel(repoRoot, rel, body) {
   fs.writeFileSync(abs, body);
 }
 
-test('plan gate G22 reports leftover scaffold comments and skips without ctx', () => {
+test('plan gate G22 → reports leftover scaffold comments and skips without ctx', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g22-'));
   const bp = '.bouncer/context/epics/001-auth/blueprints/001-login';
   writeG22Rel(repoRoot, `${bp}/index.md`, G22_LEGACY);
@@ -3008,7 +3008,7 @@ function g24ExecuteCtx({ readApprovalSnapshot, coordinatorLedgerFor = () => null
   };
 }
 
-test('execute and commit G24 detect changed parts, unreadable snapshots, and skips', () => {
+test('execute and commit G24 with changed parts, unreadable snapshots, and skips → detect each case', () => {
   const changedRepo = mkRepo();
   g24TaskFixture(changedRepo);
   const stale = {
@@ -3091,14 +3091,14 @@ test('execute and commit G24 detect changed parts, unreadable snapshots, and ski
 });
 
 
-test('execute gate G14 rejects an open advisory finding in an accepted review', () => {
+test('execute gate G14 → rejects an open advisory finding in an accepted review', () => {
   const failures = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'open', actionability: 'advisory' }],
   });
   assert.ok(failures.some((f) => /finding F1 open in accepted review/.test(f.message)), JSON.stringify(failures));
 });
 
-test('finalize G21 rejects an open finding in an accepted blueprint review', () => {
+test('finalize G21 → rejects an open finding in an accepted blueprint review', () => {
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', {
       findings: [{ id: 'F1', severity: 'minor', status: 'open', actionability: 'advisory' }],
@@ -3107,7 +3107,7 @@ test('finalize G21 rejects an open finding in an accepted blueprint review', () 
   assert.ok(failures.some((f) => f.code === 'G21' && /finding F1 open in accepted review/.test(f.message)), JSON.stringify(failures));
 });
 
-test('plan gate G18 keeps rejecting open as an invalid status', () => {
+test('plan gate G18 → keeps rejecting open as an invalid status', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = contextReviewDoc('accepted', [
     { id: 'CR-4', severity: 'minor', status: 'open' },

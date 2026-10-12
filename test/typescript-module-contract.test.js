@@ -21,7 +21,7 @@ const TSC_BOUNDARY_ARGS = [
   '--target', 'ES2022',
 ];
 
-test('intentional export=/import=require signature mismatch fails tsc --noEmit', () => {
+test('intentional export=/import=require signature → mismatch fails tsc --noEmit', () => {
   // fixture는 tsconfig include 밖이다. 프로젝트 빌드와 분리된 호출로만 경계 검사를 본다.
   const result = spawnSync(process.execPath, [
     tsc,
@@ -38,7 +38,7 @@ test('intentional export=/import=require signature mismatch fails tsc --noEmit',
   assert.match(out, /Type 'string' is not assignable to type 'number'/);
 });
 
-test('intent-bundle and cli-intent-command export= boundaries typecheck', () => {
+test('intent-bundle and cli-intent-command export= boundaries → typecheck', () => {
   // affected_paths 밖 fixture를 추가하지 않고, 임시 파일에서 export= 경계를 검사한다.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ts-intent-ok-'));
   const okFixture = path.join(dir, 'intent-ok.ts');

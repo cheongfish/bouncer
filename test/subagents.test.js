@@ -42,7 +42,7 @@ const SAMPLE = {
   },
 };
 
-test('provider argument wins over config.subagents.provider', () => {
+test('provider argument → wins over config.subagents.provider', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
   assert.deepStrictEqual(
@@ -55,7 +55,7 @@ test('provider argument wins over config.subagents.provider', () => {
   );
 });
 
-test('config.subagents.provider is used when argument is omitted', () => {
+test('config.subagents.provider when argument is omitted → is used', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
   assert.deepStrictEqual(
@@ -64,7 +64,7 @@ test('config.subagents.provider is used when argument is omitted', () => {
   );
 });
 
-test('CLAUDE_PLUGIN_ROOT implies claude when config has no provider', () => {
+test('CLAUDE_PLUGIN_ROOT when config has no provider → implies claude', () => {
   const repo = tmpRepo();
   writeConfig(repo, {
     subagents: {
@@ -88,7 +88,7 @@ test('CLAUDE_PLUGIN_ROOT implies claude when config has no provider', () => {
   }
 });
 
-test('PLUGIN_ROOT alone implies codex when config has no provider', () => {
+test('PLUGIN_ROOT alone when config has no provider → implies codex', () => {
   const repo = tmpRepo();
   writeConfig(repo, {
     subagents: {
@@ -112,7 +112,7 @@ test('PLUGIN_ROOT alone implies codex when config has no provider', () => {
   }
 });
 
-test('no provider signal yields null model and null provider', () => {
+test('no provider signal → yields null model and null provider', () => {
   const repo = tmpRepo();
   writeConfig(repo, {
     subagents: {
@@ -141,7 +141,7 @@ test('no provider signal yields null model and null provider', () => {
   }
 });
 
-test('config.subagents.provider antigravity resolves the antigravity block', () => {
+test('config.subagents.provider antigravity → resolves the antigravity block', () => {
   const repo = tmpRepo();
   writeConfig(repo, {
     subagents: {
@@ -161,7 +161,7 @@ test('config.subagents.provider antigravity resolves the antigravity block', () 
 
 // Antigravity exports no plugin-root env. BOUNCER_HOME alone must not become
 // provider: 'antigravity' even when an antigravity block is present.
-test('BOUNCER_HOME alone never resolves provider antigravity', () => {
+test('BOUNCER_HOME alone → never resolves provider antigravity', () => {
   const repo = tmpRepo();
   writeConfig(repo, {
     subagents: {
@@ -193,7 +193,7 @@ test('BOUNCER_HOME alone never resolves provider antigravity', () => {
   }
 });
 
-test('inherit and non-string values return null model with resolved provider', () => {
+test('inherit and non-string values → return null model with resolved provider', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
   assert.deepStrictEqual(
@@ -214,7 +214,7 @@ test('inherit and non-string values return null model with resolved provider', (
   );
 });
 
-test('missing agent key returns null model with resolved provider', () => {
+test('missing agent key → returns null model with resolved provider', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
   assert.deepStrictEqual(
@@ -227,7 +227,7 @@ test('missing agent key returns null model with resolved provider', () => {
   );
 });
 
-test('resolveSubagentModel returns provider values for bouncer-debugger', () => {
+test('resolveSubagentModel → returns provider values for bouncer-debugger', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
   assert.deepStrictEqual(
@@ -256,7 +256,7 @@ test('resolveSubagentModel returns provider values for bouncer-debugger', () => 
   );
 });
 
-test('resolveSubagentModel returns provider values for bouncer-context-reviewer', () => {
+test('resolveSubagentModel → returns provider values for bouncer-context-reviewer', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
   assert.deepStrictEqual(
@@ -285,7 +285,7 @@ test('resolveSubagentModel returns provider values for bouncer-context-reviewer'
   );
 });
 
-test('resolveSubagentModel miss for bouncer-debugger yields null model', () => {
+test('resolveSubagentModel → miss for bouncer-debugger yields null model', () => {
   const repo = tmpRepo();
   writeConfig(repo, {
     subagents: {
@@ -302,7 +302,7 @@ test('resolveSubagentModel miss for bouncer-debugger yields null model', () => {
   );
 });
 
-test('missing config / broken JSON / missing subagents do not throw', () => {
+test('missing config / broken JSON / missing subagents → do not throw', () => {
   const missing = tmpRepo();
   assert.deepStrictEqual(
     resolveSubagentModel({
@@ -339,7 +339,7 @@ test('missing config / broken JSON / missing subagents do not throw', () => {
 
 // coordinator도 다른 named dispatch와 같은 rules/subagent-model.md 계약을 쓴다.
 // 슬롯이 없거나 inherit/비문자열이면 model 인자를 생략해 부모 세션을 상속한다.
-test('resolveSubagentModel returns provider values for bouncer-coordinator', () => {
+test('resolveSubagentModel → returns provider values for bouncer-coordinator', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
   assert.deepStrictEqual(
@@ -369,7 +369,7 @@ test('resolveSubagentModel returns provider values for bouncer-coordinator', () 
   );
 });
 
-test('resolveSubagentModel miss for bouncer-coordinator yields null model', () => {
+test('resolveSubagentModel → miss for bouncer-coordinator yields null model', () => {
   const repo = tmpRepo();
   writeConfig(repo, {
     subagents: {
@@ -389,7 +389,7 @@ test('resolveSubagentModel miss for bouncer-coordinator yields null model', () =
 // 슬러그 거절 재시도와 named-agent 부재 fallback 모두 같은 coordinator 역할을
 // 넘겨야 한다. 계약이 model 규칙에만 있고 fallback brief를 줄이면, 위임받은
 // 쪽이 worktree guard 없이 drive를 시작한다.
-test('coordinator dispatch shares the model contract and keeps its full fallback brief', () => {
+test('coordinator dispatch → shares the model contract and keeps its full fallback brief', () => {
   const contract = fs.readFileSync(
     path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',
   );
@@ -514,7 +514,7 @@ const FALLBACK_SITES = [
 ];
 
 for (const site of FALLBACK_SITES) {
-  test(`${site.role} fallback in ${site.rel} carries the whole role document and its controller input`, () => {
+  test(`${site.role} fallback in ${site.rel} → carries the whole role document and its controller input`, () => {
     const text = passage(site.rel, site.start, site.end, site.after);
     assert.match(text, wrapped(`entire body of \`\${BOUNCER_ROOT}/agents/bouncer-${site.role}.md\``));
     assert.match(text, /Authority\s+through\s+Output\s+contract/);
@@ -532,7 +532,7 @@ for (const site of FALLBACK_SITES) {
   });
 }
 
-test('rule 4 defines the same role brief as the whole role document plus controller input', () => {
+test('rule 4 → defines the same role brief as the whole role document plus controller input', () => {
   const rule = passage('rules/subagent-model.md', '4. When named agents are unavailable', '\n5. ');
   assert.match(rule, wrapped('same role brief'));
   assert.match(rule, wrapped('entire body of the role document `${BOUNCER_ROOT}/agents/bouncer-<role>.md`'));

@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 
 // PR 본문 절 순서가 계약이다. 템플릿(lib·GitHub·GitLab)과 draft-pr 참조가 같은 절을 같은
 // 순서로 가져야 PR 생성 결과가 일관된다. 문장 표현은 고정하지 않는다.
-test('PR templates and draft-pr reference share the review-flow section order', () => {
+test('PR templates and draft-pr reference → share the review-flow section order', () => {
   const draftPr = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'),
     'utf8',
@@ -40,7 +40,7 @@ test('PR templates and draft-pr reference share the review-flow section order', 
 });
 
 // 사라진 reference는 부활하지 않는다.
-test('bouncer-finalize does not ship the retired distill promotion reference', () => {
+test('bouncer-finalize → does not ship the retired distill promotion reference', () => {
   assert.strictEqual(
     fs.existsSync(path.join(root, 'skills', 'bouncer-finalize', 'references', 'distill-promotion.md')),
     false,

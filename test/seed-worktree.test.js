@@ -86,7 +86,7 @@ function assertConfigNotMoved(res) {
   }
 }
 
-test('seedIntegration copies an untracked plan without changing the source', () => {
+test('seedIntegration → copies an untracked plan without changing the source', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${EPIC_REL}/index.md`, 'epic\n');
@@ -101,7 +101,7 @@ test('seedIntegration copies an untracked plan without changing the source', () 
   assert.strictEqual(status(repo), before);
 });
 
-test('seedIntegration refuses a third document version and leaves source untouched', () => {
+test('seedIntegration → refuses a third document version and leaves source untouched', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks/001/tasks.md`, 'main\n');
@@ -123,7 +123,7 @@ function manifestOf(entries) {
     .sort((a, b) => a.path.localeCompare(b.path));
 }
 
-test('releaseSeedManifest judges each manifest path and leaves everything else alone', () => {
+test('releaseSeedManifest judges each manifest path → leaves everything else alone', () => {
   const repo = makeRepo();
   const epicIndex = `${EPIC_REL}/index.md`;
   write(repo, epicIndex, 'epic committed\n');
@@ -174,7 +174,7 @@ test('releaseSeedManifest judges each manifest path and leaves everything else a
   assert.deepStrictEqual(again.absent.sort(), [INDEX_REL, epicIndex, gone, review, tasks].sort());
 });
 
-test('releaseSeedManifest never touches a manifest entry outside the seeded plan set', () => {
+test('releaseSeedManifest → never touches a manifest entry outside the seeded plan set', () => {
   const repo = makeRepo();
   write(repo, 'scripts/keep.js', 'locally edited\n');
   write(repo, 'notes.md', 'untracked note\n');
@@ -194,7 +194,7 @@ test('releaseSeedManifest never touches a manifest entry outside the seeded plan
   assert.strictEqual(read(repo, 'notes.md'), 'untracked note\n');
 });
 
-test('releaseSeedManifest prunes empty directories inside the blueprint tree only', () => {
+test('releaseSeedManifest → prunes empty directories inside the blueprint tree only', () => {
   const repo = makeRepo();
   const bpIndex = `${BP_REL}/index.md`;
   const tasks = `${BP_REL}/tasks/001/tasks.md`;
@@ -213,7 +213,7 @@ test('releaseSeedManifest prunes empty directories inside the blueprint tree onl
   assert.strictEqual(fs.existsSync(path.join(repo, EPIC_REL)), true);
 });
 
-test('releaseSeedManifest does not prune after releasing the epic or context index', () => {
+test('releaseSeedManifest → does not prune after releasing the epic or context index', () => {
   const repo = makeRepo();
   git(repo, ['rm', '-q', '--', INDEX_REL]);
   git(repo, ['commit', '-qm', 'drop context index']);
@@ -231,7 +231,7 @@ test('releaseSeedManifest does not prune after releasing the epic or context ind
   assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context')), true);
 });
 
-test('releaseSeedManifest reports malformed manifest entries as preserved without throwing', () => {
+test('releaseSeedManifest → reports malformed manifest entries as preserved without throwing', () => {
   const repo = makeRepo();
   const tasks = `${BP_REL}/tasks/001/tasks.md`;
   write(repo, tasks, 'brief\n');
@@ -249,7 +249,7 @@ test('releaseSeedManifest reports malformed manifest entries as preserved withou
   assert.strictEqual(fs.existsSync(path.join(repo, tasks)), false);
 });
 
-test('a fresh worktree forces locked development dependencies before seeding documents', () => {
+test('a fresh worktree → forces locked development dependencies before seeding documents', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(wt, 'package-lock.json', '{}\n');
@@ -278,7 +278,7 @@ test('a fresh worktree forces locked development dependencies before seeding doc
   }
 });
 
-test('a reused worktree with npm’s lock marker does not reinstall dependencies', () => {
+test('a reused worktree with npm’s lock marker → does not reinstall dependencies', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(wt, 'package-lock.json', '{}\n');
@@ -297,7 +297,7 @@ test('a reused worktree with npm’s lock marker does not reinstall dependencies
   assert.deepStrictEqual(calls, []);
 });
 
-test('an untracked plan tree moves to the worktree and leaves the base clean', () => {
+test('an untracked plan tree → moves to the worktree and leaves the base clean', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${EPIC_REL}/index.md`, 'epic\n');
@@ -314,7 +314,7 @@ test('an untracked plan tree moves to the worktree and leaves the base clean', (
   assert.strictEqual(status(repo), '');
 });
 
-test('a tracked dirty context index overwrites its HEAD copy in the worktree', () => {
+test('a tracked dirty context index → overwrites its HEAD copy in the worktree', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   const dirty = `${COMMITTED_INDEX}* EPIC-001\n`;
@@ -331,7 +331,7 @@ test('a tracked dirty context index overwrites its HEAD copy in the worktree', (
   assert.strictEqual(status(repo), '');
 });
 
-test('a staged modification of a tracked document leaves no ghost in the index', () => {
+test('a staged modification of a tracked document → leaves no ghost in the index', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   const dirty = `${COMMITTED_INDEX}* EPIC-001\n`;
@@ -349,7 +349,7 @@ test('a staged modification of a tracked document leaves no ghost in the index',
   assert.strictEqual(status(repo), '');
 });
 
-test('a staged new document is unstaged and removed, not checked out', () => {
+test('a staged new document → is unstaged and removed, not checked out', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/verification.md`, 'evidence\n');
@@ -367,7 +367,7 @@ test('a staged new document is unstaged and removed, not checked out', () => {
   assert.strictEqual(status(repo), '');
 });
 
-test('nothing to move is a successful no-op', () => {
+test('nothing to move → is a successful no-op', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   // 재진입: worktree에 이미 plan 문서가 있어도 base에 옮길 것이 없으면
@@ -384,7 +384,7 @@ test('nothing to move is a successful no-op', () => {
   assert.strictEqual(read(wt, INDEX_REL), beforeIndex);
 });
 
-test('an identical file already in the worktree is skipped, and the base is still cleaned', () => {
+test('an identical file already in the worktree → is skipped, and the base is still cleaned', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
@@ -397,7 +397,7 @@ test('an identical file already in the worktree is skipped, and the base is stil
   assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/tasks.md`)), false);
 });
 
-test('a third version in the worktree is a conflict and the base is untouched', () => {
+test('a third version in the worktree → is a conflict and the base is untouched', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   const dirty = `${COMMITTED_INDEX}* EPIC-001\n`;
@@ -420,7 +420,7 @@ test('a third version in the worktree is a conflict and the base is untouched', 
   assert.strictEqual(read(wt, INDEX_REL), COMMITTED_INDEX);
 });
 
-test('a missing worktree directory aborts before touching the base', () => {
+test('a missing worktree directory → aborts before touching the base', () => {
   const repo = makeRepo();
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
 
@@ -435,7 +435,7 @@ test('a missing worktree directory aborts before touching the base', () => {
   assert.strictEqual(read(repo, `${BP_REL}/tasks.md`), 'brief\n');
 });
 
-test('a plan document deleted in the base is restored rather than copied', () => {
+test('a plan document deleted in the base → is restored rather than copied', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   fs.rmSync(path.join(repo, INDEX_REL));
@@ -451,7 +451,7 @@ test('a plan document deleted in the base is restored rather than copied', () =>
   assert.strictEqual(status(repo), '');
 });
 
-test('a CRLF checkout is recognised as the pristine HEAD copy, not a conflict', () => {
+test('a CRLF checkout → is recognised as the pristine HEAD copy, not a conflict', () => {
   const repo = makeRepo();
   git(repo, ['config', 'core.autocrlf', 'true']);
   const wt = makeWorktree(repo);
@@ -467,7 +467,7 @@ test('a CRLF checkout is recognised as the pristine HEAD copy, not a conflict', 
   assert.strictEqual(read(wt, INDEX_REL), dirty);
 });
 
-test('linked worktree seed succeeds when Distill is absent', () => {
+test('linked worktree seed when Distill is absent → succeeds', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
@@ -481,7 +481,7 @@ test('linked worktree seed succeeds when Distill is absent', () => {
   assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/Distill.md')), false);
 });
 
-test('dirty files outside the plan context set are left alone', () => {
+test('dirty files outside the plan context set → are left alone', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
@@ -504,7 +504,7 @@ test('dirty files outside the plan context set are left alone', () => {
   assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/Distill.md')), false);
 });
 
-test('emptied plan directories do not linger in the base', () => {
+test('emptied plan directories → do not linger in the base', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
@@ -515,7 +515,7 @@ test('emptied plan directories do not linger in the base', () => {
   assert.strictEqual(fs.existsSync(path.join(repo, INDEX_REL)), true);
 });
 
-test('an ignored base config copies into an empty destination and stays in the base', () => {
+test('an ignored base config → copies into an empty destination and stays in the base', () => {
   const repo = makeRepo();
   write(repo, '.gitignore', `${CONFIG_REL}\n`);
   write(repo, CONFIG_REL, CONFIG_HEAD);
@@ -530,7 +530,7 @@ test('an ignored base config copies into an empty destination and stays in the b
   assert.strictEqual(read(repo, CONFIG_REL), CONFIG_HEAD);
 });
 
-test('an existing destination config is preserved even when the bytes differ', () => {
+test('an existing destination config → is preserved even when the bytes differ', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, CONFIG_REL, CONFIG_HEAD);
@@ -545,7 +545,7 @@ test('an existing destination config is preserved even when the bytes differ', (
   assert.strictEqual(read(repo, CONFIG_REL), CONFIG_HEAD);
 });
 
-test('a tracked dirty base config copies HEAD bytes when the destination is absent', () => {
+test('a tracked dirty base config when the destination is absent → copies HEAD bytes', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   // worktree는 config 커밋 전에 만들어 dest가 비어 있다. 재사용 checkout이
@@ -564,7 +564,7 @@ test('a tracked dirty base config copies HEAD bytes when the destination is abse
   assert.strictEqual(read(repo, CONFIG_REL), CONFIG_DIRTY);
 });
 
-test('a tracked config does not copy dirty base bytes when HEAD cannot be read', () => {
+test('a tracked config when HEAD cannot be read → does not copy dirty base bytes', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, CONFIG_REL, CONFIG_HEAD);
@@ -594,7 +594,7 @@ test('a tracked config does not copy dirty base bytes when HEAD cannot be read',
   assert.strictEqual(read(repo, CONFIG_REL), CONFIG_DIRTY);
 });
 
-test('missing config in both trees succeeds without creating a file', () => {
+test('missing config in both trees → succeeds without creating a file', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
 
@@ -607,7 +607,7 @@ test('missing config in both trees succeeds without creating a file', () => {
   assert.strictEqual(fs.existsSync(path.join(wt, CONFIG_REL)), false);
 });
 
-test('a plan conflict still reports config status and does not move the base file', () => {
+test('a plan conflict still → reports config status and does not move the base file', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
@@ -625,7 +625,7 @@ test('a plan conflict still reports config status and does not move the base fil
   assert.strictEqual(read(repo, `${BP_REL}/tasks.md`), 'brief\n');
 });
 
-test('seedCoordinatorWorker installs locked development dependencies on a fresh fan-in worktree', () => {
+test('seedCoordinatorWorker → installs locked development dependencies on a fresh fan-in worktree', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
@@ -652,7 +652,7 @@ test('seedCoordinatorWorker installs locked development dependencies on a fresh 
   }]);
 });
 
-test('seedCoordinatorWorker skips npm ci when the lock marker is already present', () => {
+test('seedCoordinatorWorker when the lock marker is already present → skips npm ci', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
@@ -675,7 +675,7 @@ test('seedCoordinatorWorker skips npm ci when the lock marker is already present
   assert.deepStrictEqual(calls, []);
 });
 
-test('prepareDependencies runs npm ci --include=dev when lockfile exists without the installer marker', () => {
+test('prepareDependencies when lockfile exists without the installer marker → runs npm ci --include=dev', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
   const calls = [];
@@ -694,7 +694,7 @@ test('prepareDependencies runs npm ci --include=dev when lockfile exists without
   }]);
 });
 
-test('prepareDependencies skips npm ci when the lock marker is already present', () => {
+test('prepareDependencies when the lock marker is already present → skips npm ci', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
   writeInstalled(repo);
@@ -710,7 +710,7 @@ test('prepareDependencies skips npm ci when the lock marker is already present',
   assert.deepStrictEqual(calls, []);
 });
 
-test('seedCoordinatorWorker copies the epic and context index into the worker', () => {
+test('seedCoordinatorWorker → copies the epic and context index into the worker', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
@@ -725,7 +725,7 @@ test('seedCoordinatorWorker copies the epic and context index into the worker', 
   assert.deepStrictEqual(res.seeded, [BP_REL, `${EPIC_REL}/index.md`, INDEX_REL]);
 });
 
-test('seedCoordinatorWorker skips an index absent on base', () => {
+test('seedCoordinatorWorker → skips an index absent on base', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
@@ -737,7 +737,7 @@ test('seedCoordinatorWorker skips an index absent on base', () => {
   assert.ok(!res.seeded.includes(`${EPIC_REL}/index.md`));
 });
 
-test('prepareDependencies reinstalls when only npm’s marker exists without a stamp', () => {
+test('prepareDependencies when only npm’s marker exists without a stamp → reinstalls', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
   write(repo, 'node_modules/.package-lock.json', '{}\n');
@@ -750,7 +750,7 @@ test('prepareDependencies reinstalls when only npm’s marker exists without a s
   assert.strictEqual(read(repo, STAMP), `${lockHash(repo)}\n`);
 });
 
-test('prepareDependencies records the stamp after install and skips on the next call', () => {
+test('prepareDependencies → records the stamp after install and skips on the next call', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
   const calls = [];
@@ -764,7 +764,7 @@ test('prepareDependencies records the stamp after install and skips on the next 
   assert.strictEqual(calls.length, 1);
 });
 
-test('prepareDependencies reinstalls and refreshes the stamp when the lockfile changed', () => {
+test('prepareDependencies when the lockfile changed → reinstalls and refreshes the stamp', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
   writeInstalled(repo);
@@ -778,7 +778,7 @@ test('prepareDependencies reinstalls and refreshes the stamp when the lockfile c
   assert.strictEqual(read(repo, STAMP), `${lockHash(repo)}\n`);
 });
 
-test('prepareDependencies keeps ok:true when the stamp cannot be written and reinstalls next time', () => {
+test('prepareDependencies when the stamp cannot be written → keeps ok:true and reinstalls next time', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
   write(repo, 'node_modules/.package-lock.json', '{}\n');
@@ -791,7 +791,7 @@ test('prepareDependencies keeps ok:true when the stamp cannot be written and rei
   assert.strictEqual(calls.length, 2);
 });
 
-test('prepareDependencies treats an unreadable stamp as unknown and reinstalls without throwing', (t) => {
+test('prepareDependencies → treats an unreadable stamp as unknown and reinstalls without throwing', (t) => {
   // root는 chmod 000 파일도 읽으므로 EACCES를 재현할 수 없다.
   if (typeof process.getuid === 'function' && process.getuid() === 0) {
     t.skip('root can read mode 000 files');
@@ -813,7 +813,7 @@ test('prepareDependencies treats an unreadable stamp as unknown and reinstalls w
   }
 });
 
-test('prepareDependencies reports install failure without writing a stamp', () => {
+test('prepareDependencies → reports install failure without writing a stamp', () => {
   const repo = makeRepo();
   write(repo, 'package-lock.json', '{}\n');
 
@@ -824,7 +824,7 @@ test('prepareDependencies reports install failure without writing a stamp', () =
   assert.strictEqual(fs.existsSync(path.join(repo, STAMP)), false);
 });
 
-test('prepareDependencies does nothing without a lockfile', () => {
+test('prepareDependencies without a lockfile → does nothing', () => {
   const repo = makeRepo();
   const calls = [];
 
