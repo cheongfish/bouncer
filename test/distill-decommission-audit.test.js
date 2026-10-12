@@ -252,7 +252,7 @@ function writeExtractFixture(files) {
   return root;
 }
 
-test('extracts registered Distill master and shard bullets in source order', () => {
+test('registered Distill master and shard bullets → are extracted in source order', () => {
   const fixtureRoot = writeExtractFixture({
     master: `---
 distill:
@@ -300,14 +300,14 @@ title: graph
   }
 });
 
-test('rejects a missing decommission audit document', () => {
+test('a missing decommission audit document → is rejected', () => {
   const missing = path.join(os.tmpdir(), 'missing-distill-decommission-audit.md');
   const loaded = loadAuditFile(missing);
   assert.strictEqual(loaded.ok, false);
   assert.match(loaded.errors.join('\n'), /missing audit document/);
 });
 
-test('rejects missing bullets, duplicate dispositions, and empty rationale', () => {
+test('missing bullets, duplicate dispositions or empty rationale → are rejected', () => {
   const sample = EXPECTED_BULLETS.slice(0, 2);
   const empty = evaluateAudit(sample, [{
     source: sample[0].source,
@@ -348,7 +348,7 @@ test('rejects missing bullets, duplicate dispositions, and empty rationale', () 
   assert.ok(duplicate.errors.some((line) => /duplicate disposition/.test(line)));
 });
 
-test('rejects a per-source summary that does not match mapping tallies', () => {
+test('a per-source summary that does not match mapping tallies → is rejected', () => {
   const item = EXPECTED_BULLETS[0];
   const rows = [{
     source: item.source,
@@ -384,7 +384,7 @@ test('rejects a per-source summary that does not match mapping tallies', () => {
   assert.ok(mismatched.errors.some((line) => /summary total unresolved=1 != 0/.test(line)));
 });
 
-test('fails migrate rows with target path and bullet', () => {
+test('migrate rows without target path and bullet → fail', () => {
   const item = EXPECTED_BULLETS[0];
   const result = evaluateAudit([item], [{
     source: item.source,

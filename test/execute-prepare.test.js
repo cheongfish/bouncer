@@ -101,7 +101,7 @@ function listedWorktrees(repo) {
   return paths;
 }
 
-test('execute prepare creates a nested worktree with the helper standalone name and seeds tasks.md', () => {
+test('execute prepare on a fresh checkout → creates a nested worktree with the helper standalone name and seeds tasks.md', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -128,7 +128,7 @@ test('execute prepare creates a nested worktree with the helper standalone name 
   assert.strictEqual(fs.existsSync(path.join(repo, TASK_REL)), false);
 });
 
-test('execute prepare reuses a registered worktree and reports its actual branch', () => {
+test('execute prepare with a registered worktree → reuses it and reports its actual branch', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -147,7 +147,7 @@ test('execute prepare reuses a registered worktree and reports its actual branch
   assert.strictEqual(second.worktreePath, worktreePath);
 });
 
-test('execute prepare uses the helper standalone name with the blueprint commit_type', () => {
+test('execute prepare with a blueprint commit_type → uses the helper standalone name', () => {
   const repo = makeRepo();
   writePlanTree(repo, { commitType: 'fix' });
   setPointer(repo);
@@ -161,7 +161,7 @@ test('execute prepare uses the helper standalone name with the blueprint commit_
   assert.strictEqual(payload.branch, 'fix/001-001-login');
 });
 
-test('execute prepare rejects a calculated branch already used outside the expected worktree', () => {
+test('execute prepare with a calculated branch already used outside the expected worktree → rejects it', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -176,7 +176,7 @@ test('execute prepare rejects a calculated branch already used outside the expec
   assert.strictEqual(listedWorktrees(repo).length, 1);
 });
 
-test('execute prepare returns invalid-commit-type without creating a worktree', () => {
+test('execute prepare with an invalid commit type → returns invalid-commit-type without creating a worktree', () => {
   const repo = makeRepo();
   writePlanTree(repo, { commitType: 'unsupported' });
   setPointer(repo);
@@ -190,7 +190,7 @@ test('execute prepare returns invalid-commit-type without creating a worktree', 
   assert.strictEqual(listedWorktrees(repo).length, 1);
 });
 
-test('execute prepare returns invalid-branch-name without creating a worktree', () => {
+test('execute prepare with an invalid branch name → returns invalid-branch-name without creating a worktree', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   const invalidBlueprint = `${EPIC_REL}/blueprints/001-invalid branch`;
@@ -207,7 +207,7 @@ test('execute prepare returns invalid-branch-name without creating a worktree', 
   assert.strictEqual(listedWorktrees(repo).length, 1);
 });
 
-test('execute prepare reuses a detached HEAD without inventing a branch name', () => {
+test('execute prepare on a detached HEAD → reuses it without inventing a branch name', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -227,7 +227,7 @@ test('execute prepare reuses a detached HEAD without inventing a branch name', (
   assert.strictEqual(second.worktreePath, worktreePath);
 });
 
-test('execute prepare returns drive=true without creating a worktree or branch fields', () => {
+test('execute prepare under a coordinator drive → returns drive=true without creating a worktree or branch fields', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -258,7 +258,7 @@ test('execute prepare returns drive=true without creating a worktree or branch f
   assert.ok(fs.existsSync(path.join(repo, TASK_REL)), 'drive must not seed the main checkout');
 });
 
-test('execute prepare rejects a missing pointer with no-current', () => {
+test('execute prepare with a missing pointer → rejects with no-current', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   const result = prepare(repo);
@@ -268,7 +268,7 @@ test('execute prepare rejects a missing pointer with no-current', () => {
   assert.strictEqual(payload.reason, 'no-current');
 });
 
-test('execute prepare rejects a pointer for a different blueprint', () => {
+test('execute prepare with a pointer for a different blueprint → rejects it', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   writeDoc(repo, `${BP_OTHER}/index.md`, {
@@ -284,7 +284,7 @@ test('execute prepare rejects a pointer for a different blueprint', () => {
   assert.strictEqual(payload.reason, 'blueprint-mismatch');
 });
 
-test('execute prepare refuses an unregistered directory at the expected path', () => {
+test('execute prepare with an unregistered directory at the expected path → refuses', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -302,7 +302,7 @@ test('execute prepare refuses an unregistered directory at the expected path', (
   assert.deepStrictEqual(listedWorktrees(repo).length, 1);
 });
 
-test('execute prepare maps CURRENT_AMBIGUOUS from a colliding pointer set', () => {
+test('execute prepare with a colliding pointer set → maps CURRENT_AMBIGUOUS', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -314,7 +314,7 @@ test('execute prepare maps CURRENT_AMBIGUOUS from a colliding pointer set', () =
   assert.strictEqual(payload.reason, 'CURRENT_AMBIGUOUS');
 });
 
-test('execute prepare reports worktree-add-failed when the base ref is missing', () => {
+test('execute prepare with a missing base ref → reports worktree-add-failed', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo, { base: 'no-such-base' });
@@ -326,7 +326,7 @@ test('execute prepare reports worktree-add-failed when the base ref is missing',
   assert.ok(typeof payload.message === 'string' && payload.message.length > 0);
 });
 
-test('execute prepare reports seed-conflict and keeps the created worktree', () => {
+test('execute prepare with a seed conflict → reports seed-conflict and keeps the created worktree', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -348,7 +348,7 @@ test('execute prepare reports seed-conflict and keeps the created worktree', () 
   }));
 });
 
-test('execute prepare without a subcommand exits 2', () => {
+test('execute prepare without a subcommand → exits 2', () => {
   const result = capture(['execute']);
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /prepare/);
@@ -377,7 +377,7 @@ function __epCoordinate(opts) {
   return __epCoord.coordinate(opts);
 }
 
-test('executePrepare reports the leased worker task even when the pointer points elsewhere', () => {
+test('a leased worker task with the pointer pointing elsewhere → executePrepare reports the leased worker task', () => {
   const repo = makeRepo();
   const epic = '.bouncer/context/epics/095-eff';
   const blueprint = `${epic}/blueprints/001-y`;

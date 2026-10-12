@@ -172,7 +172,7 @@ function buildStandaloneFixture() {
   return { repoRoot, blueprintDir: BP, base: rangeBase };
 }
 
-test('prepareFinalizeDigest fills trailer commits, unverified, symbols, and refuses afterClose', () => {
+test('trailer commits, unverified tasks, symbols and afterClose → prepareFinalizeDigest fills them and refuses afterClose', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const before = git(repoRoot, ['status', '--porcelain']);
 
@@ -206,7 +206,7 @@ test('prepareFinalizeDigest fills trailer commits, unverified, symbols, and refu
   assert.strictEqual(prepareFinalizeDigest(afterClose).reason, 'task-documents-missing');
 });
 
-test('prepareFinalizeDigest drive fixture prefers trailer integration SHA over worker commit_sha', () => {
+test('drive fixture with a trailer integration SHA and a worker commit_sha → prepareFinalizeDigest prefers the trailer SHA', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
 
@@ -273,7 +273,7 @@ test('prepareFinalizeDigest drive fixture prefers trailer integration SHA over w
   git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
 });
 
-test('prepareFinalizeDigest returns no-base when base cannot be resolved', () => {
+test('a base that cannot be resolved → prepareFinalizeDigest returns no-base', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   // pointer·원장 base가 없으면 resolveDigestBase가 null → no-base.
   clearCurrent({ repoRoot });
@@ -282,7 +282,7 @@ test('prepareFinalizeDigest returns no-base when base cannot be resolved', () =>
   assert.strictEqual(result.reason, 'no-base');
 });
 
-test('prepareFinalizeDigest falls back to tasks.md commit_sha when trailer is missing', () => {
+test('a missing trailer → prepareFinalizeDigest falls back to tasks.md commit_sha', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-sha-'));
   git(repoRoot, ['init', '-b', 'work']);
   git(repoRoot, ['config', 'user.email', 't@example.com']);
@@ -358,7 +358,7 @@ test('prepareFinalizeDigest falls back to tasks.md commit_sha when trailer is mi
   assert.strictEqual(d.tasks[0].commit.sha, 'c0ffeeee');
 });
 
-test('prepareFinalizeDigest rejects missing blueprint and unreadable ledger', () => {
+test('missing blueprint and unreadable ledger → prepareFinalizeDigest rejects them', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   assert.strictEqual(
     prepareFinalizeDigest({ repoRoot, blueprintDir: 'no/such/bp' }).reason,
@@ -374,7 +374,7 @@ test('prepareFinalizeDigest rejects missing blueprint and unreadable ledger', ()
   assert.strictEqual(broken.code, 'UNREADABLE_LEDGER');
 });
 
-test('prepareFinalizeDigest accepts now for deterministic pr.title_prefix', () => {
+test('now supplied for a deterministic pr.title_prefix → prepareFinalizeDigest accepts it', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const d = prepareFinalizeDigest({
     repoRoot,
@@ -386,7 +386,7 @@ test('prepareFinalizeDigest accepts now for deterministic pr.title_prefix', () =
   assert.strictEqual(d.pr.title_prefix_template, '[260924] (→ {base}) [Feat]');
 });
 
-test('CLI finalize prepare prints digest JSON', () => {
+test('CLI finalize prepare → prints digest JSON', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   let out = '';
   let err = '';
@@ -401,7 +401,7 @@ test('CLI finalize prepare prints digest JSON', () => {
   assert.strictEqual(parsed.tasks[0].commit.source, 'trailer');
 });
 
-test('prepareFinalizeDigest uses origin/HEAD when config has no PR base', () => {
+test('config without a PR base → prepareFinalizeDigest uses origin/HEAD', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   git(repoRoot, ['remote', 'add', 'origin', 'https://example.invalid/r.git']);
   git(repoRoot, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk']);
@@ -439,7 +439,7 @@ function execWithSymbolicRefStub(repoRoot, symbolicRef) {
   };
 }
 
-test('prepareFinalizeDigest folds origin/HEAD through exec stub without guessing HEAD', () => {
+test('origin/HEAD through an exec stub → prepareFinalizeDigest folds it without guessing HEAD', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
 
   const failed = prepareFinalizeDigest({
@@ -467,7 +467,7 @@ test('prepareFinalizeDigest folds origin/HEAD through exec stub without guessing
   assert.strictEqual(fromOrigin.pr.base, 'develop');
 });
 
-test('prepareFinalizeDigest uses base_branch when pr.base is absent', () => {
+test('pr.base absent → prepareFinalizeDigest uses base_branch', () => {
   // resolvePrBase: pr.base 부재 시 root.base_branch 폴백(main 직전 분기).
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   fs.mkdirSync(path.join(repoRoot, '.bouncer'), { recursive: true });
@@ -481,7 +481,7 @@ test('prepareFinalizeDigest uses base_branch when pr.base is absent', () => {
   assert.strictEqual(d.pr.base, 'develop');
 });
 
-test('prepareFinalizeDigest treats CURRENT_AMBIGUOUS as no-base', () => {
+test('CURRENT_AMBIGUOUS → prepareFinalizeDigest treats it as no-base', () => {
   // resolveDigestBase catch: pointer 충돌은 base 부재와 같다.
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const otherBp = '.bouncer/context/epics/002-other/blueprints/001-x';
@@ -501,7 +501,7 @@ test('prepareFinalizeDigest treats CURRENT_AMBIGUOUS as no-base', () => {
   assert.strictEqual(result.reason, 'no-base');
 });
 
-test('prepareFinalizeDigest absorbs broken verification/review and skips broken tasks.md', () => {
+test('broken verification/review and broken tasks.md → prepareFinalizeDigest absorbs the former and skips the latter', () => {
   // readVerification/readReview catch + tasks.md 파싱 실패 continue.
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   fs.writeFileSync(
@@ -525,7 +525,7 @@ test('prepareFinalizeDigest absorbs broken verification/review and skips broken 
   assert.strictEqual(d.tasks[0].review, null);
 });
 
-test('prepareFinalizeDigest records path-outside-scope and finding-accepted', () => {
+test('path-outside-scope and finding-accepted inputs → prepareFinalizeDigest records both', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   // affected_paths(src/) 밖 변경 → path-outside-scope.
   fs.mkdirSync(path.join(repoRoot, 'vendor'), { recursive: true });
@@ -555,7 +555,7 @@ test('prepareFinalizeDigest records path-outside-scope and finding-accepted', ()
   assert.ok(d.unverified.some((u) => u.kind === 'finding-accepted' && u.detail === 'accepted later'));
 });
 
-test('prepareFinalizeDigest clears terminal-missing when a verification task passed', () => {
+test('a passed verification task → prepareFinalizeDigest clears terminal-missing', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   writeDoc(repoRoot, `${blueprintDir}/tasks/003/tasks.md`, {
     type: 'bouncer.tasks', title: 'Terminal verify', description: 'd',
@@ -585,7 +585,7 @@ test('prepareFinalizeDigest clears terminal-missing when a verification task pas
   assert.ok(!d.unverified.some((u) => u.kind === 'terminal-missing'));
 });
 
-test('prepareFinalizeDigest reports verification-not-passed for failed commit verify', () => {
+test('failed commit verify → prepareFinalizeDigest reports verification-not-passed', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   writeDoc(repoRoot, `${blueprintDir}/tasks/001/verification.md`, {
     type: 'bouncer.verification', title: 'Verified', description: 'd',
@@ -605,7 +605,7 @@ test('prepareFinalizeDigest reports verification-not-passed for failed commit ve
   ));
 });
 
-test('prepareFinalizeDigest returns no-base when exec cannot resolve HEAD or base', () => {
+test('exec that cannot resolve HEAD or base → prepareFinalizeDigest returns no-base', () => {
   const { repoRoot, blueprintDir, base } = buildStandaloneFixture();
   const failHead = prepareFinalizeDigest({
     repoRoot,
@@ -637,7 +637,7 @@ test('prepareFinalizeDigest returns no-base when exec cannot resolve HEAD or bas
   assert.strictEqual(failBase.reason, 'no-base');
 });
 
-test('prepareFinalizeDigest keeps going when blueprint index YAML is broken', () => {
+test('broken blueprint index YAML → prepareFinalizeDigest keeps going', () => {
   // index 파싱 실패는 blueprint-not-found가 아니다 — 디렉터리는 있다.
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   fs.writeFileSync(path.join(repoRoot, blueprintDir, 'index.md'), '---\n: broken\n---\n');
@@ -647,7 +647,7 @@ test('prepareFinalizeDigest keeps going when blueprint index YAML is broken', ()
   assert.deepStrictEqual(d.blueprint.intent, []);
 });
 
-test('prepareFinalizeDigest falls back to bare id when stable provenance cannot be built', () => {
+test('stable provenance that cannot be built → prepareFinalizeDigest falls back to the bare id', () => {
   // epic_id 형식이 깨지면 buildStableProvenance throw → id만 싣는다.
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   writeDoc(repoRoot, `${blueprintDir}/tasks/001/tasks.md`, {
@@ -668,7 +668,7 @@ test('prepareFinalizeDigest falls back to bare id when stable provenance cannot 
   assert.strictEqual(task1.stable_id, 'TASKS-001');
 });
 
-test('blueprint review mode digest carries root findings and unverified task null', () => {
+test('blueprint review mode → digest carries root findings and unverified task null', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const indexAbs = path.join(repoRoot, `${blueprintDir}/index.md`);
   const parts = fs.readFileSync(indexAbs, 'utf8').split(/^---\n/);
@@ -712,7 +712,7 @@ function execWithNumstatStub(repoRoot, numstat) {
   };
 }
 
-test('digest v2 carries diff summary from numstat, sorted, capped, binary as 0/0', () => {
+test('digest v2 with numstat rows → carries a diff summary that is sorted, capped, and binary as 0/0', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const real = prepareFinalizeDigest({ repoRoot, blueprintDir });
   assert.strictEqual(real.version, 2);
@@ -750,7 +750,7 @@ test('digest v2 carries diff summary from numstat, sorted, capped, binary as 0/0
   assert.deepStrictEqual(binaryOnly.diff.per_file, [{ path: 'img.png', added: 0, deleted: 0 }]);
 });
 
-test('digest diff skips .bouncer/context rows and passes --no-renames/-z for raw paths', () => {
+test('diff rows under .bouncer/context and raw paths → digest diff skips them and passes --no-renames/-z', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   let seen = null;
   const stub = execWithNumstatStub(repoRoot, {
@@ -782,7 +782,7 @@ test('digest diff skips .bouncer/context rows and passes --no-renames/-z for raw
   });
 });
 
-test('digest diff is null with diff-summary-unavailable when numstat fails', () => {
+test('numstat failure → digest diff is null with diff-summary-unavailable', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const d = prepareFinalizeDigest({
     repoRoot,
@@ -795,7 +795,7 @@ test('digest diff is null with diff-summary-unavailable when numstat fails', () 
   assert.ok(Array.isArray(d.changed_paths));
 });
 
-test('digest evidence lists verification refs and root review rounds', () => {
+test('verification refs and root review rounds → digest evidence lists both', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const none = prepareFinalizeDigest({ repoRoot, blueprintDir });
   assert.deepStrictEqual(none.evidence.verification, [
@@ -833,7 +833,7 @@ test('digest evidence lists verification refs and root review rounds', () => {
   ]);
 });
 
-test('prepareFinalizeDigest out_of_scope stops at the next ## heading', () => {
+test('out_of_scope followed by a ## heading → prepareFinalizeDigest stops at the next heading', () => {
   // parseSections는 OUT_OF_SCOPE_DEFS에 다음 제목이 없어 뒤 절까지 이어진다.
   // digest는 Out of scope bullet만 남기고 다음 ## 제목에서 끊어야 한다.
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
@@ -866,7 +866,7 @@ test('prepareFinalizeDigest out_of_scope stops at the next ## heading', () => {
   assert.deepStrictEqual(d.out_of_scope, ['A']);
 });
 
-test('prepareFinalizeDigest symbols keep only top-level declarations', () => {
+test('top-level and nested declarations → prepareFinalizeDigest symbols keep only top-level declarations', () => {
   // 들여쓰기된 const/let과 줄 중간 function 호출은 빼고 최상위 선언만 남긴다.
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   fs.writeFileSync(path.join(repoRoot, 'src/symbols.js'), [

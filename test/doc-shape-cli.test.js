@@ -24,25 +24,25 @@ function spawnCli(args, opts = {}) {
   });
 }
 
-test('exports runCli and built-in path contracts', () => {
+test('the module exports → runCli and built-in path contracts', () => {
   assert.strictEqual(typeof runCli, 'function');
   assert.ok(workflowSkillContract?.frontmatter?.required?.includes('name'));
   assert.ok(agentContract?.headings?.required?.includes('Authority'));
   assert.ok(subskillContract?.headings?.required?.includes('When this applies'));
 });
 
-test('CLI with no args exits 0 against the real document corpus', () => {
+test('CLI with no args against the real document corpus → exits 0', () => {
   const result = spawnCli([]);
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
 });
 
-test('CLI exits 1 with stderr when a file arg is missing', () => {
+test('CLI with a missing file arg → exits 1 with stderr', () => {
   const result = spawnCli(['skills/does-not-exist/SKILL.md']);
   assert.strictEqual(result.status, 1);
   assert.match(result.stderr, /does-not-exist|not found|ENOENT|missing/i);
 });
 
-test('CLI exits 1 with stderr for a structure-violating file arg', () => {
+test('CLI with a structure-violating file arg → exits 1 with stderr', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-doc-shape-'));
   const rel = path.join('skills', 'bouncer-fixture', 'SKILL.md');
   const abs = path.join(dir, rel);
@@ -64,12 +64,12 @@ test('CLI exits 1 with stderr for a structure-violating file arg', () => {
   assert.match(result.stderr, /ACQ|frontmatter|empty|missing/i);
 });
 
-test('CLI exits 0 when a valid file arg is checked alone', () => {
+test('CLI with a valid file arg checked alone → exits 0', () => {
   const result = spawnCli(['agents/bouncer-implementer.md']);
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
 });
 
-test('runCli accepts argv file args and opts streams', () => {
+test('runCli with argv file args and opts streams → accepts them', () => {
   let err = '';
   const code = runCli(['skills/missing-on-purpose/SKILL.md'], {
     cwd: root,
@@ -115,7 +115,7 @@ function runInTmp(argv, cwd) {
 
 // 종류(agent)가 있는 문서: 종류 계약은 Procedure를 요구하지 않으므로, 이 제목이 빠지면
 // 경로 계약만이 잡아낼 수 있다.
-test('path contract rejects an agent copy that lost a path-only required heading', () => {
+test('path contract with an agent copy that lost a path-only required heading → rejects it', () => {
   const rel = 'agents/bouncer-implementer.md';
   const { dir, abs, markdown } = copyDocToTmp(rel);
   try {
@@ -158,7 +158,7 @@ test('coding-standards copy without Test trust → exit 1 naming the path and he
 });
 
 // classifyDocPath가 null인 rules 문서도 표에 있으면 경로 계약만 적용해 검사한다.
-test('path contract checks a null-kind rules document without a skill-shape error', () => {
+test('path contract with a null-kind rules document → checks it without a skill-shape error', () => {
   const rel = 'rules/commit-scope.md';
   const { dir, abs, markdown } = copyDocToTmp(rel);
   try {
@@ -176,7 +176,7 @@ test('path contract checks a null-kind rules document without a skill-shape erro
 });
 
 // 인자 없는 기본 스캔은 표의 모든 키를 포함하므로, 빈 cwd에서는 키 파일 부재로 실패한다.
-test('argument-less runCli reports every missing path-contract file in an empty cwd', () => {
+test('argument-less runCli in an empty cwd → reports every missing path-contract file', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-path-contract-empty-'));
   try {
     const { code, err } = runInTmp([], dir);

@@ -45,7 +45,7 @@ function bareRequires(file) {
   return found;
 }
 
-test('shipped code requires nothing from node_modules', () => {
+test('shipped code → requires nothing from node_modules', () => {
   const offenders = [];
   for (const dir of ['scripts', 'hooks']) {
     for (const file of jsFilesUnder(dir)) {
@@ -58,13 +58,13 @@ test('shipped code requires nothing from node_modules', () => {
   assert.deepStrictEqual(offenders, [], `bare requires break marketplace installs:\n${offenders.join('\n')}`);
 });
 
-test('package.json declares no runtime dependencies', () => {
+test('package.json → declares no runtime dependencies', () => {
   const pkg = readJson('package.json');
   const deps = Object.keys(pkg.dependencies || {});
   assert.deepStrictEqual(deps, [], `runtime deps are not installed by Claude Code: ${deps.join(', ')}`);
 });
 
-test('the package contains only the plugin runtime surface and host manifests', () => {
+test('the package contents → contain only the plugin runtime surface and host manifests', () => {
   const files = packageFiles();
   const required = [
     'agents/bouncer-reviewer.md',
@@ -108,7 +108,7 @@ test('the package contains only the plugin runtime surface and host manifests', 
 
 // 모든 스킬은 번호 단계 전에 `${BOUNCER_ROOT}/AGENTS.md`를 읽는다. 마스터 룰이나 그것이
 // 가리키는 규칙 파일이 빠지면 설치본의 워크플로가 계약 없이 돈다.
-test('the package ships the master rules and every file they link to', () => {
+test('the master rules and their links → every linked file is shipped in the package', () => {
   const files = packageFiles();
   assert.ok(files.includes('AGENTS.md'), 'missing master rules: AGENTS.md');
   const links = [...fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8').matchAll(/\]\(([^)#\s]+)/g)]
@@ -121,7 +121,7 @@ test('the package ships the master rules and every file they link to', () => {
 // coordinator mode는 배포된 JS와 named agent만으로 돌아야 한다. 런타임이
 // 빠지면 설치본에서 `bouncer coordinate`가 사라지고, TypeScript 소스나 저장소
 // 로컬 `.codex/` 시드가 섞여 들어가면 설치본이 개발 체크아웃에 의존하게 된다.
-test('the package ships the coordinator runtime and agent without its development sources', () => {
+test('the coordinator runtime and agent → ship in the package without their development sources', () => {
   const files = packageFiles();
   for (const file of ['scripts/lib/coordinator.js', 'scripts/lib/scope.js', 'agents/bouncer-coordinator.md']) {
     assert.ok(files.includes(file), `missing coordinator surface: ${file}`);
@@ -142,7 +142,7 @@ test('the package ships the coordinator runtime and agent without its developmen
   }
 });
 
-test('the vendored yaml module provides load and dump', () => {
+test('the vendored yaml module → provides load and dump', () => {
   const yaml = require('../scripts/vendor/js-yaml');
   assert.strictEqual(typeof yaml.load, 'function');
   assert.strictEqual(typeof yaml.dump, 'function');
@@ -150,7 +150,7 @@ test('the vendored yaml module provides load and dump', () => {
   assert.deepStrictEqual(roundTripped, { a: [1, 2], b: 'x' });
 });
 
-test('marketplace.json lists bouncer from the repository root', () => {
+test('marketplace.json → lists bouncer from the repository root', () => {
   const mkt = readJson('.claude-plugin/marketplace.json');
   assert.strictEqual(mkt.name, 'chunjae-tools');
   assert.ok(mkt.owner && typeof mkt.owner.name === 'string' && mkt.owner.name);
@@ -161,7 +161,7 @@ test('marketplace.json lists bouncer from the repository root', () => {
   assert.ok(typeof entry.description === 'string' && entry.description);
 });
 
-test('marketplace and plugin manifests agree on name and version', () => {
+test('marketplace and plugin manifests → agree on name and version', () => {
   const pkg = readJson('package.json');
   const expectedVersion = pkg.version;
   const mkt = readJson('.claude-plugin/marketplace.json');
@@ -179,7 +179,7 @@ test('marketplace and plugin manifests agree on name and version', () => {
   assert.strictEqual(pkg.version, lock.packages[''].version);
 });
 
-test('plugin.json carries author attribution for release tagging', () => {
+test('plugin.json → carries author attribution for release tagging', () => {
   const plugin = readJson('.claude-plugin/plugin.json');
   assert.ok(plugin.author && typeof plugin.author.name === 'string' && plugin.author.name);
 });
@@ -198,7 +198,7 @@ function compareVersion(left, right) {
   return 0;
 }
 
-test('vendored js-yaml matches the installed package at a safe minimum version', () => {
+test('vendored js-yaml and the installed package → match at a safe minimum version', () => {
   // Claude Code는 npm install을 돌리지 않으므로 런타임은 scripts/vendor 복사본이다.
   // 개발 의존성만 올려두고 벤더를 낡은 4.3.0에 두면 audit를 통과해도 배포본이
   // 취약하다. 설치본 버전·dist 바이트·README 표기를 한 번에 묶어 드리프트를 막는다.
@@ -214,7 +214,7 @@ test('vendored js-yaml matches the installed package at a safe minimum version',
   assert.match(vendorReadme, new RegExp(`\\| ${installedVersion} \\| MIT \\|`));
 });
 
-test('the package ships the Graphify compatibility manifest for every host install', () => {
+test('every host install → the package ships the Graphify compatibility manifest', () => {
   const files = packageFiles();
   assert.ok(
     files.includes('resources/graphify-compat.json'),
@@ -229,7 +229,7 @@ test('the package ships the Graphify compatibility manifest for every host insta
 // 배포 md와 로컬 Codex 생성 TOML이 같은 checkpoint·hash fence 계약을 담아야
 // host마다 다른 coordinator 입력을 실행하지 않는다. `.codex/`는 pack에서 빠지므로
 // 저장소 생성본과 md→toml 변환 결과를 여기서 맞춘다.
-test('coordinator Markdown and generated Codex TOML share the checkpoint ledger contract', () => {
+test('coordinator Markdown and generated Codex TOML → share the checkpoint ledger contract', () => {
   const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
   const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
