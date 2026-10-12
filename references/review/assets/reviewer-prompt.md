@@ -97,13 +97,6 @@ Judge these lines under `correctness_tests` by the `Test trust` section of
 `${BOUNCER_ROOT}/references/coding-standards/index.md`. Do not assert that a
 test detects a defect without a run that shows it, and do not re-run tests.
 
-### Red run
-{{RED_RUN}}
-
-Judge these lines under `correctness_tests` by the `Test trust` section of
-`${BOUNCER_ROOT}/references/coding-standards/index.md`. Do not assert that a
-test detects a defect without a run that shows it, and do not re-run tests.
-
 ### Discovery rules
 
 When mode is `discovery`, inspect the frozen target only through the assigned
