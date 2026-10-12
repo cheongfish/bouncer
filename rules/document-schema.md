@@ -114,7 +114,12 @@ Absent or `[]` keeps drafts and older tasks readable, and `/bouncer-commit` trea
 fields in that order and rejects malformed values without partial omission;
 missing fields keep older task documents readable. `/bouncer-finalize` renders
 1–2 Korean terminal sentences parsed from the blueprint `## Intent` section and
-rejects an absent or malformed section. Authored intent and summary may name
+rejects an absent or malformed section. Code fences under `## Intent` (including
+mermaid diagrams) are skipped when collecting those sentences — keep only the
+1–2 Korean terminal lines there and put diagrams under a separate `##` heading.
+Plan and finalize gates report a broken Intent (heading present, content invalid)
+as `S33`; draft status and a missing `## Intent` heading do not raise `S33`.
+Authored intent and summary may name
 identifiers, paths, and packages inside a Korean terminal sentence; the check
 covers only line count, Korean text, and the Korean terminal ending. Keep Epic /
 Blueprint ids out of them, and do not add dependencies or trailers.

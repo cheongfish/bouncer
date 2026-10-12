@@ -100,7 +100,7 @@ function makeFixture() {
     + '- [002-sibling-ready](blueprints/002-sibling-ready/index.md)\n');
   writeDoc(main, `${SIBLING}/index.md`, 'bouncer.blueprint', {
     id: '002', epic_id: '084', blueprint_id: '002', status: 'approved', commit_type: 'feat',
-  }, '# Blueprint\n\n## Intent\n- sibling\n');
+  }, '# Blueprint\n\n## Intent\n- sibling blueprint를 남긴다\n');
   writeDoc(main, `${SIBLING}/tasks/001/tasks.md`, 'bouncer.tasks', {
     id: 'TASKS-001', epic_id: '084', blueprint_id: '002', status: 'ready',
     depends_on: [], parallel_safe: false, dependency_gate: 'integrated',
@@ -111,7 +111,7 @@ function makeFixture() {
 
   writeDoc(main, `${BP}/index.md`, 'bouncer.blueprint', {
     id: '001', epic_id: '084', blueprint_id: '001', status: 'approved', commit_type: 'feat',
-  }, '# Blueprint\n\n## Intent\n- close\n');
+  }, '# Blueprint\n\n## Intent\n- 대상 blueprint를 닫는다\n');
   writeDoc(main, `${BP}/review.md`, 'bouncer.review', {
     id: 'REVIEW-001', epic_id: '084', blueprint_id: '001', status: 'pending',
   }, '# Review\n');
@@ -126,7 +126,7 @@ function makeFixture() {
   git(main, ['worktree', 'add', '-q', '-b', 'bouncer/084-001-int', paths.integrationPath, 'HEAD']);
   writeDoc(paths.integrationPath, `${BP}/index.md`, 'bouncer.blueprint', {
     id: '001', epic_id: '084', blueprint_id: '001', status: 'closed', commit_type: 'feat',
-  }, '# Blueprint\n\n## Intent\n- closed on integration\n');
+  }, '# Blueprint\n\n## Intent\n- integration에서 이미 닫혔다\n');
   const epicBody = fs.readFileSync(path.join(main, EPIC_INDEX));
   const contextBody = fs.readFileSync(path.join(main, CONTEXT_INDEX));
   writeLedger(paths.ledgerFile, {

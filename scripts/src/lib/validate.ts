@@ -30,6 +30,8 @@ import validateSections = require('./validate-sections');
 const {
   parseTasksSections, parseSections, extractPathCandidates,
 } = validateSections;
+import templates = require('./templates');
+const { parseIntentBody } = templates;
 
 // 오케스트레이션 + 공개 배럴. validateBlueprint는 이 파일에 남긴다 —
 // 함수 안의 레거시 `.sdd` 문자열이 public-name-regression allowlist에
@@ -84,6 +86,14 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     match: /must be a YAML list/,
     next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '
       + '(each item on its own `- ` line), then rerun the plan gate.',
+  },
+  {
+    code: 'S33',
+    match: /blueprint Intent invalid/,
+    // Intent에 다이어그램·코드 펜스를 두면 문장 검사에 걸려 finalize가
+    // 스택으로 터지던 경로다. 문장만 남기고 펜스는 다른 ## 절로 옮기라고 안내한다.
+    next: 'Keep only 1-2 Korean terminal sentences under `## Intent`, move code '
+      + 'fences and diagrams under a separate `##` heading, then rerun the gate.',
   },
 ]);
 
@@ -271,6 +281,30 @@ function validateBlueprint({
   }
   if (docs.blueprintIndex && !docs.epicIndex) {
     failures.push({ code: 'S8', message: 'epic index.md absent', file: rels.epicIndex });
+  }
+
+  // S33: plan·finalize만. draft와 Intent 헤딩 부재는 기존 fixture·scaffold를
+  // 보존하려고 건너뛴다 — 헤딩이 없으면 finalize prepare도 intent:[]로 통과한다.
+  // 오류 메시지 원문은 parseIntentBody throw를 그대로 붙인다(계약 문자열 유지).
+  if ((gate === 'plan' || gate === 'finalize') && docs.blueprintIndex
+    && statusOf(docs.blueprintIndex) !== 'draft') {
+    const bpBody = typeof docs.blueprintIndex.body === 'string'
+      ? docs.blueprintIndex.body
+      : '';
+    const hasIntentHeading = /^##\s+Intent\s*$/im.test(
+      bpBody.replace(/<!--[\s\S]*?-->/g, ''),
+    );
+    if (hasIntentHeading) {
+      try {
+        parseIntentBody(bpBody);
+      } catch (error) {
+        failures.push({
+          code: 'S33',
+          message: `blueprint Intent invalid: ${catchMessage(error)}`,
+          file: rels.blueprintIndex || docs.blueprintIndex.rel,
+        });
+      }
+    }
   }
 
   // 구조 검사를 돌기 전에 정책을 한 번만 읽는다. 문서마다 config를 다시

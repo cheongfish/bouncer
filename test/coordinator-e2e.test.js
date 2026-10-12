@@ -560,7 +560,7 @@ test('drive finalize 뒤 finalize release-main → main이 plan conflict 없이 
   git(repo, ['commit', '-m', 'source and epic']);
   fs.appendFileSync(path.join(repo, epicIndex), '- [004-drive](blueprints/004-drive/index.md)\n');
   writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint',
-    { id: '004', ...ids, status: 'approved', commit_type: 'feat' }, '# Blueprint\n\n## Intent\n- release\n');
+    { id: '004', ...ids, status: 'approved', commit_type: 'feat' }, '# Blueprint\n\n## Intent\n- release-main으로 닫힌 사본을 올린다\n');
   writePlanDoc(repo, `${blueprint}/context-review.md`, 'bouncer.context-review',
     { id: 'CR-004', ...ids, status: 'accepted' }, '# Context review\n');
   writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
@@ -948,7 +948,7 @@ test('light single-task drive → worker worktree 없이 integration에서 prepa
   writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
     id: '001', epic_id: '089', blueprint_id: '001', status: 'approved',
     commit_type: 'feat', scale: 'light', review_scope: 'blueprint',
-  }, '# Blueprint\n\n## Intent\n- light inline drive\n');
+  }, '# Blueprint\n\n## Intent\n- light inline drive를 돌린다\n');
   writePlanDoc(repo, `${blueprint}/review.md`, 'bouncer.review', {
     id: 'REVIEW-001', epic_id: '089', blueprint_id: '001', status: 'pending',
     review: { required: true },

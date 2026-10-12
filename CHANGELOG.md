@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **Intent 코드 펜스 가드 (EPIC 096 BP 001)** — `## Intent` 아래 mermaid·코드 펜스는
+  문장 집계에서 건너뛰고, 깨진 Intent는 plan·finalize gate와 `finalize prepare`가
+  `S33`(`blueprint Intent invalid: …`)으로 거절한다. draft와 Intent 헤딩 부재는
+  예전처럼 `S33`을 내지 않는다.
 - **세션 근거 retro (EPIC 095 BP 004)** — `/bouncer-finalize` 5단계(Handoff) 끝에서 finalize가
   닫히고 `release-main`이 `ok:true`일 때 `bouncer-retro`를 현재 대화 근거만으로 자동 실행한다.
   결과는 `retro` 머리말 아래 채팅에 출력하고, 실패해도 finalize 결과·`closed`·포인터는 그대로 둔다.
