@@ -13,6 +13,36 @@
   문장 집계에서 건너뛰고, 깨진 Intent는 plan·finalize gate와 `finalize prepare`가
   `S33`(`blueprint Intent invalid: …`)으로 거절한다. draft와 Intent 헤딩 부재는
   예전처럼 `S33`을 내지 않는다.
+
+## [1.5.9] — 2026-10-12
+
+1.5.8 패치. 계획 리뷰 반복 제한과 이력 보존(EPIC 096 BP 001), 계획 변경분 delta 인증과
+리뷰 만료 처리(BP 002)를 담는다.
+
+### Changed
+
+- **계획 리뷰 반복 제한 (EPIC 096 BP 001)** — `bouncer context-review start|record|restart`가
+  리뷰 cycle과 누적 재시작 1회 한도를 기록한다. 리뷰 증거가 있는 blueprint의
+  `review-dispatch plan`은 저장된 `latest_dispatch`와 일치하는 `--previous`를 필수로 요구하고,
+  누락·손상·최신과 불일치는 `previous-payload-required|invalid|stale`(cause·next 포함)로 거부한다.
+  `/bouncer-plan`은 최초 분류 한 번 → start → reviewer → record 순서를 쓰며 전체 재시작은 restart로만 한다.
+- **계획 변경분 인증 (EPIC 096 BP 002)** — delta 리뷰어는 이전 finding과 함께 실제 `revision_diff`
+  (before/after)와 `related_documents`의 현재 계약을 받아 변경분만 판정한다. delta 뒤 새 stale target은
+  같은 target이면 reuse, delta를 썼거나 구조 변경이면 남은 restart 1회, 한도 소진·미해결 `must_fix`·
+  round 미기록이면 사용자 중단으로 라우팅한다(세 번째 round와 자동 새 cycle 없음). print dispatch 경로는
+  `<cycle id>/restart-<0|1>/`로 분리한다. 본문만 바뀐 scope 변경은 구조 변경(full)으로 보지 않고 partial로 판정한다.
+  주의: 이전 형식(legacy) digest만 있는 기존 증거는 delta 근거가 아니므로 첫 후속 분류가 full이 된다.
+  후속 라우팅은 읽기 전용 `bouncer context-review route --blueprint <dir> --dispatch <json>`으로 얻는다
+  (`follow_up`은 payload에서 파생하며 다른 값을 주입할 수 없다).
+
+## [1.5.8] — 2026-10-12
+
+1.5.7 패치. 코딩 표준 정본과 Red run 리뷰(EPIC 095 BP 001), 테스트 이름 형식 검사(BP 002),
+PR 변경 그림·판단 자료 필수화(BP 003), 세션 근거 retro(BP 004), DeepSWE 과제 어댑터와
+공식 채점 연결(EPIC 094 BP 002)을 담는다.
+
+### Changed
+
 - **세션 근거 retro (EPIC 095 BP 004)** — `/bouncer-finalize` 5단계(Handoff) 끝에서 finalize가
   닫히고 `release-main`이 `ok:true`일 때 `bouncer-retro`를 현재 대화 근거만으로 자동 실행한다.
   결과는 `retro` 머리말 아래 채팅에 출력하고, 실패해도 finalize 결과·`closed`·포인터는 그대로 둔다.
@@ -46,6 +76,12 @@
   `bouncer-benchmark-verifier:local`, 기본 진입점은 `upstream-tests.cjs`다.
 
 ### Added
+
+- **DeepSWE 벤치마크 과제 4개 (EPIC 094 BP 002)** — 해결률 30~45%인 TypeScript(quill)·Go(expr)·
+  Python(python-statemachine)·Rust(oxvg) 과제의 카드, 평가자 정책(`proposed`, 사용자 승인 전에는
+  실행기가 거절), 루브릭 `rubrics/deepswe.md`, 출처·라이선스 문서 `benchmarks/deepswe/README.md`를
+  더했다. `check-deepswe-solution.cjs <card-id>`는 공식 채점기가 손대지 않은 작업 공간을 reward 0,
+  정답 patch를 reward 1로 판정하는지 확인한다.
 
 - **ACQ 기계 계약 (EPIC 093 BP 001)** — 게이트 ID 카탈로그를 테스트 상수에서
   `rules/acq-gates.json` 데이터 파일로 옮겼다. 채팅 ACQ 표시와 open decisions 메시지는

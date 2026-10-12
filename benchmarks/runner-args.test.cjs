@@ -48,3 +48,14 @@ test('run-cursor with --task → taskId is that task', (t) => {
   const parsed = options(['--task', 'fastify-001', '--condition', 'vanilla', '--model', 'm', '--key-file', keyFile]);
   assert.equal(parsed.taskId, 'fastify-001');
 });
+
+test('run-cursor --build-only true → 키 파일 없이 buildOnly true', () => {
+  const parsed = options(['--task', 'x-001', '--condition', 'vanilla', '--model', 'm', '--build-only', 'true']);
+  assert.equal(parsed.buildOnly, true);
+});
+
+test('run-cursor --build-only 없음 → buildOnly false', (t) => {
+  const { keyFile } = scratch(t);
+  const parsed = options(['--task', 'x-001', '--condition', 'vanilla', '--model', 'm', '--key-file', keyFile]);
+  assert.equal(parsed.buildOnly, false);
+});

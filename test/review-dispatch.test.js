@@ -257,8 +257,28 @@ function capture(argv) {
   return { code, ...buf };
 }
 
-function expectedDigest(repo) {
-  const parts = [
+// v2 digest 계약: 문서 경로·본문·정규화 판단 구조를 경계가 있는 ordered 배열로 직렬화해 hash한다.
+// 구조는 브리프의 필드 목록과 schema 기본값(부재=빈 배열/false/integrated/commit)에서 직접 만든다.
+function expectedStructure(rel, data) {
+  const b = (data && data.bouncer) || {};
+  if (/\/tasks\/\d{3}\/tasks\.md$/.test(rel)) {
+    return {
+      affected_paths: [...(b.affected_paths || [])].sort(),
+      depends_on: [...(b.depends_on || [])].sort(),
+      parallel_safe: b.parallel_safe === true,
+      dependency_gate: b.dependency_gate || 'integrated',
+      exclusive_resources: [...(b.exclusive_resources || [])].sort(),
+      execution_kind: b.execution_kind || 'commit',
+    };
+  }
+  if (rel === `${BP_REL}/index.md`) {
+    return { scale: b.scale === 'light' ? 'light' : 'full', review_scope: b.review_scope === 'blueprint' ? 'blueprint' : null };
+  }
+  return {};
+}
+
+function expectedContent(repo) {
+  const documents = [
     `${EPIC_REL}/index.md`,
     `${BP_REL}/index.md`,
   ];
@@ -266,16 +286,24 @@ function expectedDigest(repo) {
   if (fs.existsSync(tasksRoot)) {
     for (const name of fs.readdirSync(tasksRoot).sort()) {
       if (!/^\d{3}$/.test(name)) continue;
-      parts.push(`${BP_REL}/tasks/${name}/tasks.md`);
+      documents.push(`${BP_REL}/tasks/${name}/tasks.md`);
     }
   }
-  const hash = crypto.createHash('sha256');
-  for (const rel of parts) {
+  const content = {};
+  for (const rel of documents) {
     const raw = fs.readFileSync(path.join(repo, rel), 'utf8');
-    const body = raw.replace(/^---\n[\s\S]*?\n---\n/, '');
-    hash.update(body);
+    const m = raw.match(/^---\n([\s\S]*?)\n---\n/);
+    content[rel] = { body: raw.slice(m[0].length), structure: expectedStructure(rel, yaml.load(m[1])) };
   }
-  return { digest: hash.digest('hex'), documents: parts };
+  return { documents, content };
+}
+
+function expectedDigest(repo) {
+  const { documents, content } = expectedContent(repo);
+  const digest = crypto.createHash('sha256')
+    .update(JSON.stringify(documents.map((file) => ({ file, body: content[file].body, structure: content[file].structure }))))
+    .digest('hex');
+  return { digest, documents };
 }
 
 test('size constants → are exported from one module', () => {
@@ -327,13 +355,10 @@ function rewriteTasksGoal(repo, number, goalLine) {
   fs.writeFileSync(abs, updated);
 }
 
+// 공개 분류 결과를 그대로 직렬화한 정상 payload. 일부 필드만 골라 만든 축소본은
+// 엄격한 previous 검사를 피해 가므로 실제 출력 모양을 보존한다.
 function previousPayload(result) {
-  return {
-    ok: true,
-    parts: result.parts,
-    scope_parts: result.scope_parts,
-    target: result.target,
-  };
+  return JSON.parse(JSON.stringify(result));
 }
 
 // follow_up·parts·scope_parts 계약. 범위 필드는 각각 단독으로 full을 강제해야 한다
@@ -346,7 +371,9 @@ test('plan follow_up without previous → is full with empty changed_documents',
   assert.strictEqual(out.ok, true);
   assert.strictEqual(out.strategy, 'single');
   assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  // 최초 full은 전체 현재 문서를 변경 목록으로 두고 before는 null이다.
+  assert.deepStrictEqual(out.changed_documents, [...expectedDigest(repo).documents].sort());
+  assert.ok(out.revision_diff.every((d) => d.before === null && d.after !== null));
   assert.ok(out.parts && typeof out.parts === 'object');
   assert.ok(out.scope_parts && typeof out.scope_parts === 'object');
   const expected = expectedDigest(repo);
@@ -392,7 +419,7 @@ test('plan follow_up with unchanged documents → is partial with empty list', (
   assert.strictEqual(out.target.digest, before.target.digest);
 });
 
-test('plan follow_up with an epic index body change → is full', () => {
+test('plan follow_up with an epic index body change → is partial with the epic and all tasks related', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -404,11 +431,15 @@ test('plan follow_up with an epic index body change → is full', () => {
     previous: previousPayload(before),
   });
   assert.strictEqual(out.ok, true);
-  assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  assert.strictEqual(out.follow_up, 'partial');
+  assert.deepStrictEqual(out.changed_documents, [`${EPIC_REL}/index.md`]);
+  assert.deepStrictEqual(out.related_documents, [`${BP_REL}/index.md`, `${BP_REL}/tasks/001/tasks.md`]);
+  assert.deepStrictEqual(out.revision_diff.map((d) => d.file), [`${EPIC_REL}/index.md`]);
+  assert.strictEqual(out.revision_diff[0].before.body, '# Auth epic\n');
+  assert.strictEqual(out.revision_diff[0].after.body, '# Auth epic revised\n');
 });
 
-test('plan follow_up with a blueprint index body change → is full', () => {
+test('plan follow_up with a blueprint index body change → is partial with the blueprint index changed', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -420,8 +451,8 @@ test('plan follow_up with a blueprint index body change → is full', () => {
     previous: previousPayload(before),
   });
   assert.strictEqual(out.ok, true);
-  assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  assert.strictEqual(out.follow_up, 'partial');
+  assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/index.md`]);
 });
 
 // writePlanTree(001) 기본 Touch/Interface. 단독 변이 시 다른 scope 입력은 이 값을 유지한다.
@@ -429,7 +460,7 @@ const PLAN_TASK_001_INTERFACE = '- `sharedFn`\n';
 const PLAN_TASK_001_TOUCH = '- `src/shared.ts`\n- `src/a.ts`\n';
 const PLAN_TASK_001_AFFECTED = ['src/shared.ts', 'src/a.ts'];
 
-test('plan follow_up with an Interface-only scope_parts change → is full', () => {
+test('plan follow_up with an Interface-only change → is partial with that tasks.md changed', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -446,15 +477,15 @@ test('plan follow_up with an Interface-only scope_parts change → is full', () 
     previous: previousPayload(before),
   });
   assert.strictEqual(out.ok, true);
-  assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  assert.strictEqual(out.follow_up, 'partial');
+  assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/tasks/001/tasks.md`]);
   assert.notStrictEqual(
     out.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
     before.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
   );
 });
 
-test('plan follow_up with a Touch-only scope_parts change → is full', () => {
+test('plan follow_up with a Touch-only change → is partial with that tasks.md changed', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -470,8 +501,8 @@ test('plan follow_up with a Touch-only scope_parts change → is full', () => {
     previous: previousPayload(before),
   });
   assert.strictEqual(out.ok, true);
-  assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  assert.strictEqual(out.follow_up, 'partial');
+  assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/tasks/001/tasks.md`]);
   assert.notStrictEqual(
     out.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
     before.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
@@ -496,7 +527,7 @@ test('plan follow_up with an affected_paths-only scope_parts change → is full'
   });
   assert.strictEqual(out.ok, true);
   assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/tasks/001/tasks.md`]);
   assert.notStrictEqual(
     out.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
     before.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
@@ -520,7 +551,7 @@ test('plan follow_up with a depends_on-only scope_parts change → is full', () 
   });
   assert.strictEqual(out.ok, true);
   assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/tasks/002/tasks.md`]);
   assert.notStrictEqual(
     out.scope_parts[`${BP_REL}/tasks/002/tasks.md`],
     before.scope_parts[`${BP_REL}/tasks/002/tasks.md`],
@@ -544,7 +575,7 @@ test('plan follow_up with an added task → is full', () => {
   assert.strictEqual(out.ok, true);
   assert.strictEqual(out.strategy, 'clustered');
   assert.strictEqual(out.follow_up, 'full');
-  assert.deepStrictEqual(out.changed_documents, []);
+  assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/tasks/002/tasks.md`]);
 });
 
 test('plan with an invalid previous payload → rejects with previous-payload-invalid', () => {
@@ -1270,4 +1301,555 @@ test('review-dispatch --help yaml example with <target.digest> replaced → pass
   }, '# Context review\n\n## Findings\n- CR-1 advisory, accepted with note.\n');
   const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
   assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G18'), []);
+});
+
+// --- 후속 리뷰 previous 결속(BP 096/001 task 002) ---------------------------------
+
+const planArgs = (repo, extra = []) => [
+  'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo, ...extra,
+];
+
+/** 분류 결과를 파일로 저장한다. start·--previous 입력으로 쓴다. */
+function saveJson(repo, name, value) {
+  const file = path.join(repo, name);
+  fs.writeFileSync(file, `${JSON.stringify(value)}\n`);
+  return file;
+}
+
+/** 최초 분류 → start까지 마친 repo와 저장된 최초 payload를 만든다. */
+function startedRepo() {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(first.ok, true);
+  const file = saveJson(repo, 'first.json', first);
+  const started = capture(['context-review', 'start', '--repo', repo, '--blueprint', BP_REL, '--dispatch', file]);
+  assert.strictEqual(started.code, 0, started.out + started.err);
+  return { repo, first, file };
+}
+
+function runtimeBytes(repo) {
+  const out = {};
+  const walk = (dir) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(abs);
+      else out[abs] = fs.readFileSync(abs, 'utf8');
+    }
+  };
+  const root = path.join(repo, '.bouncer', 'runtime');
+  if (fs.existsSync(root)) walk(root);
+  return out;
+}
+
+test('start 뒤 previous 없는 후속 분류 → previous-payload-required로 거부하고 cause와 next를 준다', () => {
+  const { repo } = startedRepo();
+  const followUp = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(followUp.ok, false);
+  assert.strictEqual(followUp.reason, 'previous-payload-required');
+  assert.ok(followUp.cause && followUp.next);
+  const cli = capture(planArgs(repo));
+  assert.strictEqual(cli.code, 1);
+  assert.strictEqual(JSON.parse(cli.out).reason, 'previous-payload-required');
+});
+
+test('start로 저장한 payload를 previous로 주면 → 후속 분류가 통과하고 저장 bytes를 바꾸지 않는다', () => {
+  const { repo, first } = startedRepo();
+  const before = runtimeBytes(repo);
+  const followUp = classifyPlanReview({
+    repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first),
+  });
+  assert.strictEqual(followUp.ok, true);
+  assert.strictEqual(followUp.follow_up, 'partial');
+  assert.deepStrictEqual(followUp.changed_documents, []);
+  assert.deepStrictEqual(runtimeBytes(repo), before);
+});
+
+test('저장 최신 payload와 다른 previous → previous-payload-stale로 거부한다', () => {
+  const { repo, first } = startedRepo();
+  const altered = { ...previousPayload(first), reasons: ['edited by hand'] };
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: altered });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'previous-payload-stale');
+  const reduced = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: { ok: true, parts: first.parts, scope_parts: first.scope_parts, target: first.target },
+  });
+  assert.strictEqual(reduced.reason, 'previous-payload-invalid');
+});
+
+test('다른 blueprint의 previous → previous-payload-invalid로 거부한다', () => {
+  const { repo, first } = startedRepo();
+  const foreign = { ...previousPayload(first), blueprint: `${EPIC_REL}/blueprints/002-other` };
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: foreign });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'previous-payload-invalid');
+  const docs = { ...previousPayload(first), target: { ...first.target, documents: [`${EPIC_REL}/index.md`] } };
+  assert.strictEqual(
+    classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: docs }).reason,
+    'previous-payload-invalid',
+  );
+});
+
+test('restart 뒤 옛 payload를 previous로 주면 → stale이고 새 payload는 통과한다', () => {
+  const { repo, first } = startedRepo();
+  rewriteTasksGoal(repo, '001', 'Ship a rewritten plan.');
+  const second = classifyPlanReview({
+    repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first),
+  });
+  assert.strictEqual(second.ok, true);
+  const file = saveJson(repo, 'second.json', second);
+  const restarted = capture([
+    'context-review', 'restart', '--repo', repo, '--blueprint', BP_REL,
+    '--dispatch', file, '--reason', 'plan rewritten',
+  ]);
+  assert.strictEqual(restarted.code, 0, restarted.out + restarted.err);
+  const old = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  assert.strictEqual(old.reason, 'previous-payload-stale');
+  const fresh = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(second) });
+  assert.strictEqual(fresh.ok, true);
+});
+
+test('cycle 없는 legacy 증거 → previous 없이는 거부하고 digest가 다른 previous는 stale이다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Login context review',
+    description: 'd',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'requested',
+      context_review: {
+        rounds: [{ round: 1, mode: 'discovery', target: { digest: first.target.digest } }],
+        findings: [],
+      },
+    },
+  });
+  const required = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(required.reason, 'previous-payload-required');
+  const ok = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  assert.strictEqual(ok.ok, true);
+  // 내용과 맞지 않는 digest는 위조라서 invalid다. 무결성이 맞는 다른 digest의 v2 payload만 stale이다.
+  const forgedDigest = { ...previousPayload(first), target: { ...first.target, digest: 'f'.repeat(64) } };
+  assert.strictEqual(
+    classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: forgedDigest }).reason,
+    'previous-payload-invalid',
+  );
+  rewriteTasksGoal(repo, '001', 'Ship a rewritten plan.');
+  const otherSnapshot = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  assert.strictEqual(otherSnapshot.ok, true);
+  rewriteTasksGoal(repo, '001', 'Ship a third wording.');
+  assert.strictEqual(
+    classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(otherSnapshot) }).reason,
+    'previous-payload-stale',
+  );
+});
+
+test('깨진 context-review 메타데이터 → 최초 상태로 보지 않고 reviewer 호출 전에 구조 실패로 거부한다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  fs.writeFileSync(path.join(repo, BP_REL, 'context-review.md'), '---\nbouncer: [unclosed\n---\n# x\n');
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'structural validation failed');
+  assert.strictEqual(result.perspectives, undefined);
+});
+
+test('light blueprint → cycle이 있어도 previous 검사 없이 skip을 유지한다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  const dir = path.join(repo, '.bouncer', 'runtime', 'context-review');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${BP_REL.split('/').join('__')}`), 'noise');
+  const skip = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(skip.ok, true);
+  assert.strictEqual(skip.strategy, 'skip');
+});
+
+test('--previous를 두 번 주면 → 사용법 오류 exit 2이고 분류하지 않는다', () => {
+  const { repo, file } = startedRepo();
+  const dup = capture(planArgs(repo, ['--previous', file, '--previous', file]));
+  assert.strictEqual(dup.code, 2);
+  assert.strictEqual(dup.out, '');
+});
+
+test('손상된 previous 파일 → CLI가 cause와 next를 붙여 exit 1로 거부한다', () => {
+  const { repo } = startedRepo();
+  const bad = path.join(repo, 'bad.json');
+  fs.writeFileSync(bad, '{ not json');
+  const r = capture(planArgs(repo, ['--previous', bad]));
+  assert.strictEqual(r.code, 1);
+  const body = JSON.parse(r.out);
+  assert.strictEqual(body.reason, 'previous-payload-invalid');
+  assert.ok(body.cause && body.next);
+});
+
+// --- repair TASKS-003: 표식 증거·공유 읽기 helper ------------------------------------
+
+test('cycle 없이 restart_count 표식만 있는 context-review → 증거로 보고 previous를 요구한다', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Login context review',
+    description: 'd',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'pending',
+      context_review: { findings: [], restart_count: 1 },
+    },
+  });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'previous-payload-required');
+});
+
+test('restart 뒤 runtime state를 지워도 → 표식이 증거라 previous를 요구한다', () => {
+  const { repo, first } = startedRepo();
+  rewriteTasksGoal(repo, '001', 'Ship a rewritten plan.');
+  const second = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  const file = saveJson(repo, 'second.json', second);
+  const restarted = capture([
+    'context-review', 'restart', '--repo', repo, '--blueprint', BP_REL, '--dispatch', file, '--reason', 'rewritten',
+  ]);
+  assert.strictEqual(restarted.code, 0, restarted.out + restarted.err);
+  fs.rmSync(path.join(repo, '.bouncer', 'runtime'), { recursive: true });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.reason, 'previous-payload-required');
+});
+
+test('변조된 cycle.id의 state → 공유 검증으로 previous-payload-invalid 거부하고 bytes를 바꾸지 않는다', () => {
+  const { repo, first } = startedRepo();
+  const root = path.join(repo, '.bouncer', 'runtime', 'context-review');
+  const statePath = path.join(root, fs.readdirSync(root)[0], 'state.json');
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  // 파일도 옮겨 참조가 실제로 읽히게 한다: id 형식 검증만이 이 변조를 막는다.
+  fs.renameSync(
+    path.join(path.dirname(statePath), 'cycles', state.cycle.id),
+    path.join(path.dirname(statePath), 'cycles', 'evil'),
+  );
+  state.cycle.id = 'evil';
+  state.cycle.latest_dispatch.path = state.cycle.latest_dispatch.path.replace(/cr-[0-9a-f]{16}/, 'evil');
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  const before = runtimeBytes(repo);
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: previousPayload(first) });
+  assert.strictEqual(result.reason, 'previous-payload-invalid');
+  assert.deepStrictEqual(runtimeBytes(repo), before);
+});
+
+// --- v2 snapshot: 구조 분리·내용 diff·관련 문서(BP 096/002 task 001) ----------------
+
+const TASK_001_REL = `${BP_REL}/tasks/001/tasks.md`;
+
+/** tasks.md frontmatter의 bouncer 블록만 고쳐 쓴다. 본문은 그대로 둔다. */
+function editTaskBouncer(repo, number, mutate) {
+  const abs = path.join(repo, BP_REL, 'tasks', number, 'tasks.md');
+  const raw = fs.readFileSync(abs, 'utf8');
+  const m = raw.match(/^---\n([\s\S]*?)\n---\n/);
+  const data = yaml.load(m[1]);
+  mutate(data.bouncer, data);
+  fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${raw.slice(m[0].length)}`);
+}
+
+/** 서로 겹치지 않는 Interface·Touch를 가진 task를 쓴다. cluster 관계를 DAG와 분리해 검사하기 위함. */
+function writeSoloTask(repo, number, dependsOn = [], extra = {}) {
+  writeCommitTask(repo, number, {
+    dependsOn,
+    interfaceText: `- \`solo${number}\`\n`,
+    touchText: `- \`src/solo${number}.ts\`\n`,
+    ...extra,
+  });
+}
+
+function planOf(repo, previous) {
+  const out = classifyPlanReview({
+    repoRoot: repo, blueprintDir: BP_REL, ...(previous ? { previous: previousPayload(previous) } : {}),
+  });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  return out;
+}
+
+test('plan v2 payload → carries content, structure_parts and the contract field set', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const out = planOf(repo);
+  assert.strictEqual(out.snapshot_version, 2);
+  const expected = expectedContent(repo);
+  assert.deepStrictEqual(out.documents_content, expected.content);
+  assert.deepStrictEqual(out.documents_content[TASK_001_REL].structure, {
+    affected_paths: ['src/a.ts', 'src/shared.ts'],
+    depends_on: [],
+    parallel_safe: false,
+    dependency_gate: 'integrated',
+    exclusive_resources: [],
+    execution_kind: 'commit',
+  });
+  assert.deepStrictEqual(Object.keys(out.structure_parts).sort(), [...expected.documents].sort());
+  assert.deepStrictEqual(out.related_documents, [...expected.documents].sort());
+});
+
+test('plan with status, title and timestamp edits only → keeps the digest and target unchanged', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = planOf(repo);
+  const abs = path.join(repo, TASK_001_REL);
+  const raw = fs.readFileSync(abs, 'utf8')
+    .replace('status: ready', 'status: in_progress')
+    .replace('title: Task 001', 'title: Renamed task')
+    .replace(/timestamp: .*/, 'timestamp: \'2026-08-01T00:00:00+09:00\'');
+  fs.writeFileSync(abs, raw);
+  const after = planOf(repo, before);
+  assert.deepStrictEqual(after.target, before.target);
+  assert.strictEqual(after.follow_up, 'partial');
+  assert.deepStrictEqual(after.changed_documents, []);
+  assert.deepStrictEqual(after.revision_diff, []);
+  assert.deepStrictEqual(after.related_documents, []);
+});
+
+test('plan with a document boundary shift → changes the digest', () => {
+  const { digestPlanContent } = require('../scripts/lib/plan-snapshot');
+  const doc = (body) => ({ body, structure: {} });
+  const joined = digestPlanContent(['a', 'b'], { a: doc('x'), b: doc('yz') });
+  const shifted = digestPlanContent(['a', 'b'], { a: doc('xy'), b: doc('z') });
+  assert.notStrictEqual(joined, shifted);
+});
+
+test('plan with a body whitespace-only edit → is partial and the diff keeps the exact bytes', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = planOf(repo);
+  const abs = path.join(repo, TASK_001_REL);
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('Keep scope tight.', 'Keep scope tight. '));
+  const after = planOf(repo, before);
+  assert.notStrictEqual(after.target.digest, before.target.digest);
+  assert.strictEqual(after.follow_up, 'partial');
+  assert.deepStrictEqual(after.changed_documents, [TASK_001_REL]);
+  const [entry] = after.revision_diff;
+  assert.strictEqual(entry.before.body.includes('Keep scope tight.\n'), true);
+  assert.strictEqual(entry.after.body.includes('Keep scope tight. \n'), true);
+  assert.deepStrictEqual(entry.before.structure, entry.after.structure);
+});
+
+for (const [label, mutate] of [
+  ['parallel_safe', (b) => { b.parallel_safe = true; }],
+  ['exclusive_resources', (b) => { b.exclusive_resources = ['db-migration']; }],
+  ['execution_kind', (b) => { b.execution_kind = 'verification'; b.verify = 'node --test'; }],
+  ['dependency_gate removed to its default', null],
+]) {
+  test(`plan with a ${label} structure change → ${mutate ? 'is full with that task changed' : 'stays the same structure'}`, () => {
+    const repo = makeRepo();
+    writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+    const before = planOf(repo);
+    if (mutate) {
+      editTaskBouncer(repo, '001', mutate);
+      // execution_kind를 바꾸면 draft 검사가 Interface 절 등을 따로 요구할 수 있어 gate 통과 여부와 무관하게
+      // 구조 digest만 비교한다: 분류기가 실패하면 구조 입력을 직접 계산한다.
+      const { computePlanParts } = require('../scripts/lib/plan-snapshot');
+      const parts = computePlanParts({ repoRoot: repo, blueprintDir: BP_REL });
+      assert.notStrictEqual(parts.structure_parts[TASK_001_REL], before.structure_parts[TASK_001_REL]);
+      assert.strictEqual(parts.parts[TASK_001_REL], before.parts[TASK_001_REL]);
+      if (label !== 'execution_kind') {
+        const after = planOf(repo, before);
+        assert.strictEqual(after.follow_up, 'full');
+        assert.deepStrictEqual(after.changed_documents, [TASK_001_REL]);
+      }
+    } else {
+      // 기본값을 명시한 표기와 생략한 표기는 같은 효과 구조여야 한다.
+      editTaskBouncer(repo, '001', (b) => { delete b.dependency_gate; delete b.exclusive_resources; b.depends_on = []; });
+      const after = planOf(repo, before);
+      assert.deepStrictEqual(after.structure_parts, before.structure_parts);
+      assert.strictEqual(after.target.digest, before.target.digest);
+      assert.strictEqual(after.follow_up, 'partial');
+    }
+  });
+}
+
+test('plan with affected_paths listed in a different order → keeps the same structure', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = planOf(repo);
+  editTaskBouncer(repo, '001', (b) => { b.affected_paths = [...b.affected_paths].reverse(); });
+  const after = planOf(repo, before);
+  assert.deepStrictEqual(after.structure_parts, before.structure_parts);
+  assert.strictEqual(after.follow_up, 'partial');
+  assert.deepStrictEqual(after.changed_documents, []);
+});
+
+test('plan with a task removed → is full and the diff nulls the missing after side', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001', '002'] });
+  const before = planOf(repo);
+  fs.rmSync(path.join(repo, BP_REL, 'tasks', '002'), { recursive: true });
+  const after = planOf(repo, before);
+  assert.strictEqual(after.follow_up, 'full');
+  assert.deepStrictEqual(after.changed_documents, [`${BP_REL}/tasks/002/tasks.md`]);
+  const [entry] = after.revision_diff;
+  assert.strictEqual(entry.after, null);
+  assert.strictEqual(entry.before.body, before.documents_content[entry.file].body);
+  assert.deepStrictEqual(after.related_documents, [...after.target.documents].sort());
+});
+
+test('plan with a task added → is full and the diff nulls the missing before side', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = planOf(repo);
+  writeSoloTask(repo, '002', ['TASKS-001']);
+  const after = planOf(repo, before);
+  assert.strictEqual(after.follow_up, 'full');
+  assert.deepStrictEqual(after.revision_diff.map((d) => [d.file, d.before]), [[`${BP_REL}/tasks/002/tasks.md`, null]]);
+});
+
+test('plan with a body edit inside a DAG chain → lists predecessors and successors but not unrelated tasks', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  writeSoloTask(repo, '002', ['TASKS-001']);
+  writeSoloTask(repo, '003', ['TASKS-002']);
+  writeSoloTask(repo, '004');
+  const before = planOf(repo);
+  rewriteTasksGoal(repo, '002', 'Chain middle reworded.');
+  const after = planOf(repo, before);
+  assert.strictEqual(after.follow_up, 'partial');
+  assert.deepStrictEqual(after.changed_documents, [`${BP_REL}/tasks/002/tasks.md`]);
+  assert.deepStrictEqual(after.related_documents, [
+    `${EPIC_REL}/index.md`,
+    `${BP_REL}/index.md`,
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/003/tasks.md`,
+  ].sort());
+});
+
+// Interface 키 공유만으로 cluster가 묶이는 pair(001, 002)와 단독 task(003). depends_on은 모두 비워
+// cluster 이웃과 DAG closure를 분리해 검사하고, affected_paths는 건드리지 않아 구조는 유지한다.
+function writeSharedKeyPair(repo) {
+  writePlanTree(repo, { scale: 'full', tasks: [] });
+  writeCommitTask(repo, '001', { interfaceText: '- `sharedKey`\n', touchText: '- `src/one.ts`\n' });
+  writeCommitTask(repo, '002', { interfaceText: '- `sharedKey`\n', touchText: '- `src/two.ts`\n' });
+  writeSoloTask(repo, '003');
+}
+
+test('plan with a task that leaves its cluster → still relates the previous cluster neighbour', () => {
+  const repo = makeRepo();
+  writeSharedKeyPair(repo);
+  const before = planOf(repo);
+  assert.strictEqual(before.clusters.length, 2);
+  writeCommitTask(repo, '002', { interfaceText: '- `loneKey`\n', touchText: '- `src/two.ts`\n' });
+  const after = planOf(repo, before);
+  assert.strictEqual(after.follow_up, 'partial');
+  assert.deepStrictEqual(after.changed_documents, [`${BP_REL}/tasks/002/tasks.md`]);
+  assert.ok(after.related_documents.includes(TASK_001_REL), 'previous cluster neighbour is related');
+  assert.ok(!after.related_documents.includes(`${BP_REL}/tasks/003/tasks.md`));
+});
+
+test('plan with a task that joins a cluster → relates the current cluster neighbour', () => {
+  const repo = makeRepo();
+  writeSharedKeyPair(repo);
+  const before = planOf(repo);
+  writeCommitTask(repo, '003', { interfaceText: '- `sharedKey`\n', touchText: '- `src/solo003.ts`\n' });
+  const after = planOf(repo, before);
+  assert.strictEqual(after.follow_up, 'partial');
+  assert.deepStrictEqual(after.changed_documents, [`${BP_REL}/tasks/003/tasks.md`]);
+  assert.ok(after.related_documents.includes(TASK_001_REL));
+  assert.ok(after.related_documents.includes(`${BP_REL}/tasks/002/tasks.md`));
+});
+
+test('plan with a legacy digest-only previous → is full with the legacy reason and a null before', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const v2 = planOf(repo);
+  const legacy = {
+    ok: true, phase: 'plan', strategy: 'single', target: v2.target, parts: v2.parts, scope_parts: v2.scope_parts,
+  };
+  const out = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: legacy });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, [...v2.target.documents].sort());
+  assert.ok(out.revision_diff.every((d) => d.before === null && d.reason === 'legacy-payload-no-content'));
+  assert.ok(out.reasons.some((r) => r.startsWith('legacy-payload-no-content')));
+});
+
+test('plan with a tampered v2 previous → rejects with previous-payload-invalid', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const first = planOf(repo);
+  const mutations = {
+    'body no longer matches parts': (p) => { p.documents_content[TASK_001_REL].body += 'x'; },
+    'structure no longer matches structure_parts': (p) => { p.documents_content[TASK_001_REL].structure.parallel_safe = true; },
+    'structure is not normalized': (p) => { p.documents_content[TASK_001_REL].structure.affected_paths.reverse(); },
+    'digest differs from content': (p) => { p.target.digest = 'a'.repeat(64); },
+    'content has an extra document': (p) => { p.documents_content['extra/other.md'] = { body: '', structure: {} }; },
+    'content misses a document': (p) => { delete p.documents_content[TASK_001_REL]; },
+    'unsupported version': (p) => { p.snapshot_version = 3; },
+    'document order is shuffled': (p) => { p.target.documents.reverse(); },
+    'follow_up is unknown': (p) => { p.follow_up = 'maybe'; },
+    'structure_parts is missing': (p) => { delete p.structure_parts; },
+  };
+  for (const [label, mutate] of Object.entries(mutations)) {
+    const payload = previousPayload(first);
+    mutate(payload);
+    const out = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: payload });
+    assert.strictEqual(out.ok, false, label);
+    assert.strictEqual(out.reason, 'previous-payload-invalid', label);
+  }
+});
+
+test('plan from the CLI with a v2 previous file → prints the delta fields', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const first = planOf(repo);
+  const file = saveJson(repo, 'prev-v2.json', first);
+  rewriteTasksGoal(repo, '001', 'CLI delta wording.');
+  const run = capture(planArgs(repo, ['--previous', file]));
+  assert.strictEqual(run.code, 0, run.out + run.err);
+  const out = JSON.parse(run.out);
+  assert.strictEqual(out.follow_up, 'partial');
+  assert.deepStrictEqual(out.revision_diff.map((d) => d.file), [TASK_001_REL]);
+});
+
+test('legacy digest-only previous after a recorded round → the migration review restarts within the limit', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const v2 = planOf(repo);
+  const legacyDigest = 'b'.repeat(64);
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Login context review',
+    description: 'd',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'requested',
+      context_review: {
+        rounds: [{ round: 1, mode: 'discovery', target: { digest: legacyDigest } }],
+        findings: [],
+      },
+    },
+  });
+  // 옛 digest를 인증한 기록은 새 snapshot과 digest가 달라 stale이며 새 digest를 승인한 것으로 보지 않는다.
+  const legacyPrevious = {
+    ok: true, phase: 'plan', strategy: 'single',
+    target: { digest: legacyDigest, documents: v2.target.documents },
+    parts: v2.parts, scope_parts: v2.scope_parts,
+  };
+  const migrated = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: legacyPrevious });
+  assert.strictEqual(migrated.ok, true, JSON.stringify(migrated));
+  assert.strictEqual(migrated.follow_up, 'full');
+  const file = saveJson(repo, 'migrated.json', migrated);
+  const restarted = capture([
+    'context-review', 'restart', '--repo', repo, '--blueprint', BP_REL,
+    '--dispatch', file, '--reason', 'v2 snapshot migration',
+  ]);
+  assert.strictEqual(restarted.code, 0, restarted.out + restarted.err);
+  const again = capture([
+    'context-review', 'restart', '--repo', repo, '--blueprint', BP_REL,
+    '--dispatch', file, '--reason', 'second migration',
+  ]);
+  assert.strictEqual(again.code, 1, 'the restart limit still applies after a migration');
 });

@@ -90,7 +90,9 @@ const HELP_CONTEXT_REVIEW_EXAMPLE = `context_review:
  * G18을 통과하는 기록을 쓰도록 형식·enum·digest 출처를 한곳에 모은다.
  */
 const HELP = `${USAGE}
-Context review record (plan): paste this under \`bouncer:\` in context-review.md.
+Context review record shape (plan). Reports are recorded with
+\`bouncer context-review record\`; the projection it returns on --status accepted has
+this shape and goes under \`bouncer:\` in context-review.md. Do not hand-write rounds.
 
 \`\`\`yaml
 ${HELP_CONTEXT_REVIEW_EXAMPLE}
@@ -111,16 +113,37 @@ Do not compute the digest. Copy \`target.digest\` from the JSON that
 places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
 
 Plan fields (\`single\` / \`clustered\` only; absent on \`skip\` and failures):
+  snapshot_version 2. target.digest hashes the ordered {file, body, structure} of
+                   every plan document; status/title/timestamp/commit evidence are excluded
   parts            per-document body sha256 (epic index, blueprint index, each tasks.md)
-  scope_parts      per-tasks.md scope sha256 (sorted affected_paths + depends_on +
-                   Interface body + Touch body)
-  follow_up        \`full\` | \`partial\` — compare with \`--previous <file>\` (a prior
-                   plan JSON). Omit \`--previous\` → \`full\` and empty changed_documents.
-  changed_documents tasks.md paths whose body alone changed (\`partial\` only)
+  structure_parts  per-document sha256 of the normalized judgement structure
+                   (task: affected_paths, depends_on, parallel_safe, dependency_gate,
+                   exclusive_resources, execution_kind; blueprint: scale, review_scope)
+  scope_parts      observation only (Interface/Touch/affected_paths/depends_on hash);
+                   never used to choose follow_up
+  documents_content  path -> {body, structure}; the immutable content a later
+                   \`--previous\` run diffs against (no git or working-tree lookup)
+  follow_up        \`full\` | \`partial\` — compare with \`--previous <file>\` (the
+                   stored prior plan JSON). Omit \`--previous\` only for a first
+                   classification with no review evidence → \`full\`, every current
+                   document in changed_documents, before null.
+  changed_documents sorted union of added/removed/body-changed/structure-changed paths
+  related_documents contract references for the delta reviewer: changed tasks' previous
+                   and current cluster neighbours, DAG predecessors/successors (transitive),
+                   epic and blueprint; all tasks when epic/blueprint changed; the whole
+                   current set on \`full\`. Changed documents are not repeated (partial).
+  revision_diff    [{file, before, after}] with {body, structure}; added/removed
+                   documents null their missing side
 
-\`full\` when the document set, epic/blueprint index body, or any scope_parts
-differs; otherwise \`partial\`. Invalid \`--previous\` (missing file, non-JSON, or
-no \`parts\`) prints \`{ ok: false, reason: "previous-payload-invalid" }\` (exit 1).
+\`full\` when the document set or any document's normalized structure differs (task
+added/removed, affected_paths, depends_on, parallel_safe, exclusive_resources,
+execution_kind, scale/review_scope) or when \`--previous\` is a digest-only legacy
+payload (before null, reason legacy-payload-no-content, counts as a restart);
+otherwise every prose edit, including epic/blueprint, Interface and Touch, is
+\`partial\`. Once a cycle or recorded rounds exist, \`--previous\` is required and
+must equal the cycle latest_dispatch. Failures print
+\`{ ok: false, reason, cause, next }\` (exit 1) with reason
+previous-payload-required | previous-payload-invalid | previous-payload-stale.
 `;
 
 /**
@@ -181,6 +204,11 @@ function parsePlanArgs(rest: string[]): ParsedPlan {
   if (Object.prototype.hasOwnProperty.call(f, 'previous')
     && (typeof f.previous !== 'string' || f.previous === '')) {
     return fail('--previous requires a file');
+  }
+  // parseFlags는 중복 플래그에서 마지막 값을 조용히 택한다. 어느 previous가 대조되는지
+  // 모호해지므로 분류기 전에 사용법 오류(exit 2)로 막는다.
+  for (const flag of ['--blueprint', '--previous']) {
+    if (rest.filter((tok) => tok === flag).length > 1) return fail(`${flag} may be given only once`);
   }
   if (f.repo !== undefined && (typeof f.repo !== 'string' || f.repo === '')) {
     return fail('--repo requires a directory');
@@ -280,7 +308,12 @@ function cmdReviewDispatch(rest: string[], io: CliIo): number {
       } catch {
         // ENOENT·SyntaxError·권한 오류를 모두 같은 reason으로 접는다. 운영자가
         // 경로/형식을 고치면 되고, 세부 errno를 strategy 실패와 섞지 않기 위함.
-        io.out(`${JSON.stringify({ ok: false, reason: 'previous-payload-invalid' }, null, 2)}\n`);
+        io.out(`${JSON.stringify({
+          ok: false,
+          reason: 'previous-payload-invalid',
+          cause: 'previous file is missing, unreadable, or not JSON',
+          next: 'pass the unmodified JSON that review-dispatch plan printed (the stored cycle latest_dispatch)',
+        }, null, 2)}\n`);
         return 1;
       }
     }

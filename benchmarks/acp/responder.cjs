@@ -85,13 +85,15 @@ function planGateEvidence(workDir) {
 const IMPLEMENTED_ANSWERS = {
   'init.graphify_promotion': ['enable_and_install'],
   'init.gitignore': ['write_suggested_entries'],
+  // 기준 브랜치 답은 과제마다 달라 고정 목록 대신 `isImplementedAnswer`가 정책 task_facts.base_branch와 대조한다.
+  // 이 항목은 카탈로그 키 검사와 기본 `main` 표기를 위해 남긴다.
   'init.base_branch': ['main'],
   'init.pre_commit_hook': ['install'],
   'plan.request': ['repeat_request_file'],
   'plan.discovery': ['confirm'],
   'plan.id_allocation': ['accept_suggested_ids', 'accept_suggested_ids_or_reuse_sole_draft'],
   'plan.light_scope': ['full'],
-  'plan.verify_command': ['npm test', 'recommended_package_script'],
+  'plan.verify_command': ['npm test', 'recommended_package_script', 'policy_verification_command'],
   'plan.affected_paths': ['confirm_proposed_paths'],
   'plan.activate_pointer': ['set_sole_ready_blueprint'],
   'plan.approval': ['approve'],
@@ -101,6 +103,21 @@ const IMPLEMENTED_ANSWERS = {
   'finalize.remainder': ['finalize_yes_and_remove_worktrees'],
   'finalize.pr': ['local_only'],
 };
+
+/**
+ * 정책 `answer`를 응답기가 행동으로 옮길 수 있는지 판정한다.
+ * `init.base_branch`는 과제마다 기준 브랜치가 달라 정적 표 대신 정책 `task_facts.base_branch`와 같은 답만 구현된 것으로 본다.
+ * 그 밖 게이트는 `IMPLEMENTED_ANSWERS` 표를 그대로 쓴다.
+ *
+ * @param {object} policy - 평가자 정책(`task_facts.base_branch`를 읽는다)
+ * @param {string} gate - 게이트 ID
+ * @param {string} answer - 정책이 그 게이트에 선언한 답
+ * @returns {boolean} 구현된 답이면 true
+ */
+function isImplementedAnswer(policy, gate, answer) {
+  if (gate === 'init.base_branch') return typeof answer === 'string' && answer === policy.task_facts?.base_branch;
+  return Boolean(IMPLEMENTED_ANSWERS[gate]?.includes(answer));
+}
 
 /**
  * 평가자 정책 파일을 읽고 응답기가 따를 수 있는 정책인지 검증한다.
@@ -126,7 +143,7 @@ function loadPolicy(file, deps = {}) {
   for (const id of new Set(Object.values(deps.catalog ?? loadCatalog()).flat())) {
     const decision = decisions.find((candidate) => candidate.gate === id);
     if (!decision) throw new Error(`evaluator policy missing gate ${id}`);
-    if (decision.answer !== 'stop' && !IMPLEMENTED_ANSWERS[id]?.includes(decision.answer)) {
+    if (decision.answer !== 'stop' && !isImplementedAnswer(policy, id, decision.answer)) {
       throw new Error(`evaluator policy answer ${decision.answer} for ${id} is not implemented`);
     }
   }
@@ -241,13 +258,15 @@ const gates = [
     reason: 'policy enables and installs the Graphify promotion' },
   { gate: 'init.base_branch', phase: 'bouncer-init',
     decide({ policy, options, workDir, deps }) {
-      if (policyAnswer(policy, 'init.base_branch') !== 'main' || !workDir) return null;
+      const branch = policy.task_facts?.base_branch;
+      if (!branch || policyAnswer(policy, 'init.base_branch') !== branch || !workDir) return null;
       // git 호출을 deps 뒤에 둔 이유: unit 테스트가 프로세스를 띄우지 않고 브랜치를 주입한다.
-      if ((deps?.currentBranch ?? currentBranch)(workDir) !== 'main') return null;
-      const option = labelMatch(options, /\bmain\b/i);
+      if ((deps?.currentBranch ?? currentBranch)(workDir) !== branch) return null;
+      // 브랜치 이름의 정규식 메타문자(`.` 등)가 문법이 되지 않도록 이스케이프한다.
+      const option = labelMatch(options, new RegExp(`\\b${branch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'));
       return option ? { option, basis: 'content' } : null;
     },
-    reason: 'checkout is on main and main is the one offered base branch' },
+    reason: 'checkout is on the policy base branch and it is the one offered base branch' },
   { gate: 'init.gitignore', phase: 'bouncer-init',
     decide({ policy, prompt, options, workDir }) {
       const expected = policy.task_facts.expected_gitignore_suggestions;
@@ -318,7 +337,16 @@ const gates = [
     },
     reason: 'public CLI contract' },
   { gate: 'plan.verify_command', phase: 'bouncer-plan',
-    decide({ options, workDir }) {
+    decide({ policy, options, workDir }) {
+      // package.json이 없는 과제(Go·Python·Rust)는 정책 검증 명령을 이름으로 가진 권장 선택지를 고른다.
+      // RegExp로 감싸면 `.`·`(`·`+`가 문법이 되므로 `named`와 같은 `{ test }` 객체로 문자열 포함만 본다.
+      if (policyAnswer(policy, 'plan.verify_command') === 'policy_verification_command') {
+        const command = policy.task_facts?.verification_command;
+        if (typeof command !== 'string' || !command) return null;
+        const choice = chooseProceed(options, { require: { test: (label) => label.includes(command) },
+          deny: /unset|\bleave\b|different|다른|않/i });
+        return choice && choice.basis === 'recommended' ? choice : null;
+      }
       if (packageTestScript(workDir) === 'node --test') {
         return chooseProceed(options, { require: /npm test/, deny: /unset|\bleave\b|different|다른|않/i });
       }
@@ -734,5 +762,5 @@ function answerPermission(params) {
   return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
 }
 
-module.exports = { IMPLEMENTED_ANSWERS, finalizeReady, gateIdOf, gitEnv, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState,
+module.exports = { IMPLEMENTED_ANSWERS, isImplementedAnswer, finalizeReady, gateIdOf, gitEnv, loadPolicy, loadCatalog, readTextQuestions, turnQuestionState,
   decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission };

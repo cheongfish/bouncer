@@ -13,7 +13,8 @@
 const { execFileSync, spawnSync } = require('node:child_process');
 const { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 const path = require('node:path');
-const { loadRunnableCard } = require('./task-card.cjs');
+const { loadRunnableCard, runHostVerifier, setupExcludes, verdictFields } = require('./task-card.cjs');
+const { submissionDiff } = require('./submission-diff.cjs');
 
 const projectRoot = path.resolve(__dirname, '..');
 const containerWorkspace = '/workspace';
@@ -39,13 +40,12 @@ function main() {
   if (!link?.startsWith(`${containerWorkspace}/`)) throw new Error('integration worktree has no container gitdir link');
   const env = { ...process.env, GIT_DIR: path.join(workspace, link.slice(containerWorkspace.length + 1)),
     GIT_WORK_TREE: integration };
-  const git = (args) => execFileSync('git', args,
-    { cwd: integration, env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-
-  const head = git(['rev-parse', 'HEAD']).trim();
+  const head = execFileSync('git', ['rev-parse', 'HEAD'],
+    { cwd: integration, env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }).trim();
   // Rescoring replaces the earlier verdict; the verifier refuses an existing work directory.
   for (const stale of ['verify-work', 'verifier.json']) rmSync(path.join(runDir, stale), { recursive: true, force: true });
-  writeFileSync(path.join(runDir, 'diff.patch'), git(['diff', '--binary', '--no-ext-diff', base, 'HEAD', '--']));
+  writeFileSync(path.join(runDir, 'diff.patch'), submissionDiff({ mode: 'ref', cwd: integration, base, ref: 'HEAD',
+    excludes: setupExcludes(record.workspace_setup?.steps ?? null), env: { GIT_DIR: env.GIT_DIR, GIT_WORK_TREE: env.GIT_WORK_TREE } }));
 
   const compose = path.join(projectRoot, 'benchmarks', 'docker', 'compose.cursor.yaml');
   const composeEnv = { ...process.env, BENCH_WORKSPACE: workspace,
@@ -54,20 +54,27 @@ function main() {
     BENCH_GID: String(process.getgid()), CURSOR_API_KEY_FILE: '/dev/null',
     BENCH_CURSOR_DATA: path.join(runDir, '04-finalize', 'cursor-projects'),
     BENCH_CURSOR_LOGS: path.join(runDir, '04-finalize', 'cursor-logs') };
-  execFileSync('docker', ['compose', '-f', compose, 'build', 'verifier'],
-    { cwd: projectRoot, env: composeEnv, stdio: 'ignore' });
-  const result = spawnSync('docker', ['compose', '-f', compose, 'run', '--rm', '--no-deps',
-    ...task.verifier.composeArgs], {
-    cwd: projectRoot, env: composeEnv, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: task.verifier.timeoutMs,
-  });
-  writeFileSync(path.join(runDir, 'verifier.stdout.json'), result.stdout ?? '');
-  writeFileSync(path.join(runDir, 'verifier.stderr.log'), result.stderr ?? '');
-  if (result.error || result.status !== 0 || !existsSync(path.join(runDir, 'verifier.json'))) {
+  let result;
+  if (task.verifier.runtime === 'host') {
+    result = runHostVerifier(task.verifier, { runDir, workDir: workspace });
+  } else {
+    execFileSync('docker', ['compose', '-f', compose, 'build', 'verifier'],
+      { cwd: projectRoot, env: composeEnv, stdio: 'ignore' });
+    result = spawnSync('docker', ['compose', '-f', compose, 'run', '--rm', '--no-deps',
+      ...task.verifier.composeArgs], {
+      cwd: projectRoot, env: composeEnv, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: task.verifier.timeoutMs,
+    });
+    writeFileSync(path.join(runDir, 'verifier.stdout.json'), result.stdout ?? '');
+    writeFileSync(path.join(runDir, 'verifier.stderr.log'), result.stderr ?? '');
+  }
+  // 종료 코드가 0이 아니어도 verifier.json이 있으면 그 판정(unjudgeable 포함)을 기록한다.
+  if (!existsSync(path.join(runDir, 'verifier.json')) && (result.error || result.status !== 0)) {
     throw new Error(`external verifier failed: ${result.error?.message ?? result.stderr}`);
   }
+  if (!existsSync(path.join(runDir, 'verifier.json'))) throw new Error('external verifier failed: verifier.json missing');
   const verdict = JSON.parse(readFileSync(path.join(runDir, 'verifier.json'), 'utf8'));
   Object.assign(record, {
-    judge_status: verdict.judge_status, score: verdict.score, outcome_success: verdict.outcome_success,
+    ...verdictFields(verdict),
     integration_head: head,
     scored_from_archive: {
       at: new Date().toISOString(), head, base,

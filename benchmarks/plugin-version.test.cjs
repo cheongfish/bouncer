@@ -37,3 +37,18 @@ test('runCompose가 원문을 돌려줌 → 그대로 반환하고 이미지 pac
   assert.equal(out, pkg('1.5.7'));
   assert.ok(seen.includes('/home/node/.cursor/plugins/local/bouncer/package.json'));
 });
+
+test('service와 packageJson을 넘김 → runCompose가 그 서비스·경로로 불린다', () => {
+  let seen;
+  readImagePackageJson((args) => { seen = args; return pkg('1.5.7'); },
+    { service: 'deepswe-bouncer', packageJson: '/root/.cursor/plugins/local/bouncer/package.json' });
+  assert.deepEqual(seen, ['run', '--rm', '--no-deps', '--entrypoint', 'cat', 'deepswe-bouncer',
+    '/root/.cursor/plugins/local/bouncer/package.json']);
+});
+
+test('service·packageJson 생략 → 기본 bouncer 서비스와 /home/node 경로', () => {
+  let seen;
+  readImagePackageJson((args) => { seen = args; return pkg('1.5.7'); });
+  assert.deepEqual(seen, ['run', '--rm', '--no-deps', '--entrypoint', 'cat', 'bouncer',
+    '/home/node/.cursor/plugins/local/bouncer/package.json']);
+});

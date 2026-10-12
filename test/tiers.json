@@ -88,6 +88,7 @@
     "pre-commit-hook.test.js",
     "print-dispatch.test.js",
     "public-name-regression.test.js",
+    "context-review-state.test.js",
     "review-dispatch.test.js",
     "run-preflight.test.js",
     "runtime-state.test.js",
