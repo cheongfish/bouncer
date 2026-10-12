@@ -130,6 +130,33 @@ test('path contract rejects an agent copy that lost a path-only required heading
   }
 });
 
+// coding-standards 정본은 H2 아홉 개가 모두 있어야 한다. subskill 공통 제목은 모두 갖추고
+// Test trust만 빠뜨려, 경로 계약만이 잡아낼 수 있는 위반을 만든다.
+test('coding-standards copy without Test trust → exit 1 naming the path and heading', () => {
+  const rel = 'references/coding-standards/index.md';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-doc-shape-'));
+  try {
+    const abs = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, [
+      '---',
+      'name: coding-standards',
+      'description: "fixture"',
+      '---',
+      '# Coding standards',
+      '',
+      ...['When this applies', 'Core rules', 'Tests', 'Error handling', 'Reuse and abstraction',
+        'Comments and docstrings', 'Guardrails', 'Return'].flatMap((h) => [`## ${h}`, '', 'body', '']),
+    ].join('\n'));
+    const { code, err } = runInTmp([rel], dir);
+    assert.strictEqual(code, 1, err);
+    assert.ok(err.includes(rel), err);
+    assert.ok(err.includes('Test trust'), err);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // classifyDocPath가 null인 rules 문서도 표에 있으면 경로 계약만 적용해 검사한다.
 test('path contract checks a null-kind rules document without a skill-shape error', () => {
   const rel = 'rules/commit-scope.md';

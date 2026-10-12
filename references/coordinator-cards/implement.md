@@ -7,10 +7,9 @@ from the coordinator Worker dispatch and the execute agent-dispatch reference.
   Never play that role yourself and never let one worker judge another's
   report.
 - Before a `bouncer-implementer` edits a commit task, require it to read
-  `${BOUNCER_ROOT}/references/implementation/index.md`. This is mandatory, not a suggested
-  reference: its Korean docstring contract requires Summary, one Args entry per
-  parameter, and Returns on every non-trivial function or method the task
-  changes.
+  `${BOUNCER_ROOT}/references/coding-standards/index.md`. This is mandatory, not a suggested
+  reference: it holds the Korean comment and docstring contract and the test
+  and error-handling standards.
 - Immediately before every `bouncer-implementer` call, run `bouncer coordinate
   dispatch` from that task's worktree. Pass only the returned five metadata
   fields with the current brief: `attempt`, `task_brief_hash`, `base_head`,

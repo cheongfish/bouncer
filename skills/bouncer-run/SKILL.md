@@ -37,9 +37,9 @@ Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
 dispatch, and coordinator output fields belong to
 `${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — do not repeat them here.
 For every commit task on a full drive, the coordinator must require its
-implementer to read `${BOUNCER_ROOT}/references/implementation/index.md`
-before editing code. That reference's Korean docstring contract (Summary, Args,
-Returns) is mandatory; the full-path root session still does not load it or
+implementer to read `${BOUNCER_ROOT}/references/coding-standards/index.md`
+before editing code. That reference's Korean comment and docstring contract is
+mandatory; the full-path root session still does not load it or
 implement inline.
 
 For an in-blueprint blocker, the delegated coordinator is the autonomous

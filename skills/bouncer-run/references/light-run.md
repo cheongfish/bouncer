@@ -10,7 +10,8 @@ apply it to a full ledger.
 1. **Implement.** When `coordinate next` returns `implement` with
    `payload.inline: true`, this run session performs the `implementation`
    skill itself in the assigned worktree (the light ledger's integration
-   path). Read `${BOUNCER_ROOT}/references/implementation/index.md` before
+   path). Read `${BOUNCER_ROOT}/references/implementation/index.md` and
+   `${BOUNCER_ROOT}/references/coding-standards/index.md` before
    editing. Do not dispatch named `bouncer-implementer`.
 
 2. **Verify.** Run the task verify command. On failure, dispatch named

@@ -139,7 +139,7 @@ to your `Decision required` judgment, never a second brief.
   records lease-bound judgments, and owns wave fan-in. It does not move the
   pointer per task.
 - Before a `bouncer-implementer` edits a commit task, require it to read
-  `references/implementation/index.md`.
+  `${BOUNCER_ROOT}/references/coding-standards/index.md`.
 - Launching a ready wave in parallel stays allowed. A handle or "started"
   notice is not a report: wait for it, and do not return until every worker's
   final report is collected. Never return `blocked` or `continue` while a
