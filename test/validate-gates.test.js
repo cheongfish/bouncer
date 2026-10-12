@@ -3116,3 +3116,109 @@ test('plan gate G18 keeps rejecting open as an invalid status', () => {
   checkGate('plan', docs, rels, failures);
   assert.ok(failures.some((f) => f.code === 'G18' && /finding CR-4 status invalid: open/.test(f.message)));
 });
+
+// ---- execute delta round: reviewer 하나 규칙 (perspective 수) ----
+
+test('execute G14: 관점 2개 delta round → 실패', () => {
+  const head = 'head-sha';
+  const findings = [convergenceFinding({
+    status: 'resolved', first_seen_round: 1, last_seen_round: 2,
+  })];
+  const failures = executeReviewFailures({
+    findings,
+    rounds: [
+      convergenceRound(),
+      convergenceRound({
+        round: 2,
+        mode: 'delta',
+        previous_finding_ids: ['F1'],
+        new: 0,
+        resolved: 1,
+        regressed: 0,
+        perspectives: [
+          { name: 'spec_scope', target_head: head },
+          { name: 'security', target_head: head },
+        ],
+      }),
+    ],
+  });
+  assert.ok(
+    failures.some((f) => f.message === 'review round 2 delta perspectives invalid: 2'),
+    JSON.stringify(failures),
+  );
+});
+
+test('finalize G21: blueprint root review의 관점 2개 delta round → 실패', () => {
+  const head = 'head-sha';
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', {
+      findings: [convergenceFinding({
+        status: 'resolved', first_seen_round: 1, last_seen_round: 2,
+      })],
+      rounds: [
+        convergenceRound({ target: { base: 'base-sha', head } }),
+        convergenceRound({
+          round: 2,
+          mode: 'delta',
+          target: { base: 'base-sha', head },
+          previous_finding_ids: ['F1'],
+          new: 0,
+          resolved: 1,
+          regressed: 0,
+          perspectives: [
+            { name: 'spec_scope', target_head: head },
+            { name: 'security', target_head: head },
+          ],
+        }),
+      ],
+    }),
+  });
+  assert.ok(
+    failures.some((f) => f.code === 'G21' && f.message === 'review round 2 delta perspectives invalid: 2'),
+    JSON.stringify(failures),
+  );
+});
+
+test('execute G14: 관점 2개 discovery round와 관점 2개 critical_recovery round → 개수 메시지 없음', () => {
+  const twoPerspectives = (head) => [
+    { name: 'spec_scope', target_head: head },
+    { name: 'security', target_head: head },
+  ];
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ last_seen_round: 4 })],
+    rounds: [
+      convergenceRound({ perspectives: twoPerspectives('head-sha') }),
+      convergenceRound({ round: 2, mode: 'delta' }),
+      convergenceRound({
+        round: 3,
+        mode: 'critical_recovery',
+        perspectives: twoPerspectives('head-sha'),
+      }),
+      convergenceRound({ round: 4, mode: 'delta' }),
+    ],
+  });
+  assert.ok(
+    !failures.some((f) => /delta perspectives invalid/.test(f.message)),
+    JSON.stringify(failures),
+  );
+});
+
+test('context G18: 관점 2개 delta round → 실패 없음', () => {
+  assert.deepStrictEqual(contextReviewFailures({
+    findings: [contextFinding({
+      first_seen_round: 2, last_seen_round: 2, origin: 'introduced_by_revision',
+    })],
+    rounds: [
+      contextRound(),
+      contextRound({
+        round: 2,
+        mode: 'delta',
+        target: { digest: 'digest-2' },
+        perspectives: [
+          { name: 'local', target_digest: 'digest-2' },
+          { name: 'global', target_digest: 'digest-2' },
+        ],
+      }),
+    ],
+  }), []);
+});
