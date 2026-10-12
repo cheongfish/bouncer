@@ -25,6 +25,7 @@ const SUBCOMMANDS = [
   'import',
   'review-dispatch',
   'review',
+  'context-review',
   'dispatch',
   'config',
   'retro',
@@ -473,4 +474,22 @@ test('usage와 repair help → supplement kind를 나열한다', () => {
 
 test('usage → retro read --path [--max-chars]를 나열한다', () => {
   assert.match(capture([]).out, /retro read --path <file> \[--max-chars <n>\]/);
+});
+
+test('context-review --help와 -h → usage를 stdout에 출력하고 exit 0을 낸다', () => {
+  for (const flag of ['--help', '-h']) {
+    const r = capture(['context-review', flag]);
+    assert.strictEqual(r.code, 0, `${flag} exit`);
+    assert.strictEqual(r.err, '', `${flag} stderr`);
+    assert.ok(r.out.startsWith('usage: bouncer context-review start'), r.out.slice(0, 80));
+  }
+});
+
+test('context-review 동사 없음·필수 플래그 누락 → usage를 stderr에 내고 exit 2를 낸다', () => {
+  for (const argv of [['context-review'], ['context-review', 'start'], ['context-review', 'restart', '--blueprint', 'x', '--dispatch', 'd']]) {
+    const r = capture(argv);
+    assert.strictEqual(r.code, 2, argv.join(' '));
+    assert.strictEqual(r.out, '');
+    assert.match(r.err, /usage: bouncer context-review/);
+  }
 });
