@@ -10,7 +10,8 @@ apply it to a full ledger.
 1. **Implement.** When `coordinate next` returns `implement` with
    `payload.inline: true`, this run session performs the `implementation`
    skill itself in the assigned worktree (the light ledger's integration
-   path). Read `${BOUNCER_ROOT}/references/implementation/index.md` before
+   path). Read `${BOUNCER_ROOT}/references/implementation/index.md` and
+   `${BOUNCER_ROOT}/references/coding-standards/index.md` before
    editing. Do not dispatch named `bouncer-implementer`.
 
 2. **Verify.** Run the task verify command. On failure, dispatch named
@@ -23,7 +24,11 @@ apply it to a full ledger.
    <frozen-base> --head <frozen-head>`. Dispatch one named `bouncer-reviewer`
    session walking that JSON's `perspectives` in order (light yields
    `strategy: 'single'`, `perspectives: ['combined']`; non-empty `risk_flags`
-   still appends `security`). The reviewer is read-only — it must not write
+   still appends `security`). Pass the reviewer the `Red run` line for this
+   task as `{{RED_RUN}}`: since this session implemented inline, write
+   `TASKS-NNN: <red command run> — <failing assertion or failure point
+   observed>` or `TASKS-NNN: 해당 없음: <reason>` yourself (forms in
+   `${BOUNCER_ROOT}/references/review/index.md`). The reviewer is read-only — it must not write
    files or flip review status.
 
 4. **Fix in scope.** For in-scope findings, this run session edits; then the

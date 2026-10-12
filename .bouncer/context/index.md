@@ -51,3 +51,4 @@ bouncer_schema: '0.1'
 * [092 source-test-hygiene](epics/092-source-test-hygiene/index.md) - Consolidate duplicated source helpers and shift tests to behavior-focused, tiered suites with consumer-facing testing guidance.
 * [093 benchmark-contract-stability](epics/093-benchmark-contract-stability/index.md) - 벤치마크 응답기가 채팅 문장 추측 대신 Bouncer의 기계 판독 계약(게이트 카탈로그·ACQ 블록·drive 요약)만 읽게 해 버전·문구 변화마다 하네스를 고치는 반복을 없앤다.
 * [094 deepswe-benchmark](epics/094-deepswe-benchmark/index.md) - 벤치마크를 ledger 합성 과제에서 DeepSWE의 어려운 상류 과제로 옮겨 vanilla와 bouncer-full의 차이가 드러나게 한다
+* [095 coding-standards-pr-retro](epics/095-coding-standards-pr-retro/index.md) - Give implementers and reviewers one canonical coding and test standard, add test-trust review and a test-name lint, require change diagrams and decision data in every PR, and run an evidence-based retro after finalize.

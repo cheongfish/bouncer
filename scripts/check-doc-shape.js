@@ -912,8 +912,22 @@ const PATH_CONTRACTS = {
   'references/implementation/index.md': {
     frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'implementation' } },
     headings: {
-      required: ['When this applies', 'Steps', 'Language and detailed comments', 'Guardrails', 'Return'],
-      order: ['When this applies', 'Steps', 'Language and detailed comments', 'Guardrails', 'Return'],
+      required: ['When this applies', 'Steps', 'Guardrails', 'Return'],
+      order: ['When this applies', 'Steps', 'Guardrails', 'Return'],
+    },
+  },
+  // 공통 코딩 표준 정본: 역할 문서가 절 이름으로 가리키므로 아홉 절이 모두 있어야 한다.
+  'references/coding-standards/index.md': {
+    frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'coding-standards' } },
+    headings: {
+      required: [
+        'When this applies', 'Core rules', 'Tests', 'Test trust', 'Error handling',
+        'Reuse and abstraction', 'Comments and docstrings', 'Guardrails', 'Return',
+      ],
+      order: [
+        'When this applies', 'Core rules', 'Tests', 'Test trust', 'Error handling',
+        'Reuse and abstraction', 'Comments and docstrings', 'Guardrails', 'Return',
+      ],
     },
   },
   // minimality 사다리는 일곱 단이며 단 번호가 갈라져 있어야 native/stdlib가 한 단으로 합쳐지지 않는다.

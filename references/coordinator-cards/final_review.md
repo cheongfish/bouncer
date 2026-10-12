@@ -81,7 +81,13 @@ Do not read `${BOUNCER_ROOT}/agents/*.md`, `reviewer-prompt.md`, or `review-roun
 
 `--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
 Target, Brief (every commit task brief plus the blueprint Contract),
-Intent sections, Constraints, then delta inputs when mode is delta.
+Intent sections, Constraints, Red run, then delta inputs when mode is delta.
+
+`## Red run` holds one `TASKS-NNN: <value>` line for every commit task in the
+review scope, in task-number order. Copy each task's `Red run` line from its
+latest-attempt report file (`.bouncer/runtime/reports/<task>-<attempt>.md`)
+verbatim, or write `TASKS-NNN: 미제공` when no report is found. A fix or repair
+attempt's latest report replaces that task's earlier line on a delta pass.
 
 ## Finding status
 

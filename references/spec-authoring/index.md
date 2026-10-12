@@ -174,7 +174,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
        fail, widen the brief or narrow verify / defer the contract change —
        do not leave the gap for execute to discover.
-     - **Checklist** (behavior assertions): Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
+     - **Checklist** (behavior assertions): test assertions follow the `Tests` section of `${BOUNCER_ROOT}/references/coding-standards/index.md`.
      - **tasks on a light blueprint**: when blueprint `bouncer.scale` is
        `light`, the required sections are **three** — Goal & intent, Touch,
        Checklist. The scaffolded body has no Interface / Do not touch / Constraints

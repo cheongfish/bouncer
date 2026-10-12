@@ -9,6 +9,14 @@
 
 ### Changed
 
+- **공통 코딩 표준 정본과 Red run 리뷰 (EPIC 095 BP 001)** — 코드·테스트·오류 처리·재사용·
+  한국어 주석 기준을 `references/coding-standards/index.md` 한 곳으로 모으고, 역할 문서의
+  중복 본문을 정본 Read 참조로 바꿨다. 측정 범위는 BP 시작 커밋부터 TASKS-001 커밋까지다.
+  제거한 중복(agent md 세 개, TOML 세 개, implementation, reviewer-prompt, spec-authoring):
+  삭제 222줄, 추가 63줄(대부분 정본 Read 참조). 추가한 정본: 196줄.
+  TASKS-002 추가분은 따로 센다: implementer 보고에 `Red run` 칸을 두고 task·blueprint
+  범위 reviewer slot `{{RED_RUN}}`이 task별 값을 받으며, `correctness_tests`가 정본
+  `Test trust` 절로 판정한다(역할 문서 묶음 TASKS-002 커밋 기준 추가 42줄, 삭제 0줄).
 - **delta 리뷰 단일 reviewer (EPIC 088 BP 008)** — `review-dispatch execute
   --mode delta`는 `combined` reviewer 하나만 돌리고, `coordinate next`는
   discovery round 뒤 `final_review` argv 끝에 그 표시를 붙인다. delta round에
