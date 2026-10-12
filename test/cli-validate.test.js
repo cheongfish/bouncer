@@ -334,8 +334,8 @@ Ship login validation.
   assert.match(g19.message, /TASKS-999|missing|unknown/i);
 });
 
-// G18 신선도는 실제 파일 트리의 snapshot digest를 입력으로 쓴다. 본문 변경은 stale,
-// frontmatter 변경(affected_paths·status 전이)은 digest가 같으므로 통과해야 한다.
+// G18 신선도는 실제 파일 트리의 snapshot digest를 입력으로 쓴다. 본문·실행 구조(affected_paths) 변경은 stale,
+// status 전이는 digest가 같으므로 통과해야 한다.
 test('validate --gate plan with a stale context review digest from the real tree → rejects', () => {
   const { validateBlueprint } = require('../scripts/lib/validate');
   const { computePlanSnapshot } = require('../scripts/lib/plan-snapshot');
@@ -447,18 +447,22 @@ Ship login validation.
   assert.strictEqual(staleG18[0].file, crRel);
   assert.ok(staleG18[0].message.includes(snapshot.digest));
 
+  // affected_paths는 실행 구조라 digest에 들어간다: 범위만 넓혀도 기록된 리뷰는 stale이다.
   const widened = {
     ...tasksData,
     bouncer: { ...tasksData.bouncer, affected_paths: ['src/auth/login.js', 'src/auth/'] },
   };
   writeTasks(widened, tasksBody);
-  const frontmatterOnly = plan();
-  assert.strictEqual(frontmatterOnly.ok, true, JSON.stringify(frontmatterOnly.failures));
+  const scopeOnly = plan();
+  assert.strictEqual(scopeOnly.ok, false);
+  assert.strictEqual(staleOf(scopeOnly).length, 1, JSON.stringify(scopeOnly.failures));
+  assert.ok(staleOf(scopeOnly)[0].message.includes(snapshot.digest));
 
-  // draft는 G3로 막히지만 digest는 같으므로 stale은 없어야 한다. ready로 되돌리면 통과한다.
-  writeTasks({ ...widened, bouncer: { ...widened.bouncer, status: 'draft' } }, tasksBody);
+  // status 전이는 구조가 아니므로 digest를 바꾸지 않는다. 구조(원래 affected_paths)를
+  // 되돌리고 status만 draft로 바꾸면 G3로 막히더라도 stale은 없어야 한다.
+  writeTasks({ ...tasksData, bouncer: { ...tasksData.bouncer, status: 'draft' } }, tasksBody);
   assert.deepStrictEqual(staleOf(plan()), []);
-  writeTasks(widened, tasksBody);
+  writeTasks(tasksData, tasksBody);
   const readyAgain = plan();
   assert.strictEqual(readyAgain.ok, true, JSON.stringify(readyAgain.failures));
 });

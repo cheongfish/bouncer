@@ -10,13 +10,14 @@ type CliIo = {
 
 const ALLOWED_STATUS = ['requested', 'addressed', 'accepted'];
 
-const USAGE_BLOCK = '  context-review <start|record|restart> --blueprint <dir> --dispatch <json>\n'
+const USAGE_BLOCK = '  context-review <start|record|restart|route> --blueprint <dir> --dispatch <json>\n'
   + '             Track plan context-review cycles; limit full restarts to one.\n';
 
 const USAGE = 'usage: bouncer context-review start --blueprint <dir> --dispatch <json>\n'
   + '       bouncer context-review record --blueprint <dir> --dispatch <json> --round <json> '
   + '[--status <requested|addressed|accepted>] [--accept-risk <id[,id...]>]\n'
   + '       bouncer context-review restart --blueprint <dir> --dispatch <json> --reason <text>\n'
+  + '       bouncer context-review route --blueprint <dir> --dispatch <json>\n'
   + '       (each accepts --repo <dir>)\n'
   + '\n'
   + USAGE_BLOCK;
@@ -34,6 +35,11 @@ Failure JSON: { ok: false, reason, cause, next }. reason is one of
   context-review-legacy-evidence | context-review-round-order |
   context-review-input-invalid
 A recorded success is not a plan gate pass.
+
+route is read-only: it reads follow_up from the --dispatch payload (a
+review-dispatch plan run with --previous) and prints { ok, next_action, reason,
+cause, next, cycle } with next_action reuse | delta | restart | user. It never
+writes state; a payload without follow_up is context-review-input-invalid.
 `;
 
 /**
@@ -56,7 +62,7 @@ function argvRequestsHelp(tokens: string[]): boolean {
 }
 
 type Parsed = { error: string } | {
-  verb: 'start' | 'record' | 'restart';
+  verb: 'start' | 'record' | 'restart' | 'route';
   blueprint: string;
   dispatch: string;
   round: string | null;
@@ -77,8 +83,8 @@ type Parsed = { error: string } | {
 function parseArgs(rest: string[]): Parsed {
   const fail = (message: string): Parsed => ({ error: `context-review: ${message}\n${USAGE}` });
   const verb = rest[0];
-  if (verb !== 'start' && verb !== 'record' && verb !== 'restart') {
-    return fail('command must be start, record or restart');
+  if (verb !== 'start' && verb !== 'record' && verb !== 'restart' && verb !== 'route') {
+    return fail('command must be start, record, restart or route');
   }
   const flags = rest.slice(1);
   for (const name of ['blueprint', 'dispatch', 'round', 'status', 'accept-risk', 'reason', 'repo']) {
@@ -152,7 +158,8 @@ function cmdContextReview(rest: string[], io: CliIo): number {
     result = state.recordReport({
       ...base, roundFile: parsed.round as string, status: parsed.status, acceptRisk: parsed.acceptRisk,
     });
-  } else result = state.restartCycle({ ...base, reason: parsed.reason as string });
+  } else if (parsed.verb === 'route') result = state.routeFollowUp(base);
+  else result = state.restartCycle({ ...base, reason: parsed.reason as string });
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }

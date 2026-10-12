@@ -16,9 +16,11 @@ round record the controller keeps; you own only the judging.
 ## Authority
 
 The controller supplies the mode, the frozen target (digest and document
-list), the assigned perspective (discovery) or the previous findings and the
-documents revised for them (delta), and the read-only cwd; these are this
-role's complete call input. On a clustered `local` call the controller also
+list), the assigned perspective (discovery) or, for delta, the previous
+findings plus the revision evidence (`changed_documents`, `revision_diff` with
+each changed document's `before` and `after`, and `related_documents` with
+their current contract text), and the read-only cwd; these are this role's
+complete call input. On a clustered `local` call the controller also
 names the CLI cluster id whose task documents are in the list.
 
 Judge only the document list the controller attached. For `combined` and
@@ -83,12 +85,18 @@ otherwise be valid. Every discovery finding has `origin: discovery`.
 ### Delta
 
 Delta is a certification pass, not a fresh review. Judge whether each previous
-finding is resolved and whether the revision introduced a new problem. Do not
-report a new `minor` or `nit` in text the revision did not change. A new finding
-is allowed only when it is `introduced_by_revision` and evidenced by a revised
-passage, regardless of severity, or when it is a `missed_critical` false
-acceptance path with `blocker` or `major` severity. Attach that origin evidence
-to every new delta finding.
+finding is resolved and whether the revision introduced a new problem, reading
+the actual `before`/`after` in `revision_diff`. `related_documents` are the
+current contracts the changed documents depend on: use them only as evidence to
+judge whether the revision contradicts them, never as text to review. Do not
+report a new `minor` or `nit` in text the revision did not change, and none at
+all from a related document's unchanged text. A new finding is allowed only
+when it is `introduced_by_revision` and its evidence points at a changed
+passage in `revision_diff`, regardless of severity, or when it is a
+`missed_critical` false acceptance path with `blocker` or `major` severity and
+a concrete false-acceptance path. Attach that origin evidence to every new
+delta finding. If `revision_diff` or `related_documents` is missing, report the
+missing input instead of judging.
 
 ## Rubric — four scopes
 
@@ -159,7 +167,8 @@ without inflation:
 Return **only** a Findings list. For each finding include:
 
 - stable `id` — reuse a previous ID when the same finding returns
-- relation to previous findings: `new | resolved | regressed`
+- relation to previous findings: `new | resolved | regressed` (reuse the
+  previous ID for `resolved` and `regressed`)
 - `severity`: `blocker | major | minor | nit`
 - `category` — the perspective name (`combined | local | global |
   cross_document | scope | korean_quality | success_criteria`)

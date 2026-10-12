@@ -75,8 +75,11 @@ function dispatchFile(repo, name = 'dispatch.json', overrides = {}) {
     phase: 'plan',
     target: { digest: snap.digest, documents: snap.documents },
     strategy: 'single',
+    snapshot_version: 2,
     parts: partSnap.parts,
     scope_parts: partSnap.scope_parts,
+    structure_parts: partSnap.structure_parts,
+    documents_content: partSnap.documents_content,
     ...overrides,
   });
 }
@@ -644,4 +647,207 @@ test('restart 표식이 있는 context-review.md → 구조·plan 검증에 표�
   assert.equal(restart(repo, dispatchFile(repo, 'dispatch2.json')).code, 0);
   assert.equal(marker(repo), 1);
   assert.deepEqual(failuresOf(), before);
+});
+
+// --- v2 payload 영속·무결성(BP 096/002 task 001) -------------------------------------
+
+test('v2 dispatch로 start → 저장된 latest_dispatch payload가 입력과 같다', () => {
+  const repo = makeRepo();
+  const file = dispatchFile(repo);
+  assert.equal(start(repo, file).code, 0);
+  const stored = crState.readStoredLatest(repo, BP);
+  assert.equal(stored.ok, true);
+  assert.deepEqual(stored.payload, JSON.parse(fs.readFileSync(file, 'utf8')));
+});
+
+test('snapshot_version이 없거나 지원하지 않는 dispatch → target-invalid로 거부하고 state를 남기지 않는다', () => {
+  const repo = makeRepo();
+  for (const version of [undefined, 1, 3]) {
+    const r = start(repo, dispatchFile(repo, `v${version}.json`, { snapshot_version: version }));
+    assert.equal(r.code, 1);
+    assert.equal(r.json.reason, 'context-review-target-invalid');
+  }
+  assert.equal(findState(repo), null);
+});
+
+test('dispatch의 structure_parts·documents_content가 현재 문서와 다르면 → target-invalid로 거부한다', () => {
+  const repo = makeRepo();
+  const real = computePlanParts({ repoRoot: repo, blueprintDir: BP });
+  const [first] = Object.keys(real.documents_content);
+  const forgedContent = {
+    ...real.documents_content,
+    [first]: { ...real.documents_content[first], body: `${real.documents_content[first].body}forged` },
+  };
+  const a = start(repo, dispatchFile(repo, 'forged-content.json', { documents_content: forgedContent }));
+  assert.equal(a.json.reason, 'context-review-target-invalid');
+  const b = start(repo, dispatchFile(repo, 'forged-structure.json', {
+    structure_parts: { ...real.structure_parts, [first]: 'f'.repeat(64) },
+  }));
+  assert.equal(b.json.reason, 'context-review-target-invalid');
+  assert.equal(findState(repo), null);
+});
+
+test('구조가 같은 문서 보완 뒤 restart → 새 v2 payload가 기록되고 이전 payload는 archive에 남는다', () => {
+  const repo = makeRepo();
+  assert.equal(start(repo, dispatchFile(repo)).code, 0);
+  changeDocs(repo);
+  const r = restart(repo, dispatchFile(repo, 'dispatch2.json'));
+  assert.equal(r.code, 0, r.out + r.err);
+  const state = JSON.parse(fs.readFileSync(findState(repo), 'utf8'));
+  assert.equal(state.cycle.restart_count, 1);
+  assert.equal(state.cycle.history[0].dispatches.length, 1);
+});
+
+/** 실제 review-dispatch 출력처럼 payload에 follow_up을 싣는다(후속 판정은 payload에서 파생된다). */
+function withFollowUp(dispatch, followUp) {
+  const payload = JSON.parse(fs.readFileSync(dispatch, 'utf8'));
+  fs.writeFileSync(dispatch, `${JSON.stringify({ ...payload, follow_up: followUp })}\n`);
+  return dispatch;
+}
+
+/** 라우팅은 읽기 전용이어야 하므로 호출 전후의 state.json bytes를 함께 돌려준다. */
+function route(repo, dispatch, followUp, explicit) {
+  withFollowUp(dispatch, followUp);
+  const stateFile = findState(repo);
+  const before = fs.readFileSync(stateFile);
+  const result = crState.routeFollowUp({
+    repoRoot: repo, blueprintDir: BP, dispatchFile: dispatch, followUp: explicit,
+  });
+  assert.deepEqual(fs.readFileSync(stateFile), before, 'routing must not write state');
+  return result;
+}
+
+/** round 1(discovery)과 round 2(delta)를 기록한 cycle을 만든다. */
+function cycleAfterDelta(repo, findings = [ADVISORY]) {
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [MUST_FIX]));
+  record(repo, d, roundFile(
+    repo, 'r2.json', 2, 'delta',
+    findings.length === 0 ? [] : findings,
+  ));
+  return d;
+}
+
+test('delta 완료 뒤 새 partial target → 세 번째 delta 대신 restart를 가리키고 state는 그대로다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd2.json'), 'partial');
+  assert.equal(out.ok, true);
+  assert.equal(out.next_action, 'restart');
+  assert.equal(typeof out.reason, 'string');
+  assert.equal(typeof out.next, 'string');
+});
+
+test('discovery만 끝난 cycle의 새 partial target → delta, structural full → restart를 가리킨다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  const d2 = dispatchFile(repo, 'd2.json');
+  assert.equal(route(repo, d2, 'partial').next_action, 'delta');
+  assert.equal(route(repo, d2, 'full').next_action, 'restart');
+});
+
+test('마지막 reviewed target과 같은 target → reuse이고 round 개수는 늘지 않는다', () => {
+  const repo = makeRepo();
+  const d = cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  const out = route(repo, d, 'partial');
+  assert.equal(out.next_action, 'reuse');
+  const state = JSON.parse(fs.readFileSync(findState(repo), 'utf8'));
+  assert.equal(state.cycle.active_reports.length, 2);
+});
+
+test('restart를 이미 쓴 cycle의 새 stale target → user로 멈추고 cause와 next를 준다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  assert.equal(restart(repo, dispatchFile(repo, 'd2.json')).code, 0);
+  record(repo, dispatchFile(repo, 'd2b.json'), roundFile(repo, 'r1b.json', 1, 'discovery', []));
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd3.json'), 'full');
+  assert.equal(out.next_action, 'user');
+  assert.equal(typeof out.cause, 'string');
+  assert.equal(typeof out.next, 'string');
+});
+
+test('delta 뒤 미해결 must_fix가 남은 cycle의 stale target → user로 멈춘다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd2.json'), 'full');
+  assert.equal(out.next_action, 'user');
+  assert.equal(out.reason, 'context-review-unresolved-findings');
+});
+
+test('아직 round가 기록되지 않은 cycle → user로 멈춘다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  assert.equal(route(repo, d, 'partial').next_action, 'user');
+});
+
+test('delta 뒤 세 번째 round 기록 요청 → 거부되고 round는 2개로 유지된다', () => {
+  const repo = makeRepo();
+  const d = cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  const third = record(repo, d, roundFile(repo, 'r3.json', 3, 'delta', []));
+  assert.equal(third.code, 1);
+  assert.equal(third.json.reason, 'context-review-round-order');
+  const state = JSON.parse(fs.readFileSync(findState(repo), 'utf8'));
+  assert.equal(state.cycle.active_reports.length, 2);
+});
+
+test('caller followUp이 payload follow_up과 다름 → input-invalid로 거절된다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd2.json'), 'full', 'partial');
+  assert.equal(out.ok, false);
+  assert.equal(out.reason, 'context-review-input-invalid');
+});
+
+test('payload에 follow_up이 없음 → input-invalid로 거절된다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', []));
+  const out = crState.routeFollowUp({ repoRoot: repo, blueprintDir: BP, dispatchFile: d });
+  assert.equal(out.ok, false);
+  assert.equal(out.reason, 'context-review-input-invalid');
+});
+
+test('route 동사에 discovery 뒤 partial payload → exit 0과 delta를 출력하고 state는 그대로다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  const d2 = withFollowUp(dispatchFile(repo, 'd2.json'), 'partial');
+  const before = fs.readFileSync(findState(repo));
+  const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d2]);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.equal(r.json.next_action, 'delta');
+  assert.deepEqual(fs.readFileSync(findState(repo)), before);
+});
+
+test('route 동사에 record 전용 플래그 → exit 2 사용법 거절이다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d, '--reason', 'x']);
+  assert.equal(r.code, 2);
+});
+
+test('route 동사에 follow_up 없는 payload → exit 1과 input-invalid를 출력한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d]);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-input-invalid');
 });
