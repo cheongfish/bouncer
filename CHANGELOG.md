@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+## [1.5.9] — 2026-10-12
+
+1.5.8 패치. 계획 리뷰 반복 제한과 이력 보존(EPIC 096 BP 001), 계획 변경분 delta 인증과
+리뷰 만료 처리(BP 002)를 담는다.
+
 ### Changed
 
 - **계획 리뷰 반복 제한 (EPIC 096 BP 001)** — `bouncer context-review start|record|restart`가
