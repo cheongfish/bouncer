@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { seedWorktree, realGit, seedIntegration, seedCoordinatorWorker, releaseSeedManifest, prepareDependencies } = require('../scripts/lib/seed-worktree');
+const { seedWorktree, realGit, seedIntegration, seedCoordinatorWorker, releaseSeedManifest, prepareDependencies, linkLocalEnv } = require('../scripts/lib/seed-worktree');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -832,4 +832,52 @@ test('prepareDependencies without a lockfile → does nothing', () => {
 
   assert.strictEqual(res.ok, true);
   assert.deepStrictEqual(calls, []);
+});
+
+// main checkout에 ignored `.venv`·`.env`가 있는 저장소와 그 worktree를 만든다.
+function makeRepoWithLocalEnv() {
+  const repo = makeRepo();
+  write(repo, '.gitignore', '.venv\n.env\n');
+  git(repo, ['add', '.gitignore']);
+  git(repo, ['commit', '-qm', 'ignore local env']);
+  write(repo, '.venv/bin/pytest', '#!/bin/sh\n');
+  write(repo, '.env', 'DATABASE_URL=x\n');
+  return { repo, wt: makeWorktree(repo) };
+}
+
+test('prepareDependencies in a linked worktree → symlinks the main checkout .venv and .env', () => {
+  const { repo, wt } = makeRepoWithLocalEnv();
+
+  const res = prepareDependencies(wt, {});
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(fs.readlinkSync(path.join(wt, '.venv')), path.join(repo, '.venv'));
+  assert.strictEqual(fs.readlinkSync(path.join(wt, '.env')), path.join(repo, '.env'));
+  assert.strictEqual(read(wt, '.venv/bin/pytest'), '#!/bin/sh\n');
+  assert.strictEqual(status(wt), '');
+});
+
+test('linkLocalEnv when the worktree already has the path → keeps it', () => {
+  const { wt } = makeRepoWithLocalEnv();
+  write(wt, '.env', 'LOCAL=1\n');
+
+  assert.deepStrictEqual(linkLocalEnv(wt), ['.venv']);
+  assert.strictEqual(fs.lstatSync(path.join(wt, '.env')).isSymbolicLink(), false);
+  assert.strictEqual(read(wt, '.env'), 'LOCAL=1\n');
+});
+
+test('linkLocalEnv when the path is not ignored → does not link', () => {
+  const repo = makeRepo();
+  write(repo, '.env', 'DATABASE_URL=x\n');
+  const wt = makeWorktree(repo);
+
+  assert.deepStrictEqual(linkLocalEnv(wt), []);
+  assert.strictEqual(fs.existsSync(path.join(wt, '.env')), false);
+});
+
+test('linkLocalEnv on the main checkout → does nothing', () => {
+  const { repo } = makeRepoWithLocalEnv();
+
+  assert.deepStrictEqual(linkLocalEnv(repo), []);
+  assert.strictEqual(fs.lstatSync(path.join(repo, '.env')).isSymbolicLink(), false);
 });
