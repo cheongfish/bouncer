@@ -43,6 +43,12 @@
 
 ### Added
 
+- **DeepSWE 벤치마크 과제 4개 (EPIC 094 BP 002)** — 해결률 30~45%인 TypeScript(quill)·Go(expr)·
+  Python(python-statemachine)·Rust(oxvg) 과제의 카드, 평가자 정책(`proposed`, 사용자 승인 전에는
+  실행기가 거절), 루브릭 `rubrics/deepswe.md`, 출처·라이선스 문서 `benchmarks/deepswe/README.md`를
+  더했다. `check-deepswe-solution.cjs <card-id>`는 공식 채점기가 손대지 않은 작업 공간을 reward 0,
+  정답 patch를 reward 1로 판정하는지 확인한다.
+
 - **ACQ 기계 계약 (EPIC 093 BP 001)** — 게이트 ID 카탈로그를 테스트 상수에서
   `rules/acq-gates.json` 데이터 파일로 옮겼다. 채팅 ACQ 표시와 open decisions 메시지는
   외부 응답기가 문장을 추측하지 않도록 한 줄 판독 블록을 요구한다. `bouncer finalize

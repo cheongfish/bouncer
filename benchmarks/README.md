@@ -73,6 +73,15 @@ clone한다. `allowed_paths`·`forbidden_paths`와 `workspace_setup`의 `to`는 
 경로 여부, 허용·금지 경로 충돌, verifier 실행 가능 여부, 정답 테스트가 여러
 올바른 구현을 받아들이는지 확인. 마지막 항목은 과제 제작자가 검토한다.
 
+## DeepSWE 과제
+
+`deepswe-*` 카드는 [DeepSWE](https://github.com/datacurve-ai/deep-swe)의 과제(TypeScript·Go·Python·Rust 각 하나)다.
+`deepswe/manifest.json`이 고정 커밋과 카드-과제 대응을 두고, `prepare-deepswe-task.cjs <card-id>`가 과제와 기준
+작업 공간을 `fixtures/deepswe/`에 만든다. 채점은 공식 `tests/test.sh`를 호스트 docker로 돌리는
+`verifiers/deepswe.cjs`가 하며 주점수는 `reward`(0 또는 1)다([`rubrics/deepswe.md`](rubrics/deepswe.md)).
+`check-deepswe-solution.cjs <card-id>`는 손대지 않은 작업 공간이 reward 0, 정답 patch가 reward 1인지 확인한다.
+출처·라이선스·명령·확인 기록은 [`deepswe/README.md`](deepswe/README.md)를 본다.
+
 ## 실행과 결과의 경계
 
 `configs/`에는 고정한 모델·CLI·플러그인 버전, 저장소, 조건, 시간 제한,

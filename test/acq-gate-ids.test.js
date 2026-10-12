@@ -48,14 +48,28 @@ test('카탈로그 workflows 키 → ACQ 절을 가진 skills/*/SKILL.md의 skil
   assert.deepEqual(keys, ['bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-run', 'bouncer-finalize', 'bouncer-retro']);
 });
 
-const POLICY_NAMES = ['fastify-001'];
+const APPROVED_POLICY_NAMES = ['fastify-001'];
+const PROPOSED_POLICY_NAMES = ['deepswe-quill-001', 'deepswe-expr-001', 'deepswe-statemachine-001', 'deepswe-oxvg-001'];
+const POLICY_NAMES = [...APPROVED_POLICY_NAMES, ...PROPOSED_POLICY_NAMES];
+
+/**
+ * 정책 파일을 읽는다. 파일이 없으면 ENOENT 대신 파일 경로를 담은 단언 실패로 알린다.
+ *
+ * @param {string} name - 정책 이름(카드 id).
+ * @returns {object} 파싱한 정책.
+ */
+function readPolicy(name) {
+  const file = `benchmarks/configs/${name}-evaluator-policy.json`;
+  assert.ok(fs.existsSync(path.join(root, file)), file);
+  return JSON.parse(read(file));
+}
 
 test('the benchmark evaluator policies → answer only catalogued gate IDs', () => {
   const known = new Set(Object.values(CATALOG).flat());
   // 제품이 정의하지 않은 포인터 활성화 질문은 과거 run 호환용으로만 남는다.
   const legacy = new Set(['plan.activate_pointer', 'finalize.quiz']);
   for (const name of POLICY_NAMES) {
-    const policy = JSON.parse(read(`benchmarks/configs/${name}-evaluator-policy.json`));
+    const policy = readPolicy(name);
     for (const decision of policy.bouncer_decisions) {
       assert.ok(known.has(decision.gate) || legacy.has(decision.gate), `${name}: unknown policy gate ${decision.gate}`);
     }
@@ -64,21 +78,28 @@ test('the benchmark evaluator policies → answer only catalogued gate IDs', () 
 
 test('the benchmark evaluator policies are v3 → they answer finalize.remainder with --yes', () => {
   for (const name of POLICY_NAMES) {
-    const policy = JSON.parse(read(`benchmarks/configs/${name}-evaluator-policy.json`));
+    const policy = readPolicy(name);
     assert.equal(policy.policy_version, 3, name);
     assert.ok(!policy.bouncer_decisions.some((d) => d.gate === 'finalize.next_blueprint'), name);
     const remainder = policy.bouncer_decisions.find((d) => d.gate === 'finalize.remainder');
     assert.equal(remainder.answer, 'finalize_yes_and_remove_worktrees', name);
-    assert.match(policy.approval_record, /2026-10-08 conversation: 사용자 승인/, name);
+    if (policy.approval_state === 'approved') {
+      assert.match(policy.approval_record, /2026-10-08 conversation: 사용자 승인/, name);
+    } else {
+      assert.equal(policy.approval_state, 'proposed', name);
+      assert.equal(policy.approved_by, null, name);
+    }
   }
   // fastify-001은 2026-10-11 사용자 승인으로 실행 가능한 정책이 됐다.
-  assert.equal(JSON.parse(read('benchmarks/configs/fastify-001-evaluator-policy.json')).approval_state, 'approved');
+  assert.equal(readPolicy('fastify-001').approval_state, 'approved');
+  // DeepSWE 정책은 측정 전에 사용자가 따로 승인하므로 그때까지 proposed다.
+  for (const name of PROPOSED_POLICY_NAMES) assert.equal(readPolicy(name).approval_state, 'proposed', name);
 });
 
 test('다섯 정책 → 카탈로그 모든 게이트에 bouncer_decisions 항목 있음', () => {
   const ids = Object.values(CATALOG).flat();
   for (const name of POLICY_NAMES) {
-    const gates = new Set(JSON.parse(read(`benchmarks/configs/${name}-evaluator-policy.json`)).bouncer_decisions
+    const gates = new Set(readPolicy(name).bouncer_decisions
       .map((decision) => decision.gate));
     for (const id of ids) assert.ok(gates.has(id), `${name}: missing policy entry for ${id}`);
   }

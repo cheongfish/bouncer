@@ -1,0 +1,54 @@
+# DeepSWE 카드용 에이전트 이미지: 과제 이미지(`prepared.json`의 `docker_image`)를 베이스로 cursor-agent와
+# (bouncer 단계에서) 플러그인을 얹는다. 과제 이미지가 언어 툴체인(Go·Rust·Python 등)을 이미 갖고 있어
+# Dockerfile.cursor의 Node 고정 이미지로는 실행할 수 없는 과제를 위한 것이다.
+# 과제 이미지는 root로 돌고 Debian 계열(apt)이며 `node`가 들어 있다고 가정한다. 그래서 Dockerfile.cursor의
+# `node` 사용자 대신 /root를 홈으로 쓰고, 컨테이너가 남긴 root 소유 파일은 실행기가 chown으로 되돌린다.
+ARG TASK_IMAGE
+
+FROM node:24-bookworm-slim AS plugin-build
+WORKDIR /opt/bouncer
+COPY package.json package-lock.json tsconfig.json ./
+COPY scripts/ ./scripts/
+RUN npm ci && npm run build
+
+FROM ${TASK_IMAGE} AS deepswe-vanilla
+USER root
+# 과제 이미지에 없을 수 있는 설치 스크립트 의존만 보충한다. 이미 있는 도구는 apt가 그대로 둔다.
+RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl git \
+    && rm -rf /var/lib/apt/lists/*
+# PATH는 과제 이미지의 값(Go·cargo 등)을 보존한 채 cursor-agent 위치만 앞에 더한다.
+ENV HOME=/root PATH=/root/.local/bin:${PATH}
+RUN curl -fsSL https://cursor.com/install -o /tmp/install-cursor.sh \
+    && bash /tmp/install-cursor.sh \
+    && rm /tmp/install-cursor.sh \
+    && cursor-agent --version
+WORKDIR /workspace
+COPY --chmod=755 benchmarks/docker/agent-entrypoint.sh /usr/local/bin/benchmark-agent
+# Print-mode runs use --force; the evaluator's shell policy is enforced by this user-level hook instead.
+COPY benchmarks/shell-policy.cjs /opt/benchmark/shell-policy.cjs
+COPY --chmod=755 benchmarks/docker/shell-guard.cjs /usr/local/bin/benchmark-shell-guard
+COPY benchmarks/docker/cursor-hooks.json /root/.cursor/hooks.json
+# 과제 이미지의 ENTRYPOINT/CMD 대신 벤치마크 진입점을 쓴다.
+ENTRYPOINT ["/usr/local/bin/benchmark-agent"]
+
+FROM deepswe-vanilla AS deepswe-bouncer
+ENV BOUNCER_HOME=/root/.cursor/plugins/local/bouncer
+COPY --from=plugin-build /opt/bouncer/scripts/ /root/.cursor/plugins/local/bouncer/scripts/
+COPY package.json plugin.json AGENTS.md /root/.cursor/plugins/local/bouncer/
+COPY .cursor-plugin/ /root/.cursor/plugins/local/bouncer/.cursor-plugin/
+COPY agents/ /root/.cursor/plugins/local/bouncer/agents/
+COPY hooks/ /root/.cursor/plugins/local/bouncer/hooks/
+COPY references/ /root/.cursor/plugins/local/bouncer/references/
+COPY resources/ /root/.cursor/plugins/local/bouncer/resources/
+COPY rules/ /root/.cursor/plugins/local/bouncer/rules/
+COPY skills/ /root/.cursor/plugins/local/bouncer/skills/
+ENV PATH=/root/.cursor/plugins/local/bouncer/scripts:${PATH}
+# 로그인/비로그인/대화형 셸 모두 bouncer를 찾도록 profile.d와 .bashrc에 플러그인 scripts를 넣는다.
+# $PATH는 빌드 셸이 펼치지 않도록 작은따옴표로 둔다(Dockerfile.cursor와 같은 이유).
+RUN printf '%s\n' 'export PATH="/root/.cursor/plugins/local/bouncer/scripts:/root/.local/bin:$PATH"' > /etc/profile.d/bouncer-path.sh \
+    && printf '%s\n' 'export PATH="/root/.cursor/plugins/local/bouncer/scripts:/root/.local/bin:$PATH"' >> /root/.bashrc
+RUN bouncer-root --auto && test -f "$BOUNCER_HOME/skills/bouncer-init/SKILL.md"
+# The Bouncer config sets subagents.dispatch to "print"; this hook enforces that dispatch so no agent runs as an
+# unmetered Task subagent. Vanilla keeps the base hooks, since it has no such rule.
+COPY --chmod=755 benchmarks/docker/subagent-guard.cjs /usr/local/bin/benchmark-subagent-guard
+COPY benchmarks/docker/cursor-hooks.bouncer.json /root/.cursor/hooks.json

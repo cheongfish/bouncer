@@ -7,8 +7,11 @@ const path = require('node:path');
 const { transcriptFiles, usageCoverage, usageFromCursorLogs, usageFromCursorStream } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
-const { applyWorkspaceSetup, loadRunnableCard, taskRecord } = require('./task-card.cjs');
+const { applyWorkspaceSetup, loadRunnableCard, runHostVerifier, setupExcludes, taskRecord, verdictFields } = require('./task-card.cjs');
+const { submissionDiff } = require('./submission-diff.cjs');
 const { assertImagePluginVersion } = require('./plugin-version.cjs');
+const { loadPrepared } = require('./prepare-deepswe-task.cjs');
+const { agentRuntime, runtimeRecordFields, withOwnershipRestore } = require('./agent-runtime.cjs');
 const { clearTimeout, setTimeout } = require('node:timers');
 
 const root = __dirname;
@@ -25,7 +28,7 @@ function options(argv) {
     const key = argv[i];
     const value = argv[i + 1];
     if (!['--task', '--condition', '--model', '--key-file', '--run-id', '--timeout-minutes', '--dry-run',
-      '--keep-workspace'].includes(key)
+      '--keep-workspace', '--build-only'].includes(key)
       || !value || parsed[key]) fail(`unknown or duplicate option: ${key}`);
     parsed[key] = value;
   }
@@ -36,7 +39,10 @@ function options(argv) {
   if (parsed['--model'].startsWith('-')) fail('--model must be a model name');
   if (parsed['--dry-run'] && parsed['--dry-run'] !== 'true') fail('--dry-run accepts true');
   if (parsed['--keep-workspace'] && parsed['--keep-workspace'] !== 'true') fail('--keep-workspace accepts true');
-  if (!parsed['--dry-run'] && !parsed['--key-file']) fail('--key-file is required');
+  if (parsed['--build-only'] && parsed['--build-only'] !== 'true') fail('--build-only accepts true');
+  parsed.buildOnly = parsed['--build-only'] === 'true';
+  // 빌드 확인은 에이전트 요청을 보내지 않으므로 키 파일 없이도 돌 수 있다.
+  if (!parsed['--dry-run'] && !parsed.buildOnly && !parsed['--key-file']) fail('--key-file is required');
   // 기본 과제가 없다: 합성 기본값에 기대면 과제 선택이 조용히 바뀌므로 파일 검사 전에 명시를 요구한다.
   if (!parsed['--task']) fail('--task is required');
   const minutes = Number(parsed['--timeout-minutes'] ?? '30');
@@ -110,8 +116,57 @@ function parseCursorStream(jsonl) {
   return { answer, sessionId };
 }
 
+/**
+ * 이미지만 빌드하고 버전을 기록한 뒤 끝난다(`--build-only true`).
+ * 작업 공간 준비와 에이전트 요청은 하지 않으므로 키 파일이 필요 없다. compose는 파일 전체의 `:?` 변수를
+ * 보간하므로, 쓰지 않을 마운트 원본은 실행 디렉터리 안 빈 자리표시자로 채운다.
+ *
+ * @param {object} config - `options` 결과
+ * @param {object} runtime - `agentRuntime` 결과
+ * @returns {void}
+ */
+function buildOnly(config, runtime) {
+  const condition = config['--condition'];
+  const runDir = path.join(root, 'runs', config.runId);
+  if (existsSync(runDir)) fail(`run already exists: ${config.runId}`);
+  mkdirSync(runDir, { recursive: true });
+  const placeholders = { workspace: path.join(runDir, 'workspace'), data: path.join(runDir, 'cursor-projects'),
+    logs: path.join(runDir, 'cursor-logs'), prompt: path.join(runDir, 'prompt.txt') };
+  for (const dir of [placeholders.workspace, placeholders.data, placeholders.logs]) mkdirSync(dir);
+  writeFileSync(placeholders.prompt, '');
+  const env = {
+    ...process.env, ...runtime.env,
+    BENCH_WORKSPACE: placeholders.workspace, BENCH_PROMPT: placeholders.prompt, BENCH_RESULT_DIR: runDir,
+    BENCH_MODEL: config['--model'], BENCH_UID: String(process.getuid()), BENCH_GID: String(process.getgid()),
+    CURSOR_API_KEY_FILE: config.keyFile ?? '/dev/null',
+    BENCH_CURSOR_DATA: placeholders.data, BENCH_CURSOR_LOGS: placeholders.logs,
+  };
+  const record = { run_id: config.runId, task_id: config.taskId, condition, model: config['--model'],
+    plugin_version: null, status: 'building' };
+  runCompose(['build', runtime.service, 'verifier'], env);
+  if (condition === 'bouncer-full') {
+    record.plugin_version = assertImagePluginVersion({ compose: composeFile, env, cwd: root,
+      checkoutVersion: JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version,
+      service: runtime.service, packageJson: runtime.pluginPackageJson });
+  }
+  record.cursor_version = runCompose(
+    ['run', '--rm', '--no-deps', '--entrypoint', 'cursor-agent', runtime.service, '--version'], env,
+  ).trim();
+  Object.assign(record, runtimeRecordFields(runtime, { runDocker: (args) => command('docker', args) }));
+  record.status = 'built';
+  saveJson(path.join(runDir, 'run.json'), record);
+  process.stdout.write(`${runDir}\n`);
+}
+
 async function main() {
   const config = options(process.argv.slice(2));
+  // DeepSWE 카드는 prepared.json이 있고 그 과제 이미지 위에서 돈다. 없으면 기존 Node 이미지를 쓴다.
+  const runtime = agentRuntime({ taskId: config.taskId, condition: config['--condition'],
+    prepared: loadPrepared(config.taskId) });
+  if (config.buildOnly) {
+    buildOnly(config, runtime);
+    return;
+  }
   const task = loadRunnableCard(config.taskId);
   const baseCommit = task.card.base_commit;
   const runDir = path.join(root, 'runs', config.runId);
@@ -130,7 +185,7 @@ async function main() {
 
   const condition = config['--condition'];
   const commonRequest = task.requestText.trim();
-  const service = condition === 'bouncer-full' ? 'bouncer' : 'vanilla';
+  const { service } = runtime;
   const prompt = condition === 'bouncer-full'
     ? [
       'Use the installed Bouncer plugin and its full workflow for this task.',
@@ -148,6 +203,7 @@ async function main() {
 
   const env = {
     ...process.env,
+    ...runtime.env,
     BENCH_WORKSPACE: workDir,
     BENCH_PROMPT: promptFile,
     BENCH_RESULT_DIR: runDir,
@@ -163,6 +219,7 @@ async function main() {
     ...taskRecord(task),
     condition,
     plugin_version: null, // bouncer-full은 이미지 빌드 뒤 이미지 안 값으로 채운다.
+    deviations: runtime.deviations,
     model: config['--model'],
     ...sourceProvenance(projectRoot),
     workspace_setup: workspaceSetup,
@@ -184,23 +241,24 @@ async function main() {
   // 에이전트 요청 전에 이미지 플러그인 버전이 checkout과 같은지 확인한다. vanilla는 플러그인이 없어 검사하지 않는다.
   if (condition === 'bouncer-full') {
     record.plugin_version = assertImagePluginVersion({ compose: composeFile, env, cwd: root,
-      checkoutVersion: JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version });
+      checkoutVersion: JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version,
+      service, packageJson: runtime.pluginPackageJson });
     saveJson(path.join(runDir, 'run.json'), record);
   }
   record.cursor_version = runCompose(
     ['run', '--rm', '--no-deps', '--entrypoint', 'cursor-agent', service, '--version'], env,
   ).trim();
-  record.image_id = command('docker', [
-    'image', 'inspect', `bouncer-benchmark-cursor-${service}:local`, '--format', '{{.Id}}',
-  ]).trim();
+  Object.assign(record, runtimeRecordFields(runtime, { runDocker: (args) => command('docker', args) }));
   record.started_at = new Date().toISOString();
   saveJson(path.join(runDir, 'run.json'), record);
 
-  const agentResult = await streamCompose(
-    ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-${service}`, service], env,
-    path.join(runDir, 'cursor.stdout.jsonl'), path.join(runDir, 'cursor.stderr.log'), config.timeoutMs,
-    `cursor-bench-${config.runId}-${service}`,
-  );
+  // DeepSWE 컨테이너는 root로 파일을 만든다. 성공·실패·시간 초과 모두 호스트 git 작업(diff) 전에 소유권을 되돌린다.
+  const agentResult = await withOwnershipRestore(runtime, { uid: process.getuid(), gid: process.getgid() },
+    () => streamCompose(
+      ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-${service}`, service], env,
+      path.join(runDir, 'cursor.stdout.jsonl'), path.join(runDir, 'cursor.stderr.log'), config.timeoutMs,
+      `cursor-bench-${config.runId}-${service}`,
+    ), { runCompose: (args) => runCompose(args, env) });
   record.agent = agentResult;
   record.ended_at = new Date().toISOString();
   record.duration_ms = Date.parse(record.ended_at) - Date.parse(record.started_at);
@@ -227,22 +285,28 @@ async function main() {
   }
   writeFileSync(path.join(runDir, 'final-answer.txt'), cursorStream.answer);
 
-  command('git', ['-C', workDir, 'add', '-N', '--all']);
-  const patch = command('git', ['-C', workDir, 'diff', '--binary', '--no-ext-diff', baseCommit, '--']);
+  // 소유권 복원(withOwnershipRestore) 뒤라 호스트 git이 읽을 수 있다. Bouncer 관리 경로와 복원 파일은 제출에서 뺀다.
+  const patch = submissionDiff({ mode: 'worktree', cwd: workDir, base: baseCommit,
+    excludes: setupExcludes(workspaceSetup?.steps ?? null) });
   writeFileSync(path.join(runDir, 'diff.patch'), patch);
   saveJson(path.join(runDir, 'run.json'), record);
 
-  const verifierResult = await streamCompose(
-    ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-verify`, ...task.verifier.composeArgs], env,
-    path.join(runDir, 'verifier.stdout.json'), path.join(runDir, 'verifier.stderr.log'), task.verifier.timeoutMs,
-    `cursor-bench-${config.runId}-verify`,
-  );
+  let verifierResult;
+  if (task.verifier.runtime === 'host') {
+    // 과제 이미지가 카드마다 달라 compose verifier 대신 호스트에서 채점기를 직접 띄운다.
+    const hostResult = runHostVerifier(task.verifier, { runDir, workDir });
+    verifierResult = { exitCode: hostResult.status, signal: hostResult.signal, timedOut: hostResult.error?.code === 'ETIMEDOUT',
+      error: hostResult.error?.message ?? null };
+  } else {
+    verifierResult = await streamCompose(
+      ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-verify`, ...task.verifier.composeArgs], env,
+      path.join(runDir, 'verifier.stdout.json'), path.join(runDir, 'verifier.stderr.log'), task.verifier.timeoutMs,
+      `cursor-bench-${config.runId}-verify`,
+    );
+  }
   record.verifier = verifierResult;
   if (existsSync(path.join(runDir, 'verifier.json'))) {
-    const result = JSON.parse(readFileSync(path.join(runDir, 'verifier.json'), 'utf8'));
-    record.judge_status = result.judge_status;
-    record.score = result.score;
-    record.outcome_success = result.outcome_success;
+    Object.assign(record, verdictFields(JSON.parse(readFileSync(path.join(runDir, 'verifier.json'), 'utf8'))));
   } else {
     record.judge_status = 'unjudgeable';
   }
