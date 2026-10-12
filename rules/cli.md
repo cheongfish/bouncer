@@ -143,6 +143,7 @@ bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
 bouncer subagent-model --agent <name> [--provider <name>]
 bouncer config --help
+bouncer retro sources [--repo <dir>] [--limit <1..200>] [--claude-root <dir>] [--codex-root <dir>] [--cursor-root <dir>]
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
@@ -154,6 +155,8 @@ bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|co
 ```
 
 Use `project-root` to locate the consuming repository from linked worktrees.
+`retro sources` lists this project's Claude Code, Codex, and Cursor transcript
+candidates newest first as JSON, with `skipped` reasons; it never reads transcript bodies.
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
