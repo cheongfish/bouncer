@@ -9,6 +9,9 @@
 
 ### Changed
 
+- **세션 근거 retro (EPIC 095 BP 004)** — `/bouncer-finalize` 5단계(Handoff) 끝에서 finalize가
+  닫히고 `release-main`이 `ok:true`일 때 `bouncer-retro`를 현재 대화 근거만으로 자동 실행한다.
+  결과는 `retro` 머리말 아래 채팅에 출력하고, 실패해도 finalize 결과·`closed`·포인터는 그대로 둔다.
 - **PR 변경 그림과 판단 자료 필수화 (EPIC 095 BP 003)** — 모든 PR에 `변경 그림`,
   `변경 전후`, `되돌리기 · 영향 범위` 절을 필수로 두고 조건부 `로직 흐름` 생략 규칙을
   없앴다. `draft-pr.md`와 PR 템플릿 세 곳(`PR_TEMPLATE`, GitHub, GitLab)의 절 순서를

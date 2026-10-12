@@ -18,7 +18,7 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8
 
 const LAUNCHER_SKILLS = [
   'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit',
-  'bouncer-finalize', 'bouncer-run', 'explain-diff', 'graphify-runner',
+  'bouncer-finalize', 'bouncer-run', 'bouncer-retro', 'explain-diff', 'graphify-runner',
   'review',
 ];
 // 호스 카탈로그에서 뺀 보조는 references/<name>/index.md에 본문이 있다.

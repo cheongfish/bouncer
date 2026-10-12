@@ -153,7 +153,7 @@ Plugins Directory에 넣지 말고 `git clone -b release <사내-git-url>`로 �
 
 - **스킬** (`skills/*/SKILL.md`)은 Codex·Claude·Cursor가 공통으로 읽는 공개
   카탈로그입니다. 워크플로 진입점(`/bouncer-init`·`/bouncer-plan`·
-  `/bouncer-execute`·`/bouncer-commit`·`/bouncer-finalize`·`/bouncer-run`)은
+  `/bouncer-execute`·`/bouncer-commit`·`/bouncer-finalize`·`/bouncer-run`·`/bouncer-retro`)은
   `skills/bouncer-*/SKILL.md`에 있고, 보조는 `references/`입니다.
 - **named agent**는 Codex도 지원합니다. 커스텀 에이전트는 프로젝트
   `.codex/agents/*.toml`입니다. 플러그인 설치는 이 역할을 등록하지 않습니다.
