@@ -7,6 +7,7 @@ const projectCommands = require("./cli-project-commands");
 const currentCommand = require("./cli-current-command");
 const reviewDispatchCommand = require("./cli-review-dispatch-command");
 const reviewCommand = require("./cli-review-command");
+const contextReviewCommand = require("./cli-context-review-command");
 const dispatchCommand = require("./cli-dispatch-command");
 const commitGuardCommand = require("./cli-commit-guard-command");
 const configCommand = require("./cli-config-command");
@@ -47,6 +48,8 @@ const COMMANDS = {
     // 라운드 원장 기록. 분류기(review-dispatch)와 키를 분리해, 기록 실패가
     // 읽기 전용 분류 exit와 섞이지 않게 한다.
     review: reviewCommand,
+    // 계획 리뷰 cycle 상태 기록. execute 원장(review)과 키·exit 의미를 분리한다.
+    'context-review': contextReviewCommand,
     // Cursor print 실행. 역할 본문·argv 조립은 모듈이 맡고, 여기 레지스트리는
     // help 목록과 키 조회만 담당한다.
     dispatch: dispatchCommand,

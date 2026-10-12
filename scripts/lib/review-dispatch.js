@@ -1,11 +1,12 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { isDeepStrictEqual } = require('node:util');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const validateMod = require("./validate");
 const { validateBlueprint } = validateMod;
 const planSnapshot = require("./plan-snapshot");
-const { computePlanSnapshot, computePlanParts } = planSnapshot;
+const { SNAPSHOT_VERSION, computePlanSnapshot, computePlanParts, digestPlanContent, normalizeStructure, structureKindOf, hashBody, hashStructure, } = planSnapshot;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs, taskExecutionKind } = tasksDocs;
 const frontmatter = require("./frontmatter");
@@ -13,9 +14,12 @@ const { readDoc } = frontmatter;
 const validateSections = require("./validate-sections");
 const { parseTasksSections, extractPathCandidates, pathsOverlap } = validateSections;
 const paths = require("./paths");
-const { toPosix } = paths;
+const { toPosix, epicDirOf } = paths;
 const layout = require("./layout");
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
+const guards = require("./guards");
+const contextReviewState = require("./context-review-state");
+const { isRecord } = guards;
 const schema = require("./schema");
 const { executionKindOf } = schema;
 // Plan·Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
@@ -31,69 +35,366 @@ const REVIEW_RISK_ENUM = [
     'authorization',
     'credential',
 ];
+const LEGACY_REASON = 'legacy-payload-no-content';
+const TASKS_REL_RE = /\/tasks\/(\d{3})\/tasks\.md$/;
 /**
- * 이전 plan payload와 현재 parts·scope_parts를 비교해 follow_up을 고른다.
- * 문서 집합·에픽/blueprint 본문·어느 scope_parts라도 다르면 full이고,
- * 그 밖에는 tasks.md 본문 차이만 partial의 changed_documents에 모은다.
+ * 한 tasks.md 본문에서 cluster 입력(Interface 키·Touch 경로)을 뽑는다.
+ * 현재 문서 적재와 이전 payload 본문 재구성이 같은 규칙을 쓰도록 한 곳에 둔다.
+ * 비어 있는 절은 거절하지 않고 빈 신호로 돌려준다 — 거절은 현재 문서 적재의 몫이고,
+ * 이전 본문은 이미 지난 상태라 cluster 이웃을 넓히는 용도로만 쓰인다.
  *
- * @param {{
- *   documents: string[],
- *   parts: Record<string, string>,
- *   scope_parts: Record<string, string>,
- *   previousParts: Record<string, string>,
- *   previousScope: Record<string, string>,
- * }} opts - 현재·이전 digest 맵과 문서 순서
- * @returns {{ follow_up: 'partial' | 'full', changed_documents: string[] }}
+ * @param {string} number - 세 자리 task 번호
+ * @param {string} body - tasks.md 본문
+ * @returns {CommitTaskSignals} 번호 기반 id와 신호
  */
-function decidePlanFollowUp({ documents, parts, scope_parts, previousParts, previousScope, }) {
-    const currentKeys = Object.keys(parts).sort();
-    const previousKeys = Object.keys(previousParts).sort();
-    // 1. task 추가·삭제는 부분 delta로 복구할 수 없다 — 집합 자체가 바뀌면 full.
-    if (currentKeys.length !== previousKeys.length
-        || currentKeys.some((key, i) => key !== previousKeys[i])) {
-        return { follow_up: 'full', changed_documents: [] };
+function signalsFromBody(number, body) {
+    const sections = parseTasksSections(body);
+    const interfaceText = typeof sections.interface === 'string' ? sections.interface.trim() : '';
+    const touchText = typeof sections.touch === 'string' ? sections.touch.trim() : '';
+    return {
+        id: `TASKS-${number}`,
+        number,
+        interfaceKeys: extractBacktickKeys(interfaceText),
+        touchPaths: extractPathCandidates(touchText),
+    };
+}
+/**
+ * 문서 내용으로부터 commit task의 cluster 구성원 관계를 rel 집합으로 만든다.
+ *
+ * @param {string} bp - blueprint 상대 경로
+ * @param {Record<string, PlanDocContent>} content - 경로별 본문·구조
+ * @returns {string[][]} cluster마다 tasks.md 경로 목록
+ */
+function clusterRels(bp, content) {
+    const signals = [];
+    for (const rel of Object.keys(content).sort()) {
+        const m = TASKS_REL_RE.exec(rel);
+        if (!m || content[rel].structure.execution_kind === 'verification')
+            continue;
+        signals.push(signalsFromBody(m[1], content[rel].body));
     }
-    // 2. 에픽·blueprint index 본문은 discovery 재시작 신호. documents[0]/[1]은
-    //    computePlanSnapshot과 같은 순서다.
-    const epicRel = documents[0];
-    const blueprintRel = documents[1];
-    if (parts[epicRel] !== previousParts[epicRel]
-        || parts[blueprintRel] !== previousParts[blueprintRel]) {
-        return { follow_up: 'full', changed_documents: [] };
-    }
-    // 3. affected_paths·depends_on·Interface·Touch는 집계 digest에 안 보이므로
-    //    scope_parts로만 잡는다. 하나라도 다르면 full.
-    for (const rel of Object.keys(scope_parts)) {
-        if (scope_parts[rel] !== previousScope[rel]) {
-            return { follow_up: 'full', changed_documents: [] };
+    return buildClusters(signals).map((c) => c.tasks.map((id) => (`${bp}/tasks/${id.replace(/^TASKS-/, '')}/tasks.md`)));
+}
+/**
+ * depends_on 간선을 현재·이전 구조의 합집합으로 모아, 변경 task에서 선행·후행으로
+ * 닫힌 transitive closure를 만든다. 형제(같은 선행을 공유하는 task)는 포함하지 않는다.
+ *
+ * @param {string} bp - blueprint 상대 경로
+ * @param {string[]} seeds - 변경된 tasks.md 경로
+ * @param {Array<Record<string, PlanDocContent>>} contents - 간선을 읽을 내용들(현재, 이전)
+ * @returns {Set<string>} seeds를 제외한 선행·후행 tasks.md 경로
+ */
+function dagClosure(bp, seeds, contents) {
+    const up = new Map();
+    const down = new Map();
+    const link = (map, from, to) => {
+        const set = map.get(from) || new Set();
+        set.add(to);
+        map.set(from, set);
+    };
+    for (const content of contents) {
+        for (const rel of Object.keys(content)) {
+            if (!TASKS_REL_RE.test(rel))
+                continue;
+            const deps = content[rel].structure.depends_on;
+            if (!Array.isArray(deps))
+                continue;
+            for (const dep of deps) {
+                const m = /^TASKS-(\d{3})$/.exec(String(dep));
+                if (!m)
+                    continue;
+                const depRel = `${bp}/tasks/${m[1]}/tasks.md`;
+                link(up, rel, depRel);
+                link(down, depRel, rel);
+            }
         }
     }
-    // 4. 여기까지 오면 범위는 같고 tasks.md 본문(Goal 등)만 달랐을 수 있다.
-    const changed_documents = [];
-    for (const rel of currentKeys) {
-        if (!/\/tasks\/\d{3}\/tasks\.md$/.test(rel))
-            continue;
-        if (parts[rel] !== previousParts[rel])
-            changed_documents.push(rel);
+    const out = new Set();
+    for (const map of [up, down]) {
+        const queue = [...seeds];
+        const seen = new Set(seeds);
+        while (queue.length > 0) {
+            const cur = queue.shift();
+            for (const next of map.get(cur) || []) {
+                if (seen.has(next))
+                    continue;
+                seen.add(next);
+                out.add(next);
+                queue.push(next);
+            }
+        }
     }
-    return { follow_up: 'partial', changed_documents };
+    for (const seed of seeds)
+        out.delete(seed);
+    return out;
+}
+/**
+ * 이전 snapshot과 현재 내용을 비교해 follow_up·변경 목록·관련 문서·before/after diff를 만든다.
+ * 문서 집합 또는 어느 문서의 정규화 구조가 다르면 full이고, 구조가 같으면 본문 보완은
+ * (epic/blueprint·Interface·Touch 포함) 모두 partial이다. scope_parts는 full 판단에 쓰지 않는다.
+ * 이전 내용을 모르는 경우(최초·legacy)는 이전 본문을 추정하지 않고 before를 null로 둔다.
+ *
+ * @param {{
+ *   bp: string, documents: string[], content: Record<string, PlanDocContent>,
+ *   structure_parts: Record<string, string>, parts: Record<string, string>,
+ *   previous: PreviousSnapshot
+ * }} opts - blueprint 경로, 현재 문서 순서·내용·digest 맵, 이전 snapshot
+ * @returns {PlanDecision} follow_up과 정렬된 changed/related 목록, 문서별 revision_diff
+ */
+function decidePlanFollowUp({ bp, documents, content, structure_parts, parts, previous }) {
+    const currentSet = [...documents].sort();
+    // 1. 이전 내용이 없으면(최초·legacy) 전체 현재 문서를 변경으로 표기하고 full을 고른다.
+    //    legacy digest는 본문을 되돌릴 수 없어 delta 근거가 아니다 — 추정하지 않는다.
+    if (previous === null || previous.kind === 'legacy') {
+        const reason = previous === null ? undefined : LEGACY_REASON;
+        return {
+            follow_up: 'full',
+            changed_documents: currentSet,
+            related_documents: currentSet,
+            revision_diff: currentSet.map((file) => ({
+                file, before: null, after: content[file], ...(reason ? { reason } : {}),
+            })),
+        };
+    }
+    // 2. v2: 추가/삭제/본문/구조 변경의 합집합.
+    const prevSet = [...previous.documents].sort();
+    const universe = [...new Set([...currentSet, ...prevSet])].sort();
+    const changed = [];
+    let structural = currentSet.length !== prevSet.length || currentSet.some((rel, i) => rel !== prevSet[i]);
+    for (const rel of universe) {
+        const inCur = rel in content;
+        const inPrev = rel in previous.content;
+        if (inCur !== inPrev) {
+            changed.push(rel);
+            continue;
+        }
+        const bodyChanged = parts[rel] !== previous.parts[rel];
+        const structureChanged = structure_parts[rel] !== previous.structure_parts[rel];
+        if (structureChanged)
+            structural = true;
+        if (bodyChanged || structureChanged)
+            changed.push(rel);
+    }
+    const revision_diff = changed.map((file) => ({
+        file,
+        before: previous.content[file] ?? null,
+        after: content[file] ?? null,
+    }));
+    if (structural) {
+        return { follow_up: 'full', changed_documents: changed, related_documents: currentSet, revision_diff };
+    }
+    if (changed.length === 0) {
+        return { follow_up: 'partial', changed_documents: [], related_documents: [], revision_diff: [] };
+    }
+    // 3. partial의 관련 문서: 변경 task의 이전·현재 cluster 이웃 + DAG closure + epic/blueprint.
+    //    epic/blueprint 자체가 바뀌면 모든 task 계약이 관련된다. 변경 문서는 delta 입력으로 따로
+    //    전달되므로 related에서는 뺀다(한 번만 전달).
+    const epicRel = `${epicDirOf(bp)}/index.md`;
+    const bpRel = `${bp}/index.md`;
+    const related = new Set([epicRel, bpRel]);
+    const changedTasks = changed.filter((rel) => TASKS_REL_RE.test(rel));
+    if (changed.includes(epicRel) || changed.includes(bpRel)) {
+        for (const rel of currentSet)
+            related.add(rel);
+    }
+    for (const group of [...clusterRels(bp, content), ...clusterRels(bp, previous.content)]) {
+        if (group.some((rel) => changedTasks.includes(rel)))
+            for (const rel of group)
+                related.add(rel);
+    }
+    for (const rel of dagClosure(bp, changedTasks, [content, previous.content]))
+        related.add(rel);
+    const related_documents = [...related]
+        .filter((rel) => rel in content && !changed.includes(rel))
+        .sort();
+    return { follow_up: 'partial', changed_documents: changed, related_documents, revision_diff };
+}
+function previousFail(reason, cause, next) {
+    return { ok: false, reason, cause, next };
+}
+/**
+ * 후속 리뷰가 기대하는 previous의 정상 payload 모양을 검사한다. review-dispatch plan이
+ * 내는 single/clustered 성공 결과만 통과하며, 일부 필드만 골라 만든 축소본은 거절한다.
+ *
+ * @param {unknown} previous - --previous로 받은 JSON
+ * @param {string} bp - 현재 blueprint 상대 POSIX 경로
+ * @returns {PreviousFail | null} 형식 위반이면 invalid 실패, 정상이면 null
+ */
+function checkPreviousShape(previous, bp) {
+    const next = 'pass the unmodified JSON that review-dispatch plan printed for this blueprint';
+    const bad = (cause) => previousFail('previous-payload-invalid', cause, next);
+    if (!isRecord(previous) || previous.ok !== true || previous.phase !== 'plan') {
+        return bad('previous is not a successful plan payload');
+    }
+    if (previous.strategy !== 'single' && previous.strategy !== 'clustered') {
+        return bad('previous strategy must be single or clustered');
+    }
+    const target = previous.target;
+    if (!isRecord(target) || typeof target.digest !== 'string' || !Array.isArray(target.documents)) {
+        return bad('previous target must carry digest and documents');
+    }
+    for (const key of ['parts', 'scope_parts']) {
+        const map = previous[key];
+        if (!isRecord(map) || Array.isArray(map))
+            return bad(`previous ${key} must be an object`);
+    }
+    // 다른 blueprint의 payload를 이 blueprint의 이전 상태로 쓰지 못하게 한다.
+    // payload에 blueprint가 없으면 문서 목록이 이 blueprint index를 품고 있어야 한다.
+    if (previous.blueprint !== undefined && previous.blueprint !== bp) {
+        return bad('previous belongs to another blueprint');
+    }
+    if (!target.documents.includes(`${bp}/index.md`)) {
+        return bad('previous documents do not include this blueprint');
+    }
+    // snapshot_version이 없는 payload는 digest-only legacy다: 읽기 호환만 하고 delta 근거로 쓰지 않는다.
+    if (previous.snapshot_version === undefined)
+        return null;
+    if (previous.snapshot_version !== SNAPSHOT_VERSION) {
+        return bad(`previous snapshot_version ${String(previous.snapshot_version)} is unsupported`);
+    }
+    return checkPreviousContent(previous, target, bp, bad);
+}
+/**
+ * v2 previous의 내용·hash·정규화 구조·키 집합·target identity가 서로 맞는지 검증한다.
+ * documents_content를 믿고 delta를 만들기 때문에, 본문이나 구조가 손으로 바뀐 payload는
+ * 여기서 모두 걸러야 한다 — 검증 없이 쓰면 위조된 before로 partial 판정이 흔들린다.
+ *
+ * @param {Record<string, unknown>} previous - snapshot_version 2 payload
+ * @param {{ digest: string, documents: unknown[] }} target - previous.target
+ * @param {string} bp - 현재 blueprint 상대 경로
+ * @param {(cause: string) => PreviousFail} bad - previous-payload-invalid 생성기
+ * @returns {PreviousFail | null} 불일치 사유, 통과하면 null
+ */
+function checkPreviousContent(previous, target, bp, bad) {
+    for (const key of ['structure_parts', 'documents_content']) {
+        const map = previous[key];
+        if (!isRecord(map) || Array.isArray(map))
+            return bad(`previous ${key} must be an object`);
+    }
+    if (previous.follow_up !== 'partial' && previous.follow_up !== 'full') {
+        return bad('previous follow_up must be partial or full');
+    }
+    for (const key of ['changed_documents', 'related_documents', 'revision_diff']) {
+        if (!Array.isArray(previous[key]))
+            return bad(`previous ${key} must be an array`);
+    }
+    const documents = target.documents;
+    if (!documents.every((d) => typeof d === 'string')) {
+        return bad('previous target documents must be strings');
+    }
+    if (documents[0] !== `${epicDirOf(bp)}/index.md` || documents[1] !== `${bp}/index.md`) {
+        return bad('previous documents do not start with this epic and blueprint');
+    }
+    const sortedDocs = [...documents].sort();
+    // scope_parts는 관찰용이고 full 판정에 쓰지 않으므로 키 집합 대조에서 뺀다.
+    for (const key of ['parts', 'structure_parts', 'documents_content']) {
+        const keys = Object.keys(previous[key]).sort();
+        if (keys.length !== sortedDocs.length || keys.some((k, i) => k !== sortedDocs[i])) {
+            return bad(`previous ${key} keys differ from target documents`);
+        }
+    }
+    const parts = previous.parts;
+    const structureParts = previous.structure_parts;
+    const contentMap = previous.documents_content;
+    const checked = {};
+    for (const rel of documents) {
+        const entry = contentMap[rel];
+        if (!isRecord(entry) || typeof entry.body !== 'string'
+            || !isRecord(entry.structure) || Array.isArray(entry.structure)) {
+            return bad(`previous content for ${rel} must carry body and structure`);
+        }
+        const structure = entry.structure;
+        // 같은 정규화를 다시 거쳐도 변하지 않아야 한다: 기본값을 빠뜨리거나 정렬이 틀린 구조 거절.
+        const normalized = normalizeStructure(structureKindOf(rel, bp), structure);
+        if (!isDeepStrictEqual(normalized, structure))
+            return bad(`previous structure for ${rel} is not normalized`);
+        if (hashBody(entry.body) !== parts[rel])
+            return bad(`previous parts hash differs from content for ${rel}`);
+        if (hashStructure(normalized) !== structureParts[rel]) {
+            return bad(`previous structure_parts hash differs from content for ${rel}`);
+        }
+        checked[rel] = { body: entry.body, structure: normalized };
+    }
+    if (digestPlanContent(documents, checked) !== target.digest) {
+        return bad('previous target digest differs from its documents_content');
+    }
+    return null;
+}
+/**
+ * previous를 이 blueprint의 저장된 리뷰 증거와 대조한다. 읽기 전용이다.
+ * cycle state(.bouncer/runtime/context-review/<bp>/state.json)가 있으면 latest_dispatch
+ * 참조 파일과 payload가 같아야 하고, state 없이 context-review.md에 기존 증거만 있으면
+ * 마지막 round의 digest와 previous digest가 같아야 한다. 증거가 전혀 없을 때만 previous는
+ * 선택이다. 읽기 실패를 "증거 없음"으로 접으면 반복 초기화 경로가 열리므로, ENOENT만
+ * 없음으로 흡수하고 나머지는 invalid로 돌린다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} bp - blueprint 상대 POSIX 경로
+ * @param {unknown} previous - --previous로 받은 JSON(없으면 undefined)
+ * @returns {PreviousFail | null} 거절 사유, 통과하면 null
+ */
+function checkPreviousBinding(repoRoot, bp, previous) {
+    const recover = 'restore the stored payload from the cycle (latest_dispatch) and pass it as --previous';
+    // 1. cycle state와 latest_dispatch 저장본은 context-review-state의 읽기 전용 helper로 읽는다.
+    //    쓰기 쪽과 같은 검증을 공유해 경로·id 규칙이 두 곳에서 어긋나지 않게 한다.
+    const stored = contextReviewState.readStoredLatest(repoRoot, bp);
+    if (!stored.ok) {
+        return previousFail('previous-payload-invalid', `cycle state invalid: ${stored.cause}`, recover);
+    }
+    // 2. state가 없으면 context-review.md의 증거(rounds/findings/restart_count 표식)를 본다.
+    //    표식은 restart가 남기는 값이라 runtime state가 지워져도 증거로 남는다.
+    let legacyDigest = null;
+    let hasEvidence = stored.state !== null;
+    if (stored.state === null) {
+        const legacy = contextReviewState.readLegacyEvidence(repoRoot, bp);
+        if (!legacy.ok) {
+            // 파싱 실패 문서를 "증거 없음"으로 보면 후속 리뷰가 최초처럼 전체 재리뷰된다.
+            return previousFail('previous-payload-invalid', `context-review.md unreadable: ${legacy.cause}`, 'fix the context-review.md frontmatter, then retry');
+        }
+        hasEvidence = legacy.present || legacy.marker >= 1;
+        legacyDigest = legacy.digest;
+    }
+    if (!hasEvidence)
+        return null;
+    if (previous === undefined) {
+        return previousFail('previous-payload-required', 'this blueprint already has review evidence, so a follow-up needs the recorded previous payload', recover);
+    }
+    const shape = checkPreviousShape(previous, bp);
+    if (shape)
+        return shape;
+    // 3a. legacy: 마지막 round가 인증한 digest와 previous digest가 같아야 한다.
+    if (stored.state === null) {
+        const digest = previous.target.digest;
+        if (legacyDigest !== null && legacyDigest !== digest) {
+            return previousFail('previous-payload-stale', `previous digest ${digest} != last recorded round digest ${legacyDigest}`, recover);
+        }
+        return null;
+    }
+    // 3b. cycle: latest_dispatch 저장본(sha256 확인됨)과 payload가 같아야 한다.
+    if (!isDeepStrictEqual(stored.payload, previous)) {
+        return previousFail('previous-payload-stale', 'previous differs from the cycle latest_dispatch', recover);
+    }
+    return null;
 }
 /**
  * Plan 리뷰 전략을 문서의 구조 신호만으로 분류한다.
  * reviewer 호출 전에 structural 검사와 plan draft 검사(G5·G10–G12·G19·G20)를
  * 통과해야 한다 — gate가 나중에 거절할 문서로 context review snapshot을 얼리지 않기 위해서다.
  * working tree와 review 문서는 쓰지 않으며, 실패 시 perspectives를 만들지 않는다.
- * `previous`가 있으면 문서별 digest로 follow_up을 판정한다.
+ * `previous`가 있으면 문서별 digest로 follow_up을 판정한다. 저장된 리뷰 증거가 있는
+ * blueprint는 previous가 필수이며 cycle latest_dispatch와 일치해야 한다.
  *
  * @param {{ repoRoot: string, blueprintDir: string, previous?: unknown }} opts
  *   - repoRoot: 저장소 루트
  *   - blueprintDir: blueprint 상대 경로
- *   - previous: 이전 plan payload(없으면 follow_up=full). parts 없으면 거절
+ *   - previous: 이전 plan payload. 증거 없는 최초 분류에서만 생략 가능(follow_up=full)
  * @returns {PlanDispatchResult} 성공 시 strategy·cluster·근거와(single/clustered면)
  *   parts·scope_parts·follow_up. 실패 시 ok:false —
  *   S 코드가 있으면 'structural validation failed', draft 검사 실패면
  *   'plan draft validation failed'(failures는 plan gate와 같은 항목),
- *   previous 형식이 깨지면 reason 'previous-payload-invalid'
+ *   previous 누락은 'previous-payload-required', 형식·blueprint 불일치는
+ *   'previous-payload-invalid', 저장 최신 payload와 다르면 'previous-payload-stale'
+ *   (모두 cause·next 포함)
  */
 function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
     // 1. 구조·draft 실패를 축소 판정으로 덮지 않는다 — malformed review_risk·문서 부재·
@@ -143,39 +444,54 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
     }
     // previous는 light skip 전에 검사하지 않는다 — skip 응답에 follow_up 자체가
     // 없으므로 깨진 previous로 skip 경로를 막지 않는다. single/clustered만 본다.
-    let previousParts = null;
-    let previousScope = {};
+    // 저장된 리뷰 증거가 있으면 previous가 필수이고 latest_dispatch와 같아야 한다:
+    // 누락을 최초(full)로 해석하면 후속 리뷰가 전체 리뷰로 되돌아 반복 한도가 무력해진다.
+    const bound = checkPreviousBinding(repoRoot, bp, previous);
+    if (bound)
+        return bound;
+    let previousSnap = null;
     if (previous !== undefined) {
-        // parts 없는 JSON·비객체는 부분 판정 입력이 아니다. error가 아니라 reason으로
-        // 돌려 CLI·controller가 기존 structural 실패와 구분하게 한다.
-        if (previous === null || typeof previous !== 'object'
-            || Array.isArray(previous)
-            || typeof previous.parts !== 'object'
-            || previous.parts === null
-            || Array.isArray(previous.parts)) {
-            return { ok: false, reason: 'previous-payload-invalid' };
-        }
-        previousParts = previous.parts;
-        const rawScope = previous.scope_parts;
-        if (rawScope !== undefined) {
-            if (rawScope === null || typeof rawScope !== 'object' || Array.isArray(rawScope)) {
-                return { ok: false, reason: 'previous-payload-invalid' };
-            }
-            previousScope = rawScope;
-        }
+        // 증거 없는 최초 상태에서 준 previous도 같은 엄격한 모양이어야 한다.
+        const shape = checkPreviousShape(previous, bp);
+        if (shape)
+            return shape;
+        const prev = previous;
+        previousSnap = prev.snapshot_version === undefined
+            ? { kind: 'legacy' }
+            : {
+                kind: 'v2',
+                documents: prev.target.documents,
+                content: prev.documents_content,
+                structure_parts: prev.structure_parts,
+                parts: prev.parts,
+            };
     }
     const partSnap = computePlanParts({ repoRoot, blueprintDir: bp });
     if (!partSnap.ok)
         return partSnap;
-    const follow = previousParts == null
-        ? { follow_up: 'full', changed_documents: [] }
-        : decidePlanFollowUp({
-            documents: snapshot.documents,
-            parts: partSnap.parts,
-            scope_parts: partSnap.scope_parts,
-            previousParts,
-            previousScope,
-        });
+    const follow = decidePlanFollowUp({
+        bp,
+        documents: snapshot.documents,
+        content: partSnap.documents_content,
+        structure_parts: partSnap.structure_parts,
+        parts: partSnap.parts,
+        previous: previousSnap,
+    });
+    // legacy migration은 reviewer가 사유를 알 수 있도록 reasons에도 남긴다(restart 한도는 우회하지 않는다).
+    const migrationReasons = previousSnap?.kind === 'legacy'
+        ? [`${LEGACY_REASON}: previous payload has no document content — full migration review`]
+        : [];
+    const reviewFields = {
+        snapshot_version: SNAPSHOT_VERSION,
+        parts: partSnap.parts,
+        scope_parts: partSnap.scope_parts,
+        structure_parts: partSnap.structure_parts,
+        documents_content: partSnap.documents_content,
+        follow_up: follow.follow_up,
+        changed_documents: follow.changed_documents,
+        related_documents: follow.related_documents,
+        revision_diff: follow.revision_diff,
+    };
     const commitTasks = loadCommitTaskSignals({ repoRoot, blueprintDir: bp });
     if (!commitTasks.ok)
         return commitTasks;
@@ -200,11 +516,9 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
             perspectives: ['combined'],
             reasons: [
                 `commit task count ${taskCount} <= ${PLAN_SMALL_MAX_TASKS} — single combined reviewer`,
+                ...migrationReasons,
             ],
-            parts: partSnap.parts,
-            scope_parts: partSnap.scope_parts,
-            follow_up: follow.follow_up,
-            changed_documents: follow.changed_documents,
+            ...reviewFields,
         };
     }
     const clusters = buildClusters(commitTasks.tasks);
@@ -219,11 +533,9 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
         reasons: [
             `commit task count ${taskCount} > ${PLAN_SMALL_MAX_TASKS} — clustered local+global review`,
             `formed ${clusters.length} cluster(s) from Interface backtick keys and Touch path overlap`,
+            ...migrationReasons,
         ],
-        parts: partSnap.parts,
-        scope_parts: partSnap.scope_parts,
-        follow_up: follow.follow_up,
-        changed_documents: follow.changed_documents,
+        ...reviewFields,
     };
 }
 /**
@@ -475,16 +787,12 @@ function loadCommitTaskSignals({ repoRoot, blueprintDir }) {
                 error: `empty or unreadable Interface/Touch in ${entry.tasks.rel}`,
             };
         }
-        const interfaceKeys = extractBacktickKeys(interfaceText);
-        const touchPaths = extractPathCandidates(touchText);
         const number = entry.number != null
             ? String(entry.number).padStart(3, '0')
             : (entry.id || '').replace(/^TASKS-/, '');
         tasks.push({
+            ...signalsFromBody(number, body),
             id: entry.id || `TASKS-${number}`,
-            number,
-            interfaceKeys,
-            touchPaths,
         });
     }
     return { ok: true, tasks };
