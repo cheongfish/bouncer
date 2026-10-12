@@ -10,6 +10,9 @@ const { sumUsage, usageTotalStatus } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
 const { applyWorkspaceSetup, loadRunnableCard, taskRecord } = require('./task-card.cjs');
+const { loadPrepared } = require('./prepare-deepswe-task.cjs');
+const { agentRuntime, runtimeRecordFields, withOwnershipRestore, runStagesWithBudget, budgetStopRecord,
+  exitCodeFor } = require('./agent-runtime.cjs');
 
 const root = __dirname;
 const projectRoot = path.resolve(root, '..');
@@ -49,7 +52,8 @@ function configOf(argv) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$/.test(out.runId)) throw new Error('invalid run id');
   out.keyFile = path.resolve(out['--key-file']);
   if (!existsSync(out.keyFile) || statSync(out.keyFile).size === 0) throw new Error('API key file missing');
-  out.timeoutMinutes = Number(out['--timeout-minutes'] ?? '60');
+  // 실행 전체 wall-clock 예산(분). 단계마다 남은 분을 계산해 넘기므로 단계당 값이 아니다.
+  out.timeoutMinutes = Number(out['--timeout-minutes'] ?? '180');
   if (!Number.isInteger(out.timeoutMinutes) || out.timeoutMinutes < 1 || out.timeoutMinutes > 240) {
     throw new Error('invalid timeout');
   }
@@ -91,12 +95,25 @@ function detach(argv, config) {
   process.stdout.write(`pid ${child.pid}; log ${path.join(runDir, 'driver.log')}\n`);
 }
 
-function stage(config, policyFile, name, workspace, runDir, sessionCwd = workspace) {
+/**
+ * 단계 하나를 `run-print-stage.cjs` 자식 프로세스로 돌린다.
+ * 단계가 멈추면 사용량을 담아 throw한다(토큰은 이미 쓰였다).
+ *
+ * @param {object} config - `configOf` 결과
+ * @param {string} policyFile - 평가자 정책 경로
+ * @param {string} name - 단계 이름(`01-init` 등)
+ * @param {string} workspace - 호스트 작업 공간
+ * @param {string} runDir - 실행 디렉터리
+ * @param {string} sessionCwd - 단계 에이전트의 작업 디렉터리
+ * @param {number} minutes - 이 단계가 쓸 수 있는 남은 분(실행 전체 예산에서 계산)
+ * @returns {object} 단계 `run.json` 레코드
+ */
+function stage(config, policyFile, name, workspace, runDir, sessionCwd, minutes) {
   const stageDir = path.join(runDir, name);
   const args = [path.join(root, 'run-print-stage.cjs'), '--stage', `bouncer-${name.split('-')[1]}`,
     '--work-dir', workspace, '--session-cwd', sessionCwd, '--run-dir', stageDir,
     '--task', config.taskId, '--model', config['--model'], '--key-file', config.keyFile, '--policy', policyFile,
-    '--timeout-minutes', String(config.timeoutMinutes)];
+    '--timeout-minutes', String(minutes)];
   const result = spawnSync(process.execPath, args, {
     cwd: projectRoot, env: process.env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
   });
@@ -132,9 +149,20 @@ function gitignoreAgainstPolicy({ baseline, current, expected }) {
   return { ok: !removed.length && !missing.length && added.every((entry) => expected.includes(entry)) };
 }
 
-// `before` is the status after workspace_setup, so a task's pre-staged user work is neither judged as
-// init output nor swept into the bootstrap commit.
+/**
+ * init 산출물(`.bouncer/`, `.gitignore`)을 검사하고 부트스트랩 커밋을 만든다.
+ * `before`는 workspace_setup 뒤 상태라서 과제가 미리 둔 사용자 작업은 init 산출물로 판정되거나 커밋에 쓸려 들어가지 않는다.
+ * 기준 브랜치는 과제마다 다르므로 `config.base_branch`를 정책 `task_facts.base_branch`와 대조한다.
+ *
+ * @param {string} workspace - 호스트 작업 공간(git 저장소)
+ * @param {object} policy - 평가자 정책(`task_facts.base_branch`, `expected_gitignore_suggestions`를 읽는다)
+ * @param {string[]} before - workspace_setup 뒤 `git status --porcelain` 줄
+ * @returns {void}
+ * @throws {Error} 정책 기준 브랜치 없음, 관리 경로 밖 변경, config 불일치, gitignore 불일치, 커밋 범위 이탈
+ */
 function bootstrapCommit(workspace, policy, before) {
+  const baseBranch = policy.task_facts?.base_branch;
+  if (typeof baseBranch !== 'string' || !baseBranch) throw new Error('evaluator policy task_facts.base_branch missing');
   const changed = statusLines(workspace).filter((line) => !before.includes(line)).map((line) => line.slice(3));
   if (!changed.length || changed.some((file) => !file.startsWith('.bouncer/') && file !== '.gitignore')) {
     throw new Error(`unexpected bootstrap files: ${changed.join(', ')}`);
@@ -143,7 +171,7 @@ function bootstrapCommit(workspace, policy, before) {
   const config = JSON.parse(readFileSync(path.join(workspace, '.bouncer', 'config.json'), 'utf8'));
   // Cursor keeps no usage for Task subagents; the print-dispatch opt-in makes every agent a logged session.
   if (config.subagents?.provider !== 'cursor' || config.subagents?.dispatch !== 'print'
-    || config.base_branch !== 'main') {
+    || config.base_branch !== baseBranch) {
     throw new Error('Bouncer bootstrap configuration differs from policy');
   }
   if (existsSync(path.join(workspace, '.gitignore'))) {
@@ -310,7 +338,44 @@ function verifyPatch(config, task, workspace, runDir, record) {
   if (verdict.judge_status !== 'graded') throw new Error('external verifier did not grade the patch');
 }
 
-function main() {
+/**
+ * `run.json` 최상위에 쓸 런타임 필드(이미지 id, deviations)를 만든다.
+ * 이미지는 각 단계 실행기가 빌드하므로 `01-init`이 끝난 뒤에 불러야 방금 빌드한 이미지의 id를 읽는다.
+ *
+ * @param {{ taskId: string }} config - `configOf` 결과
+ * @param {object | null} prepared - `loadPrepared` 결과
+ * @param {{ runDocker: (args: string[]) => string }} deps - docker 실행 주입
+ * @returns {{ image_id: string, deviations: string[] }} 이미지 id와 deviations
+ */
+function runtimeFieldsFor(config, prepared, deps) {
+  return runtimeRecordFields(agentRuntime({ taskId: config.taskId, condition: 'bouncer-full', prepared }), deps);
+}
+
+/**
+ * 단계 뒤 소유권 복원용 compose env를 만든다. 복원은 `/workspace` 마운트만 쓰지만 compose는 파일 전체의
+ * `:?` 변수를 요구하므로, 단계가 남긴 실제 경로를 채운다.
+ *
+ * @param {object} config - `configOf` 결과
+ * @param {object} runtime - `agentRuntime` 결과
+ * @param {string} workspace - 호스트 작업 공간
+ * @param {string} stageDir - 단계 실행 디렉터리
+ * @returns {NodeJS.ProcessEnv} compose 환경
+ */
+function composeEnvFor(config, runtime, workspace, stageDir) {
+  return { ...process.env, ...runtime.env,
+    BENCH_WORKSPACE: workspace,
+    BENCH_PROMPT: path.join(stageDir, 'prompt.txt'),
+    BENCH_RESULT_DIR: stageDir,
+    BENCH_MODEL: config['--model'],
+    BENCH_UID: String(process.getuid()),
+    BENCH_GID: String(process.getgid()),
+    CURSOR_API_KEY_FILE: config.keyFile,
+    BENCH_CURSOR_DATA: path.join(stageDir, 'cursor-projects'),
+    BENCH_CURSOR_LOGS: path.join(stageDir, 'cursor-logs'),
+  };
+}
+
+async function main() {
   const argv = process.argv.slice(2);
   const config = configOf(argv);
   const task = loadRunnableCard(config.taskId);
@@ -325,13 +390,18 @@ function main() {
     detach(argv, config);
     return;
   }
+  // 과제 이미지가 잘못된 카드는 실행 디렉터리를 만들기 전에 멈춘다.
+  const prepared = loadPrepared(config.taskId);
+  const runtime = agentRuntime({ taskId: config.taskId, condition: 'bouncer-full', prepared });
   const { runDir, workspace } = runPaths(config);
   const detachedChild = process.env.BENCH_DRIVER_DETACHED === '1'
     && existsSync(runDir) && readdirSync(runDir).every((file) => driverFiles.includes(file));
   if (existsSync(workspace) || (existsSync(runDir) && !detachedChild)) throw new Error('run id already exists');
   mkdirSync(runDir, { recursive: true });
   const record = { run_id: config.runId, ...taskRecord(task), condition: 'bouncer-full', model: config['--model'],
-    ...sourceProvenance(projectRoot), workspace, plugin_version: null, status: 'running', stages: [],
+    ...sourceProvenance(projectRoot), workspace, plugin_version: null,
+    // 이미지는 단계 실행기가 빌드하므로 id는 01-init이 끝난 뒤에 채운다. 그 전에 멈추면 null로 남는다.
+    image_id: null, deviations: runtime.deviations, status: 'running', stages: [],
     stage_usage: {},
     evaluator_policy_version: policy.policy_version,
     evaluator_policy_sha256: createHash('sha256').update(readFileSync(policyFile)).digest('hex'),
@@ -344,10 +414,18 @@ function main() {
     command('git', ['config', 'user.email', 'benchmark@local.invalid'], workspace);
     record.workspace_setup = applyWorkspaceSetup(workspace, task.card);
     const setupStatus = statusLines(workspace);
-    for (const name of ['01-init', '02-plan', '03-run', '04-finalize']) {
+    const startedAtMs = Date.now();
+    const ids = { uid: process.getuid(), gid: process.getgid() };
+    const runStage = async (name, minutes) => {
+      // 앞 단계의 소유권 복원이 끝난 뒤이므로 호스트 git으로 integration worktree를 찾아도 된다.
       const cwd = name === '04-finalize' ? integrationWorktree(workspace) : workspace;
-      progress(`${name} started`);
-      const stageRecord = stage(config, policyFile, name, workspace, runDir, cwd);
+      const stageDir = path.join(runDir, name);
+      progress(`${name} started (${minutes} min left)`);
+      // 성공·실패·시간 초과와 상관없이 호스트 git 작업(아래) 전에 DeepSWE root 소유 파일을 되돌린다.
+      const stageRecord = await withOwnershipRestore(runtime, ids,
+        () => stage(config, policyFile, name, workspace, runDir, cwd, minutes),
+        { runCompose: (args) => command('docker', ['compose', '-f', path.join(root, 'docker', 'compose.cursor.yaml'), ...args],
+          projectRoot, composeEnvFor(config, runtime, workspace, stageDir)) });
       progress(`${name} returned`);
       record.stages.push(name);
       record.stage_usage[name] = stageRecord.usage;
@@ -356,18 +434,28 @@ function main() {
       record.subagent_denied = { ...record.subagent_denied, [name]: stageRecord.subagent_denied ?? 0 };
       record.usage_total = sumUsage(Object.values(record.stage_usage));
       record.usage_total_status = usageTotalStatus(record.stage_usage);
-      if (name === '01-init') bootstrapCommit(workspace, policy, setupStatus);
+      if (name === '01-init') {
+        bootstrapCommit(workspace, policy, setupStatus);
+        Object.assign(record, runtimeFieldsFor(config, prepared, { runDocker: (args) => command('docker', args, projectRoot) }));
+      }
       if (name === '02-plan') record.blueprint = checkPlanGate(workspace);
       if (name === '03-run') record.integration = checkIntegration(workspace, integrationWorktree(workspace));
       save(path.join(runDir, 'run.json'), record);
+    };
+    const { skipped } = await runStagesWithBudget({ stages: ['01-init', '02-plan', '03-run', '04-finalize'],
+      totalMinutes: config.timeoutMinutes, startedAt: startedAtMs, now: Date.now, runStage });
+    if (skipped.length) {
+      // 예산이 소진되면 채점할 증거가 없다: 오류가 아니라 채점 불가 기록으로 남기고 표본에서 뺀다.
+      Object.assign(record, budgetStopRecord(skipped));
+    } else {
+      // finalize --yes cleanup이 worktree를 지우므로 브랜치 ref에서 증거를 모은다.
+      const evidence = collectFinalEvidence({ workspace, baseCommit, branch: record.integration.branch, blueprint: record.blueprint });
+      record.blueprint = evidence.blueprint;
+      record.integration_head = evidence.integration_head;
+      writeFileSync(path.join(runDir, 'diff.patch'), evidence.patch);
+      verifyPatch(config, task, workspace, runDir, record);
+      record.status = 'finalized';
     }
-    // finalize --yes cleanup이 worktree를 지우므로 브랜치 ref에서 증거를 모은다.
-    const evidence = collectFinalEvidence({ workspace, baseCommit, branch: record.integration.branch, blueprint: record.blueprint });
-    record.blueprint = evidence.blueprint;
-    record.integration_head = evidence.integration_head;
-    writeFileSync(path.join(runDir, 'diff.patch'), evidence.patch);
-    verifyPatch(config, task, workspace, runDir, record);
-    record.status = 'finalized';
   } catch (error) {
     record.status = 'stopped';
     record.error = error.message;
@@ -389,9 +477,15 @@ function main() {
   }
   progress(`run ${record.status}${record.error ? `: ${record.error}` : ''}`);
   process.stdout.write(`${runDir}\n`);
-  if (record.status !== 'finalized') process.exitCode = 1;
+  process.exitCode = exitCodeFor(record);
 }
 
-if (require.main === module) main();
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+  });
+}
 
-module.exports = { configOf, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages };
+module.exports = { configOf, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
+  bootstrapCommit, runtimeFieldsFor };

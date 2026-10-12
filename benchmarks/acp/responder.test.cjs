@@ -7,7 +7,7 @@ const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { loadPolicy, loadCatalog, readTextQuestions, turnQuestionState, answerAskQuestion,
   answerTextQuestion, answerQuizText, looksLikeQuizRequest, answerPermission, finalizeReady, gateIdOf,
-  gitEnv, IMPLEMENTED_ANSWERS } = require('./responder.cjs');
+  gitEnv, IMPLEMENTED_ANSWERS, isImplementedAnswer } = require('./responder.cjs');
 
 // 응답기는 task_facts만 읽으므로 fastify-001 사실은 승인된 정책 파일에서 그대로 가져온다.
 // bouncer_decisions는 일부러 싣지 않는다: 이 목록을 쓰는 테스트는 게이트 기본 동작만 본다.
@@ -712,7 +712,7 @@ test('실제 정책의 카탈로그 게이트 항목 → answer가 stop이거나
     for (const id of ids) {
       const decision = decisions.find((candidate) => candidate.gate === id);
       assert.ok(decision, `${name}: ${id}`);
-      assert.ok(decision.answer === 'stop' || IMPLEMENTED_ANSWERS[id]?.includes(decision.answer), `${name}: ${id}`);
+      assert.ok(decision.answer === 'stop' || isImplementedAnswer(realPolicy(name), id, decision.answer), `${name}: ${id}`);
     }
   }
 });
@@ -745,6 +745,62 @@ test('init.base_branch, 현재 브랜치 develop → null', () => {
 test('init.base_branch, main 선택지가 둘 → null', () => {
   const text = acq('init.base_branch', '기준 브랜치', ['Use main (Recommended)', 'Use main-2']);
   assert.equal(answerTextQuestion(base, 'bouncer-init', text, '/nonexistent', { currentBranch: () => 'main' }), null);
+});
+
+const withFacts = (decisions, facts) => ({ ...policy, task_facts: { ...policy.task_facts, ...facts },
+  bouncer_decisions: decisions });
+const rewrittenPolicyFile = (changes) => {
+  const approved = realPolicy('fastify-001');
+  return policyFile({ ...approved, ...changes,
+    task_facts: { ...approved.task_facts, ...changes.task_facts },
+    bouncer_decisions: approved.bouncer_decisions.map((decision) => ({
+      ...decision, answer: changes.answers?.[decision.gate] ?? decision.answer })) });
+};
+
+test('정책 init.base_branch master와 task_facts.base_branch master → loadPolicy 통과', () => {
+  const file = rewrittenPolicyFile({ task_facts: { base_branch: 'master' }, answers: { 'init.base_branch': 'master' } });
+  assert.equal(loadPolicy(file).task_facts.base_branch, 'master');
+});
+
+test('정책 init.base_branch develop과 task_facts.base_branch main → loadPolicy throw not implemented', () => {
+  const file = rewrittenPolicyFile({ answers: { 'init.base_branch': 'develop' } });
+  assert.throws(() => loadPolicy(file), /evaluator policy answer develop for init\.base_branch is not implemented/);
+});
+
+test('정책 기준 브랜치 master, 현재 브랜치 master, master 선택지 하나 → 그 선택지', () => {
+  const master = withFacts([{ gate: 'init.base_branch', answer: 'master' }], { base_branch: 'master' });
+  const text = acq('init.base_branch', '기준 브랜치', ['Use master as the base branch (Recommended)', 'Use develop']);
+  assert.equal(answerTextQuestion(master, 'bouncer-init', text, '/nonexistent', { currentBranch: () => 'master' }).reply, 'A');
+});
+
+test('정책 기준 브랜치 master, 현재 브랜치 main → null', () => {
+  const master = withFacts([{ gate: 'init.base_branch', answer: 'master' }], { base_branch: 'master' });
+  const text = acq('init.base_branch', '기준 브랜치', ['Use master as the base branch (Recommended)', 'Use develop']);
+  assert.equal(answerTextQuestion(master, 'bouncer-init', text, '/nonexistent', { currentBranch: () => 'main' }), null);
+});
+
+test('정책 init.base_branch 답이 task_facts.base_branch와 다름 → isImplementedAnswer false', () => {
+  assert.equal(isImplementedAnswer(withFacts([], { base_branch: 'master' }), 'init.base_branch', 'main'), false);
+  assert.equal(isImplementedAnswer(withFacts([], { base_branch: 'master' }), 'init.base_branch', 'master'), true);
+  assert.equal(isImplementedAnswer(policy, 'plan.verify_command', 'npm test'), true);
+});
+
+test('정책 plan.verify_command policy_verification_command → loadPolicy 통과', () => {
+  const file = rewrittenPolicyFile({ task_facts: { verification_command: 'go test ./...' },
+    answers: { 'plan.verify_command': 'policy_verification_command' } });
+  assert.equal(loadPolicy(file).task_facts.verification_command, 'go test ./...');
+});
+
+test('정책 verify 명령 go test, package.json 없음, 권장 선택지가 그 명령 → 그 선택지', () => {
+  const goPolicy = withFacts([{ gate: 'plan.verify_command', answer: 'policy_verification_command' }],
+    { verification_command: 'go test ./...' });
+  const repo = workdirWith();
+  const ask = (options) => acq('plan.verify_command', '`bouncer.verify` 검증 명령을 정할지', options);
+  assert.equal(answerTextQuestion(goPolicy, 'bouncer-plan',
+    ask(['go test ./... (Recommended)', 'Leave unset']), repo)?.reply, 'A');
+  assert.equal(answerTextQuestion(goPolicy, 'bouncer-plan',
+    ask(['make test (Recommended)', 'Leave unset']), repo), null);
+  rmSync(repo, { recursive: true });
 });
 
 test('init.graphify_promotion 권장 활성화 → 권장 선택지', () => {

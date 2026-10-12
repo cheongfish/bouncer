@@ -1,20 +1,33 @@
 name: bouncer-cursor-benchmark
 
-x-agent: &agent
+# 두 에이전트 계열이 공유하는 설정. 마운트 대상 경로(홈)가 달라 volumes는 각 계열이 따로 둔다.
+x-agent-base: &agent-base
   working_dir: /workspace
   init: true
-  volumes:
-    - ${BENCH_WORKSPACE:?set BENCH_WORKSPACE}:/workspace
-    - ${BENCH_PROMPT:?set BENCH_PROMPT}:/run/benchmark/prompt.txt:ro
-    - ${BENCH_CURSOR_DATA:?set BENCH_CURSOR_DATA}:/home/node/.cursor/projects
-    # cursor-agent session logs carry the per-turn token usage; keep them after the container exits.
-    - ${BENCH_CURSOR_LOGS:?set BENCH_CURSOR_LOGS}:/tmp/cursor-agent-logs-${BENCH_UID:-1000}
   secrets:
     - cursor_api_key
   # Docker bridge의 dual-stack localhost(::1 우선)에서 상류 저장소 테스트(예: fastify test/close.test.js)가
   # 멈춘다. 검증기(network_mode: none)에서는 통과하므로 에이전트 컨테이너의 IPv6만 끈다.
   sysctls:
     net.ipv6.conf.all.disable_ipv6: 1
+
+x-agent: &agent
+  <<: *agent-base
+  volumes:
+    - ${BENCH_WORKSPACE:?set BENCH_WORKSPACE}:/workspace
+    - ${BENCH_PROMPT:?set BENCH_PROMPT}:/run/benchmark/prompt.txt:ro
+    - ${BENCH_CURSOR_DATA:?set BENCH_CURSOR_DATA}:/home/node/.cursor/projects
+    # cursor-agent session logs carry the per-turn token usage; keep them after the container exits.
+    - ${BENCH_CURSOR_LOGS:?set BENCH_CURSOR_LOGS}:/tmp/cursor-agent-logs-${BENCH_UID:-1000}
+
+# DeepSWE 과제 이미지는 root로 돌아 홈이 /root이고 로그 디렉터리의 uid도 0이다.
+x-deepswe-agent: &deepswe-agent
+  <<: *agent-base
+  volumes:
+    - ${BENCH_WORKSPACE:?set BENCH_WORKSPACE}:/workspace
+    - ${BENCH_PROMPT:?set BENCH_PROMPT}:/run/benchmark/prompt.txt:ro
+    - ${BENCH_CURSOR_DATA:?set BENCH_CURSOR_DATA}:/root/.cursor/projects
+    - ${BENCH_CURSOR_LOGS:?set BENCH_CURSOR_LOGS}:/tmp/cursor-agent-logs-0
 
 services:
   vanilla:
@@ -37,6 +50,30 @@ services:
       args:
         BENCH_UID: ${BENCH_UID:-1000}
     image: bouncer-benchmark-cursor-bouncer:local
+    command: ["${BENCH_MODEL:?set BENCH_MODEL}", "/run/benchmark/prompt.txt"]
+
+  # BENCH_TASK_ID·BENCH_TASK_IMAGE는 DeepSWE 실행기만 정한다. compose는 파일 전체를 보간하므로
+  # 다른 카드 실행에서도 읽히도록 기본값을 둔다(그 서비스를 쓸 때는 실행기가 항상 채운다).
+  deepswe-vanilla:
+    <<: *deepswe-agent
+    build:
+      context: ../..
+      dockerfile: benchmarks/docker/Dockerfile.deepswe
+      target: deepswe-vanilla
+      args:
+        TASK_IMAGE: ${BENCH_TASK_IMAGE:-unset}
+    image: bouncer-benchmark-deepswe-${BENCH_TASK_ID:-unset}-vanilla:local
+    command: ["${BENCH_MODEL:?set BENCH_MODEL}", "/run/benchmark/prompt.txt"]
+
+  deepswe-bouncer:
+    <<: *deepswe-agent
+    build:
+      context: ../..
+      dockerfile: benchmarks/docker/Dockerfile.deepswe
+      target: deepswe-bouncer
+      args:
+        TASK_IMAGE: ${BENCH_TASK_IMAGE:-unset}
+    image: bouncer-benchmark-deepswe-${BENCH_TASK_ID:-unset}-bouncer:local
     command: ["${BENCH_MODEL:?set BENCH_MODEL}", "/run/benchmark/prompt.txt"]
 
   verifier:

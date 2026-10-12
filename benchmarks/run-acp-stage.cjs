@@ -12,6 +12,8 @@ const { transcriptFiles, usageFromAcp, usageFromCursorLogs } = require('./usage.
 const { argsOf, stages } = require('./stage-args.cjs');
 const { loadCard } = require('./task-card.cjs');
 const { assertImagePluginVersion } = require('./plugin-version.cjs');
+const { loadPrepared } = require('./prepare-deepswe-task.cjs');
+const { agentRuntime } = require('./agent-runtime.cjs');
 const { writeUnansweredFixtures } = require('./unanswered-fixtures.cjs');
 
 const root = __dirname;
@@ -31,21 +33,25 @@ async function main() {
   mkdirSync(cursorLogs);
   const promptFile = path.join(runDir, 'prompt.txt');
   writeFileSync(promptFile, `${stages.get(stage)}\n\n${task.requestText}`);
+  // DeepSWE 카드면 과제 이미지 기반 서비스와 그 빌드 env를, 아니면 기존 bouncer 서비스를 쓴다.
+  const runtime = agentRuntime({ taskId: args.taskId, condition: 'bouncer-full', prepared: loadPrepared(args.taskId) });
   const env = {
     ...process.env,
+    ...runtime.env,
     BENCH_WORKSPACE: args['--work-dir'], BENCH_PROMPT: promptFile, BENCH_RESULT_DIR: runDir,
     BENCH_MODEL: args['--model'], BENCH_UID: String(process.getuid()), BENCH_GID: String(process.getgid()),
     CURSOR_API_KEY_FILE: args['--key-file'],
     BENCH_CURSOR_DATA: cursorData,
     BENCH_CURSOR_LOGS: cursorLogs,
   };
-  const built = spawnSync('docker', ['compose', '-f', compose, 'build', 'bouncer'], {
+  const built = spawnSync('docker', ['compose', '-f', compose, 'build', runtime.service], {
     cwd: root, env, stdio: 'inherit',
   });
   if (built.status !== 0) throw new Error(`Docker build failed: ${built.status}`);
   // 유료 요청 전에 이미지 플러그인 버전이 checkout과 같은지 확인한다.
   const pluginVersion = assertImagePluginVersion({ compose, env, cwd: root,
-    checkoutVersion: JSON.parse(readFileSync(path.join(root, '..', 'package.json'), 'utf8')).version });
+    checkoutVersion: JSON.parse(readFileSync(path.join(root, '..', 'package.json'), 'utf8')).version,
+    service: runtime.service, packageJson: runtime.pluginPackageJson });
   const startedAt = new Date().toISOString();
   const containerName = `cursor-bench-acp-${process.pid}`;
   const decisions = [];
@@ -57,7 +63,7 @@ async function main() {
   const client = new AcpClient({
     command: 'docker',
     args: ['compose', '-f', compose, 'run', '--rm', '--no-deps', '-T', '--interactive', '--name', containerName,
-      'bouncer', '--acp', args['--model']],
+      runtime.service, '--acp', args['--model']],
     cwd: root, env,
     authenticate: false,
     transcript: path.join(runDir, 'acp.jsonl'), stderr: path.join(runDir, 'cursor.stderr.log'),

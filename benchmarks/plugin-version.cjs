@@ -12,11 +12,12 @@ const IMAGE_PACKAGE_JSON = '/home/node/.cursor/plugins/local/bouncer/package.jso
  * 호출자가 원인 구분 없이 "읽지 못함"으로 유료 요청 전에 멈추기 때문이다.
  *
  * @param {(args: string[]) => string} runCompose - `docker compose` 인자를 받아 stdout을 돌려주는 함수
+ * @param {{ service?: string, packageJson?: string }} [target] - 읽을 compose 서비스와 이미지 안 경로(기본 `bouncer`·`IMAGE_PACKAGE_JSON`, DeepSWE 이미지는 `/root` 아래)
  * @returns {string | null} package.json 원문. `runCompose`가 throw하면 null
  */
-function readImagePackageJson(runCompose) {
+function readImagePackageJson(runCompose, { service = 'bouncer', packageJson = IMAGE_PACKAGE_JSON } = {}) {
   try {
-    return runCompose(['run', '--rm', '--no-deps', '--entrypoint', 'cat', 'bouncer', IMAGE_PACKAGE_JSON]);
+    return runCompose(['run', '--rm', '--no-deps', '--entrypoint', 'cat', service, packageJson]);
   } catch {
     return null;
   }
@@ -46,15 +47,15 @@ function checkPluginVersion({ imageJson, checkoutVersion }) {
  * 이미지 빌드 직후 실행기가 쓰는 한 번 호출 진입점: 읽기, 대조, 실패 시 throw.
  * docker 호출은 여기서만 spawnSync를 쓰며 단위 테스트 대상이 아니다(순수 부분은 위 두 함수).
  *
- * @param {{ compose: string, env: NodeJS.ProcessEnv, cwd: string, checkoutVersion: string }} input - compose 파일, 환경, 실행 cwd, checkout 버전
+ * @param {{ compose: string, env: NodeJS.ProcessEnv, cwd: string, checkoutVersion: string, service?: string, packageJson?: string }} input - compose 파일, 환경, 실행 cwd, checkout 버전, 읽을 서비스와 이미지 안 경로(생략하면 `readImagePackageJson` 기본값)
  * @returns {string} 일치한 플러그인 버전
  */
-function assertImagePluginVersion({ compose, env, cwd, checkoutVersion }) {
+function assertImagePluginVersion({ compose, env, cwd, checkoutVersion, service, packageJson }) {
   const imageJson = readImagePackageJson((args) => {
     const result = spawnSync('docker', ['compose', '-f', compose, ...args], { cwd, env, encoding: 'utf8' });
     if (result.error || result.status !== 0) throw new Error(result.stderr || result.error?.message || 'docker failed');
     return result.stdout;
-  });
+  }, { service, packageJson });
   const checked = checkPluginVersion({ imageJson, checkoutVersion });
   if (!checked.ok) throw new Error(checked.error);
   return checked.version;
