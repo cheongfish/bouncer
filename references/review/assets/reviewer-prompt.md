@@ -44,6 +44,11 @@ reviewer. This is a read-only pass: do not modify files, commit, or change
 - `{{CONSTRAINTS}}` — each supplied brief `## Constraints` list verbatim, plus Do
   not touch paths, `affected_paths`, and repo norms. Paste the rules; do not
   summarize them, or the reviewer cannot tell a breach from a judgement call.
+- `{{RED_RUN}}` — one `TASKS-NNN: <Red run value>` line per commit task in
+  the review scope (task scope: one line; blueprint scope: every commit task
+  in task-number order), copied from that task's latest-attempt report
+  (`.bouncer/runtime/reports/<task>-<attempt>.md`) or, on an inline path, from
+  the controller's own red run; `TASKS-NNN: 미제공` when no report is found
 - `{{PREVIOUS_FINDINGS}}` — delta only: stable IDs and fields from earlier
   rounds
 - `{{RESOLUTION}}` — delta only: how each previous finding was resolved
@@ -84,6 +89,20 @@ a different bundle revision into this round.
 
 ### Constraints
 {{CONSTRAINTS}}
+
+### Red run
+{{RED_RUN}}
+
+Judge these lines under `correctness_tests` by the `Test trust` section of
+`${BOUNCER_ROOT}/references/coding-standards/index.md`. Do not assert that a
+test detects a defect without a run that shows it, and do not re-run tests.
+
+### Red run
+{{RED_RUN}}
+
+Judge these lines under `correctness_tests` by the `Test trust` section of
+`${BOUNCER_ROOT}/references/coding-standards/index.md`. Do not assert that a
+test detects a defect without a run that shows it, and do not re-run tests.
 
 ### Discovery rules
 

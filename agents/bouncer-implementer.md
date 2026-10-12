@@ -145,6 +145,13 @@ actionable:
 - **Checklist coverage** — each Checklist item mapped to `done` / `not done`
   plus where it landed (`file:line` or path).
 - **Tests** — tests added or updated, and the result of the last run.
+- **Red run** — the red you observed before implementing, in one of two forms:
+  `<command run> — <failing assertion or failure point observed>` when the
+  Checklist has a red step, or `해당 없음: <reason>` when the task only changes
+  documents or has no red step. A verify-failure re-dispatch records the
+  regression test's red run here too. This is the reviewer's test-trust input,
+  never verification evidence — the execute gate remains the only recorder of
+  success.
 - **Deviations** — where the diff differs from the brief, and why.
 - **Scope impact** — `none`, or the paths the work needed outside the current
   `affected_paths` and why, plus any other task the change touches.

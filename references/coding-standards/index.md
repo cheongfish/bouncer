@@ -39,6 +39,14 @@ Assert observable behavior: return values, exit codes, error codes, emitted data
   expected reason. A test that passes before the change proves nothing.
 - Do not claim a defect is detected or a behavior is covered without a run
   that shows it.
+- A reviewer judging the `Red run` lines of a call slot reports a
+  `correctness_tests` finding for a task when its line is `미제공`, matches
+  neither `<command> — <failing assertion or failure point>` nor
+  `해당 없음: <reason>`, says `해당 없음` although the task has a red step, or
+  shows a failure reason that differs from the red the brief expects. The
+  default severity is `minor`; use `major` when the test guards a public
+  contract. Without a slot value the reviewer does not assert that a defect is
+  detected.
 
 ## Error handling
 

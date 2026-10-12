@@ -1311,6 +1311,14 @@ test('card: print dispatch input templates for implement, review, final_review',
   assert.match(printDispatchSection('final_review'), /Contract/);
 });
 
+test('card: review and final_review --input place Red run after Constraints → order holds', () => {
+  for (const id of ['review', 'final_review']) {
+    assertIndexOrder(printDispatchSection(id), [
+      'Mode', 'Perspective', 'Target', 'Brief', 'Intent sections', 'Constraints', 'Red run',
+    ], id);
+  }
+});
+
 test('card: concatenated cards satisfy the coordinator document rule regexes', () => {
   const md = cardBodies().join('\n');
   // test/agents.test.js — review-dispatch execute result

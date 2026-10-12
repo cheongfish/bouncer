@@ -31,7 +31,8 @@ dispatch and the execute agent-dispatch and review-round references.
   sections, the reviewer's `intent_sections` projection from `bouncer intent
   sections --task <current.task.path> --role reviewer`, the frozen target
   (including the shared bundle identifiers), `strategy`, and `risk_flags`, and
-  never another reviewer's findings or the full Explain body.
+  never another reviewer's findings or the full Explain body. The slot also
+  carries the `Red run` line after Constraints (see Print dispatch input).
 - If named agents are unavailable, dispatch fresh generic subagents in the
   same `perspectives` order, each carrying the entire body of
   `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` — every section from Authority through Output
@@ -49,8 +50,14 @@ as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
 Do not read `${BOUNCER_ROOT}/agents/*.md`, `reviewer-prompt.md`, or `review-rounds.md`.
 
 `--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
-Target, Brief, Intent sections, Constraints, then delta inputs (previous
-findings, resolution, revision diff) when mode is delta.
+Target, Brief, Intent sections, Constraints, Red run, then delta inputs
+(previous findings, resolution, revision diff) when mode is delta.
+
+`## Red run` holds one `TASKS-NNN: <value>` line for the task under review: copy
+the `Red run` line of that task's latest-attempt report file
+(`.bouncer/runtime/reports/<task>-<attempt>.md`) verbatim, or write
+`TASKS-NNN: 미제공` when no report is found. On a delta pass use the fix
+attempt's latest report.
 
 ## Round
 

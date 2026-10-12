@@ -23,6 +23,16 @@ The frozen target also pins `task_brief_hash` / `task_brief_hashes` and
 projection from
 `bouncer intent sections --task <current.task.path> --role reviewer`
 — do not copy the full Explain body into the review payload.
+After Constraints the call slot also carries `{{RED_RUN}}`: one
+`TASKS-NNN: <Red run value>` line per commit task in the review scope (one line
+for a task-scope review, every commit task in task-number order for a
+blueprint-scope review), copied from that task's latest-attempt implementer
+report `.bouncer/runtime/reports/<task>-<attempt>.md`, or `TASKS-NNN: 미제공`
+when no report is found. When the controller implemented the task inline, it
+writes its own line in the same two forms: `<command run> — <failing assertion
+or failure point observed>` or `해당 없음: <reason>`. The reviewer judges these
+lines under `correctness_tests` by the `Test trust` section of the coding
+standards.
 
 ## When this applies
 
@@ -89,7 +99,8 @@ unresolved. Used from `/bouncer-execute`.
    those three then `security`). Fill
    [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md)
    for each reviewer without sharing another discovery reviewer's findings and
-   without the full Explain body. Use named **`bouncer-reviewer`** with the
+   without the full Explain body, and with the `Red run` lines after
+   Constraints. Use named **`bouncer-reviewer`** with the
    resolved model and only that filled call slot. When named agents are
    unavailable, use a **fresh generic** subagent whose payload carries the
    entire body of `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` — every section from Authority
