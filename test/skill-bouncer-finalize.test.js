@@ -6,9 +6,22 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 
-// PR 본문 절 순서가 계약이다. 템플릿(lib·GitHub·GitLab)과 draft-pr 참조가 같은 절을 같은
-// 순서로 가져야 PR 생성 결과가 일관된다. 문장 표현은 고정하지 않는다.
-test('PR templates and draft-pr reference → share the review-flow section order', () => {
+// PR 본문 절 순서와 필수 절이 계약이다. 템플릿(lib·GitHub·GitLab)과 draft-pr 참조가 같은 절을
+// 같은 순서로 가져야 PR 생성 결과가 일관된다. 절 이름·필수 표시는 문서 형식 자체가 계약이다.
+const sectionOrder = [
+  '관련 이슈',
+  '배경 · 변경 의도',
+  '주요 변경 내용',
+  '변경 그림',
+  '변경 전후',
+  '리뷰 포인트',
+  '되돌리기 · 영향 범위',
+  '확인 방법',
+];
+const skipRules =
+  /docs\/config\/tests\s+only|문서·설정·테스트만|Omit\s+the\s+heading|rename\/move|denser\s+than\s+the\s+code|이름\s*변경·이동이면/;
+
+function loadDocs() {
   const draftPr = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'),
     'utf8',
@@ -19,24 +32,38 @@ test('PR templates and draft-pr reference → share the review-flow section orde
     path.join(root, '.gitlab', 'merge_request_templates', 'Default.md'),
     'utf8',
   );
+  return { draftPr, templates: [PR_TEMPLATE, githubTpl, gitlabTpl] };
+}
 
-  const sectionOrder = [
-    '관련 이슈',
-    '배경 · 변경 의도',
-    '주요 변경 내용',
-    '로직 흐름',
-    '리뷰 포인트',
-    '확인 방법',
-  ];
-  for (const doc of [PR_TEMPLATE, githubTpl, gitlabTpl, draftPr]) {
+test('PR templates and draft-pr reference → share the eight-section order', () => {
+  const { draftPr, templates } = loadDocs();
+  const check = (doc, marker) => {
     let prev = -1;
-    for (const title of sectionOrder) {
-      const idx = doc.indexOf(title);
-      assert.ok(idx > -1, `missing section ${title}`);
-      assert.ok(idx > prev, `section order broken at ${title}`);
+    for (const name of sectionOrder) {
+      const idx = doc.indexOf(marker(name));
+      assert.ok(idx > -1, `missing section ${name}`);
+      assert.ok(idx > prev, `section order broken at ${name}`);
       prev = idx;
     }
+  };
+  for (const doc of templates) check(doc, (n) => `## ${n}`);
+  check(draftPr, (n) => `| \`${n}\``);
+});
+
+test('PR templates and draft-pr reference → carry no retired flow section or skip rule', () => {
+  const { draftPr, templates } = loadDocs();
+  for (const doc of [draftPr, ...templates]) {
+    assert.ok(!doc.includes('로직 흐름'));
+    assert.ok(!skipRules.test(doc));
   }
+});
+
+test('draft-pr reference → marks the three sections mandatory and keeps the unobserved-before rule', () => {
+  const { draftPr } = loadDocs();
+  assert.ok(draftPr.includes('`변경 그림` (필수)'));
+  assert.ok(draftPr.includes('`변경 전후` (필수)'));
+  assert.ok(draftPr.includes('`되돌리기 · 영향 범위` (필수)'));
+  assert.ok(draftPr.includes('변경 전 결과 미관측'));
 });
 
 // 사라진 reference는 부활하지 않는다.

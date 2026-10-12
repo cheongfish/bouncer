@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **PR 변경 그림과 판단 자료 필수화 (EPIC 095 BP 003)** — 모든 PR에 `변경 그림`,
+  `변경 전후`, `되돌리기 · 영향 범위` 절을 필수로 두고 조건부 `로직 흐름` 생략 규칙을
+  없앴다. `draft-pr.md`와 PR 템플릿 세 곳(`PR_TEMPLATE`, GitHub, GitLab)의 절 순서를
+  같게 맞췄다. digest 스키마는 바꾸지 않았고, 변경 전 관측이 없으면 `변경 전 결과 미관측`으로 쓴다.
 - **테스트 이름 형식 검사 (EPIC 095 BP 002)** — `npm run lint:test-names`를 `ci`의
   `typecheck` 다음, `npm audit` 앞에 넣어 `test/*.test.js`의 이름이 `<조건> → <결과>` 형식이
   아니면 ci가 실패한다.
