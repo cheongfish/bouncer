@@ -27,27 +27,27 @@ function listTestFiles() {
   return fs.readdirSync(path.join(ROOT, 'test')).filter((f) => f.endsWith('.test.js')).sort();
 }
 
-test('every test file is assigned to a tier', () => {
+test('every test file → is assigned to a tier', () => {
   const { unit, integration } = loadTiers();
   const assigned = new Set([...unit, ...integration]);
   const missing = listTestFiles().filter((f) => !assigned.has(f));
   assert.deepStrictEqual(missing, []);
 });
 
-test('no test file is in both tiers', () => {
+test('no test file → is in both tiers', () => {
   const { unit, integration } = loadTiers();
   const both = unit.filter((f) => integration.includes(f));
   assert.deepStrictEqual(both, []);
 });
 
-test('tier lists name only existing files', () => {
+test('tier → lists name only existing files', () => {
   const { unit, integration } = loadTiers();
   const existing = new Set(listTestFiles());
   const ghost = [...unit, ...integration].filter((f) => !existing.has(f));
   assert.deepStrictEqual(ghost, []);
 });
 
-test('unit guard rejects process spawning and lets pure tests pass', () => {
+test('unit guard → rejects process spawning and lets pure tests pass', () => {
   const { unitNodeOptions } = require('../scripts/test-tier');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tiers-guard-'));
   try {
@@ -78,13 +78,13 @@ test('unit guard rejects process spawning and lets pure tests pass', () => {
   }
 });
 
-test('runner exits 2 with usage for an unknown tier', () => {
+test('runner → exits 2 with usage for an unknown tier', () => {
   const res = spawnSync(process.execPath, [RUNNER, 'bogus'], { env: cleanEnv(), encoding: 'utf8' });
   assert.strictEqual(res.status, 2);
   assert.match(res.stderr, /usage/i);
 });
 
-test('runner exits 1 naming a listed file that does not exist, before node --test', () => {
+test('runner → exits 1 naming a listed file that does not exist, before node --test', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tiers-run-'));
   try {
     fs.mkdirSync(path.join(dir, 'test'));

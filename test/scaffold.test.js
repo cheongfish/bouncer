@@ -23,7 +23,7 @@ function captureScaffold(argv) {
   return { code, ...buf };
 }
 
-test('scaffoldEpic writes a valid epic index under numeric dirs', () => {
+test('scaffoldEpic under numeric dirs → writes a valid epic index', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const legacyIndex = path.join(repo, 'context/epics', 'EPIC-999-legacy/index.md');
   fs.mkdirSync(path.dirname(legacyIndex), { recursive: true });
@@ -46,7 +46,7 @@ test('scaffoldEpic writes a valid epic index under numeric dirs', () => {
   assert.doesNotMatch(bundle, /EPIC-001/);
 });
 
-test('scaffoldEpic requires a written description and rejects placeholders', () => {
+test('scaffoldEpic with a placeholder or missing description → rejects it and requires a written description', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   for (const description of [undefined, '', '   ', 'Epic 061']) {
     assert.throws(
@@ -57,7 +57,7 @@ test('scaffoldEpic requires a written description and rejects placeholders', () 
   assert.strictEqual(fs.existsSync(path.join(repo, CONTEXT_ROOT, 'epics', '061-auth')), false);
 });
 
-test('scaffoldEpic re-entry preserves the epic bytes and synchronizes one index row', () => {
+test('scaffoldEpic re-entry → preserves the epic bytes and synchronizes one index row', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: 'First description' });
   const epicPath = path.join(repo, CONTEXT_ROOT, 'epics/061-auth/index.md');
@@ -74,7 +74,7 @@ test('scaffoldEpic re-entry preserves the epic bytes and synchronizes one index 
   assert.notDeepStrictEqual(before, fs.readFileSync(epicPath));
 });
 
-test('scaffoldEpic replaces a stale row and does not rewrite a matching index', () => {
+test('scaffoldEpic with a stale or matching index row → replaces the stale row and does not rewrite a matching index', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: 'Current description' });
   const indexPath = path.join(repo, CONTEXT_ROOT, 'index.md');
@@ -88,7 +88,7 @@ test('scaffoldEpic replaces a stale row and does not rewrite a matching index', 
   assert.deepStrictEqual(fs.readFileSync(indexPath), stable);
 });
 
-test('scaffoldEpic is idempotent on the bundle context index line', () => {
+test('scaffoldEpic run twice → is idempotent on the bundle context index line', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const again = scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -97,7 +97,7 @@ test('scaffoldEpic is idempotent on the bundle context index line', () => {
   assert.strictEqual([...bundle.matchAll(/001-auth/g)].length, 1);
 });
 
-test('scaffoldEpic refuses a number another epic slug already uses', () => {
+test('scaffoldEpic with a number another epic slug already uses → refuses it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '024', name: 'lightweight-cycle', timestamp: TS });
   assert.throws(
@@ -114,7 +114,7 @@ test('scaffoldEpic refuses a number another epic slug already uses', () => {
   assert.doesNotMatch(bundle, /024-light-path/);
 });
 
-test('full scaffold created includes blueprint-root review.md and review_scope', () => {
+test('full scaffold → created files include blueprint-root review.md and review_scope', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const created = scaffoldBlueprint({
@@ -127,7 +127,7 @@ test('full scaffold created includes blueprint-root review.md and review_scope',
   assert.strictEqual(bp.bouncer.review_scope, 'blueprint');
 });
 
-test('light scaffold created includes blueprint-root review.md and review_scope', () => {
+test('light scaffold → created files include blueprint-root review.md and review_scope', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const created = scaffoldBlueprint({
@@ -140,7 +140,7 @@ test('light scaffold created includes blueprint-root review.md and review_scope'
   assert.strictEqual(bp.bouncer.review_scope, 'blueprint');
 });
 
-test('scaffoldTask on a blueprint without review_scope still writes three task docs', () => {
+test('scaffoldTask on a blueprint without review_scope → still writes three task docs', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   fs.mkdirSync(path.join(repo, base), { recursive: true });
@@ -172,7 +172,7 @@ bouncer:
   ]);
 });
 
-test('scaffoldBlueprint writes five plan docs (no explain) with numeric child ids', () => {
+test('scaffoldBlueprint → writes five plan docs (no explain) with numeric child ids', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const created = scaffoldBlueprint({
@@ -231,7 +231,7 @@ test('scaffoldBlueprint writes five plan docs (no explain) with numeric child id
   assert.strictEqual(review.bouncer.supersedes, undefined);
 });
 
-test('scaffoldTask adds a numbered unit and refuses overwrite', () => {
+test('scaffoldTask on a new or existing unit → adds a numbered unit and refuses overwrite', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -263,7 +263,7 @@ function setBlueprintStatus(repo, base, status) {
   assert.strictEqual(readDoc(abs).data.bouncer.status, status);
 }
 
-test('scaffoldTask refuses a closed blueprint without creating the task dir', () => {
+test('scaffoldTask on a closed blueprint → refuses without creating the task dir', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -279,7 +279,7 @@ test('scaffoldTask refuses a closed blueprint without creating the task dir', ()
   assert.strictEqual(fs.existsSync(path.join(repo, base, 'tasks', '002')), false);
 });
 
-test('bouncer scaffold task exits 2 on a closed blueprint', () => {
+test('bouncer scaffold task on a closed blueprint → exits 2', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -299,7 +299,7 @@ test('bouncer scaffold task exits 2 on a closed blueprint', () => {
   assert.strictEqual(fs.existsSync(path.join(repo, base, 'tasks', '002')), false);
 });
 
-test('scaffoldTask still succeeds on draft / approved / superseded blueprints', () => {
+test('scaffoldTask on draft / approved / superseded blueprints → still succeeds', () => {
   for (const status of ['draft', 'approved', 'superseded']) {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
     scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -321,7 +321,7 @@ test('scaffoldTask still succeeds on draft / approved / superseded blueprints', 
 
 // 잠금 판정은 blueprint index.md를 읽는다. 그 파일이 없거나 깨졌을 때
 // scaffold가 함께 죽으면 새 저장소 부트스트랩이 막히므로 통과시킨다.
-test('scaffoldTask ignores a missing or unparsable blueprint index', () => {
+test('scaffoldTask with a missing or unparsable blueprint index → ignores it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   fs.mkdirSync(path.join(repo, base), { recursive: true });
@@ -335,7 +335,7 @@ test('scaffoldTask ignores a missing or unparsable blueprint index', () => {
   }).length, 3);
 });
 
-test('scaffold --id 001 succeeds; EPIC-001 / 1 / 01 fail', () => {
+test('scaffold --id with 001 or EPIC-001 / 1 / 01 → 001 succeeds and the others fail', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const ok = captureScaffold([
     'scaffold', 'epic', '--repo', repo, '--id', '001', '--name', 'auth',
@@ -354,7 +354,7 @@ test('scaffold --id 001 succeeds; EPIC-001 / 1 / 01 fail', () => {
   }
 });
 
-test('scaffold epic CLI rejects missing, blank, and placeholder descriptions before writing', () => {
+test('scaffold epic CLI with missing, blank, and placeholder descriptions → rejects them before writing', () => {
   for (const descriptionArgs of [[], ['--description', ''], ['--description', '   '], ['--description', 'Epic 061']]) {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
     const r = captureScaffold([
@@ -372,7 +372,7 @@ test('scaffold epic CLI rejects missing, blank, and placeholder descriptions bef
   }
 });
 
-test('scaffold epic CLI rejects malformed existing frontmatter without writing', () => {
+test('scaffold epic CLI with malformed existing frontmatter → rejects it without writing', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const created = captureScaffold([
     'scaffold', 'epic', '--repo', repo, '--id', '061', '--name', 'auth',
@@ -397,7 +397,7 @@ test('scaffold epic CLI rejects malformed existing frontmatter without writing',
   assert.deepStrictEqual(fs.readFileSync(indexPath), indexBefore);
 });
 
-test('scaffoldExplain creates explain.md once for finalize with empty comprehension', () => {
+test('scaffoldExplain for finalize → creates explain.md once with empty comprehension', () => {
   const { scaffoldExplain } = require('../scripts/lib/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -426,7 +426,7 @@ test('scaffoldExplain creates explain.md once for finalize with empty comprehens
   );
 });
 
-test('scaffoldContextReview refuses overwrite and leaves the file unchanged', () => {
+test('scaffoldContextReview with an existing file → refuses overwrite and leaves the file unchanged', () => {
   const { scaffoldContextReview } = require('../scripts/lib/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -443,7 +443,7 @@ test('scaffoldContextReview refuses overwrite and leaves the file unchanged', ()
   assert.deepStrictEqual(fs.readFileSync(abs), before);
 });
 
-test('scaffoldContextReview refuses a closed blueprint without writing the file', () => {
+test('scaffoldContextReview on a closed blueprint → refuses without writing the file', () => {
   const { scaffoldContextReview } = require('../scripts/lib/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -461,14 +461,14 @@ test('scaffoldContextReview refuses a closed blueprint without writing the file'
   assert.strictEqual(fs.existsSync(path.join(repo, bp, 'context-review.md')), false);
 });
 
-test('bouncer scaffold context-review exits 2 without --blueprint', () => {
+test('bouncer scaffold context-review without --blueprint → exits 2', () => {
   const r = captureScaffold(['scaffold', 'context-review']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /scaffold context-review: --blueprint is required/);
   assert.strictEqual(r.out, '');
 });
 
-test('scaffoldBlueprint ignores a project .bouncer/templates override', () => {
+test('scaffoldBlueprint with a project .bouncer/templates override → ignores it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fs.mkdirSync(path.join(repo, '.bouncer/templates'), { recursive: true });
   fs.writeFileSync(
@@ -486,7 +486,7 @@ test('scaffoldBlueprint ignores a project .bouncer/templates override', () => {
   assert.ok(tasks.includes('Blueprint: [001](../../index.md)'));
 });
 
-test('scaffoldEpic ignores a project .bouncer/templates override', () => {
+test('scaffoldEpic with a project .bouncer/templates override → ignores it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fs.mkdirSync(path.join(repo, '.bouncer/templates'), { recursive: true });
   fs.writeFileSync(
@@ -502,7 +502,7 @@ test('scaffoldEpic ignores a project .bouncer/templates override', () => {
   assert.ok(body.includes('## Intent'));
 });
 
-test('scaffoldBlueprint omits scope_evidence from commit task frontmatter', () => {
+test('scaffoldBlueprint commit task frontmatter → omits scope_evidence', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -520,7 +520,7 @@ test('scaffoldBlueprint omits scope_evidence from commit task frontmatter', () =
 
 // 에이전트가 G18/G14 입력 모양을 빈 값과 함께 보게 한다.
 // findings는 비워 두어 빈 계획이 승인되지 않는다.
-test('scaffold leaves findings empty so gates require authoring', () => {
+test('scaffold output → leaves findings empty so gates require authoring', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -538,7 +538,7 @@ test('scaffold leaves findings empty so gates require authoring', () => {
   assert.strictEqual(ctxReview.bouncer.status, 'pending');
 });
 
-test('scaffoldBlueprint rejects a root context epic directory', () => {
+test('scaffoldBlueprint with a root context epic directory → rejects it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   assert.throws(() => scaffoldBlueprint({
     repoRoot: repo, epicDir: 'context/epics/001-auth',
@@ -547,7 +547,7 @@ test('scaffoldBlueprint rejects a root context epic directory', () => {
   assert.ok(!fs.existsSync(path.join(repo, 'context')));
 });
 
-test('scaffoldBlueprint rejects backslash traversal outside the canonical epic', () => {
+test('scaffoldBlueprint with backslash traversal outside the canonical epic → rejects it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   assert.throws(() => scaffoldBlueprint({
     repoRoot: repo,
@@ -557,7 +557,7 @@ test('scaffoldBlueprint rejects backslash traversal outside the canonical epic',
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer')));
 });
 
-test('scaffoldBlueprint rejects a legacy-prefixed epic dir', () => {
+test('scaffoldBlueprint with a legacy-prefixed epic dir → rejects it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const epicDir = '.bouncer/context/epics/' + 'EPIC-001-auth';
   fs.mkdirSync(path.join(repo, epicDir), { recursive: true });
@@ -583,7 +583,7 @@ function scaffoldWith(repo, scale) {
   });
 }
 
-test('full scaffold bodies stay byte-identical to the shipped templates', () => {
+test('full scaffold bodies → stay byte-identical to the shipped templates', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(repo, undefined);
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -602,7 +602,7 @@ test('full scaffold bodies stay byte-identical to the shipped templates', () => 
   assert.doesNotMatch(rawTasks, /scope_evidence/);
 });
 
-test('--scale full and an omitted --scale produce identical trees', () => {
+test('--scale full and an omitted --scale → produce identical trees', () => {
   const omitted = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const explicit = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const a = scaffoldWith(omitted, undefined);
@@ -617,7 +617,7 @@ test('--scale full and an omitted --scale produce identical trees', () => {
   }
 });
 
-test('scale light writes four plan docs and no context-review', () => {
+test('scale light → writes four plan docs and no context-review', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const created = scaffoldWith(repo, 'light');
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -641,7 +641,7 @@ test('scale light writes four plan docs and no context-review', () => {
   assert.doesNotMatch(rawTasks, /scope_evidence/);
 });
 
-test('the light plan document set stays within 100 lines total', () => {
+test('the light plan document set → stays within 100 lines total', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const created = scaffoldWith(repo, 'light');
   const total = created.reduce(
@@ -651,7 +651,7 @@ test('the light plan document set stays within 100 lines total', () => {
   assert.ok(total <= 100, `light plan docs are ${total} lines`);
 });
 
-test('light task bodies carry only the three gated sections', () => {
+test('light task bodies → carry only the three gated sections', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(repo, 'light');
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -667,7 +667,7 @@ test('light task bodies carry only the three gated sections', () => {
   assert.match(body, /<TODO:/);
 });
 
-test('full tasks template includes behavior sections and a symbol Touch table', () => {
+test('full tasks template → includes behavior sections and a symbol Touch table', () => {
   const { TEMPLATES } = require('../scripts/lib/templates');
   assert.match(TEMPLATES['tasks.md'], /^## Current behavior$/m);
   assert.match(TEMPLATES['tasks.md'], /^## Target behavior$/m);
@@ -679,7 +679,7 @@ test('full tasks template includes behavior sections and a symbol Touch table', 
   assert.doesNotMatch(TEMPLATES['tasks-light.md'], /^## Target behavior$/m);
 });
 
-test('a later task on a light blueprint keeps the light template', () => {
+test('a later task on a light blueprint → keeps the light template', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(repo, 'light');
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -688,7 +688,7 @@ test('a later task on a light blueprint keeps the light template', () => {
   assert.doesNotMatch(body, /^## Interface$/m);
 });
 
-test('scaffold blueprint rejects an unknown --scale before writing anything', () => {
+test('scaffold blueprint with an unknown --scale → rejects it before writing anything', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   for (const bad of [['--scale', 'tiny'], ['--scale']]) {
@@ -707,7 +707,7 @@ test('scaffold blueprint rejects an unknown --scale before writing anything', ()
   }
 });
 
-test('scaffoldBlueprint throws on an unknown scale without creating the dir', () => {
+test('scaffoldBlueprint with an unknown scale → throws without creating the dir', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   assert.throws(() => scaffoldWith(repo, 'tiny'), /scale must be one of light \| full/);
@@ -717,7 +717,7 @@ test('scaffoldBlueprint throws on an unknown scale without creating the dir', ()
   );
 });
 
-test('bouncer scaffold blueprint --scale light exits 0 with four created paths', () => {
+test('bouncer scaffold blueprint --scale light → exits 0 with four created paths', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const r = captureScaffold([
@@ -730,7 +730,7 @@ test('bouncer scaffold blueprint --scale light exits 0 with four created paths',
 });
 
 // 허용값 안내는 reference가 정본이다. 템플릿은 finding 자리표시와 주석 부재만 남긴다.
-test('review templates document rounds; only execute review documents deferred', () => {
+test('review templates → document rounds; only execute review documents deferred', () => {
   const { TEMPLATES } = require('../scripts/lib/templates');
   const open = '<' + '!--';
   assert.match(TEMPLATES['review.md'], /^- <finding>$/m);
@@ -741,7 +741,7 @@ test('review templates document rounds; only execute review documents deferred',
   assert.doesNotMatch(TEMPLATES['context-review.md'], /critical_recovery/);
 });
 
-test('scaffoldTask writes compatible DAG defaults and templates expose the fields', () => {
+test('scaffoldTask → writes compatible DAG defaults and templates expose the fields', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -775,7 +775,7 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   assert.doesNotMatch(rawTasks002, /scope_evidence/);
 });
 
-test('scaffoldTask explicitly creates a verification node without review or scope', () => {
+test('scaffoldTask for a verification node → explicitly creates it without review or scope', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -832,7 +832,7 @@ test('scaffoldTask explicitly creates a verification node without review or scop
   assert.ok(!plan.failures.some((f) => f.code === 'G20' && f.file === entry.tasks.rel));
 });
 
-test('a verification task on a light blueprint reuses the full verification body byte for byte', () => {
+test('a verification task on a light blueprint → reuses the full verification body byte for byte', () => {
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   const bodies = {};
   for (const scale of ['full', 'light']) {
@@ -847,7 +847,7 @@ test('a verification task on a light blueprint reuses the full verification body
   assert.strictEqual(bodies.light, bodies.full);
 });
 
-test('bouncer scaffold task exposes verification metadata through the public CLI', () => {
+test('bouncer scaffold task through the public CLI → exposes verification metadata', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -875,7 +875,7 @@ test('bouncer scaffold task exposes verification metadata through the public CLI
   assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/003`)), false);
 });
 
-test('public verification scaffold uses the repository verify allowlist', () => {
+test('public verification scaffold → uses the repository verify allowlist', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -905,7 +905,7 @@ test('public verification scaffold uses the repository verify allowlist', () => 
   assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/003`)), false);
 });
 
-test('scaffoldTask rejects incomplete verification metadata before creating files', () => {
+test('scaffoldTask with incomplete verification metadata → rejects it before creating files', () => {
   for (const options of [
     { executionKind: 'unknown' },
     { executionKind: 'verification', dependsOn: [], verify: 'node --test' },

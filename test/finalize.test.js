@@ -275,7 +275,7 @@ function writeRegisteredDistillShard(repo, id = 'core') {
   ].join('\n'));
 }
 
-test('gate failure short-circuits before touching git', () => {
+test('a gate failure → finalize short-circuits before touching git', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo, { comprehensionOk: false });
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
@@ -285,7 +285,7 @@ test('gate failure short-circuits before touching git', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('out-of-scope file causes hard abort, nothing staged', () => {
+test('an out-of-scope file → finalize hard-aborts and nothing is staged', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts', 'src/payments/charge.ts'], []);
@@ -299,7 +299,7 @@ test('out-of-scope file causes hard abort, nothing staged', () => {
   assert.strictEqual(g.calls.committed, null);
 });
 
-test('--yes verify failure skips lock, staging, and commit', () => {
+test('--yes with a verify failure → lock, staging and commit are skipped', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repoRoot);
   const blueprintDir = BP_REL;
@@ -329,7 +329,7 @@ test('--yes verify failure skips lock, staging, and commit', () => {
   assert.ok(!('staged' in res));
 });
 
-test('finalize without Distill files completes remainder', () => {
+test('no Distill files → finalize completes the remainder', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/Distill.md')));
@@ -343,7 +343,7 @@ test('finalize without Distill files completes remainder', () => {
   assert.ok(!res.staged.some((rel) => /Distill|distill/.test(rel)));
 });
 
-test('finalize rejects Distill paths outside affected_paths', () => {
+test('Distill paths outside affected_paths → finalize rejects them', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['.bouncer/Distill.md'], []);
@@ -356,7 +356,7 @@ test('finalize rejects Distill paths outside affected_paths', () => {
   assert.strictEqual(g.calls.staged, null);
 });
 
-test('finalize rejects a Distill shard outside affected_paths', () => {
+test('a Distill shard outside affected_paths → finalize rejects it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeRegisteredDistillShard(repo);
@@ -369,7 +369,7 @@ test('finalize rejects a Distill shard outside affected_paths', () => {
   assert.strictEqual(g.calls.committed, null);
 });
 
-test('finalize rejects an unregistered Distill shard outside affected_paths', () => {
+test('an unregistered Distill shard outside affected_paths → finalize rejects it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeRegisteredDistillShard(repo);
@@ -383,7 +383,7 @@ test('finalize rejects an unregistered Distill shard outside affected_paths', ()
   assert.strictEqual(g.calls.committed, null);
 });
 
-test('dry-run reports staged files and blueprint message without committing', () => {
+test('dry-run → reports staged files and blueprint message without committing', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts', `${BP_REL}/tasks/001/tasks.md`], []);
@@ -398,7 +398,7 @@ test('dry-run reports staged files and blueprint message without committing', ()
   assert.strictEqual(g.calls.committed, null);
 });
 
-test('--yes stages and commits', () => {
+test('--yes → stages and commits', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], [`${BP_REL}/explain.md`]);
@@ -418,7 +418,7 @@ test('--yes stages and commits', () => {
   assert.strictEqual(res.closed, `${BP_REL}/index.md`);
 });
 
-test('no changes with --yes clears pointer without empty commit', () => {
+test('no changes with --yes → clears the pointer without an empty commit', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   // 아직 approved인 blueprint는 이 --yes 실행이 index.md를 closed로 잠궈
   // "빈 커밋" 전제가 성립하지 않는다(항상 index.md 한 개는 stage된다).
@@ -454,7 +454,7 @@ test('no changes with --yes clears pointer without empty commit', () => {
   assert.deepStrictEqual(cleared, [repo]);
 });
 
-test('legacy root context blueprint is rejected before staging', () => {
+test('a legacy root context blueprint → is rejected before staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const legacyBp = 'context/epics/001-auth/blueprints/001-login';
   fullBlueprint(repo, { blueprintDir: legacyBp, withGit: false, comprehensionOk: false });
@@ -469,7 +469,7 @@ test('legacy root context blueprint is rejected before staging', () => {
   assert.strictEqual(g.calls.committed, null);
 });
 
-test('runtime artifacts are neither violations nor staged', () => {
+test('runtime artifacts → are neither violations nor staged', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(
@@ -499,7 +499,7 @@ test('runtime artifacts are neither violations nor staged', () => {
   ]);
 });
 
-test('a committed finalize clears the active pointer', () => {
+test('a committed finalize → clears the active pointer', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const cleared = [];
@@ -517,7 +517,7 @@ test('a committed finalize clears the active pointer', () => {
   assert.deepStrictEqual(cleared, [repo]);
 });
 
-test('a dry-run finalize leaves the pointer alone', () => {
+test('a dry-run finalize → leaves the pointer alone', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const cleared = [];
@@ -533,7 +533,7 @@ test('a dry-run finalize leaves the pointer alone', () => {
   assert.deepStrictEqual(cleared, []);
 });
 
-test('finalize commit message has no trailers', () => {
+test('a finalize commit → message has no trailers', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], []);
@@ -545,7 +545,7 @@ test('finalize commit message has no trailers', () => {
 });
 
 
-test('finalize --yes from a linked checkout rejects Distill remainder outside affected_paths', () => {
+test('finalize --yes from a linked checkout with Distill remainder outside affected_paths → rejects it', () => {
   const tmp = fs.realpathSync(os.tmpdir());
   const primary = fs.realpathSync(fs.mkdtempSync(path.join(tmp, 'bouncer-finalize-primary-')));
   fullBlueprint(primary);
@@ -568,7 +568,7 @@ test('finalize --yes from a linked checkout rejects Distill remainder outside af
   assert.ok(res.violations.includes('.bouncer/distill/core.md'));
 });
 
-test('finalize return includes next even when no candidates remain', () => {
+test('no candidates remain → finalize return still includes next', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], []);
@@ -586,7 +586,7 @@ test('finalize return includes next even when no candidates remain', () => {
   assert.deepStrictEqual(res.next, { next: null, remaining: [], sameEpicPending: [] });
 });
 
-test('--yes locks the blueprint index.md to closed and stages it', () => {
+test('--yes → locks the blueprint index.md to closed and stages it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit([], []);
@@ -604,7 +604,7 @@ test('--yes locks the blueprint index.md to closed and stages it', () => {
   );
 });
 
-test('dry-run reports the would-be lock path without writing index.md', () => {
+test('dry-run → reports the would-be lock path without writing index.md', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const indexPath = path.join(repo, BP_REL, 'index.md');
@@ -618,7 +618,7 @@ test('dry-run reports the would-be lock path without writing index.md', () => {
   assert.strictEqual(after, before);
 });
 
-test('re-running --yes on an already-closed blueprint does not rewrite status and skips empty commit', () => {
+test('re-running --yes on an already-closed blueprint → does not rewrite status and skips the empty commit', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const firstRun = finalize({
@@ -638,7 +638,7 @@ test('re-running --yes on an already-closed blueprint does not rewrite status an
   assert.strictEqual('coordinator' in res, false);
 });
 
-test('finalize dry-run and commit both carry injected next payload', () => {
+test('dry-run and commit with an injected next payload → both carry it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const payload = {
@@ -672,7 +672,7 @@ test('finalize dry-run and commit both carry injected next payload', () => {
   assert.deepStrictEqual(committed.next, payload);
 });
 
-test('dry-run does not invoke verifyExec', () => {
+test('dry-run → does not invoke verifyExec', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const verifyExec = countingVerify();
@@ -684,7 +684,7 @@ test('dry-run does not invoke verifyExec', () => {
   assert.strictEqual(verifyExec.calls, 0);
 });
 
-test('missing config.json yields VERIFY_CONFIG_MISSING without throwing', () => {
+test('missing config.json → yields VERIFY_CONFIG_MISSING without throwing', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo, { withConfig: false });
   let threw = false;
@@ -835,7 +835,7 @@ function assertDurablePresent(repo, blueprintDir = BP_REL) {
   assert.ok(fs.existsSync(path.join(repo, `${blueprintDir}/index.md`)));
 }
 
-test('G16 failure leaves transient docs and approved status untouched', () => {
+test('G16 failure → leaves transient docs and approved status untouched', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo, { comprehensionOk: false });
   writeContextReview(repo);
@@ -871,7 +871,7 @@ test('G16 failure leaves transient docs and approved status untouched', () => {
   assertDurablePresent(repo);
 });
 
-test('verify failure leaves transient docs and approved status untouched', () => {
+test('verify failure → leaves transient docs and approved status untouched', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -893,7 +893,7 @@ test('verify failure leaves transient docs and approved status untouched', () =>
   assertDurablePresent(repo);
 });
 
-test('dry-run reports transient deletions in staged without deleting or locking', () => {
+test('dry-run with transient docs → reports deletions in staged without deleting or locking', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -912,7 +912,7 @@ test('dry-run reports transient deletions in staged without deleting or locking'
   assert.strictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), indexBefore);
 });
 
-test('finalize collects a verification node without inventing a review leaf', () => {
+test('a verification node without a review leaf → finalize collects it without inventing a review leaf', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeVerificationTaskUnit(repo, 2);
@@ -934,7 +934,7 @@ test('finalize collects a verification node without inventing a review leaf', ()
   assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/tasks/002/review.md`)));
 });
 
-test('--yes deletes transient docs, keeps durable evidence, and stages deletions with closed index', () => {
+test('--yes with transient docs → deletes them, keeps durable evidence, and stages deletions with closed index', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -994,7 +994,7 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   assert.strictEqual(re.ok, true, JSON.stringify(re.failures, null, 2));
 });
 
-test('collectTaskCommits distinguishes TASK-001 across blueprints by stable id', () => {
+test('TASK-001 in several blueprints → collectTaskCommits distinguishes them by stable id', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const bp001 = '.bouncer/context/epics/071-x/blueprints/001-a';
   const bp002 = '.bouncer/context/epics/071-x/blueprints/002-b';
@@ -1034,7 +1034,7 @@ test('collectTaskCommits distinguishes TASK-001 across blueprints by stable id',
   assert.notStrictEqual(from001[0].task, from002[0].task);
 });
 
-test('collectTaskCommits omits a row when sha or stable id is not canonical', () => {
+test('sha or stable id that is not canonical → collectTaskCommits omits the row', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const bp = '.bouncer/context/epics/071-x/blueprints/001-a';
   writeDoc(repo, `${bp}/explain.md`, {
@@ -1066,7 +1066,7 @@ test('collectTaskCommits omits a row when sha or stable id is not canonical', ()
   }]);
 });
 
-test('collectTaskCommits omits a row when task Epic or Blueprint disagrees with Explain', () => {
+test('task Epic or Blueprint that disagrees with Explain → collectTaskCommits omits the row', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const bp = '.bouncer/context/epics/071-x/blueprints/001-a';
   writeDoc(repo, `${bp}/explain.md`, {
@@ -1092,7 +1092,7 @@ test('collectTaskCommits omits a row when task Epic or Blueprint disagrees with 
   }]);
 });
 
-test('collectTaskCommits omits a row when Explain parent ids cannot be read', () => {
+test('Explain parent ids that cannot be read → collectTaskCommits omits the row', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const missingExplain = '.bouncer/context/epics/071-x/blueprints/001-a';
   writeDoc(repo, `${missingExplain}/tasks/001/tasks.md`, {
@@ -1123,7 +1123,7 @@ test('collectTaskCommits omits a row when Explain parent ids cannot be read', ()
   );
 });
 
-test('writeExplainTaskCommits omits rows when parent ids are missing or disagree', () => {
+test('missing or disagreeing parent ids → writeExplainTaskCommits omits the rows', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const matching = '.bouncer/context/epics/071-x/blueprints/001-a';
   writeDoc(repo, `${matching}/explain.md`, {
@@ -1163,7 +1163,7 @@ test('writeExplainTaskCommits omits rows when parent ids are missing or disagree
   assert.deepStrictEqual(incompleteData.bouncer.task_commits, []);
 });
 
-test('finalize stages tracked transient deletions but removes untracked ones without staging them', () => {
+test('tracked and untracked transient deletions → finalize stages the tracked ones and removes the untracked without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -1191,7 +1191,7 @@ test('finalize stages tracked transient deletions but removes untracked ones wit
   }
 });
 
-test('finalize stages deletion of a tracked-and-clean transient document', () => {
+test('a tracked-and-clean transient document → finalize stages its deletion', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const cleanTracked = `${BP_REL}/tasks/001/tasks.md`;
@@ -1208,7 +1208,7 @@ test('finalize stages deletion of a tracked-and-clean transient document', () =>
   assert.ok(!fs.existsSync(path.join(repo, cleanTracked)));
 });
 
-test('stage failure restores transient docs and approved status', () => {
+test('stage failure → restores transient docs and approved status', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -1256,7 +1256,7 @@ test('stage failure restores transient docs and approved status', () => {
   assert.match(before.index.toString('utf8'), /status: approved/);
 });
 
-test('commit failure restores transient docs and approved status', () => {
+test('commit failure → restores transient docs and approved status', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -1305,7 +1305,7 @@ test('commit failure restores transient docs and approved status', () => {
   );
 });
 
-test('light blueprint finalize does not invent a missing context-review deletion', () => {
+test('a light blueprint with a missing context-review → finalize does not invent a deletion', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const indexAbs = path.join(repo, `${BP_REL}/index.md`);
@@ -1387,7 +1387,7 @@ function drivenBlueprint(repo) {
   return { integration: boot.integrationPath, worker: prepared.tasks[0].workerPath };
 }
 
-test('finalize dry-run projects the coordinator ledger and its worktree inventory', () => {
+test('dry-run with a coordinator ledger → finalize projects the ledger and its worktree inventory', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const drive = drivenBlueprint(repo);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
@@ -1397,7 +1397,7 @@ test('finalize dry-run projects the coordinator ledger and its worktree inventor
   assert.deepStrictEqual(res.worktrees, [drive.integration, drive.worker]);
 });
 
-test('finalize without a coordinator ledger reports no provenance and no worktrees', () => {
+test('no coordinator ledger → finalize reports no provenance and no worktrees', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
@@ -1406,7 +1406,7 @@ test('finalize without a coordinator ledger reports no provenance and no worktre
   assert.deepStrictEqual(res.worktrees, []);
 });
 
-test('finalize resolves legacy ledger branch fields from worktrees and leaves verification branch null', () => {
+test('legacy ledger branch fields → finalize resolves them from worktrees and leaves verification branch null', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const drive = drivenBlueprint(repo);
   const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
@@ -1452,7 +1452,7 @@ function writeIntegrationTask(integrationPath, id, status, executionKind = 'comm
   }, TASK_DESIGN_BODY);
 }
 
-test('drive finalize stops before G16 when an integrated ledger task has an open integration document', () => {
+test('a drive with an integrated ledger task that has an open integration document → finalize stops before G16', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   // explain 본문을 비워 main 쪽 G16도 실패하게 둔다. 대조가 G16보다 먼저라면
   // validate 대신 이름 붙은 증적 불일치가 나와야 한다.
@@ -1494,7 +1494,7 @@ const ABSENT_INTEGRATION = {
   headVerified: null,
 };
 
-test('finalize reports absent integration when there is no coordinator ledger', () => {
+test('no coordinator ledger → finalize reports absent integration', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const dry = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
@@ -1508,7 +1508,7 @@ test('finalize reports absent integration when there is no coordinator ledger', 
   assert.deepStrictEqual(committed.integration, ABSENT_INTEGRATION);
 });
 
-test('finalize integration lists non-integrated tasks and is incomplete until they close', () => {
+test('non-integrated tasks → finalize integration lists them and is incomplete until they close', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const paths = writeCoordinatorLedger(repo, [
@@ -1527,7 +1527,7 @@ test('finalize integration lists non-integrated tasks and is incomplete until th
   });
 });
 
-test('finalize integration headVerified follows verification-task integration', () => {
+test('verification-task integration → finalize integration headVerified follows it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const verifying = [
@@ -1554,7 +1554,7 @@ test('finalize integration headVerified follows verification-task integration', 
   assert.strictEqual(closed.integration.headVerified, true);
 });
 
-test('finalize preserves a partial-closed drive and refuses ordinary cleanup', () => {
+test('a partial-closed drive → finalize preserves it and refuses ordinary cleanup', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const index = path.join(repo, `${BP_REL}/index.md`);
@@ -1574,7 +1574,7 @@ test('finalize preserves a partial-closed drive and refuses ordinary cleanup', (
 // 읽히지 않는 원장을 null로 접으면 비-drive finalize와 구분되지 않는다.
 // 그 상태로 마감하면 통합되지 않은 fan-in이 완료로 기록되고, 복구에 필요한
 // worktree 목록도 비어 버린다.
-test('finalize refuses an unreadable coordinator ledger instead of closing as a non-drive', () => {
+test('an unreadable coordinator ledger → finalize refuses instead of closing as a non-drive', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const drive = drivenBlueprint(repo);
   const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
@@ -1604,7 +1604,7 @@ test('finalize refuses an unreadable coordinator ledger instead of closing as a 
   assert.strictEqual('coordinator' in yes, false);
 });
 
-test('finalize --yes on a drive writes no coordinator into explain', () => {
+test('--yes on a drive → finalize writes no coordinator into explain', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   drivenBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], []);
@@ -1619,7 +1619,7 @@ test('finalize --yes on a drive writes no coordinator into explain', () => {
   assert.strictEqual('coordinator' in res, false);
 });
 
-test('finalize --yes without a coordinator ledger writes no coordinator into explain', () => {
+test('--yes without a coordinator ledger → finalize writes no coordinator into explain', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], []);
@@ -1632,7 +1632,7 @@ test('finalize --yes without a coordinator ledger writes no coordinator into exp
   assert.ok(Array.isArray(data.bouncer.task_commits));
 });
 
-test('finalize --yes prefers trailer integration SHA over worker commit_sha', () => {
+test('a trailer integration SHA and a worker commit_sha → finalize --yes prefers the trailer SHA', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const { writeCurrent } = require('../scripts/lib/current');
@@ -1752,7 +1752,7 @@ function setBlueprintReviewScope(repo, blueprintDir = BP_REL) {
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---${body}`);
 }
 
-test('blueprint review mode deletes root review.md on closed transition', () => {
+test('blueprint review mode → closed transition deletes the root review.md', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -1771,7 +1771,7 @@ test('blueprint review mode deletes root review.md on closed transition', () => 
   assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/review.md`)), false);
 });
 
-test('without review_scope, root review.md survives closed transition', () => {
+test('no review_scope → the root review.md survives the closed transition', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -1843,7 +1843,7 @@ function snapshotDocs(repo) {
   return Object.fromEntries(rels.map((rel) => [rel, fs.readFileSync(path.join(repo, rel))]));
 }
 
-test('fresh lockfile installs once in repoRoot before verify with captured stdio', () => {
+test('a fresh lockfile → installs once in repoRoot before verify with captured stdio', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeLockfile(repo);
@@ -1874,7 +1874,7 @@ test('fresh lockfile installs once in repoRoot before verify with captured stdio
   assert.ok(!JSON.stringify(res).includes('npm-capture-noise'));
 });
 
-test('marker-only install reinstalls once because the lockfile stamp is missing', () => {
+test('a marker-only install → reinstalls once because the lockfile stamp is missing', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeLockfile(repo, { marker: true });
@@ -1889,7 +1889,7 @@ test('marker-only install reinstalls once because the lockfile stamp is missing'
   assert.deepStrictEqual(log, ['install', 'verify']);
 });
 
-test('missing lockfile or marker with matching stamp skips dependency install', () => {
+test('a missing lockfile or marker with a matching stamp → dependency install is skipped', () => {
   for (const setup of ['no-lockfile', 'marker']) {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
     fullBlueprint(repo);
@@ -1906,7 +1906,7 @@ test('missing lockfile or marker with matching stamp skips dependency install', 
   }
 });
 
-test('dry-run, config error, gate refusal, scope refusal, and empty close never install', () => {
+test('dry-run, config error, gate refusal, scope refusal and empty close → never install', () => {
   const cases = {
     'dry-run': () => ({ yes: false, git: fakeGit(['src/auth/login.ts'], []).api }),
     'config-missing': (repo) => {
@@ -1969,7 +1969,7 @@ test('dry-run, config error, gate refusal, scope refusal, and empty close never 
   assert.deepStrictEqual(emptyLog, []);
 });
 
-test('dependency install failure returns DEPENDENCY_INSTALL_FAILED and preserves docs', () => {
+test('dependency install failure → returns DEPENDENCY_INSTALL_FAILED and preserves docs', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -2010,7 +2010,7 @@ test('dependency install failure returns DEPENDENCY_INSTALL_FAILED and preserves
   assert.match(before[`${BP_REL}/index.md`].toString('utf8'), /status: approved/);
 });
 
-test('install success then verify failure keeps VERIFY_FAILED and preservation', () => {
+test('install success then verify failure → keeps VERIFY_FAILED and preservation', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeContextReview(repo);
@@ -2037,7 +2037,7 @@ test('install success then verify failure keeps VERIFY_FAILED and preservation',
   assert.deepStrictEqual(snapshotDocs(repo), before);
 });
 
-test('install success then commit failure still restores docs and approved status', () => {
+test('install success then commit failure → still restores docs and approved status', () => {
   // 설치가 성공해 검증·잠금까지 진행된 뒤 commit이 던져도, 기존 롤백 계약이
   // 그대로 지켜져야 한다(설치 단계 추가가 롤백 경로를 건너뛰게 만들지 않음).
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
@@ -2071,7 +2071,7 @@ test('install success then commit failure still restores docs and approved statu
   );
 });
 
-test('dependency install failure without a usable message falls back to reason-prefixed cause', () => {
+test('dependency install failure without a usable message → falls back to a reason-prefixed cause', () => {
   // Error가 아닌 값(문자열)이나 빈 message Error가 던져지면 helper의 message가
   // 비어 있으므로, cause는 `dependency-install-failed: ...` 폴백 문자열이어야 한다.
   const throwers = {

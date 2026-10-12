@@ -39,7 +39,7 @@ function mainBranch() {
   return 'main';
 }
 
-test('derived-anchor token grammar preserves hierarchy anchors and rejects colon form', () => {
+test('derived-anchor tokens with hierarchy anchors and colon form → the grammar preserves hierarchy anchors and rejects colon form', () => {
   const anchors = [
     'epic-054',
     'bp-054-001',
@@ -95,7 +95,7 @@ function connectedFixture(repo) {
   });
 }
 
-test('SCORE table exposes the fixed relation and penalty weights', () => {
+test('the SCORE table → exposes the fixed relation and penalty weights', () => {
   assert.equal(SCORE.uniqueSeedDefinition, 5);
   assert.equal(SCORE.implementationPath, 3);
   assert.equal(SCORE.relationEdge, 2);
@@ -108,7 +108,7 @@ test('SCORE table exposes the fixed relation and penalty weights', () => {
 });
 
 // context-search 공개 surface는 TASKS-001에서 제거됐다. 재도입되면 이 네 단언이 깨진다.
-test('graph-search does not export retired context-search surface', () => {
+test('graph-search exports → do not include the retired context-search surface', () => {
   const graphSearch = require('../scripts/lib/graph-search');
   assert.equal(graphSearch.contextSearch, undefined);
   assert.equal(graphSearch.validateContextSearchInput, undefined);
@@ -116,20 +116,20 @@ test('graph-search does not export retired context-search surface', () => {
   assert.equal(graphSearch.CONTEXT_SEARCH_INPUT_SCHEMA, undefined);
 });
 
-test('scoreConfidence boundary values 3/4 and 7/8', () => {
+test('boundary values 3/4 and 7/8 → scoreConfidence maps them at the boundary', () => {
   assert.equal(scoreConfidence(3), 'low');
   assert.equal(scoreConfidence(4), 'medium');
   assert.equal(scoreConfidence(7), 'medium');
   assert.equal(scoreConfidence(8), 'high');
 });
 
-test('ROLE_PRIORITY ranks implementation before test', () => {
+test('ROLE_PRIORITY → ranks implementation before test', () => {
   assert.ok(ROLE_PRIORITY.implementation < ROLE_PRIORITY.test);
   assert.equal(ROLE_PRIORITY.context, undefined);
 });
 
 // TASKS-002: context graph를 열지 않으면 손상된 context/graph.json 이 있어도 동일 결과여야 한다.
-test('graphSuggest ignores broken context graph and omits context candidates', () => {
+test('a broken context graph → graphSuggest ignores it and omits context candidates', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'source', {
@@ -151,7 +151,7 @@ test('graphSuggest ignores broken context graph and omits context candidates', (
   assert.ok(base.reasons.every((r) => !/^context/.test(r)));
 });
 
-test('ranked high: unique seed + implementation + relation scores', () => {
+test('unique seed, implementation and relation scores → ranked high', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   // unique(+5)+impl(+3)+relation(+2)=10.
@@ -216,7 +216,7 @@ test('ranked high: unique seed + implementation + relation scores', () => {
   assert.ok(!result.candidates.implementation.some((c) => c.path.startsWith('graphify-out/')));
 });
 
-test('stable sort: equal scores break by role then path ascending', () => {
+test('equal scores → stable sort breaks ties by role then path ascending', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'context', {
@@ -254,7 +254,7 @@ test('stable sort: equal scores break by role then path ascending', () => {
   );
 });
 
-test('ranked medium when best implementation is medium only', () => {
+test('best implementation is medium only → ranked medium', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   // context 없음. unique(+5)+impl(+3)+containsOnly(−3)=5 → medium (high는 context 또는 관계 가산 필요)
@@ -318,7 +318,7 @@ test('ranked medium when best implementation is medium only', () => {
   assert.ok(medium.candidates.implementation.some((c) => c.score >= 4));
 });
 
-test('low-confidence: no implementation candidates', () => {
+test('no implementation candidates → low-confidence', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'context', {
@@ -337,7 +337,7 @@ test('low-confidence: no implementation candidates', () => {
   assert.ok(result.reasons.includes('implementation.none'));
 });
 
-test('low-confidence: all implementation candidates are low', () => {
+test('all implementation candidates low → low-confidence', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'context', { nodes: [], links: [] });
@@ -375,7 +375,7 @@ test('low-confidence: all implementation candidates are low', () => {
   assert.ok(debug.debug.candidates.implementation.every((c) => c.confidence === 'low'));
 });
 
-test('low-confidence: generic-only seeds', () => {
+test('generic-only seeds → low-confidence', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'context', {
@@ -405,7 +405,7 @@ test('low-confidence: generic-only seeds', () => {
   assert.ok(result.reasons.includes('seed.generic_only'));
 });
 
-test('low-confidence: seed fan-out supersedes legacy 50-candidate explosion', () => {
+test('seed fan-out → low-confidence supersedes the legacy 50-candidate explosion', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'context', {
@@ -436,7 +436,7 @@ test('low-confidence: seed fan-out supersedes legacy 50-candidate explosion', ()
   assert.ok(result.reasons.includes('seed.fanout_cap'));
 });
 
-test('low-confidence: top results are test-only', () => {
+test('top results are test-only → low-confidence', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'context', {
@@ -485,7 +485,7 @@ test('low-confidence: top results are test-only', () => {
   );
 });
 
-test('unavailable when source graph cannot be read', () => {
+test('a source graph that cannot be read → status is unavailable', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'context', {
@@ -502,7 +502,7 @@ test('unavailable when source graph cannot be read', () => {
   assert.ok(result.reasons.includes('source.unavailable'));
 });
 
-test('corrupt partial graph keeps valid nodes and records omissions in reasons', () => {
+test('a corrupt partial graph → keeps valid nodes and records omissions in reasons', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   // context graph는 더 이상 읽지 않으므로 omission 단언은 source 손상 항목으로 고정한다.
@@ -535,7 +535,7 @@ test('corrupt partial graph keeps valid nodes and records omissions in reasons',
   );
 });
 
-test('contains is not used to BFS from generic nouns', () => {
+test('generic nouns → contains is not used to BFS from them', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'context', { nodes: [], links: [] });
@@ -560,7 +560,7 @@ test('contains is not used to BFS from generic nouns', () => {
   assert.ok(!result.candidates.implementation.some((c) => c.path === 'src/other.ts'));
 });
 
-test('relation scoring applies calls imports imports_from and contains-only penalty', () => {
+test('calls, imports, imports_from and contains-only relations → relation scoring applies the matching penalties', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'context', {
@@ -608,7 +608,7 @@ test('relation scoring applies calls imports imports_from and contains-only pena
   assert.ok(compactDef.basis.includes('seed.unique'));
 });
 
-test('excluded path penalty and drop of pathless or graphify-out candidates', () => {
+test('an excluded path, pathless or graphify-out candidate → penalty applies and the candidate is dropped', () => {
   const repo = tmpRepo();
   connectedFixture(repo);
   const result = graphSuggest({
@@ -620,7 +620,7 @@ test('excluded path penalty and drop of pathless or graphify-out candidates', ()
   assert.ok(!result.suggested_paths.some((p) => p.startsWith('src/generated/')));
 });
 
-test('unlinked test-only gets penalty and is not suggested', () => {
+test('an unlinked test-only candidate → gets a penalty and is not suggested', () => {
   const repo = tmpRepo();
   connectedFixture(repo);
   const result = graphSuggest({
@@ -639,7 +639,7 @@ test('unlinked test-only gets penalty and is not suggested', () => {
   assert.ok(!result.suggested_paths.includes('test/orphan.test.js'));
 });
 
-test('every status returns non-empty reasons', () => {
+test('every status → returns non-empty reasons', () => {
   const cases = [];
   {
     const repo = tmpRepo();
@@ -667,7 +667,7 @@ test('every status returns non-empty reasons', () => {
   }
 });
 
-test('trailing-paren source label matches bare seed as implementation', () => {
+test('a trailing-paren source label → matches the bare seed as implementation', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'context', { nodes: [], links: [] });
@@ -685,7 +685,7 @@ test('trailing-paren source label matches bare seed as implementation', () => {
   assert.ok(result.candidates.implementation.some((c) => c.path === 'src/lib/graphify.ts'));
 });
 
-test('empty lookup key from () label is not indexed for seed match', () => {
+test('an empty lookup key from a () label → is not indexed for seed match', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'context', { nodes: [], links: [] });
@@ -710,7 +710,7 @@ test('empty lookup key from () label is not indexed for seed match', () => {
   );
 });
 
-test('trailing paren with spaces trims to same lookup key as bare seed', () => {
+test('a trailing paren with spaces → trims to the same lookup key as the bare seed', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'context', { nodes: [], links: [] });
@@ -785,7 +785,7 @@ function defaultFields(result) {
   return rest;
 }
 
-test('compact payload: candidate keys, basis enum, reason enum, role/total caps', () => {
+test('a compact payload → has candidate keys, basis enum, reason enum, and role/total caps', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   const nodes = [];
@@ -828,7 +828,7 @@ test('compact payload: candidate keys, basis enum, reason enum, role/total caps'
   assert.ok(tests.every((c) => c.basis.includes('test.connected')));
 });
 
-test('generic-only seeds return low-confidence with seed.generic_only and empty suggested_paths', () => {
+test('generic-only seeds → return low-confidence with seed.generic_only and empty suggested_paths', () => {
   const repo = tmpRepo();
   writeConfig(repo);
   writeGraph(repo, 'source', {
@@ -850,7 +850,7 @@ test('generic-only seeds return low-confidence with seed.generic_only and empty 
   assert.ok(result.reasons.includes('seed.generic_only'));
 });
 
-test('path seed survives generic-word filter', () => {
+test('a path seed → survives the generic-word filter', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   // path seed만으로도 관계 이웃을 열어 medium 이상(≥4)이 되게 한다.
@@ -892,7 +892,7 @@ test('path seed survives generic-word filter', () => {
   );
 });
 
-test('seed fan-out cap (>8 files) yields low-confidence + seed.fanout_cap', () => {
+test('seed fan-out above 8 files → yields low-confidence + seed.fanout_cap', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   const nodes = [{ id: 'seed', label: 'FanSym', source_file: 'src/0.ts' }, { id: 'seedf', label: '0.ts', source_file: 'src/0.ts' }];
@@ -914,7 +914,7 @@ test('seed fan-out cap (>8 files) yields low-confidence + seed.fanout_cap', () =
   assert.ok(result.reasons.includes('seed.fanout_cap'));
 });
 
-test('BFS frontier cap (>32 nodes) yields low-confidence + traversal.frontier_cap', () => {
+test('BFS frontier above 32 nodes → yields low-confidence + traversal.frontier_cap', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   // One seed symbol owned by a file; 33 distinct neighbor symbol nodes via calls
@@ -947,7 +947,7 @@ test('BFS frontier cap (>32 nodes) yields low-confidence + traversal.frontier_ca
   assert.ok(result.reasons.includes('traversal.frontier_cap'));
 });
 
-test('test-graph frontier cap preserves ranked implementation (secondary expand)', () => {
+test('test-graph frontier cap → preserves ranked implementation via secondary expand', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   // Source-only: unique + implementation + relation → ranked high.
@@ -1027,7 +1027,7 @@ test('test-graph frontier cap preserves ranked implementation (secondary expand)
   assert.equal(withTestBudget.debug.traversal.fanout_capped, false);
 });
 
-test('source fan-out abort debug keeps discovered candidates', () => {
+test('source fan-out abort in debug → keeps discovered candidates', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   const nodes = [
@@ -1062,7 +1062,7 @@ test('source fan-out abort debug keeps discovered candidates', () => {
   );
 });
 
-test('missing test graph preserves implementation ranking with test.unavailable', () => {
+test('a missing test graph → preserves implementation ranking with test.unavailable', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'source', {
@@ -1089,7 +1089,7 @@ test('missing test graph preserves implementation ranking with test.unavailable'
   assert.ok(result.reasons.includes('result.ranked'));
 });
 
-test('debug on/off keeps identical default fields; debug adds detail', () => {
+test('debug on and off → identical default fields and debug adds detail', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'source', {
@@ -1134,7 +1134,7 @@ test('debug on/off keeps identical default fields; debug adds detail', () => {
   );
 });
 
-test('equal score sorts by role then path; shuffled nodes/links match', () => {
+test('equal scores and shuffled nodes/links → sort by role then path and results match', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   const baseNodes = [

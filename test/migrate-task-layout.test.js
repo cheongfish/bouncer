@@ -51,7 +51,7 @@ function fixture() {
   return repo;
 }
 
-test('dry-run plans old files without changing disk', () => {
+test('dry-run → plans old files without changing disk', () => {
   const repoRoot = fixture();
   const r = migrateTaskLayout({ repoRoot, dryRun: true, deps: { isWorktreeDirty: () => false } });
   assert.equal(r.ok, true);
@@ -64,7 +64,7 @@ test('dry-run plans old files without changing disk', () => {
   assert.ok(fs.existsSync(path.join(repoRoot, `${BP}/tasks-001.md`)));
 });
 
-test('apply rewrites resources and creates pending leafs', () => {
+test('apply → rewrites resources and creates pending leafs', () => {
   const repoRoot = fixture();
   const r = migrateTaskLayout({ repoRoot, deps: applyDeps(repoRoot) });
   assert.equal(r.ok, true);
@@ -75,7 +75,7 @@ test('apply rewrites resources and creates pending leafs', () => {
   assert.match(raw, new RegExp(`resource: ${BP}/tasks/001/tasks\\.md`));
 });
 
-test('dirty and mixed repositories are rejected before moves', () => {
+test('dirty and mixed repositories → are rejected before moves', () => {
   const repoRoot = fixture();
   assert.equal(migrateTaskLayout({ repoRoot, deps: { isWorktreeDirty: () => true } }).ok, false);
   assert.ok(fs.existsSync(path.join(repoRoot, `${BP}/tasks-001.md`)));
@@ -120,7 +120,7 @@ function readIds(repoRoot, unit) {
   ).bouncer.id);
 }
 
-test('legacy blueprint ids are renumbered to the unit, not left at the blueprint id', () => {
+test('legacy blueprint ids → are renumbered to the unit, not left at the blueprint id', () => {
   const repoRoot = legacyFixture();
   assert.equal(migrateTaskLayout({ repoRoot, deps: applyDeps(repoRoot) }).ok, true);
   assert.deepEqual(
@@ -129,7 +129,7 @@ test('legacy blueprint ids are renumbered to the unit, not left at the blueprint
   );
 });
 
-test('a destination that already exists aborts before any move', () => {
+test('a destination that already exists → aborts before any move', () => {
   const repoRoot = fixture();
   write(repoRoot, `${BP}/tasks/002/tasks.md`, {
     type: 'bouncer.tasks', title: 'squatter', description: 'x', resource: 'x',
@@ -141,7 +141,7 @@ test('a destination that already exists aborts before any move', () => {
   assert.ok(fs.existsSync(path.join(repoRoot, `${BP}/tasks-001.md`)));
 });
 
-test('the active pointer follows its task document, and other blueprints do not', () => {
+test('the active pointer → follows its task document, and other blueprints do not', () => {
   const { writeCurrent, readCurrent } = require('../scripts/lib/current');
   const { execFileSync } = require('node:child_process');
   const gitInit = (dir) => execFileSync('git', ['init', '--quiet'], { cwd: dir });

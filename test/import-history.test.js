@@ -91,7 +91,7 @@ function seedEpicDir(repo, id, name = 'seed') {
   fs.mkdirSync(path.join(repo, '.bouncer/context/epics', `${id}-${name}`), { recursive: true });
 }
 
-test('planImport collects two merge commits without fallback', () => {
+test('planImport with two merge commits → collects them without fallback', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const sha1 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -133,7 +133,7 @@ test('planImport collects two merge commits without fallback', () => {
   ]);
 });
 
-test('planImport falls back to commits when merges empty; explicit merges does not', () => {
+test('planImport with empty merges → falls back to commits; explicit merges does not', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const sha = 'cccccccccccccccccccccccccccccccccccccccc';
@@ -177,7 +177,7 @@ test('planImport falls back to commits when merges empty; explicit merges does n
   assert.strictEqual(forced.total, 0);
 });
 
-test('planImport with source commits ignores merges and uses show', () => {
+test('planImport with source commits → ignores merges and uses show', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const mergeSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -220,7 +220,7 @@ test('planImport with source commits ignores merges and uses show', () => {
   );
 });
 
-test('planImport defaults epicId, limit, and epicName', () => {
+test('planImport without epicId, limit, and epicName → applies defaults', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   // 001·003 만 있으면 구멍 002 가 다음 빈 번호다.
@@ -246,7 +246,7 @@ test('planImport defaults epicId, limit, and epicName', () => {
   );
 });
 
-test('planImport hard-stops when candidates exceed limit', () => {
+test('planImport when candidates exceed limit → hard-stops', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const lines = [1, 2, 3].map((n) => logLine({
@@ -266,7 +266,7 @@ test('planImport hard-stops when candidates exceed limit', () => {
   assert.match(plan.error.message, /2/);
 });
 
-test('planImport slug falls back to short sha; same title gets distinct dirs', () => {
+test('planImport with an empty slug or same titles → slug falls back to short sha and dirs are distinct', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const shaKo = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
@@ -301,7 +301,7 @@ test('planImport slug falls back to short sha; same title gets distinct dirs', (
   assert.strictEqual(plan.entries[3].blueprintDir, '004-same-title');
 });
 
-test('planImport numbers blueprints from 001 with oldest first', () => {
+test('planImport numbering blueprints → starts from 001 with oldest first', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const oldSha = '3333333333333333333333333333333333333333';
@@ -327,7 +327,7 @@ test('planImport numbers blueprints from 001 with oldest first', () => {
   assert.strictEqual(plan.entries[1].sha, newSha);
 });
 
-test('planImport records apply refusals without failing the plan', () => {
+test('planImport with apply refusals → records them without failing the plan', () => {
   const repo = tmpRepo();
   const epicId = '105';
   const epicName = 'imported-history';
@@ -367,7 +367,7 @@ test('planImport records apply refusals without failing the plan', () => {
   ].sort());
 });
 
-test('planImport rejects invalid epicId and source', () => {
+test('planImport with invalid epicId and source → rejects them', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const execFileSync = makeExec({ merges: '' });
@@ -390,7 +390,7 @@ test('planImport rejects invalid epicId and source', () => {
   assert.strictEqual(badSource.error.code, 'IMPORT_SOURCE_INVALID');
 });
 
-test('planImport passes since..HEAD range to git log', () => {
+test('planImport with a since ref → passes since..HEAD range to git log', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   let seen = null;
@@ -484,7 +484,7 @@ function makeApplyExec({ onCall } = {}) {
   return { execFileSync, staged, commits };
 }
 
-test('applyImport writes epic, two blueprints, index line, and commits', () => {
+test('applyImport with a valid plan → writes epic, two blueprints, index line, and commits', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const plan = twoEntryPlan(repo);
@@ -537,7 +537,7 @@ test('applyImport writes epic, two blueprints, index line, and commits', () => {
   assert.deepStrictEqual(v.failures.map((f) => f.code), ['S18']);
 });
 
-test('applyImport refuses when plan has refusals or ok is false', () => {
+test('applyImport when plan has refusals or ok is false → refuses', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
 
@@ -570,7 +570,7 @@ test('applyImport refuses when plan has refusals or ok is false', () => {
   assert.ok(!fs.existsSync(path.join(repo, bad.epicDir)));
 });
 
-test('applyImport requires a non-blank message', () => {
+test('applyImport with a blank message → refuses', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const plan = twoEntryPlan(repo);
@@ -584,7 +584,7 @@ test('applyImport requires a non-blank message', () => {
   }
 });
 
-test('applyImport with empty entries is a no-op success', () => {
+test('applyImport with empty entries → is a no-op success', () => {
   const repo = tmpRepo();
   seedContextIndex(repo);
   const plan = twoEntryPlan(repo, { entries: [] });
@@ -630,7 +630,7 @@ function captureCli(argv) {
   return { code, ...buf };
 }
 
-test('bouncer import dry-run exits 0; limit exceeded and --yes without message exit 2', () => {
+test('bouncer import dry-run → exits 0; limit exceeded and --yes without message exit 2', () => {
   const repo = tmpRepo();
   initGitRepo(repo);
 

@@ -121,7 +121,7 @@ function capture(argv) {
   return { code, ...buf };
 }
 
-test('happy path assembles prompt, argv, and final result report', () => {
+test('happy path → assembles prompt, argv, and final result report', () => {
   const tree = makeTree();
   try {
     const result = runPrint(tree);
@@ -148,13 +148,13 @@ test('happy path assembles prompt, argv, and final result report', () => {
   }
 });
 
-test('cursor-print-dispatch rule documents the root line as one unwrapped span', () => {
+test('cursor-print-dispatch rule → documents the root line as one unwrapped span', () => {
   const repoRoot = path.resolve(__dirname, '..');
   const rule = fs.readFileSync(path.join(repoRoot, 'rules/cursor-print-dispatch.md'), 'utf8');
   assert.ok(rule.includes(ROOT_LINE('<absolute path>')));
 });
 
-test('omits --model when the role slug is inherit/null', () => {
+test('role slug is inherit/null → omits --model', () => {
   const tree = makeTree();
   try {
     fs.writeFileSync(
@@ -178,7 +178,7 @@ test('omits --model when the role slug is inherit/null', () => {
   }
 });
 
-test('coordinator prompt starts with the coordinator identity line', () => {
+test('coordinator prompt → starts with the coordinator identity line', () => {
   const tree = makeTree();
   try {
     const result = runPrint(tree, { role: 'coordinator' });
@@ -193,7 +193,7 @@ test('coordinator prompt starts with the coordinator identity line', () => {
   }
 });
 
-test('missing dispatch setting is print-dispatch-disabled and writes no prompt', () => {
+test('missing dispatch setting → is print-dispatch-disabled and writes no prompt', () => {
   const tree = makeTree();
   try {
     fs.writeFileSync(
@@ -209,7 +209,7 @@ test('missing dispatch setting is print-dispatch-disabled and writes no prompt',
   }
 });
 
-test('agent status exit 1 is agent-unavailable', () => {
+test('agent status exit 1 → is agent-unavailable', () => {
   const tree = makeTree();
   try {
     writeFakeAgent(tree.agentBin, { statusExit: 1 });
@@ -222,7 +222,7 @@ test('agent status exit 1 is agent-unavailable', () => {
   }
 });
 
-test('agent status Not logged in is agent-unavailable', () => {
+test('agent status Not logged in → is agent-unavailable', () => {
   const tree = makeTree();
   try {
     writeFakeAgent(tree.agentBin, { statusExit: 0, statusText: 'Not logged in\n' });
@@ -234,7 +234,7 @@ test('agent status Not logged in is agent-unavailable', () => {
   }
 });
 
-test('print process exit 3 is agent-exit-nonzero', () => {
+test('print process exit 3 → is agent-exit-nonzero', () => {
   const tree = makeTree();
   try {
     writeFakeAgent(tree.agentBin, { printExit: 3 });
@@ -249,7 +249,7 @@ test('print process exit 3 is agent-exit-nonzero', () => {
   }
 });
 
-test('stdout without a result event is result-missing', () => {
+test('stdout without a result event → is result-missing', () => {
   const tree = makeTree();
   try {
     writeFakeAgent(tree.agentBin, { stdoutLines: ['{"type":"assistant"}'] });
@@ -261,7 +261,7 @@ test('stdout without a result event is result-missing', () => {
   }
 });
 
-test('last result is_error true is result-error', () => {
+test('last result is_error true → is result-error', () => {
   const tree = makeTree();
   try {
     writeFakeAgent(tree.agentBin, {
@@ -279,7 +279,7 @@ test('last result is_error true is result-error', () => {
   }
 });
 
-test('input that starts with a dash is passed after --', () => {
+test('input that starts with a dash → is passed after --', () => {
   const tree = makeTree();
   try {
     const inputFile = path.join(tree.root, '-dashed-input.md');
@@ -297,7 +297,7 @@ test('input that starts with a dash is passed after --', () => {
   }
 });
 
-test('dispatch rejects non-print verbs and missing flags with exit 2', () => {
+test('dispatch with non-print verbs and missing flags → rejects with exit 2', () => {
   const missing = capture(['dispatch', 'print']);
   assert.equal(missing.code, 2);
   assert.match(missing.err, /dispatch/);
@@ -326,7 +326,7 @@ test('dispatch rejects non-print verbs and missing flags with exit 2', () => {
   assert.equal(dup.code, 2);
 });
 
-test('CLI accepts --role context-reviewer and reaches the opt-in check', () => {
+test('CLI with --role context-reviewer → accepts it and reaches the opt-in check', () => {
   const tree = makeTree();
   try {
     // opt-in이 없는 설정이면 role 검증을 통과한 뒤 print-dispatch-disabled로 끝나야 한다.
@@ -349,7 +349,7 @@ test('CLI accepts --role context-reviewer and reaches the opt-in check', () => {
   }
 });
 
-test('CLI rejects misspelled context-reviewer roles and lists five roles', () => {
+test('CLI with misspelled context-reviewer roles → rejects them and lists five roles', () => {
   for (const role of ['context_reviewer', 'bouncer-context-reviewer']) {
     const r = capture([
       'dispatch', 'print', '--role', role,
@@ -360,7 +360,7 @@ test('CLI rejects misspelled context-reviewer roles and lists five roles', () =>
   }
 });
 
-test('context-reviewer prompt uses the worker identity line, role body, and model slug', () => {
+test('context-reviewer prompt → uses the worker identity line, role body, and model slug', () => {
   const tree = makeTree();
   try {
     writeRole(tree.agentsDir, 'context-reviewer', '# Bouncer context-reviewer\n<context-reviewer role body marker>\n');
@@ -386,7 +386,7 @@ test('context-reviewer prompt uses the worker identity line, role body, and mode
   }
 });
 
-test('coordinator prompt carries a buildCoordinatorInput file verbatim at the end', () => {
+test('coordinator prompt with a buildCoordinatorInput file → carries it verbatim at the end', () => {
   const { buildCoordinatorInput } = require('../scripts/lib/coordinator-input');
   const tree = makeTree();
   try {

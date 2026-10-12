@@ -103,7 +103,7 @@ ${verifyYaml}---
 `);
 }
 
-test('runVerification records successful command evidence', () => {
+test('runVerification → records successful command evidence', () => {
   const repo = setupRepo();
   const result = runVerification({
     repoRoot: repo,
@@ -131,7 +131,7 @@ test('runVerification records successful command evidence', () => {
   assert.match(verification.body, /## Evidence[\s\S]*Exit code: 0/);
 });
 
-test('runVerification records failed command evidence', () => {
+test('runVerification → records failed command evidence', () => {
   const repo = setupRepo();
   const failure = new Error('command failed');
   failure.status = 7;
@@ -153,7 +153,7 @@ test('runVerification records failed command evidence', () => {
   assert.match(verification.body, /Exit code: 7/);
 });
 
-test('runVerification writes a verify ledger record matching the re-read output_tail', () => {
+test('runVerification → writes a verify ledger record matching the re-read output_tail', () => {
   const repo = setupRepo();
   const rel = `${BP_REL}/tasks/001/verification.md`;
   runVerification({
@@ -184,7 +184,7 @@ test('runVerification writes a verify ledger record matching the re-read output_
   );
 });
 
-test('computeSourceDigest ignores .bouncer, XY, runtime artifacts, and hashes new-directory files', () => {
+test('computeSourceDigest → ignores .bouncer, XY, runtime artifacts, and hashes new-directory files', () => {
   const repo = setupRepo();
   fs.writeFileSync(path.join(repo, 'app.js'), 'one\n');
   const first = computeSourceDigest(repo);
@@ -212,7 +212,7 @@ test('computeSourceDigest ignores .bouncer, XY, runtime artifacts, and hashes ne
   assert.notStrictEqual(computeSourceDigest(repo), withNew);
 });
 
-test('failed verification still writes a ledger record that does not pass G13', () => {
+test('failed verification still → writes a ledger record that does not pass G13', () => {
   const repo = setupRepo();
   const rel = `${BP_REL}/tasks/001/verification.md`;
   const failure = new Error('command failed');
@@ -256,7 +256,7 @@ test('failed verification still writes a ledger record that does not pass G13', 
   )));
 });
 
-test('recordVerificationResult hashes output_tail after YAML round-trip of CRLF and trailing space', () => {
+test('recordVerificationResult → hashes output_tail after YAML round-trip of CRLF and trailing space', () => {
   const repo = setupRepo();
   const rel = `${BP_REL}/tasks/001/verification.md`;
   const output = 'ok  \r\nline two  ';
@@ -298,7 +298,7 @@ test('recordVerificationResult hashes output_tail after YAML round-trip of CRLF 
   assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G13'), []);
 });
 
-test('runVerification rejects a missing configured command', () => {
+test('runVerification → rejects a missing configured command', () => {
   const repo = setupRepo('');
   assert.throws(
     () => runVerification({ repoRoot: repo, blueprintDir: BP_REL }),
@@ -306,7 +306,7 @@ test('runVerification rejects a missing configured command', () => {
   );
 });
 
-test('runVerification rejects a missing verification document', () => {
+test('runVerification → rejects a missing verification document', () => {
   const repo = setupRepo();
   fs.rmSync(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.throws(
@@ -315,7 +315,7 @@ test('runVerification rejects a missing verification document', () => {
   );
 });
 
-test('runVerification rejects a non-canonical blueprint path before execution', () => {
+test('runVerification → rejects a non-canonical blueprint path before execution', () => {
   const repo = setupRepo();
   assert.throws(
     () => runVerification({
@@ -327,7 +327,7 @@ test('runVerification rejects a non-canonical blueprint path before execution', 
   );
 });
 
-test('executeVerify accepts successful commands with over one megabyte of output', () => {
+test('executeVerify → accepts successful commands with over one megabyte of output', () => {
   const result = executeVerify(
     'node -e "process.stdout.write(\'x\'.repeat(1048577))"',
     { cwd: process.cwd() },
@@ -346,7 +346,7 @@ const noisyCommand = (lines, exitCode) => 'node -e "'
   + `process.exitCode=${exitCode}`
   + '"';
 
-test('a passing verification keeps no output block in the body', () => {
+test('a passing verification → keeps no output block in the body', () => {
   const repo = setupRepo(noisyCommand(300, 0));
   runVerification({ repoRoot: repo, blueprintDir: BP_REL });
   const { data, body } = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
@@ -361,7 +361,7 @@ test('a passing verification keeps no output block in the body', () => {
   assert.strictEqual(tail[tail.length - 1], 'line 300', 'the tail ends at the last line printed');
 });
 
-test('a failing verification keeps the output where a reader will see it', () => {
+test('a failing verification → keeps the output where a reader will see it', () => {
   const repo = setupRepo(noisyCommand(300, 3));
   runVerification({ repoRoot: repo, blueprintDir: BP_REL });
   const { data, body } = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
@@ -375,7 +375,7 @@ test('a failing verification keeps the output where a reader will see it', () =>
   assert.ok(tail.length <= 100, `bounded at the failure limit, got ${tail.length}`);
 });
 
-test('runVerification prefers tasks.bouncer.verify over config.verify', () => {
+test('runVerification → prefers tasks.bouncer.verify over config.verify', () => {
   const declared = 'node -e "process.exit(0)"';
   const repo = setupRepo('npm test');
   writeTasks(repo, declared);
@@ -398,7 +398,7 @@ test('runVerification prefers tasks.bouncer.verify over config.verify', () => {
   assert.strictEqual(verification.data.bouncer.verification.command, declared);
 });
 
-test('runVerification falls back to config.verify when tasks has no verify', () => {
+test('runVerification when tasks has no verify → falls back to config.verify', () => {
   const repo = setupRepo('npm test');
   writeTasks(repo);
   let executed;
@@ -414,7 +414,7 @@ test('runVerification falls back to config.verify when tasks has no verify', () 
   assert.deepStrictEqual(executed, ['npm', 'test']);
 });
 
-test('runVerification falls back to config.verify when the task document is absent', () => {
+test('runVerification when the task document is absent → falls back to config.verify', () => {
   const repo = setupRepo('npm test');
   let executed;
   runVerification({
@@ -429,7 +429,7 @@ test('runVerification falls back to config.verify when the task document is abse
   assert.deepStrictEqual(executed, ['npm', 'test']);
 });
 
-test('readVerifyCommand rejects non-single executable commands', () => {
+test('readVerifyCommand → rejects non-single executable commands', () => {
   for (const bad of ['cd sub && npm test', 'npm test | tee out.log', 'a; b', '  ']) {
     const repo = setupRepo('npm test');
     writeTasks(repo, bad);
@@ -440,13 +440,13 @@ test('readVerifyCommand rejects non-single executable commands', () => {
   }
 });
 
-test('readVerifyCommand(repoRoot) still returns config.verify', () => {
+test('readVerifyCommand(repoRoot) still → returns config.verify', () => {
   const repo = setupRepo('npm test');
   writeTasks(repo, 'node -e "process.exit(0)"');
   assert.strictEqual(readVerifyCommand(repo), 'npm test');
 });
 
-test('readVerifyCommand adopts the earliest-numbered verify declaration', () => {
+test('readVerifyCommand → adopts the earliest-numbered verify declaration', () => {
   const repo = setupRepo('npm test');
   const writeNumbered = (nnn, verifyField) => {
     const abs = path.join(repo, BP_REL, `tasks/${nnn}/tasks.md`);
@@ -479,7 +479,7 @@ bouncer:
   );
 });
 
-test('readVerifyCommand rejects invalid first declaration even if later is valid', () => {
+test('readVerifyCommand → rejects invalid first declaration even if later is valid', () => {
   const repo = setupRepo('npm test');
   const writeNumbered = (nnn, verifyField) => {
     const abs = path.join(repo, BP_REL, `tasks/${nnn}/tasks.md`);
@@ -512,7 +512,7 @@ bouncer:
   );
 });
 
-test('readVerifyCommand narrows to the pointer task document', () => {
+test('readVerifyCommand → narrows to the pointer task document', () => {
   const { writeCurrent } = require('../scripts/lib/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('npm test');
@@ -620,7 +620,7 @@ bouncer:
   return rel;
 }
 
-test('runVerification records evidence into the pointer tasks/002 unit only', () => {
+test('runVerification → records evidence into the pointer tasks/002 unit only', () => {
   const { writeCurrent } = require('../scripts/lib/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('node -e "process.exit(0)"');
@@ -659,7 +659,7 @@ test('runVerification records evidence into the pointer tasks/002 unit only', ()
   );
 });
 
-test('runVerification rejects missing unit verification.md without creating it', () => {
+test('runVerification → rejects missing unit verification.md without creating it', () => {
   const { writeCurrent } = require('../scripts/lib/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('node -e "process.exit(0)"');
@@ -688,7 +688,7 @@ test('runVerification rejects missing unit verification.md without creating it',
   assert.ok(!fs.existsSync(path.join(repo, missingRel)));
 });
 
-test('parseVerifyArgv preserves quoted arguments and spaces', () => {
+test('parseVerifyArgv → preserves quoted arguments and spaces', () => {
   assert.deepStrictEqual(
     parseVerifyArgv('node -e "console.log(\'a b\')"'),
     ['node', '-e', "console.log('a b')"],
@@ -699,7 +699,7 @@ test('parseVerifyArgv preserves quoted arguments and spaces', () => {
   );
 });
 
-test('runVerification executes via argv with shell:false and preserves quotes', () => {
+test('runVerification → executes via argv with shell:false and preserves quotes', () => {
   const declared = 'node -e "process.stdout.write(\'ok\')"';
   const repo = setupRepo('npm test');
   writeTasks(repo, declared);
@@ -720,7 +720,7 @@ test('runVerification executes via argv with shell:false and preserves quotes', 
   assert.strictEqual(result.ok, true);
 });
 
-test('runVerification rejects shell operators before starting a process', () => {
+test('runVerification → rejects shell operators before starting a process', () => {
   const repo = setupRepo('npm test');
   writeTasks(repo, 'npm test && rm -rf /');
   let executed = false;
@@ -735,7 +735,7 @@ test('runVerification rejects shell operators before starting a process', () => 
   assert.strictEqual(executed, false);
 });
 
-test('runVerification rejects parse failures before starting a process', () => {
+test('runVerification → rejects parse failures before starting a process', () => {
   const repo = setupRepo('npm test');
   writeTasks(repo, 'node -e "unclosed');
   let executed = false;
@@ -750,7 +750,7 @@ test('runVerification rejects parse failures before starting a process', () => {
   assert.strictEqual(executed, false);
 });
 
-test('runVerification rejects argv0 outside the allowlist before starting a process', () => {
+test('runVerification → rejects argv0 outside the allowlist before starting a process', () => {
   const repo = setupRepo('curl https://example.invalid');
   let executed = false;
   // config.verify는 readVerifyCommand가 형식 검사를 건너뛰므로 executeVerify가
@@ -775,7 +775,7 @@ test('runVerification rejects argv0 outside the allowlist before starting a proc
   );
 });
 
-test('runVerification honors config.verify_allowlist for argv0 basename', () => {
+test('runVerification → honors config.verify_allowlist for argv0 basename', () => {
   const repo = setupRepo('node -e "process.exit(0)"');
   fs.writeFileSync(
     path.join(repo, '.bouncer/config.json'),
@@ -800,13 +800,13 @@ test('runVerification honors config.verify_allowlist for argv0 basename', () => 
   });
 });
 
-test('isValidVerifyCommand rejects argv0 outside the default allowlist', () => {
+test('isValidVerifyCommand → rejects argv0 outside the default allowlist', () => {
   assert.ok(isValidVerifyCommand('npm test'));
   assert.ok(DEFAULT_VERIFY_ALLOWLIST.includes('npm'));
   assert.ok(!isValidVerifyCommand('curl https://example.invalid'));
 });
 
-test('executeVerify adapts 2-arg injected exec (command, opts) without starting a process', () => {
+test('executeVerify → adapts 2-arg injected exec (command, opts) without starting a process', () => {
   // finalize adaptInjectedVerifyExec·구 테스트는 execSync 형태다.
   let captured;
   const result = executeVerify('npm test', {
@@ -826,7 +826,7 @@ test('executeVerify adapts 2-arg injected exec (command, opts) without starting 
   assert.strictEqual(result.exitCode, 0);
 });
 
-test('executeVerify keeps 3-arg injected exec (file, args, opts)', () => {
+test('executeVerify → keeps 3-arg injected exec (file, args, opts)', () => {
   let captured;
   executeVerify('npm test', {
     cwd: '/tmp/verify-inject',
@@ -843,7 +843,7 @@ test('executeVerify keeps 3-arg injected exec (file, args, opts)', () => {
   });
 });
 
-test('executeVerify reads verify_allowlist from config at cwd when allowlist is omitted', () => {
+test('executeVerify when allowlist is omitted → reads verify_allowlist from config at cwd', () => {
   const repo = setupRepo('npm test');
   fs.writeFileSync(
     path.join(repo, '.bouncer/config.json'),
@@ -865,7 +865,7 @@ test('executeVerify reads verify_allowlist from config at cwd when allowlist is 
   });
 });
 
-test('executeVerify rejects npm test when allowlist is narrowed to node', () => {
+test('executeVerify when allowlist is narrowed to node → rejects npm test', () => {
   let executed = false;
   const result = executeVerify('npm test', {
     cwd: process.cwd(),
@@ -886,7 +886,7 @@ function writeAllowlist(repo, allowlist, extra = {}) {
   fs.writeFileSync(configPath, JSON.stringify({ ...current, ...extra, verify_allowlist: allowlist }));
 }
 
-test('project allowlist bun accepts bun test and rejects npm test at runtime', () => {
+test('project allowlist bun → accepts bun test and rejects npm test at runtime', () => {
   const repo = setupRepo('npm test');
   writeAllowlist(repo, ['bun']);
 
@@ -927,7 +927,7 @@ test('project allowlist bun accepts bun test and rejects npm test at runtime', (
   assert.strictEqual(npmExecuted, false);
 });
 
-test('empty allowlist, shell operators, and unclosed quotes reject before starting a process', () => {
+test('empty allowlist, shell operators, and unclosed quotes → reject before starting a process', () => {
   const emptyRepo = setupRepo('npm test');
   writeAllowlist(emptyRepo, []);
   writeTasks(emptyRepo, 'npm test');
@@ -971,7 +971,7 @@ test('empty allowlist, shell operators, and unclosed quotes reject before starti
   assert.strictEqual(quoteExecuted, false);
 });
 
-test('missing config uses the default allowlist; broken JSON and read errors abort as VERIFY_CONFIG_INVALID', () => {
+test('missing config → uses the default allowlist; broken JSON and read errors abort as VERIFY_CONFIG_INVALID', () => {
   const missingRepo = setupRepo('npm test');
   fs.rmSync(path.join(missingRepo, '.bouncer/config.json'));
   writeTasks(missingRepo, 'npm test');
@@ -1031,7 +1031,7 @@ test('missing config uses the default allowlist; broken JSON and read errors abo
   assert.strictEqual(unreadableExecuted, false);
 });
 
-test('executeVerify returns ok:false and does not start a process when config is invalid', () => {
+test('executeVerify when config is invalid → returns ok:false and does not start a process', () => {
   const repo = setupRepo('npm test');
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{not json');
   let executed = false;
@@ -1062,7 +1062,7 @@ test('executeVerify returns ok:false and does not start a process when config is
   assert.match(unreadableResult.output, /invalid/i);
 });
 
-test('isValidVerifyCommand accepts win32 npm.cmd against the default allowlist', () => {
+test('isValidVerifyCommand → accepts win32 npm.cmd against the default allowlist', () => {
   const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
   Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
   try {
@@ -1075,7 +1075,7 @@ test('isValidVerifyCommand accepts win32 npm.cmd against the default allowlist',
   }
 });
 
-test('two linked worktrees select distinct pointer task verification documents', () => {
+test('two linked worktrees → select distinct pointer task verification documents', () => {
   const { writeCurrent, readCurrent } = require('../scripts/lib/current');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verify-ns-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -1146,7 +1146,7 @@ bouncer:
   assert.strictEqual(readVerifyCommand(wtB, currentB.blueprint), 'node -e "process.exit(11)"');
 });
 
-test('second runVerification with same identity/scope reuses evidence and skips exec', () => {
+test('second runVerification with same identity/scope → reuses evidence and skips exec', () => {
   const repo = setupRepo();
   const deps = fixedDeps();
   const scope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
@@ -1190,7 +1190,7 @@ test('second runVerification with same identity/scope reuses evidence and skips 
   );
 });
 
-test('scope kind/key isolation yields distinct evidence ids and three exec calls', () => {
+test('scope kind/key isolation → yields distinct evidence ids and three exec calls', () => {
   const repo = setupRepo();
   const deps = fixedDeps();
   const scopes = [
@@ -1227,7 +1227,7 @@ test('scope kind/key isolation yields distinct evidence ids and three exec calls
   assert.strictEqual(ledgerFiles.size, 3);
 });
 
-test('identity field changes and corrupt/failed records miss the cache', () => {
+test('identity field changes and corrupt/failed → records miss the cache', () => {
   const repo = setupRepo();
   const baseScope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
   let calls = 0;
@@ -1413,7 +1413,7 @@ test('identity field changes and corrupt/failed records miss the cache', () => {
   assert.strictEqual(v1Calls, 1);
 });
 
-test('explicit and pointer-derived scopes, and identity errors reject before spawn', () => {
+test('explicit and pointer-derived scopes, and identity errors → reject before spawn', () => {
   const { writeCurrent } = require('../scripts/lib/current');
   const repo = setupRepo();
   writeTasks(repo, 'npm test');
@@ -1533,7 +1533,7 @@ test('explicit and pointer-derived scopes, and identity errors reject before spa
   assert.strictEqual(dotDotSpawned, 1);
 });
 
-test('omitted scope with numbered unit missing epic_id falls back to path key and runs exec once', () => {
+test('omitted scope with numbered unit missing epic_id → falls back to path key and runs exec once', () => {
   const { writeCurrent } = require('../scripts/lib/current');
   const repo = setupRepo();
   // coordinator integrate fixture처럼 id만 있고 epic/blueprint frontmatter가 없다.
@@ -1579,7 +1579,7 @@ bouncer:
   );
 });
 
-test('omitted scope with legacy root tasks.md only resolves scope and runs exec', () => {
+test('omitted scope with legacy root tasks.md only → resolves scope and runs exec', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-legacy-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
   execFileSync('git', [
@@ -1739,7 +1739,7 @@ function leaseVerifyFixture() {
   };
 }
 
-test('entriesForVerify and readVerifyCommand follow the worker lease over the pointer', () => {
+test('entriesForVerify and readVerifyCommand → follow the worker lease over the pointer', () => {
   const { epic, worker002, integration } = leaseVerifyFixture();
   const fromWorker = __entriesForVerify(worker002, epic);
   assert.strictEqual(fromWorker.length, 1);
@@ -1748,7 +1748,7 @@ test('entriesForVerify and readVerifyCommand follow the worker lease over the po
   assert.strictEqual(readVerifyCommand(integration, epic), 'node -e "process.exit(1)"');
 });
 
-test('runVerification refuses a worker cwd without an active lease', () => {
+test('runVerification → refuses a worker cwd without an active lease', () => {
   const { epic, worker002, integration } = leaseVerifyFixture();
   // entriesForVerify가 비면 레거시 verification.md로 떨어진 뒤 scope에서 거절한다.
   const legacy = path.join(worker002, epic, 'verification.md');
@@ -1768,7 +1768,7 @@ test('runVerification refuses a worker cwd without an active lease', () => {
   );
 });
 
-test('runVerification refuses a worker cwd with an unreadable ledger', () => {
+test('runVerification → refuses a worker cwd with an unreadable ledger', () => {
   const { epic, worker002, integration } = leaseVerifyFixture();
   const legacy = path.join(worker002, epic, 'verification.md');
   fs.mkdirSync(path.dirname(legacy), { recursive: true });
@@ -1784,7 +1784,7 @@ test('runVerification refuses a worker cwd with an unreadable ledger', () => {
   );
 });
 
-test('runVerification with taskId uses that task verify command and rejects unknown ids', () => {
+test('runVerification with taskId → uses that task verify command and rejects unknown ids', () => {
   const repo = setupRepo('npm test');
   writeTasks(repo, 'npm test');
   const dir006 = path.join(repo, BP_REL, 'tasks/006');
@@ -1881,7 +1881,7 @@ function pointerOn(repo, nnn) {
   });
 }
 
-test('runVerification markTaskVerified promotes a ready pointer commit task', () => {
+test('runVerification markTaskVerified → promotes a ready pointer commit task', () => {
   const repo = setupRepo('node -e "process.exit(0)"');
   writeUnitTasks(repo, '001');
   pointerOn(repo, '001');
@@ -1896,7 +1896,7 @@ test('runVerification markTaskVerified promotes a ready pointer commit task', ()
   assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'verified');
 });
 
-test('runVerification markTaskVerified promotes a ready leased commit task', () => {
+test('runVerification markTaskVerified → promotes a ready leased commit task', () => {
   const { epic, worker002 } = leaseVerifyFixture();
   const result = runVerification({
     repoRoot: worker002,
@@ -1915,7 +1915,7 @@ test('runVerification markTaskVerified promotes a ready leased commit task', () 
   );
 });
 
-test('runVerification markTaskVerified leaves status on failure, verified, verification kind, and default', () => {
+test('runVerification markTaskVerified → leaves status on failure, verified, verification kind, and default', () => {
   const repo = setupRepo('node -e "process.exit(1)"');
   writeUnitTasks(repo, '001');
   pointerOn(repo, '001');
@@ -1969,7 +1969,7 @@ test('runVerification markTaskVerified leaves status on failure, verified, verif
   assert.strictEqual(taskBouncer(omitted, `${BP_REL}/tasks/001/tasks.md`).status, 'ready');
 });
 
-test('runVerification markTaskVerified does not promote a listing-fallback single task', () => {
+test('runVerification markTaskVerified → does not promote a listing-fallback single task', () => {
   const repo = setupRepo('node -e "process.exit(0)"');
   writeUnitTasks(repo, '001');
   const result = runVerification({
@@ -1982,7 +1982,7 @@ test('runVerification markTaskVerified does not promote a listing-fallback singl
   assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'ready');
 });
 
-test('runVerification reuse hit with markTaskVerified still promotes a ready pointer task', () => {
+test('runVerification reuse hit with markTaskVerified still → promotes a ready pointer task', () => {
   const repo = setupRepo();
   writeUnitTasks(repo, '001');
   pointerOn(repo, '001');

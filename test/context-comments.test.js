@@ -83,7 +83,7 @@ function seededTaskRepo() {
   return { repo, blueprint, active };
 }
 
-test('templates expose normalized scaffold comment bodies', () => {
+test('templates are loaded → they expose normalized scaffold comment bodies', () => {
   const open = '<!' + '--'; const close = '--' + '>';
   assert.ok(LEGACY_SCAFFOLD_COMMENT_BODIES.some((b) => b.includes('왜 지금 이 에픽인가')));
   assert.ok(Object.isFrozen(LEGACY_SCAFFOLD_COMMENT_BODIES));
@@ -103,7 +103,7 @@ test('templates expose normalized scaffold comment bodies', () => {
   assert.throws(() => findLegacyScaffoldComments(null), TypeError);
 });
 
-test('explicit changed context document rejects scaffold comment and TODO', () => {
+test('explicit changed context document holds a scaffold comment or TODO → it is rejected', () => {
   const repo = fixtureRepo();
   const rel = '.bouncer/context/epics/001-x/index.md';
   fs.writeFileSync(
@@ -116,7 +116,7 @@ test('explicit changed context document rejects scaffold comment and TODO', () =
   assert.match(result.stderr, /001-x\/index\.md/);
 });
 
-test('base diff and untracked files are checked while unchanged and deleted files are skipped', () => {
+test('base diff and untracked files with unchanged and deleted files → changed ones are checked and unchanged and deleted are skipped', () => {
   const repo = fixtureRepo();
   const changed = '.bouncer/context/epics/001-x/index.md';
   fs.writeFileSync(path.join(repo, changed), '<TODO: changed>\n');
@@ -138,7 +138,7 @@ test('base diff and untracked files are checked while unchanged and deleted file
   assert.doesNotMatch(result.stderr, /author\.md/);
 });
 
-test('active task scaffold comments fail without checking pending sibling tasks', () => {
+test('active task has scaffold comments and a pending sibling task → check fails without checking the pending sibling', () => {
   const { repo, blueprint, active } = seededTaskRepo();
   const pending = `${blueprint}/tasks/002/tasks.md`;
   writeTaskDoc(repo, active, taskMarkdown('pending'));
@@ -152,7 +152,7 @@ test('active task scaffold comments fail without checking pending sibling tasks'
 });
 
 for (const status of ['ready', 'verified', 'closed']) {
-  test(`non-pending sibling scaffold (${status}) stays in automatic check`, () => {
+  test(`non-pending sibling scaffold (${status}) → stays in automatic check`, () => {
     const { repo, blueprint, active } = seededTaskRepo();
     const sibling = `${blueprint}/tasks/002/tasks.md`;
     writeTaskDoc(repo, active, taskMarkdown('pending'));
@@ -166,7 +166,7 @@ for (const status of ['ready', 'verified', 'closed']) {
   });
 }
 
-test('mixed statuses in one sibling bundle are judged per document', () => {
+test('one sibling bundle with mixed statuses → each document is judged per its own status', () => {
   const { repo, blueprint, active } = seededTaskRepo();
   const siblingDir = `${blueprint}/tasks/002`;
   writeTaskDoc(repo, active, taskMarkdown('pending'));
@@ -183,7 +183,7 @@ test('mixed statuses in one sibling bundle are judged per document', () => {
   assert.match(result.stderr, /tasks\/002\/review\.md/);
 });
 
-test('pending leaves in the active bundle stay in automatic check', () => {
+test('pending leaves in the active bundle → they stay in automatic check', () => {
   const { repo, blueprint, active } = seededTaskRepo();
   const activeDir = `${blueprint}/tasks/001`;
   writeTaskDoc(repo, active, taskMarkdown('ready'));
@@ -198,7 +198,7 @@ test('pending leaves in the active bundle stay in automatic check', () => {
   assert.match(result.stderr, /tasks\/001\/review\.md/);
 });
 
-test('malformed or missing frontmatter siblings stay in automatic check', () => {
+test('sibling has malformed or missing frontmatter → it stays in automatic check', () => {
   const { repo, blueprint, active } = seededTaskRepo();
   const siblingDir = `${blueprint}/tasks/002`;
   writeTaskDoc(repo, active, taskMarkdown('pending'));
@@ -214,7 +214,7 @@ test('malformed or missing frontmatter siblings stay in automatic check', () => 
   assert.match(result.stderr, /tasks\/002\/review\.md/);
 });
 
-test('explicit-file pending sibling is still checked', () => {
+test('explicit file is a pending sibling → it is still checked', () => {
   const { repo, blueprint, active } = seededTaskRepo();
   const pending = `${blueprint}/tasks/002/tasks.md`;
   writeTaskDoc(repo, active, taskMarkdown('pending'));
@@ -226,7 +226,7 @@ test('explicit-file pending sibling is still checked', () => {
   assert.match(result.stderr, /tasks\/002\/tasks\.md/);
 });
 
-test('unrelated HTML comments and no changed context documents pass', () => {
+test('unrelated HTML comments or no changed context documents → check passes', () => {
   const repo = fixtureRepo();
   const legacy = '.bouncer/context/epics/001-x/legacy.md';
   fs.writeFileSync(path.join(repo, legacy), '<TODO: retained legacy marker>\n');

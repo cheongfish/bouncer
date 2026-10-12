@@ -21,14 +21,14 @@ const THIRD_PARTY = {
 
 const AUTHOR_EMAIL = 'rlq10324@chunjae.com';
 
-test('LICENSE is unmodified Apache License 2.0 text', () => {
+test('LICENSE file → is unmodified Apache License 2.0 text', () => {
   const license = read('LICENSE');
   assert.match(license, /Apache License\s+Version 2\.0/);
   assert.match(license, /January 2004/);
   assert.match(license, /END OF TERMS AND CONDITIONS/);
 });
 
-test('package.json SPDX and Git plugin metadata match deployment', () => {
+test('package.json SPDX and Git plugin metadata → match deployment', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.strictEqual(pkg.license, 'Apache-2.0');
   assert.strictEqual(pkg.private, true);
@@ -44,7 +44,7 @@ test('package.json SPDX and Git plugin metadata match deployment', () => {
 
 // README의 LICENSE·SECURITY·CODE_OF_CONDUCT 링크는 `npm run lint:docs`의 PATH_CONTRACTS가
 // 검사한다. 두 문서의 문장은 고정하지 않고, 공개 연락처 값과 미치환 템플릿 표식만 본다.
-test('SECURITY.md and CODE_OF_CONDUCT.md publish the author contact and no template placeholder', () => {
+test('SECURITY.md and CODE_OF_CONDUCT.md → publish the author contact and no template placeholder', () => {
   const email = new RegExp(AUTHOR_EMAIL.replace('.', '\\.'));
   assert.match(read('SECURITY.md'), email);
   const coc = read('CODE_OF_CONDUCT.md');
@@ -52,7 +52,7 @@ test('SECURITY.md and CODE_OF_CONDUCT.md publish the author contact and no templ
   assert.doesNotMatch(coc, /\[INSERT CONTACT METHOD\]/);
 });
 
-test('third-party LICENSE and NOTICE files are unchanged', () => {
+test('third-party LICENSE and NOTICE files → are unchanged', () => {
   for (const [rel, digest] of Object.entries(THIRD_PARTY)) {
     assert.strictEqual(sha256(rel), digest, rel);
   }

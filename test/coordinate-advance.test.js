@@ -46,7 +46,7 @@ function argvFor(action) {
   return ['bouncer', 'coordinate', action, '--blueprint', 'bp'];
 }
 
-test('(a) prepare→integrate→judge stops with judge and two executed', () => {
+test('(a) prepare→integrate→judge sequence → stops with judge and two executed', () => {
   const judgeNext = okNext('dispatch', {
     judge: { kind: 'intent-symbols', fields: ['symbols'] },
     argv: argvFor('dispatch'),
@@ -71,7 +71,7 @@ test('(a) prepare→integrate→judge stops with judge and two executed', () => 
   assert.deepStrictEqual(out.stop.next, judgeNext);
 });
 
-test('(b) drive_tasks and implement+inline stop with worker', () => {
+test('(b) drive_tasks and implement+inline actions → stop with worker', () => {
   const drive = okNext('drive_tasks', { task_ids: ['001'] });
   const { deps: d1 } = scriptedDeps([drive]);
   const out1 = advance({ repoRoot: '/r', blueprint: 'bp', deps: d1 });
@@ -88,7 +88,7 @@ test('(b) drive_tasks and implement+inline stop with worker', () => {
   assert.deepStrictEqual(out2.stop.next, impl);
 });
 
-test('(c) blocked, done, and none stop with matching reason', () => {
+test('(c) blocked, done, and none actions → stop with matching reason', () => {
   for (const reason of ['blocked', 'done', 'none']) {
     const step = okNext(reason, reason === 'blocked' ? { reason: 'no-ready-task' } : {});
     const { deps } = scriptedDeps([step]);
@@ -99,7 +99,7 @@ test('(c) blocked, done, and none stop with matching reason', () => {
   }
 });
 
-test('(d) max-steps stops before another auto action', () => {
+test('(d) max-steps is reached → stops before another auto action', () => {
   const third = okNext('prepare', { argv: argvFor('prepare') });
   const { deps, runCalls } = scriptedDeps(
     [
@@ -122,7 +122,7 @@ test('(d) max-steps stops before another auto action', () => {
   assert.strictEqual(runCalls.length, 2);
 });
 
-test('(e) verify failure returns ok:false without retry', () => {
+test('(e) verify fails → returns ok:false without retry', () => {
   const failBody = {
     ok: false,
     reason: 'gate-failed',
@@ -141,7 +141,7 @@ test('(e) verify failure returns ok:false without retry', () => {
   assert.strictEqual(runCalls.length, 1);
 });
 
-test('(f) stale-ledger-checkpoint retries once; same reason → repeated-failure', () => {
+test('(f) stale-ledger-checkpoint failure → retries once and the same reason becomes repeated-failure', () => {
   const stale = {
     ok: false,
     reason: 'stale-ledger-checkpoint',
@@ -194,7 +194,7 @@ test('(f) stale-ledger-checkpoint retries once; same reason → repeated-failure
   assert.deepStrictEqual(retried.executed, []);
 });
 
-test('(g) non-JSON stdout and exit 2 are unclear-result', () => {
+test('(g) non-JSON stdout or exit 2 → result is unclear-result', () => {
   const { deps: d1 } = scriptedDeps(
     [okNext('prepare', { argv: argvFor('prepare') })],
     [{ stdout: 'not-json\n', status: 0 }],
@@ -212,7 +212,7 @@ test('(g) non-JSON stdout and exit 2 are unclear-result', () => {
   assert.strictEqual(badExit.reason, 'unclear-result');
 });
 
-test('(h) argv[0] !== bouncer is advance-argv-invalid and skips runArgv', () => {
+test('(h) argv[0] !== bouncer → reports advance-argv-invalid and skips runArgv', () => {
   const { deps, runCalls } = scriptedDeps(
     [okNext('prepare', { argv: ['not-bouncer', 'coordinate', 'prepare'] })],
     [],
@@ -223,7 +223,7 @@ test('(h) argv[0] !== bouncer is advance-argv-invalid and skips runArgv', () => 
   assert.strictEqual(runCalls.length, 0);
 });
 
-test('(i) judge on review does not run a later commit argv', () => {
+test('(i) judge on review → does not run a later commit argv', () => {
   const review = okNext('review', {
     judge: { kind: 'review-round', fields: ['findings'] },
     argv: ['bouncer', 'review-dispatch', 'execute'],

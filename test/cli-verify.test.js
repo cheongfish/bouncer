@@ -77,7 +77,7 @@ function capture() {
   };
 }
 
-test('verify executes the configured command and records evidence', () => {
+test('verify with a configured command → executes it and records evidence', () => {
   const repo = setupRepo();
   const { io, buf } = capture();
   const code = runCli(['verify', '--repo', repo, '--blueprint', BP_REL], io);
@@ -106,7 +106,7 @@ test('verify executes the configured command and records evidence', () => {
   assert.strictEqual(record.reused, false);
 });
 
-test('execute gate promotes a ready pointer commit task and passes once', () => {
+test('execute gate with a ready pointer commit task → promotes it and passes once', () => {
   const { writeCurrent } = require('../scripts/lib/current');
   const repo = setupRepo();
   const tasksPath = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
@@ -127,7 +127,7 @@ test('execute gate promotes a ready pointer commit task and passes once', () => 
   assert.strictEqual(readDoc(tasksPath).data.bouncer.status, 'verified');
 });
 
-test('execute gate reruns verification before evaluating gates', () => {
+test('execute gate before evaluating gates → reruns verification', () => {
   const repo = setupRepo();
   const { io, buf } = capture();
   const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'execute'], io);
@@ -138,7 +138,7 @@ test('execute gate reruns verification before evaluating gates', () => {
   assert.strictEqual(verification.data.bouncer.verification.command, 'node -e "process.exit(0)"');
 });
 
-test('execute gate records failure and returns a gate failure', () => {
+test('execute gate when verification fails → records failure and returns a gate failure', () => {
   const repo = setupRepo('node -e "process.exit(7)"');
   const { io, buf } = capture();
   const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'execute'], io);
@@ -152,7 +152,7 @@ test('execute gate records failure and returns a gate failure', () => {
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 7);
 });
 
-test('verify records evidence into the pointer task-dir unit', () => {
+test('verify with a pointer task-dir unit → records evidence into it', () => {
   const { writeCurrent } = require('../scripts/lib/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('node -e "process.exit(0)"');

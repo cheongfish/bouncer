@@ -39,7 +39,7 @@ function mkTaskDirs(nnns, { extraDirs = [] } = {}) {
   return repo;
 }
 
-test('listTasksDocs: legacy tasks.md is retained only for the S15 reporter', () => {
+test('listTasksDocs: legacy tasks.md → is retained only for the S15 reporter', () => {
   const repo = mkBp(['tasks.md', 'index.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.strictEqual(result.legacy, true);
@@ -48,7 +48,7 @@ test('listTasksDocs: legacy tasks.md is retained only for the S15 reporter', () 
   assert.equal(result.entries.length, 0);
 });
 
-test('listTasksDocs: numbered root tasks are legacy files, not task entries', () => {
+test('listTasksDocs: numbered root tasks → are legacy files, not task entries', () => {
   const repo = mkBp(['tasks-003.md', 'tasks-001.md', 'index.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.strictEqual(result.legacy, true);
@@ -56,14 +56,14 @@ test('listTasksDocs: numbered root tasks are legacy files, not task entries', ()
   assert.deepStrictEqual(result.entries, []);
 });
 
-test('listTasksDocs: mixed root legacy files are reported together', () => {
+test('listTasksDocs: mixed root legacy files → are reported together', () => {
   const repo = mkBp(['tasks.md', 'tasks-001.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.strictEqual(result.mixed, false);
   assert.deepStrictEqual(result.legacyFiles, ['tasks-001.md', 'tasks.md']);
 });
 
-test('listTasksDocs: non-padded root names are not canonical task entries', () => {
+test('listTasksDocs: non-padded root → names are not canonical task entries', () => {
   const repo = mkBp(['tasks-1.md', 'tasks-001.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.deepStrictEqual(result.entries, []);
@@ -72,7 +72,7 @@ test('listTasksDocs: non-padded root names are not canonical task entries', () =
   assert.strictEqual(isNumberedTasksBasename('tasks-001.md'), true);
 });
 
-test('listTasksDocs: empty blueprint directory yields empty list', () => {
+test('listTasksDocs: empty blueprint directory → yields empty list', () => {
   const repo = mkBp(['index.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.deepStrictEqual(result.entries, []);
@@ -81,12 +81,12 @@ test('listTasksDocs: empty blueprint directory yields empty list', () => {
   assert.deepEqual(result.invalidDirs, []);
 });
 
-test('expectedTasksId derives from basename (legacy uses blueprint id)', () => {
+test('expectedTasksId → derives from basename (legacy uses blueprint id)', () => {
   assert.strictEqual(expectedTasksId('tasks.md', '014'), 'TASKS-014');
   assert.strictEqual(expectedTasksId('tasks-002.md', '014'), 'TASKS-002');
 });
 
-test('listTasksDocs: tasks/<NNN>/ units yield paired paths and ids', () => {
+test('listTasksDocs with tasks/<NNN>/ units → yields paired paths and ids', () => {
   const repo = mkTaskDirs(['001', '002']);
   const { entries, invalidDirs } = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.equal(entries.length, 2);
@@ -97,20 +97,20 @@ test('listTasksDocs: tasks/<NNN>/ units yield paired paths and ids', () => {
   assert.deepEqual(invalidDirs, []);
 });
 
-test('listTasksDocs: non-padded task dirs land in invalidDirs only', () => {
+test('listTasksDocs with non-padded task dirs → land in invalidDirs only', () => {
   const repo = mkTaskDirs(['001', '002'], { extraDirs: ['01', 'foo'] });
   const { entries, invalidDirs } = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.equal(entries.length, 2);
   assert.deepEqual(invalidDirs, ['01', 'foo']);
 });
 
-test('listTasksDocs: root evidence does not revive a legacy task entry', () => {
+test('listTasksDocs: root evidence → does not revive a legacy task entry', () => {
   const repo = mkBp(['tasks-001.md', 'verification.md', 'index.md']);
   const { entries } = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.equal(entries.length, 0);
 });
 
-test('expectedTaskDocIds returns the three task-unit ids', () => {
+test('expectedTaskDocIds → returns the three task-unit ids', () => {
   assert.deepEqual(expectedTaskDocIds('002'), {
     tasks: 'TASKS-002',
     verification: 'VERIFY-002',
@@ -118,7 +118,7 @@ test('expectedTaskDocIds returns the three task-unit ids', () => {
   });
 });
 
-test('tasks-docs 단독 로드는 paths 모듈을 끌어오지 않는다', () => {
+test('tasks-docs 단독 로드 → paths 모듈을 끌어오지 않는다', () => {
   // 같은 파일의 다른 테스트와 모듈 인스턴스가 섞이지 않게 마지막의 별도 test()에 둔다.
   const repo = mkBp(['index.md']);
   for (const key of Object.keys(require.cache)) if (key.includes('/scripts/lib/')) delete require.cache[key];

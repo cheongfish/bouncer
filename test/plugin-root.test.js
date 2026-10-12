@@ -35,7 +35,7 @@ function capture(argv, options) {
   return result;
 }
 
-test('BOUNCER_HOME wins over --host candidates, which win over all candidates', () => {
+test('BOUNCER_HOME, --host candidates, and all candidates → BOUNCER_HOME wins over --host, which wins over all', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   const codex = fixture(home, 'codex', '9.0.0');
   const claude = fixture(home, 'claude', '1.0.0');
@@ -48,7 +48,7 @@ test('BOUNCER_HOME wins over --host candidates, which win over all candidates', 
   assert.strictEqual(capture([], { homeDir: home }).out, `${codex}\n`);
 });
 
-test('auto sorting is strict semver descending then absolute path ascending', () => {
+test('auto sorting → is strict semver descending then absolute path ascending', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   const first = fixture(home, 'claude', '1.2.3', 'aaa');
   fixture(home, 'codex', '1.2.4');
@@ -58,21 +58,21 @@ test('auto sorting is strict semver descending then absolute path ascending', ()
   assert.strictEqual(capture(['--host', 'claude'], { homeDir: home }).out, `${first}\n`);
 });
 
-test('strict semver ordering does not lose precision for large numeric identifiers', () => {
+test('strict semver ordering with large numeric identifiers → does not lose precision', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   const newer = fixture(home, 'claude', '9007199254740993.0.0', 'z-marketplace');
   fixture(home, 'codex', '9007199254740992.0.0', 'a-marketplace');
   assert.strictEqual(capture([], { homeDir: home }).out, `${newer}\n`);
 });
 
-test('package metadata is an accepted name/version source and participates in ordering', () => {
+test('package metadata → is an accepted name/version source and participates in ordering', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   const packageCandidate = fixture(home, 'claude', '3.0.0', 'package-only', 'package.json');
   fixture(home, 'codex', '2.0.0');
   assert.strictEqual(capture([], { homeDir: home }).out, `${packageCandidate}\n`);
 });
 
-test('--select rejects non-TTY input and selects the numbered candidate on a TTY', () => {
+test('--select with non-TTY input or a TTY → rejects non-TTY input and selects the numbered candidate on a TTY', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   fixture(home, 'claude', '2.0.0');
   const second = fixture(home, 'codex', '1.0.0');
@@ -84,13 +84,13 @@ test('--select rejects non-TTY input and selects the numbered candidate on a TTY
   assert.strictEqual(selected.out, `${second}\n`);
 });
 
-test('--host rejects unsupported Cursor', () => {
+test('--host with unsupported Cursor → rejects it', () => {
   const result = capture(['--host', 'cursor'], {});
   assert.strictEqual(result.code, 1);
   assert.match(result.err, /claude, codex, or antigravity/);
 });
 
-test('CLI defaults cover stdout, stderr, stdin selection, and selection errors', () => {
+test('CLI defaults → cover stdout, stderr, stdin selection, and selection errors', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   const candidate = fixture(home, 'claude', '1.0.0');
   const writes = [];
@@ -147,7 +147,7 @@ function runLauncherFixture(args, fixture, input = '') {
   });
 }
 
-test('bouncer delegates to the selected installed plugin with args and streams intact', () => {
+test('bouncer with a selected installed plugin → delegates with args and streams intact', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-launcher-'));
   const fixture = launcherFixture(home, 'delegated stderr', 23);
   const result = runLauncherFixture(['project-root', '--repo', '/tmp/example'], fixture, 'delegated stdin');
@@ -159,7 +159,7 @@ test('bouncer delegates to the selected installed plugin with args and streams i
   assert.strictEqual(result.stderr, 'delegated stderr');
 });
 
-test('bouncer does not re-exec when bouncer-root selects the current installation', () => {
+test('bouncer-root selects the current installation → bouncer does not re-exec', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-launcher-current-'));
   const bin = path.join(home, 'bin');
   fs.mkdirSync(bin, { recursive: true });
@@ -193,7 +193,7 @@ function isolatedLauncherEnv(tmp) {
   };
 }
 
-test('bouncer-root prints build guidance when scripts/lib is missing', () => {
+test('bouncer-root with scripts/lib missing → prints build guidance', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-missing-lib-root-'));
   const scriptsDir = path.join(tmp, 'scripts');
   fs.mkdirSync(scriptsDir, { recursive: true });
@@ -207,7 +207,7 @@ test('bouncer-root prints build guidance when scripts/lib is missing', () => {
   assert.match(res.stderr, /scripts\/lib is missing; run `npm run build`/);
 });
 
-test('bouncer prints build guidance when lib/cli.js is missing on the self-exec path', () => {
+test('bouncer with lib/cli.js missing on the self-exec path → prints build guidance', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-missing-cli-'));
   const scriptsDir = path.join(tmp, 'scripts');
   fs.mkdirSync(scriptsDir, { recursive: true });

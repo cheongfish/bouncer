@@ -24,7 +24,7 @@ function capture() {
   };
 }
 
-test('GATE_FAILURE_HINTS attaches next only when code and match agree', () => {
+test('GATE_FAILURE_HINTS when code and match agree → attaches next only', () => {
   assert.ok(Array.isArray(GATE_FAILURE_HINTS));
   assert.deepStrictEqual(
     GATE_FAILURE_HINTS.map((h) => h.code).sort(),
@@ -53,7 +53,7 @@ test('GATE_FAILURE_HINTS attaches next only when code and match agree', () => {
   for (const i of [1, 4, 5, 7, 9]) assert.strictEqual('next' in out[i], false, out[i].message);
 });
 
-test('validate JSON includes next on G22 from the plan-gate return boundary', () => {
+test('validate JSON → includes next on G22 from the plan-gate return boundary', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const tasksBody = `# Tasks
 

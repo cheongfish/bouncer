@@ -21,7 +21,7 @@ function skillFiles(skill) {
 }
 
 for (const [skill, ids] of Object.entries(CATALOG)) {
-  test(`${skill} indexes exactly its gate IDs and uses each one where the gate runs`, () => {
+  test(`${skill} → 자기 gate ID를 정확히 색인하고 gate가 실행되는 곳마다 각 ID를 사용함`, () => {
     const body = read(path.join('skills', skill, 'SKILL.md'));
     const index = body.slice(body.indexOf('## ACQ (AskUserQuestion) gates'));
     const indexed = [...index.matchAll(/`([a-z]+\.[a-z_]+)`/g)].map((match) => match[1]);
@@ -50,7 +50,7 @@ test('카탈로그 workflows 키 → ACQ 절을 가진 skills/*/SKILL.md의 skil
 
 const POLICY_NAMES = ['fastify-001'];
 
-test('the benchmark evaluator policies answer only catalogued gate IDs', () => {
+test('the benchmark evaluator policies → answer only catalogued gate IDs', () => {
   const known = new Set(Object.values(CATALOG).flat());
   // 제품이 정의하지 않은 포인터 활성화 질문은 과거 run 호환용으로만 남는다.
   const legacy = new Set(['plan.activate_pointer', 'finalize.quiz']);
@@ -62,7 +62,7 @@ test('the benchmark evaluator policies answer only catalogued gate IDs', () => {
   }
 });
 
-test('the benchmark evaluator policies are v3 and answer finalize.remainder with --yes', () => {
+test('the benchmark evaluator policies are v3 → they answer finalize.remainder with --yes', () => {
   for (const name of POLICY_NAMES) {
     const policy = JSON.parse(read(`benchmarks/configs/${name}-evaluator-policy.json`));
     assert.equal(policy.policy_version, 3, name);

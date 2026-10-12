@@ -100,13 +100,13 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   return dispatched;
 }
 
-test('COORDINATE_FAILURE_HINTS covers every coordinator reason literal', () => {
+test('every coordinator reason literal exists → COORDINATE_FAILURE_HINTS covers each of them', () => {
   const source = fs.readFileSync(path.join(__dirname, '../scripts/src/lib/coordinator.ts'), 'utf8');
   const reasons = new Set([...source.matchAll(/reason: '([a-z-]+)'/g)].map((m) => m[1]));
   for (const reason of reasons) assert.ok(COORDINATE_FAILURE_HINTS[reason], reason);
 });
 
-test('readyWave returns only pending tasks with completed dependencies', () => {
+test('readyWave with pending, blocked and done tasks → returns only pending tasks with completed dependencies', () => {
   const tasks = [
     { id: '001', depends_on: [], status: 'integrated' },
     { id: '002', depends_on: ['001'], status: 'pending' },
@@ -115,7 +115,7 @@ test('readyWave returns only pending tasks with completed dependencies', () => {
   assert.deepStrictEqual(readyWave(tasks), ['002']);
 });
 
-test('readyWave keeps a sequential task alone and waits for the integrated gate', () => {
+test('readyWave with a sequential task in the wave → keeps it alone and waits for the integrated gate', () => {
   const tasks = [
     { id: '001', status: 'integrated', affected_paths: ['a/'] },
     { id: '002', depends_on: ['001'], parallel_safe: true, status: 'pending', affected_paths: ['b/'] },
@@ -138,7 +138,7 @@ test('readyWave keeps a sequential task alone and waits for the integrated gate'
   assert.deepStrictEqual(readyWave(tasks), ['002', '004']);
 });
 
-test('readyWave caps parallel_safe tasks by maxParallel and path/resource conflicts', () => {
+test('readyWave with parallel_safe tasks, maxParallel and path/resource conflicts → caps the wave by all of them', () => {
   const threeDisjoint = [
     { id: '001', status: 'pending', parallel_safe: true, affected_paths: ['a/'] },
     { id: '002', status: 'pending', parallel_safe: true, affected_paths: ['b/'] },
@@ -173,7 +173,7 @@ test('readyWave caps parallel_safe tasks by maxParallel and path/resource confli
   assert.deepStrictEqual(readyWave(legacyPair), ['001']);
 });
 
-test('readCoordinatorPolicy accepts integers >= 1 and rejects invalid max_parallel', () => {
+test('readCoordinatorPolicy with integers >= 1 and invalid max_parallel → accepts the integers and rejects the invalid value', () => {
   const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = require('../scripts/lib/config');
   assert.strictEqual(DEFAULT_MAX_PARALLEL, 2);
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coord-policy-'));
@@ -192,7 +192,7 @@ test('readCoordinatorPolicy accepts integers >= 1 and rejects invalid max_parall
   }
 });
 
-test('prepare rejects invalid max_parallel before creating workers and honors max_parallel 1', () => {
+test('prepare with invalid max_parallel or max_parallel 1 → rejects before creating workers and honors 1', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/078-x/blueprints/001-y';
   for (const [id, leaf] of [['001', 'a'], ['002', 'b'], ['003', 'c']]) {
@@ -228,18 +228,18 @@ test('prepare rejects invalid max_parallel before creating workers and honors ma
   assert.strictEqual(preparedCount, 1);
 });
 
-test('transition rejects an illegal coordinator state change', () => {
+test('transition with an illegal coordinator state change → rejects it', () => {
   assert.throws(() => transition('pending', 'integrated'), /illegal state transition/);
   assert.strictEqual(transition('ready', 'prepared'), 'prepared');
 });
 
-test('verification tasks use the ready-verifying-integrated state path', () => {
+test('verification tasks in a plan → use the ready-verifying-integrated state path', () => {
   assert.strictEqual(transition('ready', 'verifying', 'verification'), 'verifying');
   assert.strictEqual(transition('verifying', 'integrated', 'verification'), 'integrated');
   assert.throws(() => transition('ready', 'prepared', 'verification'), /illegal state transition/);
 });
 
-test('critical recovery records one prepared-task recovery and rejects invalid repeats', () => {
+test('critical recovery with a prepared task and a repeated call → records one recovery and rejects invalid repeats', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
@@ -286,7 +286,7 @@ test('critical recovery records one prepared-task recovery and rejects invalid r
   assert.strictEqual(validateCoordinatorLedger(malformed).reason, 'critical-recovery-invalid');
 });
 
-test('verification integrate runs CI without a worker or commit and advances only on success', () => {
+test('verification integrate with a passing and a failing CI → runs CI without a worker or commit and advances only on success', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/011-x/blueprints/012-y';
   for (const [id, metadata] of [
@@ -430,7 +430,7 @@ test('verification integrate runs CI without a worker or commit and advances onl
   assert.strictEqual(partial.message, 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.');
 });
 
-test('verification integrate seeds the terminal bundle and uses the real runner', () => {
+test('verification integrate with a seeded terminal bundle → uses the real runner', () => {
   const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'node --test' }));
@@ -470,7 +470,7 @@ test('verification integrate seeds the terminal bundle and uses the real runner'
   assert.match(fs.readFileSync(path.join(boot.integrationPath, verificationRel), 'utf8'), /exit_code: 0/);
 });
 
-test('bootstrap creates only an integration worktree and resumes its ledger', () => {
+test('bootstrap on a fresh repo and again on resume → creates only an integration worktree and resumes its ledger', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -484,7 +484,7 @@ test('bootstrap creates only an integration worktree and resumes its ledger', ()
   assert.strictEqual(fs.existsSync(path.join(repo, 'README.md')), true);
 });
 
-test('bootstrap seeds an untracked blueprint once and preserves the integration copy on resume', () => {
+test('bootstrap with an untracked blueprint → seeds it once and preserves the integration copy on resume', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/030-x/blueprints/031-y';
   const task = `${blueprint}/tasks/001/tasks.md`;
@@ -508,7 +508,7 @@ test('bootstrap seeds an untracked blueprint once and preserves the integration 
   assert.strictEqual(fs.readFileSync(path.join(boot.integrationPath, task), 'utf8'), 'integration canonical\n');
 });
 
-test('bootstrap rejects a third integration plan version without creating its ledger', () => {
+test('bootstrap with a third integration plan version → rejects without creating its ledger', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/032-x/blueprints/033-y';
   const task = `${blueprint}/tasks/001/tasks.md`;
@@ -529,7 +529,7 @@ test('bootstrap rejects a third integration plan version without creating its le
   assert.deepStrictEqual(fs.readFileSync(path.join(repo, task)), mainBefore);
 });
 
-test('prepare backfills a legacy prepared worker branch without renaming its checkout', () => {
+test('prepare with a legacy prepared worker branch → backfills it without renaming its checkout', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/015-x/blueprints/016-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
@@ -553,7 +553,7 @@ test('prepare backfills a legacy prepared worker branch without renaming its che
     'legacy/015-016-001');
 });
 
-test('prepare validates the integration commit type even when the ready wave is verification-only', () => {
+test('prepare with a verification-only ready wave → still validates the integration commit type', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/021-x/blueprints/022-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
@@ -570,7 +570,7 @@ test('prepare validates the integration commit type even when the ready wave is 
   assert.strictEqual(ledger.tasks[0].status || 'pending', 'pending');
 });
 
-test('standalone branch and a later ready-wave conflict create no coordinator worktree', () => {
+test('standalone branch and a later ready-wave conflict → create no coordinator worktree', () => {
   const repo = repoTemplate.copy();
   const standaloneBlueprint = '.bouncer/context/epics/017-x/blueprints/018-y';
   fs.mkdirSync(path.join(repo, standaloneBlueprint, 'tasks/001'), { recursive: true });
@@ -595,7 +595,7 @@ test('standalone branch and a later ready-wave conflict create no coordinator wo
   assert.strictEqual(fs.existsSync(coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath), false);
 });
 
-test('bootstrap rejects a symlink substituted for its registered integration checkout', () => {
+test('bootstrap with a symlink substituted for its registered integration checkout → rejects it', () => {
   const repo = repoTemplate.copy();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-integration-target-'));
   const blueprint = '.bouncer/context/epics/009-x/blueprints/010-y';
@@ -615,7 +615,7 @@ test('bootstrap rejects a symlink substituted for its registered integration che
   assert.strictEqual(fs.existsSync(path.join(outside, '.bouncer', 'runtime', 'coordinator.json')), false);
 });
 
-test('prepare seeds each assigned worker and record accepts the worker boundary', () => {
+test('prepare with assigned workers and a record call → seeds each worker and record accepts the worker boundary', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/002-x/blueprints/003-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -650,7 +650,7 @@ function uncommittedPlanRepo(prefix, blueprint, tasks) {
   return repo;
 }
 
-test('plan fixture repos set local git identity for identity-less cherry-pick', () => {
+test('plan fixture repos with identity-less cherry-pick → set local git identity', () => {
   const repo = uncommittedPlanRepo(
     'bouncer-coord-identity-',
     '.bouncer/context/epics/080-id/blueprints/001-x',
@@ -662,7 +662,7 @@ test('plan fixture repos set local git identity for identity-less cherry-pick', 
   assert.strictEqual(name, 'test');
 });
 
-test('prepare seeds workers from the integration plan after the main plan is removed', () => {
+test('prepare after the main plan is removed → seeds workers from the integration plan', () => {
   const blueprint = '.bouncer/context/epics/040-x/blueprints/041-y';
   const repo = uncommittedPlanRepo('bouncer-coordinator-seed-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -695,7 +695,7 @@ test('prepare seeds workers from the integration plan after the main plan is rem
   assert.deepStrictEqual(fs.readFileSync(path.join(boot.integrationPath, shared)), before);
 });
 
-test('prepare rejects a missing integration blueprint before creating any worker', () => {
+test('prepare with a missing integration blueprint → rejects before creating any worker', () => {
   const blueprint = '.bouncer/context/epics/042-x/blueprints/043-y';
   const repo = uncommittedPlanRepo('bouncer-coordinator-missing-', blueprint, [['001', '  depends_on: []\n']]);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -715,7 +715,7 @@ test('prepare rejects a missing integration blueprint before creating any worker
   assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
 });
 
-test('prepare keeps the repaired integration terminal bundle without reading main', () => {
+test('prepare with a repaired integration terminal bundle → keeps it without reading main', () => {
   const blueprint = '.bouncer/context/epics/044-x/blueprints/045-y';
   const repo = uncommittedPlanRepo('bouncer-coordinator-verify-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -777,7 +777,7 @@ function snapshotTree(root) {
   return files;
 }
 
-test('prepare copy-failed on a second worker removes the created first worker and keeps a reused second', () => {
+test('prepare with copy-failed on a second worker → removes the created first worker and keeps a reused second', () => {
   const blueprint = '.bouncer/context/epics/046-x/blueprints/047-y';
   const repo = uncommittedPlanRepo('bouncer-coordinator-seedfail-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -832,7 +832,7 @@ function gitBranchList(repo, branch) {
   return execFileSync('git', ['branch', '--list', branch], { cwd: repo, encoding: 'utf8' }).trim();
 }
 
-test('prepare holds no ledger lock during worktree add and npm', () => {
+test('prepare during worktree add and npm → holds no ledger lock', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/001-absent';
   const repo = uncommittedPlanRepo('bouncer-prepare-lock-absent-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -866,7 +866,7 @@ test('prepare holds no ledger lock during worktree add and npm', () => {
   assert.ok(npmCalls >= 1, `npm count ${npmCalls}`);
 });
 
-test('prepare returns stale-ledger-checkpoint and removes the created worker when the ledger changes during seed', () => {
+test('prepare with the ledger changing during seed → returns stale-ledger-checkpoint and removes the created worker', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/002-stale';
   const repo = uncommittedPlanRepo('bouncer-prepare-ledger-stale-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -897,7 +897,7 @@ test('prepare returns stale-ledger-checkpoint and removes the created worker whe
   assert.strictEqual(gitBranchList(repo, 'bouncer/087-002-001'), '');
 });
 
-test('prepare npm failure returns dependency-install-failed and removes the created worker', () => {
+test('prepare with an npm failure → returns dependency-install-failed and removes the created worker', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/003-npm';
   const repo = uncommittedPlanRepo('bouncer-prepare-npm-fail-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -924,7 +924,7 @@ test('prepare npm failure returns dependency-install-failed and removes the crea
   assert.strictEqual(gitBranchList(repo, 'bouncer/087-003-001'), '');
 });
 
-test('prepare succeeds when a stale ledger lock appears during seed', () => {
+test('prepare with a stale ledger lock appearing during seed → succeeds', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/004-stale-lock';
   const repo = uncommittedPlanRepo('bouncer-prepare-stale-lock-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -953,7 +953,7 @@ test('prepare succeeds when a stale ledger lock appears during seed', () => {
   assert.match(listed, new RegExp(`^worktree ${workerPath.replace(/\\/g, '\\\\')}$`, 'm'));
 });
 
-test('prepare returns unassigned-worker-worktree when the created worker vanishes during seed', () => {
+test('prepare with the created worker vanishing during seed → returns unassigned-worker-worktree', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/005-lost';
   const repo = uncommittedPlanRepo('bouncer-prepare-worker-lost-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -981,7 +981,7 @@ test('prepare returns unassigned-worker-worktree when the created worker vanishe
   assert.deepStrictEqual(fs.readFileSync(ledgerFile), ledgerBefore);
 });
 
-test('prepare reuses a registered worker after an interrupted create and records a single worktree', () => {
+test('prepare after an interrupted create with a registered worker → reuses it and records a single worktree', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/006-reuse';
   const repo = uncommittedPlanRepo('bouncer-prepare-reuse-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -1006,7 +1006,7 @@ test('prepare reuses a registered worker after an interrupted create and records
   assert.strictEqual(workerLines[0], `worktree ${worker}`);
 });
 
-test('prepare overlapping the same fence lets the nested call win and the outer see stale-ledger-checkpoint', () => {
+test('prepare calls overlapping the same fence → the nested call wins and the outer sees stale-ledger-checkpoint', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/007-overlap';
   const repo = uncommittedPlanRepo('bouncer-prepare-overlap-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -1045,7 +1045,7 @@ test('prepare overlapping the same fence lets the nested call win and the outer 
   assert.ok(fs.existsSync(after.tasks[0].workerPath));
 });
 
-test('a missing verification bundle in a mixed wave is rejected before any worker worktree exists', () => {
+test('a missing verification bundle in a mixed wave → is rejected before any worker worktree exists', () => {
   const blueprint = '.bouncer/context/epics/048-x/blueprints/049-y';
   // 기본 maxParallel 2 안에서 verification이 wave에 들어가도록 commit 하나와
   // 묶는다. 세 개를 넣으면 한도 때문에 verification이 빠져 거절 경로를 못 탄다.
@@ -1110,7 +1110,7 @@ function recordedDrive(prefix, blueprint) {
   };
 }
 
-test('commit integrate refuses worker evidence that is not terminal or stamps another SHA', () => {
+test('commit integrate with worker evidence that is not terminal or stamps another SHA → refuses it', () => {
   const blueprint = '.bouncer/context/epics/050-x/blueprints/051-y';
   const drive = recordedDrive('bouncer-coordinator-evidence-', blueprint);
   const bundle = `${blueprint}/tasks/001`;
@@ -1141,7 +1141,7 @@ test('commit integrate refuses worker evidence that is not terminal or stamps an
   assert.deepStrictEqual(snapshotTree(path.join(drive.integrationPath, bundle)), integrationBundle);
 });
 
-test('a cherry-pick CONFLICT returns fanin-conflict without touching canonical HEAD', () => {
+test('a cherry-pick CONFLICT → returns fanin-conflict without touching canonical HEAD', () => {
   const blueprint = '.bouncer/context/epics/054-x/blueprints/055-y';
   const drive = recordedDrive('bouncer-coordinator-restore-', blueprint);
   writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
@@ -1180,7 +1180,7 @@ test('a cherry-pick CONFLICT returns fanin-conflict without touching canonical H
   void ledgerBefore;
 });
 
-test('a non-conflict cherry-pick failure aborts candidate without fanin-conflict revoke', () => {
+test('a non-conflict cherry-pick failure → aborts the candidate without a fanin-conflict revoke', () => {
   // RD-001: bad object 등 CONFLICT가 아닌 실패는 revoke하지 않고 candidate만 정리한다.
   const blueprint = '.bouncer/context/epics/054-x/blueprints/056-y';
   const drive = recordedDrive('bouncer-coordinator-pick-fail-', blueprint);
@@ -1214,7 +1214,7 @@ test('a non-conflict cherry-pick failure aborts candidate without fanin-conflict
   assert.strictEqual(fs.existsSync(faninPath), false);
 });
 
-test('record refuses a SHA that is not the assigned worker HEAD', () => {
+test('record with a SHA that is not the assigned worker HEAD → refuses it', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/004-x/blueprints/005-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -1230,7 +1230,7 @@ test('record refuses a SHA that is not the assigned worker HEAD', () => {
   });
 });
 
-test('record rejects a prepared worker path replaced by an external symlink', () => {
+test('record with a prepared worker path replaced by an external symlink → rejects it', () => {
   const repo = repoTemplate.copy();
   const outside = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/005-x/blueprints/006-y';
@@ -1251,7 +1251,7 @@ test('record rejects a prepared worker path replaced by an external symlink', ()
   });
 });
 
-test('integrate rejects a recorded worker path replaced by a symlink to main', () => {
+test('integrate with a recorded worker path replaced by a symlink to main → rejects it', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/007-x/blueprints/008-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -1273,7 +1273,7 @@ test('integrate rejects a recorded worker path replaced by a symlink to main', (
   });
 });
 
-test('prepare refuses an ordinary directory at an assigned worker path', () => {
+test('prepare with an ordinary directory at an assigned worker path → refuses it', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/006-x/blueprints/007-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -1290,7 +1290,7 @@ test('prepare refuses an ordinary directory at an assigned worker path', () => {
   assert.strictEqual(fs.existsSync(path.join(worker, blueprint)), false);
 });
 
-test('prepare refuses a symlink at an assigned worker path before seeding', () => {
+test('prepare with a symlink at an assigned worker path → refuses before seeding', () => {
   const repo = repoTemplate.copy();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-worker-target-'));
   const blueprint = '.bouncer/context/epics/008-x/blueprints/009-y';
@@ -1337,7 +1337,7 @@ function briefHash(worker, blueprint, task) {
 // drive false acceptance 방지: CLI 전략 실패·frozen target 불일치에서는
 // review round를 열거나 accepted로 기록하지 않는다. coordinator.ts 전이가 아니라
 // Worker dispatch 계약이 막는다 — ledger에 새 상태를 추가하지 않는다.
-test('coordinator agent refuses review recording on strategy failure or target mismatch', () => {
+test('coordinator agent with a strategy failure or target mismatch → refuses review recording', () => {
   const root = path.join(__dirname, '..');
   const cardsDir = path.join(root, 'references/coordinator-cards');
   const md = [
@@ -1359,7 +1359,7 @@ test('coordinator agent refuses review recording on strategy failure or target m
   );
 });
 
-test('first dispatch returns attempt 1 metadata without previous_outcome', () => {
+test('first dispatch → returns attempt 1 metadata without previous_outcome', () => {
   const blueprint = '.bouncer/context/epics/060-x/blueprints/061-y';
   const drive = preparedCommitDrive('bouncer-dispatch-first-', blueprint);
   const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: drive.worker, encoding: 'utf8' }).trim();
@@ -1393,7 +1393,7 @@ test('first dispatch returns attempt 1 metadata without previous_outcome', () =>
   assert.strictEqual(dirty.metadata.initial_worktree_state, porcelain);
 });
 
-test('duplicate dispatch is rejected and accepted report enables redispatch with previous_outcome', () => {
+test('duplicate dispatch and an accepted report → rejects the duplicate and enables redispatch with previous_outcome', () => {
   const blueprint = '.bouncer/context/epics/062-x/blueprints/063-y';
   const drive = preparedCommitDrive('bouncer-dispatch-dup-', blueprint);
   const first = coordinate({
@@ -1430,7 +1430,7 @@ test('duplicate dispatch is rejected and accepted report enables redispatch with
   });
 });
 
-test('stale report appends expected/received and keeps the active attempt open', () => {
+test('stale report → appends expected/received and keeps the active attempt open', () => {
   const blueprint = '.bouncer/context/epics/064-x/blueprints/065-y';
   const drive = preparedCommitDrive('bouncer-dispatch-stale-', blueprint);
   const dispatched = coordinate({
@@ -1466,7 +1466,7 @@ test('stale report appends expected/received and keeps the active attempt open',
   assert.notStrictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
 });
 
-test('record rejects after brief bytes change following an accepted report', () => {
+test('record after brief bytes change following an accepted report → rejects', () => {
   const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
   const drive = preparedCommitDrive('bouncer-dispatch-stale-record-', blueprint);
   const dispatched = coordinate({
@@ -1496,7 +1496,7 @@ test('record rejects after brief bytes change following an accepted report', () 
   assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
 });
 
-test('record accepts after commit stamps commit_sha and status following an accepted report', () => {
+test('record after commit stamps commit_sha and status following an accepted report → accepts', () => {
   const blueprint = '.bouncer/context/epics/088-a/blueprints/001-y';
   const drive = preparedCommitDrive('bouncer-record-commit-sha-', blueprint);
   acceptDispatchReport(drive.repo, blueprint, drive.worker);
@@ -1511,7 +1511,7 @@ test('record accepts after commit stamps commit_sha and status following an acce
   assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
 });
 
-test('record rejects after affected_paths change following an accepted report', () => {
+test('record after affected_paths change following an accepted report → rejects', () => {
   const blueprint = '.bouncer/context/epics/088-b/blueprints/001-y';
   const drive = preparedCommitDrive('bouncer-record-affected-paths-', blueprint);
   acceptDispatchReport(drive.repo, blueprint, drive.worker);
@@ -1526,7 +1526,7 @@ test('record rejects after affected_paths change following an accepted report', 
   assert.strictEqual(rejected.reason, 'stale-worker-report');
 });
 
-test('dispatch on a brief without frontmatter throws and leaves the ledger bytes unchanged', () => {
+test('dispatch on a brief without frontmatter → throws and leaves the ledger bytes unchanged', () => {
   const blueprint = '.bouncer/context/epics/088-c/blueprints/001-y';
   const drive = preparedCommitDrive('bouncer-dispatch-no-frontmatter-', blueprint);
   fs.writeFileSync(path.join(drive.worker, blueprint, 'tasks/001/tasks.md'), 'brief only\n');
@@ -1540,7 +1540,7 @@ test('dispatch on a brief without frontmatter throws and leaves the ledger bytes
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
 });
 
-test('record rejects a non-accepted report without storing worker SHA', () => {
+test('record with a non-accepted report → rejects without storing the worker SHA', () => {
   const blueprint = '.bouncer/context/epics/068-x/blueprints/069-y';
   const drive = preparedCommitDrive('bouncer-dispatch-non-accepted-record-', blueprint);
   const dispatched = coordinate({
@@ -1569,7 +1569,7 @@ test('record rejects a non-accepted report without storing worker SHA', () => {
   assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
 });
 
-test('report without an active dispatch attempt is rejected', () => {
+test('report without an active dispatch attempt → is rejected', () => {
   const blueprint = '.bouncer/context/epics/070-x/blueprints/071-y';
   const drive = preparedCommitDrive('bouncer-dispatch-no-active-', blueprint);
   const hash = briefHash(drive.worker, blueprint, '001');
@@ -1680,7 +1680,7 @@ function checkpointFixture() {
   return { repo, blueprint, integration: boot.integrationPath, ledgerFile, sha };
 }
 
-test('status checkpoint summarizes completed tasks without dispatch or decision bodies', () => {
+test('status checkpoint with completed tasks → summarizes them without dispatch or decision bodies', () => {
   const drive = checkpointFixture();
   const status = coordinate({
     command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
@@ -1705,7 +1705,7 @@ test('status checkpoint summarizes completed tasks without dispatch or decision 
   assert.strictEqual(Object.prototype.hasOwnProperty.call(completed[0], 'decisions'), false);
 });
 
-test('status checkpoint keeps ready wave, active tasks, unresolved decisions, and recent failure', () => {
+test('status checkpoint with ready wave, active tasks, unresolved decisions and a recent failure → keeps all of them', () => {
   const drive = checkpointFixture();
   const status = coordinate({
     command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
@@ -1747,7 +1747,7 @@ const UNKNOWN_EXECUTOR = {
   state: 'unknown', source: 'unavailable', reason: 'executor-state-not-tracked',
 };
 
-test('status checkpoint reports executor_observation unknown without touching the ledger', () => {
+test('status checkpoint with executor_observation unknown → reports it without touching the ledger', () => {
   const drive = checkpointFixture();
   const before = fs.readFileSync(drive.ledgerFile);
   const status = coordinate({
@@ -1760,7 +1760,7 @@ test('status checkpoint reports executor_observation unknown without touching th
 
 // active는 호스트 launch 이전에 기록되고 stale report도 해시를 바꾼다 —
 // 둘 다 생존 증거가 아니므로 관측 상태는 계속 unknown이어야 한다.
-test('executor_observation stays unknown for pre-launch active and hash-only changes', () => {
+test('pre-launch active and hash-only changes → executor_observation stays unknown', () => {
   const blueprint = '.bouncer/context/epics/064-x/blueprints/065-y';
   const drive = preparedCommitDrive('bouncer-executor-observation-', blueprint);
   const dispatched = coordinate({
@@ -1781,7 +1781,7 @@ test('executor_observation stays unknown for pre-launch active and hash-only cha
   assert.deepStrictEqual(second.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
 });
 
-test('mutation ledger fence rejects missing, absolute, escaping, wrong path, and stale hash without writes', () => {
+test('mutation with missing, absolute, escaping, wrong path or stale hash ledger fence → rejects without writes', () => {
   const drive = checkpointFixture();
   const before = fs.readFileSync(drive.ledgerFile);
   const beforeMain = execFileSync('git', ['status', '--porcelain'], {
@@ -1821,7 +1821,7 @@ test('mutation ledger fence rejects missing, absolute, escaping, wrong path, and
   assert.notStrictEqual(next.checkpoint.ledger.sha256, hash);
 });
 
-test('prepare issues lease and revoke makes late report/record/dispatch stale-lease', () => {
+test('prepare issues a lease and revoke → late report/record/dispatch become stale-lease', () => {
   const blueprint = '.bouncer/context/epics/080-lease/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-stale-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -1885,7 +1885,7 @@ test('prepare issues lease and revoke makes late report/record/dispatch stale-le
   assert.deepStrictEqual(afterAll.lease, taskBefore.lease);
 });
 
-test('prepare requeues a revoked task with generation 2 and a fresh integration HEAD', () => {
+test('prepare with a revoked task → requeues it with generation 2 and a fresh integration HEAD', () => {
   const blueprint = '.bouncer/context/epics/081-lease/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-requeue-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -1946,7 +1946,7 @@ test('prepare requeues a revoked task with generation 2 and a fresh integration 
   void branch;
 });
 
-test('legacy task revoke leaves lease_id and generation null', () => {
+test('legacy task revoke → leaves lease_id and generation null', () => {
   const blueprint = '.bouncer/context/epics/082-lease/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-legacy-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -1977,7 +1977,7 @@ test('legacy task revoke leaves lease_id and generation null', () => {
 
 // RD-001: legacy(lease 없음) revoke 뒤 prepare도 dirty worker를 버리고
 // integration HEAD에서 다시 만든다. lease.status === 'revoked'만 보면 놓친다.
-test('prepare requeues a legacy revoked task from integration HEAD', () => {
+test('prepare with a legacy revoked task → requeues it from integration HEAD', () => {
   const blueprint = '.bouncer/context/epics/082-lease-requeue/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-legacy-requeue-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -2034,7 +2034,7 @@ test('prepare requeues a legacy revoked task from integration HEAD', () => {
 });
 
 // RD-003: --lease-id/--generation 중 하나만 주면 lease-required.
-test('dispatch/report/record reject when only one of lease-id or generation is set', () => {
+test('dispatch/report/record with only one of lease-id or generation set → reject', () => {
   const blueprint = '.bouncer/context/epics/086-lease-required/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-required-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -2075,7 +2075,7 @@ test('dispatch/report/record reject when only one of lease-id or generation is s
 });
 
 // RD-004: revoke 뒤 이전 lease로 integrate --task → stale-lease.
-test('integrate --task with stale lease after revoke returns stale-lease', () => {
+test('integrate --task with a stale lease after revoke → returns stale-lease', () => {
   const blueprint = '.bouncer/context/epics/087-lease-integrate/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-integrate-stale-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -2104,7 +2104,7 @@ test('integrate --task with stale lease after revoke returns stale-lease', () =>
 });
 
 // RD-002: 손상 lease 원장은 bootstrap도 lease-invalid로 거절한다.
-test('bootstrap refuses a ledger with malformed lease', () => {
+test('bootstrap with a ledger holding a malformed lease → refuses', () => {
   const blueprint = '.bouncer/context/epics/088-lease-bootstrap/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-bootstrap-invalid-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -2122,7 +2122,7 @@ test('bootstrap refuses a ledger with malformed lease', () => {
   assert.strictEqual(again.reason, 'lease-invalid');
 });
 
-test('verification integrate releases the ledger lock while runVerification runs', () => {
+test('verification integrate while runVerification runs → releases the ledger lock', () => {
   const blueprint = '.bouncer/context/epics/083-lease/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-verify-lock-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -2150,7 +2150,7 @@ test('verification integrate releases the ledger lock while runVerification runs
   assert.strictEqual(sawLockDuringVerify, false);
 });
 
-test('verification integrate retries after stale-ledger-checkpoint without consuming repairWaves', () => {
+test('verification integrate after stale-ledger-checkpoint → retries without consuming repairWaves', () => {
   const blueprint = '.bouncer/context/epics/084-lease/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-verify-retry-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -2196,7 +2196,7 @@ test('verification integrate retries after stale-ledger-checkpoint without consu
   assert.ok(calls >= 2);
 });
 
-test('overlapping fenced coordinate calls refuse with ledger-locked', () => {
+test('overlapping fenced coordinate calls → refuse with ledger-locked', () => {
   const blueprint = '.bouncer/context/epics/085-lease/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-locked-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -2272,7 +2272,7 @@ const passVerify = () => ({
   ok: true, command: 'npm test', exitCode: 0, evidenceId: 'a'.repeat(64),
 });
 
-test('wave integrate fails verification without advancing canonical HEAD or task status', () => {
+test('wave integrate with failing verification → does not advance canonical HEAD or task status', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/001-wave';
   const drive = twoRecordedWave('bouncer-fanin-verify-fail-', blueprint);
   const baseHead = drive.head();
@@ -2289,7 +2289,7 @@ test('wave integrate fails verification without advancing canonical HEAD or task
   assert.strictEqual(fs.existsSync(drive.faninPath), false);
 });
 
-test('wave integrate conflict revokes only the conflicting task and keeps canonical HEAD', () => {
+test('wave integrate with a conflict → revokes only the conflicting task and keeps canonical HEAD', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/002-conflict';
   const drive = twoRecordedWave('bouncer-fanin-conflict-', blueprint);
   const baseHead = drive.head();
@@ -2321,7 +2321,7 @@ test('wave integrate conflict revokes only the conflicting task and keeps canoni
   assert.strictEqual(tasks.find((t) => t.id === '001').status, 'recorded');
 });
 
-test('resume after verified fanin finishes without cherry-pick', () => {
+test('resume after a verified fanin → finishes without cherry-pick', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/003-resume';
   const drive = twoRecordedWave('bouncer-fanin-resume-', blueprint);
   const first = coordinate({
@@ -2375,7 +2375,7 @@ test('resume after verified fanin finishes without cherry-pick', () => {
 });
 
 
-test('legacy recorded task without lease integrates in a wave', () => {
+test('legacy recorded task without lease in a wave → integrates', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/004-legacy';
   const drive = twoRecordedWave('bouncer-fanin-legacy-', blueprint);
   const ledger = drive.ledger();
@@ -2393,7 +2393,7 @@ test('legacy recorded task without lease integrates in a wave', () => {
   assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['integrated', 'integrated']);
 });
 
-test('integrate --task with stale generation returns stale-lease and keeps HEAD', () => {
+test('integrate --task with a stale generation → returns stale-lease and keeps HEAD', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/005-stale-lease';
   const drive = twoRecordedWave('bouncer-fanin-stale-lease-', blueprint);
   const baseHead = drive.head();
@@ -2408,7 +2408,7 @@ test('integrate --task with stale generation returns stale-lease and keeps HEAD'
   assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['recorded', 'recorded']);
 });
 
-test('CAS mismatch during fan-in returns stale-integration-head and clears fanin', () => {
+test('CAS mismatch during fan-in → returns stale-integration-head and clears fanin', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/006-cas';
   const drive = twoRecordedWave('bouncer-fanin-cas-', blueprint);
   const baseHead = drive.head();
@@ -2433,7 +2433,7 @@ test('CAS mismatch during fan-in returns stale-integration-head and clears fanin
   assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['recorded', 'recorded']);
 });
 
-test('stale ledger checkpoint during verify leaves fanin building and retry integrates', () => {
+test('stale ledger checkpoint during verify → leaves fanin building and retry integrates', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/007-checkpoint';
   const drive = twoRecordedWave('bouncer-fanin-checkpoint-', blueprint);
   const stale = coordinate({
@@ -2459,7 +2459,7 @@ test('stale ledger checkpoint during verify leaves fanin building and retry inte
   assert.deepStrictEqual(again.integrated, ['001', '002']);
 });
 
-test('fanin whose HEAD matches neither base nor candidate returns stale-integration-head', () => {
+test('fanin whose HEAD matches neither base nor candidate → returns stale-integration-head', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/008-orphan';
   const drive = twoRecordedWave('bouncer-fanin-orphan-', blueprint);
   const ledger = drive.ledger();
@@ -2478,7 +2478,7 @@ test('fanin whose HEAD matches neither base nor candidate returns stale-integrat
   assert.strictEqual(drive.ledger().fanin, null);
 });
 
-test('integrate with no recorded tasks returns nothing-to-integrate', () => {
+test('integrate with no recorded tasks → returns nothing-to-integrate', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/009-empty';
   const repo = uncommittedPlanRepo('bouncer-fanin-empty-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -2491,7 +2491,7 @@ test('integrate with no recorded tasks returns nothing-to-integrate', () => {
   assert.strictEqual(empty.reason, 'nothing-to-integrate');
 });
 
-test('ledger with bogus fanin status returns fanin-invalid', () => {
+test('ledger with bogus fanin status → returns fanin-invalid', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/010-bogus';
   const drive = twoRecordedWave('bouncer-fanin-bogus-', blueprint);
   const ledger = drive.ledger();
@@ -2509,7 +2509,7 @@ test('ledger with bogus fanin status returns fanin-invalid', () => {
   assert.strictEqual(rejected.reason, 'fanin-invalid');
 });
 
-test('wave integrate with lease flags returns lease-flags-require-task', () => {
+test('wave integrate with lease flags → returns lease-flags-require-task', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/011-lease-flags';
   const drive = twoRecordedWave('bouncer-fanin-lease-flags-', blueprint);
   const rejected = coordinate({
@@ -2520,7 +2520,7 @@ test('wave integrate with lease flags returns lease-flags-require-task', () => {
   assert.strictEqual(rejected.reason, 'lease-flags-require-task');
 });
 
-test('verification integrate prepares integration dependencies before runVerification', () => {
+test('verification integrate before runVerification → prepares integration dependencies', () => {
   const blueprint = '.bouncer/context/epics/091-prepare/blueprints/001-order';
   const repo = uncommittedPlanRepo('bouncer-verify-prepare-order-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -2568,7 +2568,7 @@ test('verification integrate prepares integration dependencies before runVerific
   );
 });
 
-test('verification integrate does not run verification when dependency install fails', () => {
+test('verification integrate when dependency install fails → does not run verification', () => {
   const blueprint = '.bouncer/context/epics/091-prepare/blueprints/002-fail';
   const repo = uncommittedPlanRepo('bouncer-verify-prepare-fail-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -2603,7 +2603,7 @@ test('verification integrate does not run verification when dependency install f
   assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, 'node_modules/.bouncer-lock-sha256')), false);
 });
 
-test('verification integrate passes its own taskId to runVerification', () => {
+test('verification integrate → passes its own taskId to runVerification', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/012-taskid';
   const repo = uncommittedPlanRepo('bouncer-fanin-taskid-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -2636,7 +2636,7 @@ function writeReviewScope(root, blueprint) {
   );
 }
 
-test('blueprint review mode integrate succeeds without task review.md and repair omits it', () => {
+test('blueprint review mode integrate and repair → integrate succeeds without task review.md and repair omits it', () => {
   const blueprint = '.bouncer/context/epics/080-review/blueprints/001-mode';
   const drive = recordedDrive('bouncer-bp-review-mode-', blueprint);
   writeReviewScope(drive.repo, blueprint);
@@ -2688,7 +2688,7 @@ test('blueprint review mode integrate succeeds without task review.md and repair
   );
 });
 
-test('blueprint review mode is judged from integration index not worker index', () => {
+test('blueprint review mode → is judged from integration index not worker index', () => {
   const blueprint = '.bouncer/context/epics/080-review/blueprints/003-scope-source';
   const drive = recordedDrive('bouncer-bp-review-scope-src-', blueprint);
 
@@ -2723,7 +2723,7 @@ test('blueprint review mode is judged from integration index not worker index', 
   assert.deepStrictEqual(fromWorker.files, [`${blueprint}/tasks/001/review.md`]);
 });
 
-test('coordinate repair from review findings reopens an integrated terminal verification', () => {
+test('coordinate repair from review findings on an integrated terminal verification → reopens it', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/081-x/blueprints/001-y';
   for (const [id, metadata] of [
@@ -2758,7 +2758,7 @@ test('coordinate repair from review findings reopens an integrated terminal veri
   assert.deepStrictEqual(result.terminalTask.depends_on, [result.repairTask.id]);
 });
 
-test('coordinate repair from review findings without a terminal uses the repair task id', () => {
+test('coordinate repair from review findings without a terminal → uses the repair task id', () => {
   const blueprint = '.bouncer/context/epics/082-x/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-review-repair-leaf-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -2782,7 +2782,7 @@ test('coordinate repair from review findings without a terminal uses the repair 
   assert.deepStrictEqual(result.repairTask.depends_on, ['001']);
 });
 
-test('repair stamps bouncer.verify from terminal without config.json', () => {
+test('repair stamping bouncer.verify without config.json → takes it from the terminal', () => {
   // G13: repair tasks.md에 verify가 없으면 readVerifyCommand가 config.json으로
   // 폴백한다. 없는 저장소에서는 VERIFY_CONFIG_MISSING — terminal 선언을 그대로
   // 심어야 config 없이도 통과한다.
@@ -2821,7 +2821,7 @@ test('repair stamps bouncer.verify from terminal without config.json', () => {
   );
 });
 
-test('coordinate repair rejects mixed causes and non-integrated review repairs', () => {
+test('coordinate repair with mixed causes or non-integrated review repairs → rejects them', () => {
   const blueprint = '.bouncer/context/epics/083-x/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-review-repair-reject-', blueprint, [
     ['001', '  depends_on: []\n'],
@@ -2844,7 +2844,7 @@ test('coordinate repair rejects mixed causes and non-integrated review repairs',
   assert.strictEqual(leftover.reason, 'review-repair-requires-integrated');
 });
 
-test('bootstrap refuses leftover scaffold comments before creating a worktree', () => {
+test('bootstrap with leftover scaffold comments → refuses before creating a worktree', () => {
   const { coordinatorPathsFor, branchNamesFor } = require('../scripts/lib/runtime-state');
   const git = (repo, args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
   const blueprint = '.bouncer/context/epics/084-x/blueprints/002-y';
@@ -2874,7 +2874,7 @@ test('bootstrap refuses leftover scaffold comments before creating a worktree', 
   assert.strictEqual(unassigned.reason, 'unassigned-integration-worktree');            // 미등록 디렉터리가 먼저 판정됨
 });
 
-test('resumed bootstrap skips the scaffold comment scan when the ledger exists', () => {
+test('resumed bootstrap when the ledger exists → skips the scaffold comment scan', () => {
   const blueprint = '.bouncer/context/epics/084-x/blueprints/003-z';
   const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -2961,7 +2961,7 @@ function writeBlueprintReview(root, blueprint, status, withRound) {
   );
 }
 
-test('light bootstrap prepare integrate: no worker worktree, workerPath is integration, fanin verified', () => {
+test('light bootstrap prepare integrate → no worker worktree, workerPath is integration, fanin verified', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/001-ok';
   const { repo } = lightScaleRepo('bouncer-light-ok-', blueprint);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -3031,7 +3031,7 @@ test('light bootstrap prepare integrate: no worker worktree, workerPath is integ
   assert.strictEqual(faninDecision.candidate_head, sha);
 });
 
-test('light-requires-single-task rejects scale full eligibility misshape and verification', () => {
+test('light ledger with scale full, eligibility misshape or verification → rejects with light-requires-single-task', () => {
   // scale full → mode full (light 거부가 아님). light + 잘못된 형태만 거부.
   const fullBp = '.bouncer/context/epics/089-light/blueprints/002-full';
   const full = lightScaleRepo('bouncer-light-full-', fullBp, { scale: 'full' });
@@ -3073,7 +3073,7 @@ test('light-requires-single-task rejects scale full eligibility misshape and ver
   assert.strictEqual(verBoot.reason, 'light-requires-single-task');
 });
 
-test('ledger-mode-mismatch rejects opposite-mode bootstrap resume', () => {
+test('opposite-mode bootstrap resume → rejects with ledger-mode-mismatch', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/006-mismatch';
   const { repo } = lightScaleRepo('bouncer-light-mismatch-', blueprint, { scale: 'light' });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -3088,7 +3088,7 @@ test('ledger-mode-mismatch rejects opposite-mode bootstrap resume', () => {
   assert.strictEqual(resumed.reason, 'ledger-mode-mismatch');
 });
 
-test('light-review-required rejects accepted report without accepted rounds', () => {
+test('accepted report without accepted rounds on a light ledger → rejects with light-review-required', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/007-rev';
   const { repo } = lightScaleRepo('bouncer-light-rev-', blueprint);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -3136,7 +3136,7 @@ test('light-review-required rejects accepted report without accepted rounds', ()
   assert.strictEqual(okReport.ok, true, JSON.stringify(okReport));
 });
 
-test('light ledger rejects dispatch and record when workerPath is not integration', () => {
+test('light ledger with workerPath not integration → rejects dispatch and record', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/008-path';
   const { repo } = lightScaleRepo('bouncer-light-path-', blueprint);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -3215,7 +3215,7 @@ function lightPreparedDrive(prefix, blueprint) {
   };
 }
 
-test('promote-stop records each of the five reasons on a light ledger', () => {
+test('promote-stop with each of the five reasons on a light ledger → records each', () => {
   for (const reason of PROMOTE_REASONS) {
     const blueprint = `.bouncer/context/epics/089-light/blueprints/010-${reason}`;
     const drive = lightPreparedDrive(`bouncer-promote-${reason}-`, blueprint);
@@ -3258,7 +3258,7 @@ test('promote-stop records each of the five reasons on a light ledger', () => {
   }
 });
 
-test('promote-stop-requires-light rejects a full ledger', () => {
+test('promote-stop on a full ledger → rejects with promote-stop-requires-light', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/011-full-stop';
   const { repo } = lightScaleRepo('bouncer-promote-full-', blueprint, { scale: 'full' });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -3275,7 +3275,7 @@ test('promote-stop-requires-light rejects a full ledger', () => {
   assert.strictEqual(out.reason, 'promote-stop-requires-light');
 });
 
-test('promote-reason-invalid rejects a reason outside the five enums', () => {
+test('promote-stop with a reason outside the five enums → rejects with promote-reason-invalid', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/012-bad-reason';
   const drive = lightPreparedDrive('bouncer-promote-bad-', blueprint);
   const out = coordinate({
@@ -3286,7 +3286,7 @@ test('promote-reason-invalid rejects a reason outside the five enums', () => {
   assert.strictEqual(out.reason, 'promote-reason-invalid');
 });
 
-test('promote-stop is idempotent for the same reason and summary', () => {
+test('promote-stop with the same reason and summary → is idempotent', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/013-idem';
   const drive = lightPreparedDrive('bouncer-promote-idem-', blueprint);
   const first = coordinate({
@@ -3304,7 +3304,7 @@ test('promote-stop is idempotent for the same reason and summary', () => {
   assert.deepStrictEqual(second.promotion, first.promotion);
 });
 
-test('promotion-already-stopped rejects a different reason or summary', () => {
+test('promote-stop with a different reason or summary → rejects with promotion-already-stopped', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/014-already';
   const drive = lightPreparedDrive('bouncer-promote-already-', blueprint);
   const first = coordinate({
@@ -3326,7 +3326,7 @@ test('promotion-already-stopped rejects a different reason or summary', () => {
   assert.strictEqual(differentReason.reason, 'promotion-already-stopped');
 });
 
-test('promotion_stopped refuses prepare dispatch report record integrate', () => {
+test('promotion_stopped ledger → refuses prepare dispatch report record integrate', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/015-refuse';
   const drive = lightPreparedDrive('bouncer-promote-refuse-', blueprint);
   const cwd = drive.integrationPath;
@@ -3395,7 +3395,7 @@ function readLedger(drive) {
   return JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
 }
 
-test('supplement repair is accepted without a new task, wave or terminalFailure', () => {
+test('supplement repair without a new task, wave or terminalFailure → is accepted', () => {
   const drive = supplementDrive('bouncer-supp-ok-', '.bouncer/context/epics/090-x/blueprints/001-y');
   const before = readLedger(drive);
   const out = coordinate(supplementOpts(drive));
@@ -3411,7 +3411,7 @@ test('supplement repair is accepted without a new task, wave or terminalFailure'
   });
 });
 
-test('supplement repair is accepted after both repair waves are used', () => {
+test('supplement repair after both repair waves are used → is accepted', () => {
   const drive = supplementDrive('bouncer-supp-waves-', '.bouncer/context/epics/090-x/blueprints/002-y');
   const ledger = readLedger(drive);
   ledger.repairWaves = [{ wave: 1 }, { wave: 2 }];
@@ -3424,7 +3424,7 @@ test('supplement repair is accepted after both repair waves are used', () => {
   assert.strictEqual(product.reason, 'repair-wave-limit');
 });
 
-test('supplement repair rejections name the reason and leave the ledger untouched', () => {
+test('supplement repair rejections → name the reason and leave the ledger untouched', () => {
   const drive = supplementDrive('bouncer-supp-reject-', '.bouncer/context/epics/090-x/blueprints/003-y');
   const before = fs.readFileSync(drive.ledgerFile, 'utf8');
   const reasonOf = (extra) => coordinate(supplementOpts(drive, extra)).reason;
@@ -3446,7 +3446,7 @@ test('supplement repair rejections name the reason and leave the ledger untouche
   assert.strictEqual(reasonOf({}), 'review-repair-requires-integrated');
 });
 
-test('supplement --done verifies once per distinct verify command and marks the decision verified', () => {
+test('supplement --done with several verify commands → verifies once per distinct command and marks the decision verified', () => {
   const drive = supplementDrive('bouncer-supp-done-', '.bouncer/context/epics/090-x/blueprints/004-y');
   assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
   fs.mkdirSync(path.join(drive.integrationPath, 'test'), { recursive: true });
@@ -3467,7 +3467,7 @@ test('supplement --done verifies once per distinct verify command and marks the 
   assert.strictEqual(readLedger(drive).decisions.at(-1).outcome, 'verified');
 });
 
-test('supplement --done keeps the decision pending when verification fails or paths exceed', () => {
+test('supplement --done when verification fails or paths exceed → keeps the decision pending', () => {
   const drive = supplementDrive('bouncer-supp-fail-', '.bouncer/context/epics/090-x/blueprints/005-y');
   assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
   const doneOpts = (deps) => supplementOpts(drive, {
@@ -3491,7 +3491,7 @@ test('supplement --done keeps the decision pending when verification fails or pa
   assert.strictEqual(readLedger(drive).decisions.at(-1).outcome, 'pending');
 });
 
-test('repair without --kind or with kind product keeps the wave-consuming path', () => {
+test('repair without --kind or with kind product → keeps the wave-consuming path', () => {
   const drive = supplementDrive('bouncer-supp-product-', '.bouncer/context/epics/090-x/blueprints/006-y');
   const out = coordinate(supplementOpts(drive, { kind: 'product', paths: ['test/a.test.js'] }));
   assert.strictEqual(out.ok, true, JSON.stringify(out));
@@ -3503,7 +3503,7 @@ test('repair without --kind or with kind product keeps the wave-consuming path',
 
 // 보고 파일 관측: dispatch가 attempt별 report_path를 발급하고 checkpoint가 투영 시점에만
 // present/absent를 계산한다. 원장 bytes는 관측으로 바뀌면 안 된다.
-test('dispatch issues report_path and status projects report present/absent without ledger writes', () => {
+test('dispatch issuing report_path → status projects report present/absent without ledger writes', () => {
   const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
   const drive = preparedCommitDrive('bouncer-report-observation-', blueprint);
   const dispatched = coordinate({

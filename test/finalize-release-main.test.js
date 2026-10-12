@@ -154,7 +154,7 @@ function runRelease(fx, overrides = {}) {
   });
 }
 
-test('releaseMain removes the untracked closed blueprint and reports the same-epic sibling', () => {
+test('an untracked closed blueprint with a same-epic sibling → releaseMain removes it and reports the sibling', () => {
   const fx = makeFixture();
   const siblingBefore = snapshot(fx.main, fx.sibling);
   const res = runRelease(fx);
@@ -164,7 +164,7 @@ test('releaseMain removes the untracked closed blueprint and reports the same-ep
   assert.deepEqual(res.next, { blueprint: fx.sibling });
 });
 
-test('rejection reasons leave the main tree and porcelain unchanged', () => {
+test('rejection reasons → leave the main tree and porcelain unchanged', () => {
   const cases = [
     [() => {}, { cwd: (fx) => fx.integration }, 'release-main-requires-main-checkout'],
     [() => {}, {
@@ -228,7 +228,7 @@ test('rejection reasons leave the main tree and porcelain unchanged', () => {
   }
 });
 
-test('staged new files under the blueprint are unstaged and deleted', () => {
+test('staged new files under the blueprint → are unstaged and deleted', () => {
   const fx = makeFixture();
   const extra = `${BP}/staged.md`;
   fs.writeFileSync(path.join(fx.main, extra), 'staged\n');
@@ -240,7 +240,7 @@ test('staged new files under the blueprint are unstaged and deleted', () => {
   assert.doesNotMatch(porcelain(fx.main), /staged\.md/);
 });
 
-test('modified tracked files under the blueprint are restored to HEAD', () => {
+test('modified tracked files under the blueprint → are restored to HEAD', () => {
   const fx = makeFixture();
   const tracked = `${BP}/tracked.md`;
   fs.writeFileSync(path.join(fx.main, tracked), 'head bytes\n');
@@ -253,7 +253,7 @@ test('modified tracked files under the blueprint are restored to HEAD', () => {
   assert.equal(fs.readFileSync(path.join(fx.main, tracked), 'utf8'), 'head bytes\n');
 });
 
-test('unmodified tracked files under the blueprint stay as HEAD bytes', () => {
+test('unmodified tracked files under the blueprint → stay as HEAD bytes', () => {
   const fx = makeFixture();
   const tracked = `${BP}/tracked.md`;
   fs.writeFileSync(path.join(fx.main, tracked), 'head bytes\n');
@@ -267,7 +267,7 @@ test('unmodified tracked files under the blueprint stay as HEAD bytes', () => {
   assert.deepEqual(fs.readFileSync(path.join(fx.main, tracked)), before);
 });
 
-test('a second run converges with removed [] and the same tree', () => {
+test('a second run → converges with removed [] and the same tree', () => {
   const fx = makeFixture();
   const first = runRelease(fx);
   assert.equal(first.ok, true);
@@ -278,7 +278,7 @@ test('a second run converges with removed [] and the same tree', () => {
   assert.deepEqual(snapshot(fx.main), tree);
 });
 
-test('missing ledger and worktree still succeeds with removed []', () => {
+test('missing ledger and worktree → still succeeds with removed []', () => {
   const fx = makeFixture();
   const first = runRelease(fx);
   assert.equal(first.ok, true);
@@ -288,7 +288,7 @@ test('missing ledger and worktree still succeeds with removed []', () => {
   assert.deepEqual(res.removed, []);
 });
 
-test('a solo worktree closed copy is enough without a ledger', () => {
+test('a solo worktree closed copy without a ledger → is enough', () => {
   const fx = makeFixture();
   fs.rmSync(fx.ledgerFile, { force: true });
   const solo = worktreePathFor({ repoRoot: fx.main, blueprint: BP });
@@ -300,7 +300,7 @@ test('a solo worktree closed copy is enough without a ledger', () => {
   assert.equal(fs.existsSync(path.join(fx.main, `${BP}/index.md`)), false);
 });
 
-test('HEAD closed index is enough without ledger or a solo worktree', () => {
+test('HEAD closed index without ledger or a solo worktree → is enough', () => {
   const fx = makeFixture();
   git(fx.main, ['worktree', 'remove', '--force', fx.integration]);
   writeDoc(fx.main, `${BP}/index.md`, 'bouncer.blueprint', {
@@ -315,7 +315,7 @@ test('HEAD closed index is enough without ledger or a solo worktree', () => {
   assert.equal(fs.readFileSync(path.join(fx.main, `${BP}/index.md`), 'utf8').includes('status: closed'), true);
 });
 
-test('an epic index matching the manifest is restored to HEAD', () => {
+test('an epic index matching the manifest → is restored to HEAD', () => {
   const fx = makeFixture();
   const dirty = `${fs.readFileSync(path.join(fx.main, EPIC_INDEX), 'utf8')}- dirty\n`;
   fs.writeFileSync(path.join(fx.main, EPIC_INDEX), dirty);
@@ -333,7 +333,7 @@ test('an epic index matching the manifest is restored to HEAD', () => {
   assert.equal(fs.readFileSync(path.join(fx.main, EPIC_INDEX), 'utf8'), head);
 });
 
-test('an epic index that drifted from the manifest is preserved', () => {
+test('an epic index that drifted from the manifest → is preserved', () => {
   const fx = makeFixture();
   const dirty = `${fs.readFileSync(path.join(fx.main, EPIC_INDEX), 'utf8')}- after seed\n`;
   fs.writeFileSync(path.join(fx.main, EPIC_INDEX), dirty);
@@ -343,7 +343,7 @@ test('an epic index that drifted from the manifest is preserved', () => {
   assert.equal(fs.readFileSync(path.join(fx.main, EPIC_INDEX), 'utf8'), dirty);
 });
 
-test('a ledger without seedManifest preserves both index paths and their bytes', () => {
+test('a ledger without seedManifest → preserves both index paths and their bytes', () => {
   const fx = makeFixture();
   const prev = JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8'));
   delete prev.seedManifest;
@@ -357,7 +357,7 @@ test('a ledger without seedManifest preserves both index paths and their bytes',
   assert.deepEqual(fs.readFileSync(path.join(fx.main, CONTEXT_INDEX)), contextBefore);
 });
 
-test('a context index matching the manifest is restored to HEAD', () => {
+test('a context index matching the manifest → is restored to HEAD', () => {
   const fx = makeFixture();
   const dirty = `${fs.readFileSync(path.join(fx.main, CONTEXT_INDEX), 'utf8')}- dirty\n`;
   fs.writeFileSync(path.join(fx.main, CONTEXT_INDEX), dirty);
@@ -375,7 +375,7 @@ test('a context index matching the manifest is restored to HEAD', () => {
   assert.equal(fs.readFileSync(path.join(fx.main, CONTEXT_INDEX), 'utf8'), head);
 });
 
-test('an untracked epic index matching the manifest is removed', () => {
+test('an untracked epic index matching the manifest → is removed', () => {
   const fx = makeFixture();
   const body = fs.readFileSync(path.join(fx.main, EPIC_INDEX));
   git(fx.main, ['rm', '--cached', '-q', '--', EPIC_INDEX]);
@@ -391,7 +391,7 @@ test('an untracked epic index matching the manifest is removed', () => {
   assert.equal(fs.existsSync(path.join(fx.main, EPIC_INDEX)), false);
 });
 
-test('CLI finalize release-main reports usage, success, and JSON rejection', () => {
+test('CLI finalize release-main usage, success and JSON rejection → each is reported', () => {
   const missing = { out: '', err: '' };
   const missingCode = runCli(['finalize', 'release-main'], {
     out: (s) => { missing.out += s; },
@@ -436,7 +436,7 @@ test('CLI finalize release-main reports usage, success, and JSON rejection', () 
   }
 });
 
-test('tracked files deleted from the worktree are restored from HEAD', () => {
+test('tracked files deleted from the worktree → are restored from HEAD', () => {
   const fx = makeFixture();
   const tracked = `${BP}/tracked.md`;
   fs.writeFileSync(path.join(fx.main, tracked), 'head bytes\n');
@@ -449,7 +449,7 @@ test('tracked files deleted from the worktree are restored from HEAD', () => {
   assert.equal(fs.readFileSync(path.join(fx.main, tracked), 'utf8'), 'head bytes\n');
 });
 
-test('HEAD vs worktree byte identity does not UTF-8 recode', () => {
+test('HEAD and worktree bytes compared → byte identity does not UTF-8 recode', () => {
   const fx = makeFixture();
   const tracked = `${BP}/tracked.bin`;
   const headBytes = Buffer.from([0xff, 0xfe, 0x00, 0x80, 0x81]);
@@ -462,7 +462,7 @@ test('HEAD vs worktree byte identity does not UTF-8 recode', () => {
   assert.deepEqual(fs.readFileSync(path.join(fx.main, tracked)), headBytes);
 });
 
-test('unexpected git errors do not treat tracked files as missing', () => {
+test('unexpected git errors → do not treat tracked files as missing', () => {
   const fx = makeFixture();
   const tracked = `${BP}/tracked.md`;
   fs.writeFileSync(path.join(fx.main, tracked), 'head bytes\n');
@@ -488,7 +488,7 @@ test('unexpected git errors do not treat tracked files as missing', () => {
   assert.equal(fs.readFileSync(path.join(fx.main, tracked), 'utf8'), 'head bytes\n');
 });
 
-test('unreadable closed-index reads become JSON reasons instead of throws', () => {
+test('unreadable closed-index reads → become JSON reasons instead of throws', () => {
   const fx = makeFixture();
   const indexAbs = path.join(fx.integration, `${BP}/index.md`);
   fs.chmodSync(indexAbs, 0);
@@ -504,7 +504,7 @@ test('unreadable closed-index reads become JSON reasons instead of throws', () =
   assert.ok(res.reason === 'blueprint-not-closed' || res.reason === 'coordinator-ledger');
 });
 
-test('CLI --repo string and boolean true use cwd for the latter', () => {
+test('CLI --repo as string and as boolean true → the latter uses cwd', () => {
   const stringFx = makeFixture();
   const stringPrev = process.cwd();
   try {
@@ -540,7 +540,7 @@ test('CLI --repo string and boolean true use cwd for the latter', () => {
   }
 });
 
-test('nextBlueprint remaining supplies the same-epic fallback', () => {
+test('nextBlueprint remaining → supplies the same-epic fallback', () => {
   const fx = makeFixture();
   const res = runRelease(fx, {
     deps: {
@@ -557,7 +557,7 @@ test('nextBlueprint remaining supplies the same-epic fallback', () => {
   assert.deepEqual(res.next, { blueprint: fx.sibling });
 });
 
-test('no-git and no-coordinator-paths ledger misses still clean as no ledger', () => {
+test('no-git and no-coordinator-paths ledger misses → still clean as no ledger', () => {
   for (const reason of ['no-git', 'no-coordinator-paths']) {
     const fx = makeFixture();
     fs.rmSync(fx.ledgerFile, { force: true });
@@ -575,7 +575,7 @@ test('no-git and no-coordinator-paths ledger misses still clean as no ledger', (
   }
 });
 
-test('walkFiles does not follow directory symlinks out of the blueprint tree', () => {
+test('directory symlinks out of the blueprint tree → walkFiles does not follow them', () => {
   const fx = makeFixture();
   const escape = path.join(fx.main, BP, 'escape');
   fs.symlinkSync(path.join(fx.main, fx.sibling), escape, 'dir');

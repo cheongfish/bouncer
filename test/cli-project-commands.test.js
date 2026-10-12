@@ -51,7 +51,7 @@ function capture(argv) {
   return { code, ...buf };
 }
 
-test('tracked active sources contain no retired Distill public surface', () => {
+test('tracked active sources → contain no retired Distill public surface', () => {
   // 과거 context 기록은 계약 대상이 아니다. 추적된 실행·배포 source와 예제 설정만
   // 검사해, 역사 문서의 언급 때문에 재도입 방지 검사가 흔들리지 않게 한다.
   const retired = ['d', 'istill'].join('');
@@ -81,7 +81,7 @@ test('tracked active sources contain no retired Distill public surface', () => {
   assert.deepStrictEqual(matches, []);
 });
 
-test('retired distill command is rejected', () => {
+test('retired distill command → is rejected', () => {
   const retired = capture([['d', 'istill'].join('')]);
   assert.strictEqual(retired.code, 2);
   assert.match(retired.err, /unknown command/);
@@ -91,7 +91,7 @@ function tmpRoot() {
   return fs.realpathSync(os.tmpdir());
 }
 
-test('init --upgrade-graphify exposes the upgrade payload', () => {
+test('init --upgrade-graphify → exposes the upgrade payload', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-upgrade-'));
   execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
   const first = capture(['init', '--repo', repo, '--no-graphify']);
@@ -125,13 +125,13 @@ test('init --upgrade-graphify exposes the upgrade payload', () => {
   assert.deepStrictEqual(fs.readFileSync(lockPath), before);
 });
 
-test('init help names --upgrade-graphify', () => {
+test('init help → names --upgrade-graphify', () => {
   const result = capture(['help']);
   assert.strictEqual(result.code, 0);
   assert.match(result.out, /upgrade-graphify/);
 });
 
-test('graph-sync records version-incompatible without installing', () => {
+test('graph-sync with an incompatible version → records version-incompatible without installing', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-sync-incompat-'));
   execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
   assert.strictEqual(capture(['init', '--repo', repo, '--no-graphify']).code, 0);
@@ -234,7 +234,7 @@ function writeIntentExplain(repo, sha8) {
   return rel;
 }
 
-test('intent returns resolved JSON and exit 0 for a linked function', () => {
+test('intent for a linked function → returns resolved JSON and exit 0', () => {
   const repo = intentRepo();
   writeIntentFile(repo, 'src/app.ts', 'export function targetFn() { return 1; }\n');
   const sha = commitIntent(
@@ -260,7 +260,7 @@ test('intent returns resolved JSON and exit 0 for a linked function', () => {
   assert.ok(JSON.parse(limited.out).candidates.length <= 1);
 });
 
-test('intent returns exit-0 JSON for ambiguous, unresolved, and unlinked statuses', () => {
+test('intent for ambiguous, unresolved, and unlinked statuses → returns exit-0 JSON', () => {
   const ambiguousRepo = intentRepo();
   writeIntentFile(ambiguousRepo, 'src/one.ts', 'export function shared() { return 1; }\n');
   writeIntentFile(ambiguousRepo, 'src/two.ts', 'export function shared() { return 2; }\n');
@@ -298,7 +298,7 @@ test('intent returns exit-0 JSON for ambiguous, unresolved, and unlinked statuse
   assert.equal(JSON.parse(unlinked.out).status, 'unlinked');
 });
 
-test('intent rejects missing, empty, invalid, duplicate, and unknown argv with exit 2', () => {
+test('intent with missing, empty, invalid, duplicate, or unknown argv → rejects with exit 2', () => {
   for (const args of [
     [],
     ['--symbol', ''],
@@ -326,7 +326,7 @@ test('intent rejects missing, empty, invalid, duplicate, and unknown argv with e
   }
 });
 
-test('CLI require, help, and a non-intent command leave intent modules out of require.cache', () => {
+test('CLI require, help, and a non-intent command → leave intent modules out of require.cache', () => {
   // require·help·대표 일반 명령은 projectCommands만 타야 한다. intent-provenance와
   // symbol-index가 여기에 있으면 정적 import 회귀다.
   const cold = probeIntentCache(`
@@ -354,7 +354,7 @@ test('CLI require, help, and a non-intent command leave intent modules out of re
   }
 });
 
-test('valid intent dispatch loads dedicated command and provenance modules once', () => {
+test('valid intent dispatch → loads dedicated command and provenance modules once', () => {
   const repo = intentRepo();
   writeIntentFile(repo, 'src/app.ts', 'export function targetFn() { return 1; }\n');
   const sha = commitIntent(
@@ -385,7 +385,7 @@ test('valid intent dispatch loads dedicated command and provenance modules once'
   assert.ok(warm.keys.includes('symbol-index.js'));
 });
 
-test('rejected intent argv exits 2 without loading provenance or symbol-index', () => {
+test('rejected intent argv → exits 2 without loading provenance or symbol-index', () => {
   // 값 없음·중복 option은 파서가 exit 2로 끝낸다. 이 경로에서 resolver를
   // require하면 lazy 경계가 깨진 것이다.
   for (const args of [
@@ -416,7 +416,7 @@ test('rejected intent argv exits 2 without loading provenance or symbol-index', 
   }
 });
 
-test('intent reports resolver Git and filesystem errors on stderr with exit 1', () => {
+test('intent with resolver Git and filesystem errors → reports them on stderr with exit 1', () => {
   const missingGit = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-intent-nogit-'));
   writeIntentFile(missingGit, 'src/app.ts', 'export function targetFn() { return 1; }\n');
   const gitFail = capture(['intent', '--repo', missingGit, '--symbol', 'targetFn']);
@@ -432,7 +432,7 @@ test('intent reports resolver Git and filesystem errors on stderr with exit 1', 
   assert.match(fsFail.err, /^intent:/);
 });
 
-test('intent reports unknown --candidate on stderr with exit 1 and empty stdout', () => {
+test('intent with unknown --candidate → reports on stderr with exit 1 and empty stdout', () => {
   // 파서는 비어 있지 않은 opaque ref를 통과시킨다. 발급되지 않은 값은
   // resolver가 던지므로 Git 부재와 같은 runtime 실패(exit 1)다. 부분 JSON을
   // 남기지 않는 계약은 여기만 덮는다 — empty --candidate는 이미 exit 2.
@@ -508,7 +508,7 @@ function intentBundleRecordPath(repo, taskFile) {
   return located.intentFile;
 }
 
-test('intent help names both query and bundle forms', () => {
+test('intent help → names both query and bundle forms', () => {
   const result = capture(['help']);
   assert.strictEqual(result.code, 0);
   assert.match(result.out, /intent\s+--symbol/);
@@ -516,7 +516,7 @@ test('intent help names both query and bundle forms', () => {
   assert.match(result.out, /intent\s+sections --task <tasks\.md> --role/);
 });
 
-test('intent sections rejects malformed argv with exit 2', () => {
+test('intent sections with malformed argv → rejects with exit 2', () => {
   const task = intentBundleTaskRel();
   for (const args of [
     ['sections', '--task', task, '--role', 'writer'],
@@ -532,7 +532,7 @@ test('intent sections rejects malformed argv with exit 2', () => {
   }
 });
 
-test('intent sections rejects a non-canonical --task with exit 1 intent-task-invalid', () => {
+test('intent sections with a non-canonical --task → rejects with exit 1 intent-task-invalid', () => {
   for (const task of ['/abs/tasks.md', '.bouncer/context/epics/073-epic/../x/tasks.md', 'tasks.md']) {
     const result = capture(['intent', 'sections', '--task', task, '--role', 'implementer']);
     assert.equal(result.code, 1, task);
@@ -545,14 +545,14 @@ test('intent sections rejects a non-canonical --task with exit 1 intent-task-inv
   }
 });
 
-test('intent bundle keeps exit 2 for a non-canonical --task', () => {
+test('intent bundle with a non-canonical --task → keeps exit 2', () => {
   const result = capture(['intent', 'bundle', '--task', 'tasks.md', '--symbol', 'targetFn']);
   assert.equal(result.code, 2);
   assert.equal(result.out, '');
   assert.match(result.err, /^intent:/);
 });
 
-test('intent sections prints role JSON after a bundle exists', () => {
+test('intent sections after a bundle exists → prints role JSON', () => {
   const { repo, taskFile } = seedIntentBundleRepo();
   const created = capture([
     'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
@@ -568,7 +568,7 @@ test('intent sections prints role JSON after a bundle exists', () => {
   assert.equal(payload.role, 'debugger');
 });
 
-test('intent bundle creates then reuses the same bundle_id and revision', () => {
+test('intent bundle run twice → creates then reuses the same bundle_id and revision', () => {
   const { repo, taskFile } = seedIntentBundleRepo();
   const first = capture([
     'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
@@ -592,7 +592,7 @@ test('intent bundle creates then reuses the same bundle_id and revision', () => 
   assert.equal(reused.revision, created.revision);
 });
 
-test('intent bundle bumps revision when function body, Explain section, or set changes', () => {
+test('intent bundle when function body, Explain section, or set changes → bumps revision', () => {
   const { repo, taskFile } = seedIntentBundleRepo(1);
   const base = capture([
     'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
@@ -653,7 +653,7 @@ test('intent bundle bumps revision when function body, Explain section, or set c
   assert.equal(afterExplainPayload.revision, 4);
 });
 
-test('intent bundle returns ambiguous candidates without writing a record', () => {
+test('intent bundle with ambiguous candidates → returns them without writing a record', () => {
   const repo = intentRepo();
   writeIntentFile(repo, 'src/one.ts', 'export function shared() { return 1; }\n');
   writeIntentFile(repo, 'src/two.ts', 'export function shared() { return 2; }\n');
@@ -683,7 +683,7 @@ test('intent bundle returns ambiguous candidates without writing a record', () =
   assert.ok(fs.existsSync(recordPath));
 });
 
-test('intent bundle rejects malformed argv with exit 2 and empty stdout', () => {
+test('intent bundle with malformed argv → rejects with exit 2 and empty stdout', () => {
   const task = intentBundleTaskRel();
   for (const args of [
     ['bundle'],
@@ -713,7 +713,7 @@ test('intent bundle rejects malformed argv with exit 2 and empty stdout', () => 
   }
 });
 
-test('intent bundle Git and resolver failures leave empty stdout and no record', () => {
+test('intent bundle with Git and resolver failures → leaves empty stdout and no record', () => {
   const missingGit = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-bundle-nogit-'));
   writeIntentFile(missingGit, 'src/app.ts', 'export function targetFn() { return 1; }\n');
   const taskFile = writeIntentBundleTask(missingGit);
@@ -735,7 +735,7 @@ test('intent bundle Git and resolver failures leave empty stdout and no record',
   assert.equal(fs.existsSync(intentBundleRecordPath(repo, okTask)), false);
 });
 
-test('intent bundle ambiguous recovery maps secondary resolver throw to exit 1', () => {
+test('intent bundle ambiguous recovery with a secondary resolver throw → maps to exit 1', () => {
   // ambiguous 본 경로에서 2차 resolveIntentProvenance가 던지면 미처리 예외가
   // 아니라 다른 조회 실패와 같은 stderr+1·빈 stdout이어야 한다(CT-001).
   const task = intentBundleTaskRel();
@@ -789,7 +789,7 @@ test('intent bundle ambiguous recovery maps secondary resolver throw to exit 1',
   assert.match(result.err, /^intent: secondary provenance boom\n$/);
 });
 
-test('rejected intent bundle argv exits 2 without loading resolver modules', () => {
+test('rejected intent bundle argv → exits 2 without loading resolver modules', () => {
   const task = intentBundleTaskRel();
   for (const args of [
     ['intent', 'bundle'],
@@ -819,7 +819,7 @@ test('rejected intent bundle argv exits 2 without loading resolver modules', () 
   }
 });
 
-test('valid intent bundle dispatch loads bundle and provenance modules', () => {
+test('valid intent bundle dispatch → loads bundle and provenance modules', () => {
   const { repo, taskFile } = seedIntentBundleRepo();
   const warm = probeIntentCache(`
     'use strict';
@@ -882,7 +882,7 @@ function writeSuggestGraphs(repo) {
   }));
 }
 
-test('graph-suggest --debug succeeds and keeps default fields identical', () => {
+test('graph-suggest --debug → succeeds and keeps default fields identical', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-gsuggest-'));
   writeSuggestGraphs(repo);
   const plain = capture([
@@ -903,7 +903,7 @@ test('graph-suggest --debug succeeds and keeps default fields identical', () => 
   assert.ok(debug.traversal);
 });
 
-test('graph-suggest rejects duplicate --debug and valued --debug with exit 2', () => {
+test('graph-suggest with duplicate --debug or valued --debug → rejects with exit 2', () => {
   const dup = capture([
     'graph-suggest', '--query', 'x', '--debug', '--debug',
   ]);
@@ -921,7 +921,7 @@ test('graph-suggest rejects duplicate --debug and valued --debug with exit 2', (
   assert.equal(valued.out, '');
 });
 
-test('migrate retention dry-run returns JSON audit without writes', () => {
+test('migrate retention dry-run → returns JSON audit without writes', () => {
   const yaml = require('js-yaml');
   const crypto = require('node:crypto');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-retention-'));
@@ -1114,7 +1114,7 @@ auditRetention
   assert.deepStrictEqual(hashTree(), eligibleBefore);
 });
 
-test('migrate retention option combinations exit 2; apply failure exits 1', () => {
+test('migrate retention option combinations or apply failure → exit 2 for combinations; exit 1 for apply failure', () => {
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-retention-'));
   const bp = '.bouncer/context/epics/091-cli-retention/blueprints/001-sample';
@@ -1185,7 +1185,7 @@ test('migrate retention option combinations exit 2; apply failure exits 1', () =
   assert.strictEqual(payload.status, 'already-compacted');
 });
 
-test('migrate retention apply eligible exits 0; invalid paths exit 1 with INVALID_PATH', () => {
+test('migrate retention apply with eligible or invalid paths → exits 0 for eligible; exits 1 with INVALID_PATH for invalid', () => {
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-retention-apply-'));
   const bp = '.bouncer/context/epics/091-cli-apply/blueprints/001-ready';
@@ -1334,7 +1334,7 @@ function writeSubagentConfig(repo, config) {
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(config));
 }
 
-test('subagent-model prints the pinned slug and exits 0', () => {
+test('subagent-model → prints the pinned slug and exits 0', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-subagent-model-'));
   writeSubagentConfig(repo, {
     subagents: {
@@ -1351,7 +1351,7 @@ test('subagent-model prints the pinned slug and exits 0', () => {
   assert.doesNotMatch(result.out, /provider/);
 });
 
-test('subagent-model prints inherit when the slot is missing or inherit', () => {
+test('subagent-model with a missing or inherit slot → prints inherit', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-subagent-inherit-'));
   writeSubagentConfig(repo, {
     subagents: {
@@ -1371,7 +1371,7 @@ test('subagent-model prints inherit when the slot is missing or inherit', () => 
   assert.strictEqual(missing.out, 'inherit\n');
 });
 
-test('subagent-model --provider overrides the pinned provider', () => {
+test('subagent-model --provider → overrides the pinned provider', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-subagent-provider-'));
   writeSubagentConfig(repo, {
     subagents: {
@@ -1387,7 +1387,7 @@ test('subagent-model --provider overrides the pinned provider', () => {
   assert.strictEqual(result.out, 'composer-2.5-fast\n');
 });
 
-test('subagent-model without --agent or with an unknown name exits 2', () => {
+test('subagent-model without --agent or with an unknown name → exits 2', () => {
   const missing = capture(['subagent-model']);
   assert.strictEqual(missing.code, 2);
   assert.match(missing.err, /bouncer-reviewer/);
@@ -1399,7 +1399,7 @@ test('subagent-model without --agent or with an unknown name exits 2', () => {
   assert.strictEqual(unknown.out, '');
 });
 
-test('codex-agents check reports in_sync JSON and does not write', () => {
+test('codex-agents check when in sync → reports in_sync JSON and does not write', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-check-'));
   assert.strictEqual(
     capture(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents']).code,
@@ -1420,7 +1420,7 @@ test('codex-agents check reports in_sync JSON and does not write', () => {
   assert.deepStrictEqual(fs.readFileSync(path.join(repo, rel)), before);
 });
 
-test('codex-agents check reports missing not-generated and mismatch with next', () => {
+test('codex-agents check with missing, not-generated, or mismatch → reports each with next', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-fail-'));
   const rel = '.codex/agents/bouncer-implementer.toml';
   const missing = capture([
@@ -1455,7 +1455,7 @@ test('codex-agents check reports missing not-generated and mismatch with next', 
   assert.strictEqual(JSON.parse(mismatch.out).next, 'bouncer init --seed-codex-agents');
 });
 
-test('codex-agents rejects a non-check verb and an unknown agent with exit 2', () => {
+test('codex-agents with a non-check verb or an unknown agent → rejects with exit 2', () => {
   const verb = capture(['codex-agents', 'seed']);
   assert.strictEqual(verb.code, 2);
   assert.match(verb.err, /check/);

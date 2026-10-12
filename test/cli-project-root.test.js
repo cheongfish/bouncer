@@ -34,7 +34,7 @@ function capture(argv) {
   return { code, ...buf };
 }
 
-test('project-root prints main worktree absolute path from primary and linked', () => {
+test('project-root from primary and linked worktrees → prints main worktree absolute path', () => {
   const { primary, linked } = linkedRepo();
 
   const fromPrimary = capture(['project-root', '--repo', primary]);
@@ -49,7 +49,7 @@ test('project-root prints main worktree absolute path from primary and linked', 
   assert.strictEqual(fromLinked.out, `${primary}\n`);
 });
 
-test('project-root rejects non-Git paths with stderr and exit 1', () => {
+test('project-root on non-Git paths → rejects with stderr and exit 1', () => {
   const nonGit = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-pr-'));
   const r = capture(['project-root', '--repo', nonGit]);
   assert.strictEqual(r.code, 1);

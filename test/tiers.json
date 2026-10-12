@@ -4,6 +4,7 @@
     "agents.test.js",
     "approval-snapshot.test.js",
     "canonical-json.test.js",
+    "check-test-names.test.js",
     "cli-help.test.js",
     "commit-guard.test.js",
     "comprehension.test.js",

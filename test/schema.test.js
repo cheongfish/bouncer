@@ -3,12 +3,12 @@ const test = require('node:test');
 const assert = require('node:assert');
 const schema = require('../scripts/lib/schema');
 
-test('OKF required fields are exact', () => {
+test('OKF required fields → are exact', () => {
   assert.deepStrictEqual(schema.OKF_REQUIRED,
     ['type', 'title', 'description', 'resource', 'tags', 'timestamp']);
 });
 
-test('id prefix and status enum per type', () => {
+test('id prefix and status enum per type → are validated per type', () => {
   assert.deepStrictEqual(schema.TYPES, [
     'bouncer.epic', 'bouncer.blueprint', 'bouncer.tasks',
     'bouncer.verification', 'bouncer.review', 'bouncer.explain',
@@ -29,7 +29,7 @@ test('id prefix and status enum per type', () => {
   assert.strictEqual(schema.TYPES.length, 7);
 });
 
-test('bouncer.context_review is registered on all four schema maps', () => {
+test('bouncer.context_review → is registered on all four schema maps', () => {
   assert.ok(schema.TYPES.includes('bouncer.context_review'));
   assert.strictEqual(schema.ID_PREFIX['bouncer.context_review'], 'CTXREVIEW-');
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.context_review'],
@@ -37,7 +37,7 @@ test('bouncer.context_review is registered on all four schema maps', () => {
   assert.strictEqual(schema.KIND_TO_TYPE.context_review, 'bouncer.context_review');
 });
 
-test('schema exports bouncer_schema and blueprint scale/commit_type defaults', () => {
+test('schema exports → bouncer_schema and blueprint scale/commit_type defaults are present', () => {
   assert.strictEqual(schema.BOUNCER_SCHEMA_VERSION, '0.1');
   assert.deepStrictEqual(schema.SCALE_ENUM, ['light', 'full']);
   assert.strictEqual(schema.DEFAULT_SCALE, 'full');
@@ -46,7 +46,7 @@ test('schema exports bouncer_schema and blueprint scale/commit_type defaults', (
   assert.strictEqual(schema.DEFAULT_AUTONOMY, 'auto');
 });
 
-test('isValidSupersedes accepts absent or non-empty path arrays', () => {
+test('isValidSupersedes → accepts absent or non-empty path arrays', () => {
   assert.strictEqual(schema.isValidSupersedes(undefined), true);
   assert.strictEqual(schema.isValidSupersedes([]), true);
   assert.strictEqual(schema.isValidSupersedes(['.bouncer/context/epics/033-x/index.md']), true);
@@ -57,7 +57,7 @@ test('isValidSupersedes accepts absent or non-empty path arrays', () => {
   assert.strictEqual(schema.isValidSupersedes(null), false);
 });
 
-test('detectLegacyFormat flags .sdd dirs, sdd keys, and sdd.* types', () => {
+test('detectLegacyFormat → flags .sdd dirs, sdd keys, and sdd.* types', () => {
   const fs = require('node:fs');
   const os = require('node:os');
   const path = require('node:path');
@@ -78,14 +78,14 @@ test('detectLegacyFormat flags .sdd dirs, sdd keys, and sdd.* types', () => {
   assert.strictEqual(schema.detectLegacyFormat({ data: { type: 'bouncer.tasks', bouncer: {} } }).legacy, false);
 });
 
-test('schema exports dependency_gate enum and DAG scaffold defaults', () => {
+test('schema exports → dependency_gate enum and DAG scaffold defaults are present', () => {
   assert.deepStrictEqual(schema.DEPENDENCY_GATE_ENUM, ['integrated']);
   assert.deepStrictEqual(schema.DEFAULT_DEPENDS_ON, []);
   assert.strictEqual(schema.DEFAULT_PARALLEL_SAFE, false);
   assert.strictEqual(schema.DEFAULT_DEPENDENCY_GATE, 'integrated');
 });
 
-test('execution_kind accepts commit and verification while absence means commit', () => {
+test('execution_kind → accepts commit and verification while absence means commit', () => {
   assert.deepStrictEqual(schema.EXECUTION_KIND_ENUM, ['commit', 'verification']);
   assert.strictEqual(schema.executionKindOf({}), 'commit');
   assert.strictEqual(schema.executionKindOf({ execution_kind: 'commit' }), 'commit');

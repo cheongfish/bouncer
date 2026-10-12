@@ -100,7 +100,7 @@ fs.writeFileSync(path.join(__dirname, 'lib', 'a.js'), 'module.exports = 1;\\n');
   return { pkg, out: path.join(tmp('bouncer-release-out-'), 'tree') };
 }
 
-test('(a) fixture tree matches npm pack list and includes gitignored lib/a.js', () => {
+test('(a) fixture tree → matches npm pack list and includes gitignored lib/a.js', () => {
   const { pkg, out } = makeIgnoredLibFixture();
   const result = buildReleaseTree({ root: pkg, outDir: out });
   assert.strictEqual(result.ok, true);
@@ -108,7 +108,7 @@ test('(a) fixture tree matches npm pack list and includes gitignored lib/a.js', 
   assert.deepStrictEqual(listRelFiles(out), packPaths(pkg));
 });
 
-test('(b) non-empty --out exits 1 and leaves existing files', () => {
+test('(b) non-empty --out → exits 1 and leaves existing files', () => {
   const out = tmp('bouncer-release- nonempty-');
   const keep = path.join(out, 'keep.txt');
   fs.writeFileSync(keep, 'keep\n');
@@ -121,7 +121,7 @@ test('(b) non-empty --out exits 1 and leaves existing files', () => {
   assert.deepStrictEqual(fs.readdirSync(out), ['keep.txt']);
 });
 
-test('(c) build status 1 throws and does not create outDir', () => {
+test('(c) build status 1 → throws and does not create outDir', () => {
   const { pkg } = makeIgnoredLibFixture();
   const outDir = path.join(tmp('bouncer-release-buildfail-'), 'missing');
   assert.throws(
@@ -142,7 +142,7 @@ test('(c) build status 1 throws and does not create outDir', () => {
   assert.equal(fs.existsSync(outDir), false);
 });
 
-test('(d) real repo tree matches pack list, ships lib, has no node_modules, --help exits 0', () => {
+test('(d) real repo tree → matches pack list, ships lib, has no node_modules, --help exits 0', () => {
   const out = path.join(tmp('bouncer-release-repo-'), 'tree');
   const result = buildReleaseTree({ root, outDir: out });
   assert.strictEqual(result.ok, true);
@@ -162,7 +162,7 @@ test('(d) real repo tree matches pack list, ships lib, has no node_modules, --he
   assert.strictEqual(help.status, 0, help.stderr || help.stdout);
 });
 
-test('(e) release.yml declares tag and develop-only dispatch contracts', () => {
+test('(e) release.yml → declares tag and develop-only dispatch contracts', () => {
   const src = fs.readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8');
   assert.match(src, /bouncer--v\*/);
   assert.match(src, /workflow_dispatch/);
@@ -191,7 +191,7 @@ test('(e) release.yml declares tag and develop-only dispatch contracts', () => {
   assert.match(publishRun, /release: \$\{?[A-Z_][A-Z0-9_]*\}? \(\$\{?short_sha\}?\)/);
 });
 
-test('(f) install.md documents clone -b release and develop workflow_dispatch', () => {
+test('(f) install.md → documents clone -b release and develop workflow_dispatch', () => {
   const src = fs.readFileSync(path.join(root, 'docs', 'install.md'), 'utf8');
   assert.match(src, /git clone -b release/);
   assert.match(src, /gh workflow run release.yml --ref develop/);

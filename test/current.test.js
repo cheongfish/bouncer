@@ -65,12 +65,12 @@ function runtimeDeps(repo) {
   };
 }
 
-test('readCurrent returns null when absent', () => {
+test('no pointer file → readCurrent returns null', () => {
   const repo = tmpRepo();
   assert.strictEqual(readCurrent({ repoRoot: repo }), null);
 });
 
-test('writeCurrent then readCurrent round-trips', () => {
+test('writeCurrent followed by readCurrent → round-trips the pointer', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   const rel = writeCurrent({
@@ -91,7 +91,7 @@ test('writeCurrent then readCurrent round-trips', () => {
   });
 });
 
-test('writeCurrent normalizes backslashes to POSIX', () => {
+test('writeCurrent with backslash paths → normalizes them to POSIX', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   writeCurrent({
@@ -103,7 +103,7 @@ test('writeCurrent normalizes backslashes to POSIX', () => {
   );
 });
 
-test('readCurrent returns null when the pointer file is corrupt JSON', () => {
+test('pointer file with corrupt JSON → readCurrent returns null', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   const abs = path.join(repo, '.git', 'bouncer', 'current');
@@ -112,7 +112,7 @@ test('readCurrent returns null when the pointer file is corrupt JSON', () => {
   assert.strictEqual(readCurrent({ repoRoot: repo, deps }), null);
 });
 
-test('writeCurrent rejects a non-Git repository', () => {
+test('writeCurrent in a non-Git repository → rejects', () => {
   const repo = tmpRepo();
   assert.throws(
     () => writeCurrent({ repoRoot: repo, blueprint: 'bp', base: 'main' }),
@@ -120,7 +120,7 @@ test('writeCurrent rejects a non-Git repository', () => {
   );
 });
 
-test('legacy .sdd/current is ignored and init rejects with bouncer-init guidance', () => {
+test('legacy .sdd/current → is ignored and init rejects with bouncer-init guidance', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.sdd'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.sdd/current'), '{"blueprint":"legacy"}\n');
@@ -132,7 +132,7 @@ test('legacy .sdd/current is ignored and init rejects with bouncer-init guidance
 
 // P3 dogfooding: finalize left the pointer in place, so every commit after a
 // finished cycle was blocked against that blueprint's affected_paths.
-test('clearCurrent removes the active pointer and is safe to repeat', () => {
+test('clearCurrent on an active pointer and again → removes it and is safe to repeat', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-clear-'));
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   const deps = {
@@ -153,7 +153,7 @@ test('clearCurrent removes the active pointer and is safe to repeat', () => {
   assert.strictEqual(clearCurrent({ repoRoot: root, deps }), false);
 });
 
-test('listReadyBlueprints includes approved + ready / in_progress only', () => {
+test('listReadyBlueprints with blueprints in various states → includes approved + ready / in_progress only', () => {
   const repo = tmpRepo();
   const ready = writeBp(repo, {
     epicSlug: '001-a', bpSlug: '001-ready', epicId: '001', bpId: '001',
@@ -187,7 +187,7 @@ test('listReadyBlueprints includes approved + ready / in_progress only', () => {
   ].sort((a, b) => a.blueprint.localeCompare(b.blueprint)));
 });
 
-test('listReadyBlueprints excludes a closed blueprint (finalize --yes lock)', () => {
+test('closed blueprint (finalize --yes lock) → listReadyBlueprints excludes it', () => {
   // 회귀 고정: closed는 approved 필터를 그냥 안 타는 값일 뿐이라 오늘도 통과하지만,
   // 001의 finalize 잠금 도입 이후에도 계속 빠져야 한다는 계약을 테스트로 못박는다.
   const repo = tmpRepo();
@@ -199,7 +199,7 @@ test('listReadyBlueprints excludes a closed blueprint (finalize --yes lock)', ()
   assert.deepStrictEqual(list, []);
 });
 
-test('listReadyBlueprints excludes partial_closed as an unresolved terminal state', () => {
+test('partial_closed blueprint → listReadyBlueprints excludes it as an unresolved terminal state', () => {
   const repo = tmpRepo();
   writeBp(repo, {
     epicSlug: '001-a', bpSlug: '001-partial', epicId: '001', bpId: '001',
@@ -208,7 +208,7 @@ test('listReadyBlueprints excludes partial_closed as an unresolved terminal stat
   assert.deepStrictEqual(listReadyBlueprints({ repoRoot: repo }), []);
 });
 
-test('listReadyBlueprints excludes an imported blueprint', () => {
+test('imported blueprint → listReadyBlueprints excludes it', () => {
   // imported도 approved가 아니므로 별도 분기 없이 빠져야 한다.
   // current.ts에 status 분기를 넣지 않는 계약의 회귀 고정.
   const repo = tmpRepo();
@@ -220,7 +220,7 @@ test('listReadyBlueprints excludes an imported blueprint', () => {
   assert.deepStrictEqual(list, []);
 });
 
-test('listReadyBlueprints sorts across epics and skips broken docs', () => {
+test('blueprints across epics and broken docs → listReadyBlueprints sorts them and skips the broken docs', () => {
   const repo = tmpRepo();
   const later = writeBp(repo, {
     epicSlug: '002-z', bpSlug: '001-z', epicId: '002', bpId: '001',
@@ -252,7 +252,7 @@ test('listReadyBlueprints sorts across epics and skips broken docs', () => {
   ]);
 });
 
-test('nextBlueprint prefers same-epic candidates in ## Blueprints order', () => {
+test('same-epic candidates and ## Blueprints order → nextBlueprint prefers same-epic candidates in that order', () => {
   const repo = tmpRepo();
   const epicBody = [
     '# Epic',
@@ -290,7 +290,7 @@ test('nextBlueprint prefers same-epic candidates in ## Blueprints order', () => 
   assert.ok(!res.remaining.some((r) => r.blueprint === finalized));
 });
 
-test('nextBlueprint returns null when no candidates remain', () => {
+test('no candidates remain → nextBlueprint returns null', () => {
   const repo = tmpRepo();
   const only = writeBp(repo, {
     epicSlug: 'E-solo', bpSlug: '001-only', epicId: '001', bpId: '001',
@@ -304,7 +304,7 @@ test('nextBlueprint returns null when no candidates remain', () => {
   });
 });
 
-test('nextBlueprint excludes a closed blueprint from candidates', () => {
+test('closed blueprint among candidates → nextBlueprint excludes it', () => {
   const repo = tmpRepo();
   const epicBody = [
     '# Epic',
@@ -329,7 +329,7 @@ test('nextBlueprint excludes a closed blueprint from candidates', () => {
   assert.deepStrictEqual(res, { next: null, remaining: [], sameEpicPending: [] });
 });
 
-test('nextBlueprint excludes a partial_closed sibling from candidates and history handoff', () => {
+test('partial_closed sibling → nextBlueprint excludes it from candidates and history handoff', () => {
   const repo = tmpRepo();
   const epicBody = '# Epic\n\n## Blueprints\n\n* [a](blueprints/001-a/index.md) - first\n* [b](blueprints/002-b/index.md) - second\n';
   const active = writeBp(repo, {
@@ -345,7 +345,7 @@ test('nextBlueprint excludes a partial_closed sibling from candidates and histor
   });
 });
 
-test('nextBlueprint sameEpicPending includes a draft sibling when no ready candidates remain', () => {
+test('draft sibling and no ready candidates → nextBlueprint sameEpicPending includes the draft sibling', () => {
   const repo = tmpRepo();
   const finalized = writeBp(repo, {
     epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
@@ -365,7 +365,7 @@ test('nextBlueprint sameEpicPending includes a draft sibling when no ready candi
   }]);
 });
 
-test('nextBlueprint sameEpicPending excludes closed siblings, other epics, and self', () => {
+test('closed siblings, other epics and self → nextBlueprint sameEpicPending excludes them', () => {
   const repo = tmpRepo();
   const finalized = writeBp(repo, {
     epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
@@ -391,7 +391,7 @@ test('nextBlueprint sameEpicPending excludes closed siblings, other epics, and s
   assert.ok(!res.sameEpicPending.some((e) => e.blueprint.includes('E-other')));
 });
 
-test('nextBlueprint sameEpicPending coexists with a ready next candidate and sorts by path', () => {
+test('ready next candidate alongside pending siblings → nextBlueprint sameEpicPending coexists and sorts by path', () => {
   const repo = tmpRepo();
   const finalized = writeBp(repo, {
     epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
@@ -414,7 +414,7 @@ test('nextBlueprint sameEpicPending coexists with a ready next candidate and sor
   ]);
 });
 
-test('nextBlueprint sameEpicPending marks approved-but-verified siblings ready:false', () => {
+test('approved-but-verified siblings → nextBlueprint sameEpicPending marks them ready:false', () => {
   const repo = tmpRepo();
   const finalized = writeBp(repo, {
     epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
@@ -434,7 +434,7 @@ test('nextBlueprint sameEpicPending marks approved-but-verified siblings ready:f
   }]);
 });
 
-test('nextBlueprint sameEpicPending skips broken siblings without throwing', () => {
+test('broken siblings → nextBlueprint sameEpicPending skips them without throwing', () => {
   const repo = tmpRepo();
   const finalized = writeBp(repo, {
     epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
@@ -458,7 +458,7 @@ test('nextBlueprint sameEpicPending skips broken siblings without throwing', () 
   }]);
 });
 
-test('nextBlueprint sharedPaths is the affected_paths intersection in candidate order', () => {
+test('several candidates with affected_paths → nextBlueprint sharedPaths is the intersection in candidate order', () => {
   const repo = tmpRepo();
   const finalized = writeBp(repo, {
     epicSlug: 'E-share', bpSlug: '001-a', epicId: '001', bpId: '001',
@@ -483,7 +483,7 @@ test('nextBlueprint sharedPaths is the affected_paths intersection in candidate 
   assert.deepStrictEqual(res.next.sharedPaths, ['scripts/src/lib/session-graph.ts']);
 });
 
-test('listReadyBlueprints: any numbered task ready/in_progress counts', () => {
+test('numbered tasks with ready/in_progress statuses → listReadyBlueprints counts any ready/in_progress task', () => {
   const repo = tmpRepo();
   const epicDir = '.bouncer/context/epics/001-multi';
   const bpDir = `${epicDir}/blueprints/001-m`;
@@ -523,7 +523,7 @@ test('listReadyBlueprints: any numbered task ready/in_progress counts', () => {
   }]);
 });
 
-test('resolvePointerTask auto-selects first ready/in_progress by number order', () => {
+test('several ready/in_progress tasks → resolvePointerTask auto-selects the first by number order', () => {
   const { resolvePointerTask } = require('../scripts/lib/current');
   const repo = tmpRepo();
   const epicDir = '.bouncer/context/epics/001-pick';
@@ -573,7 +573,7 @@ test('resolvePointerTask auto-selects first ready/in_progress by number order', 
   });
 });
 
-test('resolvePointerTask fails when --task does not match a document', () => {
+test('--task that does not match a document → resolvePointerTask fails', () => {
   const { resolvePointerTask } = require('../scripts/lib/current');
   const repo = tmpRepo();
   const epicDir = '.bouncer/context/epics/001-miss';
@@ -612,7 +612,7 @@ test('resolvePointerTask fails when --task does not match a document', () => {
   assert.strictEqual(badForm.ok, false);
 });
 
-test('writeCurrent persists an explicit task path', () => {
+test('explicit task path → writeCurrent persists it', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
@@ -625,7 +625,7 @@ test('writeCurrent persists an explicit task path', () => {
   });
 });
 
-test('nextBlueprint sharedPaths unions affected_paths across numbered tasks', () => {
+test('numbered tasks with affected_paths → nextBlueprint sharedPaths unions them', () => {
   const repo = tmpRepo();
   const epicSlug = 'E-union';
   const epicDir = `.bouncer/context/epics/${epicSlug}`;
@@ -725,7 +725,7 @@ function writeNsFile(repo, blueprint, base, task) {
   return abs;
 }
 
-test('resolveCurrent selects the nested worktree key and ignores sibling pointers', () => {
+test('nested worktree key with sibling pointers → resolveCurrent selects the nested key and ignores siblings', () => {
   const repo = tmpGitRepo();
   seedCommit(repo);
   const nestedA = addWorktree(repo, '.worktrees/001/001');
@@ -745,7 +745,7 @@ test('resolveCurrent selects the nested worktree key and ignores sibling pointer
   assert.deepStrictEqual(readCurrent({ repoRoot: nestedA, deps }), pointerBody(BP_A, 'develop', null));
 });
 
-test('resolveCurrent selects a unique flat worktree candidate and rejects duplicates', () => {
+test('flat worktree candidates unique or duplicated → resolveCurrent selects the unique one and rejects duplicates', () => {
   const repo = tmpGitRepo();
   seedCommit(repo);
   const flat = addWorktree(repo, '.worktrees/001');
@@ -772,7 +772,7 @@ test('resolveCurrent selects a unique flat worktree candidate and rejects duplic
   );
 });
 
-test('resolveCurrent at the base checkout selects a single pointer and rejects many', () => {
+test('base checkout with one or many pointers → resolveCurrent selects the single pointer and rejects many', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
@@ -796,7 +796,7 @@ test('resolveCurrent at the base checkout selects a single pointer and rejects m
   );
 });
 
-test('resolveCurrent four variants and readCurrent wrapper contracts', () => {
+test('four resolveCurrent variants and the readCurrent wrapper → contracts hold', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
 
@@ -851,7 +851,7 @@ test('resolveCurrent four variants and readCurrent wrapper contracts', () => {
   }
 });
 
-test('legacy-only read, first write migrates, same-key is idempotent, different key conflicts', () => {
+test('legacy-only read, first write, same-key write and different-key write → read works, first write migrates, same-key is idempotent, different key conflicts', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   const legacy = legacyFile(repo);
@@ -897,7 +897,7 @@ test('legacy-only read, first write migrates, same-key is idempotent, different 
   assert.strictEqual(conflict.status, 'invalid');
 });
 
-test('writeCurrent preserves legacy when the namespace write fails', () => {
+test('namespace write failure → writeCurrent preserves legacy', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   const legacy = legacyFile(repo);
@@ -922,7 +922,7 @@ test('writeCurrent preserves legacy when the namespace write fails', () => {
   assert.strictEqual(fs.existsSync(nsFile(repo, '001', '001')), false);
 });
 
-test('writeCurrent --replace deletes the selected key before writing the target', () => {
+test('writeCurrent with --replace → deletes the selected key before writing the target', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
@@ -958,7 +958,7 @@ test('writeCurrent --replace deletes the selected key before writing the target'
   assert.strictEqual(fs.existsSync(newKey), false);
 });
 
-test('legacy delete failure is CURRENT_MIGRATION_INCOMPLETE and the next same write finishes', () => {
+test('legacy delete failure → is CURRENT_MIGRATION_INCOMPLETE and the next same write finishes', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   const legacy = legacyFile(repo);
@@ -1004,7 +1004,7 @@ test('legacy delete failure is CURRENT_MIGRATION_INCOMPLETE and the next same wr
   );
 });
 
-test('clearCurrent on a nested worktree removes only that namespace key', () => {
+test('clearCurrent on a nested worktree → removes only that namespace key', () => {
   const repo = tmpGitRepo();
   seedCommit(repo);
   const nestedA = addWorktree(repo, '.worktrees/001/001');
@@ -1020,7 +1020,7 @@ test('clearCurrent on a nested worktree removes only that namespace key', () => 
   );
 });
 
-test('writeCurrent rejects a blueprint path without three-digit ids', () => {
+test('blueprint path without three-digit ids → writeCurrent rejects it', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   assert.throws(
@@ -1072,7 +1072,7 @@ function committedGitRepo() {
   return repo;
 }
 
-test('presentCurrent keeps the sequential pointer shape when no coordinator ledger exists', () => {
+test('no coordinator ledger → presentCurrent keeps the sequential pointer shape', () => {
   const repo = committedGitRepo();
   const bpDir = writeBp(repo, {
     epicSlug: '061-x', bpSlug: '062-y', epicId: '061', bpId: '062',
@@ -1084,7 +1084,7 @@ test('presentCurrent keeps the sequential pointer shape when no coordinator ledg
   });
 });
 
-test('presentCurrent exposes the coordinator ready wave and graph revision', () => {
+test('coordinator ledger present → presentCurrent exposes the ready wave and graph revision', () => {
   const repo = committedGitRepo();
   const bpDir = writeBp(repo, {
     epicSlug: '063-x', bpSlug: '064-y', epicId: '063', bpId: '064',
@@ -1128,7 +1128,7 @@ test('presentCurrent exposes the coordinator ready wave and graph revision', () 
   assert.strictEqual(shown.coordinator.tasks[0].executionKind, 'commit');
 });
 
-test('presentCurrent falls back to maxParallel 1 when coordinator config is invalid', () => {
+test('invalid coordinator config → presentCurrent falls back to maxParallel 1', () => {
   const repo = committedGitRepo();
   const bpDir = writeBp(repo, {
     epicSlug: '078-x', bpSlug: '001-y', epicId: '078', bpId: '001',
@@ -1163,7 +1163,7 @@ test('presentCurrent falls back to maxParallel 1 when coordinator config is inva
   assert.deepStrictEqual(shown.coordinator.ready, ['001']);
 });
 
-test('listTasksDocs attaches normalized executionKind to explicit and legacy-default tasks', () => {
+test('explicit and legacy-default tasks → listTasksDocs attaches normalized executionKind', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-current-'));
   const blueprint = '.bouncer/context/epics/070-x/blueprints/071-y';
   for (const [id, execution] of [['001', ''], ['002', '  execution_kind: verification\n']]) {
@@ -1179,7 +1179,7 @@ test('listTasksDocs attaches normalized executionKind to explicit and legacy-def
 });
 
 
-test('resolveEffectiveTask prefers the worker lease over the shared pointer', () => {
+test('worker lease and shared pointer → resolveEffectiveTask prefers the worker lease', () => {
   const repo = committedGitRepo();
   const bpDir = writeBp(repo, {
     epicSlug: '092-eff', bpSlug: '001-y', epicId: '092', bpId: '001',
@@ -1233,7 +1233,7 @@ test('resolveEffectiveTask prefers the worker lease over the shared pointer', ()
   assert.strictEqual(resolveEffectiveTask({ repoRoot: worker002 }).reason, 'no-active-lease');
 });
 
-test('reviseTaskScope revokes the later lease on path overlap', () => {
+test('later lease with path overlap → reviseTaskScope revokes it', () => {
   const repo = committedGitRepo();
   const bpDir = writeBp(repo, {
     epicSlug: '090-lease', bpSlug: '001-y', epicId: '090', bpId: '001',
@@ -1292,7 +1292,7 @@ test('reviseTaskScope revokes the later lease on path overlap', () => {
 });
 
 // RD-002: revise도 손상 lease 원장을 lease-invalid로 거절한다.
-test('reviseTaskScope refuses a ledger with malformed lease', () => {
+test('ledger with malformed lease → reviseTaskScope refuses it', () => {
   const repo = committedGitRepo();
   const bpDir = writeBp(repo, {
     epicSlug: '091-lease-invalid', bpSlug: '001-y', epicId: '091', bpId: '001',

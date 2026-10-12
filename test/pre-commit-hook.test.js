@@ -87,7 +87,7 @@ function writeTaskAndPointer(repo) {
   writeCurrent({ repoRoot: repo, blueprint: BP, base: 'main', task: rel });
 }
 
-test('installPreCommitHook writes a marked executable hook', () => {
+test('installPreCommitHook → writes a marked executable hook', () => {
   const repoRoot = tmpRepo();
   const result = installPreCommitHook({ repoRoot, launcherPath: LAUNCHER });
   assert.equal(result.preCommitHook, 'installed');
@@ -97,7 +97,7 @@ test('installPreCommitHook writes a marked executable hook', () => {
   assert.ok(mode !== 0, 'hook must be executable');
 });
 
-test('existing non-bouncer hook is chained and its exit code fails git commit', () => {
+test('existing non-bouncer hook → is chained and its exit code fails git commit', () => {
   const repoRoot = tmpRepo();
   const hook = hookPath(repoRoot);
   fs.mkdirSync(path.dirname(hook), { recursive: true });
@@ -120,7 +120,7 @@ test('existing non-bouncer hook is chained and its exit code fails git commit', 
   assert.notEqual(commit.status, 0);
 });
 
-test('core.hooksPath skips install and returns a warning', () => {
+test('core.hooksPath set → skips install and returns a warning', () => {
   const repoRoot = tmpRepo();
   git(repoRoot, ['config', 'core.hooksPath', '.githooks']);
   const result = installPreCommitHook({ repoRoot, launcherPath: LAUNCHER });
@@ -130,7 +130,7 @@ test('core.hooksPath skips install and returns a warning', () => {
   assert.ok(!fs.existsSync(hookPath(repoRoot)));
 });
 
-test('missing CLI on PATH and missing launcher allows the commit with a warning', () => {
+test('missing CLI on PATH and missing launcher → allows the commit with a warning', () => {
   const repoRoot = tmpRepo();
   const missing = path.join(repoRoot, 'no-such-bouncer');
   assert.equal(
@@ -148,7 +148,7 @@ test('missing CLI on PATH and missing launcher allows the commit with a warning'
   assert.match(commit.stderr, /bouncer|CLI|not found|warning/i);
 });
 
-test('BOUNCER_INTERNAL_COMMIT=1 allows an out-of-scope staged commit', () => {
+test('BOUNCER_INTERNAL_COMMIT=1 with an out-of-scope staged commit → allows the commit', () => {
   const repoRoot = tmpRepo();
   writeTaskAndPointer(repoRoot);
   fs.writeFileSync(path.join(repoRoot, 'out.txt'), 'outside\n');
@@ -171,7 +171,7 @@ test('BOUNCER_INTERNAL_COMMIT=1 allows an out-of-scope staged commit', () => {
   assert.equal(allowed.status, 0, allowed.stderr);
 });
 
-test('rewriting a marked hook returns already-installed', () => {
+test('rewriting a marked hook → returns already-installed', () => {
   const repoRoot = tmpRepo();
   assert.equal(
     installPreCommitHook({ repoRoot, launcherPath: LAUNCHER }).preCommitHook,
@@ -183,7 +183,7 @@ test('rewriting a marked hook returns already-installed', () => {
   );
 });
 
-test('second install refuses to overwrite an existing pre-commit.bouncer-prev', () => {
+test('second install with an existing pre-commit.bouncer-prev → refuses to overwrite it', () => {
   const repoRoot = tmpRepo();
   const hook = hookPath(repoRoot);
   fs.mkdirSync(path.dirname(hook), { recursive: true });
@@ -203,7 +203,7 @@ test('second install refuses to overwrite an existing pre-commit.bouncer-prev', 
   assert.equal(fs.readFileSync(hook, 'utf8'), replacement);
 });
 
-test('not a git directory returns skipped-no-git', () => {
+test('not a git directory → returns skipped-no-git', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-pre-commit-nogit-'));
   const result = installPreCommitHook({ repoRoot, launcherPath: LAUNCHER });
   assert.equal(result.preCommitHook, 'skipped-no-git');

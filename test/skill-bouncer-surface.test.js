@@ -96,7 +96,7 @@ function readWorkflow(name) {
 
 // 세션이 루트를 먼저 얻고 plugin-root 계약을 루트 기준으로 연다. 여섯 문단이 바이트까지
 // 같아야 한다는 일치 계약이며, 규칙 문서의 설명 문장은 고정하지 않는다.
-test('workflow Plugin root paragraphs are byte-identical across the six workflow skills', () => {
+test('workflow Plugin root paragraphs → are byte-identical across the six workflow skills', () => {
   const PLUGIN_ROOT_LINE = '**Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.';
   for (const name of WORKFLOW) assert.ok(readWorkflow(name).includes(`\n${PLUGIN_ROOT_LINE}\n`), name);
 });
@@ -115,7 +115,7 @@ const ENTRY_WORD_BASELINE = {
   'bouncer-finalize': 1002,
 };
 
-test('entry-skill word count stays below the BP001 baseline', () => {
+test('entry-skill word count → stays below the BP001 baseline', () => {
   const counts = Object.fromEntries(Object.keys(ENTRY_WORD_BASELINE).map((name) => [
     name,
     readWorkflow(name).trim().split(/\s+/).length,
@@ -153,7 +153,7 @@ const ENTRY_STEP_COUNTS = {
   'bouncer-finalize': 5,
 };
 
-test('entry skills keep the locked numbered-step counts', () => {
+test('entry skills → keep the locked numbered-step counts', () => {
   for (const [name, expected] of Object.entries(ENTRY_STEP_COUNTS)) {
     const actual = countNumberedSteps(readWorkflow(name));
     assert.strictEqual(actual, expected, `${name}: expected ${expected} numbered steps, received ${actual}`);
@@ -173,7 +173,7 @@ function numberedProcedurePreamble(md) {
   return md.slice(0, match.index);
 }
 
-test('entry Master rules load only the shared runtime contract', () => {
+test('entry Master rules → load only the shared runtime contract', () => {
   const productRules = [
     'rules/commit-scope.md',
     'rules/planning.md',
@@ -212,7 +212,7 @@ const CONDITIONAL_HELPERS = {
   },
 };
 
-test('entry skills do not load conditional helpers before numbered steps', () => {
+test('entry skills → do not load conditional helpers before numbered steps', () => {
   for (const name of WORKFLOW) {
     const preamble = numberedProcedurePreamble(readWorkflow(name));
     const { root, local } = CONDITIONAL_HELPERS[name];
@@ -233,7 +233,7 @@ test('entry skills do not load conditional helpers before numbered steps', () =>
   }
 });
 
-test('workflow skills use directory-matching names and explicit-invocation descriptions', () => {
+test('workflow skills → use directory-matching names and explicit-invocation descriptions', () => {
   for (const name of WORKFLOW) {
     const { data } = parseFrontmatter(readWorkflow(name));
     assert.strictEqual(data.name, name);
@@ -280,7 +280,7 @@ const SKILL_LOCAL_REFS = {
   'bouncer-run': ['light-run.md'],
 };
 
-test('workflow skills classify references as root or skill-local without bare collision', () => {
+test('workflow skills → classify references as root or skill-local without bare collision', () => {
   for (const name of WORKFLOW) {
     const md = readWorkflow(name);
     const bare = bareReferenceCites(md);
@@ -316,11 +316,11 @@ test('workflow skills classify references as root or skill-local without bare co
   }
 });
 
-test('commands/ directory is gone', () => {
+test('commands/ directory → is gone', () => {
   assert.ok(!fs.existsSync(path.join(root, 'commands')));
 });
 
-test('GENERIC_SKILLS does not list workflow skills', () => {
+test('GENERIC_SKILLS → does not list workflow skills', () => {
   for (const name of WORKFLOW) {
     assert.ok(!GENERIC_SKILLS.includes(name), name);
   }
@@ -341,7 +341,7 @@ function splitAcq(md) {
 
 // ACQ 색인의 형태만 본다: 질문 본문(AskUserQuestion·Options)은 번호 단계에 두고 색인은
 // 단계 번호를 가리킨다. 색인이 비어야 하는 execute는 PATH_CONTRACTS(acqIndex)가 검사한다.
-test('workflow ACQ section is a step index; AskUserQuestion detail stays in numbered steps', () => {
+test('workflow ACQ section → is a step index; AskUserQuestion detail stays in numbered steps', () => {
   for (const name of WORKFLOW) {
     const { index } = splitAcq(readWorkflow(name));
     assert.doesNotMatch(index, /\*\*AskUserQuestion/, `${name}: ACQ index must not embed AskUserQuestion blocks`);
@@ -351,7 +351,7 @@ test('workflow ACQ section is a step index; AskUserQuestion detail stays in numb
   }
 });
 
-test('workflow skill bodies use English headings', () => {
+test('workflow skill bodies → use English headings', () => {
   for (const name of WORKFLOW) {
     const md = readWorkflow(name);
     const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
@@ -372,7 +372,7 @@ function subSkillPath(name) {
   return path.join(root, 'skills', name, 'SKILL.md');
 }
 
-test('sub-skill bodies use English headings', () => {
+test('sub-skill bodies → use English headings', () => {
   for (const name of SUB_PATHS) {
     const md = fs.readFileSync(subSkillPath(name), 'utf8');
     const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
@@ -380,7 +380,7 @@ test('sub-skill bodies use English headings', () => {
   }
 });
 
-test('unpublished helpers live under references/ and are absent from the catalog', () => {
+test('unpublished helpers → live under references/ and are absent from the catalog', () => {
   const skillNames = listCanonicalSkillNames();
   for (const name of UNPUBLISHED) {
     assert.equal(skillNames.includes(name), false);
@@ -393,7 +393,7 @@ test('unpublished helpers live under references/ and are absent from the catalog
   assert.equal(fs.existsSync(path.join(root, 'skills', 'agentic-code-benchmark', 'SKILL.md')), false);
 });
 
-test('canonical skill descriptions stay within the locked YAML-scalar budget', () => {
+test('canonical skill descriptions → stay within the locked YAML-scalar budget', () => {
   const skillNames = listCanonicalSkillNames();
   assert.strictEqual(
     skillNames.length,

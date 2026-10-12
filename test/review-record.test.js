@@ -88,12 +88,12 @@ function recordCli(repo, extra = {}) {
   return capture(argv);
 }
 
-test('review-record module is loadable', () => {
+test('review-record module → is loadable', () => {
   const { recordReview } = require('../scripts/lib/review-record');
   assert.equal(typeof recordReview, 'function');
 });
 
-test('discovery round with --status addressed records fingerprint and passes G21 format', () => {
+test('discovery round with --status addressed → records fingerprint and passes G21 format', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const roundFile = writeJson(repo, 'round.json', roundPayload(EXAMPLE_ROUND, [EXAMPLE_FINDING]));
   const { recordReview } = require('../scripts/lib/review-record');
@@ -125,7 +125,7 @@ test('discovery round with --status addressed records fingerprint and passes G21
   );
 });
 
-test('round number 3 is out of sequence and leaves bytes unchanged', () => {
+test('round number 3 → is out of sequence and leaves bytes unchanged', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const before = fs.readFileSync(reviewPath);
   const roundFile = writeJson(repo, 'round.json', roundPayload({ round: 3 }, [EXAMPLE_FINDING]));
@@ -140,7 +140,7 @@ test('round number 3 is out of sequence and leaves bytes unchanged', () => {
   assert.deepEqual(fs.readFileSync(reviewPath), before);
 });
 
-test('findings object is review-input-invalid and leaves bytes unchanged', () => {
+test('findings object → is review-input-invalid and leaves bytes unchanged', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const before = fs.readFileSync(reviewPath);
   const roundFile = writeJson(repo, 'round.json', { round: EXAMPLE_ROUND, findings: {} });
@@ -155,7 +155,7 @@ test('findings object is review-input-invalid and leaves bytes unchanged', () =>
   assert.deepEqual(fs.readFileSync(reviewPath), before);
 });
 
-test('open must_fix with --status accepted is review-ledger-invalid', () => {
+test('open must_fix with --status accepted → is review-ledger-invalid', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const before = fs.readFileSync(reviewPath);
   const finding = {
@@ -179,7 +179,7 @@ test('open must_fix with --status accepted is review-ledger-invalid', () => {
   assert.deepEqual(fs.readFileSync(reviewPath), before);
 });
 
-test('--task is not allowed on blueprint review_scope', () => {
+test('--task on blueprint review_scope → is not allowed', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const before = fs.readFileSync(reviewPath);
   const roundFile = writeJson(repo, 'round.json', roundPayload(EXAMPLE_ROUND, [EXAMPLE_FINDING]));
@@ -195,7 +195,7 @@ test('--task is not allowed on blueprint review_scope', () => {
   assert.deepEqual(fs.readFileSync(reviewPath), before);
 });
 
-test('omitting --task without review_scope is review-task-required', () => {
+test('omitting --task without review_scope → is review-task-required', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const indexPath = path.join(repo, BP_REL, 'index.md');
   const parsed = parseFrontmatter(fs.readFileSync(indexPath, 'utf8'));
@@ -214,7 +214,7 @@ test('omitting --task without review_scope is review-task-required', () => {
   assert.deepEqual(fs.readFileSync(reviewPath), before);
 });
 
-test('missing review.md is review-target-missing', () => {
+test('missing review.md → is review-target-missing', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   fs.unlinkSync(reviewPath);
   const roundFile = writeJson(repo, 'round.json', roundPayload(EXAMPLE_ROUND, [EXAMPLE_FINDING]));
@@ -229,7 +229,7 @@ test('missing review.md is review-target-missing', () => {
   assert.equal(fs.existsSync(reviewPath), false);
 });
 
-test('discovery then delta then critical_recovery without --status is ok', () => {
+test('discovery then delta then critical_recovery without --status → is ok', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const { recordReview } = require('../scripts/lib/review-record');
   const modes = ['discovery', 'delta', 'critical_recovery'];
@@ -256,7 +256,7 @@ test('discovery then delta then critical_recovery without --status is ok', () =>
   assert.equal(data.bouncer.status, 'pending');
 });
 
-test('in-progress ledger with --status accepted is review-ledger-invalid', () => {
+test('in-progress ledger with --status accepted → is review-ledger-invalid', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const { recordReview } = require('../scripts/lib/review-record');
   const prefixes = ['discovery', 'delta'];
@@ -293,7 +293,7 @@ test('in-progress ledger with --status accepted is review-ledger-invalid', () =>
   assert.deepEqual(fs.readFileSync(reviewPath), before);
 });
 
-test('CLI review record writes JSON on success', () => {
+test('CLI review record on success → writes JSON', () => {
   const { repo } = makeBlueprintRepo();
   const roundFile = writeJson(repo, 'round.json', roundPayload(EXAMPLE_ROUND, [EXAMPLE_FINDING]));
   const r = recordCli(repo, { round: roundFile, status: 'addressed' });
@@ -305,7 +305,7 @@ test('CLI review record writes JSON on success', () => {
   assert.equal(parsed.findings, 1);
 });
 
-test('review record --help example round records on a fresh blueprint', () => {
+test('review record --help example round on a fresh blueprint → records it', () => {
   const help = capture(['review', 'record', '--help']);
   const fenced = help.out.match(/```json\n([\s\S]*?)\n```/);
   assert.ok(fenced, 'help must wrap the example in one ```json fence');
@@ -356,7 +356,7 @@ function makeTaskRepo() {
 }
 
 for (const [cardName, taskMode] of [['review.md', true], ['final_review.md', false]]) {
-  test(`${cardName} card repair wave fences record discovery then delta`, () => {
+  test(`${cardName} card repair wave fences → record discovery then delta`, () => {
     const card = fs.readFileSync(path.join(CARD_DIR, cardName), 'utf8');
     const fences = [...card.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
     assert.equal(fences.length, 2);
@@ -371,7 +371,7 @@ for (const [cardName, taskMode] of [['review.md', true], ['final_review.md', fal
     assert.equal(data.bouncer.review.findings.find((f) => f.id === 'F1').status, 'resolved');
   });
 
-  test(`${cardName} card has a Finding status section`, () => {
+  test(`${cardName} card → has a Finding status section`, () => {
     const card = fs.readFileSync(path.join(CARD_DIR, cardName), 'utf8');
     const m = card.match(/## Finding status\n([\s\S]*?)(?=\n## |$)/);
     assert.ok(m, 'missing ## Finding status');
@@ -381,7 +381,7 @@ for (const [cardName, taskMode] of [['review.md', true], ['final_review.md', fal
   });
 }
 
-test('open must_fix with --status requested records, with --status accepted is rejected untouched', () => {
+test('open must_fix with --status requested or accepted → requested records, accepted is rejected untouched', () => {
   const { repo, reviewPath } = makeBlueprintRepo();
   const finding = { ...EXAMPLE_FINDING, status: 'open' };
   const roundFile = writeJson(repo, 'round.json', roundPayload(EXAMPLE_ROUND, [finding]));
@@ -397,7 +397,7 @@ test('open must_fix with --status requested records, with --status accepted is r
   assert.equal(data.bouncer.status, 'requested');
 });
 
-test('review record --help lists open and shows an open example', () => {
+test('review record --help → lists open and shows an open example', () => {
   const help = capture(['review', 'record', '--help']);
   assert.match(help.out, /finding status: resolved\|accepted\|deferred\|open/);
   const example = JSON.parse(help.out.match(/```json\n([\s\S]*?)\n```/)[1]);

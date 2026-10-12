@@ -38,7 +38,7 @@ function launcherSkillPath(name) {
   return path.join(root, 'skills', name, 'SKILL.md');
 }
 
-test('the four plugin manifests agree on name and version', () => {
+test('the four plugin manifests → agree on name and version', () => {
   const expectedVersion = readJson('package.json').version;
   const claude = readJson('.claude-plugin/plugin.json');
   const cursor = readJson('.cursor-plugin/plugin.json');
@@ -53,7 +53,7 @@ test('the four plugin manifests agree on name and version', () => {
 
 // Antigravity discovers skills/ · agents/ · hooks/ by convention. Re-declaring
 // those path keys in the root plugin.json is how the host rejects the plugin.
-test('the Antigravity root plugin.json omits convention path keys', () => {
+test('the Antigravity root plugin.json → omits convention path keys', () => {
   const antigravity = readJson('plugin.json');
   for (const key of ['skills', 'agents', 'hooks', 'commands']) {
     assert.ok(!(key in antigravity), `plugin.json must not re-declare ${key}`);
@@ -67,13 +67,13 @@ test('the Antigravity root plugin.json omits convention path keys', () => {
 // Code's event names. Naming the Cursor file in the manifest replaces the
 // discovery, so this declaration is what keeps Cursor from loading a hook
 // definition it cannot understand.
-test('the Cursor manifest points hooks at the Cursor hook file', () => {
+test('the Cursor manifest → points hooks at the Cursor hook file', () => {
   const cursor = readJson('.cursor-plugin/plugin.json');
   assert.strictEqual(cursor.hooks, './hooks/cursor-hooks.json');
   assert.ok(fs.existsSync(path.join(root, 'hooks/cursor-hooks.json')));
 });
 
-test('cursor-hooks.json registers commit safety on beforeShellExecution', () => {
+test('cursor-hooks.json → registers commit safety on beforeShellExecution', () => {
   const hooks = readJson('hooks/cursor-hooks.json');
   assert.strictEqual(hooks.version, 1);
   const entries = hooks.hooks.beforeShellExecution;
@@ -84,7 +84,7 @@ test('cursor-hooks.json registers commit safety on beforeShellExecution', () => 
 // Single-plugin repos only need plugin.json. marketplace.json is for
 // multi-plugin Cursor marketplaces; Claude Code still uses
 // .claude-plugin/marketplace.json for /plugin marketplace add.
-test('the Cursor plugin has no marketplace.json', () => {
+test('the Cursor plugin → has no marketplace.json', () => {
   assert.ok(
     !fs.existsSync(path.join(root, '.cursor-plugin/marketplace.json')),
     'single-plugin Cursor layout must omit .cursor-plugin/marketplace.json',
@@ -94,21 +94,21 @@ test('the Cursor plugin has no marketplace.json', () => {
 // Codex's official validator rejects a `hooks` key in plugin.json, but still
 // auto-discovers hooks/hooks.json. Declaring hooks here would fail validation
 // and keep the plugin from installing.
-test('the Codex manifest omits hooks and points skills at ./skills/', () => {
+test('the Codex manifest → omits hooks and points skills at ./skills/', () => {
   const codex = readJson('.codex-plugin/plugin.json');
   assert.ok(!('hooks' in codex), 'Codex plugin.json must not declare hooks');
   assert.strictEqual(codex.skills, './skills/');
   assert.ok(codex.interface && typeof codex.interface === 'object');
 });
 
-test('the Codex marketplace lists bouncer at the repository root', () => {
+test('the Codex marketplace → lists bouncer at the repository root', () => {
   const market = readJson('.agents/plugins/marketplace.json');
   const entry = (market.plugins || []).find((p) => p.name === 'bouncer');
   assert.ok(entry, 'no bouncer entry');
   assert.deepStrictEqual(entry.source, { source: 'local', path: './' });
 });
 
-test('workflow shells invoke the installed bouncer launcher directly', () => {
+test('workflow shells → invoke the installed bouncer launcher directly', () => {
   for (const name of LAUNCHER_SKILLS) {
     const file = launcherSkillPath(name);
     const src = fs.readFileSync(file, 'utf8');
@@ -129,7 +129,7 @@ test('workflow shells invoke the installed bouncer launcher directly', () => {
 
 // 각 fenced block은 독립 셸이므로 CLI 블록은 환경변수 bootstrap 없이 런처를
 // 직접 부른다. 모듈 경로를 읽는 블록만 독립적인 루트 해석을 유지한다.
-test('launcher shell blocks call bouncer directly and scope root resolution to module paths', () => {
+test('launcher shell blocks → call bouncer directly and scope root resolution to module paths', () => {
   const workflowSkills = LAUNCHER_SKILLS.map(launcherSkillPath);
   const offenders = [];
   for (const file of workflowSkills) {
@@ -158,7 +158,7 @@ function runCursorHook(payload, cwd) {
 // The adapter's whole job is translation: Cursor decides from stdout JSON, not
 // from an exit code. A non-commit command must not be denied, and a commit that
 // the shared guard rejects must come back as a deny carrying the reason.
-test('the Cursor adapter allows commands that are not commits', () => {
+test('the Cursor adapter given commands that are not commits → allows them', () => {
   const res = runCursorHook({
     hook_event_name: 'beforeShellExecution',
     command: 'ls -la',
@@ -187,7 +187,7 @@ function fixtureRepo() {
   return { repo, git };
 }
 
-test('the Cursor adapter denies a commit that reaches outside affected_paths', () => {
+test('the Cursor adapter given a commit that reaches outside affected_paths → denies it', () => {
   const { repo, git } = fixtureRepo();
   git(['add', 'src/feature/a.js', 'src/other/b.js']);
   const res = runCursorHook({
@@ -202,7 +202,7 @@ test('the Cursor adapter denies a commit that reaches outside affected_paths', (
   assert.ok(!res.userMessage.includes('src/feature/a.js'));
 });
 
-test('the Cursor adapter allows a commit that stays inside affected_paths', () => {
+test('the Cursor adapter given a commit that stays inside affected_paths → allows it', () => {
   const { repo, git } = fixtureRepo();
   git(['add', 'src/feature/a.js']);
   const res = runCursorHook({
@@ -215,7 +215,7 @@ test('the Cursor adapter allows a commit that stays inside affected_paths', () =
 
 // Cursor names the workspace `workspace_roots`; reading process.cwd() instead
 // would inspect whatever directory Cursor happened to launch the hook from.
-test('the Cursor adapter judges the workspace root, not its own cwd', () => {
+test('the Cursor adapter given a workspace root different from its own cwd → judges the workspace root', () => {
   const { repo, git } = fixtureRepo();
   git(['add', 'src/other/b.js']);
   const res = runCursorHook({

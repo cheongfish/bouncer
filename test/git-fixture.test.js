@@ -20,7 +20,7 @@ function initWithCommit(dir) {
   git(dir, ['commit', '--quiet', '-m', 'base']);
 }
 
-test('copies are independent of each other and keep the template history', () => {
+test('copies of a template → are independent of each other and keep the template history', () => {
   const t = createGitTemplate(initWithCommit);
   const a = t.copy();
   const b = t.copy();
@@ -31,7 +31,7 @@ test('copies are independent of each other and keep the template history', () =>
   t.dispose();
 });
 
-test('copy rejects a template that contains git worktrees', () => {
+test('a template that contains git worktrees → copy rejects it', () => {
   const w = createGitTemplate((dir) => {
     initWithCommit(dir);
     git(dir, ['worktree', 'add', '--detach', path.join(`${dir}-wt`)]);
@@ -41,7 +41,7 @@ test('copy rejects a template that contains git worktrees', () => {
   w.dispose();
 });
 
-test('dispose removes the template and every copy', () => {
+test('dispose called → removes the template and every copy', () => {
   const t = createGitTemplate(initWithCommit);
   const a = t.copy();
   t.dispose();

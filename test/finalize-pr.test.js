@@ -28,7 +28,7 @@ function writeDoc(repo, rel, data, body = '# x\n') {
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
 }
 
-test('parseGithubRemote accepts github SSH/HTTPS and rejects gitlab', () => {
+test('github SSH/HTTPS and gitlab remotes → parseGithubRemote accepts github and rejects gitlab', () => {
   assert.deepStrictEqual(
     parseGithubRemote('git@github.com:acme/app.git'),
     { owner: 'acme', repo: 'app' },
@@ -46,7 +46,7 @@ test('parseGithubRemote accepts github SSH/HTTPS and rejects gitlab', () => {
   assert.strictEqual(parseGithubRemote(''), null);
 });
 
-test('parseGithubRemote rejects empty, dot, and path-segment owners/repos', () => {
+test('empty, dot and path-segment owners/repos → parseGithubRemote rejects them', () => {
   // F-SEC-001: GitHub identity만 허용. `.`/`..`/`/`/`\` 는 blob URL 경로 탈출에 쓰인다.
   assert.strictEqual(parseGithubRemote('git@github.com:../app.git'), null);
   assert.strictEqual(parseGithubRemote('git@github.com:acme/..'), null);
@@ -56,7 +56,7 @@ test('parseGithubRemote rejects empty, dot, and path-segment owners/repos', () =
   assert.strictEqual(parseGithubRemote('ssh://git@github.com/acme%2fevil/app.git'), null);
 });
 
-test('buildPrDraft title_prefix uses KST date, capitalized pr_base, and commit types', () => {
+test('buildPrDraft with KST date, pr_base and commit types → title_prefix uses KST date, capitalized pr_base, and commit types', () => {
   const digest = {
     ok: true,
     blueprint: { commit_type: 'chore' },
@@ -80,7 +80,7 @@ test('buildPrDraft title_prefix uses KST date, capitalized pr_base, and commit t
   assert.strictEqual(draft.sections.flow, null);
 });
 
-test('buildPrDraft falls back to blueprint commit_type and fills verification/review_points', () => {
+test('buildPrDraft without commit subject types → falls back to blueprint commit_type and fills verification/review_points', () => {
   const digest = {
     ok: true,
     blueprint: { commit_type: 'docs' },
@@ -123,7 +123,7 @@ test('buildPrDraft falls back to blueprint commit_type and fills verification/re
   assert.ok(draft.sections.review_points.some((p) => /terminal-missing/.test(p)));
 });
 
-test('buildPrDraft keeps type order Feat/Fix from commit subjects', () => {
+test('commit subjects of Feat and Fix → buildPrDraft keeps the type order', () => {
   const digest = {
     ok: true,
     blueprint: { commit_type: 'chore' },
@@ -144,7 +144,7 @@ test('buildPrDraft keeps type order Feat/Fix from commit subjects', () => {
   assert.strictEqual(draft.title_prefix, '[260924] (→ Develop) [Feat/Fix]');
 });
 
-test('buildPrDraft leaves base and title_prefix null when pr_base is missing', () => {
+test('pr_base missing → buildPrDraft leaves base and title_prefix null', () => {
   const digest = {
     ok: true,
     blueprint: { commit_type: 'feat' },
@@ -171,7 +171,7 @@ test('buildPrDraft leaves base and title_prefix null when pr_base is missing', (
   assert.strictEqual(missing.title_prefix_template, '[260924] (→ {base}) [Feat]');
 });
 
-test('buildPrDraft review_points omit Epic/Blueprint stable ids from unverified', () => {
+test('unverified items with Epic/Blueprint stable ids → buildPrDraft review_points omit them', () => {
   // F1/F2: Constraints — PR 본문에 Epic/Blueprint id·stable_id를 넣지 않는다.
   // unverified.task는 EPIC-…/BP-…/TASK-… 형태이므로 kind·detail만 남긴다.
   const digest = {
@@ -275,7 +275,7 @@ function makeLinksExec({
   };
 }
 
-test('resolveExplainLinks returns head-not-pushed when HEAD is not on remote', () => {
+test('HEAD not on the remote → resolveExplainLinks returns head-not-pushed', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-np-'));
   git(repoRoot, ['init', '-b', 'feat/login']);
   git(repoRoot, ['config', 'user.email', 't@example.com']);
@@ -293,7 +293,7 @@ test('resolveExplainLinks returns head-not-pushed when HEAD is not on remote', (
   assert.deepStrictEqual(result.links, []);
 });
 
-test('resolveExplainLinks returns branch and commit kinds when pushed', () => {
+test('pushed HEAD → resolveExplainLinks returns branch and commit kinds', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-ok-'));
   git(repoRoot, ['init', '-b', 'feat/login']);
   git(repoRoot, ['config', 'user.email', 't@example.com']);
@@ -338,7 +338,7 @@ test('resolveExplainLinks returns branch and commit kinds when pushed', () => {
   void head;
 });
 
-test('resolveExplainLinks rejects blueprintDir that escapes the repo', () => {
+test('blueprintDir that escapes the repo → resolveExplainLinks rejects it', () => {
   // F-SEC-002: absolute/`..` blueprintDir로 blob URL을 만들지 않는다.
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-esc-'));
   git(repoRoot, ['init', '-b', 'feat/login']);
@@ -364,7 +364,7 @@ test('resolveExplainLinks rejects blueprintDir that escapes the repo', () => {
   }
 });
 
-test('resolveExplainLinks percent-encodes branch segments that need escaping', () => {
+test('branch segments that need escaping → resolveExplainLinks percent-encodes them', () => {
   // F-SEC-003: `#` 등은 fragment로 잘리므로 세그먼트 encode가 필수.
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-enc-'));
   git(repoRoot, ['init', '-b', 'feat/fix#1']);
@@ -399,7 +399,7 @@ test('resolveExplainLinks percent-encodes branch segments that need escaping', (
   assert.ok(!pushed.links[0].url.includes('/feat/fix#1/'));
 });
 
-test('resolveExplainLinks reason codes for remote/host/branch/explain', () => {
+test('remote/host/branch/explain failures → resolveExplainLinks returns the matching reason codes', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-rs-'));
   git(repoRoot, ['init', '-b', 'feat/login']);
   git(repoRoot, ['config', 'user.email', 't@example.com']);
@@ -453,7 +453,7 @@ test('resolveExplainLinks reason codes for remote/host/branch/explain', () => {
   );
 });
 
-test('CLI finalize links works after tasks/ removed and reports checkout branch', () => {
+test('tasks/ removed → CLI finalize links still works and reports the checkout branch', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-cli-'));
   git(repoRoot, ['init', '-b', 'feat/login']);
   git(repoRoot, ['config', 'user.email', 't@example.com']);
@@ -508,7 +508,7 @@ test('CLI finalize links works after tasks/ removed and reports checkout branch'
   assert.deepStrictEqual(parsed.links, []);
 });
 
-test('buildPrDraft skips empty verification commands and falls back finding.id / path', () => {
+test('empty verification commands and missing finding.id / path → buildPrDraft skips the empty commands and falls back', () => {
   // buildVerificationLines: command 없는 verification은 행을 만들지 않는다.
   // buildReviewPoints: note 없으면 finding.id, unverified.path면 kind: path.
   const digest = {
@@ -545,7 +545,7 @@ test('buildPrDraft skips empty verification commands and falls back finding.id /
   assert.ok(draft.sections.review_points.includes('path-outside-scope: vendor/leak.js'));
 });
 
-test('resolveExplainLinks prefers ledger integrationBranch over checkout', () => {
+test('ledger integrationBranch and a different checkout → resolveExplainLinks prefers the ledger branch', () => {
   // resolveLinksBranch: 원장 integrationBranch가 있으면 그것이 정본이다.
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-ledger-'));
   git(repoRoot, ['init', '-b', 'feat/checkout']);
@@ -591,7 +591,7 @@ test('resolveExplainLinks prefers ledger integrationBranch over checkout', () =>
   git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
 });
 
-test('resolveExplainLinks returns head-not-pushed when remote ref or HEAD rev-parse fails', () => {
+test('remote ref or HEAD rev-parse failure → resolveExplainLinks returns head-not-pushed', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-ref-'));
   git(repoRoot, ['init', '-b', 'feat/login']);
   git(repoRoot, ['config', 'user.email', 't@example.com']);
@@ -623,7 +623,7 @@ test('resolveExplainLinks returns head-not-pushed when remote ref or HEAD rev-pa
   );
 });
 
-test('buildPrDraft review_points include blueprint_review finding notes', () => {
+test('blueprint_review finding notes → buildPrDraft review_points include them', () => {
   const digest = {
     ok: true,
     blueprint: { commit_type: 'feat' },
@@ -643,7 +643,7 @@ test('buildPrDraft review_points include blueprint_review finding notes', () => 
   assert.ok(draft.sections.review_points.includes('root finding note'));
 });
 
-test('buildPrDraft review_points dedupe finding notes and skip finding-* unverified', () => {
+test('duplicate finding notes and finding-* unverified → buildPrDraft review_points dedupe the notes and skip the unverified', () => {
   const note = 'shared deferred note';
   const digest = {
     ok: true,
@@ -710,7 +710,7 @@ test('buildPrDraft review_points dedupe finding notes and skip finding-* unverif
   assert.strictEqual(acceptedHits[0], acceptedNote);
 });
 
-test('buildPrDraft keeps out_of_scope item even when finding note matches', () => {
+test('an out_of_scope item whose finding note matches → buildPrDraft keeps the item', () => {
   // 중복 제거는 finding 메모끼리만 — out_of_scope와 같은 문자열이면 둘 다 남긴다.
   const shared = 'payments';
   const draft = buildPrDraft({
@@ -740,7 +740,7 @@ test('buildPrDraft keeps out_of_scope item even when finding note matches', () =
   );
 });
 
-test('buildPrDraft verification dedupes identical command result lines', () => {
+test('identical command result lines → buildPrDraft verification dedupes them', () => {
   const samePassed = buildPrDraft({
     ok: true,
     blueprint: { commit_type: 'feat' },

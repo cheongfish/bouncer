@@ -262,7 +262,7 @@ function consumerPhaseSection(consumer, source, phase) {
   return `${stepPreamble}\n${stepBody}`;
 }
 
-test('ownership and load graph parsers reject malformed rows with their line number', () => {
+test('ownership and load graph parsers with malformed rows → reject them with their line number', () => {
   assert.throws(
     () => parseOwnership('## 소유권\n\n| id | source | current owner | target owner | consumers | migration BP |\n| --- | --- | --- | --- | --- | --- |\n| A | source | owner | skill | | BP2 |'),
     /line 5: 소유권 has an empty field/,
@@ -281,7 +281,7 @@ test('ownership and load graph parsers reject malformed rows with their line num
   );
 });
 
-test('load graph rejects an unknown consumer with an explicit message', () => {
+test('load graph with an unknown consumer → rejects it with an explicit message', () => {
   assert.throws(
     () => assertAllowedConsumer({ consumer: 'mystery', line: 9 }),
     /line 9: unknown consumer mystery/,
@@ -295,7 +295,7 @@ test('load graph rejects an unknown consumer with an explicit message', () => {
   );
 });
 
-test('ownership rows have one target, known migration, unique ids, and real current locators', () => {
+test('ownership rows → have one target, known migration, unique ids, and real current locators', () => {
   const markdown = read(ownershipPath);
   const ownership = parseOwnership(markdown);
 
@@ -333,7 +333,7 @@ test('ownership rows have one target, known migration, unique ids, and real curr
   }
 });
 
-test('load graph covers each workflow and keeps conditional references out of startup', () => {
+test('load graph → covers each workflow and keeps conditional references out of startup', () => {
   const markdown = read(ownershipPath);
   const graph = parseLoadGraph(markdown);
   const seen = new Set();
@@ -376,7 +376,7 @@ test('load graph covers each workflow and keeps conditional references out of st
   }
 });
 
-test('load graph declarations follow the current consumer phase sections', () => {
+test('load graph declarations → follow the current consumer phase sections', () => {
   const graph = parseLoadGraph(read(ownershipPath));
   for (const row of graph) {
     const source = read(consumerSourcePath(row.consumer));
@@ -414,7 +414,7 @@ test('load graph declarations follow the current consumer phase sections', () =>
 
 // 소유 문구의 내용이 아니라 표가 선언한 소유 구조를 본다: 행의 locator는 선언된 owner에
 // 있어야 하고, 같은 locator가 다른 .md owner에 복제돼 정본이 둘이 되면 안 된다.
-test('each ownership locator lives only in its declared owner', () => {
+test('each ownership locator → lives only in its declared owner', () => {
   const markdown = read(ownershipPath);
   const ownership = parseOwnership(markdown);
 
@@ -446,7 +446,7 @@ test('each ownership locator lives only in its declared owner', () => {
   }
 });
 
-test('governance rule file is deleted and no ownership row keeps it as current owner', () => {
+test('governance rule file → is deleted and no ownership row keeps it as current owner', () => {
   assert.ok(!fs.existsSync(path.join(root, 'rules/governance.md')), 'rules/governance.md must be deleted');
   const ownership = parseOwnership(read(ownershipPath));
   for (const row of ownership) {

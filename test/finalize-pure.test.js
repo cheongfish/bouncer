@@ -28,13 +28,13 @@ function withDefaultTrailers(lines) {
   ].join('\n');
 }
 
-test('isUnder treats entries as directories', () => {
+test('entries given to isUnder → they are treated as directories', () => {
   assert.ok(isUnder('src/auth/login.ts', 'src/auth/'));
   assert.ok(isUnder('src/auth/login.ts', 'src/auth'));
   assert.ok(!isUnder('src/authx/login.ts', 'src/auth'));
 });
 
-test('allowed set covers affected paths, bp subtree, ancestor indexes', () => {
+test('affected paths, bp subtree and ancestor indexes → the allowed set covers them', () => {
   const allowed = makeAllowed({ affectedPaths: ['src/auth/'], blueprintDir: BP });
   assert.ok(allowed('src/auth/login.ts'));
   assert.ok(allowed(`${BP}/tasks.md`));
@@ -48,7 +48,7 @@ test('allowed set covers affected paths, bp subtree, ancestor indexes', () => {
   assert.ok(!allowed('.bouncer/distill/core.md'));
 });
 
-test('commit message follows the template', () => {
+test('a commit message → follows the template', () => {
   const docs = {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { id: '001', epic_id: '001' } } },
     tasks: { data: { title: 'Implement login', bouncer: taskBouncer() } },
@@ -66,7 +66,7 @@ test('commit message follows the template', () => {
   assert.ok(!msg.includes('Implemented:'), 'prose labels are replaced by bullets');
 });
 
-test('commit_intent supplies task background bullets without verification title', () => {
+test('commit_intent without a verification title → supplies task background bullets', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -104,7 +104,7 @@ test('commit_intent supplies task background bullets without verification title'
   ]));
 });
 
-test('missing commit_intent does not fall back to verification title', () => {
+test('missing commit_intent → does not fall back to the verification title', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -118,7 +118,7 @@ test('missing commit_intent does not fall back to verification title', () => {
   assert.strictEqual(buildCommitMessage(docs), withDefaultTrailers('feat: Login flow'));
 });
 
-test('missing titles omit body bullets', () => {
+test('missing titles → body bullets are omitted', () => {
   const docs = {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { commit_type: 'fix' } } },
     tasks: { data: { bouncer: taskBouncer() } },
@@ -126,7 +126,7 @@ test('missing titles omit body bullets', () => {
   assert.strictEqual(buildCommitMessage(docs), withDefaultTrailers('fix: Login flow'));
 });
 
-test('commit bullets prefer target taskUnit verification over docs.tasks compat field', () => {
+test('target taskUnit verification and docs.tasks compat field → commit bullets prefer the taskUnit verification', () => {
   const docs = {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { id: '001', epic_id: '001' } } },
     // 호환 필드(첫 묶음) — taskUnit이 있으면 무시되어야 한다.
@@ -147,7 +147,7 @@ test('commit bullets prefer target taskUnit verification over docs.tasks compat 
   assert.strictEqual(buildCommitMessage(docs, taskUnit), withDefaultTrailers('feat: Second unit implement'));
 });
 
-test('subject uses taskUnit tasks title over blueprint title', () => {
+test('taskUnit tasks title and blueprint title → subject uses the taskUnit title', () => {
   const docs = {
     blueprintIndex: {
       data: { title: 'blueprint 제목', bouncer: { commit_type: 'feat' } },
@@ -172,7 +172,7 @@ test('subject uses taskUnit tasks title over blueprint title', () => {
   );
 });
 
-test('task authored fields are independent of blueprint and verification fields', () => {
+test('task authored fields alongside blueprint and verification fields → they are independent', () => {
   const bpIntent = [
     '청사진 배경: 커밋이 청사진 단위로만 묶임',
     '청사진 의도: 작업마다 다른 메시지를 쓰게 함',
@@ -262,7 +262,7 @@ test('task authored fields are independent of blueprint and verification fields'
   }), /commit_intent.*1-2/);
 });
 
-test('empty task title falls subject to blueprint title', () => {
+test('empty task title → subject falls to blueprint title', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -290,7 +290,7 @@ test('empty task title falls subject to blueprint title', () => {
   );
 });
 
-test('invalid task commit_intent is rejected despite blueprint fields', () => {
+test('invalid task commit_intent with blueprint fields → it is rejected', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -323,7 +323,7 @@ test('invalid task commit_intent is rejected despite blueprint fields', () => {
   assert.throws(() => buildCommitMessage(docs, taskUnit), /commit_intent.*1-2/);
 });
 
-test('undefined taskUnit falls subject to blueprint title', () => {
+test('undefined taskUnit → subject falls to blueprint title', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -342,7 +342,7 @@ test('undefined taskUnit falls subject to blueprint title', () => {
 
 // --- TASKS-003: finalize 마감 메시지는 blueprint Intent + blueprint title ---
 
-test('finalize commit message is blueprint title plus blueprint Intent', () => {
+test('a finalize commit message → is blueprint title plus blueprint Intent', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -387,7 +387,7 @@ test('finalize commit message is blueprint title plus blueprint Intent', () => {
   ].join('\n'));
 });
 
-test('finalize commit message omits body when no task has valid commit_intent', () => {
+test('no task with valid commit_intent → the finalize commit message omits the body', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -428,7 +428,7 @@ test('finalize commit message omits body when no task has valid commit_intent', 
 
 // --- TASKS-004: remainder intent는 task 문서 스캔(가장 큰 번호) ---
 
-test('finalize remainder uses blueprint Intent, ignoring task commit_intent', () => {
+test('task commit_intent present → finalize remainder uses blueprint Intent and ignores it', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -499,7 +499,7 @@ test('finalize remainder uses blueprint Intent, ignoring task commit_intent', ()
   ].join('\n'));
 });
 
-test('task context keeps six durable sections, authored breaks, and task order', () => {
+test('six durable sections, authored breaks and task order → task context keeps them', () => {
   const taskUnits = [
     {
       number: 2,
@@ -619,7 +619,7 @@ test('task context keeps six durable sections, authored breaks, and task order',
   assert.ok(rendered.indexOf('### Task 001') < rendered.indexOf('### Task 002'));
 });
 
-test('task context omits empty Current/Target and yields nothing without durable sections', () => {
+test('empty Current/Target and no durable sections → task context omits the empty ones and yields nothing', () => {
   assert.strictEqual(buildTaskContext([{
     number: 1,
     tasks: {
@@ -674,7 +674,7 @@ test('task context omits empty Current/Target and yields nothing without durable
   assert.strictEqual(buildTaskContext([]), '');
 });
 
-test('buildTaskContext renders stable Task ID with optional trailer sha8', () => {
+test('stable Task ID with optional trailer sha8 → buildTaskContext renders it', () => {
   const units = [{
     number: 1,
     tasks: {
@@ -709,7 +709,7 @@ x
   assert.doesNotMatch(buildTaskContext(units), /· `/);
 });
 
-test('task message is composed from intent then authored summary', () => {
+test('intent then authored summary → the task message is composed in that order', () => {
   const docs = {
     blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
   };
@@ -735,7 +735,7 @@ test('task message is composed from intent then authored summary', () => {
   ]));
 });
 
-test('malformed authored fields fail instead of being partially omitted', () => {
+test('malformed authored fields → they fail instead of being partially omitted', () => {
   const docs = { blueprintIndex: { data: { title: '로그인 흐름' } } };
   assert.throws(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_intent: ['첫 줄임', '둘째 줄임', '셋째 줄임'] } } },
@@ -749,7 +749,7 @@ test('malformed authored fields fail instead of being partially omitted', () => 
   }));
 });
 
-test('authored fields accept package, module, and path names inside Korean sentences', () => {
+test('package, module and path names inside Korean sentences → authored fields accept them', () => {
   const docs = { blueprintIndex: { data: { title: '로그인 흐름' } } };
   assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_intent: ['lodash 의존성을 제거함'] }) } },
@@ -781,7 +781,7 @@ test('authored fields accept package, module, and path names inside Korean sente
   }));
 });
 
-test('authored fields accept lowercase package names in ordinary sentence positions', () => {
+test('lowercase package names in ordinary sentence positions → authored fields accept them', () => {
   const docs = { blueprintIndex: { data: { title: '로그인 흐름' } } };
   for (const sentence of [
     'fs를 개선함',
@@ -806,7 +806,7 @@ test('authored fields accept lowercase package names in ordinary sentence positi
 // 저작 문장 검사는 형식(줄 수, 한글 포함, 한국어 종결형)만 본다. 계약 용어,
 // 경로, 패키지 이름, backtick 인용은 blueprint Intent와 두 task 필드에서
 // 똑같이 통과하고, 형식 결함은 기존 오류 문구로 계속 거절된다.
-test('authored sentence check accepts identifiers and rejects only malformed shapes', () => {
+test('identifiers and malformed shapes in an authored sentence → the check accepts identifiers and rejects only malformed shapes', () => {
   const { normalizeAuthoredLines, parseIntentBody } = require('../scripts/lib/templates');
   const accepted = [
     'branch 이름을 CLI helper 한 곳에서 계산함.',
@@ -835,7 +835,7 @@ test('authored sentence check accepts identifiers and rejects only malformed sha
   assert.throws(() => normalizeAuthoredLines('가함.', 'commit_intent'), /YAML list/);
 });
 
-test('finalize message parses blueprint Intent and ignores task authored fields', () => {
+test('blueprint Intent and task authored fields → the finalize message parses the Intent and ignores task fields', () => {
   const docs = {
     blueprintIndex: {
       data: { title: '커밋 메시지 계약', bouncer: { commit_type: 'feat' } },
@@ -854,7 +854,7 @@ test('finalize message parses blueprint Intent and ignores task authored fields'
   ].join('\n'));
 });
 
-test('empty task commit lists omit body lines like absent fields', () => {
+test('empty task commit lists → they omit body lines like absent fields', () => {
   const docs = { blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } } };
   const unit = (extra) => ({
     number: 1,
@@ -873,13 +873,13 @@ test('empty task commit lists omit body lines like absent fields', () => {
   assert.throws(() => buildCommitMessage(docs, unit({ commit_intent: [], commit_summary: ['가함.', '나함.', '다함.'] })), /commit_summary.*1-2/);
 });
 
-test('finalize rejects an empty blueprint Intent section', () => {
+test('an empty blueprint Intent section → finalize rejects it', () => {
   assert.throws(() => buildFinalizeCommitMessage({
     blueprintIndex: { data: { title: '계약' }, body: '# Blueprint\n\n## Intent\n\n## Contract\n- 계약\n' },
   }), /blueprint Intent must contain 1-2 Korean terminal sentences/);
 });
 
-test('finalize rejects an absent or malformed blueprint Intent', () => {
+test('an absent or malformed blueprint Intent → finalize rejects it', () => {
   assert.throws(() => buildFinalizeCommitMessage({
     blueprintIndex: { data: { title: '계약' }, body: '# Blueprint\n' },
   }), /Intent/);
@@ -915,7 +915,7 @@ const LEDGER = {
   decisions: [{ task: '001', kind: 'scope', reason: 'shared guard' }],
 };
 
-test('coordinator provenance folds the ledger into explain and cleanup fields', () => {
+test('a coordinator ledger → provenance folds it into explain and cleanup fields', () => {
   const provenance = buildCoordinatorProvenance(LEDGER, {
     integrationPath: '/w/.worktrees/001/001/integration',
     ledgerFile: '/w/.worktrees/001/001/integration/.bouncer/runtime/coordinator.json',
@@ -939,7 +939,7 @@ test('coordinator provenance folds the ledger into explain and cleanup fields', 
   ]);
 });
 
-test('coordinator provenance is null without a ledger and tolerates missing arrays', () => {
+test('no ledger or missing arrays → coordinator provenance is null and tolerates them', () => {
   assert.strictEqual(buildCoordinatorProvenance(null), null);
   assert.strictEqual(buildCoordinatorProvenance(undefined), null);
   const bare = buildCoordinatorProvenance({ version: 1 }, { integrationPath: '/w/i' });
@@ -952,7 +952,7 @@ test('coordinator provenance is null without a ledger and tolerates missing arra
 
 // --- stable Task / Intent provenance ---------------------------------------
 
-test('stable provenance helper builds exact task and intent refs', () => {
+test('task and intent ids → the stable provenance helper builds exact refs', () => {
   assert.deepStrictEqual(
     buildStableProvenance({ epicId: '071', blueprintId: '001', taskId: 'TASKS-001' }),
     {
@@ -967,7 +967,7 @@ test('stable provenance helper builds exact task and intent refs', () => {
   assert.strictEqual(COMMIT_SHA_LEN, 8);
 });
 
-test('stable provenance helper rejects malformed three-digit ids without correcting them', () => {
+test('malformed three-digit ids → the stable provenance helper rejects them without correcting', () => {
   const valid = { epicId: '071', blueprintId: '001', taskId: 'TASKS-001' };
   assert.throws(() => buildStableProvenance({ ...valid, epicId: '71' }), /epic_id/);
   assert.throws(() => buildStableProvenance({ ...valid, epicId: 71 }), /epic_id/);
@@ -980,7 +980,7 @@ test('stable provenance helper rejects malformed three-digit ids without correct
   assert.throws(() => buildStableProvenance({ ...valid, taskId: 'TASKS-01' }), /TASKS-NNN/);
 });
 
-test('commit message appends unique Bouncer trailers after authored bullets', () => {
+test('authored bullets → the commit message appends unique Bouncer trailers after them', () => {
   const docs = {
     blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
   };
@@ -1014,7 +1014,7 @@ test('commit message appends unique Bouncer trailers after authored bullets', ()
   assert.match(msg, /\n\nBouncer-Task: EPIC-071\/BP-001\/TASK-001\nBouncer-Intent: EPIC-071\/BP-001$/);
 });
 
-test('commit message rejects missing or malformed identity before emitting trailers', () => {
+test('missing or malformed identity → the commit message rejects before emitting trailers', () => {
   const docs = {
     blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
   };
@@ -1032,7 +1032,7 @@ test('commit message rejects missing or malformed identity before emitting trail
   })), /TASKS-NNN/);
 });
 
-test('commit message rejects authored fields that already contain Bouncer trailers', () => {
+test('authored fields that already contain Bouncer trailers → the commit message rejects them', () => {
   const docs = {
     blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
   };
@@ -1061,7 +1061,7 @@ test('commit message rejects authored fields that already contain Bouncer traile
   }), /Bouncer-Task|Bouncer-Intent/);
 });
 
-test('coordinator provenance keeps a malformed ledger task id visibly null', () => {
+test('a malformed ledger task id → coordinator provenance keeps it visibly null', () => {
   const provenance = buildCoordinatorProvenance({
     tasks: [
       { status: 'pending', workerPath: '/w/workers/001' },

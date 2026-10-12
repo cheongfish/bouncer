@@ -50,7 +50,7 @@ function changedPartNames(before, after) {
     .sort();
 }
 
-test('computeApprovalDigest changes only the matching part for path, verify, and allowlist', () => {
+test('computeApprovalDigest with changed path, verify, or allowlist → changes only the matching part', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-approval-digest-'));
   writeTask(repo, { affected_paths: ['src/auth/login.js'], verify: 'npm test' });
   writeAllowlist(repo, ['npm']);

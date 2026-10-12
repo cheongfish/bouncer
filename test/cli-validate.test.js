@@ -24,7 +24,7 @@ function capture() {
   };
 }
 
-test('validate emits JSON and exit 1 on failure', () => {
+test('validate on failure → emits JSON and exit 1', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks/001/tasks.md`,
@@ -39,7 +39,7 @@ test('validate emits JSON and exit 1 on failure', () => {
   assert.ok(parsed.failures.some((f) => f.code === 'S7'));
 });
 
-test('validate --gate plan includes G18 when context-review.md is missing', () => {
+test('validate --gate plan when context-review.md is missing → includes G18', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const tasksBody = `# Tasks
 
@@ -112,7 +112,7 @@ Ship login validation.
   assert.ok(parsed.failures.some((f) => f.code === 'G18'));
 });
 
-test('validate --gate plan exits 0 with warnings when affected_paths exceeds 20', () => {
+test('validate --gate plan when affected_paths exceeds 20 → exits 0 with warnings', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const tasksBody = `# Tasks
 
@@ -208,18 +208,18 @@ Ship login validation.
   assert.strictEqual(buf.err, '', 'no stderr advisory prose outside JSON');
 });
 
-test('unknown command exits 2', () => {
+test('unknown command → exits 2', () => {
   const { io } = capture();
   assert.strictEqual(runCli(['frobnicate'], io), 2);
 });
 
-test('profile and import-superpowers commands are unsupported', () => {
+test('profile and import-superpowers commands → are unsupported', () => {
   const { io } = capture();
   assert.strictEqual(runCli(['profile'], io), 2);
   assert.strictEqual(runCli(['import-superpowers'], io), 2);
 });
 
-test('validate without --blueprint exits 2 and does not report ok:true', () => {
+test('validate without --blueprint → exits 2 and does not report ok:true', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const { io, buf } = capture();
   const code = runCli(['validate', '--repo', repo], io);
@@ -228,7 +228,7 @@ test('validate without --blueprint exits 2 and does not report ok:true', () => {
   assert.ok(buf.err.length > 0);
 });
 
-test('validateBlueprint rejects planDraft combined with gate', () => {
+test('validateBlueprint with planDraft combined with gate → rejects', () => {
   const { validateBlueprint } = require('../scripts/lib/validate');
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   assert.throws(
@@ -237,7 +237,7 @@ test('validateBlueprint rejects planDraft combined with gate', () => {
   );
 });
 
-test('finalize without --blueprint exits 2', () => {
+test('finalize without --blueprint → exits 2', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const { io, buf } = capture();
   const code = runCli(['finalize', '--repo', repo], io);
@@ -245,7 +245,7 @@ test('finalize without --blueprint exits 2', () => {
   assert.ok(buf.err.length > 0);
 });
 
-test('validate --gate plan preserves G19 DAG error code and task path', () => {
+test('validate --gate plan with a DAG error → preserves G19 code and task path', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const tasksBody = `# Tasks
 
@@ -336,7 +336,7 @@ Ship login validation.
 
 // G18 신선도는 실제 파일 트리의 snapshot digest를 입력으로 쓴다. 본문 변경은 stale,
 // frontmatter 변경(affected_paths·status 전이)은 digest가 같으므로 통과해야 한다.
-test('validate --gate plan rejects a stale context review digest from the real tree', () => {
+test('validate --gate plan with a stale context review digest from the real tree → rejects', () => {
   const { validateBlueprint } = require('../scripts/lib/validate');
   const { computePlanSnapshot } = require('../scripts/lib/plan-snapshot');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
@@ -494,7 +494,7 @@ function coordinate(opts) {
 
 const { reviseTaskScope } = require('../scripts/lib/scope');
 
-test('validate --gate commit judges staged paths against the revised coordinator scope', () => {
+test('validate --gate commit with a revised coordinator scope → judges staged paths against it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const git = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
   git(['init', '-b', 'work', '--quiet']);
@@ -581,7 +581,7 @@ test('validate --gate commit judges staged paths against the revised coordinator
   assert.ok(!failures.some((f) => f.code === 'G17'), inside.buf.out);
 });
 
-test('validate --gate execute judges the leased task in a worker cwd', () => {
+test('validate --gate execute in a worker cwd → judges the leased task', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-val-eff-'));
   const git = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
   git(['init', '-b', 'work', '--quiet']);
@@ -704,7 +704,7 @@ test('validate --gate execute judges the leased task in a worker cwd', () => {
   assert.strictEqual(unreadCode, 1);
 });
 
-test('blueprint review mode does not emit S17 for missing task review.md', () => {
+test('blueprint review mode with a missing task review.md → does not emit S17', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
     type: 'bouncer.epic', title: 'Auth epic', description: 'auth epic',

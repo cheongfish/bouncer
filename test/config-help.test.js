@@ -46,7 +46,7 @@ function readCli(text) {
   return { keys, agents };
 }
 
-test('config --help keys, values, and agents match docs/configuration.md', () => {
+test('config --help keys, values, and agents → match docs/configuration.md', () => {
   const d = readDocs();
   const c = readCli(cliHelp());
   assert.deepStrictEqual([...c.keys.keys()].sort(), [...d.keys.keys()].sort());

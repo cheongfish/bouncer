@@ -77,7 +77,7 @@ function bareCites(file, body) {
   return found;
 }
 
-test('plugin docs cite rules/references/agents/AGENTS.md with ${BOUNCER_ROOT}/ prefix', () => {
+test('plugin docs citing rules/references/agents/AGENTS.md → use the ${BOUNCER_ROOT}/ prefix', () => {
   const offenders = [];
   // 예외가 실제로 한 번씩 쓰였는지 — 쓰이지 않는 예외는 죽은 허용이라 실패시킨다.
   const unused = new Map(ALLOWED.map((a) => [`${a.file}\0${a.text}`, a]));

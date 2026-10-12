@@ -9,7 +9,7 @@ const { checkDocShape } = require('../scripts/check-doc-shape');
 const root = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-test('document shape checks structure instead of prose wording', () => {
+test('document shape check → checks structure instead of prose wording', () => {
   const document = `---
 name: sample
 description: Original wording
@@ -83,7 +83,7 @@ name: sample
   );
 });
 
-test('document shape checks numbered ACQ contracts and their index', () => {
+test('document shape with numbered ACQ contracts and their index → checks both', () => {
   const document = `# Sample
 
 1. **Prepare.**
@@ -117,7 +117,7 @@ test('document shape checks numbered ACQ contracts and their index', () => {
   );
 });
 
-test('document shape keeps an ACQ inside its numbered step before a later H2', () => {
+test('document shape with an ACQ before a later H2 → keeps it inside its numbered step', () => {
   const movedAcq = `# Sample
 
 1. **Prepare.**
@@ -133,7 +133,7 @@ test('document shape keeps an ACQ inside its numbered step before a later H2', (
   assert.match(result.errors.join('; '), /step 1 is missing an ACQ block/);
 });
 
-test('document shape rejects images as required links and ignores fenced ACQ text', () => {
+test('document shape with images as required links and fenced ACQ text → rejects the images and ignores the fenced text', () => {
   assert.strictEqual(
     checkDocShape('![Reference](./AGENTS.md)', {
       filePath: path.join(root, 'AGENTS.md'),
@@ -170,7 +170,7 @@ test('document shape rejects images as required links and ignores fenced ACQ tex
   );
 });
 
-test('document shape rejects a comment-only frontmatter description', () => {
+test('document shape with a comment-only frontmatter description → rejects it', () => {
   const contract = {
     frontmatter: { required: ['name', 'description'], nonEmpty: ['description'] },
   };
@@ -190,7 +190,7 @@ description: <!-- documentation comment, not a value -->
 `, contract).ok, false);
 });
 
-test('document shape ignores structures found only in HTML comments', () => {
+test('document shape with structures only in HTML comments → ignores them', () => {
   const contract = {
     headings: { required: ['Contract', 'ACQ (AskUserQuestion) gates'] },
     links: [{ href: './AGENTS.md' }],
@@ -239,7 +239,7 @@ test('document shape ignores structures found only in HTML comments', () => {
   assert.strictEqual(checkDocShape(visibleSurroundings, contract).ok, true);
 });
 
-test('document shape ignores valid longer and tilde fences in ACQ and index scans', () => {
+test('document shape with longer and tilde fences in ACQ and index scans → ignores them', () => {
   const stepContract = { steps: { required: [1], acq: [1], acqOptions: [1] } };
   const longerBacktickFence = `# Sample
 
@@ -281,7 +281,7 @@ test('document shape ignores valid longer and tilde fences in ACQ and index scan
   );
 });
 
-test('document shape accepts fenced examples in a valid ACQ index and detects H2 reordering', () => {
+test('document shape with fenced examples in a valid ACQ index → accepts them and detects H2 reordering', () => {
   const document = `# Sample
 
 1. **Prepare.**
@@ -310,7 +310,7 @@ test('document shape accepts fenced examples in a valid ACQ index and detects H2
   assert.strictEqual(checkDocShape(reordered, contract).ok, false);
 });
 
-test('document shape rejects bold AskUserQuestion content in an index-only ACQ section', () => {
+test('document shape with bold AskUserQuestion content in an index-only ACQ section → rejects it', () => {
   const document = `# Sample
 
 ## ACQ (AskUserQuestion) gates
@@ -325,7 +325,7 @@ test('document shape rejects bold AskUserQuestion content in an index-only ACQ s
   assert.match(result.errors.join('; '), /inline question content/);
 });
 
-test('document shape requires conditional loading semantics in a referenced preamble', () => {
+test('document shape with a referenced preamble → requires conditional loading semantics', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-reference-'));
   const sourcePath = path.join(repo, 'source.md');
   const referencePath = path.join(repo, 'reference.md');
@@ -355,7 +355,7 @@ test('document shape requires conditional loading semantics in a referenced prea
   assert.match(unconditionalRoute.errors.join('; '), /does not conditionally load reference/);
 });
 
-test('document shape ignores links inside valid double-backtick inline code', () => {
+test('document shape with links inside double-backtick inline code → ignores them', () => {
   const document = '``[Reference](./AGENTS.md)``';
   const result = checkDocShape(document, {
     filePath: path.join(root, 'AGENTS.md'),
@@ -365,7 +365,7 @@ test('document shape ignores links inside valid double-backtick inline code', ()
   assert.match(result.errors.join('; '), /missing Markdown link/);
 });
 
-test('document shape ignores links inside multiline double-backtick inline code', () => {
+test('document shape with links inside multiline double-backtick inline code → ignores them', () => {
   const document = '``\n[Reference](./missing.md)\n``';
   const result = checkDocShape(document, {
     filePath: path.join(root, 'AGENTS.md'),
@@ -375,7 +375,7 @@ test('document shape ignores links inside multiline double-backtick inline code'
   assert.match(result.errors.join('; '), /missing Markdown link/);
 });
 
-test('document shape excludes multiline inline code before heading, step, and link extraction', () => {
+test('document shape with multiline inline code → excludes it before heading, step, and link extraction', () => {
   const hiddenOnly = '``\n## Contract\n1. **Prepare.**\n[Reference](./AGENTS.md)\n``';
   const contract = {
     filePath: path.join(root, 'AGENTS.md'),
@@ -401,7 +401,7 @@ test('document shape excludes multiline inline code before heading, step, and li
   assert.deepStrictEqual(visibleResult.shape.links.map((link) => link.href), ['./AGENTS.md']);
 });
 
-test('comment stripping preserves inline-code delimiters without activating commented fences', () => {
+test('comment stripping → preserves inline-code delimiters without activating commented fences', () => {
   const inlineBoundary = '`code <!-- ` --> [Reference](./AGENTS.md)';
   const inlineResult = checkDocShape(inlineBoundary, {
     filePath: path.join(root, 'AGENTS.md'),
@@ -421,7 +421,7 @@ test('comment stripping preserves inline-code delimiters without activating comm
 // 마스터 규칙 문서의 제목·링크 구조는 PATH_CONTRACTS가 lint:docs로 검사한다.
 // 세션마다 읽는 문서의 크기 상한: UTF-8 바이트(줄 수 아님). 초과 시 포인터·밀도 높은
 // 계약 문장으로 다시 압축한다 — 단언을 약화해 통과시키지 않는다.
-test('AGENTS.md stays within the session-load byte budget', () => {
+test('AGENTS.md size → stays within the session-load byte budget', () => {
   const agents = read('AGENTS.md');
   assert.ok(
     Buffer.byteLength(agents, 'utf8') <= 6135,
@@ -429,17 +429,17 @@ test('AGENTS.md stays within the session-load byte budget', () => {
   );
 });
 
-test('plugin does not ship CLAUDE.md', () => {
+test('plugin contents → do not ship CLAUDE.md', () => {
   assert.equal(fs.existsSync(path.join(root, 'CLAUDE.md')), false);
 });
 
-test('init does not install master rules into the project', () => {
+test('init → does not install master rules into the project', () => {
   const init = read('scripts/lib/init.js');
   assert.doesNotMatch(init, /CLAUDE\.md|AGENTS\.md/);
 });
 
 // migrate-ids 스킬·CLI는 제거됐다 — 카탈로그에 남지 않아야 한다.
-test('removed migrate-ids skill and gates.md rule stay absent', () => {
+test('removed migrate-ids skill and gates.md rule → stay absent', () => {
   assert.equal(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')), false);
   assert.strictEqual(fs.existsSync(path.join(root, 'rules/gates.md')), false);
 });

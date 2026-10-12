@@ -11,20 +11,20 @@ function refPath(name) {
   return path.join(refsRoot, name);
 }
 
-test('spec-authoring has valid frontmatter identity', () => {
+test('spec-authoring → has valid frontmatter identity', () => {
   const md = readSkill('spec-authoring');
   const { data } = parseFrontmatter(md);
   assert.strictEqual(data.name, 'spec-authoring');
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
 });
 
-test('spec-authoring ships completed reference examples', () => {
+test('spec-authoring → ships completed reference examples', () => {
   for (const k of ['epic', 'blueprint']) {
     assert.ok(fs.existsSync(refPath(`${k}.md`)), k);
   }
 });
 
-test('spec-authoring Mermaid examples keep each child zoom within its parent boxes', () => {
+test('spec-authoring Mermaid examples → keep each child zoom within its parent boxes', () => {
   const md = readSkill('spec-authoring');
   const charts = [...md.matchAll(/```mermaid\nflowchart LR\n([\s\S]*?)```/g)]
     .map(([, chart]) => new Set([...chart.matchAll(/\[[^\]]+\]/g)].map(([box]) => box)));
@@ -35,7 +35,7 @@ test('spec-authoring Mermaid examples keep each child zoom within its parent box
 
 // rounds 예제는 validator 소스가 아니라 이 파일이 고정점이다. 스키마가 바뀌면
 // 예제가 먼저 깨지게 해서 작성자가 형식을 역산하지 않게 한다.
-test('spec-authoring review-rounds example passes collectFindingFailures', () => {
+test('spec-authoring review-rounds example → passes collectFindingFailures', () => {
   const { collectFindingFailures } = require('../scripts/lib/validate-sections');
   const { parseFrontmatter } = require('../scripts/lib/frontmatter');
   const md = fs.readFileSync(refPath('review-rounds.md'), 'utf8');

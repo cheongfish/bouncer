@@ -16,7 +16,7 @@ function copy(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-test('branchNamesFor derives commit and worker branches from the blueprint metadata', () => {
+test('branchNamesFor with blueprint metadata → derives commit and worker branches', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-branch-names-'));
   // ci-contract는 제거된 명령의 표면을 감시하므로 fixture slug는 런타임에 조립한다.
   const slug = ['dis', 'till-removal-context-search-ci-recovery'].join('');
@@ -37,14 +37,14 @@ test('branchNamesFor derives commit and worker branches from the blueprint metad
     blueprint: '.bouncer/context/epics/068-x/blueprints/001-bad..slug' }), /invalid-branch-name/);
 });
 
-test('coordinator ledger rejects malformed seed manifests while accepting legacy ledgers', () => {
+test('coordinator ledger with malformed seed manifests or legacy ledgers → rejects the manifests and accepts legacy ledgers', () => {
   const base = { version: 1, blueprint: 'bp', base: 'main', tasks: [], decisions: [] };
   assert.strictEqual(validateCoordinatorLedger(base).ok, true);
   assert.strictEqual(validateCoordinatorLedger({ ...base, seedManifest: [{ path: '', sha256: 'x' }] }).reason,
     'invalid-seed-manifest');
 });
 
-test('resolveWorktreeBranch reuses the registered branch and rejects an occupied new branch', () => {
+test('resolveWorktreeBranch with a registered branch or an occupied new branch → reuses the registered branch and rejects the occupied one', () => {
   const { primary } = linkedRepo();
   const legacy = path.join(primary, 'legacy-worker');
   git(primary, ['worktree', 'add', '-b', 'legacy/worker', legacy, 'HEAD']);
@@ -59,7 +59,7 @@ test('resolveWorktreeBranch reuses the registered branch and rejects an occupied
   }), /branch-conflict/);
 });
 
-test('repair ledger validation requires two waves and the last CI failure for partial close', () => {
+test('repair ledger validation for partial close → requires two waves and the last CI failure', () => {
   const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
   const base = {
     version: 1, blueprint: 'bp', base: 'main', integrationHead: 'abc', tasks: [],
@@ -104,7 +104,7 @@ function repairDecision(task, wave, revision, paths) {
   };
 }
 
-test('partial-close repair decisions require complete canonical task and global copies', () => {
+test('partial-close repair decisions → require complete canonical task and global copies', () => {
   const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
   const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
   const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
@@ -143,7 +143,7 @@ test('partial-close repair decisions require complete canonical task and global 
   assert.strictEqual(validateCoordinatorLedger(valid).ok, true);
 });
 
-test('repair failure findings must be a non-empty string array when present', () => {
+test('repair failure findings when present → must be a non-empty string array', () => {
   const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
   const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
   const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
@@ -187,7 +187,7 @@ function linkedRepo() {
   return { root, primary, linked };
 }
 
-test('primary checkout and linked worktree share Git-local runtime paths', () => {
+test('primary checkout and linked worktree → share Git-local runtime paths', () => {
   const { primary, linked } = linkedRepo();
   const primaryPaths = runtimePaths({ repoRoot: primary, execFileSync, platform: 'linux' });
   const linkedPaths = runtimePaths({ repoRoot: linked, execFileSync, platform: 'linux' });
@@ -202,7 +202,7 @@ test('primary checkout and linked worktree share Git-local runtime paths', () =>
   assert.deepStrictEqual(linkedPaths, primaryPaths);
 });
 
-test('coordinator paths derive integration, worker, fanin, and integration-local ledger', () => {
+test('coordinator paths → derive integration, worker, fanin, and integration-local ledger', () => {
   const { primary } = linkedRepo();
   const result = coordinatorPathsFor({
     repoRoot: primary,
@@ -217,7 +217,7 @@ test('coordinator paths derive integration, worker, fanin, and integration-local
   });
 });
 
-test('validateCoordinatorLedger rejects invalid fanin shape', () => {
+test('validateCoordinatorLedger with an invalid fanin shape → rejects it', () => {
   const base = {
     version: 1, blueprint: 'bp', base: 'main', tasks: [], decisions: [],
   };
@@ -247,7 +247,7 @@ test('validateCoordinatorLedger rejects invalid fanin shape', () => {
   }).reason, 'fanin-invalid');
 });
 
-test('worktree root is under the main repository checkout', () => {
+test('worktree root → is under the main repository checkout', () => {
   const { primary } = linkedRepo();
   const paths = runtimePaths({
     repoRoot: primary,
@@ -262,7 +262,7 @@ test('worktree root is under the main repository checkout', () => {
   assert.strictEqual(fs.existsSync(paths.worktreeRoot), false);
 });
 
-test('win32 path API keeps worktrees beside the main checkout', () => {
+test('win32 path API → keeps worktrees beside the main checkout', () => {
   const exec = () => '.git\n';
   const windows = runtimePaths({
     repoRoot: 'C:\\repo', execFileSync: exec,
@@ -275,7 +275,7 @@ test('win32 path API keeps worktrees beside the main checkout', () => {
   assert.strictEqual(windows.projectRoot, 'C:\\repo');
 });
 
-test('runtime resolution is read-only and reports non-Git directories unavailable', () => {
+test('runtime resolution → is read-only and reports non-Git directories unavailable', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
   const before = fs.readdirSync(repo);
   const paths = runtimePaths({
@@ -287,7 +287,7 @@ test('runtime resolution is read-only and reports non-Git directories unavailabl
   assert.deepStrictEqual(fs.readdirSync(repo), before);
 });
 
-test('runtime current round-trips across primary and linked worktrees', () => {
+test('runtime current across primary and linked worktrees → round-trips', () => {
   const { primary, linked } = linkedRepo();
   const deps = {
     execFileSync,
@@ -314,7 +314,7 @@ test('runtime current round-trips across primary and linked worktrees', () => {
   });
 });
 
-test('writeRuntimeCurrent includes task key only when a string path is given', () => {
+test('writeRuntimeCurrent with or without a string path → includes task key only when a string path is given', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
@@ -339,7 +339,7 @@ test('writeRuntimeCurrent includes task key only when a string path is given', (
   });
 });
 
-test('readRuntimeCurrent treats missing or non-string task as null', () => {
+test('readRuntimeCurrent with a missing or non-string task → treats it as null', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const paths = runtimePaths({ repoRoot: primary, ...deps });
@@ -361,7 +361,7 @@ test('readRuntimeCurrent treats missing or non-string task as null', () => {
   });
 });
 
-test('runtime current handles missing, corrupt, and non-Git state', () => {
+test('runtime current with missing, corrupt, and non-Git state → is handled', () => {
   const { primary } = linkedRepo();
   const deps = {
     execFileSync,
@@ -381,7 +381,7 @@ test('runtime current handles missing, corrupt, and non-Git state', () => {
   );
 });
 
-test('worktreePathFor defaults to nested epic/blueprint path without creating directories', () => {
+test('worktreePathFor with defaults → returns the nested epic/blueprint path without creating directories', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
@@ -392,7 +392,7 @@ test('worktreePathFor defaults to nested epic/blueprint path without creating di
   assert.strictEqual(fs.existsSync(path.join(primary, '.worktrees')), false);
 });
 
-test('worktreePathFor falls back to flat path when nested is missing', () => {
+test('worktreePathFor when nested is missing → falls back to flat path', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
@@ -403,7 +403,7 @@ test('worktreePathFor falls back to flat path when nested is missing', () => {
   );
 });
 
-test('worktreePathFor prefers nested when both nested and flat exist', () => {
+test('worktreePathFor when both nested and flat exist → prefers nested', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
@@ -415,7 +415,7 @@ test('worktreePathFor prefers nested when both nested and flat exist', () => {
   );
 });
 
-test('worktreePathFor rejects legacy-prefixed ids and non-Git roots', () => {
+test('worktreePathFor with legacy-prefixed ids and non-Git roots → rejects them', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
@@ -431,7 +431,7 @@ test('worktreePathFor rejects legacy-prefixed ids and non-Git roots', () => {
   );
 });
 
-test('verifyLedgerPathFor hashes the verification rel under the Git common directory', () => {
+test('verifyLedgerPathFor → hashes the verification rel under the Git common directory', () => {
   const { createHash } = require('node:crypto');
   const { primary, linked } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
@@ -448,7 +448,7 @@ test('verifyLedgerPathFor hashes the verification rel under the Git common direc
   );
 });
 
-test('verifyLedgerPathFor uses evidenceId for v2 paths and keeps legacy miss separate', () => {
+test('verifyLedgerPathFor with v2 paths and legacy misses → uses evidenceId for v2 and keeps legacy miss separate', () => {
   const { createHash } = require('node:crypto');
   const { primary, linked } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
@@ -469,7 +469,7 @@ test('verifyLedgerPathFor uses evidenceId for v2 paths and keeps legacy miss sep
     path.join(v2.commonGitDir, 'bouncer', 'verify', `${digest}.json`),
   );
 });
-test('verifyLedgerPathFor reports non-Git directories unavailable', () => {
+test('verifyLedgerPathFor with non-Git directories → reports them unavailable', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
   const result = verifyLedgerPathFor({
     repoRoot: repo,
@@ -481,7 +481,7 @@ test('verifyLedgerPathFor reports non-Git directories unavailable', () => {
   assert.strictEqual(result.ledgerFile, undefined);
 });
 
-test('intentBundlePathFor hashes the task rel under the Git common directory for every worktree', () => {
+test('intentBundlePathFor in every worktree → hashes the task rel under the Git common directory', () => {
   const { createHash } = require('node:crypto');
   const { primary, linked } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
@@ -498,7 +498,7 @@ test('intentBundlePathFor hashes the task rel under the Git common directory for
   );
 });
 
-test('intentBundlePathFor reports non-Git directories unavailable', () => {
+test('intentBundlePathFor with non-Git directories → reports them unavailable', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
   const result = intentBundlePathFor({
     repoRoot: repo,
@@ -513,7 +513,7 @@ test('intentBundlePathFor reports non-Git directories unavailable', () => {
 const BP_A = '.bouncer/context/epics/001-x/blueprints/001-y';
 const BP_B = '.bouncer/context/epics/002-z/blueprints/003-w';
 
-test('runtimePaths returns the legacy current file and the namespace root together', () => {
+test('runtimePaths → returns the legacy current file and the namespace root together', () => {
   const { primary } = linkedRepo();
   const paths = runtimePaths({ repoRoot: primary, execFileSync, platform: 'linux' });
   assert.strictEqual(
@@ -526,7 +526,7 @@ test('runtimePaths returns the legacy current file and the namespace root togeth
   );
 });
 
-test('pointerKeyFromBlueprint uses three-digit epic and blueprint ids only', () => {
+test('pointerKeyFromBlueprint with epic and blueprint ids → uses three-digit ids only', () => {
   assert.deepStrictEqual(pointerKeyFromBlueprint(BP_A), {
     epicId: '001', blueprintId: '001', key: '001/001',
   });
@@ -539,7 +539,7 @@ test('pointerKeyFromBlueprint uses three-digit epic and blueprint ids only', () 
   );
 });
 
-test('two namespace pointers coexist and removing one preserves the other', () => {
+test('two namespace pointers with one removed → coexist and the other is preserved', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const paths = runtimePaths({ repoRoot: primary, ...deps });
@@ -568,7 +568,7 @@ test('two namespace pointers coexist and removing one preserves the other', () =
   assert.strictEqual(removeNamespacePointer({ repoRoot: primary, key: '001/001', deps }), false);
 });
 
-test('writeRuntimeCurrent rejects a blueprint path without three-digit ids', () => {
+test('writeRuntimeCurrent with a blueprint path without three-digit ids → rejects it', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   assert.throws(
@@ -577,7 +577,7 @@ test('writeRuntimeCurrent rejects a blueprint path without three-digit ids', () 
   );
 });
 
-test('writeRuntimeCurrent is atomic: a write failure leaves no namespace file', () => {
+test('writeRuntimeCurrent with a write failure → is atomic and leaves no namespace file', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const paths = runtimePaths({ repoRoot: primary, ...deps });
@@ -597,7 +597,7 @@ test('writeRuntimeCurrent is atomic: a write failure leaves no namespace file', 
   assert.strictEqual(fs.existsSync(path.join(paths.pointersRoot, '001', '001.json')), false);
 });
 
-test('readRuntimeCurrent falls back to the legacy file when namespace is empty', () => {
+test('readRuntimeCurrent with an empty namespace → falls back to the legacy file', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   const paths = runtimePaths({ repoRoot: primary, ...deps });
@@ -611,7 +611,7 @@ test('readRuntimeCurrent falls back to the legacy file when namespace is empty',
   });
 });
 
-test('readRuntimeCurrent does not hide a broken namespace file as null', () => {
+test('readRuntimeCurrent with a broken namespace file → does not hide it as null', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_A, base: 'develop', deps });
@@ -628,7 +628,7 @@ test('readRuntimeCurrent does not hide a broken namespace file as null', () => {
   );
 });
 
-test('readRuntimeCurrent rejects multiple namespace pointers instead of picking one', () => {
+test('readRuntimeCurrent with multiple namespace pointers → rejects them instead of picking one', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_A, base: 'develop', deps });
@@ -639,7 +639,7 @@ test('readRuntimeCurrent rejects multiple namespace pointers instead of picking 
   );
 });
 
-test('listNamespacePointers reports a broken file instead of hiding it', () => {
+test('listNamespacePointers with a broken file → reports it instead of hiding it', () => {
   const { primary } = linkedRepo();
   const deps = { execFileSync, platform: 'linux' };
   writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_A, base: 'develop', deps });
@@ -658,7 +658,7 @@ test('listNamespacePointers reports a broken file instead of hiding it', () => {
 });
 
 
-test('coordinator ledger rejects malformed dispatch attempt metadata', () => {
+test('coordinator ledger with malformed dispatch attempt metadata → rejects it', () => {
   const base = {
     version: 1, blueprint: 'bp', base: 'main', tasks: [{
       id: '001', status: 'prepared',
@@ -704,7 +704,7 @@ test('coordinator ledger rejects malformed dispatch attempt metadata', () => {
   }).ok, true);
 });
 
-test('validateCoordinatorCheckpoint accepts compact summary and rejects bad ledger refs', () => {
+test('validateCoordinatorCheckpoint with a compact summary or bad ledger refs → accepts the summary and rejects the refs', () => {
   const { validateCoordinatorCheckpoint, COORDINATOR_LEDGER_REL } = require('../scripts/lib/runtime-state');
   const { LEDGER_REL } = require('../scripts/lib/coordinator');
   // MM-001: coordinator·runtime-state가 같은 상대 경로 정본을 공유한다.
@@ -753,7 +753,7 @@ test('validateCoordinatorCheckpoint accepts compact summary and rejects bad ledg
 });
 
 
-test('coordinator ledger rejects malformed lease and leaseSeq', () => {
+test('coordinator ledger with malformed lease and leaseSeq → rejects it', () => {
   const base = {
     version: 1, blueprint: 'bp', base: 'main', leaseSeq: 1, tasks: [{
       id: '001', status: 'prepared',

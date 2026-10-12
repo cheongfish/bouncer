@@ -204,7 +204,7 @@ function pointerFile(repo) {
   return path.join(repo, '.git', 'bouncer', 'current');
 }
 
-test('current with no pointer returns null and ready candidates', () => {
+test('pointer 없이 current → null과 ready 후보를 반환한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   const r = capture(['current', '--repo', repo]);
@@ -217,7 +217,7 @@ test('current with no pointer returns null and ready candidates', () => {
   assert.strictEqual(parsed.ready[0].status, 'ready');
 });
 
-test('current with a pointer omits ready', () => {
+test('pointer가 있는 current → ready를 생략한다', () => {
   const repo = tmpGitRepo();
   writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
   const r = capture(['current', '--repo', repo]);
@@ -231,7 +231,7 @@ test('current with a pointer omits ready', () => {
   assert.strictEqual(parsed.ready, undefined);
 });
 
-test('current --set writes pointer when plan gate passes', () => {
+test('plan gate가 통과할 때 current --set → pointer를 쓴다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   const r = capture(['current', '--repo', repo, '--set', BP_REL]);
@@ -258,7 +258,7 @@ test('current --set writes pointer when plan gate passes', () => {
   });
 });
 
-test('current --set presents bouncer.scale from blueprint index', () => {
+test('current --set → blueprint index의 bouncer.scale을 제시한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeDoc(repo, `${BP_REL}/index.md`, {
@@ -281,7 +281,7 @@ test('current --set presents bouncer.scale from blueprint index', () => {
   });
 });
 
-test('current --set respects --base and config base_branch', () => {
+test('current --set에 --base와 config base_branch가 있으면 → 이를 따른다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   const withFlag = capture(['current', '--repo', repo, '--set', BP_REL, '--base', 'main']);
@@ -299,7 +299,7 @@ test('current --set respects --base and config base_branch', () => {
   assert.strictEqual(JSON.parse(withConfig.out).current.base, 'trunk');
 });
 
-test('current --set falls back to the checkout branch when config omits base_branch', () => {
+test('config에 base_branch가 없을 때 current --set → checkout branch로 대체한다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-current-'));
   execFileSync('git', ['init', '-b', 'feature', '--quiet'], { cwd: repo });
   writePlanPassingBlueprint(repo);
@@ -310,7 +310,7 @@ test('current --set falls back to the checkout branch when config omits base_bra
   assert.notStrictEqual(parsed.current.base, 'develop');
 });
 
-test('current --set does not write a pointer when HEAD is detached and config omits base_branch', () => {
+test('HEAD가 detached이고 config에 base_branch가 없을 때 current --set → pointer를 쓰지 않는다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-current-'));
   execFileSync('git', ['init', '-b', 'main', '--quiet'], { cwd: repo });
   execFileSync('git', ['commit', '--allow-empty', '-m', 'seed'], {
@@ -332,7 +332,7 @@ test('current --set does not write a pointer when HEAD is detached and config om
   assert.doesNotMatch(r.out + r.err, /"base":\s*""/);
 });
 
-test('current --set does not write pointer when plan gate fails', () => {
+test('plan gate가 실패할 때 current --set → pointer를 쓰지 않는다', () => {
   const repo = tmpGitRepo();
   // Blueprint documents exist but fail the plan gate (draft statuses).
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
@@ -367,19 +367,19 @@ test('current --set does not write pointer when plan gate fails', () => {
   assert.strictEqual(readCurrent({ repoRoot: repo }), null);
 });
 
-test('current --set without a value exits 2', () => {
+test('값 없이 current --set → exit 2를 낸다', () => {
   assert.strictEqual(capture(['current', '--set']).code, 2);
   assert.match(capture(['current', '--set']).err, /--set requires a blueprint directory/);
   assert.strictEqual(capture(['current', '--set', '--clear']).code, 2);
 });
 
-test('current --set and --clear together exit 2', () => {
+test('current --set과 --clear를 함께 주면 → exit 2를 낸다', () => {
   const r = capture(['current', '--set', BP_REL, '--clear']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /--set and --clear are mutually exclusive/);
 });
 
-test('current --clear is idempotent', () => {
+test('current --clear를 반복하면 → 멱등이다', () => {
   const repo = tmpGitRepo();
   writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
   assert.strictEqual(capture(['current', '--repo', repo, '--clear']).code, 0);
@@ -424,7 +424,7 @@ function writeNumberedPlanBlueprint(repo) {
   writeAcceptedContextReview(repo);
 }
 
-test('current --set --task 002 records that task document', () => {
+test('current --set --task 002 → 그 task 문서를 기록한다', () => {
   const repo = tmpGitRepo();
   writeNumberedPlanBlueprint(repo);
   const r = capture(['current', '--repo', repo, '--set', BP_REL, '--task', '002']);
@@ -451,7 +451,7 @@ test('current --set --task 002 records that task document', () => {
   });
 });
 
-test('current --set --task with missing number exits 2 and writes no pointer', () => {
+test('--task 번호가 없는 current --set --task → exit 2를 내고 pointer를 쓰지 않는다', () => {
   const repo = tmpGitRepo();
   writeNumberedPlanBlueprint(repo);
   const r = capture(['current', '--repo', repo, '--set', BP_REL, '--task', '099']);
@@ -461,19 +461,19 @@ test('current --set --task with missing number exits 2 and writes no pointer', (
   assert.strictEqual(readCurrent({ repoRoot: repo }), null);
 });
 
-test('current --task without --set exits 2', () => {
+test('--set 없이 current --task → exit 2를 낸다', () => {
   const r = capture(['current', '--task', '001']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /--task requires --set/);
 });
 
-test('current --clear --task exits 2', () => {
+test('current --clear --task → exit 2를 낸다', () => {
   const r = capture(['current', '--clear', '--task', '001']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /--clear and --task/);
 });
 
-test('bare current JSON includes a task key on the pointer', () => {
+test('pointer가 있는 bare current → JSON에 task 키가 포함된다', () => {
   const repo = tmpGitRepo();
   writeNumberedPlanBlueprint(repo);
   writeCurrent({
@@ -493,7 +493,7 @@ test('bare current JSON includes a task key on the pointer', () => {
   });
 });
 
-test('current --set of a different blueprint without --replace adds a parallel key', () => {
+test('--replace 없이 다른 blueprint를 current --set 하면 → parallel 키를 추가한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
@@ -512,7 +512,7 @@ test('current --set of a different blueprint without --replace adds a parallel k
   );
 });
 
-test('current --set --replace switches a different blueprint and reports previous', () => {
+test('current --set --replace로 다른 blueprint를 지정하면 → 전환하고 previous를 보고한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
@@ -540,7 +540,7 @@ test('current --set --replace switches a different blueprint and reports previou
   assert.strictEqual(stored.task, `${BP_OTHER}/tasks/001/tasks.md`);
 });
 
-test('current --set of the same blueprint updates task and base without --replace', () => {
+test('--replace 없이 같은 blueprint를 current --set 하면 → task와 base를 갱신한다', () => {
   const repo = tmpGitRepo();
   writeNumberedPlanBlueprint(repo);
   writeCurrent({
@@ -568,20 +568,20 @@ test('current --set of the same blueprint updates task and base without --replac
   });
 });
 
-test('current usage describes parallel --set and CURRENT_AMBIGUOUS --replace', () => {
+test('current usage → parallel --set과 CURRENT_AMBIGUOUS --replace를 설명한다', () => {
   const { current } = require('../scripts/lib/cli-current-command');
   assert.match(current.usage, /parallel key/);
   assert.match(current.usage, /CURRENT_AMBIGUOUS/);
   assert.doesNotMatch(current.usage, /omitted, a conflict exits 2/);
 });
 
-test('current --replace without --set exits 2', () => {
+test('--set 없이 current --replace → exit 2를 낸다', () => {
   const r = capture(['current', '--replace']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /--replace requires --set/);
 });
 
-test('current --clear --replace exits 2', () => {
+test('current --clear --replace → exit 2를 낸다', () => {
   const r = capture(['current', '--clear', '--replace']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /--clear and --replace/);
@@ -610,7 +610,7 @@ function storedPointer(blueprint, base, task) {
   return { blueprint, base, task: task == null ? null : task };
 }
 
-test('current --set adds a parallel namespace key and preserves the other', () => {
+test('current --set → parallel namespace 키를 추가하고 다른 키를 보존한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
@@ -624,7 +624,7 @@ test('current --set adds a parallel namespace key and preserves the other', () =
   assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
 });
 
-test('current --replace at a nested worktree replaces only the selected key', () => {
+test('nested worktree에서 current --replace → 선택된 키만 교체한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
@@ -649,7 +649,7 @@ test('current --replace at a nested worktree replaces only the selected key', ()
   assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
 });
 
-test('current --replace at base with multiple candidates does not guess', () => {
+test('후보가 여럿인 base에서 current --replace → 추측하지 않는다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
@@ -670,7 +670,7 @@ test('current --replace at base with multiple candidates does not guess', () => 
   assert.deepStrictEqual(fs.readFileSync(nsFile(repo, '002', '001')), beforeB);
 });
 
-test('current at base with two pointers exits 1 with sorted storage-shaped candidates', () => {
+test('base에서 pointer가 둘이면 current → 정렬된 storage 형태 후보와 함께 exit 1을 낸다', () => {
   const repo = tmpGitRepo();
   writeCurrent({ repoRoot: repo, blueprint: BP_OTHER, base: 'main' });
   writeCurrent({
@@ -694,7 +694,7 @@ test('current at base with two pointers exits 1 with sorted storage-shaped candi
   });
 });
 
-test('current --clear and --task at a nested worktree touch only that namespace', () => {
+test('nested worktree에서 current --clear와 --task → 해당 namespace만 건드린다', () => {
   const repo = tmpGitRepo();
   writeNumberedPlanBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
@@ -731,7 +731,7 @@ test('current --clear and --task at a nested worktree touch only that namespace'
   assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
 });
 
-test('current --set reports CURRENT_MIGRATION_INCOMPLETE and retries the leftover legacy delete', () => {
+test('legacy 삭제가 남은 상태에서 current --set → CURRENT_MIGRATION_INCOMPLETE를 보고하고 남은 legacy 삭제를 재시도한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   const legacy = pointerFile(repo);
@@ -806,7 +806,7 @@ function coordinate(opts) {
 }
 
 
-test('current projects the coordinator ready wave into the public payload', () => {
+test('coordinator ready wave가 있으면 current → 공개 payload에 투영한다', () => {
   const repo = tmpGitRepo();
   const blueprint = '.bouncer/context/epics/071-x/blueprints/072-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -830,7 +830,7 @@ test('current projects the coordinator ready wave into the public payload', () =
   assert.strictEqual(parsed.current.coordinator.tasks[0].id, '001');
 });
 
-test('current reports an unreadable coordinator ledger instead of dropping the key', () => {
+test('coordinator ledger를 읽을 수 없으면 current → 키를 버리지 않고 이를 보고한다', () => {
   const repo = tmpGitRepo();
   const blueprint = '.bouncer/context/epics/073-x/blueprints/074-y';
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
@@ -856,7 +856,7 @@ test('current reports an unreadable coordinator ledger instead of dropping the k
   assert.deepStrictEqual(parsed.current.coordinator.ready, []);
 });
 
-test('current --set records approval on first pointer and --reapprove, not on task advance', () => {
+test('첫 pointer와 --reapprove에서 current --set → approval을 기록하고 task 진행에서는 기록하지 않는다', () => {
   const repo = tmpGitRepo();
   writeNumberedPlanBlueprint(repo);
   const first = JSON.parse(capture(['current', '--repo', repo, '--set', BP_REL]).out);
@@ -871,7 +871,7 @@ test('current --set records approval on first pointer and --reapprove, not on ta
   assert.equal(again.approval, 'recorded');
 });
 
-test('current --reapprove without --set exits 2', () => {
+test('--set 없이 current --reapprove → exit 2를 낸다', () => {
   const r = capture(['current', '--reapprove']);
   assert.strictEqual(r.code, 2);
 });
