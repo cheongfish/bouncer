@@ -4,8 +4,8 @@
 // 모든 기본값은 게이트가 요구하는 본문 섹션을 충족합니다: tasks는 G10,
 // verification은 G13, review는 G14.
 'use strict';
-// 리뷰 흐름 본문: 관련 이슈 → 배경·의도 → 변경 → (조건부) 로직 흐름 →
-// 리뷰 포인트 → 확인 방법. Features/Fixes 체크박스와 Bouncer 메타 절은 두지
+// 리뷰 흐름 본문: 관련 이슈 → 배경·의도 → 변경 → 변경 그림 → 변경 전후 →
+// 리뷰 포인트 → 되돌리기·영향 범위 → 확인 방법. 변경 그림·변경 전후·되돌리기는 필수 절이다. Features/Fixes 체크박스와 Bouncer 메타 절은 두지
 // 않는다 — finalize는 Explain·diff·검증 증적만 조합한다.
 const PR_TEMPLATE = `## 관련 이슈
 
@@ -19,16 +19,24 @@ const PR_TEMPLATE = `## 관련 이슈
 
 - <main changes>
 
-## 로직 흐름
+## 변경 그림
 
 \`\`\`mermaid
 flowchart TD
-  A[<node>]
+  A[<변경 전>] --> B[<변경 후>]
 \`\`\`
+
+## 변경 전후
+
+- <before and after; 변경 전 결과 미관측 when not observed>
 
 ## 리뷰 포인트
 
 - <review points>
+
+## 되돌리기 · 영향 범위
+
+- <revert method, unrecoverable effects, affected consumers>
 
 ## 확인 방법
 

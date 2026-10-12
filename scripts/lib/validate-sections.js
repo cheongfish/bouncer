@@ -285,10 +285,14 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel, al
 /**
  * 선택적 round ledger 형식 실패를 모은다. 집계는 문자열·소수가 아니라
  * 정수여야 하고, round 번호는 중복·역순이면 이전 finding 관계를 믿을 수 없다.
+ * execute 계약(`contract.counters`)의 delta round는 perspectives가 2개 이상이면
+ * 거절한다 — review record·G14·G21이 같은 메시지를 공유하도록 여기서만 건다.
  *
  * @param {unknown} rounds - `bouncer.review.rounds` 또는 `bouncer.context_review.rounds`.
  *   undefined면 구문서 호환으로 통과
  * @param {string} findingLabel - 메시지 접두
+ * @param {unknown[]} findings - finding 목록. delta origin 검사에만 쓴다
+ * @param {boolean} modeContract - mode·target·perspective 검사를 켤지
  * @param {RoundContract} contract - execute 또는 context round 계약
  * @returns {string[]} 형식 실패 메시지
  */
@@ -344,6 +348,12 @@ function collectRoundFailures(rounds, findingLabel, findings = [], modeContract 
                     else if (target && item[contract.perspectiveTargetKey] !== target[contract.targetKey]) {
                         messages.push(`${findingLabel} round ${round} target mismatch ${name}`);
                     }
+                }
+                // execute 계약 delta만 reviewer 하나를 강제한다. mode 값만 보면 context
+                // delta(counters:false)도 걸리므로 counters로 구분한다. 이름 검사와
+                // 독립 — 잘못된 이름도 count에 넣어 개수 위반이 가려지지 않게 한다.
+                if (contract.counters && entry.mode === 'delta' && perspectives.length >= 2) {
+                    messages.push(`${findingLabel} round ${round} delta perspectives invalid: ${perspectives.length}`);
                 }
             }
         }

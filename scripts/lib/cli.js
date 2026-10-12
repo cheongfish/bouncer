@@ -10,6 +10,7 @@ const reviewCommand = require("./cli-review-command");
 const dispatchCommand = require("./cli-dispatch-command");
 const commitGuardCommand = require("./cli-commit-guard-command");
 const configCommand = require("./cli-config-command");
+const retroCommand = require("./cli-retro-command");
 // 선언 순서 = 옛 USAGE 나열 순서. 디스패치는 키 조회라 이 순서에 의존하지
 // 않지만, help 문자열이 레지스트리에서 조립되므로 키를 빼먹으면 목록에서
 // 사라지고 usage를 빼먹으면 해당 블록이 비어 테스트가 실패한다.
@@ -51,6 +52,8 @@ const COMMANDS = {
     dispatch: dispatchCommand,
     // 읽기 전용 설정 키 도움말. docs/가 배포물에 없어 init 세션이 소스를 읽던 틈을 메운다.
     config: configCommand,
+    // transcript 후보 탐색(읽기 전용). host별 저장 위치 추측을 명령 한 곳에 모은다.
+    retro: retroCommand,
 };
 const USAGE_HEADER = `usage: bouncer <command> [options]
 

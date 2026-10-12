@@ -18,6 +18,23 @@ exactly one gate: when a step asks two gates, render two displays, each with
 its own heading and its own options, and number them `(1/2)`, `(2/2)` after the
 ID. Write each option on one line as `- X) label`.
 
+**Machine-readable block.** In a chat display (never in the host UI question),
+put one HTML-comment line directly after the heading:
+`<!-- acq {"gate":"<gate-id>","options":["A","B"],"recommended":"A"} -->`.
+`gate` is the catalog ID (without the `(n/m)` number), `options` is the
+letters of the `- X)` lines in display order, and `recommended` is the letter
+of the `(Recommended)` line. The JSON stays on one line and one block holds
+one gate, so each `(1/2)`, `(2/2)` display has its own block. A free-input
+gate with no options (today only `plan.request`) uses `"options":[]` and
+`"recommended":null`:
+
+```markdown
+**AskUserQuestion — plan.request**
+<!-- acq {"gate":"plan.request","options":[],"recommended":null} -->
+```
+
+The catalog of gate IDs lives in `rules/acq-gates.json`.
+
 Put the recommended proceed option first, then revise, then any alternative,
 and cancel/stop last. Mark one clear recommendation with `(Recommended)` and
 give a one- or two-sentence `Recommend-why` ending in `~함` or `~임` when the
@@ -27,6 +44,7 @@ workflow's own consequence needs it:
 
 ```markdown
 **AskUserQuestion — <gate-id>**
+<!-- acq {"gate":"<gate-id>","options":["A","B","C"],"recommended":"A"} -->
 
 1. **Re-ground**: {one line — what is being decided}
 2. **Recommend-why**: {why option 1 is recommended}

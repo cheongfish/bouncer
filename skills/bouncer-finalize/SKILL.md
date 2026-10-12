@@ -63,9 +63,10 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    clean dry-run (or empty staged set), run this **ACQ** before `--yes`:
 
    **AskUserQuestion — finalize.remainder**
+   <!-- acq {"gate":"finalize.remainder","options":["A","C","D"],"recommended":"A"} -->
    1. **Re-ground**: Commit the context-document remainder via
-      `finalize --yes`. Cleanup always force-removes the execute worktree.
-   2. **Recommend-why**: Task commits already finished on `/bouncer-commit`.
+      `finalize --yes`; cleanup force-removes the execute worktree.
+   2. **Recommend-why**: Task commits finished on `/bouncer-commit`.
    3. **Options**:
       - A) `finalize --yes` commit + remove execute worktree (Recommended)
       - C) Fix message/staging and re-check
@@ -96,6 +97,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    resulting `closed` state, `integration` (`complete`, `openTasks`,
    `headVerified`), PR URL or skip/decline, worktree result, pointer result, and
    the next sibling Blueprint or `/bouncer-plan` action.
+   Auto retro: after that output is rendered, only when finalize closed and `release-main` returned `ok:true` (also after the PR was declined or skipped), read `${BOUNCER_ROOT}/skills/bouncer-retro/SKILL.md` and run it in finalize-call mode. Evidence is this conversation only: no transcript search, no file reopen. Print the result in chat under a `retro` header, add no new ACQ, and do not wait for the user. No evidence means `후보 없음` with its reason, not failure. On a retro failure print one line, `retro: 실행하지 못함 — <이유>. finalize 결과는 그대로임`; never alter the rendered output, `closed`, or the pointer.
 
 ## ACQ (AskUserQuestion) gates
 

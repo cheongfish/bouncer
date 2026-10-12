@@ -10,7 +10,7 @@ const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
 
   review-dispatch plan --blueprint <dir> [--previous <file>]
              Classify plan context-review strategy (read-only JSON).
-  review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
+  review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
              Classify execute review strategy from frozen diff (read-only JSON).
              When that blueprint's scale is light, returns single/combined
              regardless of diff size.
@@ -161,7 +161,7 @@ function parsePlanArgs(rest) {
  * execute 하위 명령 인자. frozen base/head가 빠지면 분류를 시작하지 않는다.
  * `--task`는 한 commit task 범위일 때만 필수이고, 생략하면 blueprint 전체
  * numstat·위험 합집합으로 간다 — 최종 리뷰가 task 하나를 강제하면 CLI가
- * 분류기보다 좁아진다.
+ * 분류기보다 좁아진다. `--mode`는 discovery|delta만 받고, 없으면 discovery다.
  *
  * @param {string[]} rest - `execute` 뒤 argv
  * @returns {ParsedExecute} 성공 필드 또는 error
@@ -175,6 +175,7 @@ function parseExecuteArgs(rest) {
         task: null,
         base: null,
         head: null,
+        reviewMode: 'discovery',
     });
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
         return fail('--blueprint is required');
@@ -192,12 +193,20 @@ function parseExecuteArgs(rest) {
     if (f.repo !== undefined && (typeof f.repo !== 'string' || f.repo === '')) {
         return fail('--repo requires a directory');
     }
+    // --mode만 있으면 parseFlags가 boolean true를 준다. 분류기 전에 거절해
+    // require.cache에 review-dispatch가 남지 않게 한다(usage exit 2 계약).
+    if (Object.prototype.hasOwnProperty.call(f, 'mode')) {
+        if (f.mode !== 'discovery' && f.mode !== 'delta') {
+            return fail('--mode must be discovery or delta');
+        }
+    }
     return {
         mode: 'execute',
         blueprint: f.blueprint,
         task: typeof f.task === 'string' ? f.task : null,
         base: f.base,
         head: f.head,
+        reviewMode: f.mode === 'delta' ? 'delta' : 'discovery',
         repo: typeof f.repo === 'string' ? f.repo : undefined,
     };
 }
@@ -253,6 +262,7 @@ function cmdReviewDispatch(rest, io) {
         ...(parsed.task ? { taskId: parsed.task } : {}),
         base: parsed.base,
         head: parsed.head,
+        reviewMode: parsed.reviewMode,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
@@ -261,7 +271,7 @@ module.exports = {
     run: cmdReviewDispatch,
     usage: `  review-dispatch plan --blueprint <dir> [--previous <file>]
              Classify plan context-review strategy (read-only JSON).
-  review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
+  review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
              Classify execute review strategy from frozen diff (read-only JSON).
              When that blueprint's scale is light, returns single/combined
              regardless of diff size.

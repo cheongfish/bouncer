@@ -72,6 +72,12 @@ needs is its worktree, its current brief, the shared bundle identifiers, the
 dispatch metadata above, and the fact that its report goes back to the
 coordinator. Other tasks' briefs, the ledger, and other workers' reports stay out of the payload.
 
+Outside a drive, give the implementer the same `report_path` a coordinator
+dispatch would carry: `.bouncer/runtime/reports/<task>-<attempt>.md`. The
+implementer writes its Output contract there, so a task implemented in an
+earlier execute run still leaves a report whose `Red run` line the reviewer
+slot can use.
+
 ## Implementer fallback
 
 If the TOML is missing, has a mismatch, is user-owned (no generated marker),
@@ -117,7 +123,15 @@ then `security`). Named, generic fallback, and inline paths all walk that same
 the six brief sections, the reviewer's `intent_sections` projection from
 `bouncer intent sections --task <current.task.path> --role reviewer`, the frozen
 target (including the shared bundle identifiers), `strategy`, and `risk_flags`,
-and never another reviewer's findings or the full Explain body. If named agents
+and never another reviewer's findings or the full Explain body. After
+Constraints the slot carries `{{RED_RUN}}`: one `TASKS-NNN: <value>` line per
+commit task in the review scope (one for a task-scope review, every commit task
+in task-number order for a blueprint-scope review), copied from each task's
+latest-attempt report file `.bouncer/runtime/reports/<task>-<attempt>.md`
+(on delta, the fix attempt's latest report), or `TASKS-NNN: 미제공` when none is
+found. On the inline implementation branch the controller that implemented the
+task writes its own line from the red command it ran, in the forms defined in
+`${BOUNCER_ROOT}/references/review/index.md`. If named agents
 are unavailable, dispatch fresh generic subagents in the same `perspectives`
 order, each carrying the entire body of `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` — every
 section from Authority through Output contract, verbatim — plus its filled

@@ -42,8 +42,14 @@ user first. Used from `/bouncer-plan`.
    of record enters existing totals and counts, a default, an ordering, what
    happens at a boundary). Give the options for each. Do not settle an open
    decision by taking the likeliest reading — ask the user, all open decisions
-   in one message, and wait for the answers before Confirmation. Record each
-   answer next to its decision. Do not ask again what the request already
+   in one message that opens with this line before the first question, and wait
+   for the answers before Confirmation:
+
+   ```markdown
+   <!-- acq {"kind":"open_decisions"} -->
+   ```
+
+   Record each answer next to its decision. Do not ask again what the request already
    states. When nothing is open, write `none` and name the evidence.
 10. **Project rules** — From the contribution rules read in Pre-read, list
     each rule this change triggers: files that are generated and how to

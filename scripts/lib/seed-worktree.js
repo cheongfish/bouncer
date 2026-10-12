@@ -17,6 +17,76 @@ const CONFIG_REL = '.bouncer/config.json';
 // "어떤 lockfile로 설치했는지"를 알려주지 못한다. 설치 성공 뒤 lockfile 해시를
 // 이 stamp에 남겨 두 값을 비교한다.
 const LOCK_STAMP_REL = path.join('node_modules', '.bouncer-lock-sha256');
+// git worktree는 ignored 로컬 환경을 가져오지 않는다. Python 가상환경과 `.env`는
+// npm처럼 lockfile로 다시 만들 수 없으므로, main checkout의 것을 symlink로 공유한다.
+const LOCAL_ENV_LINKS = ['.venv', '.env'];
+/**
+ * worktreePath가 속한 저장소의 main checkout 경로를 찾는다.
+ * `git worktree list --porcelain`의 첫 항목이 main worktree다.
+ *
+ * @param {string} worktreePath - 조회 cwd
+ * @returns {string | null} main checkout 절대 경로. git 저장소가 아니면 null
+ */
+function mainCheckoutOf(worktreePath) {
+    try {
+        const out = execFileSync('git', ['worktree', 'list', '--porcelain'], {
+            cwd: worktreePath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+        });
+        const first = out.split('\n').find((line) => line.startsWith('worktree '));
+        return first ? first.slice('worktree '.length) : null;
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * main checkout의 ignored 로컬 환경(LOCAL_ENV_LINKS)을 worktree에 symlink한다.
+ * 상대경로 `.venv/bin/pytest` 같은 검증 명령과 `.env`를 읽는 설정 로딩이
+ * worker·fan-in candidate·integration checkout에서도 main과 같게 돌게 한다.
+ * main에 없거나, worktree에 이미 있거나(깨진 symlink 포함), worktree에서 ignored가
+ * 아닌 경로는 건너뛴다 — 추적 파일을 가리지 않기 위해서다. main checkout 자신이면
+ * 아무것도 하지 않는다. 링크 실패는 흡수한다: 링크는 편의 장치이고, 없으면 검증이
+ * 원래처럼 실패해 원인이 그대로 드러난다.
+ *
+ * @param {string} worktreePath - 링크를 만들 worktree 절대 경로
+ * @returns {string[]} 새로 만든 링크의 저장소 상대 경로
+ */
+function linkLocalEnv(worktreePath) {
+    const main = mainCheckoutOf(worktreePath);
+    if (!main)
+        return [];
+    try {
+        if (fs.realpathSync(main) === fs.realpathSync(worktreePath))
+            return [];
+    }
+    catch {
+        return [];
+    }
+    const linked = [];
+    for (const rel of LOCAL_ENV_LINKS) {
+        const src = path.join(main, rel);
+        const dst = path.join(worktreePath, rel);
+        if (!fs.existsSync(src))
+            continue;
+        try {
+            fs.lstatSync(dst);
+            continue;
+        }
+        catch {
+            // ENOENT면 아직 없는 경로라 링크 대상이다.
+        }
+        try {
+            // check-ignore는 ignored면 0, 아니면 1로 끝난다. 1은 throw로 온다.
+            execFileSync('git', ['check-ignore', '-q', '--', rel], { cwd: worktreePath, stdio: 'ignore' });
+            fs.symlinkSync(src, dst);
+            linked.push(rel);
+        }
+        catch {
+            // ignored가 아니거나 링크를 만들 수 없으면 건너뛴다.
+        }
+    }
+    return linked;
+}
 /**
  * lockfile이 있고 npm marker와 현재 lockfile에 맞는 stamp가 모두 있을 때만 설치를 건너뛰고,
  * 그 밖에는 `npm ci --include=dev`로 의존성을 채운 뒤 lockfile sha256 stamp를 남긴다.
@@ -25,6 +95,7 @@ const LOCK_STAMP_REL = path.join('node_modules', '.bouncer-lock-sha256');
  * marker만으로는 오래된 node_modules를 알아채지 못한다. fan-in candidate와 integration
  * checkout, finalize가 같은 계약을 타게 한다. 설치 성공 뒤 stamp 쓰기가 실패해도
  * 결과는 ok:true다(다음 호출이 stamp 부재로 재설치하므로 안전하다).
+ * lockfile 확인 전에 linkLocalEnv로 main checkout의 `.venv`·`.env`를 먼저 연결한다.
  *
  * @param {string} worktreePath - 설치 cwd. package-lock.json을 이 경로에서 본다
  * @param {SeedDeps} deps - execFileSync 주입. 테스트가 npm 호출을 가로채는 용도
@@ -33,6 +104,7 @@ const LOCK_STAMP_REL = path.join('node_modules', '.bouncer-lock-sha256');
  *   dependency-install-failed이며 이때 stamp는 쓰지 않는다
  */
 function prepareDependencies(worktreePath, deps) {
+    linkLocalEnv(worktreePath);
     const lockFile = path.join(worktreePath, 'package-lock.json');
     if (!fs.existsSync(lockFile))
         return { ok: true };
@@ -471,5 +543,5 @@ function releaseSeedManifest({ repoRoot, blueprintDir, manifest, git }) {
 }
 module.exports = {
     makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker, seedIntegration,
-    releaseSeedManifest, prepareDependencies,
+    releaseSeedManifest, prepareDependencies, linkLocalEnv,
 };

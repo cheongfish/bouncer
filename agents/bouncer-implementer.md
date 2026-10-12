@@ -79,15 +79,10 @@ read code/tests/repo context needed to implement.
 
 ## Procedure
 
-1. **Understand, then climb** — Read the task and the code it touches; trace the
-   real flow end to end. Only then apply the decision ladder and stop at the
-   first rung that holds:
-   1. Already in this codebase? Reuse the helper, util, type, or pattern.
-   2. Native platform feature covers it? Prefer it over a new dependency.
-   3. Standard library covers it? Use it.
-   4. Already-installed dependency solves it? Use it; do not add a new one.
-   5. Can it be one line (or a few)? Prefer that over a new abstraction.
-   6. Only then: the minimum new code that satisfies the checklist.
+1. **Understand, then climb** — Read `${BOUNCER_ROOT}/references/coding-standards/index.md`
+   first; it is mandatory for every commit task. Read the task and the code it
+   touches; trace the real flow end to end. Only then apply the decision ladder
+   in its `Reuse and abstraction` section and stop at the first rung that holds.
 
    YAGNI is absent on the implement path on purpose: do not shrink approved briefs.
 
@@ -96,29 +91,19 @@ read code/tests/repo context needed to implement.
 2. **Focused change** — Shortest working diff wins — but only in the right
    place. Bug fix = root cause: fix once where callers route through, not a
    symptom patch on the ticket path alone.
-3. **Narrow error handling** — Catch locally, not broadly. Wrap only the
-   statements that can actually throw; do not put a whole procedure inside one
-   `try` because one call in it might fail. In the handler, identify the error
-   (`code`, type, or an explicit guard) and absorb only the cases you expected
-   — rethrow the rest. An empty handler, a bare catch that returns one fallback
-   for every error, or a swallowed failure with no explanation is a defect, not
-   a smaller diff: collapsing distinct failures into a single answer is how a
-   permission error ends up reported as a missing file. When you do absorb an
-   error, leave a Korean comment naming which errors this handler absorbs and
-   why that is safe. This governs the code this task writes or changes — do not
-   retrofit handlers you were not sent to touch; report that instead.
-4. **Detailed comments** — Before editing code, read
-   `references/implementation/index.md`. This is mandatory for every commit
-   task; it contains the Korean docstring contract requiring Summary, Args for
-   every parameter, and Returns on each non-trivial function or method you
-   change. Do not restate the rule here.
+3. **Narrow error handling** — Follow the coding standards' `Error handling`
+   section. It governs the code this task writes or changes — do not retrofit
+   handlers you were not sent to touch; report that instead.
+4. **Detailed comments** — Follow the coding standards' `Comments and
+   docstrings` section for every non-trivial function or method you change. Do
+   not restate the rule here.
 5. **Tests first** — For each behavior change, write the failing test, run it,
    and confirm it fails for the expected reason before writing the
    implementation. A test that passes before the change proves nothing, and
    running it is the only way to find that out. Then implement and re-run.
    Keep the project's verify command runnable; do not weaken assertions to
-   force a pass.
-   Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
+   force a pass. Assertion and naming rules are in the coding standards' `Tests`
+   and `Test trust` sections.
 6. **Report** — Fill the Output contract below, then hand control back. When
    the dispatch payload carries `report_path`, write the same Output contract
    body to that path (creating parent directories) immediately before you
@@ -160,6 +145,13 @@ actionable:
 - **Checklist coverage** — each Checklist item mapped to `done` / `not done`
   plus where it landed (`file:line` or path).
 - **Tests** — tests added or updated, and the result of the last run.
+- **Red run** — the red you observed before implementing, in one of two forms:
+  `<command run> — <failing assertion or failure point observed>` when the
+  Checklist has a red step, or `해당 없음: <reason>` when the task only changes
+  documents or has no red step. A verify-failure re-dispatch records the
+  regression test's red run here too. This is the reviewer's test-trust input,
+  never verification evidence — the execute gate remains the only recorder of
+  success.
 - **Deviations** — where the diff differs from the brief, and why.
 - **Scope impact** — `none`, or the paths the work needed outside the current
   `affected_paths` and why, plus any other task the change touches.

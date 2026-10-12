@@ -88,12 +88,13 @@ workflow only supplies the current task's scope and its post-commit handoff.
    run this **ACQ**:
 
    **AskUserQuestion — commit.next_task**
-   1. **Re-ground**: Whether to move the pointer to the next open task on this blueprint.
-   2. **Recommend-why**: Another commit unit remains in the same PR, so continuing keeps the flow short.
+   <!-- acq {"gate":"commit.next_task","options":["A","B","C"],"recommended":"A"} -->
+   1. **Re-ground**: Move the pointer to the next open task on this blueprint?
+   2. **Recommend-why**: Another commit unit remains in this PR, so continuing is shorter.
    3. **Options**:
       - A) `bouncer current --set <blueprint> --task <NNN>` (Recommended)
       - B) Report the pointer only — do not `--set`
-      - C) Proceed to `/bouncer-finalize` (recommended when `nextTask` is `null`)
+      - C) Proceed to `/bouncer-finalize` (recommended if `nextTask` is `null`)
 
    On **A**, run that `--set` and point at `/bouncer-execute`. On **B** or
    **C**, leave the pointer as it is and say so.

@@ -233,17 +233,22 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
  * `combined`다 — light run의 단일 reviewer 계약이 임계값에 갈리지 않게 하기
  * 위함이다. `taskId`가 없으면 같은 numstat을 blueprint 전체로 보고, commit
  * task의 `review_risk` 합집합을 쓴다 — 최종 리뷰가 한 task 문서에 묶이면
- * 빠진 위험을 보안 관점에서 닫아버리기 때문이다.
+ * 빠진 위험을 보안 관점에서 닫아버리기 때문이다. `reviewMode: 'delta'`면
+ * discovery가 parallel이어도 reviewer를 `combined` 하나로 접는다 — repair 뒤
+ * 같은 관점 목록을 다시 열면 토큰이 중복되기 때문이다.
  *
  * @param {{
  *   repoRoot: string, blueprintDir: string, taskId?: string,
- *   base: string, head: string, exec?: ExecFileSyncFn
+ *   base: string, head: string, reviewMode?: 'discovery' | 'delta',
+ *   exec?: ExecFileSyncFn
  * }} opts - repoRoot는 저장소 루트, blueprintDir는 canonical blueprint 상대 경로,
- *   taskId는 선택적 commit task 번호, base/head는 frozen git ref, exec는 git 호출기
+ *   taskId는 선택적 commit task 번호, base/head는 frozen git ref,
+ *   reviewMode는 discovery(기본)|delta, exec는 git 호출기
  * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험, 실패 시 ok:false.
  *   blueprint 범위 성공의 `target.task`는 null. S30 위반이면 perspectives 없음.
+ *   delta 성공은 항상 `single`/`['combined']`이고 reasons에 한 줄이 더 있다.
  */
-function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exec = realExecFileSync, }) {
+function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, reviewMode = 'discovery', exec = realExecFileSync, }) {
     // 1. Plan과 같은 S10 경계: isCanonicalBlueprintDir을 거치지 않으면
     //    `../`·절대경로가 path.join으로 repo 밖 tasks.md를 읽어 review_risk로
     //    security 관점을 열 수 있다. 전체 validateBlueprint는 다른 task의
@@ -357,6 +362,22 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exe
     }
     else {
         reasons.push('review_risk empty — no security reviewer');
+    }
+    // delta는 risk_flags·diff 통계를 discovery와 같게 두고 reviewer만 combined로
+    // 접는다. security를 다시 붙이면 repair 뒤 토큰 절감 목적이 무너진다.
+    if (reviewMode === 'delta') {
+        reasons.push('delta review — single combined reviewer after discovery');
+        return {
+            ok: true,
+            phase: 'execute',
+            target: { base: resolvedBase, head: resolvedHead, task: targetTask },
+            strategy: 'single',
+            changed_files: stats.changed_files,
+            changed_lines: stats.changed_lines,
+            risk_flags: risk.flags,
+            perspectives: ['combined'],
+            reasons,
+        };
     }
     return {
         ok: true,

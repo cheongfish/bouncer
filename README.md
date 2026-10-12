@@ -50,6 +50,7 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 /bouncer-commit    # 스코프 · task 커밋 · 다음 task
 /bouncer-run       # execute→commit 반복 주행 (task 소진까지)
 /bouncer-finalize  # explain+퀴즈 · remainder · draft PR
+/bouncer-retro     # 세션 근거 개선 후보 제안 (채팅 전용)
 ```
 
 ## When to use

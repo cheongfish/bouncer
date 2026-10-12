@@ -55,8 +55,9 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             same frozen target, brief hash / bundle identifiers,
             intent_sections from
             `bouncer intent sections --task <current.task.path> --role reviewer`,
-            and latest verify — never another reviewer's
-            findings. In blueprint review mode the payload also carries every
+            latest verify, and the `Red run` lines (one `TASKS-NNN: <value>`
+            per task in scope, from each task's latest-attempt report; see
+            agent-dispatch) — never another reviewer's findings. In blueprint review mode the payload also carries every
             commit task brief and the blueprint Contract.
 3 aggregate Verify evidence, merge duplicate fingerprints, record
             severity_changes and origin, then decide must_fix or advisory from
@@ -83,7 +84,8 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 5 verify    Re-run latest verify (standalone) or the terminal verification
             (coordinator final review).
 6 certify   Dispatch one delta reviewer with previous findings, resolution,
-            and revision-origin evidence — never a discovery perspective and never a
+            revision-origin evidence, and the `Red run` lines (the fix
+            attempt's latest report value per task) — never a discovery perspective and never a
             second strategy-shaped fan-out. Delta keeps the frozen base and
             pins head to HEAD after the fix (standalone) or the post-repair
             integration HEAD (drive). Standalone blueprint-mode delta reviews

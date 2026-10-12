@@ -323,6 +323,26 @@ function bouncerStatus(root, rel) {
     return block ? block.status : undefined;
 }
 /**
+ * root `review.md`에 discovery round가 기록돼 있는지 읽는다. 문서 부재·frontmatter
+ * 없음·깨진 YAML·`rounds`가 배열이 아니면 없음으로 본다 — 판독 불가를 예외로
+ * 올리면 final_review 분기가 막히고, 있음으로 꾸미면 delta를 잘못 연다.
+ *
+ * @param {string} integrationPath - integration worktree
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {boolean} `bouncer.review.rounds[]`에 `mode: discovery`가 있으면 true
+ */
+function rootReviewHasDiscoveryRound(integrationPath, blueprint) {
+    const block = readBouncerBlock(path.join(integrationPath, blueprint, 'review.md'));
+    if (!block)
+        return false;
+    const review = block.review;
+    if (!review || typeof review !== 'object')
+        return false;
+    const rounds = review.rounds;
+    return Array.isArray(rounds)
+        && rounds.some((round) => round?.mode === 'discovery');
+}
+/**
  * checkpoint.ledger를 붙이고 blocked면 힌트를 채운다.
  *
  * @param {Built} body - action 판정
@@ -505,12 +525,17 @@ function blueprintNext(ctx) {
                     payload: { paths: supplement.paths || [], findings: supplement.findings || [] },
                 });
             }
+            // discovery round가 이미 있거나 verified supplement면 repair/재개 뒤다.
+            // argv에 --mode delta를 붙여 한 combined reviewer만 연다.
+            const deltaReview = rootReviewHasDiscoveryRound(integrationCwd, blueprint)
+                || Boolean(supplement && supplement.outcome === 'verified');
             return ok({
                 scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
-                ...(supplement && supplement.outcome === 'verified' ? { payload: { mode: 'delta' } } : {}),
+                ...(deltaReview ? { payload: { mode: 'delta' } } : {}),
                 argv: [
                     'bouncer', 'review-dispatch', 'execute', '--blueprint', blueprint,
                     '--base', base, '--head', head,
+                    ...(deltaReview ? ['--mode', 'delta'] : []),
                 ],
                 judge: { kind: 'review-round', fields: [] },
             });

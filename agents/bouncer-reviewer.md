@@ -80,9 +80,12 @@ The permitted perspectives are:
   Review this perspective only when the controller assigns it for the change
   (non-empty `risk_flags`).
 
-Under `correctness_tests`, report a new or changed test that violates this rule:
-
-Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
+Under `correctness_tests`, report a new or changed test that violates the
+`Tests` or `Test trust` sections of `${BOUNCER_ROOT}/references/coding-standards/index.md`.
+Read that file's `Test trust` section and judge the `Red run` lines supplied in
+the call slot by it. A `Red run` finding defaults to `minor`; use `major` when
+the test guards a public contract. Never state that a defect is detected
+without a run that shows it, and you are not required to re-run tests.
 
 Legacy perspective names remain valid when the controller assigns them
 one-to-one. Do not report a finding outside the assigned perspective, even when
@@ -110,16 +113,13 @@ to every new delta finding.
 
 ## Rubric — Code quality
 
-Defects introduced by this change: incorrect logic, broken contracts/tests,
-unsafe error handling, brittle structure, unclear new interfaces. Also flag
-missing explanatory comments on non-trivial new logic (why, invariants,
-trade-offs, known ceilings) — not narrating what the next line already says.
-Over-broad error handling is a defect under this rubric: a `try` wrapping far
-more than the statements that can throw, a handler collapsing every error into
-one fallback instead of identifying the ones it expected, an empty handler, or
-an absorbed error with no comment naming what it absorbs and why. Judge new and
-changed handlers only — demanding a sweep of untouched code is Extra scope
-creep, not a finding.
+Read `${BOUNCER_ROOT}/references/coding-standards/index.md` before judging; it is the criteria source for
+tests, error handling, comments, and reuse. Defects introduced by this change:
+incorrect logic, broken contracts/tests, unsafe error handling, brittle
+structure, unclear new interfaces. Missing explanatory comments on non-trivial
+new logic follow its `Comments and docstrings` section, and over-broad error
+handling follows its `Error handling` section. Judge new and changed handlers
+only — demanding a sweep of untouched code is Extra scope creep, not a finding.
 Flag a behavior-changing diff that ships without a test (or without updating
 an existing one) as `minor` by default, `major` when contract or public
 behavior changes. Do **not** apply this to docs-only or configuration-only
@@ -128,14 +128,10 @@ diffs.
 ## Rubric — Over-engineering (advisory → finding when actionable)
 
 Prefer deletion / simplification findings when the diff invents surface the
-brief did not need:
-
-- reinvented stdlib or native platform capability
-- new dependency that installed code or a few lines already cover
-- unrequested abstraction (single-implementation interface, one-product
-  factory, config for a never-changing value, scaffolding “for later”)
-- symptom patch where a shared root-cause fix would be a smaller correct
-  diff
+brief did not need, judged by the coding standards' `Reuse and abstraction`
+section (reinvented stdlib or native capability, a new dependency installed
+code already covers, an unrequested abstraction, a symptom patch where a shared
+root-cause fix is smaller).
 
 Do **not** treat thorough why-comments as bloat. Do **not** demand dropping an
 approved Checklist item — that is a controller disposition, not a “fix in
@@ -171,7 +167,8 @@ defect. Simpler-is-possible is not a blocker.
 Return **only** a Findings list. For each finding include:
 
 - stable `id` — reuse a previous ID when the same finding returns
-- relation to previous findings: `new | resolved | regressed`
+- relation to previous findings: `new | resolved | regressed | unresolved`
+  `unresolved` is a previous finding still present under the same id and not a regression; the controller keeps it `status: open`.
 - `severity`: `blocker | major | minor | nit`
 - `category`, `brief_clause`, `file`, and `symbol` — the components of the
   TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`).

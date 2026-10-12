@@ -44,6 +44,11 @@ reviewer. This is a read-only pass: do not modify files, commit, or change
 - `{{CONSTRAINTS}}` — each supplied brief `## Constraints` list verbatim, plus Do
   not touch paths, `affected_paths`, and repo norms. Paste the rules; do not
   summarize them, or the reviewer cannot tell a breach from a judgement call.
+- `{{RED_RUN}}` — one `TASKS-NNN: <Red run value>` line per commit task in
+  the review scope (task scope: one line; blueprint scope: every commit task
+  in task-number order), copied from that task's latest-attempt report
+  (`.bouncer/runtime/reports/<task>-<attempt>.md`) or, on an inline path, from
+  the controller's own red run; `TASKS-NNN: 미제공` when no report is found
 - `{{PREVIOUS_FINDINGS}}` — delta only: stable IDs and fields from earlier
   rounds
 - `{{RESOLUTION}}` — delta only: how each previous finding was resolved
@@ -85,6 +90,13 @@ a different bundle revision into this round.
 ### Constraints
 {{CONSTRAINTS}}
 
+### Red run
+{{RED_RUN}}
+
+Judge these lines under `correctness_tests` by the `Test trust` section of
+`${BOUNCER_ROOT}/references/coding-standards/index.md`. Do not assert that a
+test detects a defect without a run that shows it, and do not re-run tests.
+
 ### Discovery rules
 
 When mode is `discovery`, inspect the frozen target only through the assigned
@@ -107,9 +119,8 @@ perspective.
   Use only when the controller assigned this perspective (non-empty
   `risk_flags`).
 
-Under `correctness_tests`, report a new or changed test that violates this rule:
-
-Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
+Under `correctness_tests`, report a new or changed test that violates the
+`Tests` or `Test trust` sections of `${BOUNCER_ROOT}/references/coding-standards/index.md`.
 
 ### Delta rules
 
@@ -139,14 +150,16 @@ unchanged code. A new finding must be either:
 
 Return **only** a Findings list. For each finding include:
 
-- stable `id` and relation: `new | resolved | regressed`
+- stable `id` and relation: `new | resolved | regressed | unresolved`
+  `unresolved` is a previous finding still present under the same id and not a regression; the controller keeps it `status: open`.
 - `severity`: `blocker | major | minor | nit`
 - `category`, `brief_clause`, `file`, `symbol`, and their TASKS-001 fingerprint
   form: `<category>:<brief_clause>:<file>#<symbol>`
 - summary and evidence (`file:line` or concrete diff reference)
 - `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; for a
   new delta finding, include its revision-diff location or false-acceptance path
-- actionability hint: `must_fix | advisory` (`advisory` only)
+- actionability hint: `must_fix | advisory` (`advisory` only for a finding the
+  controller may accept with a note)
 
 Add one **Scope/task impact** line — `none`, or the paths and tasks the
 findings reach beyond the current `affected_paths`. Do **not** set review
