@@ -112,7 +112,8 @@ const ENTRY_WORD_BASELINE = {
   'bouncer-commit': 943,
   // 090-002 repair: step 4 early-handback 복구 표·규칙이 더한 +199 단어만 반영한다.
   'bouncer-run': 1357,
-  'bouncer-finalize': 1002,
+  // 095-004: 자동 retro 문단 +96 단어
+  'bouncer-finalize': 1098,
   // 095-004: retro 스킬 실제 단어 수 + 1. 기존 합계 판정이 새 스킬 때문에 흔들리지 않게 한다.
   'bouncer-retro': 473,
 };
