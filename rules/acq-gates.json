@@ -6,6 +6,7 @@
     "bouncer-execute": [],
     "bouncer-commit": ["commit.next_task"],
     "bouncer-run": ["run.start_drive"],
-    "bouncer-finalize": ["finalize.remainder", "finalize.pr"]
+    "bouncer-finalize": ["finalize.remainder", "finalize.pr"],
+    "bouncer-retro": []
   }
 }

@@ -9,7 +9,7 @@ const { GENERIC_SKILLS } = require('./helpers/read-skill');
 const root = path.join(__dirname, '..');
 const WORKFLOW = [
   'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize',
-  'bouncer-run',
+  'bouncer-run', 'bouncer-retro',
 ];
 // Subskills live at references/<name>/index.md (not the host skills/ catalog).
 const SUB_PATHS = [
@@ -24,8 +24,8 @@ const UNPUBLISHED = [
 ];
 const UNPUBLISHED_SET = new Set(UNPUBLISHED);
 
-// 호스트 카탈로그는 워크플로 여섯뿐이다. 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
-const EXPECTED_SKILL_COUNT = 6;
+// 호스트 카탈로그는 워크플로 일곱뿐이다(095-004에서 bouncer-retro 추가). 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
+const EXPECTED_SKILL_COUNT = 7;
 const MIN_DESCRIPTION_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 180;
 const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
@@ -113,6 +113,8 @@ const ENTRY_WORD_BASELINE = {
   // 090-002 repair: step 4 early-handback 복구 표·규칙이 더한 +199 단어만 반영한다.
   'bouncer-run': 1357,
   'bouncer-finalize': 1002,
+  // 095-004: retro 스킬 실제 단어 수 + 1. 기존 합계 판정이 새 스킬 때문에 흔들리지 않게 한다.
+  'bouncer-retro': 473,
 };
 
 test('entry-skill word count → stays below the BP001 baseline', () => {
@@ -151,6 +153,7 @@ const ENTRY_STEP_COUNTS = {
   'bouncer-commit': 5,
   'bouncer-run': 5,
   'bouncer-finalize': 5,
+  'bouncer-retro': 5,
 };
 
 test('entry skills → keep the locked numbered-step counts', () => {
@@ -206,6 +209,7 @@ const CONDITIONAL_HELPERS = {
   },
   'bouncer-commit': { root: [], local: [] },
   'bouncer-run': { root: [], local: [] },
+  'bouncer-retro': { root: [], local: [] },
   'bouncer-finalize': {
     root: [],
     local: ['distill-promotion.md', 'explain-quiz.md', 'draft-pr.md', 'cleanup-handoff.md', 'remainder.md'],
@@ -278,6 +282,7 @@ const SKILL_LOCAL_REFS = {
     'cleanup-handoff.md',
   ],
   'bouncer-run': ['light-run.md'],
+  'bouncer-retro': [],
 };
 
 test('workflow skills → classify references as root or skill-local without bare collision', () => {

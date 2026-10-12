@@ -45,7 +45,7 @@ test('카탈로그 workflows 키 → ACQ 절을 가진 skills/*/SKILL.md의 skil
   });
   const keys = Object.keys(CATALOG);
   assert.deepEqual([...keys].sort(), withIndex.sort());
-  assert.deepEqual(keys, ['bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-run', 'bouncer-finalize']);
+  assert.deepEqual(keys, ['bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-run', 'bouncer-finalize', 'bouncer-retro']);
 });
 
 const POLICY_NAMES = ['fastify-001'];
