@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { isDeepStrictEqual } = require('node:util');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 
 import validateMod = require('./validate');
@@ -18,6 +19,9 @@ import paths = require('./paths');
 const { toPosix } = paths;
 import layout = require('./layout');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
+import guards = require('./guards');
+import contextReviewState = require('./context-review-state');
+const { isRecord } = guards;
 import schema = require('./schema');
 const { executionKindOf } = schema;
 
@@ -91,6 +95,8 @@ type DispatchFail = {
   ok: false;
   error?: string;
   reason?: string;
+  cause?: string;
+  next?: string;
   failures?: Array<{ code: string; message: string; file: string }>;
 };
 
@@ -161,22 +167,132 @@ function decidePlanFollowUp({
   return { follow_up: 'partial', changed_documents };
 }
 
+type PreviousFail = { ok: false; reason: string; cause: string; next: string };
+
+function previousFail(reason: string, cause: string, next: string): PreviousFail {
+  return { ok: false, reason, cause, next };
+}
+
+/**
+ * 후속 리뷰가 기대하는 previous의 정상 payload 모양을 검사한다. review-dispatch plan이
+ * 내는 single/clustered 성공 결과만 통과하며, 일부 필드만 골라 만든 축소본은 거절한다.
+ *
+ * @param {unknown} previous - --previous로 받은 JSON
+ * @param {string} bp - 현재 blueprint 상대 POSIX 경로
+ * @returns {PreviousFail | null} 형식 위반이면 invalid 실패, 정상이면 null
+ */
+function checkPreviousShape(previous: unknown, bp: string): PreviousFail | null {
+  const next = 'pass the unmodified JSON that review-dispatch plan printed for this blueprint';
+  const bad = (cause: string) => previousFail('previous-payload-invalid', cause, next);
+  if (!isRecord(previous) || previous.ok !== true || previous.phase !== 'plan') {
+    return bad('previous is not a successful plan payload');
+  }
+  if (previous.strategy !== 'single' && previous.strategy !== 'clustered') {
+    return bad('previous strategy must be single or clustered');
+  }
+  const target = previous.target;
+  if (!isRecord(target) || typeof target.digest !== 'string' || !Array.isArray(target.documents)) {
+    return bad('previous target must carry digest and documents');
+  }
+  for (const key of ['parts', 'scope_parts'] as const) {
+    const map = previous[key];
+    if (!isRecord(map) || Array.isArray(map)) return bad(`previous ${key} must be an object`);
+  }
+  // 다른 blueprint의 payload를 이 blueprint의 이전 상태로 쓰지 못하게 한다.
+  // payload에 blueprint가 없으면 문서 목록이 이 blueprint index를 품고 있어야 한다.
+  if (previous.blueprint !== undefined && previous.blueprint !== bp) {
+    return bad('previous belongs to another blueprint');
+  }
+  if (!target.documents.includes(`${bp}/index.md`)) {
+    return bad('previous documents do not include this blueprint');
+  }
+  return null;
+}
+
+/**
+ * previous를 이 blueprint의 저장된 리뷰 증거와 대조한다. 읽기 전용이다.
+ * cycle state(.bouncer/runtime/context-review/<bp>/state.json)가 있으면 latest_dispatch
+ * 참조 파일과 payload가 같아야 하고, state 없이 context-review.md에 기존 증거만 있으면
+ * 마지막 round의 digest와 previous digest가 같아야 한다. 증거가 전혀 없을 때만 previous는
+ * 선택이다. 읽기 실패를 "증거 없음"으로 접으면 반복 초기화 경로가 열리므로, ENOENT만
+ * 없음으로 흡수하고 나머지는 invalid로 돌린다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} bp - blueprint 상대 POSIX 경로
+ * @param {unknown} previous - --previous로 받은 JSON(없으면 undefined)
+ * @returns {PreviousFail | null} 거절 사유, 통과하면 null
+ */
+function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): PreviousFail | null {
+  const recover = 'restore the stored payload from the cycle (latest_dispatch) and pass it as --previous';
+
+  // 1. cycle state와 latest_dispatch 저장본은 context-review-state의 읽기 전용 helper로 읽는다.
+  //    쓰기 쪽과 같은 검증을 공유해 경로·id 규칙이 두 곳에서 어긋나지 않게 한다.
+  const stored = contextReviewState.readStoredLatest(repoRoot, bp);
+  if (!stored.ok) {
+    return previousFail('previous-payload-invalid', `cycle state invalid: ${stored.cause}`, recover);
+  }
+
+  // 2. state가 없으면 context-review.md의 증거(rounds/findings/restart_count 표식)를 본다.
+  //    표식은 restart가 남기는 값이라 runtime state가 지워져도 증거로 남는다.
+  let legacyDigest: string | null = null;
+  let hasEvidence = stored.state !== null;
+  if (stored.state === null) {
+    const legacy = contextReviewState.readLegacyEvidence(repoRoot, bp);
+    if (!legacy.ok) {
+      // 파싱 실패 문서를 "증거 없음"으로 보면 후속 리뷰가 최초처럼 전체 재리뷰된다.
+      return previousFail('previous-payload-invalid',
+        `context-review.md unreadable: ${legacy.cause}`,
+        'fix the context-review.md frontmatter, then retry');
+    }
+    hasEvidence = legacy.present || legacy.marker >= 1;
+    legacyDigest = legacy.digest;
+  }
+
+  if (!hasEvidence) return null;
+  if (previous === undefined) {
+    return previousFail('previous-payload-required',
+      'this blueprint already has review evidence, so a follow-up needs the recorded previous payload', recover);
+  }
+  const shape = checkPreviousShape(previous, bp);
+  if (shape) return shape;
+
+  // 3a. legacy: 마지막 round가 인증한 digest와 previous digest가 같아야 한다.
+  if (stored.state === null) {
+    const digest = (previous as { target: { digest: string } }).target.digest;
+    if (legacyDigest !== null && legacyDigest !== digest) {
+      return previousFail('previous-payload-stale',
+        `previous digest ${digest} != last recorded round digest ${legacyDigest}`, recover);
+    }
+    return null;
+  }
+
+  // 3b. cycle: latest_dispatch 저장본(sha256 확인됨)과 payload가 같아야 한다.
+  if (!isDeepStrictEqual(stored.payload, previous)) {
+    return previousFail('previous-payload-stale',
+      'previous differs from the cycle latest_dispatch', recover);
+  }
+  return null;
+}
+
 /**
  * Plan 리뷰 전략을 문서의 구조 신호만으로 분류한다.
  * reviewer 호출 전에 structural 검사와 plan draft 검사(G5·G10–G12·G19·G20)를
  * 통과해야 한다 — gate가 나중에 거절할 문서로 context review snapshot을 얼리지 않기 위해서다.
  * working tree와 review 문서는 쓰지 않으며, 실패 시 perspectives를 만들지 않는다.
- * `previous`가 있으면 문서별 digest로 follow_up을 판정한다.
+ * `previous`가 있으면 문서별 digest로 follow_up을 판정한다. 저장된 리뷰 증거가 있는
+ * blueprint는 previous가 필수이며 cycle latest_dispatch와 일치해야 한다.
  *
  * @param {{ repoRoot: string, blueprintDir: string, previous?: unknown }} opts
  *   - repoRoot: 저장소 루트
  *   - blueprintDir: blueprint 상대 경로
- *   - previous: 이전 plan payload(없으면 follow_up=full). parts 없으면 거절
+ *   - previous: 이전 plan payload. 증거 없는 최초 분류에서만 생략 가능(follow_up=full)
  * @returns {PlanDispatchResult} 성공 시 strategy·cluster·근거와(single/clustered면)
  *   parts·scope_parts·follow_up. 실패 시 ok:false —
  *   S 코드가 있으면 'structural validation failed', draft 검사 실패면
  *   'plan draft validation failed'(failures는 plan gate와 같은 항목),
- *   previous 형식이 깨지면 reason 'previous-payload-invalid'
+ *   previous 누락은 'previous-payload-required', 형식·blueprint 불일치는
+ *   'previous-payload-invalid', 저장 최신 payload와 다르면 'previous-payload-stale'
+ *   (모두 cause·next 포함)
  */
 function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
   repoRoot: string;
@@ -231,26 +347,18 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
 
   // previous는 light skip 전에 검사하지 않는다 — skip 응답에 follow_up 자체가
   // 없으므로 깨진 previous로 skip 경로를 막지 않는다. single/clustered만 본다.
+  // 저장된 리뷰 증거가 있으면 previous가 필수이고 latest_dispatch와 같아야 한다:
+  // 누락을 최초(full)로 해석하면 후속 리뷰가 전체 리뷰로 되돌아 반복 한도가 무력해진다.
+  const bound = checkPreviousBinding(repoRoot, bp, previous);
+  if (bound) return bound;
   let previousParts: Record<string, string> | null = null;
   let previousScope: Record<string, string> = {};
   if (previous !== undefined) {
-    // parts 없는 JSON·비객체는 부분 판정 입력이 아니다. error가 아니라 reason으로
-    // 돌려 CLI·controller가 기존 structural 실패와 구분하게 한다.
-    if (previous === null || typeof previous !== 'object'
-      || Array.isArray(previous)
-      || typeof (previous as { parts?: unknown }).parts !== 'object'
-      || (previous as { parts?: unknown }).parts === null
-      || Array.isArray((previous as { parts?: unknown }).parts)) {
-      return { ok: false, reason: 'previous-payload-invalid' };
-    }
+    // 증거 없는 최초 상태에서 준 previous도 같은 엄격한 모양이어야 한다.
+    const shape = checkPreviousShape(previous, bp);
+    if (shape) return shape;
     previousParts = (previous as { parts: Record<string, string> }).parts;
-    const rawScope = (previous as { scope_parts?: unknown }).scope_parts;
-    if (rawScope !== undefined) {
-      if (rawScope === null || typeof rawScope !== 'object' || Array.isArray(rawScope)) {
-        return { ok: false, reason: 'previous-payload-invalid' };
-      }
-      previousScope = rawScope as Record<string, string>;
-    }
+    previousScope = (previous as { scope_parts: Record<string, string> }).scope_parts;
   }
 
   const partSnap = computePlanParts({ repoRoot, blueprintDir: bp });

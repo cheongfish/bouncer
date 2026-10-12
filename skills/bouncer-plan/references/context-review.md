@@ -7,15 +7,25 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
 
 1. **Freeze the snapshot** — After `affected_paths` confirmation, stop editing
    the documents under judgment. Run `bouncer review-dispatch plan --blueprint
-   <dir>` and record its `target.digest` as the frozen snapshot digest; never
-   compute it by hand. The record format (rounds, findings, enums) is printed
-   by `bouncer review-dispatch --help`.
-2. **Discovery** — Run `bouncer review-dispatch plan --blueprint <dir>` on the
-   frozen blueprint. That CLI result is the only dispatch authority: do not
+   <dir>` once and save its JSON to a file (the retained payload); its
+   `target.digest` is the frozen snapshot digest — never compute it by hand.
+   This first call is allowed without `--previous` only while the blueprint
+   has no review evidence. The record format (rounds, findings, enums) is
+   printed by `bouncer review-dispatch --help`.
+2. **Discovery** — Use the retained payload from step 1 as the dispatch; do
+   not classify a second time. Then run `bouncer context-review start
+   --blueprint <dir> --dispatch <payload.json>` before any reviewer call (a
+   repeated start returns the same cycle and resets nothing). That CLI result
+   is the only dispatch authority: do not
    merge, split, combine, or divide its clusters, and do not add an extra
    perspective to a `single` result. When the payload is `ok: false`, or when
    its `target.digest` / document set disagrees with the frozen snapshot,
-   stop — do not call a reviewer and do not mark `context-review` accepted.
+   or `start` is rejected, stop — do not call a reviewer and do not mark
+   `context-review` accepted. A `previous-payload-required`,
+   `previous-payload-invalid`, or `previous-payload-stale` rejection means the
+   input is unreliable, not that the blueprint is new: recover the stored
+   `latest_dispatch` payload and pass it as `--previous`; show the user the
+   reason, cause, and next, and stop on a repeated failure.
    On `plan draft validation failed`, show the `failures` to the user and
    return to `/bouncer-plan` step 3 **Author**; after the fix, restart from
    step 1 freeze.
@@ -49,7 +59,9 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    exists, skip the revision and the delta; the round sequence stays
    `discovery`.
 5. **Certify the delta** — After the revision, rerun `bouncer review-dispatch
-   plan --blueprint <dir> [--previous <prior-payload.json>]` and copy the new
+   plan --blueprint <dir> --previous <stored-latest-payload.json>` (the
+   payload the last `start`/`record`/`restart` stored; `--previous` is
+   required once the cycle exists) and copy the new
    `target.digest`. When `follow_up` is `partial`, dispatch one
    `bouncer-context-reviewer` call in mode `delta` with `fork_turns: "none"`
    (exclude full conversation history) and only this controller input
@@ -57,8 +69,11 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    actual modified document list from the revision — revised documents only,
    never the full ledger or documents out of judgment), and the read-only
    cwd — not another discovery pass and not a second strategy-shaped fan-out.
-   When `follow_up` is `full`, do not run delta; restart from step 1
-   discovery on the current digest instead. Delta runs once regardless of
+   When `follow_up` is `full`, do not run delta; use `bouncer context-review
+   restart --blueprint <dir> --dispatch <new-payload.json> --reason <text>`
+   (counted once per cycle, archives the earlier rounds and findings) and run
+   discovery on the current digest instead. A second restart is rejected:
+   stop and report the rejection to the user. Delta runs once regardless of
    `single` or `clustered` and of cluster count. Record round 2 as
    `mode: delta` with the new digest. Accept a new delta finding only when it
    is `introduced_by_revision` with a revised passage as evidence, or
@@ -71,10 +86,12 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    accepted-risk note may record it `accepted`.
 
 When the plan gate reports `context review is stale`, rerun
-`bouncer review-dispatch plan --blueprint <dir> --previous <prior-payload.json>`
+`bouncer review-dispatch plan --blueprint <dir> --previous <stored-latest-payload.json>`
 and branch on `follow_up`. On `full`, the recovery is not a third round:
-replace `rounds[]` and `findings[]` with a new round 1 discovery on the
-current digest (restart from step 1), then re-approve. On `partial`, keep the
+run `bouncer context-review restart` (at most once per cycle; it archives the
+earlier rounds and findings instead of replacing them) and a new round 1
+discovery on the current digest, then re-approve the plan changed by the
+stale recovery (step 6). On `partial`, keep the
 existing discovery round and run one delta with the usual allowlist (new
 digest, previous findings, `changed_documents`, read-only cwd) — do not
 restart discovery.
@@ -87,8 +104,8 @@ first writes that call's controller input allowlist (and nothing else) to
 ```bash
 # Run from PROJECT_ROOT. <call> is r1-combined | r1-local-<cluster id> | r1-global | r2-delta
 bouncer dispatch print --role context-reviewer --cwd "$PROJECT_ROOT" \
-  --input .bouncer/runtime/print/context-review/<call>/input.md \
-  --out .bouncer/runtime/print/context-review/<call>
+  --input .bouncer/runtime/print/context-review/<cycle id>/r<restart_count>/<call>/input.md \
+  --out .bouncer/runtime/print/context-review/<cycle id>/r<restart_count>/<call>
 ```
 
 Use `r1-combined` for discovery `combined`, `r1-local-<cluster id>` (for
@@ -112,7 +129,18 @@ previous findings (delta), and the read-only cwd. Or run the
 controller input before it judges. A role name or summary alone is not a
 fallback payload.
 
-As controller, update existing blueprint-root `context-review.md` body `## Findings`, `bouncer.context_review.findings[]`, and `bouncer.context_review.rounds[]` from the reviewer output — the subagent must not edit documents or flip status. An `accepted` finding requires a note. Only when every finding is `resolved` or `accepted` with a note, set `context-review → accepted`.
+As controller, save each raw reviewer report as `{ "round": object, "findings": object[] }`
+and record it with `bouncer context-review record --blueprint <dir> --dispatch
+<payload.json> --round <report.json> [--status requested|addressed|accepted]` —
+the subagent must not edit documents or flip status, and the controller does
+not hand-write `rounds[]` or `findings[]`. An `accepted` finding requires a
+note. `--status accepted` closes the cycle only when every finding is
+`resolved` or `accepted` with a note; a `must_fix` finding is accepted only
+with `--accept-risk <id>` after the user explicitly approved that risk. The
+returned `projection` is the canonical `rounds`/`findings`; copy it into the
+existing blueprint-root `context-review.md` (body `## Findings` included) and
+only then set `context-review → accepted`. A recorded success is a review
+disposition, not plan approval or a plan gate pass.
 
 When recording finding `note` (and any other author-written frontmatter
 scalar on that document), apply the same YAML leading-character quoting

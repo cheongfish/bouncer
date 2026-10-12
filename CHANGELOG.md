@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **계획 리뷰 반복 제한 (EPIC 096 BP 001)** — `bouncer context-review start|record|restart`가
+  리뷰 cycle과 누적 재시작 1회 한도를 기록한다. 리뷰 증거가 있는 blueprint의
+  `review-dispatch plan`은 저장된 `latest_dispatch`와 일치하는 `--previous`를 필수로 요구하고,
+  누락·손상·최신과 불일치는 `previous-payload-required|invalid|stale`(cause·next 포함)로 거부한다.
+  `/bouncer-plan`은 최초 분류 한 번 → start → reviewer → record 순서를 쓰며 전체 재시작은 restart로만 한다.
+
 ## [1.5.8] — 2026-10-12
 
 1.5.7 패치. 코딩 표준 정본과 Red run 리뷰(EPIC 095 BP 001), 테스트 이름 형식 검사(BP 002),

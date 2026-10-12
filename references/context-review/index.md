@@ -80,7 +80,8 @@ On a light plan, approved scope rests on the user's confirmation of
    of strategy or cluster count. When plan dispatch reports
    `follow_up: partial`, delta inputs are only the new digest, previous
    findings, `changed_documents`, and the read-only cwd. When
-   `follow_up: full`, restart round 1 discovery instead of opening a delta.
+   `follow_up: full`, use `bouncer context-review restart` (at most once per
+   cycle) and run round 1 discovery instead of opening a delta.
    The scope bodies, the delta origin rule, what each scope excludes, and the
    severity mapping are canonical in the named agent
    `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` (`## Review modes`,
@@ -88,9 +89,13 @@ On a light plan, approved scope rests on the user's confirmation of
    this skill does not carry a second copy.
 
 4. **Return** — Return a Findings list only. The controller (not this
-   skill, not the named agent) writes blueprint-root `context-review.md`
-   body `## Findings`, `bouncer.context_review.findings[]`, and
-   `bouncer.context_review.rounds[]`, then disposes each finding. Do **not**
+   skill, not the named agent) saves the raw report and records it with
+   `bouncer context-review record`; the CLI owns the cycle, the active
+   reports, and the restart limit. The controller copies the `projection`
+   the accepted record returns (canonical `rounds`/`findings`) into
+   blueprint-root `context-review.md` along with the body `## Findings`,
+   then disposes each finding. A recorded disposition is not plan approval
+   or a plan gate pass. Do **not**
    edit plan documents to "fix" a finding; that is `/bouncer-plan`
    authoring. Do **not** set `context-review` status.
 
