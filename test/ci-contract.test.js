@@ -101,6 +101,10 @@ test('package.json → exposes context comment lint and ordered ci', () => {
   assert.match(ci, /npm run test:coverage && npm run test:unit && npm run lint && npm run lint:docs && npm run lint:context-comments && npm run typecheck/);
   assert.match(ci, /npm run typecheck/);
   assert.match(ci, /npm audit --audit-level=high/);
+  const typeAt = ci.indexOf('npm run typecheck');
+  const namesAt = ci.indexOf('npm run lint:test-names');
+  const auditAt = ci.indexOf('npm audit');
+  assert.ok(namesAt > typeAt && namesAt < auditAt, 'lint:test-names must run after typecheck and before audit');
 });
 
 test('GitHub Actions and GitLab CI → share npm ci then npm run ci', () => {

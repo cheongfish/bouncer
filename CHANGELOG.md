@@ -9,6 +9,9 @@
 
 ### Changed
 
+- **테스트 이름 형식 검사 (EPIC 095 BP 002)** — `npm run lint:test-names`를 `ci`의
+  `typecheck` 다음, `npm audit` 앞에 넣어 `test/*.test.js`의 이름이 `<조건> → <결과>` 형식이
+  아니면 ci가 실패한다.
 - **공통 코딩 표준 정본과 Red run 리뷰 (EPIC 095 BP 001)** — 코드·테스트·오류 처리·재사용·
   한국어 주석 기준을 `references/coding-standards/index.md` 한 곳으로 모으고, 역할 문서의
   중복 본문을 정본 Read 참조로 바꿨다. 측정 범위는 BP 시작 커밋부터 TASKS-001 커밋까지다.
