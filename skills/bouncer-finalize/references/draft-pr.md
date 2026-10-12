@@ -20,11 +20,12 @@ subjects or ids in the title. When `pr.title_prefix` is `null`, fill
 `pr.title_prefix_template` as described below instead of inventing a date or
 type set.
 
-### Body sections (fill then drop empties)
+### Body sections (fill, mandatory three never dropped)
 
 Render in this order. Drop a section entirely when it has nothing to say —
-leave no empty heading or orphan bullet. Never invent issues, risks, passes, or
-Mermaid nodes without evidence. Fill PR body from explain.md sections in the
+leave no empty heading or orphan bullet — except the three mandatory sections
+(`변경 그림`, `변경 전후`, `되돌리기 · 영향 범위`), which every PR carries. Never invent issues, risks, passes, or
+diagram nodes without evidence. Fill PR body from explain.md sections in the
 table and from digest `pr.sections` for the deterministic facts; do not rewrite
 Explain or invent a parallel narrative. Never copy Quiz or quiz results into the PR.
 Never emit Epic/Blueprint ids, a Bouncer meta section, or Features/Fixes
@@ -35,8 +36,10 @@ checkboxes.
 | `관련 이슈` | Linked tracker issues with real evidence; plus one Explain Markdown link from `finalize links` (below). No issue → no issue bullet. Prefer `pr.sections.related` when it already lists facts. |
 | `배경 · 변경 의도` | Explain `## Background` and `## Intuition`, tightened against the diff. |
 | `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for changed files, behavior, and interfaces only. Do not write task DAG, task split/order, repair wave, scope revision, worker·agent, branch·sha, integration head, or 작업 과정. |
-| `로직 흐름` | Conditional Mermaid only (rules below). Omit the heading when skipped. |
+| `변경 그림` (필수) | Mermaid diagram chosen by change kind (rules below). Never omitted. |
+| `변경 전후` (필수) | Digest `pr.sections.verification`, Explain `## Code`, and the diff only. When no before-change observation exists, write `변경 전 결과 미관측` — never present an unobserved before-result as a run result. |
 | `리뷰 포인트` | Digest `pr.sections.review_points` first, then Explain `## Code` + diff hot paths only where the digest left a gap. No guessed risk. |
+| `되돌리기 · 영향 범위` (필수) | Three items: how to revert and what it restores; data, external behavior, or contract effects a commit revert does not restore; features, consumers, or data affected if applied wrongly. State in one line that the risk classification is not approval or auto-merge grounds. |
 | `확인 방법` | Digest `pr.sections.verification` in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. Do not re-open task `verification.md` files. Reference verification and review through the digest `evidence` field (`evidence.verification[].evidence_id`, `evidence.review`). Do not open verification or review logs. |
 
 ### Explain link
@@ -47,13 +50,20 @@ example `Explain: [explain.md](<url>)`, using `links[0]` (branch) when present.
 If the payload reports a `reason` (or `links` is empty), omit the link — do not
 invent a path. Prefer the branch URL over the commit permalink when both exist.
 
-### Mermaid (`로직 흐름`)
+### 변경 그림 (필수)
 
-Add Mermaid only when the diff or Explain shows a change in call order, control
-flow, state transition, data-processing steps, or component responsibility.
-Cap core nodes at about eight; add As-Is/To-Be only when both are needed.
-Skip (and remove the `로직 흐름` title) when the change is docs/config/tests
-only, a simple rename/move, or when a diagram would be denser than the code.
+Every PR carries a diagram, however small the change. Pick the kind by the nature of the change:
+
+| Change | Diagram |
+| --- | --- |
+| Logic, control flow | Flowchart or state-transition diagram |
+| Structure, responsibility, calls | Component or call-relation diagram |
+| Behavior, output | Before/after comparison |
+| Docs, config, tests | Diagram of the target and what it affects |
+
+Put one or two lines of core explanation beside the diagram. Use at least two
+nodes and about eight at most, and only nodes the diff or Explain shows.
+Attaching an image is not required.
 
 ### Push + create
 
