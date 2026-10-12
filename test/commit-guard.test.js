@@ -7,7 +7,7 @@ const { isRuntimeArtifact } = require('../scripts/lib/scope');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
-test('allows in-scope files', () => {
+test('in-scope files → are allowed', () => {
   const res = checkCommitSafety({
     files: ['src/auth/login.ts', `${BP}/tasks.md`],
     affectedPaths: ['src/auth/'],
@@ -16,7 +16,7 @@ test('allows in-scope files', () => {
   assert.deepStrictEqual(res, { allow: true, violations: [] });
 });
 
-test('blocks out-of-scope files', () => {
+test('out-of-scope files → are blocked', () => {
   const res = checkCommitSafety({
     files: ['src/auth/login.ts', 'README.md'],
     affectedPaths: ['src/auth/'],
@@ -26,7 +26,7 @@ test('blocks out-of-scope files', () => {
   assert.deepStrictEqual(res.violations, ['README.md']);
 });
 
-test('known runtime artifacts are not scope violations', () => {
+test('known runtime artifacts → are not scope violations', () => {
   const res = checkCommitSafety({
     files: ['src/auth/login.ts', 'node_modules/js-yaml/index.js', 'graphify-out/source/graph.json'],
     affectedPaths: ['src/auth/'],
@@ -35,7 +35,7 @@ test('known runtime artifacts are not scope violations', () => {
   assert.deepStrictEqual(res, { allow: true, violations: [] });
 });
 
-test('a source file named like an artifact prefix is still a violation', () => {
+test('a source file named like an artifact prefix → is still a violation', () => {
   const res = checkCommitSafety({
     files: ['node_modules_notes.md'],
     affectedPaths: ['src/auth/'],
@@ -56,7 +56,7 @@ const COORD = {
   integrationPath: '/w/integration',
 };
 
-test('coordinator ledger scope authorizes a path the approved affected_paths misses', () => {
+test('coordinator ledger scope with a path the approved affected_paths misses → authorizes it', () => {
   const res = checkCommitSafety({
     files: ['src/session/token.ts'],
     affectedPaths: ['src/auth/'],
@@ -66,7 +66,7 @@ test('coordinator ledger scope authorizes a path the approved affected_paths mis
   assert.deepStrictEqual(res, { allow: true, violations: [] });
 });
 
-test('coordinator ledger scope still refuses a path it does not name', () => {
+test('coordinator ledger scope with a path it does not name → still refuses it', () => {
   const res = checkCommitSafety({
     files: ['src/auth/login.ts', 'src/payments/charge.ts'],
     affectedPaths: ['src/auth/', 'src/payments/'],
@@ -78,7 +78,7 @@ test('coordinator ledger scope still refuses a path it does not name', () => {
   assert.deepStrictEqual(res.violations, ['src/payments/charge.ts']);
 });
 
-test('coordinator boundary refusals carry their own code and every staged path', () => {
+test('coordinator boundary refusals → carry their own code and every staged path', () => {
   for (const reason of [
     'main-worktree-source-write', 'unassigned-worktree', 'stale-revision',
     'missing-coordinator-ledger', 'unreadable-ledger', 'task-outside-blueprint',
@@ -96,7 +96,7 @@ test('coordinator boundary refusals carry their own code and every staged path',
   }
 });
 
-test('an inactive coordinator context leaves the approved-scope judgment unchanged', () => {
+test('an inactive coordinator context → leaves the approved-scope judgment unchanged', () => {
   const res = checkCommitSafety({
     files: ['src/session/token.ts'],
     affectedPaths: ['src/auth/'],
@@ -107,7 +107,7 @@ test('an inactive coordinator context leaves the approved-scope judgment unchang
   assert.deepStrictEqual(res.violations, ['src/session/token.ts']);
 });
 
-test('a boundary refusal with nothing staged still names its cause', () => {
+test('a boundary refusal with nothing staged → still names its cause', () => {
   const res = checkCommitSafety({
     files: [],
     affectedPaths: ['src/auth/'],
@@ -121,7 +121,7 @@ test('a boundary refusal with nothing staged still names its cause', () => {
 
 // coordinator 원장은 실행 상태이지 커밋 대상이 아니다. integration worktree
 // 자신의 커밋 범위에서 원장이 스테이징돼도 out-of-scope로 보고하지 않는다.
-test('the coordinator ledger is not a scope violation', () => {
+test('the coordinator ledger → is not a scope violation', () => {
   const res = checkCommitSafety({
     files: ['src/auth/login.ts', '.bouncer/runtime/coordinator.json'],
     affectedPaths: ['src/auth/'],
@@ -133,7 +133,7 @@ test('the coordinator ledger is not a scope violation', () => {
 // 접두 판정은 `.bouncer/runtime/` 한 갈래에만 적용된다 — 커밋해야 하는
 // 컨텍스트 문서와 Distill까지 런타임 산출물이 되면 게이트 증적이 리뷰어에게
 // 닿지 않는다. makeAllowed 예외와 무관하게 술어 자체를 고정한다.
-test('Distill is not a special commit allow outside affected_paths', () => {
+test('Distill outside affected_paths → is not a special commit allow', () => {
   const res = checkCommitSafety({
     files: ['src/auth/login.ts', '.bouncer/Distill.md'],
     affectedPaths: ['src/auth/'],
@@ -143,7 +143,7 @@ test('Distill is not a special commit allow outside affected_paths', () => {
   assert.deepStrictEqual(res.violations, ['.bouncer/Distill.md']);
 });
 
-test('context docs and Distill are still not runtime artifacts', () => {
+test('context docs and Distill → are still not runtime artifacts', () => {
   assert.strictEqual(isRuntimeArtifact('.bouncer/runtime/coordinator.json'), true);
   assert.strictEqual(isRuntimeArtifact('.bouncer/context/epics/002-other/index.md'), false);
   assert.strictEqual(isRuntimeArtifact('.bouncer/Distill.md'), false);

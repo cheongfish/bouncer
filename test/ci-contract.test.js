@@ -70,7 +70,7 @@ fs.mkdirSync(path.join('scripts', 'lib'), { recursive: true });
 fs.writeFileSync(path.join('scripts', 'lib', 'app.js'), 'module.exports = 1;\\n');
 `;
 
-test('package.json exposes context comment lint and ordered ci', () => {
+test('package.json → exposes context comment lint and ordered ci', () => {
   const pkg = readJson('package.json');
   assert.match(pkg.scripts['check:emit'], /scripts\/check-emit\.js/);
   assert.match(pkg.scripts['lint:docs'], /scripts\/check-doc-shape\.js/);
@@ -103,7 +103,7 @@ test('package.json exposes context comment lint and ordered ci', () => {
   assert.match(ci, /npm audit --audit-level=high/);
 });
 
-test('GitHub Actions and GitLab CI share npm ci then npm run ci', () => {
+test('GitHub Actions and GitLab CI → share npm ci then npm run ci', () => {
   const gh = yaml.load(read('.github/workflows/test.yml'));
   const gl = yaml.load(read('.gitlab-ci.yml'));
   const ghRuns = gh.jobs.test.steps.filter((s) => s.run).map((s) => String(s.run).trim());
@@ -111,7 +111,7 @@ test('GitHub Actions and GitLab CI share npm ci then npm run ci', () => {
   assert.deepStrictEqual(gl.test.script, ['npm ci', 'npm run ci']);
 });
 
-test('check-emit.js inspects tracked and ignored emit via git argv, not porcelain status', () => {
+test('check-emit.js → inspects tracked and ignored emit via git argv, not porcelain status', () => {
   const src = read('scripts/check-emit.js');
   assert.match(src, /spawnSync|execFile/);
   assert.match(src, /ls-files/);
@@ -121,13 +121,13 @@ test('check-emit.js inspects tracked and ignored emit via git argv, not porcelai
   assert.doesNotMatch(src, /shell:\s*true/);
 });
 
-test('check-emit.js exits 0 on a clean ignored tree after identity build', () => {
+test('check-emit.js on a clean ignored tree after identity build → exits 0', () => {
   const repo = makeEmitRepo(IDENTITY_BUILD);
   const r = runCheckEmit(repo);
   assert.strictEqual(r.status, 0, r.stderr || r.stdout);
 });
 
-test('check-emit.js exits 1 when scripts/lib is force-tracked', () => {
+test('check-emit.js when scripts/lib is force-tracked → exits 1', () => {
   const repo = makeEmitRepo(IDENTITY_BUILD);
   fs.mkdirSync(path.join(repo, 'scripts', 'lib'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'scripts', 'lib', 'app.js'), 'module.exports = 1;\n');
@@ -137,14 +137,14 @@ test('check-emit.js exits 1 when scripts/lib is force-tracked', () => {
   assert.match(r.stderr, /must not be tracked/);
 });
 
-test('check-emit.js exits 1 when scripts/lib is not ignored', () => {
+test('check-emit.js when scripts/lib is not ignored → exits 1', () => {
   const repo = makeEmitRepo(IDENTITY_BUILD, { ignoreLib: false });
   const r = runCheckEmit(repo);
   assert.strictEqual(r.status, 1);
   assert.match(r.stderr, /is not ignored/);
 });
 
-test('check-emit.js propagates a failing build exit code', () => {
+test('check-emit.js with a failing build → propagates the build exit code', () => {
   const repo = makeEmitRepo(`'use strict';
 process.exit(7);
 `);
@@ -152,7 +152,7 @@ process.exit(7);
   assert.strictEqual(r.status, 7);
 });
 
-test('graph-exec realHasGraphify reports whether a graphify bin resolves', () => {
+test('graph-exec realHasGraphify → reports whether a graphify bin resolves', () => {
   // session-graph 테스트는 hasGraphify 를 주입해서 realHasGraphify 본문이
   // 한 번도 실행되지 않는다. 함수 하한 96%는 이 실제 PATH 판정을 빼면 깨진다.
   const { realHasGraphify } = require('../scripts/lib/graph-exec');

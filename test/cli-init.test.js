@@ -21,7 +21,7 @@ function parseOut(buf) {
   return JSON.parse(buf.out);
 }
 
-test('init rejects legacy .sdd/ state with exit 1 and /bouncer-init guidance', () => {
+test('init가 legacy .sdd/ 상태를 만나면 → exit 1과 /bouncer-init 안내를 낸다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   fs.mkdirSync(path.join(repo, '.sdd'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.sdd/current'), '{"blueprint":"legacy"}\n');
@@ -32,7 +32,7 @@ test('init rejects legacy .sdd/ state with exit 1 and /bouncer-init guidance', (
   assert.match(combined, /\/bouncer-init/);
 });
 
-test('cli init --no-graphify skips install and keeps enabled true without bin', () => {
+test('cli init --no-graphify → install을 건너뛰고 bin 없이 enabled true를 유지한다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   const { io, buf } = capture();
   const code = runCli(['init', '--repo', repo, '--no-graphify'], io);
@@ -44,7 +44,7 @@ test('cli init --no-graphify skips install and keeps enabled true without bin', 
   assert.ok(!fs.existsSync(path.join(repo, '.codex')));
 });
 
-test('cli init --seed-codex-agents writes named-agent toml', () => {
+test('cli init --seed-codex-agents → named-agent toml을 쓴다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   const { io, buf } = capture();
   const code = runCli(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents'], io);
@@ -56,7 +56,7 @@ test('cli init --seed-codex-agents writes named-agent toml', () => {
   assert.ok(fs.existsSync(path.join(repo, '.codex/agents/bouncer-coordinator.toml')));
 });
 
-test('cli init --write-gitignore writes the marker block', () => {
+test('cli init --write-gitignore → marker block을 쓴다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   const { io, buf } = capture();
   // --no-graphify로 실제 pip을 피한다 — 플래그 배선만 검증.
@@ -72,12 +72,12 @@ test('cli init --write-gitignore writes the marker block', () => {
 // 마커 블록 검사는 기대값을 SUGGESTED_IGNORES에서 그대로 끌어오므로 목록
 // 내용 자체는 검사하지 못한다. 무시 제안과 범위 검사의 런타임 산출물 규칙이
 // 원장에 대해 한쪽만 고쳐진 상태를 잡으려면 두 목록을 직접 대조해야 한다.
-test('the ledger prefix is in both the ignore suggestions and the runtime artifact rule', () => {
+test('ledger prefix → ignore 제안과 runtime artifact 규칙 양쪽에 들어 있다', () => {
   assert.ok(SUGGESTED_IGNORES.includes('.bouncer/runtime/'));
   assert.ok(RUNTIME_ARTIFACTS.includes('.bouncer/runtime/'));
 });
 
-test('cli init JSON flags baseBranchUnresolved when detection fails', () => {
+test('base branch 감지가 실패하면 → cli init JSON이 baseBranchUnresolved를 표시한다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   const { io, buf } = capture();
   const code = runCli(['init', '--repo', repo, '--no-graphify'], io);
@@ -88,7 +88,7 @@ test('cli init JSON flags baseBranchUnresolved when detection fails', () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(cfg, 'base_branch'));
 });
 
-test('cli init --promote-graphify promotes enabled on a ready repo', () => {
+test('준비된 repo에서 cli init --promote-graphify → enabled를 승격한다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   // 먼저 부트스트랩(설치 없이), 그다음 enabled를 false로 내린 뒤 승격.
   runCli(['init', '--repo', repo, '--no-graphify'], capture().io);
@@ -106,7 +106,7 @@ test('cli init --promote-graphify promotes enabled on a ready repo', () => {
   assert.strictEqual(next.graphify.enabled, true);
 });
 
-test('cli init --pre-commit-hook writes the hook and result field', () => {
+test('cli init --pre-commit-hook → hook을 쓰고 result 필드를 낸다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   execFileSync('git', ['init', '-b', 'main'], {
     cwd: repo,

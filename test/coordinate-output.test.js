@@ -12,7 +12,7 @@ const tasks = [
   { id: '005', status: 'ready', execution_kind: 'verification' },
 ];
 
-test('compactCoordinateOutput projects prepare opened and leaves failures untouched', () => {
+test('prepare opened와 failure 출력을 compactCoordinateOutput에 넘김 → prepare opened만 투영하고 failure는 그대로 둠', () => {
   const input = { ok: true, command: 'prepare', ready: ['004', '005'], tasks, decisions: [{}], checkpoint: {} };
   const out = compactCoordinateOutput('prepare', input);
   assert.deepStrictEqual(out.opened.map((t) => t.id), ['002', '004', '005']);

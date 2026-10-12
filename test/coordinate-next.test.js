@@ -220,7 +220,7 @@ function runArgv(cwd, argv) {
   return { code, buf };
 }
 
-test('NEXT_FAILURE_HINTS covers the new next reasons only', () => {
+test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons만 덮음', () => {
   const keys = [
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
@@ -234,7 +234,7 @@ test('NEXT_FAILURE_HINTS covers the new next reasons only', () => {
   assert.match(NEXT_FAILURE_HINTS['terminal-verification-failed'].next, /coordinate repair/);
 });
 
-test('blueprint next: partial_closed is blocked', () => {
+test('blueprint next에서 partial_closed → blocked', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/001-partial';
   const drive = preparedCommitDrive('bouncer-next-partial-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -250,7 +250,7 @@ test('blueprint next: partial_closed is blocked', () => {
   assert.ok(!('tasks' in r) && !('decisions' in r));
 });
 
-test('blueprint next: promotion_stopped is blocked', () => {
+test('blueprint next에서 promotion_stopped → blocked', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/001-promote-stop';
   const drive = preparedCommitDrive('bouncer-next-promote-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -278,7 +278,7 @@ test('blueprint next: promotion_stopped is blocked', () => {
   );
 });
 
-test('blueprint next: awaiting_confirmation uses repair-wave-limit', () => {
+test('blueprint next에서 awaiting_confirmation → repair-wave-limit를 씀', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/002-repair';
   const drive = preparedCommitDrive('bouncer-next-repair-lim-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -292,7 +292,7 @@ test('blueprint next: awaiting_confirmation uses repair-wave-limit', () => {
   assert.strictEqual(r.cause, __coordinatorMod.COORDINATE_FAILURE_HINTS['repair-wave-limit'].cause);
 });
 
-test('blueprint next: terminalFailure while verifying is blocked', () => {
+test('blueprint next에서 verifying 중 terminalFailure → blocked', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/003-term';
   const repo = uncommittedPlanRepo('bouncer-next-term-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -320,7 +320,7 @@ test('blueprint next: terminalFailure while verifying is blocked', () => {
   assert.match(r.next, /coordinate repair/);
 });
 
-test('blueprint next: non-null fanin is integrate', () => {
+test('blueprint next에서 fanin이 null이 아님 → integrate', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/004-fanin';
   const drive = preparedCommitDrive('bouncer-next-fanin-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -337,7 +337,7 @@ test('blueprint next: non-null fanin is integrate', () => {
   assert.ok(r.argv.includes('--ledger-hash'));
 });
 
-test('blueprint next: prepared commit tasks are drive_tasks', () => {
+test('blueprint next에서 prepared commit tasks → drive_tasks', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/005-drive';
   const drive = preparedCommitDrive('bouncer-next-drive-', blueprint);
   const r = assertNoWrite(drive, () => nextOf(drive));
@@ -347,7 +347,7 @@ test('blueprint next: prepared commit tasks are drive_tasks', () => {
   assert.strictEqual(r.scope, 'blueprint');
 });
 
-test('blueprint next: recorded without prepared is integrate', () => {
+test('blueprint next에서 prepared 없이 recorded → integrate', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/006-rec';
   const drive = preparedCommitDrive('bouncer-next-rec-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -359,7 +359,7 @@ test('blueprint next: recorded without prepared is integrate', () => {
   assertCardFor(r);
 });
 
-test('blueprint next: bootstrap with pending tasks is prepare', () => {
+test('blueprint next에서 pending tasks가 있는 bootstrap → prepare', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/007-prep';
   const repo = uncommittedPlanRepo('bouncer-next-prep-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -376,7 +376,7 @@ test('blueprint next: bootstrap with pending tasks is prepare', () => {
   assert.ok(r.argv.includes('prepare'));
 });
 
-test('blueprint next: ready verification task is verification_node', () => {
+test('blueprint next에서 ready verification task → verification_node', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/008-vn';
   const repo = uncommittedPlanRepo('bouncer-next-vn-', blueprint, [
     ['001', '  execution_kind: verification\n  depends_on: []\n  parallel_safe: true\n  verify: "/bin/true"\n'],
@@ -398,7 +398,7 @@ test('blueprint next: ready verification task is verification_node', () => {
   assert.strictEqual(r.cwd, boot.integrationPath);
 });
 
-test('blueprint next: all integrated in review mode without accepted root review is final_review', () => {
+test('blueprint next에서 review mode의 all integrated이고 accepted root review 없음 → final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/009-fr';
   const drive = preparedCommitDrive('bouncer-next-fr-', blueprint);
   writeReviewScope(drive.integrationPath, blueprint);
@@ -422,7 +422,7 @@ function supplementReviewDrive(prefix, blueprint, decisions) {
   return drive;
 }
 
-test('blueprint next: pending supplement decision yields the supplement action', () => {
+test('blueprint next에서 pending supplement decision → supplement action', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/020-supp';
   const drive = supplementReviewDrive('bouncer-next-supp-', blueprint, [
     { kind: 'supplement', outcome: 'pending', paths: ['test/a.test.js'], findings: ['F1'] },
@@ -435,7 +435,7 @@ test('blueprint next: pending supplement decision yields the supplement action',
   assertCardFor(r);
 });
 
-test('blueprint next: verified supplement returns final_review in delta mode', () => {
+test('blueprint next에서 verified supplement → delta mode의 final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/021-supp';
   const drive = supplementReviewDrive('bouncer-next-supp-v-', blueprint, [
     { kind: 'supplement', outcome: 'verified', paths: ['test/a.test.js'], findings: ['F1'] },
@@ -447,7 +447,7 @@ test('blueprint next: verified supplement returns final_review in delta mode', (
   assertCardFor(r);
 });
 
-test('blueprint next: without a supplement decision final_review carries no mode', () => {
+test('blueprint next에서 supplement decision 없음 → final_review에 mode가 없음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/022-supp';
   const drive = supplementReviewDrive('bouncer-next-supp-n-', blueprint, []);
   const r = assertNoWrite(drive, () => nextOf(drive));
@@ -483,7 +483,7 @@ test('root review.md YAML이 깨짐 → final_review argv에 --mode 없음, 예�
   assert.ok(!r.argv.includes('--mode'));
 });
 
-test('blueprint next: all integrated is done', () => {
+test('blueprint next에서 all integrated → done', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/010-done';
   const drive = preparedCommitDrive('bouncer-next-done-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -495,7 +495,7 @@ test('blueprint next: all integrated is done', () => {
   assert.strictEqual(r.argv, undefined);
 });
 
-test('blueprint next: no ready wave is no-ready-task', () => {
+test('blueprint next에서 ready wave 없음 → no-ready-task', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/011-none';
   const drive = preparedCommitDrive('bouncer-next-nrt-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -508,7 +508,7 @@ test('blueprint next: no ready wave is no-ready-task', () => {
   assert.strictEqual(r.reason, 'no-ready-task');
 });
 
-test('task next: recorded/integrated/pending/ready return none', () => {
+test('task next에서 recorded/integrated/pending/ready → none', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/012-none-task';
   const drive = preparedCommitDrive('bouncer-next-tnone-', blueprint);
   for (const status of ['recorded', 'integrated', 'pending', 'ready']) {
@@ -523,7 +523,7 @@ test('task next: recorded/integrated/pending/ready return none', () => {
   }
 });
 
-test('task next: open critical recovery is blocked', () => {
+test('task next에서 open critical recovery → blocked', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/013-cr';
   const drive = preparedCommitDrive('bouncer-next-cr-', blueprint);
   const started = coordinate({
@@ -537,7 +537,7 @@ test('task next: open critical recovery is blocked', () => {
   assert.strictEqual(r.reason, 'critical-recovery-open');
 });
 
-test('task next: no dispatch is dispatch', () => {
+test('task next에서 dispatch 없음 → dispatch', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/014-disp';
   const drive = preparedCommitDrive('bouncer-next-disp-', blueprint);
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
@@ -549,7 +549,7 @@ test('task next: no dispatch is dispatch', () => {
   assert.strictEqual(r.judge.kind, 'intent-symbols');
 });
 
-test('task next: accepted report is record', () => {
+test('task next에서 accepted report → record', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/015-rec';
   const drive = preparedCommitDrive('bouncer-next-trec-', blueprint);
   acceptDispatchReport(drive.repo, blueprint, drive.worker, '001');
@@ -560,7 +560,7 @@ test('task next: accepted report is record', () => {
   assert.ok(r.judge.fields.includes('--decision'));
 });
 
-test('task next: scope_revision with unchanged brief is revise', () => {
+test('task next에서 brief가 그대로인 scope_revision → revise', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/016-rev';
   const drive = preparedCommitDrive('bouncer-next-rev-', blueprint);
   const dispatched = coordinate({
@@ -580,7 +580,7 @@ test('task next: scope_revision with unchanged brief is revise', () => {
 
 // F-SS-001: 보고 뒤 brief가 바뀌면 개정이 끝난 상태다. mismatch blocked가 아니라
 // 표의 "reported, 그 밖" 재디스패치로 간다.
-test('task next: scope_revision with changed brief is dispatch', () => {
+test('task next에서 brief가 바뀐 scope_revision → dispatch', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/016-rev2';
   const drive = preparedCommitDrive('bouncer-next-rev2-', blueprint);
   const dispatched = coordinate({
@@ -602,7 +602,7 @@ test('task next: scope_revision with changed brief is dispatch', () => {
   assert.strictEqual(r.judge.kind, 'intent-symbols');
 });
 
-test('task next: reported blocked is blocked', () => {
+test('task next에서 reported blocked → blocked', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/017-blk';
   const drive = preparedCommitDrive('bouncer-next-blk-', blueprint);
   const dispatched = coordinate({
@@ -619,7 +619,7 @@ test('task next: reported blocked is blocked', () => {
   assert.strictEqual(r.reason, 'task-reported-blocked');
 });
 
-test('task next: other reported outcomes re-dispatch', () => {
+test('task next에서 그 밖의 reported outcomes → re-dispatch', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/018-rew';
   const drive = preparedCommitDrive('bouncer-next-rew-', blueprint);
   const dispatched = coordinate({
@@ -636,7 +636,7 @@ test('task next: other reported outcomes re-dispatch', () => {
   assert.strictEqual(r.judge.kind, 'intent-symbols');
 });
 
-test('task next: active dispatch at baseline is implement', () => {
+test('task next에서 baseline의 active dispatch → implement', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/019-imp';
   const drive = preparedCommitDrive('bouncer-next-imp-', blueprint);
   const dispatched = coordinate({
@@ -657,7 +657,7 @@ test('task next: active dispatch at baseline is implement', () => {
   assert.strictEqual('report' in r.payload, false);
 });
 
-test('task next: dirty worker without verified docs is verify', () => {
+test('task next에서 verified docs 없는 dirty worker → verify', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/020-ver';
   const drive = preparedCommitDrive('bouncer-next-ver-', blueprint);
   coordinate({
@@ -671,7 +671,7 @@ test('task next: dirty worker without verified docs is verify', () => {
   assert.ok(r.argv.includes('--gate'));
 });
 
-test('task next: per-task review after verify evidence is review', () => {
+test('task next에서 verify evidence 뒤 per-task review → review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/021-revw';
   const drive = preparedCommitDrive('bouncer-next-revw-', blueprint);
   coordinate({
@@ -689,7 +689,7 @@ test('task next: per-task review after verify evidence is review', () => {
   assert.strictEqual(r.judge.kind, 'review-round');
 });
 
-test('task next: missing commit_sha is commit', () => {
+test('task next에서 commit_sha 없음 → commit', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/022-cmt';
   const drive = preparedCommitDrive('bouncer-next-cmt-', blueprint);
   coordinate({
@@ -707,7 +707,7 @@ test('task next: missing commit_sha is commit', () => {
   assert.ok(r.argv.includes('--yes'));
 });
 
-test('task next: matching commit_sha with only tasks.md dirty is report', () => {
+test('task next에서 commit_sha 일치하고 tasks.md만 dirty → report', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/023-rep';
   const drive = preparedCommitDrive('bouncer-next-rep-', blueprint);
   coordinate({
@@ -732,7 +732,7 @@ test('task next: matching commit_sha with only tasks.md dirty is report', () => 
   assert.ok(r.argv.includes('--task-brief-hash'));
 });
 
-test('task next: dirty files besides tasks.md is commit-evidence-mismatch', () => {
+test('task next에서 tasks.md 외 dirty files → commit-evidence-mismatch', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/024-mis';
   const drive = preparedCommitDrive('bouncer-next-mis-', blueprint);
   coordinate({
@@ -758,7 +758,7 @@ test('task next: dirty files besides tasks.md is commit-evidence-mismatch', () =
 
 // /bouncer-plan leaves plan documents uncommitted until finalize, and seed copies them into the worker,
 // so the worker is already dirty when the attempt opens. Benchmark runs of a full bouncer drive were blocked here.
-test('task next: seeded plan documents left dirty from dispatch still allow report', () => {
+test('task next에서 dispatch가 남긴 seeded plan documents가 dirty → report를 허용함', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/040-seed';
   const repo = uncommittedPlanRepo('bouncer-next-seed-', blueprint, [
     ['001', '  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n'],
@@ -783,7 +783,7 @@ test('task next: seeded plan documents left dirty from dispatch still allow repo
   assert.strictEqual(r.action, 'report', JSON.stringify({ r, porcelain: porcelain(drive.worker) }));
 });
 
-test('verification --task is refused', () => {
+test('verification에 --task를 줌 → 거절됨', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/025-vtask';
   const repo = uncommittedPlanRepo('bouncer-next-vtask-', blueprint, [
     ['001', '  execution_kind: verification\n  depends_on: []\n  parallel_safe: true\n  verify: "/bin/true"\n'],
@@ -803,7 +803,7 @@ test('verification --task is refused', () => {
   assert.ok(!('card' in r));
 });
 
-test('bad --task format is task-required', () => {
+test('--task 형식이 잘못됨 → task-required', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/026-fmt';
   const drive = preparedCommitDrive('bouncer-next-fmt-', blueprint);
   const r = nextOf(drive, { task: '1' });
@@ -811,7 +811,7 @@ test('bad --task format is task-required', () => {
   assert.strictEqual(r.reason, 'task-required');
 });
 
-test('unknown task is task-outside-blueprint', () => {
+test('알 수 없는 task → task-outside-blueprint', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/027-out';
   const drive = preparedCommitDrive('bouncer-next-out-', blueprint);
   const r = nextOf(drive, { task: '099' });
@@ -936,14 +936,14 @@ function runFixtureToDone(drive) {
   assert.fail('did not reach done in 40 steps');
 }
 
-test('fixture tour: per-task review with two commit tasks and a verification node reaches done', () => {
+test('fixture tour에서 commit task 둘과 verification node가 있는 per-task review → done에 도달함', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/028-tour-task';
   const drive = mixedPreparedDrive('bouncer-next-tour-t-', blueprint, { reviewMode: false });
   const done = runFixtureToDone(drive);
   assert.strictEqual(done.action, 'done');
 });
 
-test('fixture tour: blueprint review mode reaches done', () => {
+test('fixture tour에서 blueprint review mode → done에 도달함', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/029-tour-bp';
   const drive = mixedPreparedDrive('bouncer-next-tour-b-', blueprint, { reviewMode: true });
   const done = runFixtureToDone(drive);
@@ -967,7 +967,7 @@ function assertJudgePayloadShape(out, { requireEvidence = false } = {}) {
   }
 }
 
-test('judge payload: record after accepted report carries report keys and evidence', () => {
+test('judge payload에서 accepted report 뒤 record → report keys와 evidence를 실음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/034-judge-rec';
   const drive = preparedCommitDrive('bouncer-next-judge-rec-', blueprint);
   acceptDispatchReport(drive.repo, blueprint, drive.worker, '001');
@@ -1000,7 +1000,7 @@ test('judge payload: record after accepted report carries report keys and eviden
   }
 });
 
-test('judge payload: rework then implement carries report without previous_outcome', () => {
+test('judge payload에서 rework 뒤 implement → previous_outcome 없이 report를 실음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/035-judge-imp';
   const drive = preparedCommitDrive('bouncer-next-judge-imp-', blueprint);
   const first = coordinate({
@@ -1031,7 +1031,7 @@ test('judge payload: rework then implement carries report without previous_outco
   assert.strictEqual(out.payload.attempt, 2);
 });
 
-test('judge payload: first dispatch and first implement omit report key', () => {
+test('judge payload에서 first dispatch와 first implement → report key를 생략함', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/036-judge-first';
   const drive = preparedCommitDrive('bouncer-next-judge-first-', blueprint);
   const dispatch = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
@@ -1050,7 +1050,7 @@ test('judge payload: first dispatch and first implement omit report key', () => 
   assert.strictEqual('previous_outcome' in implement.payload, false);
 });
 
-test('judge payload: readEvidence null drops that evidence item and keeps ok', () => {
+test('judge payload에서 readEvidence가 null → 해당 evidence item은 빠지고 ok는 유지됨', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/037-judge-miss';
   const drive = preparedCommitDrive('bouncer-next-judge-miss-', blueprint);
   acceptDispatchReport(drive.repo, blueprint, drive.worker, '001');
@@ -1083,7 +1083,7 @@ test('judge payload: readEvidence null drops that evidence item and keeps ok', (
   assert.ok(out.payload.evidence.some((e) => e.kind === 'review'));
 });
 
-test('attachJudgeContext: candidates outside workerPath are excluded', () => {
+test('attachJudgeContext에 workerPath 밖 candidates가 있음 → 제외됨', () => {
   const workerPath = path.join(os.tmpdir(), 'bouncer-judge-worker');
   const outside = path.join(os.tmpdir(), 'bouncer-judge-outside.md');
   fs.mkdirSync(workerPath, { recursive: true });
@@ -1115,7 +1115,7 @@ test('attachJudgeContext: candidates outside workerPath are excluded', () => {
   ]);
 });
 
-test('judge payload: prepare integrate commit done omit report and evidence', () => {
+test('judge payload에서 prepare integrate commit done → report와 evidence를 생략함', () => {
   function assertNoJudgeKeys(result, label) {
     const payload = result.payload || {};
     assert.strictEqual('report' in payload, false, `${label} report`);
@@ -1176,7 +1176,7 @@ test('judge payload: prepare integrate commit done omit report and evidence', ()
   assertNoJudgeKeys(done, 'done');
 });
 
-test('card: readCard failure is coordinator-card-missing with no checkpoint or action', () => {
+test('card에서 readCard 실패 → checkpoint와 action 없이 coordinator-card-missing', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/030-card-miss';
   const drive = preparedCommitDrive('bouncer-next-card-miss-', blueprint);
   const asked = [];
@@ -1199,7 +1199,7 @@ test('card: readCard failure is coordinator-card-missing with no checkpoint or a
   assert.ok(!('checkpoint' in r) && !('action' in r) && !('card' in r));
 });
 
-test('card: readCard is not called for actions without a card', () => {
+test('card에서 card 없는 action → readCard를 호출하지 않음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/031-card-skip';
   const drive = preparedCommitDrive('bouncer-next-card-skip-', blueprint);
   const r = nextOf(drive, {
@@ -1209,7 +1209,7 @@ test('card: readCard is not called for actions without a card', () => {
   assert.ok(!('card' in r));
 });
 
-test('card: injected readCard body is returned verbatim', () => {
+test('card에서 주입된 readCard body → 그대로 반환됨', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/032-card-seam';
   const drive = preparedCommitDrive('bouncer-next-card-seam-', blueprint);
   const r = nextOf(drive, { task: '001', deps: { readCard: (id) => `card ${id}\n` } });
@@ -1217,7 +1217,7 @@ test('card: injected readCard body is returned verbatim', () => {
   assert.deepStrictEqual(r.card, { id: 'dispatch', body: 'card dispatch\n' });
 });
 
-test('card: CLI prints card and exits 1 on missing card', () => {
+test('card에서 CLI가 card 없음을 만남 → card를 출력하고 exit 1', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/033-card-cli';
   const drive = preparedCommitDrive('bouncer-next-card-cli-', blueprint);
   const ran = runArgv(drive.integrationPath, [
@@ -1229,7 +1229,7 @@ test('card: CLI prints card and exits 1 on missing card', () => {
   assert.ok(out.card.body.length > 0);
 });
 
-test('card: directory holds exactly the nine cards and no index.md', () => {
+test('card에서 directory 확인 → 정확히 card 아홉 개이고 index.md 없음', () => {
   const files = fs.readdirSync(CARD_DIR).sort();
   assert.deepStrictEqual(files, CARD_ACTIONS.map((id) => `${id}.md`).sort());
 });
@@ -1263,7 +1263,7 @@ const SHARED_RULES = [
   },
 ];
 
-test('card: shared rules match both the card and the execute reference', () => {
+test('card에서 shared rules 대조 → card와 execute reference 둘 다와 일치함', () => {
   for (const rule of SHARED_RULES) {
     for (const id of rule.cards) assert.match(cardOf(id), rule.re, `${rule.label} card ${id}`);
     for (const ref of rule.refs) assert.match(EXEC_REF(ref), rule.re, `${rule.label} ref ${ref}`);
@@ -1293,7 +1293,7 @@ function assertIndexOrder(haystack, labels, id) {
   }
 }
 
-test('card: print dispatch input templates for implement, review, final_review', () => {
+test('card에서 implement, review, final_review 출력 → dispatch input templates를 출력함', () => {
   for (const id of ['implement', 'review', 'final_review']) {
     const section = printDispatchSection(id);
     assert.match(section, /bouncer dispatch print/);
@@ -1311,7 +1311,7 @@ test('card: print dispatch input templates for implement, review, final_review',
   assert.match(printDispatchSection('final_review'), /Contract/);
 });
 
-test('card: review and final_review --input place Red run after Constraints → order holds', () => {
+test('card에서 review와 final_review --input → Red run이 Constraints 뒤에 놓이는 순서가 유지됨', () => {
   for (const id of ['review', 'final_review']) {
     assertIndexOrder(printDispatchSection(id), [
       'Mode', 'Perspective', 'Target', 'Brief', 'Intent sections', 'Constraints', 'Red run',
@@ -1319,7 +1319,7 @@ test('card: review and final_review --input place Red run after Constraints → 
   }
 });
 
-test('card: concatenated cards satisfy the coordinator document rule regexes', () => {
+test('card에서 cards를 이어 붙임 → coordinator document rule regexes를 만족함', () => {
   const md = cardBodies().join('\n');
   // test/agents.test.js — review-dispatch execute result
   assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
@@ -1390,7 +1390,7 @@ test('card: concatenated cards satisfy the coordinator document rule regexes', (
   assert.match(md, /risk_flags|perspectives/);
 });
 
-test('light ledger implement carries payload.inline and cwd is integration', () => {
+test('light ledger의 implement → payload.inline을 싣고 cwd는 integration', () => {
   const blueprint = '.bouncer/context/epics/089-n/blueprints/001-inline';
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-next-inline-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -1438,7 +1438,7 @@ test('light ledger implement carries payload.inline and cwd is integration', () 
   assert.strictEqual(r.payload.attempt, 1);
 });
 
-test('full ledger implement omits payload.inline', () => {
+test('full ledger의 implement → payload.inline을 생략함', () => {
   const blueprint = '.bouncer/context/epics/089-n/blueprints/002-full-inline';
   const drive = preparedCommitDrive('bouncer-next-full-inline-', blueprint);
   const dispatched = coordinate({

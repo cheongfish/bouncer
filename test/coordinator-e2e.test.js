@@ -202,7 +202,7 @@ function acceptDispatchAndRecord(repo, blueprint, worker, task) {
   return coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task });
 }
 
-test('a parallel ready wave commits in worker worktrees and fans in to one integration branch', () => {
+test('parallel ready wave를 drive함 → worker worktrees에 commit하고 하나의 integration branch로 fan-in함', () => {
   const blueprint = '.bouncer/context/epics/010-parallel/blueprints/001-drive';
   const repo = makeRepo({
     'README.md': 'fixture\n',
@@ -286,7 +286,7 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   assert.strictEqual(git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']), 'work');
 });
 
-test('cherry-picked worker commits keep stable provenance trailers', () => {
+test('worker commits를 cherry-pick함 → provenance trailers가 안정적으로 유지됨', () => {
   const blueprint = '.bouncer/context/epics/010-parallel/blueprints/001-drive';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
   writeTask(repo, blueprint, '001', { depends_on: [], parallel_safe: true });
@@ -328,7 +328,7 @@ test('cherry-picked worker commits keep stable provenance trailers', () => {
   assert.strictEqual((body.match(/^Bouncer-Intent:/gm) || []).length, 1);
 });
 
-test('a rejected fan-in preserves the ledger and resumes without a duplicate cherry-pick', () => {
+test('fan-in이 거절됨 → ledger를 보존하고 중복 cherry-pick 없이 재개함', () => {
   const blueprint = '.bouncer/context/epics/011-resume/blueprints/002-drive';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
   writeTask(repo, blueprint, '001', { depends_on: [], parallel_safe: true });
@@ -408,7 +408,7 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
   assert.strictEqual(sourceStatus(repo), '');
 });
 
-test('a single task with no DAG frontmatter drives as one sequential wave', () => {
+test('DAG frontmatter 없는 단일 task → 하나의 sequential wave로 drive됨', () => {
   const blueprint = '.bouncer/context/epics/012-legacy/blueprints/003-drive';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
   // depends_on·parallel_safe·dependency_gate가 아예 없는 기존 계획 문서.
@@ -478,7 +478,7 @@ function writePlanDoc(repo, rel, type, bouncer, body) {
   }, body));
 }
 
-test('an uncommitted-plan drive reaches the finalize gate with no open task after integrate', () => {
+test('uncommitted-plan을 drive함 → integrate 뒤 open task 없이 finalize gate에 도달함', () => {
   const epic = '.bouncer/context/epics/013-evidence';
   const blueprint = `${epic}/blueprints/004-drive`;
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
@@ -546,7 +546,7 @@ test('an uncommitted-plan drive reaches the finalize gate with no open task afte
   assert.strictEqual(dry.reason, 'validate', JSON.stringify(dry));
 });
 
-test('finalize release-main after a drive finalize lets main merge the integration branch without a plan conflict', () => {
+test('drive finalize 뒤 finalize release-main → main이 plan conflict 없이 integration branch를 merge함', () => {
   const { releaseMain } = require('../scripts/lib/finalize-release-main');
   const epic = '.bouncer/context/epics/014-release';
   const blueprint = `${epic}/blueprints/004-drive`;
@@ -612,7 +612,7 @@ test('finalize release-main after a drive finalize lets main merge the integrati
   assert.strictEqual(sourceStatus(repo), '');
 });
 
-test('record requires dispatch and an accepted report before storing worker HEAD', () => {
+test('dispatch 또는 accepted report 없이 record함 → worker HEAD를 저장하지 않고 거절함', () => {
   const blueprint = '.bouncer/context/epics/010-parallel/blueprints/001-drive';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
   writeTask(repo, blueprint, '001', { depends_on: [], parallel_safe: true });
@@ -668,7 +668,7 @@ function threeDisjointReady(prefix, blueprint) {
   return { repo, blueprint, boot };
 }
 
-test('parallel drive: default max_parallel leases two of three ready tasks', () => {
+test('parallel drive에서 default max_parallel → ready task 셋 중 둘을 lease함', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/001-cap';
   const { repo, boot } = threeDisjointReady('bouncer-e2e-cap-', blueprint);
   const prepared = coordinate({
@@ -680,7 +680,7 @@ test('parallel drive: default max_parallel leases two of three ready tasks', () 
   assert.strictEqual(prepared.tasks.filter((t) => t.lease?.status === 'active').length, 2);
 });
 
-test('parallel drive: max_parallel 1 leases a single task', () => {
+test('parallel drive에서 max_parallel 1 → task 하나만 lease함', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/002-one';
   const { repo, boot } = threeDisjointReady('bouncer-e2e-one-', blueprint);
   writeCoordinatorConfig(boot.integrationPath, { max_parallel: 1 });
@@ -692,7 +692,7 @@ test('parallel drive: max_parallel 1 leases a single task', () => {
   assert.strictEqual(prepared.tasks.filter((t) => t.lease?.status === 'active').length, 1);
 });
 
-test('parallel drive: path ancestor and shared exclusive_resources stay out of one wave', () => {
+test('parallel drive에서 path ancestor와 shared exclusive_resources → 한 wave에 들어가지 않음', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/003-conflict';
   const repo = makeRepo({
     'README.md': 'fixture\n',
@@ -725,7 +725,7 @@ test('parallel drive: path ancestor and shared exclusive_resources stay out of o
   assert.deepStrictEqual(prepared.ready, ['001', '003']);
 });
 
-test('parallel drive: revoke rejects prior-generation report and record', () => {
+test('parallel drive에서 revoke 뒤 → prior-generation report와 record가 거절됨', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/004-stale';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n' });
   writeTask(repo, blueprint, '001', {
@@ -765,7 +765,7 @@ test('parallel drive: revoke rejects prior-generation report and record', () => 
   assert.deepStrictEqual(after.lease, before.lease);
 });
 
-test('parallel drive: scope conflict revokes the later lease only', () => {
+test('parallel drive에서 scope conflict → 뒤 lease만 revoke됨', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/005-revise';
   const repo = makeRepo({
     'README.md': 'fixture\n', 'src/a/x.js': 'a\n', 'src/b/x.js': 'b\n',
@@ -804,7 +804,7 @@ test('parallel drive: scope conflict revokes the later lease only', () => {
   assert.strictEqual(ledger.tasks.find((t) => t.id === '002').status, 'pending');
 });
 
-test('parallel drive: wave verification failure leaves canonical HEAD unchanged', () => {
+test('parallel drive에서 wave verification 실패 → canonical HEAD가 바뀌지 않음', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/006-verify';
   const repo = makeRepo({
     'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n', 'src/beta.js': 'beta\n',
@@ -846,7 +846,7 @@ test('parallel drive: wave verification failure leaves canonical HEAD unchanged'
   assert.strictEqual(ledger.fanin, null);
 });
 
-test('parallel drive: resume after fanin.status verified finishes without duplicate cherry-pick', () => {
+test('parallel drive에서 fanin.status verified 뒤 resume → 중복 cherry-pick 없이 끝남', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/007-resume';
   const repo = makeRepo({
     'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n', 'src/beta.js': 'beta\n',
@@ -917,7 +917,7 @@ test('parallel drive: resume after fanin.status verified finishes without duplic
   assert.strictEqual(subjects.filter((s) => s === 'feat: task 002').length, 1);
 });
 
-test('parallel drive: standalone checkout without a ledger keeps pointer effectiveTask', () => {
+test('parallel drive에서 ledger 없는 standalone checkout → pointer effectiveTask를 유지함', () => {
   const blueprint = '.bouncer/context/epics/078-e2e/blueprints/008-standalone';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n' });
   writeTask(repo, blueprint, '001', {
@@ -937,7 +937,7 @@ test('parallel drive: standalone checkout without a ledger keeps pointer effecti
   assert.strictEqual(eff.id, 'TASKS-002');
 });
 
-test('light single-task drive: prepare through done on integration without worker worktree', () => {
+test('light single-task drive → worker worktree 없이 integration에서 prepare부터 done까지 진행됨', () => {
   const { recordReview } = require('../scripts/lib/review-record');
   const { coordinateNext } = require('../scripts/lib/coordinate-next');
   const epic = '.bouncer/context/epics/089-e2e';

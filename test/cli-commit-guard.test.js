@@ -48,19 +48,19 @@ function tmpGit() {
   return repo;
 }
 
-test('commit-guard --staged allows when there is no active pointer', () => {
+test('commit-guard --staged with no active pointer → allows', () => {
   const repo = tmpGit();
   const r = capture(['commit-guard', '--staged', '--repo', repo]);
   assert.equal(r.code, 0);
   assert.equal(r.out, '');
 });
 
-test('commit-guard without --staged exits 2', () => {
+test('commit-guard without --staged → exits 2', () => {
   const r = capture(['commit-guard']);
   assert.equal(r.code, 2);
 });
 
-test('commit-guard --staged blocks files outside affected_paths', () => {
+test('commit-guard --staged with files outside affected_paths → blocks', () => {
   const repo = tmpGit();
   const rel = `${BP}/tasks/001/tasks.md`;
   const abs = path.join(repo, rel);
@@ -89,7 +89,7 @@ test('commit-guard --staged blocks files outside affected_paths', () => {
   assert.equal(r.out, '');
 });
 
-test('commit-guard maps evaluate exceptions to exit 1', () => {
+test('commit-guard when evaluate throws → exits 1', () => {
   const { runCommitGuard } = require('../scripts/lib/cli-commit-guard-command');
   let err = '';
   const code = runCommitGuard({
@@ -104,7 +104,7 @@ test('commit-guard maps evaluate exceptions to exit 1', () => {
   assert.match(err, /commit-guard: internal error, blocking commit: boom/);
 });
 
-test('commit-guard --repo is passed to evaluate', () => {
+test('commit-guard with --repo → passes the repo to evaluate', () => {
   const { runCommitGuard } = require('../scripts/lib/cli-commit-guard-command');
   let seen;
   const code = runCommitGuard({

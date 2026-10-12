@@ -10,7 +10,7 @@ const { isGitCommit, evaluateCommit, evaluateStaged, realMainRepoCurrent } = req
 const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
 
-test('isGitCommit detects commit invocations', () => {
+test('isGitCommit with commit invocations → detects them', () => {
   assert.strictEqual(isGitCommit('git commit -m "x"'), true);
   assert.strictEqual(isGitCommit('git add . && git commit -m "x"'), true);
   assert.strictEqual(isGitCommit('git -C repo commit -m x'), true);
@@ -35,7 +35,7 @@ function deps({
   };
 }
 
-test('non-commit command is always allowed', () => {
+test('non-commit command → is always allowed', () => {
   const r = evaluateCommit({ command: 'git status', repoRoot: '/r', deps: deps({}) });
   assert.deepStrictEqual(r, { block: false });
 });
@@ -48,7 +48,7 @@ test('no active blueprint → do not interfere', () => {
   assert.deepStrictEqual(r, { block: false });
 });
 
-test('evaluateStaged matches evaluateCommit for git commit without -a', () => {
+test('evaluateStaged for git commit without -a → matches evaluateCommit', () => {
   const fixtures = [
     { current: null, affected: [], staged: ['src/a.js'] },
     {
@@ -71,7 +71,7 @@ test('evaluateStaged matches evaluateCommit for git commit without -a', () => {
   }
 });
 
-test('in-scope commit is allowed', () => {
+test('in-scope commit → is allowed', () => {
   const r = evaluateCommit({
     command: 'git commit -m x', repoRoot: '/r',
     deps: deps({
@@ -83,7 +83,7 @@ test('in-scope commit is allowed', () => {
   assert.strictEqual(r.block, false);
 });
 
-test('out-of-scope commit is blocked with a reason listing violations', () => {
+test('out-of-scope commit → is blocked with a reason listing violations', () => {
   const r = evaluateCommit({
     command: 'git commit -m x', repoRoot: '/r',
     deps: deps({
@@ -97,7 +97,7 @@ test('out-of-scope commit is blocked with a reason listing violations', () => {
   assert.ok(!r.reason.includes('src/feature/a.js'));
 });
 
-test('evaluateCommit allow/deny matches checkCommitSafety for the same files', () => {
+test('evaluateCommit for the same files → allow/deny matches checkCommitSafety', () => {
   const affected = ['src/feature'];
   const denyFiles = ['src/feature/a.js', 'src/other/b.js'];
   const denyGuard = checkCommitSafety({
@@ -178,11 +178,11 @@ test('worktree pointer present → used directly, main-repo fallback not needed'
   assert.strictEqual(r.block, false);
 });
 
-test('realMainRepoCurrent returns null when git commands fail (not a repo)', () => {
+test('realMainRepoCurrent when git commands fail (not a repo) → returns null', () => {
   assert.strictEqual(realMainRepoCurrent({ repoRoot: '/nonexistent/path/xyz' }), null);
 });
 
-test('realMainRepoCurrent reads one shared pointer from primary and linked worktrees', () => {
+test('realMainRepoCurrent from primary and linked worktrees → reads one shared pointer', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-'));
   const primary = path.join(root, 'primary');
   const linked = path.join(root, 'linked');
@@ -216,7 +216,7 @@ test('realMainRepoCurrent reads one shared pointer from primary and linked workt
 // P1-2: the guard is a mistake-prevention device. Where it cannot decide what a
 // command does, it must fail closed (report a commit) rather than wave it through.
 
-test('isGitCommit sees through a nested shell', () => {
+test('isGitCommit with a nested shell → sees through it', () => {
   assert.strictEqual(isGitCommit('bash -c "git commit -m x"'), true);
   assert.strictEqual(isGitCommit("sh -c 'git commit -m x'"), true);
   assert.strictEqual(isGitCommit('zsh -lc "git commit"'), true);
@@ -225,7 +225,7 @@ test('isGitCommit sees through a nested shell', () => {
   assert.strictEqual(isGitCommit('sh -c "git status"'), false);
 });
 
-test('isGitCommit fails closed on variable expansion inside a git command', () => {
+test('isGitCommit with variable expansion inside a git command → fails closed', () => {
   assert.strictEqual(isGitCommit('git $FLAG commit'), true);
   assert.strictEqual(isGitCommit('git ${FLAG} status'), true);
   assert.strictEqual(isGitCommit('git $(printf commit)'), true);
@@ -234,7 +234,7 @@ test('isGitCommit fails closed on variable expansion inside a git command', () =
   assert.strictEqual(isGitCommit('echo $HOME'), false);
 });
 
-test('isGitCommit resolves a git alias to its expansion', () => {
+test('isGitCommit with a git alias → resolves it to its expansion', () => {
   const resolveAlias = (name) => ({
     ci: 'commit -v',
     save: "!git add -A && git commit -m 'save'",
@@ -247,7 +247,7 @@ test('isGitCommit resolves a git alias to its expansion', () => {
   assert.strictEqual(isGitCommit('git unknown-sub', { resolveAlias }), false);
 });
 
-test('isGitCommit does not fire on quoted text that merely mentions a commit', () => {
+test('isGitCommit with quoted text that merely mentions a commit → does not fire', () => {
   assert.strictEqual(isGitCommit('echo "git commit"'), false);
   assert.strictEqual(isGitCommit('git log --grep "commit"'), false);
   assert.strictEqual(isGitCommit('git commit-tree abc'), false);
@@ -255,14 +255,14 @@ test('isGitCommit does not fire on quoted text that merely mentions a commit', (
 });
 
 // B8: 명령어 위치의 인용된 git은 커밋으로 탐지. 인자 위치의 "git"은 오탐 금지.
-test('isGitCommit detects quoted git only in command position', () => {
+test('isGitCommit with quoted git outside command position → detects only in command position', () => {
   assert.strictEqual(isGitCommit('"git" commit -m x'), true);
   assert.strictEqual(isGitCommit('g"it" commit -m x'), true);
   assert.strictEqual(isGitCommit('echo "git" commit'), false);
   assert.strictEqual(isGitCommit('git commit -m "-a"'), true);
 });
 
-test('evaluateCommit blocks an out-of-scope commit hidden in a nested shell', () => {
+test('evaluateCommit with an out-of-scope commit hidden in a nested shell → blocks it', () => {
   const r = evaluateCommit({
     command: 'bash -c "git commit -m x"', repoRoot: '/r',
     deps: deps({
@@ -275,7 +275,7 @@ test('evaluateCommit blocks an out-of-scope commit hidden in a nested shell', ()
   assert.ok(r.reason.includes('src/other/b.js'));
 });
 
-test('readAffectedPaths unions paths across numbered task documents', () => {
+test('readAffectedPaths across numbered task documents → unions paths', () => {
   const { readAffectedPaths } = require('../scripts/lib/commit-hook');
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-union-'));
@@ -303,7 +303,7 @@ test('readAffectedPaths unions paths across numbered task documents', () => {
   assert.deepStrictEqual(union, ['src/a.js', 'src/shared.js', 'src/b.js']);
 });
 
-test('pointer task narrows affected_paths; missing task keeps the union', () => {
+test('pointer task with or without a task document → narrows affected_paths; missing task keeps the union', () => {
   const { readAffectedPaths, evaluateCommit } = require('../scripts/lib/commit-hook');
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-narrow-'));
@@ -363,7 +363,7 @@ test('pointer task narrows affected_paths; missing task keeps the union', () => 
 
 const AM_BP = '.bouncer/context/epics/001-x/blueprints/001-y';
 
-test('evaluateCommit blocks -am when only tracked-modified is out of scope', () => {
+test('evaluateCommit with -am when only tracked-modified is out of scope → blocks', () => {
   const repoRoot = '/r';
   const blueprintDir = AM_BP;
   const result = evaluateCommit({
@@ -379,7 +379,7 @@ test('evaluateCommit blocks -am when only tracked-modified is out of scope', () 
   assert.equal(result.block, true);
 });
 
-test('evaluateCommit propagates trackedModified git failure', () => {
+test('evaluateCommit when trackedModified git fails → propagates the failure', () => {
   const repoRoot = '/r';
   const blueprintDir = AM_BP;
   assert.throws(() => evaluateCommit({
@@ -394,7 +394,7 @@ test('evaluateCommit propagates trackedModified git failure', () => {
   }), /git failed/);
 });
 
-test('evaluateCommit does not inspect trackedModified without an all-flag', () => {
+test('evaluateCommit without an all-flag → does not inspect trackedModified', () => {
   const repoRoot = '/r';
   const blueprintDir = AM_BP;
   const cases = [
@@ -423,7 +423,7 @@ test('evaluateCommit does not inspect trackedModified without an all-flag', () =
   }
 });
 
-test('evaluateCommit treats --all and -a as all-flag; allow-empty is not', () => {
+test('evaluateCommit with --all, -a, or allow-empty → treats --all and -a as all-flag; allow-empty is not', () => {
   const repoRoot = '/r';
   const blueprintDir = AM_BP;
   const blockOnTracked = (command) => evaluateCommit({
@@ -442,7 +442,7 @@ test('evaluateCommit treats --all and -a as all-flag; allow-empty is not', () =>
   assert.equal(blockOnTracked('git commit --allow-empty -m x'), false);
 });
 
-test('evaluateCommit fail-closed unparseable commit also inspects trackedModified', () => {
+test('evaluateCommit with an unparseable commit (fail-closed) → also inspects trackedModified', () => {
   const r = evaluateCommit({
     command: 'git $FLAG commit',
     repoRoot: '/r',
@@ -456,7 +456,7 @@ test('evaluateCommit fail-closed unparseable commit also inspects trackedModifie
   assert.equal(r.block, true);
 });
 
-test('realTrackedModified lists names from git diff HEAD --name-only', () => {
+test('realTrackedModified → lists names from git diff HEAD --name-only', () => {
   const { realTrackedModified } = require('../scripts/lib/commit-hook');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-tracked-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -529,7 +529,7 @@ function coordinatorFixture(blueprint = COORD_BP) {
   return { repo, integrationPath: boot.integrationPath, worker: prepared.tasks[0].workerPath };
 }
 
-test('a live coordinator ledger refuses a main-worktree commit and allows the assigned worker', () => {
+test('a live coordinator ledger → refuses a main-worktree commit and allows the assigned worker', () => {
   const { repo, worker } = coordinatorFixture();
   const staged = { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] };
 
@@ -541,7 +541,7 @@ test('a live coordinator ledger refuses a main-worktree commit and allows the as
   assert.deepStrictEqual(fromWorker, { block: false });
 });
 
-test('an unreadable ledger names the file that is blocking every checkout', () => {
+test('an unreadable ledger → names the file that is blocking every checkout', () => {
   const { repo, worker } = coordinatorFixture('.bouncer/context/epics/045-x/blueprints/046-y');
   const ledgerFile = path.join(
     repo, '.worktrees', '045', '046', 'integration', '.bouncer', 'runtime', 'coordinator.json',
@@ -557,7 +557,7 @@ test('an unreadable ledger names the file that is blocking every checkout', () =
   assert.strictEqual(r.reason, 'unreadable-ledger');
 });
 
-test('a coordinator worktree without a ledger is not silently treated as in scope', () => {
+test('a coordinator worktree without a ledger → is not silently treated as in scope', () => {
   const { repo, worker } = coordinatorFixture('.bouncer/context/epics/043-x/blueprints/044-y');
   fs.rmSync(
     path.join(repo, '.worktrees', '043', '044', 'integration', '.bouncer', 'runtime', 'coordinator.json'),
@@ -583,7 +583,7 @@ function coordinatorDeps({ current, affected, staged, coordinator }) {
   };
 }
 
-test('the hook judges staged paths against the coordinator ledger scope', () => {
+test('the hook with staged paths and a coordinator ledger scope → judges against the ledger scope', () => {
   const current = { blueprint: BP, base: 'develop', task: `${BP}/tasks/001/tasks.md` };
   const widened = evaluateCommit({
     command: 'git commit -m x',
@@ -612,7 +612,7 @@ test('the hook judges staged paths against the coordinator ledger scope', () => 
   assert.match(stale.reason, /src\/feature\/a\.js/);
 });
 
-test('a boundary block with an empty staged list reports the checkout, not a bare colon', () => {
+test('a boundary block with an empty staged list → reports the checkout, not a bare colon', () => {
   const r = evaluateCommit({
     command: 'git commit -m x',
     repoRoot: '/r',
@@ -628,7 +628,7 @@ test('a boundary block with an empty staged list reports the checkout, not a bar
   assert.doesNotMatch(r.reason, /: $/);
 });
 
-test('parallel worktrees isolate commit scope to each pointer task affected_paths', () => {
+test('parallel worktrees → isolate commit scope to each pointer task affected_paths', () => {
   const { readAffectedPaths, evaluateCommit } = require('../scripts/lib/commit-hook');
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-ns-'));
@@ -702,7 +702,7 @@ test('parallel worktrees isolate commit scope to each pointer task affected_path
   assert.strictEqual(allowA.block, false);
 });
 
-test('evaluateCommit and readAffectedPaths follow the worker lease over the pointer', () => {
+test('evaluateCommit and readAffectedPaths with a worker lease and a pointer → follow the worker lease over the pointer', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-eff-'));
   const run = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
   run(['init', '-b', 'work', '--quiet']);
@@ -784,7 +784,7 @@ test('evaluateCommit and readAffectedPaths follow the worker lease over the poin
 
 // RD-001: pointer가 없어도 worker lease로 scope를 적용하고, lease 부재는
 // resolveEffectiveTask 전에 {block:false}로 빠져나가지 않는다.
-test('evaluateCommit applies lease scope without a pointer and fail-closes on revoked lease', () => {
+test('evaluateCommit with lease scope and no pointer or a revoked lease → applies lease scope and fail-closes on revoked', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-noptr-'));
   const run = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
   run(['init', '-b', 'work', '--quiet']);

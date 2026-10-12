@@ -207,7 +207,7 @@ function trackingGit(changed, untracked, {
   };
 }
 
-test('dry-run returns commitMessage without staging', () => {
+test('dry-run → returns commitMessage without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = trackingGit(['src/auth/login.ts'], []);
@@ -219,7 +219,7 @@ test('dry-run returns commitMessage without staging', () => {
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
 });
 
-test('verification tasks are rejected by both commitTask and the shared commit guard', () => {
+test('verification task is committed → both commitTask and the shared commit guard reject it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const taskPath = path.join(repo, BP_REL, 'tasks/001/tasks.md');
@@ -239,7 +239,7 @@ test('verification tasks are rejected by both commitTask and the shared commit g
   assert.deepStrictEqual(g.calls, []);
 });
 
-test('dry-run and --yes share one commit message and stamp an 8-char sha', () => {
+test('dry-run and --yes on the same task → share one commit message and stamp an 8-char sha', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = trackingGit(['src/auth/login.ts'], []);
@@ -261,7 +261,7 @@ test('dry-run and --yes share one commit message and stamp an 8-char sha', () =>
   assert.match(live.commitSha, /^[0-9a-f]{8}$/);
 });
 
-test('task dry-run builds authored intent and summary in order', () => {
+test('task dry-run with authored intent and summary → message builds them in order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const taskRel = `${BP_REL}/tasks/001/tasks.md`;
@@ -287,7 +287,7 @@ test('task dry-run builds authored intent and summary in order', () => {
   ].join('\n'));
 });
 
-test('malformed authored task field aborts message generation', () => {
+test('authored task field is malformed → message generation aborts', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const taskRel = `${BP_REL}/tasks/001/tasks.md`;
@@ -304,7 +304,7 @@ test('malformed authored task field aborts message generation', () => {
   assert.ok(res.failures.some((f) => f.code === 'S32' && /commit_summary/.test(f.message)));
 });
 
-test('task commit filters allowed workflow documents but keeps task outputs', () => {
+test('task commit with workflow documents and task outputs → allowed workflow documents are filtered and task outputs are kept', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const workflowDocs = [
@@ -320,7 +320,7 @@ test('task commit filters allowed workflow documents but keeps task outputs', ()
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
 });
 
-test('task commit does not stage an absent untracked path', () => {
+test('task commit with an absent untracked path → that path is not staged', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = trackingGit(['src/auth/login.ts'], ['src/auth/never-created.ts']);
@@ -329,7 +329,7 @@ test('task commit does not stage an absent untracked path', () => {
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
 });
 
-test('--yes stages then commits in that order', () => {
+test('--yes → stages then commits in that order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = trackingGit(['src/auth/login.ts'], []);
@@ -344,7 +344,7 @@ test('--yes stages then commits in that order', () => {
   assert.match(tasksRaw, /commit_sha: abcdef01/);
 });
 
-test('out-of-scope file hard-aborts without staging', () => {
+test('out-of-scope file changed → hard-aborts without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = trackingGit(['src/auth/login.ts', 'src/payments/charge.ts'], []);
@@ -357,7 +357,7 @@ test('out-of-scope file hard-aborts without staging', () => {
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
 });
 
-test('untracked out-of-scope hard-aborts without staging', () => {
+test('untracked out-of-scope file → hard-aborts without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.mkdirSync(path.join(repo, 'src/payments'), { recursive: true });
@@ -374,7 +374,7 @@ test('untracked out-of-scope hard-aborts without staging', () => {
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
 });
 
-test('commitTask violations match checkCommitSafety for the same files', () => {
+test('same files checked by commitTask and checkCommitSafety → violations match', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const files = ['src/auth/login.ts', 'src/payments/charge.ts'];
@@ -394,7 +394,7 @@ test('commitTask violations match checkCommitSafety for the same files', () => {
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
 });
 
-test('in-scope changed and untracked pass the same guard as checkCommitSafety', () => {
+test('in-scope changed and untracked files → pass the same guard as checkCommitSafety', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.writeFileSync(path.join(repo, 'src/auth/session.ts'), 'export {}\n');
@@ -416,7 +416,7 @@ test('in-scope changed and untracked pass the same guard as checkCommitSafety', 
   assert.deepStrictEqual(res.staged, files);
 });
 
-test('no changes with --yes succeeds without calling commit', () => {
+test('no changes with --yes → succeeds without calling commit', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = trackingGit([], []);
@@ -433,7 +433,7 @@ test('no changes with --yes succeeds without calling commit', () => {
   assert.strictEqual(res.stampPath, null);
 });
 
-test('nextTask is earliest other open task; pointer is untouched', () => {
+test('other open tasks exist → nextTask is the earliest and the pointer is untouched', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   // 열린 task가 둘(002 ready, 003 in_progress)일 때 번호가 앞선 002를 고른다.
   fullBlueprint(repo, { extraOpenTask: true });
@@ -462,7 +462,7 @@ test('nextTask is earliest other open task; pointer is untouched', () => {
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), before);
 });
 
-test('nextTask is null when no other open tasks remain', () => {
+test('no other open tasks remain → nextTask is null', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = trackingGit(['src/auth/login.ts'], []);
@@ -473,7 +473,7 @@ test('nextTask is null when no other open tasks remain', () => {
   assert.strictEqual(res.nextTask, null);
 });
 
-test('gate failure returns validate reason without staging', () => {
+test('gate fails → returns validate reason without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   // commit 게이트는 explain이 아니라 포인터 task 상태(G6)를 본다.
   fullBlueprint(repo, { tasksStatus: 'ready' });
@@ -489,7 +489,7 @@ test('gate failure returns validate reason without staging', () => {
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
 });
 
-test('standalone dry-run reports standalone, confirm-commit, and a null stampPath', () => {
+test('standalone dry-run → reports standalone, confirm-commit, and a null stampPath', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const res = commitTask({
@@ -502,7 +502,7 @@ test('standalone dry-run reports standalone, confirm-commit, and a null stampPat
   assert.strictEqual(res.stampPath, null);
 });
 
-test('standalone --yes with a nextTask asks next-task and stamps tasks.md', () => {
+test('standalone --yes with a nextTask → asks next-task and stamps tasks.md', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo, { extraOpenTask: true });
   const res = commitTask({
@@ -516,7 +516,7 @@ test('standalone --yes with a nextTask asks next-task and stamps tasks.md', () =
   assert.strictEqual(res.stampPath, `${BP_REL}/tasks/001/tasks.md`);
 });
 
-test('standalone --yes with no nextTask finalizes', () => {
+test('standalone --yes with no nextTask → finalizes', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const res = commitTask({
@@ -529,7 +529,7 @@ test('standalone --yes with no nextTask finalizes', () => {
   assert.strictEqual(res.stampPath, `${BP_REL}/tasks/001/tasks.md`);
 });
 
-test('out-of-scope recovery is return-to-plan standalone and coordinator-revise on a drive', () => {
+test('out-of-scope recovery → is return-to-plan standalone and coordinator-revise on a drive', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const standalone = commitTask({
@@ -603,7 +603,7 @@ function coordinatorFixture({ blueprint = BP_REL, extraOpenTask = false } = {}) 
   return { repo, worker, integrationPath: boot.integrationPath, blueprint };
 }
 
-test('reviseTaskScope moves ledger and task document to one revision with a recorded reason', () => {
+test('reviseTaskScope on a task with a reason → moves ledger and task document to one revision with the recorded reason', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
 
   const noReason = reviseTaskScope({
@@ -654,7 +654,7 @@ test('reviseTaskScope moves ledger and task document to one revision with a reco
   assert.strictEqual(after.decisions.filter((d) => d.kind === 'scope').length, 2);
 });
 
-test('reviseTaskScope refuses the main worktree and an unknown task', () => {
+test('reviseTaskScope on the main worktree or an unknown task → refuses', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   assert.deepStrictEqual(
     reviseTaskScope({ repoRoot: repo, blueprint, task: '001', paths: ['src/'], reason: 'r' }),
@@ -672,7 +672,7 @@ test('reviseTaskScope refuses the main worktree and an unknown task', () => {
   assert.strictEqual(fs.existsSync(strayLock), false);
 });
 
-test('reviseTaskScope refuses a task the ledger does not carry', () => {
+test('reviseTaskScope on a task the ledger does not carry → refuses', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const ledgerFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
@@ -686,7 +686,7 @@ test('reviseTaskScope refuses a task the ledger does not carry', () => {
   );
 });
 
-test('a coordinator commit returns actual paths, provenance SHAs and the next ready wave', () => {
+test('coordinator commit → returns actual paths, provenance SHAs and the next ready wave', () => {
   // 002는 sequential 이라 prepare가 열지 않는다. 001이 아직 prepared(in-flight
   // 순차)인 동안 ready wave는 비어 다음 task를 약속하지 않는다.
   const { worker, blueprint } = coordinatorFixture({ extraOpenTask: true });
@@ -712,7 +712,7 @@ test('a coordinator commit returns actual paths, provenance SHAs and the next re
   assert.strictEqual(res.scopeRevision, null);
 });
 
-test('a coordinator dry-run reports coordinator, confirm-commit, and a null stampPath', () => {
+test('coordinator dry-run → reports coordinator, confirm-commit, and a null stampPath', () => {
   // 드라이브에서도 --yes 전 확인이 있어야 한다. 이 분기를 return-to-coordinator와
   // 바꾸면 스킬 Confirm 단계가 사라져 F1이 놓친 교환을 다시 허용한다.
   const { worker, blueprint } = coordinatorFixture();
@@ -729,7 +729,7 @@ test('a coordinator dry-run reports coordinator, confirm-commit, and a null stam
   assert.strictEqual(res.stampPath, null);
 });
 
-test('a coordinator empty staged --yes returns to coordinator without a stampPath', () => {
+test('coordinator empty staged --yes → returns to coordinator without a stampPath', () => {
   // 빈 staged는 커밋이 없으므로 stampPath는 null. dry-run이 아니므로
   // nextAction은 confirm-commit이 아니라 return-to-coordinator다.
   const { worker, blueprint } = coordinatorFixture();
@@ -749,7 +749,7 @@ test('a coordinator empty staged --yes returns to coordinator without a stampPat
   assert.strictEqual(res.stampPath, null);
 });
 
-test('a coordinator commit refuses a staged path outside the current ledger scope', () => {
+test('coordinator commit with a staged path outside the current ledger scope → refuses', () => {
   const { worker, blueprint } = coordinatorFixture();
   reviseTaskScope({
     repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'scope moved to session',
@@ -764,7 +764,7 @@ test('a coordinator commit refuses a staged path outside the current ledger scop
   assert.deepStrictEqual(g.calls, []);
 });
 
-test('a task document out of step with the ledger revision refuses the commit', () => {
+test('task document out of step with the ledger revision → refuses the commit', () => {
   const { worker, blueprint } = coordinatorFixture();
   reviseTaskScope({
     repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'scope confirmed',
@@ -786,7 +786,7 @@ test('a task document out of step with the ledger revision refuses the commit', 
   assert.ok(typeof res.recovery.detail === 'string' && res.recovery.detail.length > 0);
 });
 
-test('a checkout that is neither the integration nor the assigned worktree is unassigned', () => {
+test('checkout that is neither the integration nor the assigned worktree → is unassigned', () => {
   const { repo, blueprint } = coordinatorFixture();
   const stranger = path.join(repo, '.worktrees', '001', '001', 'workers', '002');
   fs.mkdirSync(stranger, { recursive: true });
@@ -795,7 +795,7 @@ test('a checkout that is neither the integration nor the assigned worktree is un
   assert.strictEqual(ctx.reason, 'unassigned-worktree');
 });
 
-test('reviseTaskScope refuses a scope outside this repository or over the governance tree', () => {
+test('reviseTaskScope with a scope outside this repository or over the governance tree → refuses', () => {
   const { worker, blueprint } = coordinatorFixture();
   for (const bad of ['/etc', '../elsewhere/src', '.bouncer/context/epics', '.git/hooks', '.']) {
     const res = reviseTaskScope({
@@ -832,7 +832,7 @@ test('reviseTaskScope refuses a scope outside this repository or over the govern
   );
 });
 
-test('an unreadable ledger refuses everywhere, including the main worktree', () => {
+test('unreadable ledger → refuses everywhere, including the main worktree', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const ledgerFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
@@ -850,7 +850,7 @@ test('an unreadable ledger refuses everywhere, including the main worktree', () 
   );
 });
 
-test('a pointer task the ledger does not carry is refused like reviseTaskScope refuses it', () => {
+test('pointer task the ledger does not carry → is refused like reviseTaskScope refuses it', () => {
   const { repo, blueprint } = coordinatorFixture();
   const integration = path.join(repo, '.worktrees', '001', '001', 'integration');
   const ctx = coordinatorContext({ repoRoot: integration, blueprint, task: '009' });
@@ -858,7 +858,7 @@ test('a pointer task the ledger does not carry is refused like reviseTaskScope r
   assert.strictEqual(ctx.reason, 'task-outside-blueprint');
 });
 
-test('a live lock is not reclaimed because its file mtime looks old', () => {
+test('live lock whose file mtime looks old → is not reclaimed', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const lockFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
@@ -878,7 +878,7 @@ test('a live lock is not reclaimed because its file mtime looks old', () => {
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(lockFile, 'utf8')), held);
 });
 
-test('ledger writes serialize on a lock and reclaim an abandoned one', () => {
+test('ledger writes with an abandoned lock → serialize on a lock and reclaim the abandoned one', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const ledgerFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
@@ -904,7 +904,7 @@ test('ledger writes serialize on a lock and reclaim an abandoned one', () => {
 // 회수는 take-then-check다. park한 뒤 복원하기 전에 다른 프로세스가 잠금을 다시
 // 잡을 수 있고, 그 창에서 복원이 덮어쓰면 두 writer가 함께 임계 구역에 들어간다.
 // fs를 가로채 그 창을 결정적으로 재현한다 — 경합을 기다리면 회귀가 흔들린다.
-test('reclaiming a stale lock never overwrites a lock a third acquirer took meanwhile', () => {
+test('reclaiming a stale lock while a third acquirer took it meanwhile → never overwrites that lock', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const lockFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
@@ -949,7 +949,7 @@ test('reclaiming a stale lock never overwrites a lock a third acquirer took mean
 // 두면 ledger에 없는 revision이 문서에 남아 stale이 된다. 손 복구가 필요한 상태는
 // 아니지만(다음 scope revision이 양쪽을 한 번호로 화해시킨다) 저절로 낫지도 않아,
 // 그 revision이 나올 때까지 commit safety는 계속 거절한다.
-test('a writer that loses the lock mid-section refuses before writing the ledger or the document', () => {
+test('writer loses the lock mid-section → refuses before writing the ledger or the document', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const ledgerFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
@@ -991,7 +991,7 @@ test('a writer that loses the lock mid-section refuses before writing the ledger
 // 쓰기 사이에 잠금을 잃는 창은 아무도 막지 못한다 — 그래서 문서 쓰기 직후에 잠금을
 // 뺏어 원장 쓰기 직전 가드만을 태운다. governance가 서술하는 유일한 상태(문서는
 // 새 revision을 담고 원장은 그대로)를 이 테스트가 고정한다.
-test('a writer that loses the lock after writing the document refuses before writing the ledger', () => {
+test('writer loses the lock after writing the document → refuses before writing the ledger', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const ledgerFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
@@ -1041,7 +1041,7 @@ test('a writer that loses the lock after writing the document refuses before wri
 
 // 원장에만 쓰는 경로도 같은 확인을 거쳐야 한다. actualPaths 기록은 문서를 건드리지
 // 않지만, 잠금을 잃은 채 쓰면 다른 writer가 읽어 간 원장 위에 얹힌다.
-test('recordActualPaths that loses the lock mid-section refuses before writing the ledger', () => {
+test('recordActualPaths loses the lock mid-section → refuses before writing the ledger', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const ledgerFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
@@ -1078,7 +1078,7 @@ test('recordActualPaths that loses the lock mid-section refuses before writing t
 
 // 토큰을 쓰기 전에 죽은 writer는 0바이트 잠금을 남긴다. 그 잠금은 방치되면
 // 회수돼야 한다 — 아니면 원장이 영구히 잠긴다.
-test('a stale token-less lock is reclaimed', () => {
+test('stale token-less lock → is reclaimed', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const lockFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
@@ -1116,7 +1116,7 @@ function parkWithForeignToken(lockFile, restore) {
 // 하드링크를 걸 수 없는 환경(미지원 파일시스템, protected_hardlinks 등)에서는
 // 복원이 rename으로 물러나야 한다. 물러나지 않으면 park한 원 소유자의 레코드를
 // 잃고 잠금 자리가 빈 채로 남는다.
-test('restoring a parked lock falls back to rename when a hard link cannot be made', () => {
+test('restoring a parked lock when a hard link cannot be made → falls back to rename', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const lockFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
@@ -1156,7 +1156,7 @@ test('restoring a parked lock falls back to rename when a hard link cannot be ma
 
 // EEXIST도 하드링크 불가도 아닌 실패는 삼키지 않는다. 그리고 그때 park 사본을
 // 지우면 원 소유자의 레코드가 영구히 사라지므로, 사본은 남아 있어야 한다.
-test('a park copy survives when restoring fails for a reason other than a taken slot', () => {
+test('restoring fails for a reason other than a taken slot → the park copy survives', () => {
   const { repo, worker, blueprint } = coordinatorFixture();
   const lockFile = path.join(
     repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
@@ -1187,7 +1187,7 @@ test('a park copy survives when restoring fails for a reason other than a taken 
   assert.strictEqual(JSON.parse(fs.readFileSync(state.parkPath, 'utf8')).token, 'other-owner');
 });
 
-test('commitTask in a worker cwd commits the leased task even when the pointer points elsewhere', () => {
+test('commitTask in a worker cwd while the pointer points elsewhere → commits the leased task', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-commit-eff-'));
   const blueprint = '.bouncer/context/epics/097-eff/blueprints/001-y';
   initGitWithChange(repo);
@@ -1287,7 +1287,7 @@ test('commitTask in a worker cwd commits the leased task even when the pointer p
   assert.strictEqual(bad.reason, 'out-of-scope');
 });
 
-test('commitTask succeeds after a Bouncer pre-commit hook is installed', () => {
+test('Bouncer pre-commit hook is installed → commitTask succeeds', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeCurrent({

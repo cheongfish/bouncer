@@ -129,7 +129,7 @@ function capture() {
   };
 }
 
-test('commit --yes rejects source edits after verify with G23', () => {
+test('commit --yes after source edits following verify → rejects with G23', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
@@ -145,7 +145,7 @@ test('commit --yes rejects source edits after verify with G23', () => {
   assert.ok(parsed.failures.some((f) => f.code === 'G23' && /sources changed after verify/.test(f.message)));
 });
 
-test('commit without --blueprint exits 2 and keeps stdout pipe-clean of ok:true', () => {
+test('commit without --blueprint → exits 2 and keeps stdout pipe-clean of ok:true', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const { io, buf } = capture();
   const code = runCli(['commit', '--repo', repo], io);
@@ -154,7 +154,7 @@ test('commit without --blueprint exits 2 and keeps stdout pipe-clean of ok:true'
   assert.ok(!buf.out.includes('"ok": true'));
 });
 
-test('commit gate failure exits non-zero with JSON { ok:false, reason:validate }', () => {
+test('commit gate failure → exits non-zero with JSON { ok:false, reason:validate }', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   // commit 게이트는 explain이 아니라 포인터 task 상태(G6)를 본다.
   fullBlueprint(repo, { tasksStatus: 'ready' });
@@ -171,7 +171,7 @@ test('commit gate failure exits non-zero with JSON { ok:false, reason:validate }
   assert.ok(parsed.failures.some((f) => f.code === 'G6'));
 });
 
-test('commit dry-run exits 0 with dryRun JSON', () => {
+test('commit dry-run → exits 0 with dryRun JSON', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   // Working tree clean relative to HEAD — dry-run still succeeds with empty staged.
@@ -189,7 +189,7 @@ test('commit dry-run exits 0 with dryRun JSON', () => {
   assert.ok(Array.isArray(parsed.staged));
 });
 
-test('commit --yes writes stable provenance trailers to the real git message', () => {
+test('commit --yes → writes stable provenance trailers to the real git message', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
@@ -211,7 +211,7 @@ test('commit --yes writes stable provenance trailers to the real git message', (
   assert.strictEqual((body.match(/^Bouncer-Intent:/gm) || []).length, 1);
 });
 
-test('commit --yes stages in-scope change and returns committed:true', () => {
+test('commit --yes with an in-scope change → stages it and returns committed:true', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   // HEAD 위에 범위 안 변경을 남겨 realGit 경로의 커밋을 검증한다.
@@ -242,7 +242,7 @@ test('commit --yes stages in-scope change and returns committed:true', () => {
   assert.ok(typeof parsed.commitSha === 'string' && parsed.commitSha.length > 0);
 });
 
-test('commit --yes commits an in-scope tracked deletion already staged by the task', () => {
+test('commit --yes with an in-scope tracked deletion already staged by the task → commits it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   // 실제 TASKS-005 삭제 경로처럼 작업자가 이미 `git add -A`한 deletion은
@@ -267,7 +267,7 @@ test('commit --yes commits an in-scope tracked deletion already staged by the ta
   assert.match(committed, /^D\s+src\/auth\/login\.ts$/m);
 });
 
-test('commit --yes stages an in-scope tracked deletion from a clean index', () => {
+test('commit --yes with an in-scope tracked deletion from a clean index → stages it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.rmSync(path.join(repo, 'src/auth/login.ts'));
@@ -294,7 +294,7 @@ test('commit --yes stages an in-scope tracked deletion from a clean index', () =
   assert.match(committed, /^D\s+src\/auth\/login\.ts$/m);
 });
 
-test('commit --yes stages both existing index and later worktree changes to one task file', () => {
+test('commit --yes with both existing index and later worktree changes to one task file → stages both', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const login = path.join(repo, 'src/auth/login.ts');
@@ -319,7 +319,7 @@ test('commit --yes stages both existing index and later worktree changes to one 
   }).trim(), '');
 });
 
-test('commit --yes rejects out-of-scope change before staging without a host hook', () => {
+test('commit --yes with an out-of-scope change before staging and no host hook → rejects', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   // 훅 어댑터 없이 CLI만 호출해도 범위 밖 변경은 staging 전에 거절한다.
@@ -348,7 +348,7 @@ test('commit --yes rejects out-of-scope change before staging without a host hoo
   assert.match(dirty, /src\/auth\/login\.ts/);
 });
 
-test('commit --yes leaves tracked finalization remainder while committing task source', () => {
+test('commit --yes with a tracked finalization remainder → leaves it while committing task source', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const retainedIndex = '.bouncer/Dist' + 'ill.md';
@@ -391,7 +391,7 @@ test('commit --yes leaves tracked finalization remainder while committing task s
   assert.deepStrictEqual(preserved, [retainedIndex, retainedShard].sort());
 });
 
-test('commit restores staged finalization remainder when the commit gate throws', () => {
+test('commit when the commit gate throws → restores the staged finalization remainder', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const retainedIndex = '.bouncer/Dist' + 'ill.md';
@@ -412,7 +412,7 @@ test('commit restores staged finalization remainder when the commit gate throws'
   assert.deepStrictEqual(preserved, [retainedIndex]);
 });
 
-test('commit still rejects modified or untracked finalization remainder and other out-of-scope candidates', () => {
+test('commit with modified or untracked finalization remainder and other out-of-scope candidates → still rejects', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const retainedIndex = '.bouncer/Dist' + 'ill.md';
@@ -466,7 +466,7 @@ function coordinate(opts) {
 }
 
 
-test('commit JSON reports actual paths and coordinator provenance', () => {
+test('commit JSON → reports actual paths and coordinator provenance', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
@@ -504,7 +504,7 @@ test('commit JSON reports actual paths and coordinator provenance', () => {
   assert.deepStrictEqual(parsed.ledgerRecord, { ok: true });
 });
 
-test('commit from the main worktree is refused while a coordinator ledger is live', () => {
+test('commit from the main worktree while a coordinator ledger is live → is refused', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });

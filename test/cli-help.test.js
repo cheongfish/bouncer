@@ -38,25 +38,25 @@ function capture(argv) {
   return { code, ...buf };
 }
 
-test('bouncer with no arguments prints usage and exits 0', () => {
+test('인자 없이 bouncer를 실행하면 → usage를 출력하고 exit 0을 낸다', () => {
   const r = capture([]);
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /usage/i);
   assert.strictEqual(r.err, '');
 });
 
-test('usage lists task-layout migration', () => {
+test('usage → task-layout migration을 나열한다', () => {
   assert.match(capture([]).out, /task-layout \[--dry-run\]/);
 });
 
-test('usage lists retention dry-run and apply forms', () => {
+test('usage → retention dry-run과 apply 형식을 나열한다', () => {
   const out = capture([]).out;
   assert.match(out, /migrate\s+retention\b/);
   assert.match(out, /Audit closed blueprints for retention \(dry-run/);
   assert.match(out, /retention --apply --blueprint <dir>/);
 });
 
-test('every subcommand is listed in the usage text', () => {
+test('모든 subcommand가 → usage 텍스트에 나열된다', () => {
   const r = capture([]);
   for (const name of SUBCOMMANDS) {
     // 행 머리의 서브커맨드 이름만 본다. finalize 설명의 "commit" 단어에
@@ -69,12 +69,12 @@ test('every subcommand is listed in the usage text', () => {
   }
 });
 
-test('usage omits the retired distill command', () => {
+test('usage → 폐기된 distill 명령을 생략한다', () => {
   const retired = ['d', 'istill'].join('');
   assert.doesNotMatch(capture([]).out, new RegExp(`^\\s*${retired}\\b`, 'm'));
 });
 
-test('--help, -h, and help all print the same usage on stdout', () => {
+test('--help, -h, help → 같은 usage를 stdout에 출력한다', () => {
   const baseline = capture([]).out;
   for (const flag of [['--help'], ['-h'], ['help']]) {
     const r = capture(flag);
@@ -83,7 +83,7 @@ test('--help, -h, and help all print the same usage on stdout', () => {
   }
 });
 
-test('an unknown command still fails, but says what is available', () => {
+test('알 수 없는 명령 → 실패하지만 사용 가능한 명령을 알려준다', () => {
   const r = capture(['validat']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /unknown command: validat/);
@@ -91,27 +91,27 @@ test('an unknown command still fails, but says what is available', () => {
   assert.strictEqual(r.out, '');
 });
 
-test('usage lists scaffold task --blueprint --id', () => {
+test('usage → scaffold task --blueprint --id를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /task --blueprint <dir> --id <ddd>/);
 });
 
-test('usage lists scaffold context-review --blueprint', () => {
+test('usage → scaffold context-review --blueprint를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /context-review --blueprint <dir>/);
 });
 
-test('usage lists scaffold blueprint --scale light|full', () => {
+test('usage → scaffold blueprint --scale light|full을 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--scale light\|full\]/);
 });
 
-test('graph-sync help names source + test scopes', () => {
+test('graph-sync help → source와 test scope를 명시한다', () => {
   const r = capture([]);
   assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test graphs/);
 });
 
-test('usage lists graph-suggest --query <text> [--seed <value>]... [--debug]', () => {
+test('usage → graph-suggest --query <text> [--seed <value>]... [--debug]를 나열한다', () => {
   const r = capture([]);
   assert.match(
     r.out,
@@ -121,33 +121,33 @@ test('usage lists graph-suggest --query <text> [--seed <value>]... [--debug]', (
   assert.doesNotMatch(r.out, /graph-suggest[\s\S]{0,120}--debug\s+</);
 });
 
-test('graph-suggest without --query exits 2 on stderr', () => {
+test('--query 없는 graph-suggest → stderr에 exit 2를 낸다', () => {
   const r = capture(['graph-suggest']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /query/i);
   assert.strictEqual(r.out, '');
 });
 
-test('graph-suggest with empty --query exits 2', () => {
+test('빈 --query인 graph-suggest → exit 2를 낸다', () => {
   const r = capture(['graph-suggest', '--query', '']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /query/i);
   assert.strictEqual(r.out, '');
 });
 
-test('graph-suggest with valueless --seed exits 2', () => {
+test('값 없는 --seed인 graph-suggest → exit 2를 낸다', () => {
   const r = capture(['graph-suggest', '--query', 'x', '--seed']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /seed/i);
   assert.strictEqual(r.out, '');
 });
 
-test('help output does not list context-search', () => {
+test('help 출력 → context-search를 나열하지 않는다', () => {
   const r = capture([]);
   assert.doesNotMatch(r.out, /context-search/);
 });
 
-test('context-search is unknown command exit 2', () => {
+test('context-search → 알 수 없는 명령으로 exit 2를 낸다', () => {
   let stdout = '';
   let stderr = '';
   const code = runCli(['context-search', '--mode', 'decision', '--query', 'x'], {
@@ -159,24 +159,24 @@ test('context-search is unknown command exit 2', () => {
   assert.match(stderr, /unknown command: context-search/);
 });
 
-test('usage lists run preflight --blueprint', () => {
+test('usage → run preflight --blueprint를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /run\s+preflight --blueprint <dir>/);
 });
 
-test('usage lists current --replace', () => {
+test('usage → current --replace를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /current\s+\[--set <blueprint dir>.*\[--replace\]/s);
 });
 
-test('usage lists intent --symbol [--candidate] [--limit]', () => {
+test('usage → intent --symbol [--candidate] [--limit]를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /intent\s+--symbol <function-name>/);
   assert.match(r.out, /\[--candidate <qualified-ref>\]/);
   assert.match(r.out, /\[--limit <1\.\.5>\]/);
 });
 
-test('unknown command is still rejected after intent is public', () => {
+test('intent가 공개된 뒤 알 수 없는 명령 → 여전히 거부된다', () => {
   const r = capture(['intet']);
   assert.equal(r.code, 2);
   assert.match(r.err, /unknown command: intet/);
@@ -184,7 +184,7 @@ test('unknown command is still rejected after intent is public', () => {
   assert.equal(r.out, '');
 });
 
-test('usage lists finalize prepare --blueprint', () => {
+test('usage → finalize prepare --blueprint를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /finalize\s+prepare --blueprint <dir>/);
   assert.match(r.out, /finalize\s+links --blueprint <dir>/);
@@ -192,13 +192,13 @@ test('usage lists finalize prepare --blueprint', () => {
   assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
 });
 
-test('usage lists subagent-model and codex-agents check', () => {
+test('usage → subagent-model과 codex-agents check를 나열한다', () => {
   const out = capture([]).out;
   assert.match(out, /subagent-model --agent <name> \[--provider <name>\]/);
   assert.match(out, /codex-agents check --agent <name>/);
 });
 
-test('usage lists review-dispatch plan and execute forms', () => {
+test('usage → review-dispatch plan과 execute 형식을 나열한다', () => {
   const out = capture([]).out;
   assert.match(out, /review-dispatch\s+plan --blueprint <dir>/);
   assert.match(
@@ -207,7 +207,7 @@ test('usage lists review-dispatch plan and execute forms', () => {
   );
 });
 
-test('usage lists review record form', () => {
+test('usage → review record 형식을 나열한다', () => {
   const out = capture([]).out;
   assert.match(
     out,
@@ -215,7 +215,7 @@ test('usage lists review record form', () => {
   );
 });
 
-test('review record rejects --status pending, non-ddd --task, and missing --round', () => {
+test('review record에 --status pending, non-ddd --task, --round 누락이 있으면 → 거부한다', () => {
   const pending = capture([
     'review', 'record', '--blueprint', 'bp', '--round', 'x.json', '--status', 'pending',
   ]);
@@ -236,14 +236,14 @@ test('review record rejects --status pending, non-ddd --task, and missing --roun
   assert.strictEqual(missingRound.out, '');
 });
 
-test('review-dispatch without subcommand exits 2 on stderr', () => {
+test('subcommand 없는 review-dispatch → stderr에 exit 2를 낸다', () => {
   const r = capture(['review-dispatch']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /review-dispatch/);
   assert.strictEqual(r.out, '');
 });
 
-test('usage lists dispatch print form', () => {
+test('usage → dispatch print 형식을 나열한다', () => {
   const out = capture([]).out;
   assert.match(
     out,
@@ -252,7 +252,7 @@ test('usage lists dispatch print form', () => {
 });
 
 
-test('usage lists coordinate revoke and lease flags', () => {
+test('usage → coordinate revoke와 lease 플래그를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /coordinate revoke/);
   assert.match(r.out, /--lease-id/);
@@ -261,7 +261,7 @@ test('usage lists coordinate revoke and lease flags', () => {
   assert.match(r.out, /omit --task for the wave/);
 });
 
-test('usage lists coordinate repair review-finding and required-task CI forms', () => {
+test('usage → coordinate repair review-finding과 required-task CI 형식을 나열한다', () => {
   const out = capture([]).out;
   // CI 형태는 종단 verification이 필수. 선택 [--task]로 적으면 리뷰 형태와
   // 같은 생략 규칙을 암시해 coordinator의 task-required와 어긋난다.
@@ -283,7 +283,7 @@ const COORDINATE_SUBCOMMANDS = [
   'promote-stop',
 ];
 
-test('coordinate <sub> --help and -h print that subcommand usage on stdout', () => {
+test('coordinate <sub> --help와 -h → 그 subcommand usage를 stdout에 출력한다', () => {
   for (const sub of COORDINATE_SUBCOMMANDS) {
     for (const flag of ['--help', '-h']) {
       const r = capture(['coordinate', sub, flag]);
@@ -297,7 +297,7 @@ test('coordinate <sub> --help and -h print that subcommand usage on stdout', () 
   }
 });
 
-test('coordinate next --help lists flags, actions, and response fields', () => {
+test('coordinate next --help → 플래그, action, 응답 필드를 나열한다', () => {
   const r = capture(['coordinate', 'next', '--help']);
   assert.strictEqual(r.code, 0);
   assert.strictEqual(r.err, '');
@@ -324,7 +324,7 @@ test('coordinate next --help lists flags, actions, and response fields', () => {
   );
 });
 
-test('coordinate advance --help lists flags and stop reasons', () => {
+test('coordinate advance --help → 플래그와 중단 사유를 나열한다', () => {
   const r = capture(['coordinate', 'advance', '--help']);
   assert.strictEqual(r.code, 0);
   assert.strictEqual(r.err, '');
@@ -339,13 +339,13 @@ test('coordinate advance --help lists flags and stop reasons', () => {
   assert.match(r.out, /advance-argv-invalid/);
 });
 
-test('coordinate report --help lists report outcome enum', () => {
+test('coordinate report --help → report outcome enum을 나열한다', () => {
   const r = capture(['coordinate', 'report', '--help']);
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /accepted\|rework\|scope_revision\|task_change\|blocked/);
 });
 
-test('coordinate --help prints the coordinate registry usage on stdout', () => {
+test('coordinate --help → coordinate registry usage를 stdout에 출력한다', () => {
   const { coordinate } = require('../scripts/lib/cli-git-commands.js');
   const r = capture(['coordinate', '--help']);
   assert.strictEqual(r.code, 0);
@@ -353,7 +353,7 @@ test('coordinate --help prints the coordinate registry usage on stdout', () => {
   assert.strictEqual(r.out, coordinate.usage);
 });
 
-test('coordinate dispatch --help wins over a missing ledger fence', () => {
+test('coordinate dispatch --help가 ledger fence 누락과 함께 오면 → help가 우선한다', () => {
   const r = capture(['coordinate', 'dispatch', '--blueprint', 'x', '--task', '001', '--help']);
   assert.strictEqual(r.code, 0);
   assert.strictEqual(r.err, '');
@@ -362,7 +362,7 @@ test('coordinate dispatch --help wins over a missing ledger fence', () => {
   assert.doesNotMatch(r.err, /ledger-checkpoint-invalid/);
 });
 
-test('coordinate revoke --reason -h is a flag value, not help', () => {
+test('coordinate revoke --reason -h → help가 아니라 플래그 값으로 취급한다', () => {
   const r = capture([
     'coordinate', 'revoke', '--blueprint', 'x', '--task', '001', '--reason', '-h',
     '--ledger-path', 'p', '--ledger-hash', 'h',
@@ -370,7 +370,7 @@ test('coordinate revoke --reason -h is a flag value, not help', () => {
   assert.ok(!r.out.startsWith('usage:'));
 });
 
-test('coordinate report missing required flag appends that subcommand usage', () => {
+test('필수 플래그가 빠진 coordinate report → 해당 subcommand usage를 덧붙인다', () => {
   const r = capture([
     'coordinate', 'report', '--blueprint', 'x',
     '--ledger-path', 'p', '--ledger-hash', 'h', '--attempt', '1',
@@ -381,7 +381,7 @@ test('coordinate report missing required flag appends that subcommand usage', ()
   assert.strictEqual(r.out, '');
 });
 
-test('coordinate unknown subcommand appends the full coordinate usage', () => {
+test('알 수 없는 coordinate subcommand → 전체 coordinate usage를 덧붙인다', () => {
   const { coordinate } = require('../scripts/lib/cli-git-commands.js');
   const r = capture(['coordinate', 'nope', '--blueprint', 'x']);
   assert.strictEqual(r.code, 2);
@@ -390,7 +390,7 @@ test('coordinate unknown subcommand appends the full coordinate usage', () => {
   assert.strictEqual(r.out, '');
 });
 
-test('review record and dispatch print --help/-h print on stdout', () => {
+test('review record와 dispatch print에 --help/-h를 주면 → stdout에 출력한다', () => {
   for (const argv of [
     ['review', 'record', '--help'],
     ['review', 'record', '-h'],
@@ -405,12 +405,12 @@ test('review record and dispatch print --help/-h print on stdout', () => {
   assert.match(dispatchHelp.out, /not JSON/);
 });
 
-test('coordinator procedure points at subcommand --help instead of plugin sources', () => {
+test('coordinator procedure → 플러그인 소스 대신 subcommand --help를 가리킨다', () => {
   const md = fs.readFileSync('agents/bouncer-coordinator.md', 'utf8');
   assert.match(md, /--help`; do not read plugin sources for them/);
 });
 
-test('review-dispatch prints --help/-h on stdout with the context review example', () => {
+test('review-dispatch에 --help/-h를 주면 → context review 예시와 함께 stdout에 출력한다', () => {
   for (const argv of [
     ['review-dispatch', '--help'],
     ['review-dispatch', 'plan', '--help'],
@@ -426,7 +426,7 @@ test('review-dispatch prints --help/-h on stdout with the context review example
   }
 });
 
-test('review-dispatch keeps rejecting invalid calls and treats a flag value -h as a value', () => {
+test('잘못된 호출의 review-dispatch → 계속 거부하고 플래그 값 -h는 값으로 취급한다', () => {
   const valueH = capture(['review-dispatch', 'plan', '--blueprint', '-h']);
   assert.doesNotMatch(valueH.out, /```yaml/);
   for (const argv of [['review-dispatch'], ['review-dispatch', 'plan']]) {
@@ -436,13 +436,13 @@ test('review-dispatch keeps rejecting invalid calls and treats a flag value -h a
   }
 });
 
-test('coordinate status --help lists --write-input', () => {
+test('coordinate status --help → --write-input을 나열한다', () => {
   const r = capture(['coordinate', 'status', '--help']);
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /\[--write-input <file>\]/);
 });
 
-test('config --help/-h prints subagents keys on stdout and rejects other argv', () => {
+test('config --help/-h → subagents 키를 stdout에 출력하고 다른 argv는 거부한다', () => {
   for (const flag of ['--help', '-h']) {
     const r = capture(['config', flag]);
     assert.strictEqual(r.code, 0, `config ${flag} exit`);
@@ -460,7 +460,7 @@ test('config --help/-h prints subagents keys on stdout and rejects other argv', 
   }
 });
 
-test('usage and repair help list the supplement kind', () => {
+test('usage와 repair help → supplement kind를 나열한다', () => {
   const out = capture([]).out;
   assert.match(out, /coordinate repair --blueprint <dir> --kind supplement/);
   assert.match(out, /--done/);

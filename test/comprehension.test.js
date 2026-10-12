@@ -56,12 +56,12 @@ function okEntry(overrides = {}) {
   };
 }
 
-test('DIFF_EXCLUDED_PREFIXES and EXPLAIN_SECTION_DEFS are named constants', () => {
+test('module constants are read → DIFF_EXCLUDED_PREFIXES and EXPLAIN_SECTION_DEFS are exported as named constants', () => {
   assert.deepStrictEqual(DIFF_EXCLUDED_PREFIXES, ['.bouncer/context/']);
   assert.deepStrictEqual(EXPLAIN_SECTION_DEFS, ['background', 'intuition', 'code', 'quiz']);
 });
 
-test('computeDiffSha ignores .bouncer/context/ paths when hashing', () => {
+test('paths under .bouncer/context/ are in the diff → computeDiffSha ignores them when hashing', () => {
   const repoRoot = '/tmp/unused';
   const base = 'develop';
   const a = computeDiffSha({
@@ -75,7 +75,7 @@ test('computeDiffSha ignores .bouncer/context/ paths when hashing', () => {
   assert.strictEqual(a.sha, b.sha);
 });
 
-test('computeDiffSha is order-stable for the same path set', () => {
+test('the same path set in a different order → computeDiffSha returns a stable sha', () => {
   const a = computeDiffSha({
     repoRoot: '/x', base: 'develop',
     exec: fakeExec(['z.ts', 'a.ts', 'm.ts']),
@@ -87,7 +87,7 @@ test('computeDiffSha is order-stable for the same path set', () => {
   assert.strictEqual(a.sha, b.sha);
 });
 
-test('computeDiffSha failures are values, never thrown', () => {
+test('computeDiffSha hits a failure → it returns the failure as a value and never throws', () => {
   assert.deepStrictEqual(
     computeDiffSha({ repoRoot: '/x', base: 'nope', exec: failing('no-base') }),
     { ok: false, reason: 'no-base' },
@@ -102,7 +102,7 @@ test('computeDiffSha failures are values, never thrown', () => {
   );
 });
 
-test('resolveComprehensionEntry rejects non-list and empty list', () => {
+test('comprehension entry is a non-list or an empty list → resolveComprehensionEntry rejects it', () => {
   assert.deepStrictEqual(
     resolveComprehensionEntry({ diff_sha: 'x' }),
     { ok: false, reason: 'not-a-list' },
@@ -113,7 +113,7 @@ test('resolveComprehensionEntry rejects non-list and empty list', () => {
   );
 });
 
-test('resolveComprehensionEntry rejects incomplete required fields', () => {
+test('entry lacks required fields → resolveComprehensionEntry rejects the incomplete entry', () => {
   const fresh = {
     range_from: 'base-sha',
     range_to: 'head-sha',
@@ -131,7 +131,7 @@ test('resolveComprehensionEntry rejects incomplete required fields', () => {
   }
 });
 
-test('resolveComprehensionEntry returns the last complete entry', () => {
+test('several entries exist → resolveComprehensionEntry returns the last complete entry', () => {
   const ok = okEntry({ task: '001', disposition: 'ok' });
   const ok2 = okEntry({
     task: '002',
