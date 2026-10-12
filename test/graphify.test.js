@@ -24,13 +24,13 @@ const {
 } = require('../scripts/lib/graph-exec');
 const { makeAllowed, makeFinalizeAllowed } = require('../scripts/lib/scope');
 
-test('venvBinRel returns POSIX-relative platform paths', () => {
+test('venvBinRel called for each platform → returns POSIX-relative paths', () => {
   assert.strictEqual(venvBinRel('win32'), '.bouncer/.venv/Scripts/graphify.exe');
   assert.strictEqual(venvBinRel('linux'), '.bouncer/.venv/bin/graphify');
   assert.strictEqual(venvBinRel('darwin'), '.bouncer/.venv/bin/graphify');
 });
 
-test('resolveGraphifyBin prefers an existing config.graphify.bin', () => {
+test('resolveGraphifyBin with an existing config.graphify.bin → prefers it', () => {
   const repoRoot = '/repo';
   const rel = 'tools/graphify';
   const r = resolveGraphifyBin({
@@ -43,7 +43,7 @@ test('resolveGraphifyBin prefers an existing config.graphify.bin', () => {
   assert.deepStrictEqual(r, { bin: path.join(repoRoot, rel), source: 'config' });
 });
 
-test('resolveGraphifyBin falls through to venv when config bin is missing or absent', () => {
+test('resolveGraphifyBin with config bin missing or absent → falls through to venv', () => {
   const repoRoot = '/repo';
   const venvRel = venvBinRel('linux');
   const venvAbs = path.join(repoRoot, venvRel);
@@ -67,7 +67,7 @@ test('resolveGraphifyBin falls through to venv when config bin is missing or abs
   assert.deepStrictEqual(missingBin, { bin: venvAbs, source: 'venv' });
 });
 
-test('resolveGraphifyBin uses PATH when venv dir exists but the executable does not', () => {
+test('resolveGraphifyBin with venv dir but no executable → uses PATH', () => {
   const repoRoot = '/repo';
   const venvDir = path.join(repoRoot, '.bouncer/.venv/bin');
   const r = resolveGraphifyBin({
@@ -81,7 +81,7 @@ test('resolveGraphifyBin uses PATH when venv dir exists but the executable does 
   assert.deepStrictEqual(r, { bin: 'graphify', source: 'path' });
 });
 
-test('resolveGraphifyBin returns nulls when no candidate exists', () => {
+test('resolveGraphifyBin with no candidate → returns nulls', () => {
   const r = resolveGraphifyBin({
     repoRoot: '/repo',
     config: { graphify: { bin: 'tools/nope' } },
@@ -103,7 +103,7 @@ function initGitRepo() {
   return repo;
 }
 
-test('resolveGraphifyBin venv candidate in a git repo is outside .bouncer/', () => {
+test('resolveGraphifyBin venv candidate in a git repo → is outside .bouncer/', () => {
   const repoRoot = initGitRepo();
   const r = resolveGraphifyBin({
     repoRoot,
@@ -118,7 +118,7 @@ test('resolveGraphifyBin venv candidate in a git repo is outside .bouncer/', () 
   assert.ok(!venvAbs.startsWith(path.join(repoRoot, '.bouncer')));
 });
 
-test('resolveGraphifyBin falls back to .bouncer/.venv in a non-git directory', () => {
+test('resolveGraphifyBin in a non-git directory → falls back to .bouncer/.venv', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-graphify-nogit-'));
   const venvAbs = path.join(repoRoot, '.bouncer/.venv/bin/graphify');
   const r = resolveGraphifyBin({
@@ -131,7 +131,7 @@ test('resolveGraphifyBin falls back to .bouncer/.venv in a non-git directory', (
   assert.deepStrictEqual(r, { bin: venvAbs, source: 'venv' });
 });
 
-test('resolveGraphifyBin Windows venv candidate uses Scripts/ under the common-dir venv', () => {
+test('resolveGraphifyBin Windows venv candidate → uses Scripts/ under the common-dir venv', () => {
   const repoRoot = initGitRepo();
   const r = resolveGraphifyBin({
     repoRoot,
@@ -145,7 +145,7 @@ test('resolveGraphifyBin Windows venv candidate uses Scripts/ under the common-d
   assert.ok(!r.bin.startsWith(path.join(repoRoot, '.bouncer')));
 });
 
-test('setupGraphify removes the venv directory it created when a later step fails', () => {
+test('setupGraphify when a later step fails → removes the venv directory it created', () => {
   const repo = initGitRepo();
   const created = [];
   const r = setupGraphify({
@@ -168,7 +168,7 @@ test('setupGraphify removes the venv directory it created when a later step fail
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
 });
 
-test('setupGraphify does not remove a venv directory it did not create', () => {
+test('setupGraphify with a venv directory it did not create → does not remove it', () => {
   const repo = initGitRepo();
   const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
     cwd: repo,
@@ -190,7 +190,7 @@ test('setupGraphify does not remove a venv directory it did not create', () => {
   assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior');
 });
 
-test('resolveGraphifyBin still selects an existing .bouncer/.venv/bin/graphify', () => {
+test('resolveGraphifyBin with an existing .bouncer/.venv/bin/graphify → still selects it', () => {
   const repoRoot = initGitRepo();
   const legacyAbs = path.join(repoRoot, '.bouncer/.venv/bin/graphify');
   const r = resolveGraphifyBin({
@@ -203,7 +203,7 @@ test('resolveGraphifyBin still selects an existing .bouncer/.venv/bin/graphify',
   assert.deepStrictEqual(r, { bin: legacyAbs, source: 'venv' });
 });
 
-test('resolveGraphifyBin still resolves a repo-relative config.graphify.bin', () => {
+test('resolveGraphifyBin with a repo-relative config.graphify.bin → still resolves it', () => {
   const repoRoot = initGitRepo();
   const rel = '.bouncer/.venv/bin/graphify';
   const r = resolveGraphifyBin({
@@ -216,7 +216,7 @@ test('resolveGraphifyBin still resolves a repo-relative config.graphify.bin', ()
   assert.deepStrictEqual(r, { bin: path.join(repoRoot, rel), source: 'config' });
 });
 
-test('resolveGraphifyBin never throws on malformed config shapes', () => {
+test('resolveGraphifyBin with malformed config shapes → never throws', () => {
   const cases = [
     { config: null },
     { config: { graphify: 'yes' } },
@@ -237,7 +237,7 @@ test('resolveGraphifyBin never throws on malformed config shapes', () => {
   }
 });
 
-test('setupGraphify reuses an existing venv bin without calling exec', () => {
+test('setupGraphify with an existing venv bin → reuses it without calling exec', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-'));
   const binRel = venvBinRel('linux');
   fs.mkdirSync(path.join(repo, path.dirname(binRel)), { recursive: true });
@@ -286,7 +286,7 @@ test('setupGraphify installs via venv → pip → graphify install in order', ()
   assert.ok(!calls.some((c) => Array.isArray(c.args) && c.args[0] === 'install' && c.args[1] === 'graphifyy'));
 });
 
-test('setupGraphify stops after the first failing step and never throws', () => {
+test('setupGraphify when a step fails → stops after the first failing step and never throws', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-'));
   const calls = [];
   let r;
@@ -319,7 +319,7 @@ test('setupGraphify stops after the first failing step and never throws', () => 
   });
 });
 
-test('registered Distill shards are not finalize or execute allowances', () => {
+test('registered Distill shards → are not finalize or execute allowances', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-shard-scope-'));
   fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
@@ -349,7 +349,7 @@ test('registered Distill shards are not finalize or execute allowances', () => {
   assert.strictEqual(finalize('.bouncer/distill/core.md'), false);
 });
 
-test('applyExcludeDirs drops nodes links and hyperedges under exclude prefixes', () => {
+test('applyExcludeDirs with exclude prefixes → drops nodes links and hyperedges under them', () => {
   const graph = {
     nodes: [
       { id: 'keep', source_file: 'scripts/src/lib/a.ts' },
@@ -376,7 +376,7 @@ test('applyExcludeDirs drops nodes links and hyperedges under exclude prefixes',
   assert.deepStrictEqual(out.hyperedges[0].nodes, ['keep']);
 });
 
-test('empty excludeDirs leaves JavaScript nodes untouched', () => {
+test('empty excludeDirs → leaves JavaScript nodes untouched', () => {
   const graph = {
     nodes: [
       { id: 'js', source_file: 'scripts/lib/init.js' },
@@ -392,7 +392,7 @@ test('empty excludeDirs leaves JavaScript nodes untouched', () => {
   assert.ok(out.nodes.some((n) => n.source_file.endsWith('.js')));
 });
 
-test('defaultExecGraphify writeFilteredGraph filters source graph.json', () => {
+test('defaultExecGraphify writeFilteredGraph on source graph.json → filters it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-exec-exclude-'));
   fs.mkdirSync(path.join(repo, 'src'));
   defaultExecGraphify(repo, {
@@ -435,7 +435,7 @@ test('defaultExecGraphify writeFilteredGraph filters source graph.json', () => {
   assert.deepStrictEqual(out.hyperedges[0].nodes, [out.nodes[0].id]);
 });
 
-test('writeFilteredGraph no-ops when excludeDirs empty', () => {
+test('writeFilteredGraph with empty excludeDirs → no-ops', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-write-exclude-'));
   const target = path.join(repo, 'graphify-out/source/graph.json');
   fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -496,7 +496,7 @@ function writeGraphs(repo, schema) {
   }
 }
 
-test('compatibility manifest pins package CLI schema and python contract', () => {
+test('compatibility manifest → pins package CLI schema and python contract', () => {
   const manifest = loadCompatManifest();
   assert.strictEqual(manifest.ok, true);
   assert.strictEqual(manifest.value.schema_version, 1);
@@ -509,7 +509,7 @@ test('compatibility manifest pins package CLI schema and python contract', () =>
     || manifest.value.recommended_version === undefined);
 });
 
-test('graphify lock write is atomic and rejects a corrupt body on read', () => {
+test('graphify lock write and read of a corrupt body → write is atomic and read rejects the body', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-lock-atomic-'));
   const lock = sampleLock();
   const written = writeGraphifyLock({ repoRoot: repo, lock });
@@ -526,7 +526,7 @@ test('graphify lock write is atomic and rejects a corrupt body on read', () => {
   assert.strictEqual(broken.reason, 'corrupt');
 });
 
-test('missing lock is version-incompatible without pip or venv writes', () => {
+test('missing lock → is version-incompatible without pip or venv writes', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-lock-missing-'));
   const calls = [];
   const result = checkGraphifyCompatibility({
@@ -542,7 +542,7 @@ test('missing lock is version-incompatible without pip or venv writes', () => {
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
 });
 
-test('version mismatch between lock manifest and probe is version-incompatible', () => {
+test('version mismatch between lock manifest and probe → is version-incompatible', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-lock-mismatch-'));
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0' });
   const calls = [];
@@ -558,7 +558,7 @@ test('version mismatch between lock manifest and probe is version-incompatible',
   assert.ok(!calls.some((c) => (c.args || []).includes('install')));
 });
 
-test('skill version mismatch is a warning and does not flip compatibility', () => {
+test('skill version mismatch → is a warning and does not flip compatibility', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-skill-warn-'));
   writeLock(repo);
   const result = checkGraphifyCompatibility({
@@ -570,7 +570,7 @@ test('skill version mismatch is a warning and does not flip compatibility', () =
   assert.ok(result.warnings.some((w) => /skill/i.test(w)));
 });
 
-test('setupGraphify first install writes a verified lock and uses the exact spec', () => {
+test('setupGraphify first install → writes a verified lock and uses the exact spec', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-lock-'));
   const r = setupGraphify({
     repoRoot: repo,
@@ -588,7 +588,7 @@ test('setupGraphify first install writes a verified lock and uses the exact spec
   assert.strictEqual(lock.value.installed_at, '2026-07-01T00:00:00.000+09:00');
 });
 
-test('setupGraphify reuse preserves an existing lock and does not pip', () => {
+test('setupGraphify reuse with an existing lock → preserves the lock and does not pip', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-reuse-lock-'));
   const binRel = venvBinRel('linux');
   fs.mkdirSync(path.join(repo, path.dirname(binRel)), { recursive: true });
@@ -606,7 +606,7 @@ test('setupGraphify reuse preserves an existing lock and does not pip', () => {
   assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), before);
 });
 
-test('upgradeGraphify restamps source and test graphs and swaps the shared venv to the manifest spec', () => {
+test('upgradeGraphify on a successful upgrade → restamps source and test graphs and swaps the shared venv to the manifest spec', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   writeGraphs(repo, '0');
@@ -653,7 +653,7 @@ test('upgradeGraphify restamps source and test graphs and swaps the shared venv 
   assert.ok(calls.some((c) => c.args[0] === 'install' && c.args[1] === 'graphifyy==0.9.56'));
 });
 
-test('upgradeGraphify falls back to uv --seed when python venv lacks ensurepip', () => {
+test('upgradeGraphify when python venv lacks ensurepip → falls back to uv --seed', () => {
   const repo = initGitRepo();
   writeGraphs(repo, '0');
   const calls = [];
@@ -694,7 +694,7 @@ test('upgradeGraphify falls back to uv --seed when python venv lacks ensurepip',
   assert.strictEqual(readGraphifyLock({ repoRoot: repo }).value.cli_version, '0.9.56');
 });
 
-test('upgradeGraphify failure restores prior lock venv and graphs', () => {
+test('upgradeGraphify failure → restores prior lock venv and graphs', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   writeGraphs(repo, '0');
@@ -745,7 +745,7 @@ function succeedingUpgradeExec() {
   };
 }
 
-test('setupGraphify fails when the compatibility manifest cannot be loaded', () => {
+test('setupGraphify when the compatibility manifest cannot be loaded → fails', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-manifest-'));
   const calls = [];
   const r = setupGraphify({
@@ -762,7 +762,7 @@ test('setupGraphify fails when the compatibility manifest cannot be loaded', () 
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
 });
 
-test('upgradeGraphify rebuild failure after swap restores lock venv and source/test graph trees', () => {
+test('upgradeGraphify rebuild failure after swap → restores lock venv and source/test graph trees', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   writeGraphs(repo, '0');
@@ -816,7 +816,7 @@ test('upgradeGraphify rebuild failure after swap restores lock venv and source/t
   assert.ok(!fs.existsSync(path.join(repo, 'graphify-out/source/sidecar.json')));
 });
 
-test('upgradeGraphify rollback deletes a new lock when none existed before swap', () => {
+test('upgradeGraphify rollback when no lock existed before swap → deletes the new lock', () => {
   const repo = initGitRepo();
   writeGraphs(repo, '0');
   const venvDir = commonVenvDir(repo);
@@ -851,7 +851,7 @@ test('upgradeGraphify rollback deletes a new lock when none existed before swap'
   );
 });
 
-test('upgradeGraphify lock-write failure after swap restores prior lock and venv', () => {
+test('upgradeGraphify lock-write failure after swap → restores prior lock and venv', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   writeGraphs(repo, '0');
@@ -890,7 +890,7 @@ test('upgradeGraphify lock-write failure after swap restores prior lock and venv
   }
 });
 
-test('concurrent upgrade fails without mutating the live venv', () => {
+test('concurrent upgrade → fails without mutating the live venv', () => {
   const repo = initGitRepo();
   writeLock(repo);
   const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
@@ -915,7 +915,7 @@ test('concurrent upgrade fails without mutating the live venv', () => {
   assert.ok(!calls.some((c) => (c.args || []).includes('install')));
 });
 
-test('upgradeGraphify rolls back when force rebuild skips without failed entries', () => {
+test('upgradeGraphify when force rebuild skips without failed entries → rolls back', () => {
   for (const action of [
     'skip-version-incompatible',
     'skip-graph-disabled',
@@ -950,7 +950,7 @@ test('upgradeGraphify rolls back when force rebuild skips without failed entries
   }
 });
 
-test('upgradeGraphify accepts empty-dir skip-no-dirs rebuild as success', () => {
+test('upgradeGraphify with an empty-dir skip-no-dirs rebuild → accepts it as success', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   const r = upgradeGraphify({
@@ -965,7 +965,7 @@ test('upgradeGraphify accepts empty-dir skip-no-dirs rebuild as success', () => 
   assert.strictEqual(lock.value.cli_version, '0.9.56');
 });
 
-test('upgradeGraphify restorePrior still restores graphs when lock rewrite throws', () => {
+test('upgradeGraphify restorePrior when lock rewrite throws → still restores graphs', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   writeGraphs(repo, '0');

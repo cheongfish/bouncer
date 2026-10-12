@@ -247,7 +247,7 @@ test.after(() => {
   }
 });
 
-test('second identical resolve reuses bundle_id and revision without more provenance calls', () => {
+test('second identical resolve → reuses bundle_id and revision without more provenance calls', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const counter = countingProvenance();
   const deps = { resolveIntentProvenance: counter.resolve, execFileSync };
@@ -278,7 +278,7 @@ test('second identical resolve reuses bundle_id and revision without more proven
   assert.equal(counter.calls, 1);
 });
 
-test('blob, function-set, and Explain section changes each create the next revision', () => {
+test('blob, function-set, and Explain section changes → each create the next revision', () => {
   const { repo, taskFile } = seedResolvedRepo(1);
   const counter = countingProvenance();
   const deps = { resolveIntentProvenance: counter.resolve, execFileSync };
@@ -345,7 +345,7 @@ test('blob, function-set, and Explain section changes each create the next revis
   assert.equal(afterExplain.revision, 4);
 });
 
-test('malformed cache, symlink escape, and mid-resolve failure never hit or leave a partial write', () => {
+test('malformed cache, symlink escape, and mid-resolve failure → never hit or leave a partial write', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const counter = countingProvenance();
   const deps = { resolveIntentProvenance: counter.resolve, execFileSync };
@@ -420,7 +420,7 @@ test('malformed cache, symlink escape, and mid-resolve failure never hit or leav
   assert.equal(afterFail.functions.length, 1);
 });
 
-test('empty or duplicate function requests are rejected before cache writes', () => {
+test('empty or duplicate function requests → are rejected before cache writes', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const located = intentBundlePathFor({
     repoRoot: repo,
@@ -442,7 +442,7 @@ test('empty or duplicate function requests are rejected before cache writes', ()
   assert.equal(fs.existsSync(located.intentFile), false);
 });
 
-test('task_brief_hash is the sha256 of the current task brief bytes', () => {
+test('current task brief bytes → task_brief_hash is their sha256', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const result = resolveTaskIntentBundle({
     repoRoot: repo,
@@ -454,7 +454,7 @@ test('task_brief_hash is the sha256 of the current task brief bytes', () => {
   assert.equal(result.task_brief_hash, expected);
 });
 
-test('non-historical projection failure rejects partial success and leaves no write', () => {
+test('non-historical projection failure → rejects partial success and leaves no write', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const located = intentBundlePathFor({
     repoRoot: repo,
@@ -497,7 +497,7 @@ test('non-historical projection failure rejects partial success and leaves no wr
   assert.equal(fs.existsSync(located.intentFile), false);
 });
 
-test('cache entry with mismatched blob_sha is not a hit', () => {
+test('cache entry with mismatched blob_sha → is not a hit', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const deps = { execFileSync, resolveIntentProvenance };
   const first = resolveTaskIntentBundle({
@@ -529,7 +529,7 @@ test('cache entry with mismatched blob_sha is not a hit', () => {
   assert.equal(repaired.functions[0].blob_sha, repaired.functions[0].symbol_ref.blob_sha);
 });
 
-test('historical freshness writes empty sections and reuses via explainInsideRepo', () => {
+test('historical freshness → writes empty sections and reuses via explainInsideRepo', () => {
   const { repo, taskFile, sha } = seedResolvedRepo();
   const explain = explainRel('071', '002');
   let provenanceCalls = 0;
@@ -578,7 +578,7 @@ test('historical freshness writes empty sections and reuses via explainInsideRep
   assert.equal(provenanceCalls, 1);
 });
 
-test('non-canonical cache explain and intent symlink escape are rejected', () => {
+test('non-canonical cache explain and intent symlink escape → are rejected', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const deps = { execFileSync, resolveIntentProvenance };
   const first = resolveTaskIntentBundle({
@@ -623,7 +623,7 @@ test('non-canonical cache explain and intent symlink escape are rejected', () =>
   }), /escapes the Git common directory/);
 });
 
-test('role projection keeps role section sets and omits missing Explain headings', () => {
+test('role projection → keeps role section sets and omits missing Explain headings', () => {
   const { repo, taskFile } = seedResolvedRepo(1, { taskSections: durableTaskSections() });
   const deps = { execFileSync };
   resolveTaskIntentBundle({
@@ -677,7 +677,7 @@ test('role projection keeps role section sets and omits missing Explain headings
   );
 });
 
-test('role projection omits historical functions and maps missing stale drift', () => {
+test('role projection with historical functions and missing stale drift → omits historical functions and maps missing stale drift', () => {
   const { repo, taskFile, sha } = seedResolvedRepo(1, { taskSections: durableTaskSections() });
   const explain = explainRel('071', '002');
   const deps = { execFileSync };

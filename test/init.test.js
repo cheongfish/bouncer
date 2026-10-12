@@ -37,7 +37,7 @@ function git(repo, args) {
 const read = (repo, rel) => fs.readFileSync(path.join(repo, rel), 'utf8');
 const exists = (repo, rel) => fs.existsSync(path.join(repo, rel));
 
-test('init scaffolds the safe .bouncer tree', () => {
+test('init on a fresh repo → scaffolds the safe .bouncer tree', () => {
   const repo = tmpRepo();
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(res.skipped, false);
@@ -56,13 +56,13 @@ test('init scaffolds the safe .bouncer tree', () => {
   assert.ok(!exists(repo, '.bouncer/superpowers.md'));
 });
 
-test('init does not write a Superpowers preference document', () => {
+test('init → does not write a Superpowers preference document', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.ok(!exists(repo, '.bouncer/superpowers.md'));
 });
 
-test('init detects base_branch and pr.base from git init -b main', () => {
+test('init in a repo created with git init -b main → detects base_branch and pr.base', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -71,7 +71,7 @@ test('init detects base_branch and pr.base from git init -b main', () => {
   assert.equal(config.pr.base, 'main');
 });
 
-test('init prefers origin/HEAD over the current checkout branch', () => {
+test('init with origin/HEAD and a different checkout branch → prefers origin/HEAD', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
   git(repo, ['remote', 'add', 'origin', 'https://example.invalid/repo.git']);
@@ -82,7 +82,7 @@ test('init prefers origin/HEAD over the current checkout branch', () => {
   assert.equal(config.pr.base, 'trunk');
 });
 
-test('init omits base_branch when origin/HEAD and HEAD cannot be resolved', () => {
+test('init when origin/HEAD and HEAD cannot be resolved → omits base_branch', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
   git(repo, ['commit', '--allow-empty', '-m', 'seed']);
@@ -96,7 +96,7 @@ test('init omits base_branch when origin/HEAD and HEAD cannot be resolved', () =
   assert.equal(result.baseBranchUnresolved, true);
 });
 
-test('init does not rewrite an existing base_branch', () => {
+test('init with an existing base_branch → does not rewrite it', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.bouncer'));
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
@@ -110,7 +110,7 @@ test('init does not rewrite an existing base_branch', () => {
   assert.equal(existing.base_branch, 'keep-me');
 });
 
-test('init writes the exact config.json shape', () => {
+test('init → writes the exact config.json shape', () => {
   const repo = tmpRepo();
   // Empty tmp repo → no candidate dirs; source_dirs is detected, not hard-coded.
   // tmp 디렉터리는 git이 아니라 탐지가 실패한다. 키를 추측해 넣지 않는다.
@@ -163,7 +163,7 @@ test('init writes the exact config.json shape', () => {
   });
 });
 
-test('init does not create Distill files or distill config', () => {
+test('init → does not create Distill files or distill config', () => {
   const repo = tmpRepo();
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(res.ok, true);
@@ -176,7 +176,7 @@ test('init does not create Distill files or distill config', () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(config, 'distill'));
 });
 
-test('ready init does not seed Distill settings or rewrite distill keys', () => {
+test('ready init → does not seed Distill settings or rewrite distill keys', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const configPath = path.join(repo, '.bouncer/config.json');
@@ -200,7 +200,7 @@ test('ready init does not seed Distill settings or rewrite distill keys', () => 
   });
 });
 
-test('init source_dirs detects existing candidate directories in fixed order', () => {
+test('init with existing candidate directories → source_dirs detects them in fixed order', () => {
   const repo = tmpRepo();
   // Only lib/ and app/ exist — result order follows SOURCE_DIR_CANDIDATES, not fs order.
   fs.mkdirSync(path.join(repo, 'app'));
@@ -215,7 +215,7 @@ test('init source_dirs detects existing candidate directories in fixed order', (
   assert.notStrictEqual(res.sourceDirsUnresolved, true);
 });
 
-test('init source_dirs is empty and flags unresolved when no candidates exist', () => {
+test('init with no candidate directories → source_dirs is empty and flagged unresolved', () => {
   const repo = tmpRepo();
   const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
@@ -223,7 +223,7 @@ test('init source_dirs is empty and flags unresolved when no candidates exist', 
   assert.ok(result.sourceDirsUnresolved === true);
 });
 
-test('init does not overwrite existing config source_dirs', () => {
+test('init with existing config source_dirs → does not overwrite them', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.bouncer'));
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
@@ -239,7 +239,7 @@ test('init does not overwrite existing config source_dirs', () => {
   assert.deepStrictEqual(existing.source_dirs, ['custom']);
 });
 
-test('init ignores same-named files when detecting source_dirs', () => {
+test('init with same-named files instead of directories → ignores them when detecting source_dirs', () => {
   const repo = tmpRepo();
   fs.writeFileSync(path.join(repo, 'src'), 'not a directory');
   fs.mkdirSync(path.join(repo, 'lib'));
@@ -248,7 +248,7 @@ test('init ignores same-named files when detecting source_dirs', () => {
   assert.deepStrictEqual(cfg.source_dirs, ['lib']);
 });
 
-test('init puts existing test/tests into graphify.test_dirs not source_dirs', () => {
+test('init with existing test/tests directories → puts them into graphify.test_dirs not source_dirs', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, 'src'));
   fs.mkdirSync(path.join(repo, 'test'));
@@ -261,7 +261,7 @@ test('init puts existing test/tests into graphify.test_dirs not source_dirs', ()
   assert.ok(!cfg.source_dirs.includes('tests'));
 });
 
-test('init omits graphify.test_dirs when no test directories exist', () => {
+test('init with no test directories → omits graphify.test_dirs', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, 'src'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -270,7 +270,7 @@ test('init omits graphify.test_dirs when no test directories exist', () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(cfg.graphify, 'test_dirs'));
 });
 
-test('init does not add test_dirs to an existing two-scope config', () => {
+test('init with an existing two-scope config → does not add test_dirs', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.bouncer'));
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
@@ -286,7 +286,7 @@ test('init does not add test_dirs to an existing two-scope config', () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(existing.graphify, 'test_dirs'));
 });
 
-test('init config omits methodology and Superpowers profile fields', () => {
+test('init config → omits methodology and Superpowers profile fields', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
@@ -294,13 +294,13 @@ test('init config omits methodology and Superpowers profile fields', () => {
   assert.ok(!('methodology' in cfg));
 });
 
-test('built-in epic template records numbered success criteria', () => {
+test('built-in epic template → records numbered success criteria', () => {
   const epic = TEMPLATES['epic.md'];
   assert.ok(/## Success criteria/.test(epic));
   assert.ok(/^1\. <TODO:/m.test(epic));
 });
 
-test('built-in blueprint template carries Contract-First authoring guardrails', () => {
+test('built-in blueprint template → carries Contract-First authoring guardrails', () => {
   const blueprint = TEMPLATES['blueprint.md'];
   const open = '<' + '!--';
   assert.match(blueprint, /수용 기준:/);
@@ -311,7 +311,7 @@ test('built-in blueprint template carries Contract-First authoring guardrails', 
 
 // OKF §11 permits frontmatter in the bundle-root index.md and nowhere else
 // among index files; §6 fixes the body as `* [Title](url) - description` groups.
-test('init writes an OKF-shaped bundle root index', () => {
+test('init → writes an OKF-shaped bundle root index', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const index = read(repo, '.bouncer/context/index.md');
@@ -323,7 +323,7 @@ test('init writes an OKF-shaped bundle root index', () => {
   assert.match(index, /\* \[00x 제목\]\(epics\/00x-slug\/index\.md\) - /);
 });
 
-test('built-in epic and blueprint templates link their neighbours with relative paths', () => {
+test('built-in epic and blueprint templates → link their neighbours with relative paths', () => {
   const epic = TEMPLATES['epic.md'];
   const blueprint = TEMPLATES['blueprint.md'];
   // OKF §5.2. A leading `/` (§5.1) would resolve against the repo root on web
@@ -334,7 +334,7 @@ test('built-in epic and blueprint templates link their neighbours with relative 
   assert.match(blueprint, /Epic: \[<EPIC-id>\]\(\.\.\/\.\.\/index\.md\)/);
 });
 
-test('init leaves a pre-existing .gitignore byte-for-byte unchanged', () => {
+test('init with a pre-existing .gitignore → leaves it byte-for-byte unchanged', () => {
   const repo = tmpRepo();
   const original = Buffer.from('# user rules\n*.secret\n');
   fs.writeFileSync(path.join(repo, '.gitignore'), original);
@@ -342,13 +342,13 @@ test('init leaves a pre-existing .gitignore byte-for-byte unchanged', () => {
   assert.deepStrictEqual(fs.readFileSync(path.join(repo, '.gitignore')), original);
 });
 
-test('init does not create .gitignore', () => {
+test('init without a .gitignore → does not create one', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.ok(!exists(repo, '.gitignore'));
 });
 
-test('init is idempotent when bootstrap is ready', () => {
+test('init when bootstrap is ready → is idempotent', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const res2 = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -357,7 +357,7 @@ test('init is idempotent when bootstrap is ready', () => {
   assert.deepStrictEqual(res2.created, []);
 });
 
-test('inspectBootstrap distinguishes missing, ready, partial, and legacy without writes', () => {
+test('inspectBootstrap on missing, ready, partial, and legacy states → distinguishes them without writes', () => {
   const repo = tmpRepo();
   assert.strictEqual(inspectBootstrap({ repoRoot: repo }), 'missing');
 
@@ -380,7 +380,7 @@ test('inspectBootstrap distinguishes missing, ready, partial, and legacy without
   assert.strictEqual(read(repo, '.bouncer/config.json'), '{broken');
 });
 
-test('init preserves partial user-authored Bouncer state', () => {
+test('init with partial user-authored Bouncer state → preserves it', () => {
   const repo = tmpRepo();
   const custom = '{"note":"do not replace"}\n';
   fs.mkdirSync(path.join(repo, '.bouncer'));
@@ -398,13 +398,13 @@ test('init preserves partial user-authored Bouncer state', () => {
   assert.ok(!exists(repo, '.bouncer/config.json'));
 });
 
-test('plugin governance materials have no Superpowers profile language', () => {
+test('plugin governance materials → have no Superpowers profile language', () => {
   const root = path.join(__dirname, '..');
   const schema = fs.readFileSync(path.join(root, 'rules/document-schema.md'), 'utf8');
   assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(schema));
 });
 
-test('init reports the gitignore entries a repo without .gitignore should add', () => {
+test('init in a repo without .gitignore → reports the gitignore entries it should add', () => {
   const repo = tmpRepo();
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, [
@@ -414,7 +414,7 @@ test('init reports the gitignore entries a repo without .gitignore should add', 
   assert.ok(!exists(repo, '.gitignore'), 'init must not write .gitignore');
 });
 
-test('init suggests only the entries .gitignore is missing', () => {
+test('init with a partial .gitignore → suggests only the missing entries', () => {
   const repo = tmpRepo();
   fs.writeFileSync(path.join(repo, '.gitignore'), '# deps\nnode_modules\n');
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -424,7 +424,7 @@ test('init suggests only the entries .gitignore is missing', () => {
   assert.strictEqual(read(repo, '.gitignore'), '# deps\nnode_modules\n');
 });
 
-test('init suggests nothing when the artifacts are already ignored', () => {
+test('init when the artifacts are already ignored → suggests nothing', () => {
   const repo = tmpRepo();
   fs.writeFileSync(
     path.join(repo, '.gitignore'),
@@ -435,7 +435,7 @@ test('init suggests nothing when the artifacts are already ignored', () => {
 });
 
 
-test('init leaves an existing Distill file untouched and does not create one', () => {
+test('init with an existing Distill file → leaves it untouched and does not create one', () => {
   const repo = tmpRepo();
   const first = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.ok(!first.created.includes('.bouncer/Distill.md'));
@@ -446,7 +446,7 @@ test('init leaves an existing Distill file untouched and does not create one', (
   assert.strictEqual(read(repo, '.bouncer/Distill.md'), custom);
 });
 
-test('ready init does not seed Distill when it is missing', () => {
+test('ready init with a missing Distill file → does not seed it', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.ok(!exists(repo, '.bouncer/Distill.md'));
@@ -455,7 +455,7 @@ test('ready init does not seed Distill when it is missing', () => {
   assert.ok(!exists(repo, '.bouncer/Distill.md'));
 });
 
-test('init does not migrate legacy .bouncer/context/Distill.md', () => {
+test('init with legacy .bouncer/context/Distill.md → does not migrate it', () => {
   const repo = tmpRepo();
   const legacy = `---
 title: Project Distill
@@ -475,7 +475,7 @@ resource: .bouncer/context/Distill.md
   assert.ok(!exists(repo, '.bouncer/Distill.md'));
 });
 
-test('init reports gitignore suggestions on an already-initialized repo', () => {
+test('init on an already-initialized repo → reports gitignore suggestions', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -486,7 +486,7 @@ test('init reports gitignore suggestions on an already-initialized repo', () => 
   ]);
 });
 
-test('init install on a git repo does not create worktree .bouncer/.venv', () => {
+test('init install on a git repo → does not create worktree .bouncer/.venv', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
   const { setupGraphify } = require('../scripts/lib/graphify');
@@ -512,7 +512,7 @@ test('init install on a git repo does not create worktree .bouncer/.venv', () =>
   assert.strictEqual(cfg.graphify.bin, res.graphifyInstall.bin);
 });
 
-test('ready bootstrap promote+failed install keeps graphify.enabled false', () => {
+test('ready bootstrap with promote and a failed install → keeps graphify.enabled false', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfgPath = path.join(repo, '.bouncer/config.json');
@@ -537,7 +537,7 @@ test('ready bootstrap promote+failed install keeps graphify.enabled false', () =
   assert.strictEqual(cfg.graphify.enabled, false);
 });
 
-test('init with install:true writes graphify bin from injected setup', () => {
+test('init with install:true → writes graphify bin from injected setup', () => {
   const repo = tmpRepo();
   const bin = '.bouncer/.venv/bin/graphify';
   const res = init({
@@ -554,7 +554,7 @@ test('init with install:true writes graphify bin from injected setup', () => {
   assert.deepStrictEqual(cfg.graphify, { enabled: true, bin });
 });
 
-test('init with failed setup keeps ok and disables graphify', () => {
+test('init with a failed setup → keeps ok and disables graphify', () => {
   const repo = tmpRepo();
   const res = init({
     repoRoot: repo,
@@ -571,7 +571,7 @@ test('init with failed setup keeps ok and disables graphify', () => {
   assert.deepStrictEqual(cfg.graphify, { enabled: false });
 });
 
-test('init without install does not call setup', () => {
+test('init without install → does not call setup', () => {
   const repo = tmpRepo();
   let called = 0;
   const res = init({
@@ -591,7 +591,7 @@ test('init without install does not call setup', () => {
   assert.deepStrictEqual(cfg.graphify, { enabled: true });
 });
 
-test('ready bootstrap without promote reports candidate and leaves config bytes intact', () => {
+test('ready bootstrap without promote → reports candidate and leaves config bytes intact', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfgPath = path.join(repo, '.bouncer/config.json');
@@ -610,7 +610,7 @@ test('ready bootstrap without promote reports candidate and leaves config bytes 
   assert.deepStrictEqual(fs.readFileSync(cfgPath), original);
 });
 
-test('ready bootstrap with promote:true flips only graphify.enabled', () => {
+test('ready bootstrap with promote:true → flips only graphify.enabled', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfgPath = path.join(repo, '.bouncer/config.json');
@@ -640,7 +640,7 @@ test('ready bootstrap with promote:true flips only graphify.enabled', () => {
   assert.deepStrictEqual(cfg.subagents, existing.subagents);
 });
 
-test('ready bootstrap promote+install records bin and preserves other keys', () => {
+test('ready bootstrap with promote and install → records bin and preserves other keys', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfgPath = path.join(repo, '.bouncer/config.json');
@@ -676,7 +676,7 @@ test('ready bootstrap promote+install records bin and preserves other keys', () 
   assert.deepStrictEqual(cfg.subagents, existing.subagents);
 });
 
-test('writeGitignore:true upserts a single # bouncer marker block with .venv', () => {
+test('writeGitignore:true → upserts a single # bouncer marker block with .venv', () => {
   const repo = tmpRepo();
   const giPath = path.join(repo, '.gitignore');
   fs.writeFileSync(giPath, '# keep me\n*.secret\n');
@@ -700,7 +700,7 @@ test('writeGitignore:true upserts a single # bouncer marker block with .venv', (
   assert.match(body, /^\*\.secret$/m);
 });
 
-test('writeGitignore preserves substring lookalikes outside the marker block', () => {
+test('writeGitignore with substring lookalikes outside the marker block → preserves them', () => {
   const repo = tmpRepo();
   const giPath = path.join(repo, '.gitignore');
   fs.writeFileSync(giPath, '# bouncer note\n*.secret\n');
@@ -718,7 +718,7 @@ test('writeGitignore preserves substring lookalikes outside the marker block', (
   assert.match(body, /^# bouncer note\n\*\.secret\n# bouncer\n/);
 });
 
-test('writeGitignore without flag leaves .gitignore bytes unchanged and does not create it', () => {
+test('writeGitignore without the flag → leaves .gitignore bytes unchanged and does not create it', () => {
   const repo = tmpRepo();
   const original = Buffer.from('# user rules\n*.secret\n');
   fs.writeFileSync(path.join(repo, '.gitignore'), original);
@@ -732,7 +732,7 @@ test('writeGitignore without flag leaves .gitignore bytes unchanged and does not
   assert.ok(!exists(empty, '.gitignore'));
 });
 
-test('init does not seed Codex agents without a .codex/ signal', () => {
+test('init without a .codex/ signal → does not seed Codex agents', () => {
   const repo = tmpRepo();
   const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.equal(result.created.filter((p) => p.startsWith('.codex/')).length, 0);
@@ -740,7 +740,7 @@ test('init does not seed Codex agents without a .codex/ signal', () => {
   assert.notEqual(result.reason, 'codex-agents-seeded');
 });
 
-test('init seeds five Codex tomls when .codex/ already exists', () => {
+test('init when .codex/ already exists → seeds five Codex tomls', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -757,7 +757,7 @@ test('init seeds five Codex tomls when .codex/ already exists', () => {
   }
 });
 
-test('init leaves unmarked Codex toml byte-for-byte unchanged', () => {
+test('init with an unmarked Codex toml → leaves it byte-for-byte unchanged', () => {
   const repo = tmpRepo();
   const rel = '.codex/agents/bouncer-implementer.toml';
   fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
@@ -767,7 +767,7 @@ test('init leaves unmarked Codex toml byte-for-byte unchanged', () => {
   assert.strictEqual(read(repo, rel), owned);
 });
 
-test('init seeds Codex named-agent toml from plugin markdown', () => {
+test('init with plugin markdown agents → seeds Codex named-agent toml from them', () => {
   const repo = tmpRepo();
   const res = init({
     repoRoot: repo,
@@ -787,7 +787,7 @@ test('init seeds Codex named-agent toml from plugin markdown', () => {
   }
 });
 
-test('init refreshes generated Codex toml and leaves user-owned files', () => {
+test('init with generated and user-owned Codex files → refreshes generated toml and leaves user-owned files', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -802,7 +802,7 @@ test('init refreshes generated Codex toml and leaves user-owned files', () => {
   assert.strictEqual(read(repo, owned), 'name = "custom"\n');
 });
 
-test('ready init seeds missing Codex toml without touching Distill reason', () => {
+test('ready init with missing Codex toml → seeds it without touching Distill reason', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -813,7 +813,7 @@ test('ready init seeds missing Codex toml without touching Distill reason', () =
   assert.ok(!again.created.includes('.bouncer/Distill.md'));
 });
 
-test('init first install writes a graphify lock from the exact install spec', () => {
+test('init first install → writes a graphify lock from the exact install spec', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
   const res = init({
@@ -842,7 +842,7 @@ test('init first install writes a graphify lock from the exact install spec', ()
   assert.strictEqual(lock.value.package_version, '0.9.56');
 });
 
-test('ready init reuses an existing lock and reports upgrade available', () => {
+test('ready init with an existing lock → reuses it and reports upgrade available', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const lockPath = path.join(repo, GRAPHIFY_LOCK_REL);
@@ -874,7 +874,7 @@ test('ready init reuses an existing lock and reports upgrade available', () => {
   assert.deepStrictEqual(fs.readFileSync(lockPath), before);
 });
 
-test('ready init --upgrade-graphify calls upgrade and does not keep a stale lock', () => {
+test('ready init --upgrade-graphify → calls upgrade and does not keep a stale lock', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const lockPath = path.join(repo, GRAPHIFY_LOCK_REL);
@@ -911,7 +911,7 @@ test('ready init --upgrade-graphify calls upgrade and does not keep a stale lock
   assert.strictEqual(lock.cli_version, '0.9.56');
 });
 
-test('ready init does not recreate .codex/ after it is removed', () => {
+test('ready init after .codex/ is removed → does not recreate it', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
@@ -922,14 +922,14 @@ test('ready init does not recreate .codex/ after it is removed', () => {
   assert.notEqual(again.reason, 'codex-agents-seeded');
 });
 
-test('init omits preCommitHook unless the option is set', () => {
+test('init without the preCommitHook option → omits preCommitHook', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(res.preCommitHook, undefined);
 });
 
-test('init preCommitHook installs a marked hook on a git repo', () => {
+test('init with preCommitHook on a git repo → installs a marked hook', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z', preCommitHook: true });

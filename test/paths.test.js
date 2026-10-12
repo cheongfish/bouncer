@@ -7,7 +7,7 @@ const {
 
 const BP_NEW = '.bouncer/context/epics/014-numeric/blueprints/001-id-contract';
 
-test('parses numeric ids and kind from new-style paths', () => {
+test('new-style paths → numeric ids and kind are parsed', () => {
   assert.deepStrictEqual(parsePathIds(`${BP_NEW}/tasks.md`),
     { epicId: '014', blueprintId: '001', kind: 'tasks' });
   assert.deepStrictEqual(parsePathIds(`${BP_NEW}/tasks-002.md`),
@@ -21,7 +21,7 @@ test('parses numeric ids and kind from new-style paths', () => {
   assert.strictEqual(parsePathIds(`${BP_NEW}/context-review.md`).kind, 'context_review');
 });
 
-test('parsePathIds kind for tasks/<NNN>/ unit documents', () => {
+test('parsePathIds with tasks/<NNN>/ unit documents → returns the tasks kind', () => {
   const unit = '.bouncer/context/epics/020-x/blueprints/001-y/tasks/002';
   assert.equal(parsePathIds(`${unit}/tasks.md`).kind, 'tasks');
   assert.equal(parsePathIds(`${unit}/verification.md`).kind, 'verification');
@@ -31,27 +31,27 @@ test('parsePathIds kind for tasks/<NNN>/ unit documents', () => {
   });
 });
 
-test('parsePathIds does not treat non-padded tasks-1.md as tasks kind', () => {
+test('parsePathIds with non-padded tasks-1.md → does not treat it as tasks kind', () => {
   assert.strictEqual(parsePathIds(`${BP_NEW}/tasks-1.md`).kind, null);
 });
 
-test('rejects legacy-prefixed path segments', () => {
+test('legacy-prefixed path segments → are rejected', () => {
   const legacy = '.bouncer/context/epics/' + 'EPIC-014-numeric/blueprints/' + 'BP-001-id-contract';
   assert.deepStrictEqual(parsePathIds(`${legacy}/tasks.md`),
     { epicId: null, blueprintId: null, kind: 'tasks' });
 });
 
-test('epicDirOf strips the blueprints segment', () => {
+test('epicDirOf with a blueprints segment → strips it', () => {
   assert.strictEqual(epicDirOf(BP_NEW), '.bouncer/context/epics/014-numeric');
 });
 
-test('parsePathIds remains generic for epics and blueprints segments', () => {
+test('parsePathIds with epics and blueprints segments → remains generic', () => {
   const fixture = 'fixtures/epics/007-x/blueprints/009-y/tasks.md';
   assert.deepStrictEqual(parsePathIds(fixture),
     { epicId: '007', blueprintId: '009', kind: 'tasks' });
 });
 
-test('isNumericContextId accepts only zero-padded three digits', () => {
+test('isNumericContextId with ids of various shapes → accepts only zero-padded three digits', () => {
   assert.strictEqual(isNumericContextId('001'), true);
   assert.strictEqual(isNumericContextId('014'), true);
   assert.strictEqual(isNumericContextId('1'), false);
@@ -60,7 +60,7 @@ test('isNumericContextId accepts only zero-padded three digits', () => {
   assert.strictEqual(isNumericContextId('BP-001'), false);
 });
 
-test('toPosix: 단일 정의이며 백슬래시와 비문자열 입력을 처리한다', () => {
+test('toPosix → 단일 정의이며 백슬래시와 비문자열 입력을 처리한다', () => {
   const { toPosix } = require('../scripts/lib/posix-path');
   assert.strictEqual(toPosix('a\\b\\c.md'), 'a/b/c.md');
   assert.strictEqual(toPosix(undefined), 'undefined');

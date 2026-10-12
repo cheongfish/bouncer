@@ -21,7 +21,7 @@ function writeRel(repoRoot, rel, body) {
   fs.writeFileSync(abs, body);
 }
 
-test('scanLegacyScaffoldComments targets epic index and blueprint markdown', () => {
+test('scanLegacyScaffoldComments → targets epic index and blueprint markdown', () => {
   const repoRoot = tmpRepo();
   const bp = '.bouncer/context/epics/084-x/blueprints/002-y';
   writeRel(repoRoot, `${bp}/review.md`, LEGACY);
@@ -34,17 +34,17 @@ test('scanLegacyScaffoldComments targets epic index and blueprint markdown', () 
   assert.deepStrictEqual(scanLegacyScaffoldComments({ repoRoot, blueprintDir: bp }), [`${bp}/index.md`, `${bp}/review.md`]);
 });
 
-test('findLegacyScaffoldComments ignores HTML comments only inside markdown inline code spans', () => {
+test('findLegacyScaffoldComments with HTML comments only inside markdown inline code spans → ignores them', () => {
   const quoted = '예: `<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->`를 더한 뒤';
   assert.deepStrictEqual(findLegacyScaffoldComments(quoted), []);
 });
 
-test('findLegacyScaffoldComments still reports leftover comments outside inline code', () => {
+test('findLegacyScaffoldComments with leftover comments outside inline code → still reports them', () => {
   const mixed = '예: `<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->`\n<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
   assert.deepStrictEqual(findLegacyScaffoldComments(mixed), ['왜 지금 이 에픽인가. 두 문장 이내.']);
 });
 
-test('scanLegacyScaffoldComments ignores a TASKS checklist example quoted in inline backticks', () => {
+test('scanLegacyScaffoldComments with a TASKS checklist example quoted in inline backticks → ignores it', () => {
   const repoRoot = tmpRepo();
   const bp = '.bouncer/context/epics/085-x/blueprints/003-y';
   writeRel(
@@ -55,7 +55,7 @@ test('scanLegacyScaffoldComments ignores a TASKS checklist example quoted in inl
   assert.deepStrictEqual(scanLegacyScaffoldComments({ repoRoot, blueprintDir: bp }), []);
 });
 
-test('scanLegacyScaffoldComments throws when a present path is unreadable', () => {
+test('scanLegacyScaffoldComments with an unreadable present path → throws', () => {
   if (typeof process.getuid === 'function' && process.getuid() === 0) return;
   const repoRoot = tmpRepo();
   const unreadableBp = '.bouncer/context/epics/084-x/blueprints/003-z';

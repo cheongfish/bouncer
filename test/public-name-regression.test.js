@@ -8,7 +8,7 @@ const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 
-test('plugin-root contract points PATH install at docs/install.md', () => {
+test('plugin-root contract → points PATH install at docs/install.md', () => {
   const contract = fs.readFileSync(path.join(root, 'rules/plugin-root.md'), 'utf8');
   assert.match(contract, /BOUNCER_ROOT="\$\(bouncer-root --auto\)" \|\| exit \$\?/);
   assert.match(contract, /docs\/install\.md/);
@@ -100,7 +100,7 @@ function activeFiles() {
   return trackedTextFiles().filter((file) => !isHistorical(file));
 }
 
-test('active surfaces contain no Superpowers integration reference', () => {
+test('active surfaces → contain no Superpowers integration reference', () => {
   const offenders = [];
   for (const file of activeFiles()) {
     if (file === 'test/public-name-regression.test.js') continue;
@@ -112,7 +112,7 @@ test('active surfaces contain no Superpowers integration reference', () => {
   assert.deepStrictEqual(offenders, [], `Superpowers references in:\n${offenders.join('\n')}`);
 });
 
-test('active surfaces omit sdd names except legacy-rejection allowlist', () => {
+test('active surfaces → omit sdd names except legacy-rejection allowlist', () => {
   const offenders = [];
   for (const file of activeFiles()) {
     if (LEGACY_ALLOWLIST.has(file)) continue;
@@ -122,7 +122,7 @@ test('active surfaces omit sdd names except legacy-rejection allowlist', () => {
   assert.deepStrictEqual(offenders, [], `sdd name hits in:\n${offenders.join('\n')}`);
 });
 
-test('only focused legacy-rejection tests and detectors mention .sdd / sdd.*', () => {
+test('mentions of .sdd / sdd.* → appear only in focused legacy-rejection tests and detectors', () => {
   const offenders = [];
   for (const file of activeFiles()) {
     if (LEGACY_ALLOWLIST.has(file)) continue;

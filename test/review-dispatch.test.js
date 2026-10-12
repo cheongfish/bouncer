@@ -278,13 +278,13 @@ function expectedDigest(repo) {
   return { digest: hash.digest('hex'), documents: parts };
 }
 
-test('size constants are exported from one module', () => {
+test('size constants → are exported from one module', () => {
   assert.strictEqual(PLAN_SMALL_MAX_TASKS, 1);
   assert.strictEqual(EXECUTE_SMALL_MAX_FILES, 3);
   assert.strictEqual(EXECUTE_SMALL_MAX_LINES, 200);
 });
 
-test('plan light scale returns skip without perspectives', () => {
+test('plan with light scale → returns skip without perspectives', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'light', tasks: ['001'] });
   const before = git(repo, ['status', '--porcelain']);
@@ -302,7 +302,7 @@ test('plan light scale returns skip without perspectives', () => {
   assert.strictEqual(git(repo, ['status', '--porcelain']), before);
 });
 
-test('plan single commit task returns combined', () => {
+test('plan with a single commit task → returns combined', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   writeVerificationTask(repo, '002', { dependsOn: ['TASKS-001'] });
@@ -339,7 +339,7 @@ function previousPayload(result) {
 // follow_up·parts·scope_parts 계약. 범위 필드는 각각 단독으로 full을 강제해야 한다
 // (한 테스트에서 Interface·Touch·affected_paths를 같이 바꾸면 어느 한 필드를
 // scopeMaterial에서 빼도 통과하므로 F-001 회귀가 안 잡힌다).
-test('plan follow_up without previous is full with empty changed_documents', () => {
+test('plan follow_up without previous → is full with empty changed_documents', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const out = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -356,7 +356,7 @@ test('plan follow_up without previous is full with empty changed_documents', () 
   assert.ok(out.scope_parts[`${BP_REL}/tasks/001/tasks.md`]);
 });
 
-test('plan follow_up Goal-only body change is partial with that tasks.md', () => {
+test('plan follow_up with a Goal-only body change → is partial with that tasks.md', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -377,7 +377,7 @@ test('plan follow_up Goal-only body change is partial with that tasks.md', () =>
   assert.notStrictEqual(out.target.digest, digestBefore);
 });
 
-test('plan follow_up unchanged documents is partial with empty list', () => {
+test('plan follow_up with unchanged documents → is partial with empty list', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -392,7 +392,7 @@ test('plan follow_up unchanged documents is partial with empty list', () => {
   assert.strictEqual(out.target.digest, before.target.digest);
 });
 
-test('plan follow_up epic index body change is full', () => {
+test('plan follow_up with an epic index body change → is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -408,7 +408,7 @@ test('plan follow_up epic index body change is full', () => {
   assert.deepStrictEqual(out.changed_documents, []);
 });
 
-test('plan follow_up blueprint index body change is full', () => {
+test('plan follow_up with a blueprint index body change → is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -429,7 +429,7 @@ const PLAN_TASK_001_INTERFACE = '- `sharedFn`\n';
 const PLAN_TASK_001_TOUCH = '- `src/shared.ts`\n- `src/a.ts`\n';
 const PLAN_TASK_001_AFFECTED = ['src/shared.ts', 'src/a.ts'];
 
-test('plan follow_up Interface-only scope_parts change is full', () => {
+test('plan follow_up with an Interface-only scope_parts change → is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -454,7 +454,7 @@ test('plan follow_up Interface-only scope_parts change is full', () => {
   );
 });
 
-test('plan follow_up Touch-only scope_parts change is full', () => {
+test('plan follow_up with a Touch-only scope_parts change → is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -478,7 +478,7 @@ test('plan follow_up Touch-only scope_parts change is full', () => {
   );
 });
 
-test('plan follow_up affected_paths-only scope_parts change is full', () => {
+test('plan follow_up with an affected_paths-only scope_parts change → is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -503,7 +503,7 @@ test('plan follow_up affected_paths-only scope_parts change is full', () => {
   );
 });
 
-test('plan follow_up depends_on-only scope_parts change is full', () => {
+test('plan follow_up with a depends_on-only scope_parts change → is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001', '002'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -527,7 +527,7 @@ test('plan follow_up depends_on-only scope_parts change is full', () => {
   );
 });
 
-test('plan follow_up added task is full', () => {
+test('plan follow_up with an added task → is full', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -547,7 +547,7 @@ test('plan follow_up added task is full', () => {
   assert.deepStrictEqual(out.changed_documents, []);
 });
 
-test('plan previous payload invalid rejects with previous-payload-invalid', () => {
+test('plan with an invalid previous payload → rejects with previous-payload-invalid', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const missingParts = classifyPlanReview({
@@ -582,7 +582,7 @@ test('plan previous payload invalid rejects with previous-payload-invalid', () =
   assert.strictEqual(bareFlag.code, 2);
 });
 
-test('plan aggregate digest stays invariant with parts present', () => {
+test('plan with parts present → aggregate digest stays invariant', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001', '002'] });
   const out = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -597,7 +597,7 @@ test('plan aggregate digest stays invariant with parts present', () => {
   assert.notStrictEqual(joinedParts.digest('hex'), out.target.digest);
 });
 
-test('plan two overlapping tasks returns clustered local+global', () => {
+test('plan with two overlapping tasks → returns clustered local+global', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001', '002'] });
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -611,7 +611,7 @@ test('plan two overlapping tasks returns clustered local+global', () => {
   assert.deepStrictEqual(result.perspectives, ['local', 'global']);
 });
 
-test('plan two non-overlapping tasks still get local clusters plus global', () => {
+test('plan with two non-overlapping tasks → still gets local clusters plus global', () => {
   const repo = makeRepo();
   writeBundleIndex(repo);
   writeDoc(repo, `${EPIC_REL}/index.md`, {
@@ -642,7 +642,7 @@ test('plan two non-overlapping tasks still get local clusters plus global', () =
   assert.deepStrictEqual(result.perspectives, ['local', 'local', 'global']);
 });
 
-test('plan empty Interface rejects without perspectives', () => {
+test('plan with an empty Interface → rejects without perspectives', () => {
   const repo = makeRepo();
   writeBundleIndex(repo);
   writeDoc(repo, `${EPIC_REL}/index.md`, {
@@ -663,7 +663,7 @@ test('plan empty Interface rejects without perspectives', () => {
   assert.ok(!('perspectives' in result) || result.perspectives === undefined);
 });
 
-test('plan draft validation rejects a verification Touch command before reviewers (G20)', () => {
+test('plan draft validation with a verification Touch command → rejects before reviewers (G20)', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   writeVerificationTask(repo, '002', { touchText: '- `npm run ci`\n' });
@@ -674,7 +674,7 @@ test('plan draft validation rejects a verification Touch command before reviewer
   assert.ok(!('perspectives' in result) || result.perspectives === undefined);
 });
 
-test('plan draft validation rejects a depends_on self-edge before reviewers (G19)', () => {
+test('plan draft validation with a depends_on self-edge → rejects before reviewers (G19)', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   writeCommitTask(repo, '001', {
@@ -703,7 +703,7 @@ function writeStructuralAndDraftFailureTree(repo) {
 
 const DRAFT_CODES = ['G5', 'G10', 'G11', 'G12', 'G19', 'G20'];
 
-test('plan structural failure wins over draft failure and classifies as structural', () => {
+test('plan with structural and draft failures → structural failure wins and classifies as structural', () => {
   const repo = makeRepo();
   writeStructuralAndDraftFailureTree(repo);
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
@@ -714,7 +714,7 @@ test('plan structural failure wins over draft failure and classifies as structur
   assert.ok(!('perspectives' in result) || result.perspectives === undefined);
 });
 
-test('validateBlueprint planDraft skips draft checks when structural failures exist', () => {
+test('validateBlueprint planDraft with structural failures → skips draft checks', () => {
   const repo = makeRepo();
   writeStructuralAndDraftFailureTree(repo);
   const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
@@ -724,7 +724,7 @@ test('validateBlueprint planDraft skips draft checks when structural failures ex
   assert.ok(!result.failures.some((f) => DRAFT_CODES.includes(f.code)), JSON.stringify(result.failures));
 });
 
-test('execute small diff returns single combined', () => {
+test('execute with a small diff → returns single combined', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   const base = git(repo, ['rev-parse', 'HEAD']).trim();
@@ -746,7 +746,7 @@ test('execute small diff returns single combined', () => {
   assert.deepStrictEqual(result.target, { base, head, task: '001' });
 });
 
-test('execute over file threshold returns parallel', () => {
+test('execute over the file threshold → returns parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   const base = git(repo, ['rev-parse', 'HEAD']).trim();
@@ -770,7 +770,7 @@ test('execute over file threshold returns parallel', () => {
 
 // light scale은 diff 크기와 무관하게 단일 combined. full(또는 scale 미선언)은
 // 기존 임계값을 유지한다 — 경로 수·줄 수로 light를 추론하지 않는다.
-test('execute light scale large diff returns single combined via --blueprint', () => {
+test('execute with light scale and a large diff via --blueprint → returns single combined', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'light', tasks: ['001'] });
   const base = git(repo, ['rev-parse', 'HEAD']).trim();
@@ -800,7 +800,7 @@ test('execute light scale large diff returns single combined via --blueprint', (
   assert.deepStrictEqual(cliJson.perspectives, ['combined']);
 });
 
-test('execute full scale large diff stays parallel even with --blueprint', () => {
+test('execute with full scale and a large diff even with --blueprint → stays parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const base = git(repo, ['rev-parse', 'HEAD']).trim();
@@ -823,7 +823,7 @@ test('execute full scale large diff stays parallel even with --blueprint', () =>
 
 // CT-002: light는 combined만 쓰지만 non-empty review_risk는 security를 붙인다.
 // light large-diff 케이스만 있으면 risk append 분기가 light 경로에서 빠질 수 있다.
-test('execute light scale with review_risk yields combined and security', () => {
+test('execute with light scale and review_risk → yields combined and security', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'light', tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
@@ -842,7 +842,7 @@ test('execute light scale with review_risk yields combined and security', () => 
   assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
 });
 
-test('execute risk flags append security on single and parallel', () => {
+test('execute with risk flags → appends security on single and parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
@@ -971,7 +971,7 @@ test('--mode 값 없음 → exit 2', () => {
   assert.match(bare.err, /review-dispatch execute/);
 });
 
-test('execute rejects non-canonical blueprintDir escape without perspectives', () => {
+test('execute with a non-canonical blueprintDir escape → rejects without perspectives', () => {
   // SEC-001: Plan은 validateBlueprint/isCanonicalBlueprintDir로 ../ 를 막지만
   // Execute가 path.join만 하면 repo 밖 tasks.md의 review_risk로 security를 연다.
   const repo = makeRepo();
@@ -1020,7 +1020,7 @@ test('execute rejects non-canonical blueprintDir escape without perspectives', (
   assert.strictEqual(planSame.ok, false);
 });
 
-test('execute review_risk S30 rejects without perspectives', () => {
+test('execute with review_risk S30 → rejects without perspectives', () => {
   // CT-001: Execute의 readReviewRisk S30 세 갈래는 Plan structural만으로는 회귀가 안 잡힌다.
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
@@ -1050,7 +1050,7 @@ test('execute review_risk S30 rejects without perspectives', () => {
   }
 });
 
-test('execute lines-only breach returns parallel', () => {
+test('execute with a lines-only breach → returns parallel', () => {
   // CT-002: 파일 ≤3이어도 줄 합계 >200이면 parallel. 파일 임계만 보면 분기 한쪽이 빠진다.
   const lines = Array.from({ length: EXECUTE_SMALL_MAX_LINES + 1 }, (_, i) => `// ${i}`).join('\n') + '\n';
   const repo = makeRepo();
@@ -1074,7 +1074,7 @@ test('execute lines-only breach returns parallel', () => {
   ]);
 });
 
-test('execute binary row counts as file but not lines and does not force parallel', () => {
+test('execute with a binary row → counts as file but not lines and does not force parallel', () => {
   const numstat = '1\t1\tsrc/a.ts\n-\t-\tassets/logo.png\n';
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
@@ -1097,7 +1097,7 @@ test('execute binary row counts as file but not lines and does not force paralle
   assert.strictEqual(result.strategy, 'single');
 });
 
-test('execute unknown task and bad ref fail without perspectives', () => {
+test('execute with an unknown task and bad ref → fails without perspectives', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   const missing = classifyExecuteReview({
@@ -1119,7 +1119,7 @@ test('execute unknown task and bad ref fail without perspectives', () => {
   assert.strictEqual(badRef.ok, false);
 });
 
-test('CLI review-dispatch plan and execute emit JSON exit contracts', () => {
+test('CLI review-dispatch plan and execute → emit JSON exit contracts', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const plan = capture([
@@ -1174,7 +1174,7 @@ test('CLI review-dispatch plan and execute emit JSON exit contracts', () => {
   assert.match(bad.err, /--task|--base|--head/);
 });
 
-test('execute without taskId classifies the whole blueprint diff and unions review_risk', () => {
+test('execute without taskId → classifies the whole blueprint diff and unions review_risk', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001', '002'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
@@ -1199,7 +1199,7 @@ test('execute without taskId classifies the whole blueprint diff and unions revi
   assert.strictEqual(result.perspectives.at(-1), 'security');
 });
 
-test('blueprint-wide execute rejects invalid review_risk without perspectives', () => {
+test('blueprint-wide execute with invalid review_risk → rejects without perspectives', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['bogus'] });
@@ -1220,7 +1220,7 @@ test('blueprint-wide execute rejects invalid review_risk without perspectives', 
   assert.ok(!('perspectives' in result) || result.perspectives === undefined);
 });
 
-test('CLI plan structural failure exits 1 without reviewer list', () => {
+test('CLI plan with a structural failure → exits 1 without reviewer list', () => {
   const repo = makeRepo();
   writeBundleIndex(repo);
   writeDoc(repo, `${EPIC_REL}/index.md`, {
@@ -1245,7 +1245,7 @@ test('CLI plan structural failure exits 1 without reviewer list', () => {
   assert.ok(!('perspectives' in payload) || payload.perspectives === undefined);
 });
 
-test('review-dispatch --help yaml example passes G18 once <target.digest> is replaced', () => {
+test('review-dispatch --help yaml example with <target.digest> replaced → passes G18', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const help = capture(['review-dispatch', '--help']);

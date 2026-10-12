@@ -103,7 +103,7 @@ function parsePayload(result) {
   return JSON.parse(result.out);
 }
 
-test('run preflight reports readyWave 001 and TASKS-002 when 002 depends on 001', () => {
+test('run preflight when 002 depends on 001 → reports readyWave 001 and TASKS-002', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -131,7 +131,7 @@ test('run preflight reports readyWave 001 and TASKS-002 when 002 depends on 001'
   assert.strictEqual(git(repo, ['status', '--porcelain']), before, 'preflight must not write files');
 });
 
-test('run preflight treats missing autonomy as auto with fallback missing', () => {
+test('run preflight with missing autonomy → treats it as auto with fallback missing', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -145,7 +145,7 @@ test('run preflight treats missing autonomy as auto with fallback missing', () =
   });
 });
 
-test('run preflight treats autonomy always as invalid', () => {
+test('run preflight with autonomy always → treats it as invalid', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -163,7 +163,7 @@ test('run preflight treats autonomy always as invalid', () => {
   assert.strictEqual(payload.autonomy.reason, 'invalid');
 });
 
-test('run preflight marks a closed blueprint as not delegable', () => {
+test('run preflight with a closed blueprint → marks it as not delegable', () => {
   const repo = makeRepo();
   writePlanTree(repo, { bpStatus: 'closed' });
   setPointer(repo);
@@ -177,7 +177,7 @@ test('run preflight marks a closed blueprint as not delegable', () => {
   assert.strictEqual(payload.reason, 'blueprint-closed');
 });
 
-test('run preflight marks promotion_stopped ledger as not delegable', () => {
+test('run preflight with a promotion_stopped ledger → marks it as not delegable', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -212,7 +212,7 @@ test('run preflight marks promotion_stopped ledger as not delegable', () => {
   assert.strictEqual(payload.reason, 'promotion-stopped');
 });
 
-test('run preflight treats declared auto autonomy as no fallback', () => {
+test('run preflight with declared auto autonomy → treats it as no fallback', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -230,7 +230,7 @@ test('run preflight treats declared auto autonomy as no fallback', () => {
   });
 });
 
-test('run preflight marks no open tasks as not delegable', () => {
+test('run preflight with no open tasks → marks it as not delegable', () => {
   const repo = makeRepo();
   writePlanTree(repo, {
     task001: { status: 'integrated' },
@@ -248,7 +248,7 @@ test('run preflight marks no open tasks as not delegable', () => {
   assert.strictEqual(payload.reason, 'no-open-task');
 });
 
-test('run preflight maps CURRENT_AMBIGUOUS from a colliding pointer set', () => {
+test('run preflight with a colliding pointer set → maps CURRENT_AMBIGUOUS', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -263,7 +263,7 @@ test('run preflight maps CURRENT_AMBIGUOUS from a colliding pointer set', () => 
   assert.strictEqual(payload.reason, 'CURRENT_AMBIGUOUS');
 });
 
-test('run preflight rejects a missing pointer with no-current', () => {
+test('run preflight with a missing pointer → rejects with no-current', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   const result = preflight(repo);
@@ -273,13 +273,13 @@ test('run preflight rejects a missing pointer with no-current', () => {
   assert.strictEqual(payload.reason, 'no-current');
 });
 
-test('run without a subcommand exits 2', () => {
+test('run without a subcommand → exits 2', () => {
   const result = capture(['run']);
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /preflight/);
 });
 
-test('run preflight without --blueprint exits 2', () => {
+test('run preflight without --blueprint → exits 2', () => {
   const result = capture(['run', 'preflight']);
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /blueprint/);

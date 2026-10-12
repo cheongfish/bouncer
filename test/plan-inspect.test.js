@@ -78,7 +78,7 @@ function writeIdTree(repo) {
   fs.writeFileSync(path.join(repo, 'package.json'), `${JSON.stringify({ scripts: { test: 'node --test' } })}\n`);
 }
 
-test('plan inspect allocates the next epic id from \\d{3}-slug dirs only', () => {
+test('plan inspect with epic dirs → allocates the next epic id from \\d{3}-slug dirs only', () => {
   const repo = makeRepo();
   writeIdTree(repo);
 
@@ -97,7 +97,7 @@ test('plan inspect allocates the next epic id from \\d{3}-slug dirs only', () =>
   assert.strictEqual(payload.current.base, null);
 });
 
-test('plan inspect maps a single namespace pointer to selected blueprint/task/base', () => {
+test('plan inspect with a single namespace pointer → maps it to selected blueprint/task/base', () => {
   const repo = makeRepo();
   writeIdTree(repo);
   // inspect는 resolveCurrent를 deps 없이 부르므로, 픽스처도 같은 git-common-dir
@@ -119,7 +119,7 @@ test('plan inspect maps a single namespace pointer to selected blueprint/task/ba
   assert.strictEqual(payload.current.base, base);
 });
 
-test('plan inspect maps multiple namespace pointers to ambiguous with empty fields', () => {
+test('plan inspect with multiple namespace pointers → maps them to ambiguous with empty fields', () => {
   const repo = makeRepo();
   writeIdTree(repo);
   // 기준 checkout에서 키가 둘이면 resolveCurrent는 ambiguous다. inspect는
@@ -147,7 +147,7 @@ test('plan inspect maps multiple namespace pointers to ambiguous with empty fiel
   assert.strictEqual(payload.current.base, null);
 });
 
-test('plan inspect fills epic.nextBlueprintId for --epic-dir and ignores BP- prefixes', () => {
+test('plan inspect with --epic-dir → fills epic.nextBlueprintId and ignores BP- prefixes', () => {
   const repo = makeRepo();
   writeIdTree(repo);
   const epicDir = `${EPICS}/003-b`;
@@ -163,7 +163,7 @@ test('plan inspect fills epic.nextBlueprintId for --epic-dir and ignores BP- pre
   assert.strictEqual(payload.epic.nextBlueprintId, '003');
 });
 
-test('plan inspect reports maintenanceEpic.id when a maintenance slug exists', () => {
+test('plan inspect with a maintenance slug → reports maintenanceEpic.id', () => {
   const repo = makeRepo();
   writeIdTree(repo);
   mkdirp(repo, `${EPICS}/063-maintenance/blueprints/003-z`);
@@ -185,7 +185,7 @@ test('plan inspect reports maintenanceEpic.id when a maintenance slug exists', (
   assert.strictEqual(payload.maintenanceEpic.nextBlueprintId, '004');
 });
 
-test('plan inspect is read-only: git status is unchanged', () => {
+test('plan inspect run → is read-only: git status is unchanged', () => {
   const repo = makeRepo();
   writeIdTree(repo);
   const before = git(repo, ['status', '--porcelain']);
@@ -198,7 +198,7 @@ test('plan inspect is read-only: git status is unchanged', () => {
   assert.strictEqual(git(repo, ['status', '--porcelain']), before);
 });
 
-test('plan inspect rejects a missing .bouncer with not-initialized', () => {
+test('plan inspect with a missing .bouncer → rejects with not-initialized', () => {
   const repo = makeRepo();
   const result = inspect(repo);
   const payload = parsePayload(result);
@@ -207,7 +207,7 @@ test('plan inspect rejects a missing .bouncer with not-initialized', () => {
   assert.strictEqual(payload.reason, 'not-initialized');
 });
 
-test('plan inspect rejects a malformed or missing --epic-dir with invalid-epic-dir', () => {
+test('plan inspect with a malformed or missing --epic-dir → rejects with invalid-epic-dir', () => {
   const repo = makeRepo();
   writeIdTree(repo);
 
@@ -224,7 +224,7 @@ test('plan inspect rejects a malformed or missing --epic-dir with invalid-epic-d
   assert.strictEqual(missingPayload.reason, 'invalid-epic-dir');
 });
 
-test('plan without a subcommand exits 2', () => {
+test('plan without a subcommand → exits 2', () => {
   const result = capture(['plan']);
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /inspect/);
@@ -239,7 +239,7 @@ const {
   summarizeRouting,
 } = require('../scripts/lib/plan-inspect');
 
-test('classifyRoutingPaths tags security/manifest/build/migration and skips near-misses', () => {
+test('classifyRoutingPaths with security/manifest/build/migration paths and near-misses → tags the matches and skips near-misses', () => {
   assert.deepStrictEqual(
     classifyRoutingPaths(['src/auth/session.ts']),
     [{ path: 'src/auth/session.ts', kind: 'security' }],
@@ -276,7 +276,7 @@ test('classifyRoutingPaths tags security/manifest/build/migration and skips near
   );
 });
 
-test('summarizeRouting excludes test/docs/root files from modules and flags empty paths', () => {
+test('summarizeRouting with test/docs/root files and empty paths → excludes the files from modules and flags empty paths', () => {
   const light = summarizeRouting([{
     paths: ['scripts/lib/a.ts', 'test/a.test.js', 'docs/x.md', 'CHANGELOG.md'],
     dependsOn: [],
@@ -352,7 +352,7 @@ function writeRoutingBlueprint(repo, {
   return blueprintDir;
 }
 
-test('plan inspect --blueprint reports full-candidate routing from drafted tasks', () => {
+test('plan inspect --blueprint with drafted tasks → reports full-candidate routing', () => {
   const repo = makeRepo();
   mkdirp(repo, `${EPICS}/001-a`);
   const blueprintDir = writeRoutingBlueprint(repo, {
@@ -390,7 +390,7 @@ test('plan inspect --blueprint reports full-candidate routing from drafted tasks
   assert.ok(payload.routing.riskPaths.some((entry) => entry.kind === 'security'));
 });
 
-test('plan inspect without --blueprint keeps prior fields and sets routing null', () => {
+test('plan inspect without --blueprint → keeps prior fields and sets routing null', () => {
   const repo = makeRepo();
   writeIdTree(repo);
 
@@ -407,7 +407,7 @@ test('plan inspect without --blueprint keeps prior fields and sets routing null'
   assert.strictEqual(payload.routing, null);
 });
 
-test('plan inspect rejects a malformed or missing --blueprint with invalid-blueprint-dir', () => {
+test('plan inspect with a malformed or missing --blueprint → rejects with invalid-blueprint-dir', () => {
   const repo = makeRepo();
   writeIdTree(repo);
 
@@ -426,7 +426,7 @@ test('plan inspect rejects a malformed or missing --blueprint with invalid-bluep
   assert.strictEqual(missingPayload.reason, 'invalid-blueprint-dir');
 });
 
-test('plan inspect rejects valueless --blueprint with exit 2', () => {
+test('plan inspect with valueless --blueprint → rejects with exit 2', () => {
   const repo = makeRepo();
   writeIdTree(repo);
   const result = inspect(repo, ['--blueprint']);

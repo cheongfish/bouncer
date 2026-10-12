@@ -24,7 +24,7 @@ function base(type, id, status, extra) {
   };
 }
 
-test('execute validation reruns the configured command instead of trusting evidence', () => {
+test('execute validation with recorded evidence → reruns the configured command instead of trusting evidence', () => {
   const { execFileSync } = require('node:child_process');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-native-e2e-'));
   const git = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
@@ -91,7 +91,7 @@ test('execute validation reruns the configured command instead of trusting evide
 // 배포되는 것은 `scripts/lib/*.js`뿐이다. coordinator 수명주기가 그 빌드
 // 산출물과 CLI 표면만으로 끝까지 도는지 확인해, TypeScript 소스가 있는
 // 개발 체크아웃에서만 동작하는 경로가 생기지 않게 한다.
-test('the coordinator lifecycle runs end to end through the shipped CLI surface', () => {
+test('the coordinator lifecycle through the shipped CLI surface → runs end to end', () => {
   const { execFileSync } = require('node:child_process');
   const { runCli } = require('../scripts/lib/cli');
 

@@ -161,7 +161,7 @@ test.after(() => {
   }
 });
 
-test('trailer wins and returns a 40-char commit with the stable task id', () => {
+test('commit with a trailer → wins and returns a 40-char commit with the stable task id', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', targetSource(1));
@@ -196,7 +196,7 @@ test('trailer wins and returns a 40-char commit with the stable task id', () => 
   assert.equal(result.candidates[0].body.includes('hidden checklist item'), false);
 });
 
-test('Explain SHA fallback reads new and legacy rows; trailer still wins when both exist', () => {
+test('Explain SHA fallback with new and legacy rows → reads both; trailer still wins when both exist', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', targetSource('"fallback"'));
@@ -246,7 +246,7 @@ test('Explain SHA fallback reads new and legacy rows; trailer still wins when bo
   assert.equal(both.candidates[0].task, 'EPIC-071/BP-002/TASK-001');
 });
 
-test('rename is followed and later linked edits mark earlier candidates possibly-superseded', () => {
+test('rename followed by later linked edits → rename is followed and earlier candidates are marked possibly-superseded', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/old-name.ts', [
@@ -420,7 +420,7 @@ test('rename is followed and later linked edits mark earlier candidates possibly
   assert.deepEqual(byTask['EPIC-071/BP-002/TASK-000'].sections, []);
 });
 
-test('unlinked covers missing explain, trailer-only, sha-only, and ambiguous sha evidence', () => {
+test('missing explain, trailer-only, sha-only, and ambiguous sha evidence → are reported as unlinked', () => {
   const missingExplain = tmpRepo();
   initRepo(missingExplain);
   writeFile(missingExplain, 'src/app.ts', targetSource(1));
@@ -489,7 +489,7 @@ test('unlinked covers missing explain, trailer-only, sha-only, and ambiguous sha
   assert.equal(conflictResult.candidates.length, 0);
 });
 
-test('default three candidates, limit five, and UTF-8 body budget set truncated', () => {
+test('default three candidates, limit five, and UTF-8 body budget → set truncated', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', targetSource(0));
@@ -541,7 +541,7 @@ test('default three candidates, limit five, and UTF-8 body budget set truncated'
   );
 });
 
-test('TASKS-001 unresolved and ambiguous statuses are preserved', () => {
+test('TASKS-001 unresolved and ambiguous statuses → are preserved', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', 'export function keep() { return 1; }\n');
@@ -561,7 +561,7 @@ test('TASKS-001 unresolved and ambiguous statuses are preserved', () => {
   assert.equal(deleted.status, 'unresolved');
 });
 
-test('an unlinked later edit keeps the earlier linked commit related', () => {
+test('an unlinked later edit → keeps the earlier linked commit related', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', targetSource(1));
@@ -590,7 +590,7 @@ test('an unlinked later edit keeps the earlier linked commit related', () => {
 
 // worker worktree에서 구현 뒤 bundle을 만들면 blame이 커밋 안 된 줄에 null SHA를 준다.
 // 그 SHA로 git log를 부르면 bad object로 bundle 전체가 실패했다.
-test('uncommitted edits and new functions resolve without the blame null SHA', () => {
+test('uncommitted edits and new functions → resolve without the blame null SHA', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', targetSource(1));
@@ -614,7 +614,7 @@ test('uncommitted edits and new functions resolve without the blame null SHA', (
   assert.equal(git(repo, ['rev-parse', 'HEAD']).trim(), baseSha);
 });
 
-test('git repository absence is an explicit error, not unlinked', () => {
+test('absent git repository → is an explicit error, not unlinked', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/app.ts', targetSource(1));
   assert.throws(
@@ -623,7 +623,7 @@ test('git repository absence is an explicit error, not unlinked', () => {
   );
 });
 
-test('intent-provenance emit is not indexed when the TypeScript source exists', () => {
+test('TypeScript source exists → intent-provenance emit is not indexed', () => {
   const root = path.join(__dirname, '..');
   const srcRel = 'scripts/src/lib/intent-provenance.ts';
   const emitRel = 'scripts/lib/intent-provenance.js';
@@ -639,7 +639,7 @@ test('intent-provenance emit is not indexed when the TypeScript source exists', 
   assert.equal(indexed, '');
 });
 
-test('splitTaskChunks recognizes stable and legacy Explain task headings', () => {
+test('splitTaskChunks with stable and legacy Explain task headings → recognizes both', () => {
   const design = [
     '',
     '#### Goal & intent',
@@ -675,7 +675,7 @@ test('splitTaskChunks recognizes stable and legacy Explain task headings', () =>
   );
 });
 
-test('outside-repo explain paths are not adopted as link evidence', () => {
+test('outside-repo explain paths → are not adopted as link evidence', () => {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', targetSource(1));
@@ -706,7 +706,7 @@ test('outside-repo explain paths are not adopted as link evidence', () => {
   assert.equal(result.status, 'unlinked');
 });
 
-test('projectExplainSectionBodies keeps hash projection names and body hashes', () => {
+test('projectExplainSectionBodies → keeps hash projection names and body hashes', () => {
   const repo = tmpRepo();
   const rel = explainRel('071', '002');
   writeExplain(repo, {

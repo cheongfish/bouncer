@@ -211,7 +211,7 @@ function byBlueprint(results) {
   return map;
 }
 
-test('auditRetention classifies five closed statuses in path order', () => {
+test('auditRetention with five closed statuses → classifies them in path order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-'));
 
   // eligible — explain + valid task intent + all four transient leaf kinds
@@ -287,7 +287,7 @@ test('auditRetention classifies five closed statuses in path order', () => {
   assert.strictEqual(map.get(BP_E).status, 'already-compacted');
 });
 
-test('auditRetention dry-run does not change any file bytes', () => {
+test('auditRetention dry-run → does not change any file bytes', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-'));
   writeClosedIndex(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
   writeExplain(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
@@ -301,7 +301,7 @@ test('auditRetention dry-run does not change any file bytes', () => {
   assert.deepStrictEqual(hashTree(repo), before);
 });
 
-test('migrateRetention promotes Explain then deletes all four transient leaves', () => {
+test('migrateRetention → promotes Explain then deletes all four transient leaves', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-'));
   const existingCommits = [
     { task: `EPIC-${EPIC}/BP-001/TASK-001`, sha: 'aabbccdd', intent_anchor: 'task-001' },
@@ -349,7 +349,7 @@ test('migrateRetention promotes Explain then deletes all four transient leaves',
   assert.notEqual(explainAfter, explainBefore);
 });
 
-test('migrateRetention rolls back Explain and deletes on failure', () => {
+test('migrateRetention failure → rolls back Explain and deletes', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-'));
   writeClosedIndex(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
   writeExplain(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
@@ -378,7 +378,7 @@ test('migrateRetention rolls back Explain and deletes on failure', () => {
   );
 });
 
-test('migrateRetention rejects open, escaped, and non-eligible targets without writes', () => {
+test('migrateRetention with open, escaped, and non-eligible targets → rejects them without writes', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-'));
   const openBp = `.bouncer/context/epics/${EPIC}-open/blueprints/001-open`;
   writeDoc(repo, `${openBp}/index.md`, {
@@ -442,7 +442,7 @@ test('migrateRetention rejects open, escaped, and non-eligible targets without w
   assert.equal(fs.existsSync(path.join(repo, `${BP_D}/tasks/001/tasks.md`)), true);
 });
 
-test('migrateRetention rejects symlink blueprint dir or explain.md that escape repoRoot', () => {
+test('migrateRetention with a symlink blueprint dir or explain.md escaping repoRoot → rejects it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-symlink-'));
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-outside-'));
 
@@ -492,7 +492,7 @@ test('migrateRetention rejects symlink blueprint dir or explain.md that escape r
   assert.deepStrictEqual(fs.readFileSync(outsideExplain), beforeOutside);
 });
 
-test('migrateRetention promotes before any transient delete (order lock)', () => {
+test('migrateRetention ordering → promotes before any transient delete (order lock)', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-order-'));
   writeClosedIndex(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
   writeExplain(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
@@ -519,7 +519,7 @@ test('migrateRetention promotes before any transient delete (order lock)', () =>
   assert.ok(order.every((entry) => entry.startsWith('unlink:')));
 });
 
-test('migrateRetention returns ok:false when restoreSnapshots throws after apply failure', () => {
+test('migrateRetention when restoreSnapshots throws after apply failure → returns ok:false', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-restore-'));
   writeClosedIndex(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
   writeExplain(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
