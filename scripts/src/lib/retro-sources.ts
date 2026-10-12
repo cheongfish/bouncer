@@ -208,9 +208,9 @@ function collectCursor(root: string, projectRoot: string, skipped: Skipped[]): S
   const out: Source[] = [];
   for (const name of names) {
     const dir = path.join(root, name);
-    let folder: unknown;
+    let parsed: unknown;
     try {
-      folder = JSON.parse(fs.readFileSync(path.join(dir, 'workspace.json'), 'utf8')).folder;
+      parsed = JSON.parse(fs.readFileSync(path.join(dir, 'workspace.json'), 'utf8'));
     } catch (err) {
       // workspace.json이 없거나(ENOENT/ENOTDIR) 깨진 작업공간은 이 프로젝트와
       // 무관한 항목이다. skipped 사유 enum에 Cursor용 해석 불가가 없어 조용히 건너뛰고,
@@ -220,15 +220,23 @@ function collectCursor(root: string, projectRoot: string, skipped: Skipped[]): S
       absorbFsError(err, 'cursor', dir, skipped);
       continue;
     }
+    // JSON `null`이나 배열·원시값처럼 객체가 아닌 workspace.json은 `.folder` 접근이
+    // TypeError를 던지므로, try 밖에서 형태를 확인해 folder 없음과 같게 건너뛴다.
+    const folder: unknown = parsed !== null && typeof parsed === 'object'
+      ? (parsed as { folder?: unknown }).folder
+      : undefined;
     if (typeof folder !== 'string' || !folder.startsWith('file://')) continue;
     let folderPath: string;
     try {
       folderPath = url.fileURLToPath(folder);
     } catch (err) {
       // 이 플랫폼에서 해석할 수 없는 file URI(예: 다른 OS의 드라이브 경로)는
-      // 현재 project root와 일치할 수 없으므로 건너뛴다. 그 밖의 오류는 던진다.
-      if ((err as NodeJS.ErrnoException).code === 'ERR_INVALID_FILE_URL_PATH'
-        || (err as NodeJS.ErrnoException).code === 'ERR_INVALID_URL') continue;
+      // 현재 project root와 일치할 수 없으므로 건너뛴다. POSIX에서 호스트가 든
+      // `file://host/...`(ERR_INVALID_FILE_URL_HOST)도 로컬 project root일 수 없어 같다.
+      // 그 밖의 오류는 던진다.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ERR_INVALID_FILE_URL_PATH' || code === 'ERR_INVALID_FILE_URL_HOST'
+        || code === 'ERR_INVALID_URL') continue;
       throw err;
     }
     if (!isUnderRoot(folderPath, projectRoot)) continue;

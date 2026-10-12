@@ -74,6 +74,22 @@ test('cursor 루트가 없을 때 → root-missing이 skipped에 남는다', () 
   assert.ok(r.skipped.some((s) => s.host === 'cursor' && s.reason === 'root-missing'));
 });
 
+test('cursor workspace.json이 JSON null일 때 → 던지지 않고 건너뛰어 일치 항목은 그대로 나온다', () => {
+  const env = makeEnv();
+  populate(env);
+  write(path.join(env.roots.cursor, 'h0/workspace.json'), 'null');
+  const r = listRetroSources({ projectRoot: env.root, roots: env.roots, limit: 20 });
+  assert.strictEqual(r.sources.filter((s) => s.host === 'cursor').length, 1);
+});
+
+test('cursor folder가 호스트 있는 file URI일 때 → 던지지 않고 건너뛰어 일치 항목은 그대로 나온다', () => {
+  const env = makeEnv();
+  populate(env);
+  write(path.join(env.roots.cursor, 'h0/workspace.json'), JSON.stringify({ folder: 'file://remote-host/some/dir' }));
+  const r = listRetroSources({ projectRoot: env.root, roots: env.roots, limit: 20 });
+  assert.strictEqual(r.sources.filter((s) => s.host === 'cursor').length, 1);
+});
+
 test('claude 루트에 일치 디렉터리가 없을 때 → no-project-match가 루트 경로와 함께 남는다', () => {
   const env = makeEnv();
   write(path.join(env.roots.claude, '-other', 'c.jsonl'), '{}\n');
