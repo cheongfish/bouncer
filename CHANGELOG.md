@@ -14,6 +14,12 @@
   `review-dispatch plan`은 저장된 `latest_dispatch`와 일치하는 `--previous`를 필수로 요구하고,
   누락·손상·최신과 불일치는 `previous-payload-required|invalid|stale`(cause·next 포함)로 거부한다.
   `/bouncer-plan`은 최초 분류 한 번 → start → reviewer → record 순서를 쓰며 전체 재시작은 restart로만 한다.
+- **계획 변경분 인증 (EPIC 096 BP 002)** — delta 리뷰어는 이전 finding과 함께 실제 `revision_diff`
+  (before/after)와 `related_documents`의 현재 계약을 받아 변경분만 판정한다. delta 뒤 새 stale target은
+  같은 target이면 reuse, delta를 썼거나 구조 변경이면 남은 restart 1회, 한도 소진·미해결 `must_fix`·
+  round 미기록이면 사용자 중단으로 라우팅한다(세 번째 round와 자동 새 cycle 없음). print dispatch 경로는
+  `<cycle id>/restart-<0|1>/`로 분리한다. 본문만 바뀐 scope 변경은 구조 변경(full)으로 보지 않고 partial로 판정한다.
+  주의: 이전 형식(legacy) digest만 있는 기존 증거는 delta 근거가 아니므로 첫 후속 분류가 full이 된다.
 
 ## [1.5.8] — 2026-10-12
 

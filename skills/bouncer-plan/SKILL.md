@@ -225,7 +225,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    light plan the user's `affected_paths` confirmation and G3–G5 / G10–G12
    carry approved scope.
 
-   When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`; that CLI strategy (`single` | `clustered`) is the only discovery dispatch choice. Follow-ups, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or a digest mismatch, stop without reviewers and report it. The `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`) is the behavioral brief. Do not approve while an actionable finding remains unresolved; return to authoring (step 3).
+   When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`; that CLI strategy (`single` | `clustered`) is the only discovery dispatch choice. Follow-ups, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or a digest mismatch, stop without reviewers and report it. The `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`) is the behavioral brief. Do not approve while an actionable finding remains unresolved; else follow the reference.
 
 6. **Approval (explicit).** Before asking for approval, show the authored
    task DAG: each task's `depends_on`, `parallel_safe`, and

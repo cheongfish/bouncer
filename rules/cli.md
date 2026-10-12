@@ -185,7 +185,11 @@ other than `check` is exit 2.
 clustered`) or Execute (`single | parallel`, with `security` when
 `review_risk` is non-empty). Plan `single` / `clustered` also include
 `parts` (per-document body sha256), `scope_parts` (per-`tasks.md` scope
-sha256), `follow_up` (`full` | `partial`), and `changed_documents`. Pass
+sha256), `follow_up` (`full` | `partial`), `changed_documents`, and for a
+revision the `revision_diff` (per changed document `before`/`after`) and
+`related_documents` (current contract text, not repeated from changed
+documents). A delta call receives exactly `{mode, target, previous_findings,
+changed_documents, revision_diff, related_documents, cwd}`. Pass
 `--previous <file>` (the unmodified prior plan payload) to compare. Omitting it is
 valid only for a first classification of a blueprint with no review evidence
 (`follow_up: full`, empty `changed_documents`); once a cycle or recorded
@@ -198,7 +202,10 @@ cycle `latest_dispatch`). `--previous` without a path or a repeated
 `--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|restart
 --blueprint <dir> --dispatch <json>` owns cycle state (`record` also takes
 `--round <json>`, `--status`, `--accept-risk`; `restart` takes `--reason`, at most
-once); run `bouncer context-review --help`. Omit `--task` on execute to classify
+once); run `bouncer context-review --help`. A stale target after the delta
+is routed `reuse` (same target), `delta` (only discovery recorded, partial),
+`restart` (delta used or structural, `restart_count` below 1) or `user`
+(round pending, open `must_fix`, restart spent); routing never writes state. Omit `--task` on execute to classify
 the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns

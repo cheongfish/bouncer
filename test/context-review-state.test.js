@@ -697,3 +697,98 @@ test('구조가 같은 문서 보완 뒤 restart → 새 v2 payload가 기록되
   assert.equal(state.cycle.restart_count, 1);
   assert.equal(state.cycle.history[0].dispatches.length, 1);
 });
+
+/** 라우팅은 읽기 전용이어야 하므로 호출 전후의 state.json bytes를 함께 돌려준다. */
+function route(repo, dispatch, followUp) {
+  const stateFile = findState(repo);
+  const before = fs.readFileSync(stateFile);
+  const result = crState.routeFollowUp({
+    repoRoot: repo, blueprintDir: BP, dispatchFile: dispatch, followUp,
+  });
+  assert.deepEqual(fs.readFileSync(stateFile), before, 'routing must not write state');
+  return result;
+}
+
+/** round 1(discovery)과 round 2(delta)를 기록한 cycle을 만든다. */
+function cycleAfterDelta(repo, findings = [ADVISORY]) {
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [MUST_FIX]));
+  record(repo, d, roundFile(
+    repo, 'r2.json', 2, 'delta',
+    findings.length === 0 ? [] : findings,
+  ));
+  return d;
+}
+
+test('delta 완료 뒤 새 partial target → 세 번째 delta 대신 restart를 가리키고 state는 그대로다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd2.json'), 'partial');
+  assert.equal(out.ok, true);
+  assert.equal(out.next_action, 'restart');
+  assert.equal(typeof out.reason, 'string');
+  assert.equal(typeof out.next, 'string');
+});
+
+test('discovery만 끝난 cycle의 새 partial target → delta, structural full → restart를 가리킨다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  const d2 = dispatchFile(repo, 'd2.json');
+  assert.equal(route(repo, d2, 'partial').next_action, 'delta');
+  assert.equal(route(repo, d2, 'full').next_action, 'restart');
+});
+
+test('마지막 reviewed target과 같은 target → reuse이고 round 개수는 늘지 않는다', () => {
+  const repo = makeRepo();
+  const d = cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  const out = route(repo, d, 'partial');
+  assert.equal(out.next_action, 'reuse');
+  const state = JSON.parse(fs.readFileSync(findState(repo), 'utf8'));
+  assert.equal(state.cycle.active_reports.length, 2);
+});
+
+test('restart를 이미 쓴 cycle의 새 stale target → user로 멈추고 cause와 next를 준다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  assert.equal(restart(repo, dispatchFile(repo, 'd2.json')).code, 0);
+  record(repo, dispatchFile(repo, 'd2b.json'), roundFile(repo, 'r1b.json', 1, 'discovery', []));
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd3.json'), 'full');
+  assert.equal(out.next_action, 'user');
+  assert.equal(typeof out.cause, 'string');
+  assert.equal(typeof out.next, 'string');
+});
+
+test('delta 뒤 미해결 must_fix가 남은 cycle의 stale target → user로 멈춘다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd2.json'), 'full');
+  assert.equal(out.next_action, 'user');
+  assert.equal(out.reason, 'context-review-unresolved-findings');
+});
+
+test('아직 round가 기록되지 않은 cycle → user로 멈춘다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  assert.equal(route(repo, d, 'partial').next_action, 'user');
+});
+
+test('delta 뒤 세 번째 round 기록 요청 → 거부되고 round는 2개로 유지된다', () => {
+  const repo = makeRepo();
+  const d = cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  const third = record(repo, d, roundFile(repo, 'r3.json', 3, 'delta', []));
+  assert.equal(third.code, 1);
+  assert.equal(third.json.reason, 'context-review-round-order');
+  const state = JSON.parse(fs.readFileSync(findState(repo), 'utf8'));
+  assert.equal(state.cycle.active_reports.length, 2);
+});

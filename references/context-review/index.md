@@ -78,10 +78,14 @@ On a light plan, approved scope rests on the user's confirmation of
    accept. In `delta`, one call certifies whether the previous findings are
    resolved and whether the revision introduced a problem — once, regardless
    of strategy or cluster count. When plan dispatch reports
-   `follow_up: partial`, delta inputs are only the new digest, previous
-   findings, `changed_documents`, and the read-only cwd. When
-   `follow_up: full`, use `bouncer context-review restart` (at most once per
-   cycle) and run round 1 discovery instead of opening a delta.
+   `follow_up: partial`, delta inputs are the new target, previous findings,
+   `changed_documents`, the actual `revision_diff` (before/after), the
+   `related_documents` contract text, and the read-only cwd; related contracts
+   are evidence for judging the revision, not text to review. When
+   `follow_up: full`, or when the delta is already used, use `bouncer
+   context-review restart` (at most once per cycle) and run round 1 discovery
+   instead of opening a delta; an open `must_fix` after the delta or a spent
+   restart stops for the user.
    The scope bodies, the delta origin rule, what each scope excludes, and the
    severity mapping are canonical in the named agent
    `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` (`## Review modes`,

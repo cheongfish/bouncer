@@ -1011,6 +1011,80 @@ function restartCycle(input: {
   }) as Record<string, unknown>;
 }
 
+type NextAction = 'reuse' | 'delta' | 'restart' | 'user';
+
+function route(next_action: NextAction, reason: string, cause: unknown, next: string, cycle: Cycle) {
+  return { ok: true as const, next_action, reason, cause, next, cycle };
+}
+
+/**
+ * 새 review-dispatch payload가 기존 cycle에서 어떤 후속 조치를 요구하는지 정한다.
+ * 읽기 전용이라 state.json·보고·dispatch 저장본을 쓰지 않는다 — 호출이 round 수나 restart
+ * 횟수를 바꾸지 못하므로 "delta 뒤 새 stale"가 세 번째 round나 두 번째 restart로 새지 않는다.
+ * 판정 순서: 같은 target(reuse) → round 없음·미해결 must_fix(user) → discovery 뒤 partial(delta)
+ * → 그 밖의 stale: restart_count<1이면 restart, 한도 소진이면 user.
+ *
+ * @param {object} input - 입력
+ * @param {string} input.repoRoot - 저장소 루트
+ * @param {string} input.blueprintDir - blueprint 상대 경로
+ * @param {string} input.dispatchFile - 새 snapshot의 review-dispatch plan JSON 파일
+ * @param {string} input.followUp - 같은 payload의 follow_up(`partial`|`full`)
+ * @returns {object} 성공 `{ok:true,next_action,reason,cause,next,cycle}`
+ *   (next_action은 reuse|delta|restart|user), 실패 `{ok:false,reason,cause,next}`
+ */
+function routeFollowUp(input: {
+  repoRoot: string; blueprintDir: string; dispatchFile: string; followUp: string;
+}): Record<string, unknown> {
+  const { repoRoot } = input;
+  if (input.followUp !== 'partial' && input.followUp !== 'full') {
+    return fail('context-review-input-invalid', `follow_up ${input.followUp}`, 'use partial or full');
+  }
+  const ctx = openContext(repoRoot, input.blueprintDir, false);
+  if (isFail(ctx)) return ctx;
+  const state = loadState(ctx);
+  if (isFail(state)) return state;
+  if (!state) return fail('context-review-state-conflict', 'no cycle started', 'run context-review start first');
+  const dispatch = loadDispatch(repoRoot, ctx.bp, input.dispatchFile);
+  if (isFail(dispatch)) return dispatch;
+  const { cycle } = state;
+  const rounds = cycle.active_reports.length;
+
+  // 1. 아직 기록된 round가 없으면 reviewer 보고를 기다리는 중이다: 자동 전이를 만들지 않는다.
+  if (rounds === 0) {
+    return route('user', 'context-review-round-pending', 'no round has been recorded in this cycle',
+      'record the pending discovery round before routing a new target', cycle);
+  }
+  // 2. 마지막 reviewed target과 같으면 재사용한다: round도 restart도 늘리지 않는다.
+  const latest = readRef(ctx, repoRoot, cycle.latest_dispatch);
+  if (isFail(latest)) return latest;
+  if ((JSON.parse(latest) as { target: { digest: string } }).target.digest === dispatch.digest) {
+    return route('reuse', 'context-review-target-unchanged', 'plan snapshot equals the last reviewed target',
+      'reuse the recorded review result; do not add a round', cycle);
+  }
+  // 3. delta 뒤 미해결 must_fix는 restart·재-delta로 해결을 우회할 수 없다: 사용자 판단으로 멈춘다.
+  if (!state.closed && rounds >= ROUND_MODES.length) {
+    const folded = foldReports(ctx, repoRoot, cycle.active_reports);
+    if (isFail(folded)) return folded;
+    if (folded.findings.some((f) => f.status === 'open' && f.actionability === 'must_fix')) {
+      return route('user', 'context-review-unresolved-findings', 'must_fix remains open after the delta round',
+        'fix them, accept with explicit user consent, or stop; restart cannot resolve findings', cycle);
+    }
+  }
+  // 4. discovery 뒤 닫히지 않은 cycle의 partial만 delta다. 닫힌 cycle은 round 기록이 거절되므로 제외한다.
+  if (input.followUp === 'partial' && !state.closed && rounds === 1) {
+    return route('delta', 'context-review-delta-available', 'partial change after discovery with no delta used',
+      'dispatch one delta round with revision_diff and related_documents', cycle);
+  }
+  // 5. delta를 이미 썼거나 structural full: 남은 restart가 있을 때만 전체 재시작이다.
+  if (cycle.restart_count < RESTART_LIMIT) {
+    return route('restart', 'context-review-restart-available', 'delta is used or the change is structural',
+      'run context-review restart, then dispatch discovery', cycle);
+  }
+  return route('user', 'context-review-restart-limit',
+    `restart_count ${cycle.restart_count} of ${RESTART_LIMIT} used`,
+    'continue the current cycle: record findings, resolve them, or ask the user; no further automatic restart', cycle);
+}
+
 /**
  * review-dispatch가 쓰는 읽기 전용 조회. state.json과 latest_dispatch 저장본을 loadState와 같은
  * 검증(id 형식·정규화 경로·sha256·symlink 거부)으로 읽는다. 아무것도 만들거나 쓰지 않는다.
@@ -1046,7 +1120,7 @@ function readLegacyEvidence(repoRoot: string, bp: string):
 }
 
 export = {
-  startCycle, recordReport, restartCycle, readStoredLatest, readLegacyEvidence,
+  startCycle, recordReport, restartCycle, routeFollowUp, readStoredLatest, readLegacyEvidence,
   // 단위 테스트가 symlink·덮어쓰기 거부를 직접 확인하도록 노출한다.
   writeAtomic, writeImmutable,
 };
