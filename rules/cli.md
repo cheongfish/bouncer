@@ -184,28 +184,36 @@ other than `check` is exit 2.
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
 clustered`) or Execute (`single | parallel`, with `security` when
 `review_risk` is non-empty). Plan `single` / `clustered` also include
-`parts` (per-document body sha256), `scope_parts` (per-`tasks.md` scope
-sha256), `follow_up` (`full` | `partial`), `changed_documents`, and for a
+`snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
+(per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
+`structure_parts` (per-document structure sha256; the `follow_up` input),
+`documents_content` (per-document structured content for diffs), `follow_up`
+(`full` | `partial`), `changed_documents`, and for a
 revision the `revision_diff` (per changed document `before`/`after`) and
 `related_documents` (current contract text, not repeated from changed
 documents). A delta call receives exactly `{mode, target, previous_findings,
 changed_documents, revision_diff, related_documents, cwd}`. Pass
 `--previous <file>` (the unmodified prior plan payload) to compare. Omitting it is
 valid only for a first classification of a blueprint with no review evidence
-(`follow_up: full`, empty `changed_documents`); once a cycle or recorded
+(`follow_up: full`; `changed_documents` lists every current document with
+`before: null`); once a cycle or recorded
 rounds/findings exist, `previous` is required. Those fields are absent on `skip`
 (light never checks `previous`) and on failures. Failures are
 `{ ok: false, reason, cause, next }` (exit 1) with `previous-payload-required`
 (missing), `previous-payload-invalid` (not JSON, wrong shape, another blueprint,
 unreadable stored reference), or `previous-payload-stale` (differs from the
 cycle `latest_dispatch`). `--previous` without a path or a repeated
-`--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|restart
+`--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|restart|route
 --blueprint <dir> --dispatch <json>` owns cycle state (`record` also takes
 `--round <json>`, `--status`, `--accept-risk`; `restart` takes `--reason`, at most
 once); run `bouncer context-review --help`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),
 `restart` (delta used or structural, `restart_count` below 1) or `user`
-(round pending, open `must_fix`, restart spent); routing never writes state. Omit `--task` on execute to classify
+(round pending, open `must_fix`, restart spent); routing never writes state.
+`context-review route` is that read-only routing: it derives `follow_up` from the
+`--dispatch` payload (a plan run with `--previous`) and prints
+`{ ok, next_action, reason, cause, next, cycle }`; a payload without `follow_up`
+is `context-review-input-invalid` (exit 1). Omit `--task` on execute to classify
 the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns

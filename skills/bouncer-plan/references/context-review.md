@@ -92,8 +92,10 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    accepted-risk note may record it `accepted`.
 
 When the plan gate reports `context review is stale`, rerun
-`bouncer review-dispatch plan --blueprint <dir> --previous <stored-latest-payload.json>`
-and route by the cycle state, never by `follow_up` alone:
+`bouncer review-dispatch plan --blueprint <dir> --previous <stored-latest-payload.json>`,
+save that JSON, and run `bouncer context-review route --blueprint <dir> --dispatch <json>`.
+It is read-only, derives `follow_up` from the payload and prints `next_action`
+(never route by `follow_up` alone):
 
 - the new target equals the last reviewed target → `reuse` the recorded result;
   add no round and overwrite no recorded report;

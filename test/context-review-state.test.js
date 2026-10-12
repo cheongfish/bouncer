@@ -698,12 +698,20 @@ test('구조가 같은 문서 보완 뒤 restart → 새 v2 payload가 기록되
   assert.equal(state.cycle.history[0].dispatches.length, 1);
 });
 
+/** 실제 review-dispatch 출력처럼 payload에 follow_up을 싣는다(후속 판정은 payload에서 파생된다). */
+function withFollowUp(dispatch, followUp) {
+  const payload = JSON.parse(fs.readFileSync(dispatch, 'utf8'));
+  fs.writeFileSync(dispatch, `${JSON.stringify({ ...payload, follow_up: followUp })}\n`);
+  return dispatch;
+}
+
 /** 라우팅은 읽기 전용이어야 하므로 호출 전후의 state.json bytes를 함께 돌려준다. */
-function route(repo, dispatch, followUp) {
+function route(repo, dispatch, followUp, explicit) {
+  withFollowUp(dispatch, followUp);
   const stateFile = findState(repo);
   const before = fs.readFileSync(stateFile);
   const result = crState.routeFollowUp({
-    repoRoot: repo, blueprintDir: BP, dispatchFile: dispatch, followUp,
+    repoRoot: repo, blueprintDir: BP, dispatchFile: dispatch, followUp: explicit,
   });
   assert.deepEqual(fs.readFileSync(stateFile), before, 'routing must not write state');
   return result;
@@ -791,4 +799,55 @@ test('delta 뒤 세 번째 round 기록 요청 → 거부되고 round는 2개로
   assert.equal(third.json.reason, 'context-review-round-order');
   const state = JSON.parse(fs.readFileSync(findState(repo), 'utf8'));
   assert.equal(state.cycle.active_reports.length, 2);
+});
+
+test('caller followUp이 payload follow_up과 다름 → input-invalid로 거절된다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  const out = route(repo, dispatchFile(repo, 'd2.json'), 'full', 'partial');
+  assert.equal(out.ok, false);
+  assert.equal(out.reason, 'context-review-input-invalid');
+});
+
+test('payload에 follow_up이 없음 → input-invalid로 거절된다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', []));
+  const out = crState.routeFollowUp({ repoRoot: repo, blueprintDir: BP, dispatchFile: d });
+  assert.equal(out.ok, false);
+  assert.equal(out.reason, 'context-review-input-invalid');
+});
+
+test('route 동사에 discovery 뒤 partial payload → exit 0과 delta를 출력하고 state는 그대로다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeDocs(repo);
+  const d2 = withFollowUp(dispatchFile(repo, 'd2.json'), 'partial');
+  const before = fs.readFileSync(findState(repo));
+  const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d2]);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.equal(r.json.next_action, 'delta');
+  assert.deepEqual(fs.readFileSync(findState(repo)), before);
+});
+
+test('route 동사에 record 전용 플래그 → exit 2 사용법 거절이다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d, '--reason', 'x']);
+  assert.equal(r.code, 2);
+});
+
+test('route 동사에 follow_up 없는 payload → exit 1과 input-invalid를 출력한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d]);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-input-invalid');
 });

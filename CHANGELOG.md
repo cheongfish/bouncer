@@ -20,6 +20,8 @@
   round 미기록이면 사용자 중단으로 라우팅한다(세 번째 round와 자동 새 cycle 없음). print dispatch 경로는
   `<cycle id>/restart-<0|1>/`로 분리한다. 본문만 바뀐 scope 변경은 구조 변경(full)으로 보지 않고 partial로 판정한다.
   주의: 이전 형식(legacy) digest만 있는 기존 증거는 delta 근거가 아니므로 첫 후속 분류가 full이 된다.
+  후속 라우팅은 읽기 전용 `bouncer context-review route --blueprint <dir> --dispatch <json>`으로 얻는다
+  (`follow_up`은 payload에서 파생하며 다른 값을 주입할 수 없다).
 
 ## [1.5.8] — 2026-10-12
 

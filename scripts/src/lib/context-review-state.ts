@@ -1028,17 +1028,15 @@ function route(next_action: NextAction, reason: string, cause: unknown, next: st
  * @param {string} input.repoRoot - 저장소 루트
  * @param {string} input.blueprintDir - blueprint 상대 경로
  * @param {string} input.dispatchFile - 새 snapshot의 review-dispatch plan JSON 파일
- * @param {string} input.followUp - 같은 payload의 follow_up(`partial`|`full`)
+ * @param {string} [input.followUp] - 선택. 주어지면 payload의 follow_up과 같아야 한다 — 호출자가
+ *   payload와 다른 판정을 주입해 routing을 바꾸지 못한다. 생략하면 payload에서 파생한다.
  * @returns {object} 성공 `{ok:true,next_action,reason,cause,next,cycle}`
  *   (next_action은 reuse|delta|restart|user), 실패 `{ok:false,reason,cause,next}`
  */
 function routeFollowUp(input: {
-  repoRoot: string; blueprintDir: string; dispatchFile: string; followUp: string;
+  repoRoot: string; blueprintDir: string; dispatchFile: string; followUp?: string;
 }): Record<string, unknown> {
   const { repoRoot } = input;
-  if (input.followUp !== 'partial' && input.followUp !== 'full') {
-    return fail('context-review-input-invalid', `follow_up ${input.followUp}`, 'use partial or full');
-  }
   const ctx = openContext(repoRoot, input.blueprintDir, false);
   if (isFail(ctx)) return ctx;
   const state = loadState(ctx);
@@ -1046,6 +1044,17 @@ function routeFollowUp(input: {
   if (!state) return fail('context-review-state-conflict', 'no cycle started', 'run context-review start first');
   const dispatch = loadDispatch(repoRoot, ctx.bp, input.dispatchFile);
   if (isFail(dispatch)) return dispatch;
+  // follow_up은 검증을 통과한 payload 자체에서 읽는다(loadDispatch가 text를 JSON으로 확인했다).
+  const followUp = (JSON.parse(dispatch.text) as { follow_up?: unknown }).follow_up;
+  if (followUp !== 'partial' && followUp !== 'full') {
+    return fail('context-review-input-invalid', `payload follow_up ${String(followUp)}`,
+      'pass the review-dispatch plan JSON produced with --previous');
+  }
+  if (input.followUp !== undefined && input.followUp !== followUp) {
+    return fail('context-review-input-invalid',
+      `follow_up ${String(input.followUp)} differs from payload follow_up ${followUp}`,
+      'omit followUp or pass the payload value');
+  }
   const { cycle } = state;
   const rounds = cycle.active_reports.length;
 
@@ -1071,7 +1080,7 @@ function routeFollowUp(input: {
     }
   }
   // 4. discovery 뒤 닫히지 않은 cycle의 partial만 delta다. 닫힌 cycle은 round 기록이 거절되므로 제외한다.
-  if (input.followUp === 'partial' && !state.closed && rounds === 1) {
+  if (followUp === 'partial' && !state.closed && rounds === 1) {
     return route('delta', 'context-review-delta-available', 'partial change after discovery with no delta used',
       'dispatch one delta round with revision_diff and related_documents', cycle);
   }
