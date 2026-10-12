@@ -470,3 +470,7 @@ test('usage와 repair help → supplement kind를 나열한다', () => {
   assert.match(help, /supplement/);
   assert.match(capture(['coordinate', 'next', '--help']).out, /Blueprint actions:[^\n]*supplement/);
 });
+
+test('usage → retro read --path [--max-chars]를 나열한다', () => {
+  assert.match(capture([]).out, /retro read --path <file> \[--max-chars <n>\]/);
+});
