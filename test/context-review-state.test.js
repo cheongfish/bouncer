@@ -107,6 +107,9 @@ const record = (repo, dispatch, round, extra = []) => capture([
 const restart = (repo, dispatch, reason = 'documents rewritten') => capture([
   'context-review', 'restart', ...base(repo), '--dispatch', dispatch, '--reason', reason,
 ]);
+const close = (repo, dispositions, extra = []) => capture([
+  'context-review', 'close', ...base(repo), '--dispositions', dispositions, ...extra,
+]);
 
 /** runtime 아래의 state.json 경로를 찾는다. 위치 자체는 계약이 아니다. */
 function findState(repo) {
@@ -232,6 +235,167 @@ test('advisory accepted에 note가 있으면 → closure가 통과하고 note �
   assert.equal(ok.code, 0, ok.out + ok.err);
 });
 
+test('delta 뒤 open must_fix cycle에 close --dispositions와 --accept-risk → exit 0으로 닫히고 projection에 accepted_risk가 표시된다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  const disp = writeJson(repo, 'dispositions.json', [
+    { id: 'CR-1', status: 'accepted', note: 'user approved risk' },
+  ]);
+  const r = close(repo, disp, ['--accept-risk', 'CR-1']);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.equal(r.json.ok, true);
+  assert.equal(r.json.status, 'accepted');
+  assert.equal(r.json.closed, true);
+  assert.equal(r.json.noop, false);
+  const cr1 = r.json.projection.findings.find((f) => f.id === 'CR-1');
+  assert.equal(cr1.status, 'accepted');
+  assert.equal(cr1.accepted_risk, true);
+
+  // 동일 전이 재호출 → noop: true
+  const r2 = close(repo, disp, ['--accept-risk', 'CR-1']);
+  assert.equal(r2.code, 0);
+  assert.equal(r2.json.ok, true);
+  assert.equal(r2.json.status, 'accepted');
+  assert.equal(r2.json.noop, true);
+});
+
+test('round가 없는 cycle에 close → state-conflict로 거부되고 state는 변하지 않는다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const before = fs.readFileSync(findState(repo));
+  const disp = writeJson(repo, 'dispositions.json', []);
+  const r = close(repo, disp);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-state-conflict');
+  assert.deepEqual(fs.readFileSync(findState(repo)), before);
+});
+
+test('이미 닫힌 cycle에 다른 dispositions로 close → state-conflict로 거부된다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  const disp1 = writeJson(repo, 'disp1.json', [
+    { id: 'CR-1', status: 'resolved' },
+  ]);
+  const ok = close(repo, disp1);
+  assert.equal(ok.code, 0);
+  const disp2 = writeJson(repo, 'disp2.json', [
+    { id: 'CR-1', status: 'accepted', note: 'new note' },
+  ]);
+  const r = close(repo, disp2, ['--accept-risk', 'CR-1']);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-state-conflict');
+});
+
+test('dispositions에 open이 남거나 note 없는 accepted 또는 accept-risk 불일치 → unresolved-findings로 거부된다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  const before = fs.readFileSync(findState(repo));
+
+  // 1. 처분되지 않아 open 남음
+  const dispOpen = writeJson(repo, 'disp-open.json', []);
+  const r1 = close(repo, dispOpen);
+  assert.equal(r1.code, 1);
+  assert.equal(r1.json.reason, 'context-review-unresolved-findings');
+
+  // 2. note 없음
+  const dispNoNote = writeJson(repo, 'disp-nonote.json', [{ id: 'CR-1', status: 'accepted' }]);
+  const r2 = close(repo, dispNoNote, ['--accept-risk', 'CR-1']);
+  assert.equal(r2.code, 1);
+  assert.equal(r2.json.reason, 'context-review-unresolved-findings');
+
+  // 3. accept-risk 누락
+  const dispNoRisk = writeJson(repo, 'disp-norisk.json', [{ id: 'CR-1', status: 'accepted', note: 'approved' }]);
+  const r3 = close(repo, dispNoRisk);
+  assert.equal(r3.code, 1);
+  assert.equal(r3.json.reason, 'context-review-unresolved-findings');
+
+  assert.deepEqual(fs.readFileSync(findState(repo)), before);
+});
+
+test('dispositions에 모르는 id 또는 중복 id 또는 status invalid → input-invalid로 거부된다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  const before = fs.readFileSync(findState(repo));
+
+  const unknownId = writeJson(repo, 'disp-unknown.json', [{ id: 'CR-99', status: 'resolved' }]);
+  const r1 = close(repo, unknownId);
+  assert.equal(r1.code, 1);
+  assert.equal(r1.json.reason, 'context-review-input-invalid');
+
+  const dupId = writeJson(repo, 'disp-dup.json', [
+    { id: 'CR-1', status: 'resolved' },
+    { id: 'CR-1', status: 'accepted', note: 'dup' },
+  ]);
+  const r2 = close(repo, dupId);
+  assert.equal(r2.code, 1);
+  assert.equal(r2.json.reason, 'context-review-input-invalid');
+
+  const badStatus = writeJson(repo, 'disp-badstatus.json', [{ id: 'CR-1', status: 'deferred' }]);
+  const r3 = close(repo, badStatus);
+  assert.equal(r3.code, 1);
+  assert.equal(r3.json.reason, 'context-review-input-invalid');
+
+  assert.deepEqual(fs.readFileSync(findState(repo)), before);
+});
+
+test('close 뒤 restart → projection 기준으로 통과하고 history에 closure가 보관된다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  const disp = writeJson(repo, 'disp.json', [
+    { id: 'CR-1', status: 'accepted', note: 'user agreed' },
+  ]);
+  const closed = close(repo, disp, ['--accept-risk', 'CR-1']);
+  assert.equal(closed.code, 0);
+
+  // 문서 변경 뒤 restart
+  changeDocs(repo);
+  const d2 = dispatchFile(repo, 'd2.json');
+  const rest = restart(repo, d2, 'plan updated after close');
+  assert.equal(rest.code, 0, rest.out + rest.err);
+  assert.equal(rest.json.ok, true);
+  assert.equal(rest.json.cycle.restart_count, 1);
+  const archived = rest.json.cycle.history[0];
+  assert.ok(archived.closure, 'history contains closure');
+  assert.deepEqual(archived.closure.accept_risk, ['CR-1']);
+  assert.ok(typeof archived.closure.dispositions.sha256 === 'string');
+});
+
+test('문서 변경 뒤 close → close 성공 후 route는 restart를 가리킨다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  changeDocs(repo); // 마지막 round 뒤 문서가 바뀜
+  const disp = writeJson(repo, 'disp.json', [
+    { id: 'CR-1', status: 'accepted', note: 'approved after doc change' },
+  ]);
+  const closed = close(repo, disp, ['--accept-risk', 'CR-1']);
+  assert.equal(closed.code, 0);
+
+  const d2 = dispatchFile(repo, 'd2.json');
+  const routed = route(repo, d2, 'full');
+  assert.equal(routed.next_action, 'restart');
+});
+
+test('close CLI에 필수 --dispositions 누락 또는 허용 밖 플래그 → exit 2 사용법 오류이다', () => {
+  const repo = makeRepo();
+  const disp = writeJson(repo, 'disp.json', []);
+  // 1. --dispositions 누락
+  const r1 = capture(['context-review', 'close', ...base(repo)]);
+  assert.equal(r1.code, 2);
+
+  // 2. close에 --round 금지
+  const r2 = capture(['context-review', 'close', ...base(repo), '--dispositions', disp, '--round', 'r.json']);
+  assert.equal(r2.code, 2);
+
+  // 3. close에 --status 금지
+  const r3 = capture(['context-review', 'close', ...base(repo), '--dispositions', disp, '--status', 'accepted']);
+  assert.equal(r3.code, 2);
+
+  // 4. close에 --dispatch 금지
+  const r4 = capture(['context-review', 'close', ...base(repo), '--dispositions', disp, '--dispatch', 'd.json']);
+  assert.equal(r4.code, 2);
+});
+
 test('must_fix accepted는 --accept-risk 없이 → 거부하고 ID와 note가 맞으면 통과한다', () => {
   const repo = makeRepo();
   const d = dispatchFile(repo);
@@ -245,6 +409,8 @@ test('must_fix accepted는 --accept-risk 없이 → 거부하고 ID와 note가 �
   assert.equal(wrongId.code, 1);
   const ok = record(repo, d, rf, ['--status', 'accepted', '--accept-risk', 'CR-1']);
   assert.equal(ok.code, 0, ok.out + ok.err);
+  const cr1 = ok.json.projection.findings.find((f) => f.id === 'CR-1');
+  assert.equal(cr1.accepted_risk, true);
 });
 
 test('round 3을 첫 보고로 기록하면 → 순서 오류로 거부한다', () => {

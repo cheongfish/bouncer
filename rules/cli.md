@@ -203,10 +203,11 @@ rounds/findings exist, `previous` is required. Those fields are absent on `skip`
 (missing), `previous-payload-invalid` (not JSON, wrong shape, another blueprint,
 unreadable stored reference), or `previous-payload-stale` (differs from the
 cycle `latest_dispatch`). `--previous` without a path or a repeated
-`--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|restart|route
---blueprint <dir> --dispatch <json>` owns cycle state (`record` also takes
-`--round <json>`, `--status`, `--accept-risk`; `restart` takes `--reason`, at most
-once); run `bouncer context-review --help`. A stale target after the delta
+`--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|close|restart|route`
+owns cycle state (`start|record|restart|route` take `--blueprint <dir> --dispatch <json>`;
+`record` also takes `--round <json>`, `--status`, `--accept-risk`;
+`close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk`;
+`restart` takes `--reason`, at most once); run `bouncer context-review --help`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),
 `restart` (delta used or structural, `restart_count` below 1) or `user`
 (round pending, open `must_fix`, restart spent); routing never writes state.

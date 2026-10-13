@@ -10,14 +10,16 @@ type CliIo = {
 
 const ALLOWED_STATUS = ['requested', 'addressed', 'accepted'];
 
-const USAGE_BLOCK = '  context-review <start|record|restart|route> --blueprint <dir> --dispatch <json>\n'
+const USAGE_BLOCK = '  context-review <start|record|close|restart|route> --blueprint <dir>\n'
   + '             Track plan context-review cycles; limit full restarts to one.\n';
 
 const USAGE = 'usage: bouncer context-review start --blueprint <dir> --dispatch <json>\n'
   + '       bouncer context-review record --blueprint <dir> --dispatch <json> --round <json> '
-  + '[--status <requested|addressed|accepted>] [--accept-risk <id[,id...]>]\n'
-  + '       bouncer context-review restart --blueprint <dir> --dispatch <json> --reason <text>\n'
-  + '       bouncer context-review route --blueprint <dir> --dispatch <json>\n'
+  + '[--status <requested|addressed|accepted>] [--accept-risk <id[,id...]>] [--repo <dir>]\n'
+  + '       bouncer context-review close --blueprint <dir> --dispositions <json> '
+  + '[--accept-risk <id[,id...]>] [--repo <dir>]\n'
+  + '       bouncer context-review restart --blueprint <dir> --dispatch <json> --reason <text> [--repo <dir>]\n'
+  + '       bouncer context-review route --blueprint <dir> --dispatch <json> [--repo <dir>]\n'
   + '       (each accepts --repo <dir>)\n'
   + '\n'
   + USAGE_BLOCK;
@@ -25,7 +27,8 @@ const USAGE = 'usage: bouncer context-review start --blueprint <dir> --dispatch 
 const HELP = `${USAGE}
 --dispatch is the JSON printed by \`review-dispatch plan --blueprint <dir>\`.
 --round is { "round": object, "findings": object[] } (discovery, then delta).
---status accepted closes the cycle: every finding must be resolved or accepted
+--dispositions is a JSON array of [{ id, status, note }] to dispose folded findings.
+--status accepted or close with dispositions closes the cycle: every finding must be resolved or accepted
 with a note; a must_fix accepted needs --accept-risk <id> and explicit user consent.
 
 Exit: 0 success or help, 1 rejected transition, 2 usage error.
@@ -62,10 +65,11 @@ function argvRequestsHelp(tokens: string[]): boolean {
 }
 
 type Parsed = { error: string } | {
-  verb: 'start' | 'record' | 'restart' | 'route';
+  verb: 'start' | 'record' | 'close' | 'restart' | 'route';
   blueprint: string;
-  dispatch: string;
+  dispatch: string | null;
   round: string | null;
+  dispositions: string | null;
   status: string | null;
   acceptRisk: string[];
   reason: string | null;
@@ -83,11 +87,11 @@ type Parsed = { error: string } | {
 function parseArgs(rest: string[]): Parsed {
   const fail = (message: string): Parsed => ({ error: `context-review: ${message}\n${USAGE}` });
   const verb = rest[0];
-  if (verb !== 'start' && verb !== 'record' && verb !== 'restart' && verb !== 'route') {
-    return fail('command must be start, record, restart or route');
+  if (verb !== 'start' && verb !== 'record' && verb !== 'close' && verb !== 'restart' && verb !== 'route') {
+    return fail('command must be start, record, close, restart or route');
   }
   const flags = rest.slice(1);
-  for (const name of ['blueprint', 'dispatch', 'round', 'status', 'accept-risk', 'reason', 'repo']) {
+  for (const name of ['blueprint', 'dispatch', 'round', 'dispositions', 'status', 'accept-risk', 'reason', 'repo']) {
     if (flags.filter((t) => t === `--${name}`).length > 1) return fail(`--${name} specified more than once`);
   }
   const f = parseFlags(flags);
@@ -97,14 +101,28 @@ function parseArgs(rest: string[]): Parsed {
   };
   const blueprint = text('blueprint');
   if (!blueprint) return fail('--blueprint is required');
+
   const dispatch = text('dispatch');
-  if (!dispatch) return fail('--dispatch <json-file> is required');
+  const dispositions = text('dispositions');
   const round = text('round');
   const reason = text('reason');
+
+  if (verb === 'close') {
+    if (f.dispatch !== undefined) return fail('--dispatch is not valid for close');
+    if (!dispositions) return fail('--dispositions <json-file> is required');
+  } else {
+    if (f.dispositions !== undefined) return fail('--dispositions is only valid for close');
+    if (!dispatch) return fail('--dispatch <json-file> is required');
+  }
+
   if (verb === 'record' && !round) return fail('--round <json-file> is required');
   if (verb === 'restart' && !reason) return fail('--reason is required');
-  if (verb !== 'record' && (round || f.status !== undefined || f['accept-risk'] !== undefined)) {
-    return fail('--round, --status and --accept-risk are only valid for record');
+
+  if (verb !== 'record' && (round || f.status !== undefined)) {
+    return fail('--round and --status are only valid for record');
+  }
+  if (verb !== 'record' && verb !== 'close' && f['accept-risk'] !== undefined) {
+    return fail('--accept-risk is only valid for record and close');
   }
   if (verb !== 'restart' && f.reason !== undefined) return fail('--reason is only valid for restart');
   const status = text('status');
@@ -120,6 +138,7 @@ function parseArgs(rest: string[]): Parsed {
     blueprint,
     dispatch,
     round,
+    dispositions,
     status,
     acceptRisk: (text('accept-risk') || '').split(',').map((s) => s.trim()).filter(Boolean),
     reason,
@@ -147,19 +166,28 @@ function cmdContextReview(rest: string[], io: CliIo): number {
   }
   // argv를 통과한 뒤에만 상태 모듈을 적재한다. 사용법 거절이 파일 I/O 경로를 열지 않게 한다.
   const state = require('./context-review-state') as typeof import('./context-review-state');
-  const base = {
-    repoRoot: parsed.repo ? parsed.repo : process.cwd(),
-    blueprintDir: parsed.blueprint,
-    dispatchFile: parsed.dispatch,
-  };
+  const repoRoot = parsed.repo ? parsed.repo : process.cwd();
   let result: Record<string, unknown>;
-  if (parsed.verb === 'start') result = state.startCycle(base);
-  else if (parsed.verb === 'record') {
+  if (parsed.verb === 'start') {
+    result = state.startCycle({ repoRoot, blueprintDir: parsed.blueprint, dispatchFile: parsed.dispatch as string });
+  } else if (parsed.verb === 'record') {
     result = state.recordReport({
-      ...base, roundFile: parsed.round as string, status: parsed.status, acceptRisk: parsed.acceptRisk,
+      repoRoot, blueprintDir: parsed.blueprint, dispatchFile: parsed.dispatch as string,
+      roundFile: parsed.round as string, status: parsed.status, acceptRisk: parsed.acceptRisk,
     });
-  } else if (parsed.verb === 'route') result = state.routeFollowUp(base);
-  else result = state.restartCycle({ ...base, reason: parsed.reason as string });
+  } else if (parsed.verb === 'close') {
+    result = state.closeCycle({
+      repoRoot, blueprintDir: parsed.blueprint, dispositionsFile: parsed.dispositions as string,
+      acceptRisk: parsed.acceptRisk,
+    });
+  } else if (parsed.verb === 'route') {
+    result = state.routeFollowUp({ repoRoot, blueprintDir: parsed.blueprint, dispatchFile: parsed.dispatch as string });
+  } else {
+    result = state.restartCycle({
+      repoRoot, blueprintDir: parsed.blueprint, dispatchFile: parsed.dispatch as string,
+      reason: parsed.reason as string,
+    });
+  }
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }

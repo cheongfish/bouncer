@@ -492,6 +492,7 @@ test('context-review --help와 -h → usage를 stdout에 출력하고 exit 0을 
     assert.strictEqual(r.code, 0, `${flag} exit`);
     assert.strictEqual(r.err, '', `${flag} stderr`);
     assert.ok(r.out.startsWith('usage: bouncer context-review start'), r.out.slice(0, 80));
+    assert.ok(r.out.includes('context-review close'), 'help includes context-review close');
   }
 });
 

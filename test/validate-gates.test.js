@@ -598,6 +598,29 @@ test('plan gate G18 → accepts a context finding in the context namespace', () 
   }), []);
 });
 
+test('plan gate G18 with accepted must_fix and accepted_risk: true → passes without open must_fix', () => {
+  assert.deepStrictEqual(contextReviewFailures({
+    findings: [contextFinding({ status: 'accepted', note: 'accepted risk note', accepted_risk: true })],
+    rounds: [contextRound()],
+  }), []);
+});
+
+test('plan gate G18 with accepted must_fix without accepted_risk → fails with accepted with open must_fix', () => {
+  const failures = contextReviewFailures({
+    findings: [contextFinding({ status: 'accepted', note: 'accepted note' })],
+    rounds: [contextRound()],
+  });
+  assert.ok(failures.some((f) => /context-review accepted with open must_fix CR-1/.test(f.message)));
+});
+
+test('execute gate G14 with accepted must_fix and accepted_risk: true → still fails with accepted with open must_fix', () => {
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ status: 'accepted', note: 'accepted note', accepted_risk: true })],
+    rounds: [convergenceRound()],
+  });
+  assert.ok(failures.some((f) => /review accepted with open must_fix F1/.test(f.message)));
+});
+
 test('plan gate G18 → accepts adaptive combined local global perspectives', () => {
   assert.deepStrictEqual(contextReviewFailures({
     findings: [contextFinding()],

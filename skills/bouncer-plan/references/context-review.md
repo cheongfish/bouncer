@@ -95,7 +95,11 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    critical recovery. Mark findings the delta certified as `resolved`. When a
    `must_fix` finding stays open after the delta, leave `context-review`
    unaccepted and bring the open finding to the user; only the user's
-   accepted-risk note may record it `accepted`.
+   accepted-risk note may record it `accepted`. Run `bouncer context-review close`
+   only after explicit user approval. If plan documents are modified after
+   closing the cycle, follow the recovery procedure: close →
+   `bouncer review-dispatch plan --previous <stored-latest.json>` →
+   `bouncer context-review restart` → discovery.
 
 When the plan gate reports `context review is stale`, rerun
 `bouncer review-dispatch plan --blueprint <dir> --previous <stored-latest-payload.json>`,
@@ -163,8 +167,11 @@ the subagent must not edit documents or flip status, and the controller does
 not hand-write `rounds[]` or `findings[]`. An `accepted` finding requires a
 note. `--status accepted` closes the cycle only when every finding is
 `resolved` or `accepted` with a note; a `must_fix` finding is accepted only
-with `--accept-risk <id>` after the user explicitly approved that risk. The
-returned `projection` is the canonical `rounds`/`findings`; copy it into the
+with `--accept-risk <id>` after the user explicitly approved that risk.
+Alternatively, close an open cycle after the last round using
+`bouncer context-review close --blueprint <dir> --dispositions <json> [--accept-risk <id[,id...]>]`
+with explicit user approval. `--dispositions` takes a JSON array of `{ id, status, note }`.
+The returned `projection` is the canonical `rounds`/`findings`; copy it into the
 existing blueprint-root `context-review.md` (body `## Findings` included) and
 only then set `context-review → accepted`. A recorded success is a review
 disposition, not plan approval or a plan gate pass.
