@@ -6,8 +6,31 @@
     "이 예제는 coordinator·reviewer에 gpt-6.1-sol, implementer·debugger에 gpt-6-luna를 지정합니다. gpt-6.1-luna는 지원되는 모델 ID가 아닙니다.",
     "inherit는 부모 모델 상속입니다. 기본 named dispatch에서 모델 ID가 거절되면 부모 모델 상속으로 한 번 재시도하므로 저비용 모델 지정이 유지되지 않을 수 있습니다.",
     "현재 Codex 호스트에서 모델을 따로 지정하는 호출은 fork_turns: none이 필요합니다. 이는 에이전트 호출 옵션이며 이 JSON에 넣는 설정 키가 아닙니다.",
+    "_models는 프로바이더별로 고를 수 있는 모델 slug를 2026-10-13 기준 성능 순으로 나열한 참고용 목록입니다. subagents.<provider>.<role>에 복사해 쓰며, resolver는 subagents만 읽으므로 동작에는 영향이 없습니다. cursor 목록에는 Cursor 자체 모델만 적습니다. Cursor에서 Claude·GPT API 모델을 쓰려면 claude·codex 목록의 slug에 -high를 붙인 값(예: claude-opus-5-5-high)을 사용하세요.",
     "역할별 implementer 모델 분리는 full 주행 기준입니다. light 주행은 현재 세션에서 구현하므로 별도 implementer 모델이 적용되지 않습니다."
   ],
+  "_models": {
+    "codex": [
+      "gpt-6-astra",
+      "gpt-6.1-sol",
+      "gpt-6-sol",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "gpt-5.6-terra"
+    ],
+    "cursor": [
+      "grok-4.7-high",
+      "cursor-grok-4.6-high",
+      "cursor-grok-4.5-high",
+      "composer-2.5"
+    ],
+    "claude": [
+      "claude-fable-5-1",
+      "claude-opus-5-5",
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5"
+    ]
+  },
   "source_dirs": [],
   "graphify": {
     "enabled": true,

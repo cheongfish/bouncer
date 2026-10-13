@@ -16,6 +16,10 @@ limits.
    omit the model argument so the named dispatch keeps parent-session inheritance.
    `inherit`, `null`, and every non-string configured value have that inheritance
    meaning; they are not a request to select a replacement model.
+   On Codex, a dispatch that forks the full conversation does not accept a model
+   override, so when a slug is passed, set `fork_turns: "none"` on that same
+   call. When the output is `inherit`, only the model argument is omitted;
+   `fork_turns` stays whatever the calling workflow specifies.
 2. Attempt the named dispatch. Do not skip it because the host is Codex.
    Only the item 7 opt-in replaces it.
 3. Only on a rejected model slug, retry that same named dispatch once with
