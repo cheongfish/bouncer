@@ -69,6 +69,15 @@ function runLauncher(argv) {
       );
       return 1;
     }
+    // 개발 checkout(scripts/src 존재)에서만 산출물 신선도를 본다. 배포본은 소스가
+    // 없고 helper도 없을 수 있어 require하지 않는다.
+    const sourceDir = path.join(__dirname, 'src');
+    if (fs.existsSync(sourceDir) && !require('./build-stamp').checkBuildFresh(path.dirname(__dirname)).ok) {
+      process.stderr.write(
+        `bouncer: stale-build: scripts/lib does not match scripts/src; run \`npm run build\` in ${path.dirname(__dirname)}\n`,
+      );
+      return 1;
+    }
     const { runCli } = require('./lib/cli');
     return runCli(argv);
   }

@@ -74,6 +74,7 @@ test('the package contents → contain only the plugin runtime surface and host 
     'references/implementation/index.md',
     'scripts/bouncer',
     'scripts/bouncer-root',
+    'scripts/build-stamp.js',
     'scripts/lib/cli.js',
     'scripts/lib/coordinator.js',
     'scripts/lib/scope.js',
