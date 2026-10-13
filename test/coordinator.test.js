@@ -1158,6 +1158,135 @@ test('commit integrate with worker evidence that is not terminal or stamps anoth
   assert.deepStrictEqual(snapshotTree(path.join(drive.integrationPath, bundle)), integrationBundle);
 });
 
+// 001 worker를 terminal 증적까지 갖춘 integrate 가능 상태로 만든다.
+function integrableDrive(prefix, blueprint) {
+  const drive = recordedDrive(prefix, blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  return drive;
+}
+const integrateOne = (drive, blueprint) => coordinate({
+  command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+  deps: { runVerification: passVerify },
+});
+
+test('integration checkout with an uncommitted file outside the allowed paths → integrate refuses with integration-source-mutated and keeps the ledger bytes', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/001-mutated';
+  const drive = integrableDrive('bouncer-integrate-mutated-', blueprint);
+  fs.mkdirSync(path.join(drive.integrationPath, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/extra.js'), 'direct edit\n');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const headBefore = drive.head();
+
+  const refused = integrateOne(drive, blueprint);
+  assert.strictEqual(refused.ok, false, JSON.stringify(refused));
+  assert.strictEqual(refused.reason, 'integration-source-mutated');
+  assert.ok(refused.paths.includes('src/extra.js'), JSON.stringify(refused.paths));
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+  assert.strictEqual(drive.head(), headBefore);
+
+  // 직접 수정분을 되돌리면 같은 호출이 통과한다.
+  fs.rmSync(path.join(drive.integrationPath, 'src/extra.js'));
+  const retried = integrateOne(drive, blueprint);
+  assert.strictEqual(retried.ok, true, JSON.stringify(retried));
+});
+
+test('integration checkout dirty only at seeded plan paths and earlier wave evidence → integrate succeeds', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/002-allowed';
+  const drive = integrableDrive('bouncer-integrate-allowed-', blueprint);
+  // 계획이 미커밋이라 seed 경로는 이미 dirty이다. 이전 wave evidence도 dirty로 남긴다.
+  const first = integrateOne(drive, blueprint);
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  assert.ok(status.includes(`${blueprint}/tasks/001/tasks.md`), status);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks.find((t) => t.id === '001').status, 'integrated');
+  // 두 번째 integrate가 필요한 task는 없으므로 nothing-to-integrate이지 mutated가 아니다.
+  const second = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(second.reason, 'nothing-to-integrate', JSON.stringify(second));
+});
+
+test('dirty extra file with a verification node integrate or a light ledger → dirty check does not apply', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/003-skip';
+  const repo = uncommittedPlanRepo('bouncer-integrate-skip-ver-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  fs.writeFileSync(path.join(boot.integrationPath, 'extra.js'), 'direct edit\n');
+  const verified = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: { runVerification: passVerify },
+  });
+  assert.notStrictEqual(verified.reason, 'integration-source-mutated', JSON.stringify(verified));
+  assert.strictEqual(verified.ok, true, JSON.stringify(verified));
+
+  const lightBp = '.bouncer/context/epics/098-x/blueprints/004-skip-light';
+  const light = lightScaleRepo('bouncer-integrate-skip-light-', lightBp);
+  const lightBoot = coordinate({ command: 'bootstrap', repoRoot: light.repo, blueprint: lightBp });
+  fs.writeFileSync(path.join(lightBoot.integrationPath, 'extra.js'), 'direct edit\n');
+  const lightResult = coordinate({
+    command: 'integrate', repoRoot: light.repo, blueprint: lightBp, cwd: lightBoot.integrationPath,
+  });
+  assert.strictEqual(lightResult.reason, 'nothing-to-integrate', JSON.stringify(lightResult));
+});
+
+test('report Changed files one path short of the commit → integrate succeeds with a report-paths-mismatch warning', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/005-warn';
+  const drive = integrableDrive('bouncer-integrate-warn-', blueprint);
+  // 기본 보고는 src/a.js를 적지만 커밋은 src/task.js만 바꾼다. backtick이 없는 항목은
+  // 경로 집합에서 빠지므로 src/task.js를 backtick 없이 적으면 커밋 경로가 extra로 남는다.
+  const reportFile = path.join(drive.worker, '.bouncer/runtime/reports/001-1.md');
+  const body = fs.readFileSync(reportFile, 'utf8');
+  fs.writeFileSync(reportFile, body.replace(/## Changed files\n[^\n]*\n/, '## Changed files\n- src/task.js without backticks\n'));
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+
+  const result = integrateOne(drive, blueprint);
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.warnings[0],
+    { task: '001', code: 'report-paths-mismatch', missing: [], extra: ['src/task.js'] });
+  // 경고는 결과 JSON에만 있고 ledger에는 쓰이지 않는다.
+  assert.ok(!fs.readFileSync(drive.ledgerFile, 'utf8').includes('report-paths-mismatch'));
+  void ledgerBefore;
+});
+
+test('report Changed files naming exactly the commit paths → integrate result has no warnings key', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/006-nowarn';
+  const drive = integrableDrive('bouncer-integrate-nowarn-', blueprint);
+  const reportFile = path.join(drive.worker, '.bouncer/runtime/reports/001-1.md');
+  const body = fs.readFileSync(reportFile, 'utf8');
+  fs.writeFileSync(reportFile, body.replace('`src/a.js`', '`src/task.js`'));
+  const result = integrateOne(drive, blueprint);
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual('warnings' in result, false);
+});
+
+test('missing report file or Changed files heading → integrate warns report-changed-files-unavailable', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/007-unavail';
+  const drive = integrableDrive('bouncer-integrate-unavail-', blueprint);
+  fs.rmSync(path.join(drive.worker, '.bouncer/runtime/reports/001-1.md'));
+  const result = integrateOne(drive, blueprint);
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.warnings, [{ task: '001', code: 'report-changed-files-unavailable' }]);
+
+  const headingBp = '.bouncer/context/epics/098-x/blueprints/008-unavail-heading';
+  const second = integrableDrive('bouncer-integrate-unavail-h-', headingBp);
+  const reportFile = path.join(second.worker, '.bouncer/runtime/reports/001-1.md');
+  fs.writeFileSync(reportFile, fs.readFileSync(reportFile, 'utf8').replace('## Changed files', '## Files'));
+  const headingResult = integrateOne(second, headingBp);
+  assert.strictEqual(headingResult.ok, true, JSON.stringify(headingResult));
+  assert.deepStrictEqual(headingResult.warnings, [{ task: '001', code: 'report-changed-files-unavailable' }]);
+});
+
 test('a cherry-pick CONFLICT → returns fanin-conflict without touching canonical HEAD', () => {
   const blueprint = '.bouncer/context/epics/054-x/blueprints/055-y';
   const drive = recordedDrive('bouncer-coordinator-restore-', blueprint);

@@ -271,6 +271,8 @@ test('parallel ready wave를 drive함 → worker worktrees에 commit하고 하�
         }),
       },
     });
+    // 첫 wave의 evidence가 dirty로 남은 두 번째 wave도 허용 경로라 거절되지 않는다.
+    assert.notStrictEqual(integrated.reason, 'integration-source-mutated', JSON.stringify(integrated));
     assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
     assert.deepStrictEqual(integrated.integrated, [id]);
   }

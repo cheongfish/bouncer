@@ -101,6 +101,11 @@ to your `Decision required` judgment, never a second brief.
   scope, and Blueprint necessity; the repair depends on the then-integrated
   leaves and the terminal verification node moves its dependency to that repair.
   After a second repair still fails, automatic execution stops.
+- A failing CI, lint, or word-count check never lets you edit files yourself.
+  Inside a task's scope it is `rework`; a terminal failure goes through
+  `coordinate repair` so a worker fixes it. `coordinate integrate` refuses
+  uncommitted integration changes outside the seeded and evidence paths with
+  `integration-source-mutated`: revert them and move the change to a worker task.
 - A final-review `must_fix` that is only an in-scope gap in test evidence (test
   paths inside an integrated task's `affected_paths`; product behavior already
   correct) is closed in place with `bouncer coordinate repair --kind

@@ -2546,6 +2546,103 @@ function integrateLightCommitWave({
 }
 
 /**
+ * integration checkout에서 허용 경로 밖에 있는 미커밋 경로를 모은다.
+ * 허용 경로는 seed manifest 경로와 이미 integrated된 task의 evidence 문서뿐이다.
+ * 넓은 prefix를 허용하면 coordinator가 직접 고친 소스가 섞여 들어와도 통과하므로
+ * 파일 단위로만 비교한다. rename(`R  a -> b`)은 양쪽 경로를 모두 본다.
+ * `git()`은 출력을 trim해 첫 줄의 선행 공백 상태 코드를 깨뜨리므로 exec 원문을 쓴다.
+ *
+ * @param {Exec} exec - git 호출 seam
+ * @param {string} integrationPath - integration checkout 절대 경로
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {Ledger} ledger - seedManifest와 task 상태를 읽을 원장
+ * @returns {string[]} 허용되지 않은 dirty 경로(정렬, 중복 없음)
+ */
+function disallowedDirtyPaths(
+  exec: Exec, integrationPath: string, blueprint: string, ledger: Ledger,
+): string[] {
+  const raw = String(exec('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }));
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  const allowed = new Set<string>((ledger.seedManifest || []).map((entry) => entry.path));
+  for (const task of ledger.tasks) {
+    if (task.status !== 'integrated') continue;
+    for (const [name] of evidenceFiles(reviewMode)) {
+      allowed.add(`${blueprint.replaceAll('\\', '/')}/tasks/${task.id}/${name}`);
+    }
+  }
+  const dirty = new Set<string>();
+  for (const line of raw.split('\n')) {
+    if (line.length < 4) continue;
+    for (const entry of line.slice(3).split(' -> ')) {
+      // worktree 등록·CLI 런타임 파일(.bouncer/runtime, config.json)은 source가 아니다.
+      // 실제 프로젝트에서는 gitignore라 안 보이지만, .gitignore가 없는 bootstrap fixture에서는
+      // ledger 자체가 dirty로 보여 모든 integrate가 거절되므로 이 경로만 제외한다.
+      if (entry.startsWith('.worktrees/') || entry.startsWith('.bouncer/runtime/')
+        || entry === '.bouncer/config.json') continue;
+      dirty.add(entry.replace(/^"|"$/g, ''));
+    }
+  }
+  return [...dirty].filter((entry) => !allowed.has(entry)).sort();
+}
+
+/** 보고 `## Changed files` 아래 `- ` 항목의 첫 backtick 구간을 경로로 읽는다. 제목이 없으면 null. */
+function reportChangedFiles(body: string): string[] | null {
+  const sections = parseSections(body, [
+    { key: 'changed', re: /^##\s+Changed files\s*$/i },
+    { key: 'other', re: /^##\s+(?!Changed files\s*$)\S/i },
+  ] as Parameters<typeof parseSections>[1]);
+  if (sections.changed === null) return null;
+  const out: string[] = [];
+  for (const line of sections.changed.split('\n')) {
+    const m = /^\s*[-*]\s+[^`]*`([^`]+)`/.exec(line);
+    if (m) out.push(m[1]);
+  }
+  return out;
+}
+
+type IntegrateWarning =
+  | { task: string; code: 'report-paths-mismatch'; missing: string[]; extra: string[] }
+  | { task: string; code: 'report-changed-files-unavailable' };
+
+/**
+ * worker 커밋의 변경 경로(task evidence 디렉터리 제외)와 보고 `## Changed files`를 대조한다.
+ * 불일치는 실패가 아니라 경고다 — 보고 정확도를 드러낼 뿐 통합 판정에는 쓰지 않는다.
+ * 보고 파일이 없는 경우(ENOENT)만 unavailable로 흡수하고 다른 읽기 오류는 던진다.
+ *
+ * @param {Exec} exec - git 호출 seam
+ * @param {string} cwd - sha를 읽을 checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {Task} item - 대조할 task(workerPath·dispatch·sha 사용)
+ * @returns {IntegrateWarning | null} 일치하면 null
+ */
+function reportPathsWarning(
+  exec: Exec, cwd: string, blueprint: string, item: Task,
+): IntegrateWarning | null {
+  const unavailable: IntegrateWarning = { task: item.id, code: 'report-changed-files-unavailable' };
+  if (!item.workerPath || !item.dispatch) return unavailable;
+  let body: string;
+  try {
+    body = fs.readFileSync(reportPathFor(item.workerPath, item.id, item.dispatch.attempt), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return unavailable;
+    throw error;
+  }
+  const reported = reportChangedFiles(body);
+  if (reported === null) return unavailable;
+  const evidenceDir = `${blueprint.replaceAll('\\', '/')}/tasks/${item.id}/`;
+  const committed = git(exec, cwd, ['diff-tree', '--no-commit-id', '--name-only', '-r', item.sha as string])
+    .split('\n').filter((entry) => entry && !entry.startsWith(evidenceDir));
+  const reportedSet = new Set(reported);
+  const committedSet = new Set(committed);
+  const missing = [...reportedSet].filter((entry) => !committedSet.has(entry)).sort();
+  const extra = [...committedSet].filter((entry) => !reportedSet.has(entry)).sort();
+  if (missing.length === 0 && extra.length === 0) return null;
+  return { task: item.id, code: 'report-paths-mismatch', missing, extra };
+}
+
+/**
  * commit wave fan-in: candidate에서 cherry-pick·검증 후 CAS ff만 canonical에 쓴다.
  * light 원장은 cherry-pick 없이 `integrateLightCommitWave`로 보낸다.
  */
@@ -2636,6 +2733,7 @@ function integrateCommitWave({
   // --- phase 1: 잠금 안에서 대상 확정·fanin building 기록 ---
   let phase1CheckpointHash: string | null = null;
   let waveTasks: string[] = [];
+  let waveWarnings: IntegrateWarning[] = [];
   let baseHead = '';
   const phase1 = withLedgerLock(integration.ledgerFile, (owns) => {
     const loaded = loadLedgerBytes(integration.ledgerFile);
@@ -2689,6 +2787,19 @@ function integrateCommitWave({
         worker, integration.integrationPath, blueprint, id, item.sha as string,
       );
       if (!evidence.ok) return evidence;
+    }
+
+    // coordinator가 integration checkout을 직접 고치면 worker 보고 없이 통합된다.
+    // fanin 기록 전에 끝내 거절 시 ledger 바이트가 호출 전과 같다.
+    const mutated = disallowedDirtyPaths(exec, integration.integrationPath, blueprint, ledger);
+    if (mutated.length > 0) return { ok: false, reason: 'integration-source-mutated', paths: mutated };
+    // 경고는 결과 JSON에만 싣고 ledger에는 쓰지 않는다.
+    waveWarnings = [];
+    for (const id of ordered) {
+      const warning = reportPathsWarning(
+        exec, integration.integrationPath, blueprint, ledger.tasks.find((x) => x.id === id) as Task,
+      );
+      if (warning) waveWarnings.push(warning);
     }
 
     baseHead = head;
@@ -2845,7 +2956,7 @@ function integrateCommitWave({
   }
 
   // --- phase 3: 잠금 — checkpoint·CAS·verified 기록·ff·번들·integrated ---
-  return finishFaninAfterFf({
+  const finished = finishFaninAfterFf({
     repoRoot, blueprint, exec, writeLedger, integration,
     ledgerPath, ledgerHash,
     tasks: waveTasks,
@@ -2856,6 +2967,11 @@ function integrateCommitWave({
     phase1CheckpointHash,
     verification,
   });
+  // 경고가 없으면 키를 생략한다(다른 명령의 warnings 규칙과 같다).
+  if (waveWarnings.length > 0 && (finished as { ok?: boolean }).ok === true) {
+    return { ...(finished as object), warnings: waveWarnings };
+  }
+  return finished;
 }
 
 /**
@@ -3972,6 +4088,11 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'sha-unchanged': {
     cause: 'Rerecord requires a worker HEAD that differs from the stored SHA.',
     next: 'Commit the new worker work, then retry `bouncer coordinate rerecord`.',
+  },
+  'integration-source-mutated': {
+    cause: 'The integration checkout has uncommitted changes outside the seed manifest and integrated task evidence.',
+    next: 'Move the change into a worker task or `bouncer coordinate repair`, '
+      + 'revert the direct edits in the integration checkout, then call integrate again.',
   },
   'stale-integration-head': {
     cause: 'The integration worktree HEAD does not match the ledger integrationHead.',

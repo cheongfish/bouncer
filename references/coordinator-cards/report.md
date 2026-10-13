@@ -16,6 +16,9 @@ the coordinator Procedure step 3 (Drive) and step 5 (Judge).
   writing the ledger. Redispatch the same attempt or ask the worker to fix the
   file at `report_path`, then retry. `report-revision-conflict` (file differs
   from the arguments) is handled the same way.
+- Before `accepted`, compare the Contract's storage location, state ownership,
+  and interface wording in the task brief with the report's changed files and
+  deviations. A mismatch is `rework` or `scope_revision`, never `accepted`.
 - Turn each report into exactly one of: accepted, scope revision (`coordinate
   revise`), rework with a named cause, task/graph change, or terminal blocked.
   The `--outcome` values are `accepted`, `rework`, `scope_revision`,
