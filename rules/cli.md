@@ -133,6 +133,10 @@ full replan needs a new `bootstrap` and `current --set`.
 `worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
 (`repeated-failure`, `unclear-result`, `advance-argv-invalid`, or the
 automatic action's reason).
+`run preflight` also reports `direct_eligible` (delegable, `full`, serial shape,
+`1 <= commit_tasks <= coordinator.direct_max_commit_tasks`); `/bouncer-run`
+offers root-direct execution only when it is true. `bouncer metrics start
+--kind root-direct-session` records that session (no `--target-digest`).
 `yield` is a session boundary with no argv: the coordinator returns `continue`.
 The root runs `coordinate session-open --blueprint <dir> --ledger-path <p>
 --ledger-hash <h>` from the integration cwd before each coordinator dispatch;

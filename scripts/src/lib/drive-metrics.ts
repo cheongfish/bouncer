@@ -13,7 +13,7 @@ const { isRecord, isEnoentError } = guards;
  * 기록 파일 쓰기는 임시 파일 뒤 rename이다.
  */
 
-const SESSION_KINDS = ['coordinator-session', 'context-review'] as const;
+const SESSION_KINDS = ['coordinator-session', 'context-review', 'root-direct-session'] as const;
 type SessionKind = typeof SESSION_KINDS[number];
 
 // 이 kind의 decision, 또는 outcome이 accepted가 아닌 report는 "예외 판단"이다.
@@ -168,7 +168,7 @@ function isException(entry: unknown): boolean {
  * @param {object} opts - 시작 입력
  * @param {string} opts.file - drive-metrics.json 경로
  * @param {string} opts.ledgerFile - 해당 blueprint의 integration 원장 경로
- * @param {string} opts.kind - `coordinator-session` | `context-review`
+ * @param {string} opts.kind - `coordinator-session` | `context-review` | `root-direct-session`
  * @param {string} opts.blueprint - blueprint 디렉터리
  * @param {string} [opts.label] - 세션 라벨(context-review는 perspective)
  * @param {string} [opts.targetDigest] - context-review 필수 64 hex

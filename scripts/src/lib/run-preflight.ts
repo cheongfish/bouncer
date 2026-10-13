@@ -22,7 +22,7 @@ const { readyWave, loadLedger } = coordinator;
 import runtimeState = require('./runtime-state');
 const { coordinatorPathsFor } = runtimeState;
 import configMod = require('./config');
-const { readConfig, readCoordinatorPolicy } = configMod;
+const { readConfig, readCoordinatorPolicy, readDirectMaxCommitTasks } = configMod;
 import dagShape = require('./dag-shape');
 const { analyzeDriveShape } = dagShape;
 
@@ -64,6 +64,8 @@ type PreflightOk = {
   delegable: boolean;
   // 열린 commit task의 DAG 모양. 성공 payload에만 붙는다(ok:false에는 없다).
   shape: ReturnType<typeof analyzeDriveShape>;
+  // root가 coordinator 없이 직접 돌려도 되는 드라이브인지. 시작 ACQ가 D 선택지를 보일지 정한다.
+  direct_eligible: boolean;
   // promotion-stopped는 원장 status만 본다. 원장 부재 시에는 이 값을 내지 않는다.
   reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped' | null;
 };
@@ -313,6 +315,16 @@ function runPreflight({ repoRoot, blueprintDir }: {
   const policy = readCoordinatorPolicy(repoRoot);
   const maxParallel = policy.ok ? policy.maxParallel : 1;
 
+  const shape = analyzeDriveShape(shapeTasks, { maxParallel });
+  // 직접 실행은 위임 가능한 full 직렬 체인이 설정 상한 이하일 때만 연다. 상한 0(꺼짐·invalid
+  // 폴백)은 commit_tasks >= 1 조건과 겹쳐 항상 false가 된다.
+  const directMax = readDirectMaxCommitTasks(repoRoot);
+  const directEligible = reason === null
+    && meta.scale === 'full'
+    && shape.drive_shape === 'serial'
+    && shape.commit_tasks >= 1
+    && shape.commit_tasks <= directMax;
+
   return {
     ok: true,
     blueprint: { dir: blueprint, status: meta.status, scale: meta.scale },
@@ -323,7 +335,8 @@ function runPreflight({ repoRoot, blueprintDir }: {
     delegable: reason === null,
     reason,
     // readyWave와 같은 maxParallel(invalid는 1)로 돌려 두 값이 어긋나지 않게 한다.
-    shape: analyzeDriveShape(shapeTasks, { maxParallel }),
+    shape,
+    direct_eligible: directEligible,
   };
 }
 

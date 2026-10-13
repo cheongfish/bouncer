@@ -8,7 +8,8 @@ rule's items 2-4 unchanged, and this document does not apply.
 1. **Every dispatch is a print process.** Every Bouncer-agent dispatch — the
    named dispatch and the fallback of `${BOUNCER_ROOT}/rules/subagent-model.md` items 2 and 4,
    including the `/bouncer-run` coordinator of item 5 and every worker a
-   coordinator dispatches — is a fresh `agent --print` process, never a Task
+   coordinator dispatches (or the root dispatches in direct mode,
+   `skills/bouncer-run/references/direct-run.md`) — is a fresh `agent --print` process, never a Task
    subagent. Cursor records no token usage for Task subagents; each print
    process is its own logged session.
 2. **Prerequisite.** The `agent` CLI is on PATH and `agent status` reports a

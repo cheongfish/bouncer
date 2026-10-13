@@ -37,6 +37,10 @@ const DEFAULT_MAX_PARALLEL = 2;
 // `waves_per_session`의 "auto"·부재 상한과 설정 가능한 최댓값. 세션이 길수록 compaction
 // 위험이 커지므로 상한을 8로 닫고, auto는 그 절반인 4에서 끊는다.
 const AUTO_WAVES_PER_SESSION = 4;
+
+// root 직접 실행의 기본 상한. 짧은 직렬 체인(세 task 이하)만 coordinator 기동 비용을 아낄
+// 만큼 작다고 본다. 0으로 설정하면 직접 실행이 꺼진다.
+const DEFAULT_DIRECT_MAX_COMMIT_TASKS = 3;
 const MAX_WAVES_PER_SESSION = 8;
 
 // 검증 실행은 shell:false argv만 허용한다. argv0 실행 파일명이 이 목록(또는
@@ -226,6 +230,34 @@ function readWavesPerSession(repoRoot: string): WavesPerSessionResult {
 }
 
 /**
+ * `coordinator.direct_max_commit_tasks`를 읽어 root 직접 실행을 허용할 열린 commit task
+ * 수 상한을 돌려준다. 부재(파일·`coordinator`·키)는 기본 3이고 0은 직접 실행을 끈다.
+ * 정수가 아니거나 음수, 깨진 config는 0으로 접는다 — 잘못된 설정이 coordinator 없는
+ * 실행을 열어 주면 안 되고, 직접 실행은 선택 최적화라 꺼져도 드라이브는 그대로 돈다.
+ * (파일 부재만 기본값인 점은 `waves_per_session`과 같다.)
+ *
+ * @param {string} repoRoot - 설정을 읽을 checkout 루트(보통 main worktree)
+ * @returns {number} 0 이상의 정수 상한(0이면 꺼짐)
+ */
+function readDirectMaxCommitTasks(repoRoot: string): number {
+  const parsed = readConfigResult(repoRoot);
+  if (parsed.ok === false) {
+    return parsed.reason === 'missing' ? DEFAULT_DIRECT_MAX_COMMIT_TASKS : 0;
+  }
+  if (!isRecord(parsed.value)
+    || !Object.prototype.hasOwnProperty.call(parsed.value, 'coordinator')) {
+    return DEFAULT_DIRECT_MAX_COMMIT_TASKS;
+  }
+  const coordinator = parsed.value.coordinator;
+  if (!isRecord(coordinator)
+    || !Object.prototype.hasOwnProperty.call(coordinator, 'direct_max_commit_tasks')) {
+    return DEFAULT_DIRECT_MAX_COMMIT_TASKS;
+  }
+  const raw = coordinator.direct_max_commit_tasks;
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : 0;
+}
+
+/**
  * `metrics.pricing`을 읽는다. 파일·`metrics`·`pricing` 키 부재는 빈 표(단가 없음)이고
  * 비용은 `no-pricing`으로 남는다. 항목이 객체가 아니거나 단가가 음이 아닌 유한 수가
  * 아니면, 일부만 믿어 비용을 틀리게 내는 것보다 표 전체를 invalid로 돌린다.
@@ -265,6 +297,7 @@ export = {
   readVerifyPolicy,
   readCoordinatorPolicy,
   readWavesPerSession,
+  readDirectMaxCommitTasks,
   DEFAULT_VERIFY_ALLOWLIST,
   DEFAULT_MAX_PARALLEL,
   getVerifyAllowlist,

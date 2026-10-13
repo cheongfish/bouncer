@@ -287,3 +287,43 @@ test('metrics CLI end의 음수·비정수 숫자 플래그 → invalid-metrics-
   assert.strictEqual(JSON.parse(buf.out).kinds['coordinator-session'].tokens_total, 7);
   assert.match(id, /^m-[0-9a-f]{16}$/);
 });
+
+test('root-direct-session start·end → 세션이 끝나고 summary가 kind별로 합산한다', () => {
+  const f = fixture();
+  const started = metrics.startSession({
+    file: f.file, ledgerFile: f.ledgerFile, kind: 'root-direct-session', blueprint: BLUEPRINT,
+    label: 'direct', now: clock('2026-01-01T00:00:00Z'), randomId: () => 'e1e1e1e1e1e1e1e1',
+  });
+  assert.strictEqual(started.ok, true);
+  const ended = metrics.endSession({
+    file: f.file, resolveLedger: () => f.ledgerFile, id: started.id, pricing: {}, tokens: 40,
+    now: clock('2026-01-01T00:00:03Z'),
+  });
+  assert.strictEqual(ended.ok, true);
+  const summary = metrics.summarize({ file: f.file, blueprint: BLUEPRINT });
+  const direct = summary.kinds['root-direct-session'];
+  assert.strictEqual(direct.sessions, 1);
+  assert.strictEqual(direct.tokens_total, 40);
+  assert.strictEqual(direct.wall_ms_total, 3000);
+  assert.strictEqual(summary.kinds['coordinator-session'].sessions, 0);
+});
+
+test('root-direct-session에 target-digest를 주면 → invalid-metrics-input으로 거절한다', () => {
+  const f = fixture();
+  const result = metrics.startSession({
+    file: f.file, ledgerFile: f.ledgerFile, kind: 'root-direct-session', blueprint: BLUEPRINT,
+    targetDigest: DIGEST,
+  });
+  assert.deepStrictEqual(result, { ok: false, reason: 'invalid-metrics-input' });
+});
+
+test('metrics CLI --kind root-direct-session → ok:true로 시작한다', () => {
+  const repo = tmp();
+  const { execFileSync } = require('node:child_process');
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const buf = { out: '', err: '' };
+  const io = { out: (s) => { buf.out += s; }, err: (s) => { buf.err += s; } };
+  const code = runCli(['metrics', 'start', '--kind', 'root-direct-session', '--blueprint', BLUEPRINT, '--repo', repo], io);
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  assert.strictEqual(JSON.parse(buf.out).ok, true);
+});

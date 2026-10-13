@@ -40,7 +40,8 @@
   "autonomy": "auto",
   "coordinator": {
     "max_parallel": 2,
-    "waves_per_session": "auto"
+    "waves_per_session": "auto",
+    "direct_max_commit_tasks": 3
   },
   "pr": {
     "draft": true,

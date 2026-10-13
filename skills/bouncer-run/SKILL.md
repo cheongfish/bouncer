@@ -26,21 +26,21 @@ session owns the drive: implement via `payload.inline` and dispatch one named
 `bouncer-reviewer`. Do not dispatch `bouncer-coordinator`.
 
 For a **full** ledger the drive has one controller, and after the start ACQ it
-is the coordinator, not this session. This session resolves the pointer,
+is the coordinator, not this session — except option D (only when preflight
+`direct_eligible`): this session follows
+[direct-run.md](./references/direct-run.md). Otherwise it resolves the pointer,
 bootstraps the integration worktree, dispatches one `bouncer-coordinator` at a
 time, and on `continue` re-dispatches. It does not read and fix code directly,
 does not run `implementation`, `review`, or `debugging` inline, and does not
 reconstruct a worker's judgment from the diff — the coordinator already judged
 it. On a full drive, do not use execute's inline branch.
 
-Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
-dispatch, and coordinator output fields belong to
-`${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
+Task-by-task execute and commit, scope revision, worker dispatch, and
+coordinator output fields belong to `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
 For every commit task on a full drive, the coordinator must require its
 implementer to read `${BOUNCER_ROOT}/references/coding-standards/index.md`
-before editing code. That reference's Korean comment and docstring contract is
-mandatory; the full-path root session still does not load it or
-implement inline.
+before editing code; its Korean comment and docstring contract is mandatory.
+The root session never loads it.
 
 For an in-blueprint blocker, the delegated coordinator is the autonomous
 decision-maker. It decides and executes the smallest scoped remediation —
@@ -73,9 +73,8 @@ stay on the execute round.
    bouncer run preflight --blueprint <dir>
    ```
    Compact output follows that result; emit raw JSON only on `debug`. The payload
-   holds the pointer, remaining-task presentation fields (including
-   `affected_paths`), DAG, and
-   reporting cadence. Follow its status and `delegable` result; read
+   holds the pointer, remaining-task fields (including `affected_paths`), DAG,
+   reporting cadence, and `direct_eligible`. Follow its status and `delegable` result; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
    pointer return values. When the ledger / pointer `scale` is `light`, read
    [light-run.md](./references/light-run.md) and follow that procedure for the
@@ -90,20 +89,21 @@ stay on the execute round.
    This is the only gate.
 
    **AskUserQuestion — run.start_drive**
-   <!-- acq {"gate":"run.start_drive","options":["A","B","C"],"recommended":"A"} -->
+   <!-- acq {"gate":"run.start_drive","options":["A","B","C","D"],"recommended":"A"} -->
    1. **Re-ground**: Hand remaining tasks to a coordinator drive?
-   2. **Recommend-why**: Given the task list, the DAG, and `affected_paths`,
-      delegating now covers each ready wave until the blueprint is done. This
+   2. **Recommend-why**: Delegating now covers each ready wave until
+      the blueprint is done. This
       approval covers the whole drive: neither autonomy value asks again per
       task; `interactive` only reports progress at each task boundary.
    3. **Options**:
       - A) Start drive (Recommended)
       - B) Revise list/scope and reconfirm
       - C) Cancel
+      - D) 직접 실행(coordinator 없음) — only when `direct_eligible`
 
-   Stop unless A.
+   Stop unless A or D.
 
-3. **Integration bootstrap.** Only after A, register the integration worktree
+3. **Integration bootstrap.** Only after A or D, register the integration worktree
    from the main checkout:
    ```bash
    bouncer coordinate bootstrap --blueprint <pointer.blueprint> --repo "${PROJECT_ROOT}"
@@ -162,7 +162,7 @@ stay on the execute round.
    | all terminated | none, hash-only change, or after recovery | stop `no-progress` |
 
    Hand a raw report to the coordinator as data; never judge, verify, integrate, or edit active metadata.
-   `report present`: that file is the raw report; same single recovery.
+   `report present`: that file is the raw report; same recovery.
    `worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer.
    If `completed_tasks.length` grew, dispatch a new coordinator
    with the same payload plus that checkpoint (no ACQ). Wait in the foreground
