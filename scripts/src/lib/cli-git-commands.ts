@@ -297,7 +297,7 @@ function cmdExecute(rest: string[], io: CliIo) {
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-  'promote-stop',
+  'promote-stop', 'session-open',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -493,7 +493,7 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
     help: `usage: bouncer coordinate next
   --blueprint <dir> [--task <ddd>] [--repo <dir>]
   Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
-  Blueprint actions: prepare, drive_tasks, integrate, verification_node, supplement, final_review, done, blocked
+  Blueprint actions: prepare, yield, drive_tasks, integrate, verification_node, supplement, final_review, done, blocked
   Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
   Response fields: action, cwd, argv, judge, task_ids, payload, card, checkpoint
   card {id,body} only on: dispatch, implement, verify, review, report, revise, record, supplement, final_review, blocked
@@ -506,10 +506,21 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]
   Not ledger-fenced. Calls coordinate next and runs argv for prepare, integrate,
   verification_node, verify, and commit until a stop or failure.
-  Stop reasons (ok: true): judge, worker, blocked, done, none, max-steps
+  Stop reasons (ok: true): judge, worker, blocked, done, none, max-steps, yield
   Failure reasons (ok: false): repeated-failure, unclear-result, advance-argv-invalid,
   or the automatic action's failure reason.
   Response fields: executed, stop.next (success) or reason, cause, next, executed (failure)
+`,
+  },
+  'session-open': {
+    registry: '  coordinate session-open --blueprint <dir> --ledger-path <path> --ledger-hash <sha256>\n'
+      + '             Record a coordinator session boundary before dispatching a new coordinator.\n',
+    help: `usage: bouncer coordinate session-open
+  --blueprint <dir> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Run by the root before dispatching a coordinator session. Appends a session decision
+  (opened_at, integration_head, waves_cap) so coordinate next can count this session's waves.
+  Refused without changing the ledger on a light, promotion_stopped, partial_closed, or
+  awaiting_confirmation ledger.
 `,
   },
   'promote-stop': {
@@ -529,6 +540,7 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
 const COORDINATE_REGISTRY_ORDER: CoordinateCommand[] = [
   'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
   'partial-close', 'critical-recovery', 'revise', 'next', 'advance', 'promote-stop',
+  'session-open',
 ];
 
 /**
@@ -651,14 +663,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
   const fencedCommands = new Set([
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-    'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop',
+    'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
   ]);
   if (!commands.includes(command)) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
       + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, '
-      + 'advance, or promote-stop\n',
+      + 'advance, promote-stop, or session-open\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {

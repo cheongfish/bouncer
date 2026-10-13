@@ -148,6 +148,13 @@ function readLedgerSnapshot(ledgerFile: string): LedgerRead {
   };
 }
 
+/**
+ * 원장 항목이 "예외 판단"인지 가른다. 세션 경계 판정(`coordinate next`)과 metrics의
+ * 예외 수 계산이 같은 정의를 쓰도록 export한다.
+ *
+ * @param {unknown} entry - 원장 decision 항목
+ * @returns {boolean} 예외 kind이거나 accepted가 아닌 report면 true
+ */
 function isException(entry: unknown): boolean {
   if (!isRecord(entry)) return false;
   if (typeof entry.kind === 'string' && EXCEPTION_KINDS.has(entry.kind)) return true;
@@ -358,4 +365,7 @@ function listCoordinatorSessions(opts: { file: string; blueprint: string }): Arr
     }));
 }
 
-export = { metricsFilePath, startSession, endSession, summarize, listCoordinatorSessions };
+export = {
+  EXCEPTION_KINDS, isException, metricsFilePath, startSession, endSession, summarize,
+  listCoordinatorSessions,
+};

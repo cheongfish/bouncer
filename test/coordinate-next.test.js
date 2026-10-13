@@ -19,7 +19,7 @@ const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/r
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop', 'session-open',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -1499,4 +1499,147 @@ test('full ledger의 implement → payload.inline을 생략함', () => {
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'implement');
   assert.strictEqual('inline' in (r.payload || {}), false);
+});
+
+// ---- 세션 yield 판정 (BP 098/002) ----------------------------------------------------
+
+const YIELD_BP = '.bouncer/context/epics/098-n/blueprints/002-yield';
+const PAR_META = (leaf) => `  depends_on: []\n  parallel_safe: true\n  affected_paths:\n    - ${leaf}/\n`;
+
+/**
+ * bootstrap까지 끝낸 저장소에 coordinator 설정과 원장 decisions를 직접 심는다.
+ * 세션 판정은 원장 decisions와 checkpoint.ready만 읽으므로 실제 wave를 돌리지 않는다.
+ *
+ * @param {Array<[string, string]>} tasks - [id, tasks.md frontmatter 본문]
+ * @param {object} opts - config(coordinator 블록), decisions, integrated(이미 통합된 task id)
+ * @returns {object} nextOf가 쓰는 drive 핸들
+ */
+function yieldDrive(tasks, { config, decisions = [], integrated = [] } = {}) {
+  const repo = uncommittedPlanRepo('bouncer-next-yield-', YIELD_BP, tasks);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: YIELD_BP });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const drive = {
+    repo, blueprint: YIELD_BP, integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+  if (config !== undefined) {
+    fs.writeFileSync(
+      path.join(boot.integrationPath, '.bouncer/config.json'),
+      `${JSON.stringify({ verify: '/bin/true', coordinator: config })}\n`,
+    );
+  }
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.decisions = decisions;
+  for (const task of ledger.tasks) {
+    if (integrated.includes(task.id)) task.status = 'integrated';
+  }
+  writeLedger(drive.ledgerFile, ledger);
+  return drive;
+}
+
+const SESSION = { kind: 'session', opened_at: '2026-10-13T00:00:00.000Z', integration_head: 'h', waves_cap: 4 };
+const FANIN = { kind: 'fanin', tasks: ['001'], base_head: 'a', candidate_head: 'b', evidence_id: null };
+const REVOKE = { task: '001', kind: 'revoke', reason: 'r' };
+
+test('waves_per_session 1 and a session with one fanin → yields session-wave-cap', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 1 }, decisions: [SESSION, FANIN],
+  });
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'yield');
+  assert.strictEqual(r.reason, 'session-wave-cap');
+});
+
+test('auto, one fanin and no exception with one ready commit task → prepare', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 'auto' }, decisions: [SESSION, FANIN],
+  });
+  assert.strictEqual(nextOf(drive).action, 'prepare');
+});
+
+test('no waves_per_session setting and one fanin → prepare (auto)', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], { decisions: [SESSION, FANIN] });
+  assert.strictEqual(nextOf(drive).action, 'prepare');
+});
+
+test('auto, one fanin and a revoke decision in the session window → yields wave-exception', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 'auto' }, decisions: [SESSION, REVOKE, FANIN],
+  });
+  const r = nextOf(drive);
+  assert.strictEqual(r.action, 'yield');
+  assert.strictEqual(r.reason, 'wave-exception');
+});
+
+test('auto and an exception that preceded the previous fanin → prepare (only the last wave window counts)', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 'auto' }, decisions: [SESSION, REVOKE, FANIN, FANIN],
+  });
+  assert.strictEqual(nextOf(drive).action, 'prepare');
+});
+
+test('auto, one fanin and two parallel ready commit tasks → yields parallel-wave', () => {
+  const drive = yieldDrive([['001', PAR_META('a')], ['002', PAR_META('b')]], {
+    config: { waves_per_session: 'auto' }, decisions: [SESSION, FANIN],
+  });
+  const r = nextOf(drive);
+  assert.strictEqual(r.action, 'yield');
+  assert.strictEqual(r.reason, 'parallel-wave');
+});
+
+test('auto and four fanins in the session → yields session-wave-cap', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 'auto' }, decisions: [SESSION, FANIN, FANIN, FANIN, FANIN],
+  });
+  const r = nextOf(drive);
+  assert.strictEqual(r.action, 'yield');
+  assert.strictEqual(r.reason, 'session-wave-cap');
+});
+
+test('four fanins and only a verification node ready → prepare regardless of the cap', () => {
+  const drive = yieldDrive([
+    ['001', PAR_META('a')],
+    ['002', '  execution_kind: verification\n  depends_on:\n    - "001"\n  parallel_safe: true\n  verify: "/bin/true"\n'],
+  ], {
+    config: { waves_per_session: 'auto' }, decisions: [SESSION, FANIN, FANIN, FANIN, FANIN],
+    integrated: ['001'],
+  });
+  assert.strictEqual(nextOf(drive).action, 'prepare');
+});
+
+test('a session without any fanin → prepare', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 1 }, decisions: [SESSION],
+  });
+  assert.strictEqual(nextOf(drive).action, 'prepare');
+});
+
+test('fanins without any session decision and waves_per_session 1 → yields (counted from ledger start)', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 1 }, decisions: [FANIN],
+  });
+  const r = nextOf(drive);
+  assert.strictEqual(r.action, 'yield');
+  assert.strictEqual(r.reason, 'session-wave-cap');
+});
+
+test('a fanin before the last session decision → is not counted in the new session', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 1 }, decisions: [FANIN, SESSION],
+  });
+  assert.strictEqual(nextOf(drive).action, 'prepare');
+});
+
+test('an invalid waves_per_session → next caps at 1 and prepare rejects with coordinator-config-invalid', () => {
+  const drive = yieldDrive([['001', PAR_META('a')]], {
+    config: { waves_per_session: 'fast' }, decisions: [SESSION, FANIN],
+  });
+  const r = nextOf(drive);
+  assert.strictEqual(r.action, 'yield');
+  assert.strictEqual(r.reason, 'session-wave-cap');
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, false);
+  assert.strictEqual(prepared.reason, 'coordinator-config-invalid');
 });

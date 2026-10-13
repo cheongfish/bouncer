@@ -38,6 +38,10 @@
   ],
   "base_branch": "main",
   "autonomy": "auto",
+  "coordinator": {
+    "max_parallel": 2,
+    "waves_per_session": "auto"
+  },
   "pr": {
     "draft": true,
     "base": "main"

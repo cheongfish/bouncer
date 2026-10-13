@@ -20,6 +20,10 @@ type CoordinatorPolicy =
   | { ok: true; maxParallel: number }
   | { ok: false; reason: 'invalid' };
 
+type WavesPerSessionResult =
+  | { ok: true; cap: number }
+  | { ok: false; reason: 'invalid' };
+
 // 모델 slug별 100만 토큰당 단가. 계측 비용 계산의 유일한 입력이다.
 type MetricsPricing = Record<string, { input_per_mtok: number; output_per_mtok: number }>;
 type MetricsPricingResult =
@@ -29,6 +33,11 @@ type MetricsPricingResult =
 // prepare·readyWave가 공유하는 동시 실행 기본값. config 파일·coordinator 키
 // 부재와 같은 답을 내야 모든 호출처가 같은 폭으로 열린다.
 const DEFAULT_MAX_PARALLEL = 2;
+
+// `waves_per_session`의 "auto"·부재 상한과 설정 가능한 최댓값. 세션이 길수록 compaction
+// 위험이 커지므로 상한을 8로 닫고, auto는 그 절반인 4에서 끊는다.
+const AUTO_WAVES_PER_SESSION = 4;
+const MAX_WAVES_PER_SESSION = 8;
 
 // 검증 실행은 shell:false argv만 허용한다. argv0 실행 파일명이 이 목록(또는
 // 저장소 `verify_allowlist`)에 있어야 프로세스를 시작한다. 커스텀 바이너리는
@@ -181,6 +190,42 @@ function readCoordinatorPolicy(repoRoot: string): CoordinatorPolicy {
 }
 
 /**
+ * `coordinator.waves_per_session`을 읽어 한 coordinator 세션이 처리할 wave 수 상한을
+ * 돌려준다. `"auto"`와 부재는 기본 상한(4)이고 정수 1–8은 그대로 쓴다. 그 밖의 값과
+ * 깨진 config는 invalid — prepare는 worktree를 만들기 전에 거절하고, 읽기 전용 소비자
+ * (`coordinate next`)는 상한 1로 접어 잘못된 설정이 세션을 늘리지 못하게 한다.
+ * `max_parallel`과 달리 파일 부재만 기본값이고, 깨진 파일은 상한을 넓히지 않는다.
+ *
+ * @param {string} repoRoot - 정책을 읽을 checkout 루트(보통 integration)
+ * @returns {WavesPerSessionResult} 유효 상한 또는 invalid
+ */
+function readWavesPerSession(repoRoot: string): WavesPerSessionResult {
+  const parsed = readConfigResult(repoRoot);
+  if (parsed.ok === false) {
+    return parsed.reason === 'missing'
+      ? { ok: true, cap: AUTO_WAVES_PER_SESSION }
+      : { ok: false, reason: 'invalid' };
+  }
+  if (!isRecord(parsed.value)
+    || !Object.prototype.hasOwnProperty.call(parsed.value, 'coordinator')) {
+    return { ok: true, cap: AUTO_WAVES_PER_SESSION };
+  }
+  const coordinator = parsed.value.coordinator;
+  if (!isRecord(coordinator)
+    || !Object.prototype.hasOwnProperty.call(coordinator, 'waves_per_session')) {
+    return { ok: true, cap: AUTO_WAVES_PER_SESSION };
+  }
+  const raw = coordinator.waves_per_session;
+  if (raw === 'auto') return { ok: true, cap: AUTO_WAVES_PER_SESSION };
+  // 정수만 허용한다. 문자열 "3"이나 null은 의도가 모호해 invalid로 돌린다.
+  if (typeof raw !== 'number' || !Number.isInteger(raw)
+    || raw < 1 || raw > MAX_WAVES_PER_SESSION) {
+    return { ok: false, reason: 'invalid' };
+  }
+  return { ok: true, cap: raw };
+}
+
+/**
  * `metrics.pricing`을 읽는다. 파일·`metrics`·`pricing` 키 부재는 빈 표(단가 없음)이고
  * 비용은 `no-pricing`으로 남는다. 항목이 객체가 아니거나 단가가 음이 아닌 유한 수가
  * 아니면, 일부만 믿어 비용을 틀리게 내는 것보다 표 전체를 invalid로 돌린다.
@@ -219,6 +264,7 @@ export = {
   readConfig,
   readVerifyPolicy,
   readCoordinatorPolicy,
+  readWavesPerSession,
   DEFAULT_VERIFY_ALLOWLIST,
   DEFAULT_MAX_PARALLEL,
   getVerifyAllowlist,

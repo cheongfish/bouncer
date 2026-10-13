@@ -146,7 +146,7 @@ function coordinateCli(cwd, command, extra, { fence = true } = {}) {
   try {
     const fenced = new Set([
       'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-      'repair', 'partial-close', 'critical-recovery', 'release', 'revoke',
+      'repair', 'partial-close', 'critical-recovery', 'release', 'revoke', 'session-open',
     ]);
     let args = [...extra];
     if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
@@ -498,12 +498,12 @@ test('coordinate release → is no longer a command', () => {
   const drive = preparedDrive();   // 기존 :472 테스트의 fixture
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 2);
-  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, or promote-stop/);
+  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, promote-stop, or session-open/);
   const help = capture(); runCli(['help'], help.io);
   assert.doesNotMatch(help.buf.out, /coordinate release/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, or promote-stop/);
+  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, promote-stop, or session-open/);
 });
 
 
@@ -990,4 +990,77 @@ test('dispatch report_path and status report projection → match the --write-in
   const text = fs.readFileSync(out.input_file, 'utf8');
   const inputCheckpoint = JSON.parse(text.match(/^checkpoint: (\{.*\})$/m)[1]);
   assert.deepStrictEqual(inputCheckpoint.active_tasks[0].report, expected);
+});
+
+// ---- coordinate session-open (BP 098/002) --------------------------------------------
+
+function ledgerOf(drive) {
+  return path.join(drive.integration, '.bouncer/runtime/coordinator.json');
+}
+
+function mutateLedger(drive, edit) {
+  const file = ledgerOf(drive);
+  const ledger = JSON.parse(fs.readFileSync(file, 'utf8'));
+  edit(ledger);
+  fs.writeFileSync(file, `${JSON.stringify(ledger, null, 2)}\n`);
+}
+
+test('coordinate session-open with a current fence → appends a session decision and prints the next checkpoint', () => {
+  const drive = preparedDrive();
+  const before = JSON.parse(fs.readFileSync(ledgerOf(drive), 'utf8')).decisions.length;
+  const r = coordinateCli(drive.integration, 'session-open', ['--repo', drive.repo]);
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const out = JSON.parse(r.buf.out);
+  assert.strictEqual(out.ok, true);
+  assert.ok(out.checkpoint, 'a new checkpoint is returned');
+  const decisions = JSON.parse(fs.readFileSync(ledgerOf(drive), 'utf8')).decisions;
+  assert.strictEqual(decisions.length, before + 1);
+  const last = decisions[decisions.length - 1];
+  assert.strictEqual(last.kind, 'session');
+  assert.strictEqual(last.waves_cap, 4);
+  assert.strictEqual(typeof last.opened_at, 'string');
+  assert.strictEqual(last.integration_head.length, 40);
+});
+
+test('coordinate session-open with a stale --ledger-hash → refuses with stale-ledger-checkpoint and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'session-open', [
+    '--repo', drive.repo, '--ledger-path', '.bouncer/runtime/coordinator.json',
+    '--ledger-hash', 'f'.repeat(64),
+  ], { fence: false });
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  assert.strictEqual(JSON.parse(r.buf.out).reason, 'stale-ledger-checkpoint');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate session-open on a light, promotion_stopped or partial_closed ledger → refuses and keeps the ledger bytes', () => {
+  const cases = [
+    ['ledger-mode-mismatch', (ledger) => { ledger.mode = 'light'; }],
+    ['promotion-stopped', (ledger) => { ledger.status = 'promotion_stopped'; }],
+    ['ledger-not-active', (ledger) => { ledger.status = 'partial_closed'; }],
+    ['ledger-not-active', (ledger) => { ledger.status = 'awaiting_confirmation'; }],
+  ];
+  for (const [reason, edit] of cases) {
+    const drive = preparedDrive();
+    mutateLedger(drive, edit);
+    const before = fs.readFileSync(ledgerOf(drive));
+    const r = coordinateCli(drive.integration, 'session-open', ['--repo', drive.repo]);
+    assert.strictEqual(r.code, 1, `${reason}: ${r.buf.err}${r.buf.out}`);
+    assert.strictEqual(JSON.parse(r.buf.out).reason, reason);
+    assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before, reason);
+  }
+});
+
+test('coordinate session-open without --blueprint → is usage exit 2 naming session-open', () => {
+  const { io, buf } = capture();
+  assert.strictEqual(runCli(['coordinate', 'session-open'], io), 2);
+  assert.match(buf.err, /--blueprint is required/);
+  assert.match(buf.err, /usage: bouncer coordinate session-open/);
+});
+
+test('coordinate usage → lists session-open', () => {
+  const { io, buf } = capture();
+  runCli(['help'], io);
+  assert.match(buf.out, /coordinate session-open --blueprint <dir>/);
 });

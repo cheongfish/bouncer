@@ -27,7 +27,7 @@ const { scanLegacyScaffoldComments } = legacyComments;
 import validateSections = require('./validate-sections');
 const { pathsOverlap, parseSections } = validateSections;
 import configMod = require('./config');
-const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = configMod;
+const { readCoordinatorPolicy, readWavesPerSession, DEFAULT_MAX_PARALLEL } = configMod;
 import taskBriefHashMod = require('./task-brief-hash');
 const { taskBriefHash } = taskBriefHashMod;
 import scopeMod = require('./scope');
@@ -46,7 +46,7 @@ const LEDGER_REL = COORDINATOR_LEDGER_REL;
  */
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop',
+  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
@@ -149,6 +149,11 @@ type CriticalRecoveryDecision = {
 };
 type FaninDecision = {
   kind: 'fanin'; tasks: string[]; base_head: string; candidate_head: string; evidence_id: string | null;
+};
+// root가 coordinator 세션을 열기 직전 `coordinate session-open`이 남기는 경계 표지다.
+// `coordinate next`가 이 표지 뒤의 `fanin` 수로 세션 wave 수를 센다. 예외가 아니다.
+type SessionDecision = {
+  kind: 'session'; opened_at: string; integration_head: string; waves_cap: number;
 };
 type FaninVerificationFailedDecision = {
   kind: 'fanin-verification-failed'; tasks: string[];
@@ -1909,6 +1914,10 @@ function prepareCoordinator({
     // 한도로 worker가 생기지 않게 한다. status 등 읽기 경로는 1로 폴백한다.
     const policy = readCoordinatorPolicy(integration.integrationPath);
     if (!policy.ok) return { ok: false as const, reason: 'coordinator-config-invalid' };
+    // waves_per_session도 같은 이유로 worktree 생성 전에 거절한다. 읽기 경로(next)는 1로 접는다.
+    if (!readWavesPerSession(integration.integrationPath).ok) {
+      return { ok: false as const, reason: 'coordinator-config-invalid' };
+    }
     const ready = readyWave(ledger.tasks, { maxParallel: policy.maxParallel });
     // 판정 단계의 사전 검사. worker seed 출처는 integration의 blueprint 트리뿐이므로,
     // 그것이 없으면 worktree를 하나도 만들기 전에 멈춰야 ledger와 Git 등록이 갈라지지 않는다.
@@ -3356,6 +3365,33 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       return { ok: false, reason: 'promotion-stopped' };
     }
 
+    // 세션 경계 표지를 덧붙인다. 다른 fenced mutation과 같이 fence·잠금 안에서 쓰고 새
+    // checkpoint를 돌려줘 root가 곧바로 `coordinate next`를 이어 부를 수 있게 한다.
+    if (command === 'session-open') {
+      ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      // light 원장은 wave·fanin이 없어 세션 경계가 의미 없다. 거절 코드는 기존 것을 쓴다.
+      if (ledgerModeOf(ledger) !== 'full') return { ok: false, reason: 'ledger-mode-mismatch' };
+      // promotion_stopped는 위에서 이미 거절됐다. 남은 비활성 상태(부분 종료·사용자 확인 대기)에서
+      // 새 세션을 열면 닫힌 drive를 되살리는 것처럼 보이므로 원장을 바꾸지 않고 막는다.
+      if (ledger.status !== undefined && ledger.status !== 'active') {
+        return { ok: false, reason: 'ledger-not-active' };
+      }
+      // 설정이 invalid여도 여기서 거절하지 않는다(거절은 prepare 몫). next가 같은 값을 1로
+      // 접으므로 표지에도 1을 남겨 기록과 판정이 어긋나지 않게 한다.
+      const wavesPolicy = readWavesPerSession(integration.integrationPath);
+      const session: SessionDecision = {
+        kind: 'session',
+        opened_at: new Date().toISOString(),
+        integration_head: git(exec, integration.integrationPath, ['rev-parse', 'HEAD']),
+        waves_cap: wavesPolicy.ok ? wavesPolicy.cap : 1,
+      };
+      ledger.decisions.push(session);
+      { const lost = commitWrite(); if (lost) return lost; }
+      return withCheckpoint({
+        ok: true as const, command, decision: session,
+      }, ledger, integration.ledgerFile);
+    }
+
     if (command === 'critical-recovery') {
       ensureIntegrationCwd(repoRoot, blueprint, cwd);
       const checked = runtime.validateCoordinatorLedger(ledger);
@@ -3953,6 +3989,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'ledger-mode-mismatch': {
     cause: 'The existing ledger mode does not match the blueprint scale for this bootstrap.',
     next: 'Use a matching scale (light ledger with scale light, full with non-light), or start a new blueprint drive.',
+  },
+  'ledger-not-active': {
+    cause: 'The ledger is partial_closed or awaiting_confirmation, so a new coordinator session cannot open.',
+    next: 'Report the ledger status to the user; do not retry `bouncer coordinate session-open` on this blueprint.',
   },
   'light-requires-single-task': {
     cause: 'Scale light requires exactly one commit task with an empty depends_on and no verification task.',
