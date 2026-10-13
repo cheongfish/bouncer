@@ -45,6 +45,8 @@ type DigestFail = {
   failures?: { code: string; message: string; file: string }[];
 };
 
+type WorkerNotes = { open_choices: string[]; known_weaknesses: string[] };
+
 type Finding = { id: string; severity: string; status: string; note?: string };
 
 type TaskDigest = {
@@ -68,6 +70,8 @@ type TaskDigest = {
   } | null;
   review: { required: boolean; findings: Finding[] } | null;
   constraints: string | null;
+  // full 원장에서 task의 마지막 accepted 보고가 남긴 값. 없으면 키 자체가 없다.
+  worker_notes?: WorkerNotes;
 };
 
 type DiffSummary = {
@@ -509,6 +513,37 @@ function pathOutsideScope(changedPath: string, scopes: string[][]): boolean {
 }
 
 /**
+ * 원장에서 task별 마지막 accepted 보고의 열린 선택·알려진 약점을 모은다. digest가
+ * 원장 값을 싣는 유일한 경로이며 summary·dispatch 등 다른 필드는 읽지 않는다.
+ * 순수 함수이며 throw하지 않는다 — 원장 모양이 틀리거나 light(보고 파일 없음)면
+ * 빈 Map이다. 두 배열이 모두 비면 항목을 만들지 않는다. 문자열이 아닌 항목은 버린다.
+ *
+ * @param {unknown} ledger - 읽힌 원장 객체. 원장이 없으면 null
+ * @returns {Map<string, WorkerNotes>} 키는 `TASKS-NNN`(TaskDigest.id 형식)
+ */
+function collectWorkerNotes(ledger: unknown): Map<string, WorkerNotes> {
+  const notes = new Map<string, WorkerNotes>();
+  const root = asRecord(ledger);
+  if (root.mode === 'light' || !Array.isArray(root.decisions)) return notes;
+  // 원장 순서가 시간순이므로 같은 task의 뒤 보고가 앞 보고를 덮어쓴다.
+  const latest = new Map<string, Record<string, unknown>>();
+  for (const raw of root.decisions) {
+    const decision = asRecord(raw);
+    if (decision.kind !== 'report' || decision.outcome !== 'accepted') continue;
+    if (typeof decision.task !== 'string' || !decision.task) continue;
+    latest.set(decision.task.startsWith('TASKS-') ? decision.task : `TASKS-${decision.task}`, decision);
+  }
+  for (const [id, decision] of latest) {
+    const open_choices = stringList(decision.open_choices);
+    const known_weaknesses = stringList(decision.known_weaknesses);
+    if (open_choices.length || known_weaknesses.length) {
+      notes.set(id, { open_choices, known_weaknesses });
+    }
+  }
+  return notes;
+}
+
+/**
  * coordinator 원장을 외부 소비자가 원장 파일을 직접 읽지 않아도 되는 drive 요약으로
  * 줄인다. 순수 함수이며 throw하지 않는다 — 형식이 깨진 원장은 값으로 표현한다.
  * `ready`는 "task가 하나 이상이고 전부 integrated"일 때만 true다. id가 문자열이
@@ -699,6 +734,7 @@ function prepareFinalizeDigest({
     kind: 'commit' | 'verification' | null;
   };
   const built: BuiltTask[] = [];
+  const workerNotes = collectWorkerNotes(ledger);
   const stableIds: string[] = [];
 
   for (const entry of listing.entries) {
@@ -768,6 +804,7 @@ function prepareFinalizeDigest({
         verification,
         review,
         constraints,
+        ...(workerNotes.has(id) ? { worker_notes: workerNotes.get(id) } : {}),
       },
     });
   }

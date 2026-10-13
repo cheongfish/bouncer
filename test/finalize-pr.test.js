@@ -784,3 +784,24 @@ test('identical command result lines → buildPrDraft verification dedupes them'
     'npm run verify:strict — failed',
   ]);
 });
+
+test('tasks with worker_notes → review_points lists them after findings and before unverified', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [{
+      id: 'TASKS-001',
+      review: { required: true, findings: [{ id: 'F-1', status: 'accepted', note: 'finding note' }] },
+      worker_notes: { open_choices: ['a'], known_weaknesses: ['weak'] },
+    }],
+    out_of_scope: [],
+    unverified: [{ kind: 'terminal-missing' }],
+  };
+  const points = buildPrDraft(digest, { now: new Date('2026-09-24T01:00:00Z'), config: {} })
+    .sections.review_points;
+  assert.deepStrictEqual(points, [
+    'finding note', '구현 선택(TASKS-001): a', '알려진 약점(TASKS-001): weak', 'terminal-missing',
+  ]);
+});

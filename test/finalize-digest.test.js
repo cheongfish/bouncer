@@ -280,6 +280,63 @@ test('drive fixture with a trailer integration SHA and a worker commit_sha → p
   git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
 });
 
+// drive 원장을 쓰고 digest를 읽는다. extra로 mode·decisions를 바꿔 worker_notes 경로를 가른다.
+function prepareWithLedger(extra) {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
+  git(repoRoot, ['branch', 'feat/integ']);
+  git(repoRoot, ['worktree', 'add', paths.integrationPath, 'feat/integ']);
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1,
+    blueprint: blueprintDir,
+    base: git(repoRoot, ['rev-parse', 'HEAD~2']),
+    integrationHead: git(paths.integrationPath, ['rev-parse', 'HEAD']),
+    integrationBranch: 'feat/integ',
+    revision: 'r1',
+    tasks: [
+      { id: '001', status: 'integrated', sha: 'a'.repeat(40) },
+      { id: '002', status: 'integrated', sha: 'b'.repeat(40) },
+    ],
+    decisions: [],
+    ...extra,
+  }, null, 2)}\n`);
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  return d;
+}
+
+const report = (task, extra) => ({
+  task, kind: 'report', attempt: 1, task_brief_hash: 'h', outcome: 'accepted', summary: 's', ...extra,
+});
+
+test('full ledger with accepted reports → the last accepted report per task becomes worker_notes and review_points', () => {
+  const d = prepareWithLedger({ decisions: [
+    report('001', { open_choices: ['old'], known_weaknesses: ['old weak'] }),
+    report('001', { open_choices: ['a', 7], known_weaknesses: [] }),
+    report('002', { open_choices: [], known_weaknesses: [] }),
+  ] });
+  assert.deepStrictEqual(d.tasks[0].worker_notes, { open_choices: ['a'], known_weaknesses: [] });
+  // 두 배열이 모두 비면 키 자체가 없다.
+  assert.strictEqual('worker_notes' in d.tasks[1], false);
+  assert.ok(d.pr.sections.review_points.includes('구현 선택(TASKS-001): a'));
+  assert.ok(!d.pr.sections.review_points.some((p) => p.includes('old')));
+});
+
+test('no ledger, light ledger or no report → tasks omit worker_notes', () => {
+  const light = prepareWithLedger({
+    mode: 'light',
+    decisions: [report('001', { open_choices: ['a'], known_weaknesses: ['w'] })],
+  });
+  assert.strictEqual('worker_notes' in light.tasks[0], false);
+  const none = prepareWithLedger({});
+  assert.strictEqual('worker_notes' in none.tasks[0], false);
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const standalone = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual('worker_notes' in standalone.tasks[0], false);
+});
+
 test('a base that cannot be resolved → prepareFinalizeDigest returns no-base', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   // pointer·원장 base가 없으면 resolveDigestBase가 null → no-base.

@@ -32,7 +32,9 @@ status published. Not a workflow entry point.
      Do not write drive execution records (task split, worker branch, or run
      chronology).
    - `## Intuition` — one-line picture / analogy
-   - `## Code` — key paths and files to read (no long dumps)
+   - `## Code` — key paths and files to read (no long dumps). Digest
+     `tasks[].worker_notes` is not a drive execution record; explain it here as
+     a design choice or limit of that behavior.
    - `## Quiz` — questions and three answer options each (no correct
      answers, no user responses)
    Then apply `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) before the
