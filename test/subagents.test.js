@@ -402,6 +402,19 @@ test('coordinator dispatch → shares the model contract and keeps its full fall
   assert.match(coordinatorClause, /never a shortened\s+brief/i);
 });
 
+// Codex는 전체 대화를 잇는 fork에 model 지정을 받지 않는다. 1번 항목이 slug를
+// 넘길 때 fork_turns "none"을 함께 지정하라고 말하지 않으면, 공통 규칙만 따르는
+// run·execute 호출에서 config의 역할별 모델이 적용되지 않고 부모 모델로 돈다.
+test('Codex slug dispatch → item 1 requires fork_turns "none" with the model', () => {
+  const contract = fs.readFileSync(
+    path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',
+  );
+  const item1 = contract.match(/\n1\. Resolve[\s\S]*?(?=\n2\. )/)?.[0] || '';
+  assert.match(item1, /Codex/);
+  assert.match(item1, /`fork_turns: "none"`/);
+  assert.match(item1, /slug/);
+});
+
 // fallback payload는 dispatcher 지시문이 소유한다. 역할 문서 안에 "fallback으로
 // 온전히 전달된다"고 적어 봐야 dispatcher가 그 문서를 보내지 않으면 읽히지
 // 않는다. 그래서 실제로 실행되는 다섯 fallback 문단이 역할 문서 본문 전체와
