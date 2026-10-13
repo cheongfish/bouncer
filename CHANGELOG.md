@@ -9,6 +9,12 @@
 
 ### Changed
 
+- **직렬 드라이브 세션 연속과 DAG 모양 판단 (EPIC 098 BP 002)** — 직렬·무예외 wave는
+  `coordinator.waves_per_session`(기본 `auto`, 상한 4) 안에서 같은 coordinator 세션으로 이어지고,
+  `coordinate next`·`advance`가 `yield`로 세션 경계를 알린다. `bouncer run preflight`가 `shape`와
+  `direct_eligible`을 내고 plan gate가 DAG 모양 경고를 표시하며, 짧은 직렬 체인은 시작 ACQ에서
+  root 직접 실행(`coordinator.direct_max_commit_tasks`)을 고를 수 있다. `benchmarks/drive-serial-4/`에
+  세 방식을 비교할 측정 fixture와 `미측정` 결과 기록을 추가했다.
 - **미해결 must_fix context review 사이클 닫기와 accepted-risk 허용 (EPIC 063 BP 004)** —
   `bouncer context-review close`로 마지막 round 뒤 남은 finding 처분을 사용자 동의(`--accept-risk`·note)와 함께
   기록해 cycle을 닫는다. 닫힌 cycle은 restart할 수 있고, projection에 `accepted_risk: true`를 남겨 G18에서

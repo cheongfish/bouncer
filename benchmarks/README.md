@@ -27,10 +27,17 @@ benchmarks/
   upstream/README.md
   upstream/fastify-001.json
   build-upstream-task.cjs
+  drive-serial-4/README.md
+  drive-serial-4/setup.cjs
+  drive-serial-4/setup.test.cjs
+  drive-serial-4/results.md
 ```
 
 공개 저장소의 실제 커밋을 과제로 쓰는 상류 과제(`fastify-001` 등)는 [`upstream/README.md`](upstream/README.md)에
 만드는 법과 채점 방식을 적었다.
+
+직렬 4-task 계획을 baseline·다중 wave·직접 실행으로 비교하는 측정 fixture와 결과 기록은
+[`drive-serial-4/README.md`](drive-serial-4/README.md)에 있다.
 
 ## 과제 카드 계약
 
