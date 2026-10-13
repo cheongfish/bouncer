@@ -2559,7 +2559,8 @@ test('verification integrate before runVerification → prepares integration dep
   assert.deepStrictEqual(npmCalls, [{
     command: 'npm',
     args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
-    options: { cwd: boot.integrationPath, stdio: 'inherit' },
+    // coordinator는 npm 출력을 stderr로 보낸다(CLI stdout JSON 보호).
+    options: { cwd: boot.integrationPath, stdio: ['ignore', 2, 2] },
   }]);
   // 설치 성공 뒤 lockfile sha256 stamp가 남아야 다음 호출이 재설치를 건너뛴다.
   assert.strictEqual(
@@ -3556,4 +3557,112 @@ test('dispatch issuing report_path → status projects report present/absent wit
   assert.strictEqual(path.basename(second.report_path), '001-2.md');
   assert.deepStrictEqual(statusOf().checkpoint.active_tasks[0].report,
     { path: second.report_path, attempt: 2, state: 'absent' });
+});
+
+// --- coordinator 의존성 설치 stdio (CLI stdout 오염 방지) -----------------------
+// advance는 자식 CLI stdout 전체를 JSON 한 개로 파싱하므로 npm 출력이 stdout으로 새면
+// unclear-result가 반복된다. 네 호출 지점 모두 npm을 stderr로 보내는지 고정한다.
+
+/**
+ * npm 호출만 가로채 options를 기록하고 나머지는 실제 execFileSync로 넘기는 fake를 만든다.
+ *
+ * @returns {{ exec: Function, npmCalls: Array<{ options: object }> }} 주입용 exec와 기록
+ */
+function npmRecordingExec() {
+  const npmCalls = [];
+  return {
+    npmCalls,
+    exec(command, args, options) {
+      if (command === 'npm') {
+        npmCalls.push({ options });
+        return Buffer.from('');
+      }
+      return execFileSync(command, args, options);
+    },
+  };
+}
+
+test('prepare seeding a worker with a lockfile → runs npm with stdio sent to stderr', () => {
+  const blueprint = '.bouncer/context/epics/098-stdio/blueprints/001-worker';
+  const repo = uncommittedPlanRepo('bouncer-install-stdio-worker-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const rec = npmRecordingExec();
+  const result = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { execFileSync: rec.exec },
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.ok(rec.npmCalls.length >= 1);
+  for (const call of rec.npmCalls) assert.deepStrictEqual(call.options.stdio, ['ignore', 2, 2]);
+});
+
+test('verification integrate with a lockfile → runs npm with stdio sent to stderr', () => {
+  const blueprint = '.bouncer/context/epics/098-stdio/blueprints/002-verify';
+  const repo = uncommittedPlanRepo('bouncer-install-stdio-verify-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  // integration 작업 트리의 lockfile만 있으면 prepareDependencies가 npm ci를 탄다.
+  fs.writeFileSync(path.join(boot.integrationPath, 'package-lock.json'), '{}\n');
+  const rec = npmRecordingExec();
+  const passed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      execFileSync: rec.exec,
+      runVerification: () => ({ ok: true, command: 'node --test', exitCode: 0, evidenceId: 'ev-1' }),
+    },
+  });
+  assert.strictEqual(passed.ok, true, JSON.stringify(passed));
+  assert.strictEqual(rec.npmCalls.length, 1);
+  assert.deepStrictEqual(rec.npmCalls[0].options.stdio, ['ignore', 2, 2]);
+});
+
+test('wave integrate seeding the fan-in candidate with a lockfile → runs npm with stdio sent to stderr', () => {
+  const blueprint = '.bouncer/context/epics/098-stdio/blueprints/003-fanin';
+  const drive = twoRecordedWave('bouncer-install-stdio-fanin-', blueprint);
+  commitIntegrationPackageLock(drive.integrationPath);
+  // lockfile 커밋으로 integration HEAD가 움직였으므로 원장 head를 맞춰 stale 판정을 피한다.
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.integrationHead = drive.head();
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const rec = npmRecordingExec();
+  const out = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { execFileSync: rec.exec, runVerification: passVerify },
+  });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  // fan-in candidate seed가 npm을 부른다(integration은 prepare 단계에서 이미 stamp가 있을 수 있다).
+  assert.ok(rec.npmCalls.length >= 1, `npm count ${rec.npmCalls.length}`);
+  for (const call of rec.npmCalls) assert.deepStrictEqual(call.options.stdio, ['ignore', 2, 2]);
+});
+
+test('supplement repair with a lockfile → runs npm with stdio sent to stderr', () => {
+  const drive = supplementDrive('bouncer-install-stdio-supp-', '.bouncer/context/epics/098-stdio/blueprints/004-supp');
+  assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
+  fs.mkdirSync(path.join(drive.integrationPath, 'test'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'test/a.test.js'), '// supplement\n');
+  // lockfile은 보완 범위 밖 변경으로 잡히지 않도록 저장소 공용 exclude에 둔다.
+  fs.appendFileSync(path.join(drive.repo, '.git/info/exclude'), 'package-lock.json\n');
+  fs.writeFileSync(path.join(drive.integrationPath, 'package-lock.json'), '{}\n');
+  const rec = npmRecordingExec();
+  const out = coordinate(supplementOpts(drive, {
+    done: true, reviewFindings: undefined, summary: 'tests added',
+    deps: {
+      execFileSync: rec.exec,
+      runVerification: () => ({ ok: true, command: 'node --test', exitCode: 0, evidenceId: 'b'.repeat(64) }),
+    },
+  }));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(rec.npmCalls.length, 1);
+  assert.deepStrictEqual(rec.npmCalls[0].options.stdio, ['ignore', 2, 2]);
 });

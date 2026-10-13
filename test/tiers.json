@@ -62,6 +62,7 @@
     "commit-hook.test.js",
     "commit-task.test.js",
     "context-comments.test.js",
+    "coordinate-advance-launcher.test.js",
     "coordinate-next.test.js",
     "coordinator-e2e.test.js",
     "coordinator.test.js",

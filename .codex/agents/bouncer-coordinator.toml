@@ -168,6 +168,9 @@ is not a prompt to invent a new hash. When the stop is `blocked`, take its
 `reason`, `cause`, and `next` as Judge inputs; do not repeat the same `argv`
 without a judgment. Check a command's flags, allowed values, and input format
 with `bouncer <command> <sub> --help`; do not read plugin sources for them.
+When `advance` returns `unclear-result`, re-read state with `coordinate next` or
+`coordinate status` and run only the action that result names. Do not re-run the
+same mutation argv right away.
 
 1. **Advance** — Call `bouncer coordinate advance --blueprint <dir>` (or with
    `--task <NNN>` when driving one prepared task). The stop's `next` is the

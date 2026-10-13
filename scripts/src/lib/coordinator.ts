@@ -154,6 +154,21 @@ type FaninVerificationFailedDecision = {
 type Exec = (file: string, args?: readonly string[], options?: {
   cwd?: unknown; encoding?: unknown; stdio?: unknown;
 }) => string | Buffer;
+/**
+ * npm ci 출력이 CLI stdout에 섞이지 않도록 exec의 stdio를 고정한 wrapper를 만든다.
+ * `bouncer coordinate advance`는 자식 CLI의 stdout 전체를 JSON 한 개로 파싱하므로
+ * 손자 프로세스(npm)의 `inherit` 출력이 섞이면 unclear-result가 반복된다. 출력을
+ * 버리지 않고 stderr(fd 2)로 보내 사용자가 설치 진행을 계속 볼 수 있게 한다.
+ * prepareDependencies/seedCoordinatorWorker는 이 exec를 npm 호출에만 쓰므로
+ * stdio 덮어쓰기가 다른 캡처 호출을 깨지 않는다.
+ *
+ * @param {Exec} exec - 감쌀 execFileSync 호환 함수
+ * @returns {Exec} options.stdio를 ['ignore', 2, 2]로 덮어 exec를 호출하는 함수
+ */
+function withInstallStdioToStderr(exec: Exec): Exec {
+  return (file, args, options) => exec(file, args, { ...options, stdio: ['ignore', 2, 2] });
+}
+
 type VerificationRunner = (opts: {
   repoRoot: string;
   blueprintDir: string;
@@ -894,7 +909,7 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
 
   // 잠금 밖: 의존성 준비 후 verify 실행. integration checkout은 추적 파일만 받아
   // node_modules가 비어 있을 수 있다.
-  const prepared = prepareDependencies(integrationPath, { execFileSync: exec });
+  const prepared = prepareDependencies(integrationPath, { execFileSync: withInstallStdioToStderr(exec) });
   if (!prepared.ok) return { ok: false, reason: 'dependency-install-failed', message: prepared.message };
   const runner = deps.runVerification
     || (require('./verification').runVerification as VerificationRunner);
@@ -1911,7 +1926,7 @@ function prepareCoordinator({
         // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
         const seeded = seedCoordinatorWorker({
           repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
-          deps: { execFileSync: exec },
+          deps: { execFileSync: withInstallStdioToStderr(exec) },
         });
         if (!seeded.ok) {
           cleanupCreatedWorkersUnderNewLock(
@@ -2119,7 +2134,7 @@ function integrateVerificationTask({
   // seedCoordinatorWorker는 candidate에 npm ci를 하지만 integration worktree는
   // git이 추적한 파일만 받아 node_modules가 비어 있다. 잠금을 잡은 채 설치하면
   // 원장이 오래 막히므로, 이미 푼 검증 phase에서만 같은 계약을 적용한다.
-  const prepared = prepareDependencies(integration.integrationPath, { execFileSync: exec });
+  const prepared = prepareDependencies(integration.integrationPath, { execFileSync: withInstallStdioToStderr(exec) });
   if (!prepared.ok) {
     return { ok: false, reason: 'dependency-install-failed', message: prepared.message };
   }
@@ -2596,6 +2611,8 @@ function integrateCommitWave({
 
   const seeded = seedCoordinatorWorker({
     repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: faninPath,
+    // fan-in seed도 같은 stdio 고정 wrapper를 받아야 npm 출력이 CLI stdout을 오염시키지 않는다.
+    deps: { execFileSync: withInstallStdioToStderr(exec) },
   });
   if (!seeded.ok) {
     removeFaninWorktree(exec, repoRoot, faninPath);
