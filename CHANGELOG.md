@@ -9,6 +9,26 @@
 
 ### Changed
 
+- **coordinator 설치 출력 분리 (EPIC 098 BP 001)** — coordinator 자동 action의 의존성 설치가
+  npm 출력을 stderr로 보내 advance 자식 stdout이 단일 JSON 객체로 유지된다. 결과가 불명확하면
+  상태를 확인하기 전에 같은 mutation을 다시 실행하지 않는다.
+- **오래된 빌드 산출물 차단 (EPIC 098 BP 001)** — 빌드가 소스 트리 해시 stamp를 쓰고 launcher가
+  실행 전에 비교해 불일치를 `stale-build`로 거절한다. 소스가 없는 배포본은 검사를 건너뛴다.
+- **worker 커밋 출처 기록 (EPIC 098 BP 001)** — fan-in이 cherry-pick한 integration 커밋에
+  `Bouncer-Worker-Commit` trailer를 남기고, finalize digest의 task commit이 `worker_sha`를
+  노출해 두 SHA의 대응을 확인할 수 있다.
+- **드라이브 세션·계획 리뷰 계측 (EPIC 098 BP 001)** — `bouncer metrics start|end|summary`가
+  coordinator 세션과 plan context-review 호출의 시작·종료, 원장 진행 차이, 호스트가 준 토큰·시간을
+  main worktree의 `.bouncer/runtime/drive-metrics.json`에 기록한다. 얻지 못한 값은 `null`과 사유로
+  남기고 합계는 이를 0으로 세지 않는다. 비용은 `metrics.pricing`이 있을 때만 계산하며,
+  `coordinate status` checkpoint가 같은 blueprint의 `sessions[]`를 노출한다.
+- **보고 출처 검사와 열린 선택 기록 (EPIC 098 BP 001)** — full 드라이브의 `coordinate report`가
+  보고 파일의 Brief revision 누락·충돌을 거절하고, Open choices와 Known weaknesses를 원장에 저장한다.
+- **finalize의 worker 노트 노출 (EPIC 098 BP 001)** — finalize digest의 task 항목에 `worker_notes`를
+  싣고 PR 리뷰 포인트에 반영한다. explain은 열린 선택을 코드 동작 설명으로 다룬다.
+- **integrate 직접 수정 거절 (EPIC 098 BP 001)** — seed·evidence 밖의 미커밋 변경이 있으면
+  `integration-source-mutated`로 거절하고 보고 경로 불일치를 경고한다. coordinator 역할 문서에
+  CI 복구 경로와 Contract 대조 항목을 추가했다.
 - **Intent 코드 펜스 가드 (EPIC 097 BP 001)** — `## Intent` 아래 mermaid·코드 펜스는
   문장 집계에서 건너뛰고, 깨진 Intent는 plan·finalize gate와 `finalize prepare`가
   `S33`(`blueprint Intent invalid: …`)으로 거절한다. draft와 Intent 헤딩 부재는

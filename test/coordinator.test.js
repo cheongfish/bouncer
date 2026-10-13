@@ -1940,6 +1940,33 @@ function checkpointFixture() {
   return { repo, blueprint, integration: boot.integrationPath, ledgerFile, sha };
 }
 
+test('status checkpoint → drive-metrics.json의 같은 blueprint coordinator 세션만 sessions로 노출한다', () => {
+  const drive = checkpointFixture();
+  const status = () => coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+  }).checkpoint.sessions;
+  // 파일이 없으면 빈 배열이다.
+  assert.deepStrictEqual(status(), []);
+  const session = (id, blueprint, kind) => ({
+    id, kind, blueprint, label: null, started_at: '2026-01-01T00:00:00.000Z', ended_at: null,
+    start: null, tasks_completed: ['001'], exception_decisions: 0, tokens: 10,
+  });
+  const file = path.join(drive.repo, '.bouncer', 'runtime', 'drive-metrics.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({
+    version: 1,
+    sessions: [
+      session('m-1111111111111111', drive.blueprint, 'coordinator-session'),
+      session('m-2222222222222222', drive.blueprint, 'coordinator-session'),
+      session('m-3333333333333333', '.bouncer/context/epics/098-z/blueprints/009-z', 'coordinator-session'),
+      session('m-4444444444444444', drive.blueprint, 'context-review'),
+    ],
+  }));
+  const sessions = status();
+  assert.strictEqual(sessions.length, 2);
+  assert.deepStrictEqual(sessions.map((s) => s.id), ['m-1111111111111111', 'm-2222222222222222']);
+});
+
 test('status checkpoint with completed tasks → summarizes them without dispatch or decision bodies', () => {
   const drive = checkpointFixture();
   const status = coordinate({

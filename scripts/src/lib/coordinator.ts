@@ -33,6 +33,7 @@ const { taskBriefHash } = taskBriefHashMod;
 import scopeMod = require('./scope');
 const { withLedgerLock } = scopeMod;
 import leaseMod = require('./lease');
+import driveMetrics = require('./drive-metrics');
 const { issueLease, revokeLease, checkLease } = leaseMod;
 const { randomUUID } = require('node:crypto');
 
@@ -336,6 +337,8 @@ type CoordinatorCheckpoint = {
   revision: string | null;
   ledger: LedgerRef;
   executor_observation: ExecutorObservation;
+  // status 응답에만 싣는다(mutation 응답은 생략). 계측 기록 요약이라 원장 판단에 쓰지 않는다.
+  sessions?: ReturnType<typeof driveMetrics.listCoordinatorSessions>;
 };
 
 /**
@@ -3237,10 +3240,18 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     const leaseShape = assertLeaseShape(loaded.ledger);
     if (!leaseShape.ok) return leaseShape;
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
+    // drive-metrics.json은 main worktree에 있다(integration이 아니다). 읽기 전용 관측이라
+    // 기록이 없거나 깨져도 status 판정에 영향을 주지 않는다.
+    const sessions = driveMetrics.listCoordinatorSessions({
+      file: driveMetrics.metricsFilePath(main.projectRoot as string), blueprint,
+    });
     return {
       ok: true as const,
       command,
-      checkpoint: projectCheckpoint(loaded.ledger, integration.ledgerFile, loaded.bytes),
+      checkpoint: {
+        ...projectCheckpoint(loaded.ledger, integration.ledgerFile, loaded.bytes),
+        sessions,
+      },
     };
   }
 

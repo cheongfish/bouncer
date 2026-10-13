@@ -20,6 +20,12 @@ type CoordinatorPolicy =
   | { ok: true; maxParallel: number }
   | { ok: false; reason: 'invalid' };
 
+// 모델 slug별 100만 토큰당 단가. 계측 비용 계산의 유일한 입력이다.
+type MetricsPricing = Record<string, { input_per_mtok: number; output_per_mtok: number }>;
+type MetricsPricingResult =
+  | { ok: true; pricing: MetricsPricing }
+  | { ok: false; reason: 'invalid' };
+
 // prepare·readyWave가 공유하는 동시 실행 기본값. config 파일·coordinator 키
 // 부재와 같은 답을 내야 모든 호출처가 같은 폭으로 열린다.
 const DEFAULT_MAX_PARALLEL = 2;
@@ -174,7 +180,41 @@ function readCoordinatorPolicy(repoRoot: string): CoordinatorPolicy {
   return { ok: true, maxParallel: raw };
 }
 
+/**
+ * `metrics.pricing`을 읽는다. 파일·`metrics`·`pricing` 키 부재는 빈 표(단가 없음)이고
+ * 비용은 `no-pricing`으로 남는다. 항목이 객체가 아니거나 단가가 음이 아닌 유한 수가
+ * 아니면, 일부만 믿어 비용을 틀리게 내는 것보다 표 전체를 invalid로 돌린다.
+ * 깨진 config 파일도 invalid다 — 단가를 알 수 없는 것을 "없음"으로 말하지 않는다.
+ *
+ * @param {string} repoRoot - 설정을 읽을 checkout 루트(보통 main worktree)
+ * @returns {MetricsPricingResult} 단가 표 또는 invalid
+ */
+function readMetricsPricing(repoRoot: string): MetricsPricingResult {
+  const parsed = readConfigResult(repoRoot);
+  if (parsed.ok === false) {
+    return parsed.reason === 'missing' ? { ok: true, pricing: {} } : { ok: false, reason: 'invalid' };
+  }
+  if (!isRecord(parsed.value) || !Object.prototype.hasOwnProperty.call(parsed.value, 'metrics')) {
+    return { ok: true, pricing: {} };
+  }
+  const metrics = parsed.value.metrics;
+  if (!isRecord(metrics)) return { ok: false, reason: 'invalid' };
+  if (!Object.prototype.hasOwnProperty.call(metrics, 'pricing')) return { ok: true, pricing: {} };
+  const raw = metrics.pricing;
+  if (!isRecord(raw)) return { ok: false, reason: 'invalid' };
+  const pricing: MetricsPricing = {};
+  for (const [model, entry] of Object.entries(raw)) {
+    const valid = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+    if (!isRecord(entry) || !valid(entry.input_per_mtok) || !valid(entry.output_per_mtok)) {
+      return { ok: false, reason: 'invalid' };
+    }
+    pricing[model] = { input_per_mtok: entry.input_per_mtok, output_per_mtok: entry.output_per_mtok };
+  }
+  return { ok: true, pricing };
+}
+
 export = {
+  readMetricsPricing,
   readConfigResult,
   readConfig,
   readVerifyPolicy,

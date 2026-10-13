@@ -54,6 +54,7 @@
     "cli-commit-guard.test.js",
     "cli-commit.test.js",
     "cli-coordinate.test.js",
+    "cli-metrics.test.js",
     "cli-current.test.js",
     "cli-init.test.js",
     "cli-project-commands.test.js",
