@@ -58,11 +58,28 @@ function loadLedger(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+/**
+ * `coordinate report`가 읽는 worker 보고 파일을 쓴다. full 모드 report 호출 전에 필요하다.
+ * `revision`·`open`·`weak`로 줄이나 섹션을 바꾸거나 null로 빼서 거절 경로를 만든다.
+ */
+function writeWorkerReport(worker, task, attempt, hash, {
+  revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
+  open = '- none', weak = '- none',
+} = {}) {
+  const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
+  fs.mkdirSync(dir, { recursive: true });
+  const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  if (open !== null) parts.push(`## Open choices\n${open}`);
+  if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
+  fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
+}
+
 function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
     attempt: dispatched.metadata.attempt,
@@ -566,6 +583,7 @@ test('task next에서 brief가 그대로인 scope_revision → revise', () => {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
@@ -586,6 +604,7 @@ test('task next에서 brief가 바뀐 scope_revision → dispatch', () => {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
@@ -608,6 +627,7 @@ test('task next에서 reported blocked → blocked', () => {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
@@ -625,6 +645,7 @@ test('task next에서 그 밖의 reported outcomes → re-dispatch', () => {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
@@ -838,6 +859,12 @@ function simulateWorker(drive, result) {
     commitInWorker(worker, `src/task-${task}.js`, `changed by ${task}\n`, `feat: ${task}`);
     return;
   }
+  if (result.action === 'report') {
+    // report argv가 활성 dispatch 값을 미리 채워 두므로 그 값으로 worker 보고 파일을 쓴다.
+    const flag = (name) => result.argv[result.argv.indexOf(name) + 1];
+    writeWorkerReport(worker, task, Number(flag('--attempt')), flag('--task-brief-hash'));
+    return;
+  }
   if (result.action === 'verify') {
     setDocStatus(worker, drive.blueprint, task, 'tasks.md', 'verified');
     setDocStatus(worker, drive.blueprint, task, 'verification.md', 'passed');
@@ -967,15 +994,38 @@ function assertJudgePayloadShape(out, { requireEvidence = false } = {}) {
   }
 }
 
+test('task next after dispatch → report evidence pointer targets .bouncer/runtime/reports/<task>-<attempt>.md', () => {
+  const blueprint = '.bouncer/context/epics/098-n/blueprints/001-ptr';
+  const drive = preparedCommitDrive('bouncer-next-ptr-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  const attempt = dispatched.metadata.attempt;
+  writeWorkerReport(drive.worker, '001', attempt, dispatched.metadata.task_brief_hash);
+  const reported = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'done',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  const r = nextOf(drive, { task: '001' });
+  const pointer = r.payload.evidence.find((item) => item.kind === 'report');
+  assert.ok(pointer, JSON.stringify(r.payload.evidence));
+  assert.strictEqual(
+    pointer.path,
+    path.join(drive.worker, '.bouncer', 'runtime', 'reports', `001-${attempt}.md`),
+  );
+});
+
 test('judge payload에서 accepted report 뒤 record → report keys와 evidence를 실음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/034-judge-rec';
   const drive = preparedCommitDrive('bouncer-next-judge-rec-', blueprint);
   acceptDispatchReport(drive.repo, blueprint, drive.worker, '001');
   const taskDir = path.join(drive.worker, blueprint, 'tasks', '001');
-  const reportPath = path.join(taskDir, 'report.md');
+  const reportPath = path.join(drive.worker, '.bouncer/runtime/reports/001-1.md');
   const verifyPath = path.join(taskDir, 'verification.md');
   const reviewPath = path.join(taskDir, 'review.md');
-  fs.writeFileSync(reportPath, 'worker report body\n');
+  fs.appendFileSync(reportPath, 'worker report body\n');
   fs.writeFileSync(verifyPath, '---\nbouncer:\n  id: VERIFY-001\n  status: passed\n---\n# Verification\n');
   fs.writeFileSync(reviewPath, '---\nbouncer:\n  id: REVIEW-001\n  status: accepted\n---\n# Review\n');
   const hashes = {
@@ -1006,6 +1056,7 @@ test('judge payload에서 rework 뒤 implement → previous_outcome 없이 repor
   const first = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
+  writeWorkerReport(drive.worker, '001', first.metadata.attempt, first.metadata.task_brief_hash);
   coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: first.metadata.attempt, taskBriefHash: first.metadata.task_brief_hash,

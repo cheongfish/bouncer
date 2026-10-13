@@ -82,6 +82,22 @@ function writeCoordinatorConfig(repoRoot, coordinator) {
 }
 
 /**
+ * `coordinate report`가 읽는 worker 보고 파일을 쓴다. full 모드 report 호출 전에 필요하다.
+ * `revision`·`open`·`weak`로 줄이나 섹션을 바꾸거나 null로 빼서 거절 경로를 만든다.
+ */
+function writeWorkerReport(worker, task, attempt, hash, {
+  revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
+  open = '- none', weak = '- none', pathAttempt = attempt,
+} = {}) {
+  const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
+  fs.mkdirSync(dir, { recursive: true });
+  const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  if (open !== null) parts.push(`## Open choices\n${open}`);
+  if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
+  fs.writeFileSync(path.join(dir, `${task}-${pathAttempt}.md`), `${parts.join('\n\n')}\n`);
+}
+
+/**
  * dispatch → accepted report. record 사전조건을 채운 뒤 호출부가 record를 이어서 부른다.
  */
 function acceptDispatchReport(repo, blueprint, worker, task = '001') {
@@ -89,6 +105,7 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
     command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
     attempt: dispatched.metadata.attempt,
@@ -1441,6 +1458,7 @@ test('duplicate dispatch and an accepted report → rejects the duplicate and en
   assert.strictEqual(dup.reason, 'dispatch-already-active');
 
   const hash = first.metadata.task_brief_hash;
+  writeWorkerReport(drive.worker, '001', 1, hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: 1, taskBriefHash: hash, outcome: 'accepted', summary: 'implementer done',
@@ -1480,6 +1498,8 @@ test('stale report → appends expected/received and keeps the active attempt op
     task_brief_hash: 'a'.repeat(64),
   };
   const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  // 파일 경로는 활성 dispatch attempt(1) 기준이고, 내용만 늦은 보고 값이다.
+  writeWorkerReport(drive.worker, '001', received.attempt, received.task_brief_hash, { pathAttempt: 1 });
   const stale = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: received.attempt, taskBriefHash: received.task_brief_hash,
@@ -1500,6 +1520,80 @@ test('stale report → appends expected/received and keeps the active attempt op
   assert.notStrictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
 });
 
+/**
+ * 새 full 드라이브에서 dispatch만 열고 report 호출 인자와 거절 전 ledger 바이트를 돌려준다.
+ */
+function openReportAttempt(prefix, blueprint) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const { attempt, task_brief_hash: hash } = dispatched.metadata;
+  const report = () => coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt, taskBriefHash: hash, outcome: 'accepted', summary: 'worker done',
+  });
+  return { drive, attempt, hash, report };
+}
+
+function assertRefusedWithoutWrite(drive, run, reason) {
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const refused = run();
+  assert.strictEqual(refused.ok, false, JSON.stringify(refused));
+  assert.strictEqual(refused.reason, reason);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+  const ledger = JSON.parse(before);
+  assert.strictEqual(ledger.tasks[0].dispatch.status, 'active');
+  return refused;
+}
+
+test('full report whose report file is absent → report-revision-missing without a ledger write', () => {
+  const { drive, report } = openReportAttempt('bouncer-report-nofile-', '.bouncer/context/epics/098-x/blueprints/001-y');
+  const refused = assertRefusedWithoutWrite(drive, report, 'report-revision-missing');
+  assert.ok(refused.report_path.endsWith('.bouncer/runtime/reports/001-1.md'));
+});
+
+test('full report whose file lacks the task_brief_hash line → report-revision-missing without a ledger write', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-nohash-', '.bouncer/context/epics/098-x/blueprints/002-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt, hash, { revision: `attempt: ${attempt}` });
+  assertRefusedWithoutWrite(drive, report, 'report-revision-missing');
+});
+
+test('full report whose file attempt differs from the argument → report-revision-conflict without a ledger write', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-conflict-', '.bouncer/context/epics/098-x/blueprints/003-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt + 1, hash, { pathAttempt: attempt });
+  const refused = assertRefusedWithoutWrite(drive, report, 'report-revision-conflict');
+  assert.deepStrictEqual(refused.file, { attempt: attempt + 1, task_brief_hash: hash });
+  assert.deepStrictEqual(refused.args, { attempt, task_brief_hash: hash });
+});
+
+test('full report whose file lacks Known weaknesses → report-section-missing without a ledger write', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-nosection-', '.bouncer/context/epics/098-x/blueprints/004-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt, hash, { weak: null });
+  const refused = assertRefusedWithoutWrite(drive, report, 'report-section-missing');
+  assert.deepStrictEqual(refused.missing, ['Known weaknesses']);
+});
+
+test('full report with a valid file → stores open_choices and known_weaknesses on the ReportDecision', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-items-', '.bouncer/context/epics/098-x/blueprints/005-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt, hash, {
+    open: '- 환경변수 값의 앞뒤 공백을 제거한다.', weak: '- none',
+  });
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.deepStrictEqual(reported.decision.open_choices, ['환경변수 값의 앞뒤 공백을 제거한다.']);
+  assert.deepStrictEqual(reported.decision.known_weaknesses, []);
+});
+
 test('record after brief bytes change following an accepted report → rejects', () => {
   const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
   const drive = preparedCommitDrive('bouncer-dispatch-stale-record-', blueprint);
@@ -1507,6 +1601,7 @@ test('record after brief bytes change following an accepted report → rejects',
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(drive.worker, '001', 1, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: 1, taskBriefHash: dispatched.metadata.task_brief_hash,
@@ -1581,6 +1676,7 @@ test('record with a non-accepted report → rejects without storing the worker S
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt,
@@ -1620,6 +1716,7 @@ test('report without an active dispatch attempt → is rejected', () => {
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const closed = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt,
@@ -1805,6 +1902,7 @@ test('pre-launch active and hash-only changes → executor_observation stays unk
   const first = coordinate({ command: 'status', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath });
   assert.strictEqual(first.checkpoint.active_tasks[0].dispatch.status, 'active');
   assert.deepStrictEqual(first.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+  writeWorkerReport(drive.worker, '001', 9, 'a'.repeat(64), { pathAttempt: 1 });
   const stale = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: 9, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'late report',
@@ -3121,6 +3219,26 @@ test('opposite-mode bootstrap resume → rejects with ledger-mode-mismatch', () 
   const resumed = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(resumed.ok, false, JSON.stringify(resumed));
   assert.strictEqual(resumed.reason, 'ledger-mode-mismatch');
+});
+
+test('light report without a report file → accepts inline and stores no open_choices', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/006-light';
+  const { repo } = lightScaleRepo('bouncer-light-nofile-', blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const cwd = boot.integrationPath;
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd, task: '001' });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const reported = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd, task: '001',
+    attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'rework', summary: 'inline light report',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual(reported.decision.open_choices, undefined);
+  assert.strictEqual(reported.decision.known_weaknesses, undefined);
 });
 
 test('accepted report without accepted rounds on a light ledger → rejects with light-review-required', () => {

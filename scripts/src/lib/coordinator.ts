@@ -25,7 +25,7 @@ const { parsePathIds } = pathsMod;
 import legacyComments = require('./legacy-comments');
 const { scanLegacyScaffoldComments } = legacyComments;
 import validateSections = require('./validate-sections');
-const { pathsOverlap } = validateSections;
+const { pathsOverlap, parseSections } = validateSections;
 import configMod = require('./config');
 const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = configMod;
 import taskBriefHashMod = require('./task-brief-hash');
@@ -78,6 +78,8 @@ type DispatchDecision = {
 type ReportDecision = {
   task: string; kind: 'report'; attempt: number; task_brief_hash: string;
   outcome: ReportOutcome; summary: string;
+  // full 모드 수락 기록에만 있다. light inline 보고는 보고 파일이 없어 생략한다.
+  open_choices?: string[]; known_weaknesses?: string[];
 };
 type StaleReportDecision = {
   task: string; kind: 'stale-report';
@@ -203,6 +205,95 @@ type ActiveTaskProjection = {
  */
 function reportPathFor(workerPath: string, task: string, attempt: number): string {
   return path.join(workerPath, '.bouncer', 'runtime', 'reports', `${task}-${attempt}.md`);
+}
+
+type ParsedReportFile = {
+  revision: { attempt: number; task_brief_hash: string } | null;
+  open_choices: string[] | null;
+  known_weaknesses: string[] | null;
+};
+
+/**
+ * worker 보고 파일 본문에서 Brief revision·Open choices·Known weaknesses를 읽는다.
+ * 제목이 없거나 본문이 비면 해당 값은 null이다(빈 섹션도 누락으로 본다 — 값이
+ * 없으면 `- none`을 쓰게 해 "작성 안 함"과 "없음"을 구분한다). revision은 두
+ * 값 줄이 모두 형식에 맞을 때만 채우고, 하나라도 틀리면 null이다.
+ *
+ * @param {string} body - 보고 파일 원문
+ * @returns {ParsedReportFile} 제목 부재는 null, 항목 목록은 `none` 한 줄이면 빈 배열
+ */
+function parseReportFile(body: string): ParsedReportFile {
+  const sections = parseSections(body, [
+    { key: 'revision', re: /^##\s+Brief revision\s*$/i },
+    { key: 'open', re: /^##\s+Open choices\s*$/i },
+    { key: 'weak', re: /^##\s+Known weaknesses\s*$/i },
+    // 다른 ## 제목은 앞 섹션의 끝을 알리는 경계 구실만 한다.
+    { key: 'other', re: /^##\s+(?!Brief revision\s*$|Open choices\s*$|Known weaknesses\s*$)\S/i },
+  ] as Parameters<typeof parseSections>[1]);
+  let revision: ParsedReportFile['revision'] = null;
+  if (sections.revision) {
+    const attemptMatch = /^attempt:\s*(\d+)\s*$/m.exec(sections.revision);
+    const hashMatch = /^task_brief_hash:\s*([a-f0-9]{64})\s*$/m.exec(sections.revision);
+    if (attemptMatch && hashMatch) {
+      revision = { attempt: Number(attemptMatch[1]), task_brief_hash: hashMatch[1] };
+    }
+  }
+  const items = (text: string | null): string[] | null => {
+    if (text === null) return null;
+    const list = text.split('\n').map((line) => line.replace(/^\s*[-*]\s+/, '').trim()).filter(Boolean);
+    return list.length === 1 && list[0].toLowerCase() === 'none' ? [] : list;
+  };
+  return { revision, open_choices: items(sections.open), known_weaknesses: items(sections.weak) };
+}
+
+/**
+ * 보고 파일 검사 결과.
+ * `ok:false`는 원장을 쓰지 않는 거절이고, `ok:true`는 stale 비교로 넘어갈 값이다.
+ */
+type ReportFileCheck =
+  | { ok: false; failure: Record<string, unknown> }
+  | { ok: true; open_choices: string[]; known_weaknesses: string[] };
+
+/**
+ * full 모드 report가 활성 dispatch의 보고 파일을 읽어 revision 출처를 증명한다.
+ * 파일 값으로 CLI 인자를 채우거나 누락을 통과시키지 않는다 — 출처 증명이 목적이다.
+ * ENOENT만 report-revision-missing으로 흡수하고(아직 안 쓴 보고), 그 밖의 읽기
+ * 오류(권한 등)는 다른 실패와 뭉개지 않도록 그대로 던진다.
+ *
+ * @param {string} reportPath - 활성 attempt의 보고 파일 절대 경로
+ * @param {{attempt: number, task_brief_hash: string}} args - CLI로 받은 revision
+ * @returns {ReportFileCheck} 거절 본문 또는 통과 시 저장할 항목 목록
+ */
+function checkReportFile(
+  reportPath: string, args: { attempt: number; task_brief_hash: string },
+): ReportFileCheck {
+  let body: string;
+  try {
+    body = fs.readFileSync(reportPath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { ok: false, failure: { ok: false, reason: 'report-revision-missing', report_path: reportPath } };
+    }
+    throw error;
+  }
+  const parsed = parseReportFile(body);
+  if (!parsed.revision) {
+    return { ok: false, failure: { ok: false, reason: 'report-revision-missing', report_path: reportPath } };
+  }
+  if (parsed.revision.attempt !== args.attempt
+    || parsed.revision.task_brief_hash !== args.task_brief_hash) {
+    return { ok: false, failure: { ok: false, reason: 'report-revision-conflict', file: parsed.revision, args } };
+  }
+  const missing = [
+    ...(parsed.open_choices === null ? ['Open choices'] : []),
+    ...(parsed.known_weaknesses === null ? ['Known weaknesses'] : []),
+  ];
+  if (missing.length > 0) {
+    return { ok: false, failure: { ok: false, reason: 'report-section-missing', missing, report_path: reportPath } };
+  }
+  return {
+    ok: true, open_choices: parsed.open_choices as string[], known_weaknesses: parsed.known_weaknesses as string[],
+  };
 }
 
 /**
@@ -3495,6 +3586,17 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         && !lightReviewAccepted(integration.integrationPath, blueprint)) {
         return { ok: false, reason: 'light-review-required' };
       }
+      // full 모드는 stale 비교보다 먼저 보고 파일로 revision 출처를 증명한다. 파일 값이
+      // CLI 인자와 같을 때만 아래 stale 비교가 의미를 갖는다. 거절은 원장을 쓰지 않는다.
+      let fileItems: { open_choices: string[]; known_weaknesses: string[] } | null = null;
+      if (ledgerModeOf(ledger) !== 'light') {
+        const checked = checkReportFile(
+          reportPathFor(item.workerPath as string, task, item.dispatch.attempt),
+          { attempt: attempt as number, task_brief_hash: taskBriefHash },
+        );
+        if (!checked.ok) return checked.failure;
+        fileItems = checked;
+      }
       const expected = {
         attempt: item.dispatch.attempt, task_brief_hash: item.dispatch.task_brief_hash,
       };
@@ -3517,6 +3619,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       const reportDecision: ReportDecision = {
         task, kind: 'report', attempt: attempt as number, task_brief_hash: taskBriefHash,
         outcome: outcome as ReportOutcome, summary,
+        ...(fileItems
+          ? { open_choices: fileItems.open_choices, known_weaknesses: fileItems.known_weaknesses } : {}),
       };
       item.decisions = [...(item.decisions || []), reportDecision];
       ledger.decisions.push(reportDecision);
@@ -3880,6 +3984,19 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'stale-lease': {
     cause: 'The supplied lease id or generation does not match the task lease.',
     next: 'Run `bouncer coordinate status` and retry with the current `--lease-id` and `--generation`.',
+  },
+  'report-revision-missing': {
+    cause: 'The worker report file is missing or has no valid `## Brief revision` (attempt and task_brief_hash).',
+    next: 'Keep the attempt open; ask the worker to write the report file at `report_path`, '
+      + 'or redispatch the same attempt, then retry `bouncer coordinate report`.',
+  },
+  'report-revision-conflict': {
+    cause: 'The report file Brief revision differs from the `--attempt` / `--task-brief-hash` arguments.',
+    next: 'Keep the attempt open; fix the report file or retry with the file values, do not edit the ledger.',
+  },
+  'report-section-missing': {
+    cause: 'The worker report file lacks `## Open choices` or `## Known weaknesses`.',
+    next: 'Keep the attempt open; ask the worker to add the missing sections (`- none` when empty), then retry.',
   },
   'stale-report': {
     cause: 'The report attempt or task_brief_hash does not match the active dispatch.',

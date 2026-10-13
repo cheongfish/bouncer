@@ -264,14 +264,17 @@ function attachJudgeContext(result: NextOk, ctx: JudgeContext): NextOk {
  * @param {string} workerPath - 할당 worker 절대 경로
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} taskId - 세 자리 task id
+ * @param {number | undefined} attempt - 활성 dispatch attempt. 없으면 보고 후보를 만들지 않는다
  * @returns {EvidenceCandidate[]} kind·path 후보
  */
 function defaultEvidenceCandidates(
-  workerPath: string, blueprint: string, taskId: string,
+  workerPath: string, blueprint: string, taskId: string, attempt?: number,
 ): EvidenceCandidate[] {
   const taskDir = path.join(workerPath, blueprint.replaceAll('\\', '/'), 'tasks', taskId);
   return [
-    { kind: 'report', path: path.join(taskDir, 'report.md') },
+    // 보고 파일은 `coordinate report`가 읽는 reportPathFor 경로와 같아야 한다.
+    ...(attempt === undefined ? []
+      : [{ kind: 'report' as const, path: coordinator.reportPathFor(workerPath, taskId, attempt) }]),
     { kind: 'verification', path: path.join(taskDir, 'verification.md') },
     { kind: 'review', path: path.join(taskDir, 'review.md') },
   ];
@@ -670,7 +673,7 @@ function taskNext(ctx: {
   const judgeCtx: JudgeContext = {
     lastReport: lastReportedOutcome(item),
     workerPath: cwd,
-    candidates: defaultEvidenceCandidates(cwd, blueprint, task),
+    candidates: defaultEvidenceCandidates(cwd, blueprint, task, item.dispatch?.attempt),
     readEvidence,
   };
   // 성공 응답을 만든 뒤 판단·worker 행동에만 report/evidence를 붙인다. blocked·none·

@@ -7,10 +7,15 @@ the coordinator Procedure step 3 (Drive) and step 5 (Judge).
   `task_brief_hash`) against the active dispatch. Matching values: fill
   `judge.fields` and run the `report` `argv`; only an `accepted` report may
   then run the `record` `argv`.
-- A missing or mismatched Brief revision is stale — call `coordinate report`
-  with the received `attempt` and `task_brief_hash` so runtime can append
+- A mismatched Brief revision is stale — call `coordinate report` with the
+  received `attempt` and `task_brief_hash` so runtime can append
   `stale-report`; do not call `accepted` or `coordinate record`, and keep the
-  attempt open.
+  attempt open. A report file that is missing, or lacks `## Brief revision`,
+  `## Open choices`, or `## Known weaknesses`, is not stale: `coordinate report`
+  refuses with `report-revision-missing` / `report-section-missing` without
+  writing the ledger. Redispatch the same attempt or ask the worker to fix the
+  file at `report_path`, then retry. `report-revision-conflict` (file differs
+  from the arguments) is handled the same way.
 - Turn each report into exactly one of: accepted, scope revision (`coordinate
   revise`), rework with a named cause, task/graph change, or terminal blocked.
   The `--outcome` values are `accepted`, `rework`, `scope_revision`,

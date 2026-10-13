@@ -11,5 +11,6 @@ the coordinator Procedure step 3 (Drive).
 - Confirm `payload.report` and read only `payload.evidence` pointers whose
   hashes still match before filling `judge.fields`; do not widen scope from
   those paths.
-- A missing or mismatched Brief revision is stale: do not call `accepted` or
-  `coordinate record`, and keep the attempt open.
+- A mismatched Brief revision is stale: do not call `accepted` or
+  `coordinate record`, and keep the attempt open. A missing one is refused by
+  `coordinate report` as `report-revision-missing`; fix the report file first.

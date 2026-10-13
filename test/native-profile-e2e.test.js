@@ -185,6 +185,15 @@ test('the coordinator lifecycle through the shipped CLI surface → runs end to 
     '--blueprint', BP_REL, '--repo', repo, '--task', '001',
   ]);
   assert.strictEqual(dispatched.metadata.attempt, 1);
+  // full 모드 report는 worker 보고 파일의 Brief revision을 읽어 출처를 확인한다.
+  const reportDir = path.join(worker, '.bouncer', 'runtime', 'reports');
+  fs.mkdirSync(reportDir, { recursive: true });
+  fs.writeFileSync(path.join(reportDir, `001-${dispatched.metadata.attempt}.md`), [
+    '## Brief revision',
+    `attempt: ${dispatched.metadata.attempt}`,
+    `task_brief_hash: ${dispatched.metadata.task_brief_hash}`,
+    '', '## Open choices', '- none', '', '## Known weaknesses', '- none', '',
+  ].join('\n'));
   const reported = cli(worker, [
     'coordinate', 'report', ...ledgerFenceArgs(),
     '--blueprint', BP_REL, '--repo', repo, '--task', '001',

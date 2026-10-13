@@ -137,13 +137,49 @@ report it under **Scope impact**.
 ## Output contract
 
 The controller routes the next step from this report alone — it does not re-read
-your diff to reconstruct what you did. Return these fields and nothing else
-actionable:
+your diff to reconstruct what you did. Write each field under its own `## <Name>`
+heading, in the order of the template below, and nothing else actionable. A
+field with no value gets a single `- none` line. `coordinate report` reads the
+report file and rejects a missing or malformed `## Brief revision`,
+`## Open choices`, or `## Known weaknesses`.
 
-- **Changed files** — every touched path with a one-line purpose. All paths must
-  be inside Touch / `affected_paths`.
+```markdown
+## Changed files
+- `<repo-relative path>` — <one-line purpose>
+
+## Checklist coverage
+- <Checklist item> — done / not done, where it landed (`file:line` or path)
+
+## Tests
+- <tests added or updated, and the result of the last run>
+
+## Red run
+- <command run> — <failing assertion or failure point observed>
+
+## Deviations
+- none
+
+## Scope impact
+- none
+
+## Needs planning
+- none
+
+## Open choices
+- <interpretation of the spec you had to pick yourself>
+
+## Known weaknesses
+- none
+
+## Brief revision
+attempt: <attempt you received>
+task_brief_hash: <64 hex you received>
+```
+
+- **Changed files** — every touched path with a one-line purpose, the path in
+  backticks. All paths must be inside Touch / `affected_paths`.
 - **Checklist coverage** — each Checklist item mapped to `done` / `not done`
-  plus where it landed (`file:line` or path).
+  plus where it landed.
 - **Tests** — tests added or updated, and the result of the last run.
 - **Red run** — the red you observed before implementing, in one of two forms:
   `<command run> — <failing assertion or failure point observed>` when the
@@ -157,8 +193,13 @@ actionable:
   `affected_paths` and why, plus any other task the change touches.
 - **Needs planning** — `none`, or one sentence naming the ambiguity /
   contradiction and why it cannot be settled inside the approved scope.
-- **Brief revision** — echo the `attempt` and `task_brief_hash` you received
-  for this dispatch, unchanged, so the controller can reject a stale report.
+- **Open choices** — each interpretation of the spec you had to pick yourself,
+  one per `- ` line, so the controller sees decisions the brief did not make.
+- **Known weaknesses** — each known limit or risk you leave in the change, one
+  per `- ` line.
+- **Brief revision** — echo the `attempt` and `task_brief_hash` you received for
+  this dispatch, unchanged, as exactly the two value lines above so the
+  controller can reject a stale report.
 
 `Needs planning` is how you stop: report it instead of guessing. The controller
 turns it into one recorded decision — during a coordinator drive a `Decision
