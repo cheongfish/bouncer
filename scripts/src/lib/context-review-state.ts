@@ -898,7 +898,7 @@ function recordReport(input: {
  * @param {string} input.blueprintDir - blueprint 상대 경로
  * @param {string} input.dispositionsFile - [{ id, status, note }] JSON 파일 경로
  * @param {string[]} [input.acceptRisk] - 사용자 동의가 있는 must_fix accepted ID 목록
- * @returns {Record<string, unknown>} 성공 {ok:true,noop,cycle,closed,projection}, 실패 {ok:false,...}
+ * @returns {Record<string, unknown>} 성공 {ok:true,noop,cycle,status,closed,projection}, 실패 {ok:false,...}
  */
 function closeCycle(input: {
   repoRoot: string; blueprintDir: string; dispositionsFile: string; acceptRisk?: string[];
@@ -952,8 +952,9 @@ function closeCycle(input: {
     // 1. 전이 키: cycle id, restart count, 'close', dispositions 원본 바이트 sha256, 정렬된 accept-risk
     const key = transitionKey([cycle.id, cycle.restart_count, 'close', sha256(dispBytes), acceptRisk.join(',')]);
     if (state.transitions.includes(key)) {
+      // 이미 반영된 close 전이이므로 closure 결과(status: 'accepted')를 그대로 돌려준다.
       return {
-        ok: true, noop: true, cycle, closed: state.closed,
+        ok: true, noop: true, cycle, status: 'accepted', closed: state.closed,
         ...(state.projection ? { projection: state.projection } : {}),
       };
     }
@@ -1024,8 +1025,9 @@ function closeCycle(input: {
     const saved = guardWrites(() => saveState(ctx, next));
     if (isFail(saved)) return saved;
 
+    // 정상적으로 cycle이 closed/accepted 되었음을 알리는 반환 객체
     return {
-      ok: true, noop: false, cycle: next.cycle, closed: next.closed, projection: next.projection,
+      ok: true, noop: false, cycle: next.cycle, status: 'accepted', closed: next.closed, projection: next.projection,
     };
   }) as Record<string, unknown>;
 }

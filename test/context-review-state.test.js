@@ -244,6 +244,7 @@ test('delta 뒤 open must_fix cycle에 close --dispositions와 --accept-risk →
   const r = close(repo, disp, ['--accept-risk', 'CR-1']);
   assert.equal(r.code, 0, r.out + r.err);
   assert.equal(r.json.ok, true);
+  assert.equal(r.json.status, 'accepted');
   assert.equal(r.json.closed, true);
   assert.equal(r.json.noop, false);
   const cr1 = r.json.projection.findings.find((f) => f.id === 'CR-1');
@@ -254,6 +255,7 @@ test('delta 뒤 open must_fix cycle에 close --dispositions와 --accept-risk →
   const r2 = close(repo, disp, ['--accept-risk', 'CR-1']);
   assert.equal(r2.code, 0);
   assert.equal(r2.json.ok, true);
+  assert.equal(r2.json.status, 'accepted');
   assert.equal(r2.json.noop, true);
 });
 
