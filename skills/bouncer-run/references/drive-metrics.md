@@ -7,7 +7,15 @@ reason, and totals never count it as 0.
 
 ## Per coordinator session
 
-1. Immediately before each coordinator dispatch (the first one and every `continue` re-dispatch):
+1. Before each coordinator dispatch, the root runs this in the integration cwd, then rewrites
+   `coordinate status --write-input` from the checkpoint it returns. On `ok: false`, do not dispatch;
+   report the reason.
+
+   ```bash
+   bouncer coordinate session-open --blueprint <dir> --ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>
+   ```
+
+2. Immediately before each coordinator dispatch (the first one and every `continue` re-dispatch):
 
    ```bash
    bouncer metrics start --kind coordinator-session --blueprint <dir> --label <short-label>
@@ -15,7 +23,7 @@ reason, and totals never count it as 0.
 
    Keep the `id` from the JSON result. `ok: false` is reported but never blocks the drive.
 
-2. Immediately after the coordinator returns, pass what the host's task notification gave you:
+3. Immediately after the coordinator returns, pass what the host's task notification gave you:
 
    ```bash
    bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>
@@ -26,7 +34,7 @@ reason, and totals never count it as 0.
    Omit any flag the host did not give. If the coordinator ended without a notification, still
    call `metrics end` with no token flags so the session closes.
 
-3. The `status` checkpoint exposes the same blueprint's sessions as `sessions[]`. It is an
+4. The `status` checkpoint exposes the same blueprint's sessions as `sessions[]`. It is an
    observation only: it is not evidence of worker liveness or progress.
 
 ## Closing report
