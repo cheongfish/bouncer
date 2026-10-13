@@ -122,9 +122,14 @@ test('no provider signal → yields null model and null provider', () => {
   const prevClaude = process.env.CLAUDE_PLUGIN_ROOT;
   const prevPlugin = process.env.PLUGIN_ROOT;
   const prevHome = process.env.BOUNCER_HOME;
+  const prevHostClaude = process.env.CLAUDECODE;
+  const prevHostCodex = process.env.CODEX_THREAD_ID;
   try {
     delete process.env.CLAUDE_PLUGIN_ROOT;
     delete process.env.PLUGIN_ROOT;
+    // 테스트가 Claude Code·Codex 터미널 안에서 돌아도 호스트 변수가 새지 않게 한다.
+    delete process.env.CLAUDECODE;
+    delete process.env.CODEX_THREAD_ID;
     // BOUNCER_HOME must never count as a provider signal.
     process.env.BOUNCER_HOME = '/tmp/fake-bouncer-home';
     assert.deepStrictEqual(
@@ -138,7 +143,78 @@ test('no provider signal → yields null model and null provider', () => {
     else process.env.PLUGIN_ROOT = prevPlugin;
     if (prevHome === undefined) delete process.env.BOUNCER_HOME;
     else process.env.BOUNCER_HOME = prevHome;
+    if (prevHostClaude === undefined) delete process.env.CLAUDECODE;
+    else process.env.CLAUDECODE = prevHostClaude;
+    if (prevHostCodex === undefined) delete process.env.CODEX_THREAD_ID;
+    else process.env.CODEX_THREAD_ID = prevHostCodex;
   }
+});
+
+// plugin-root 변수가 없는 터미널에서도 호스트 세션 변수로 provider를 알아내야 한다.
+// 그러지 못하면 provider가 null로 풀려 역할별 모델이 조용히 inherit가 된다.
+function withEnv(patch, fn) {
+  const keys = ['CLAUDE_PLUGIN_ROOT', 'PLUGIN_ROOT', 'CLAUDECODE', 'CODEX_THREAD_ID', 'CURSOR_AGENT'];
+  const prev = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  try {
+    for (const k of keys) delete process.env[k];
+    Object.assign(process.env, patch);
+    return fn();
+  } finally {
+    for (const k of keys) {
+      if (prev[k] === undefined) delete process.env[k];
+      else process.env[k] = prev[k];
+    }
+  }
+}
+
+test('CLAUDECODE without plugin-root vars → implies claude', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { subagents: { claude: { 'bouncer-reviewer': 'claude-opus-5-5' } } });
+  withEnv({ CLAUDECODE: '1' }, () => {
+    assert.deepStrictEqual(
+      resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+      { model: 'claude-opus-5-5', provider: 'claude' },
+    );
+  });
+});
+
+test('CODEX_THREAD_ID without plugin-root vars → implies codex', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { subagents: { codex: { 'bouncer-reviewer': 'gpt-6.1-sol' } } });
+  withEnv({ CODEX_THREAD_ID: 'thread-1' }, () => {
+    assert.deepStrictEqual(
+      resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+      { model: 'gpt-6.1-sol', provider: 'codex' },
+    );
+  });
+});
+
+test('CURSOR_AGENT alone → stays unresolved because cursor needs an explicit pin', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { subagents: { cursor: { 'bouncer-reviewer': 'composer-2.5' } } });
+  withEnv({ CURSOR_AGENT: '1' }, () => {
+    assert.deepStrictEqual(
+      resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+      { model: null, provider: null },
+    );
+  });
+});
+
+test('config.subagents.provider with a host variable → config pin wins', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, {
+    subagents: {
+      provider: 'codex',
+      claude: { 'bouncer-reviewer': 'claude-opus-5-5' },
+      codex: { 'bouncer-reviewer': 'gpt-6.1-sol' },
+    },
+  });
+  withEnv({ CLAUDECODE: '1' }, () => {
+    assert.deepStrictEqual(
+      resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+      { model: 'gpt-6.1-sol', provider: 'codex' },
+    );
+  });
 });
 
 test('config.subagents.provider antigravity → resolves the antigravity block', () => {
@@ -172,22 +248,17 @@ test('BOUNCER_HOME alone → never resolves provider antigravity', () => {
       },
     },
   });
-  const prevClaude = process.env.CLAUDE_PLUGIN_ROOT;
-  const prevPlugin = process.env.PLUGIN_ROOT;
   const prevHome = process.env.BOUNCER_HOME;
   try {
-    delete process.env.CLAUDE_PLUGIN_ROOT;
-    delete process.env.PLUGIN_ROOT;
     process.env.BOUNCER_HOME = '/tmp/fake-bouncer-home';
-    assert.deepStrictEqual(
-      resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
-      { model: null, provider: null },
-    );
+    // 호스트 세션 변수까지 비워야 BOUNCER_HOME만의 효과를 본다.
+    withEnv({}, () => {
+      assert.deepStrictEqual(
+        resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+        { model: null, provider: null },
+      );
+    });
   } finally {
-    if (prevClaude === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
-    else process.env.CLAUDE_PLUGIN_ROOT = prevClaude;
-    if (prevPlugin === undefined) delete process.env.PLUGIN_ROOT;
-    else process.env.PLUGIN_ROOT = prevPlugin;
     if (prevHome === undefined) delete process.env.BOUNCER_HOME;
     else process.env.BOUNCER_HOME = prevHome;
   }

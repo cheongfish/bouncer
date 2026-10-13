@@ -17,11 +17,19 @@ const SUBAGENT_DISPATCH_VALUES = ['print'] as const;
  *   2. `config.subagents.provider`(프로젝트 pin — Cursor·Antigravity에 필수)
  *   3. CLAUDE_PLUGIN_ROOT → 'claude'
  *   4. PLUGIN_ROOT → 'codex'
- *   5. null
+ *   5. 호스트가 자기 터미널에 직접 내보내는 세션 변수:
+ *      CLAUDECODE → 'claude', CODEX_THREAD_ID → 'codex'
+ *   6. null
  *
  * BOUNCER_HOME은 의도적으로 무시한다: 어떤 호스트에서도 설정 가능한
  * 수동 plugin-root override이므로 Cursor(또는 다른 provider)를 의미하지
  * 않는다. Cursor 사용자는 `subagents.provider: "cursor"`를 설정해야 한다.
+ *
+ * 5번은 plugin-root 변수가 주입되지 않는 터미널(예: Bash 도구)에서 provider가
+ * null로 풀려 역할별 모델이 조용히 inherit로 떨어지는 것을 막는다. Claude Code 안에서
+ * codex를 띄우는 식의 중첩에서는 더 안쪽 호스트가 아니라 CLAUDECODE가 이긴다 —
+ * 틀리면 `subagents.provider`로 명시 고정한다. Cursor는 CURSOR_AGENT가 있어도
+ * 자동 감지하지 않는다(print dispatch 분기가 걸려 있어 명시 고정만 허용).
  *
  * Antigravity도 plugin-root 환경 변수를 내보내지 않으므로 env 표에 분기를
  * 추가하지 않는다 — `subagents.provider: "antigravity"` 명시 pin만 허용.
@@ -37,6 +45,8 @@ function resolveProvider(config: unknown, providerArg: unknown): string | null {
   }
   if (process.env.CLAUDE_PLUGIN_ROOT) return 'claude';
   if (process.env.PLUGIN_ROOT) return 'codex';
+  if (process.env.CLAUDECODE) return 'claude';
+  if (process.env.CODEX_THREAD_ID) return 'codex';
   return null;
 }
 
