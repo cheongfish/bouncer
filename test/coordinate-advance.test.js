@@ -235,3 +235,28 @@ test('(i) judge on review → does not run a later commit argv', () => {
   assert.deepStrictEqual(out.stop.next, review);
   assert.strictEqual(runCalls.length, 0);
 });
+
+test('next yields → stops with reason yield and executes nothing', () => {
+  const yielded = okNext('yield', { scope: 'blueprint', reason: 'session-wave-cap' });
+  const { deps, runCalls } = scriptedDeps([yielded]);
+  const r = advance({ repoRoot: '/r', blueprint: 'bp', deps });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.stop.reason, 'yield');
+  assert.deepStrictEqual(r.executed, []);
+  assert.strictEqual(r.stop.next, yielded);
+  assert.strictEqual(runCalls.length, 0);
+});
+
+test('prepare then yield → executes prepare once and stops with yield', () => {
+  const { deps } = scriptedDeps(
+    [
+      okNext('prepare', { argv: argvFor('prepare') }),
+      okNext('yield', { reason: 'parallel-wave' }),
+    ],
+    [{ stdout: '{"ok":true}', status: 0 }],
+  );
+  const r = advance({ repoRoot: '/r', blueprint: 'bp', deps });
+  assert.strictEqual(r.stop.reason, 'yield');
+  assert.strictEqual(r.executed.length, 1);
+  assert.strictEqual(r.executed[0].action, 'prepare');
+});

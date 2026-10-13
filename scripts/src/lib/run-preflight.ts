@@ -22,7 +22,9 @@ const { readyWave, loadLedger } = coordinator;
 import runtimeState = require('./runtime-state');
 const { coordinatorPathsFor } = runtimeState;
 import configMod = require('./config');
-const { readConfig, readCoordinatorPolicy } = configMod;
+const { readConfig, readCoordinatorPolicy, readDirectMaxCommitTasks } = configMod;
+import dagShape = require('./dag-shape');
+const { analyzeDriveShape } = dagShape;
 
 const OPEN_STATUS = ['ready', 'in_progress'];
 const TASK_ID_RE = /^TASKS-(\d{3})$/;
@@ -60,6 +62,10 @@ type PreflightOk = {
   readyWave: string[];
   autonomy: Autonomy;
   delegable: boolean;
+  // 열린 commit task의 DAG 모양. 성공 payload에만 붙는다(ok:false에는 없다).
+  shape: ReturnType<typeof analyzeDriveShape>;
+  // root가 coordinator 없이 직접 돌려도 되는 드라이브인지. 시작 ACQ가 D 선택지를 보일지 정한다.
+  direct_eligible: boolean;
   // promotion-stopped는 원장 status만 본다. 원장 부재 시에는 이 값을 내지 않는다.
   reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped' | null;
 };
@@ -81,6 +87,13 @@ type WaveTask = {
   status?: string;
   affected_paths?: string[];
   exclusive_resources?: string[];
+};
+
+// shape 시뮬레이션 입력. readyWave에는 필요 없는 필드라 WaveTask와 분리한다.
+type ShapeInput = WaveTask & {
+  execution_kind: 'commit' | 'verification';
+  review_risk: string[];
+  open: boolean;
 };
 
 function isSelectionError(error: unknown): error is InstanceType<typeof CurrentSelectionError> {
@@ -178,10 +191,12 @@ function readBlueprintMeta(repoRoot: string, blueprintDir: string): {
 function collectTasks(repoRoot: string, blueprintDir: string): {
   openTasks: OpenTask[];
   waveTasks: WaveTask[];
+  shapeTasks: ShapeInput[];
 } {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   const openTasks: OpenTask[] = [];
   const waveTasks: WaveTask[] = [];
+  const shapeTasks: ShapeInput[] = [];
   for (const entry of listing.entries) {
     let data: unknown;
     try {
@@ -211,7 +226,7 @@ function collectTasks(repoRoot: string, blueprintDir: string): {
     const exclusive = bouncer && Object.prototype.hasOwnProperty.call(bouncer, 'exclusive_resources')
       ? stringList(bouncer.exclusive_resources)
       : [...DEFAULT_EXCLUSIVE_RESOURCES];
-    waveTasks.push({
+    const waveTask: WaveTask = {
       id,
       depends_on: ledgerDependsOn(dependsOn),
       dependency_gate: dependencyGate,
@@ -221,6 +236,14 @@ function collectTasks(repoRoot: string, blueprintDir: string): {
       // bootstrap 스냅샷과 같은 충돌 집합을 보게 하려는 목적이다.
       affected_paths: affected,
       exclusive_resources: exclusive,
+    };
+    waveTasks.push(waveTask);
+    // review_risk 형식 거절은 S30 소관이므로 배열이 아니면 빈 위험으로 읽는다.
+    shapeTasks.push({
+      ...waveTask,
+      execution_kind: executionKind,
+      review_risk: stringList(bouncer ? bouncer.review_risk : undefined),
+      open: OPEN_STATUS.includes(status),
     });
     if (!OPEN_STATUS.includes(status)) continue;
     openTasks.push({
@@ -235,7 +258,7 @@ function collectTasks(repoRoot: string, blueprintDir: string): {
       dependency_gate: dependencyGate,
     });
   }
-  return { openTasks, waveTasks };
+  return { openTasks, waveTasks, shapeTasks };
 }
 
 /**
@@ -269,7 +292,7 @@ function runPreflight({ repoRoot, blueprintDir }: {
   if (!pointer) return { ok: false, reason: 'no-current' };
 
   const meta = readBlueprintMeta(repoRoot, blueprint);
-  const { openTasks, waveTasks } = collectTasks(repoRoot, blueprint);
+  const { openTasks, waveTasks, shapeTasks } = collectTasks(repoRoot, blueprint);
   const closed = meta.status === 'closed';
   let reason: PreflightOk['reason'] = null;
   if (closed) reason = 'blueprint-closed';
@@ -292,6 +315,16 @@ function runPreflight({ repoRoot, blueprintDir }: {
   const policy = readCoordinatorPolicy(repoRoot);
   const maxParallel = policy.ok ? policy.maxParallel : 1;
 
+  const shape = analyzeDriveShape(shapeTasks, { maxParallel });
+  // 직접 실행은 위임 가능한 full 직렬 체인이 설정 상한 이하일 때만 연다. 상한 0(꺼짐·invalid
+  // 폴백)은 commit_tasks >= 1 조건과 겹쳐 항상 false가 된다.
+  const directMax = readDirectMaxCommitTasks(repoRoot);
+  const directEligible = reason === null
+    && meta.scale === 'full'
+    && shape.drive_shape === 'serial'
+    && shape.commit_tasks >= 1
+    && shape.commit_tasks <= directMax;
+
   return {
     ok: true,
     blueprint: { dir: blueprint, status: meta.status, scale: meta.scale },
@@ -301,6 +334,9 @@ function runPreflight({ repoRoot, blueprintDir }: {
     autonomy: readAutonomy(repoRoot),
     delegable: reason === null,
     reason,
+    // readyWave와 같은 maxParallel(invalid는 1)로 돌려 두 값이 어긋나지 않게 한다.
+    shape,
+    direct_eligible: directEligible,
   };
 }
 

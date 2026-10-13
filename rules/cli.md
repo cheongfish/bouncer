@@ -20,6 +20,14 @@ bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
 ```
 
+`run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
+every simulated wave has width 1, `parallel` for a single wave of width 2+,
+`mixed` otherwise, `null` with no open commit task, `unknown` when the
+simulation cannot open the remaining tasks), `max_wave_width`, `commit_tasks`,
+`review_risk` (sorted union over open commit tasks) and `parallel_safe_tasks`.
+It simulates `readyWave` over open commit tasks only; verification nodes and
+edges to them are ignored. Failure payloads omit `shape`.
+
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag
@@ -64,7 +72,7 @@ Do not scaffold tasks into a closed blueprint.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|promote-stop> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
@@ -122,9 +130,20 @@ idempotent; afterward `prepare`/`dispatch`/`report`/`record`/`integrate` and
 full replan needs a new `bootstrap` and `current --set`.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
-`worker`, `blocked`, `done`, `none`, `max-steps`, or a failure
+`worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
 (`repeated-failure`, `unclear-result`, `advance-argv-invalid`, or the
 automatic action's reason).
+`run preflight` also reports `direct_eligible` (delegable, `full`, serial shape,
+`1 <= commit_tasks <= coordinator.direct_max_commit_tasks`); `/bouncer-run`
+offers root-direct execution only when it is true. `bouncer metrics start
+--kind root-direct-session` records that session (no `--target-digest`).
+`yield` is a session boundary with no argv: the coordinator returns `continue`.
+The root runs `coordinate session-open --blueprint <dir> --ledger-path <p>
+--ledger-hash <h>` from the integration cwd before each coordinator dispatch;
+it appends a `{kind: session, opened_at, integration_head, waves_cap}` decision
+and returns a fresh checkpoint (`ok: false` with `ledger-mode-mismatch` or
+`ledger-not-active` otherwise). `coordinator.waves_per_session` caps the waves
+per session (`docs/configuration.md`).
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
 Use `coordinate revise` only from the assigned worker worktree with a reason

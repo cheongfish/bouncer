@@ -209,6 +209,60 @@ test('readCoordinatorPolicy with integers >= 1 and invalid max_parallel → acce
   }
 });
 
+test('readWavesPerSession with absent, auto, integer and invalid values → resolves the cap or rejects', () => {
+  const { readWavesPerSession } = require('../scripts/lib/config');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coord-wps-'));
+  assert.deepStrictEqual(readWavesPerSession(repo), { ok: true, cap: 4 });
+  writeCoordinatorConfig(repo, {});
+  assert.deepStrictEqual(readWavesPerSession(repo), { ok: true, cap: 4 });
+  writeCoordinatorConfig(repo, { waves_per_session: 'auto' });
+  assert.deepStrictEqual(readWavesPerSession(repo), { ok: true, cap: 4 });
+  writeCoordinatorConfig(repo, { waves_per_session: 3 });
+  assert.deepStrictEqual(readWavesPerSession(repo), { ok: true, cap: 3 });
+  writeCoordinatorConfig(repo, { waves_per_session: 1 });
+  assert.deepStrictEqual(readWavesPerSession(repo), { ok: true, cap: 1 });
+  writeCoordinatorConfig(repo, { waves_per_session: 8 });
+  assert.deepStrictEqual(readWavesPerSession(repo), { ok: true, cap: 8 });
+  for (const bad of [0, 9, 1.5, -1, 'fast', null, '3']) {
+    writeCoordinatorConfig(repo, { waves_per_session: bad });
+    assert.deepStrictEqual(
+      readWavesPerSession(repo),
+      { ok: false, reason: 'invalid' },
+      `waves_per_session=${JSON.stringify(bad)}`,
+    );
+  }
+  // 깨진 config는 상한을 넓히지 않도록 invalid다.
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{ not json');
+  assert.deepStrictEqual(readWavesPerSession(repo), { ok: false, reason: 'invalid' });
+});
+
+test('prepare with an invalid waves_per_session → rejects before creating workers', () => {
+  const repo = repoTemplate.copy();
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/002-y';
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'tasks', '001', 'tasks.md'),
+    '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  affected_paths:\n    - a/\n---\n',
+  );
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  writeCoordinatorConfig(boot.integrationPath, { waves_per_session: 9 });
+  const rejected = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'coordinator-config-invalid');
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, '..', 'workers')), false);
+  writeCoordinatorConfig(boot.integrationPath, { waves_per_session: 2 });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+});
+
 test('prepare with invalid max_parallel or max_parallel 1 → rejects before creating workers and honors 1', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/078-x/blueprints/001-y';

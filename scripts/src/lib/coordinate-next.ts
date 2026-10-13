@@ -12,6 +12,8 @@ const {
 } = coordinator;
 import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths } = runtime;
+import configMod = require('./config');
+import driveMetrics = require('./drive-metrics');
 
 type Exec = (file: string, args?: readonly string[], options?: {
   cwd?: unknown; encoding?: unknown; stdio?: unknown;
@@ -505,6 +507,64 @@ function decideNext(opts: {
   });
 }
 
+type YieldReason = 'session-wave-cap' | 'wave-exception' | 'parallel-wave';
+
+/**
+ * prepare를 내기 직전에, 이 coordinator 세션을 여기서 끊어야 하는지 원장 기록으로 판정한다.
+ * 한 세션이 직렬·무예외 wave를 이어 처리해 재기동 고정비를 줄이되, 상한에 닿았거나 예외·
+ * 병렬 wave가 끼면 새 세션(깨끗한 컨텍스트)에서 판단하게 하려는 경계다.
+ *
+ * 세션 경계는 `coordinate session-open`이 남긴 마지막 `session` 결정이고, 없으면 원장
+ * 처음부터를 한 세션으로 본다. wave 수는 그 뒤의 `fanin` 결정 수다(원장에 wave id가 없다).
+ * 읽기 전용이다.
+ *
+ * @param {Ledger} ledger - 원장 스냅샷
+ * @param {string[]} ready - checkpoint.ready(pending 후보 wave)
+ * @param {string} integrationCwd - 설정을 읽을 integration 절대 경로
+ * @returns {YieldReason | null} 끊어야 하는 사유. 이어 가도 되면 null
+ */
+function sessionYieldReason(
+  ledger: Ledger, ready: string[], integrationCwd: string,
+): YieldReason | null {
+  // 1. verification 노드만 남은 wave는 세션 상한과 무관하게 이어 간다. 이 노드는 새 commit
+  //    wave가 아니라 마감 검증이라, 여기서 끊으면 세션만 하나 더 늘어난다.
+  const commitReady = ready.filter((id) => {
+    const item = ledger.tasks.find((candidate) => candidate.id === id);
+    return item !== undefined && item.execution_kind !== 'verification';
+  });
+  if (commitReady.length === 0) return null;
+
+  const decisions = ledger.decisions || [];
+  let sessionAt = -1;
+  decisions.forEach((entry, index) => {
+    if (entry && entry.kind === 'session') sessionAt = index;
+  });
+  const faninAt: number[] = [];
+  decisions.forEach((entry, index) => {
+    if (index > sessionAt && entry && entry.kind === 'fanin') faninAt.push(index);
+  });
+  // 2. 이번 세션에서 아직 wave를 하나도 못 돌렸으면 끊을 이유가 없다. 끊으면 새 세션도
+  //    같은 자리에서 다시 yield해 진행이 멈춘다.
+  if (faninAt.length === 0) return null;
+
+  // 3. 설정이 invalid면 상한 1로 접는다. 잘못된 설정이 세션을 늘리지 못하게 하고, 거절은
+  //    worktree를 만들기 전 prepare가 맡는다.
+  const policy = configMod.readWavesPerSession(integrationCwd);
+  const cap = policy.ok ? policy.cap : 1;
+  if (faninAt.length >= cap) return 'session-wave-cap';
+
+  // 4. 예외 창은 직전 wave의 fanin(없으면 세션 시작) 뒤 전부다. 이번 wave 안에서 생긴 repair·
+  //    revoke·비수락 report가 새 세션의 깨끗한 판단을 받게 한다. 그 이전 wave의 예외는 이미
+  //    처리된 것이라 세지 않는다.
+  const windowStart = faninAt.length >= 2 ? faninAt[faninAt.length - 2] + 1 : sessionAt + 1;
+  if (decisions.slice(windowStart).some((entry) => driveMetrics.isException(entry))) {
+    return 'wave-exception';
+  }
+  // 5. 병렬 wave는 worker 여럿의 보고가 한꺼번에 와서 컨텍스트가 빠르게 찬다.
+  if (commitReady.length >= 2) return 'parallel-wave';
+  return null;
+}
+
 /**
  * blueprint 범위 표. 위에서 처음 맞는 행만 쓴다.
  *
@@ -589,6 +649,12 @@ function blueprintNext(ctx: {
     });
   }
   if (checkpoint.ready.length > 0) {
+    const yieldReason = sessionYieldReason(ledger, checkpoint.ready, integrationCwd);
+    if (yieldReason !== null) {
+      return ok({
+        scope: 'blueprint', action: 'yield', reason: yieldReason, cwd: integrationCwd,
+      });
+    }
     return ok({
       scope: 'blueprint', action: 'prepare', cwd: integrationCwd,
       argv: coordinateArgv('prepare', blueprint, ledgerRef),

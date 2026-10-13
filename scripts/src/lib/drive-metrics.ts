@@ -13,7 +13,7 @@ const { isRecord, isEnoentError } = guards;
  * 기록 파일 쓰기는 임시 파일 뒤 rename이다.
  */
 
-const SESSION_KINDS = ['coordinator-session', 'context-review'] as const;
+const SESSION_KINDS = ['coordinator-session', 'context-review', 'root-direct-session'] as const;
 type SessionKind = typeof SESSION_KINDS[number];
 
 // 이 kind의 decision, 또는 outcome이 accepted가 아닌 report는 "예외 판단"이다.
@@ -148,6 +148,13 @@ function readLedgerSnapshot(ledgerFile: string): LedgerRead {
   };
 }
 
+/**
+ * 원장 항목이 "예외 판단"인지 가른다. 세션 경계 판정(`coordinate next`)과 metrics의
+ * 예외 수 계산이 같은 정의를 쓰도록 export한다.
+ *
+ * @param {unknown} entry - 원장 decision 항목
+ * @returns {boolean} 예외 kind이거나 accepted가 아닌 report면 true
+ */
 function isException(entry: unknown): boolean {
   if (!isRecord(entry)) return false;
   if (typeof entry.kind === 'string' && EXCEPTION_KINDS.has(entry.kind)) return true;
@@ -161,7 +168,7 @@ function isException(entry: unknown): boolean {
  * @param {object} opts - 시작 입력
  * @param {string} opts.file - drive-metrics.json 경로
  * @param {string} opts.ledgerFile - 해당 blueprint의 integration 원장 경로
- * @param {string} opts.kind - `coordinator-session` | `context-review`
+ * @param {string} opts.kind - `coordinator-session` | `context-review` | `root-direct-session`
  * @param {string} opts.blueprint - blueprint 디렉터리
  * @param {string} [opts.label] - 세션 라벨(context-review는 perspective)
  * @param {string} [opts.targetDigest] - context-review 필수 64 hex
@@ -358,4 +365,7 @@ function listCoordinatorSessions(opts: { file: string; blueprint: string }): Arr
     }));
 }
 
-export = { metricsFilePath, startSession, endSession, summarize, listCoordinatorSessions };
+export = {
+  EXCEPTION_KINDS, isException, metricsFilePath, startSession, endSession, summarize,
+  listCoordinatorSessions,
+};

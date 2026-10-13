@@ -20,6 +20,8 @@ const {
 } = validateDocs;
 import runtimeState = require('./runtime-state');
 const { verifyLedgerPathFor, readApprovalSnapshot } = runtimeState;
+import dagShape = require('./dag-shape');
+const { pathOverlapRatio } = dagShape;
 import validateSections = require('./validate-sections');
 const {
   VERIFY_SECTION_DEFS, TODO_RE,
@@ -357,6 +359,108 @@ function checkG21(
   const dirty = String(diff.stdout).split('\n').filter(Boolean)
     .some((rel) => !toPosix(rel).startsWith('.bouncer/'));
   if (dirty) add('blueprint review is stale');
+}
+
+// 체인 경고 기준: 인접 edge의 경로 중첩률이 이 값 이상이면 "같은 파일을 이어서
+// 만지는" 직렬 구간으로 본다. 0.5는 한쪽 경로의 절반 이상이 겹친다는 뜻이다.
+const DAG_SERIAL_OVERLAP_MIN = 0.5;
+// 체인 경고는 task 3개 이상(edge 2개 이상)부터 낸다. 두 task 직렬은 흔하다.
+const DAG_SERIAL_CHAIN_MIN_TASKS = 3;
+
+/**
+ * plan 게이트와 plan draft가 공유하는 DAG 모양 경고(권고)를 ctx.warnings에 싣는다.
+ * commit task만 노드로 보고 verification 노드와 그 edge는 뺀다 — 노드는 drive
+ * 대상이 아니라 마지막 확인 단계라 직렬이어도 병렬화 대상이 아니다.
+ * 중첩률은 TASKS-001 `pathOverlapRatio` 하나만 쓴다. 경고는 failures를 건드리지
+ * 않으며, `next`도 만들지 않는다(권고 문구는 message에 둔다).
+ * G19 실패가 있으면 호출자가 부르지 않는다: 깨진 graph 위의 모양 경고는 소음이다.
+ *
+ * @param {DocLeaf[]} tasksList - blueprint에서 수집한 tasks.md 문서들
+ * @param {GateContext} ctx - warnings 배열을 담은 gate 문맥. 배열이 없으면 아무것도 하지 않는다
+ * @param {string} file - 경고에 붙일 blueprint index 상대 경로
+ * @returns {void} 결과는 ctx.warnings에 push로만 남긴다
+ */
+function checkTaskDagShape(tasksList: DocLeaf[], ctx: GateContext, file: string): void {
+  if (!Array.isArray(ctx.warnings)) return;
+  const commit = new Map<string, { paths: string[]; deps: string[] }>();
+  for (const tasksDoc of tasksList) {
+    const data = asData(tasksDoc);
+    const bouncer = data && data.bouncer && typeof data.bouncer === 'object'
+      ? data.bouncer as Record<string, unknown>
+      : undefined;
+    const id = bouncer && typeof bouncer.id === 'string' ? bouncer.id : '';
+    if (!bouncer || !id || executionKindOf(bouncer) !== 'commit') continue;
+    // affected_paths가 비었거나 배열이 아니면 중첩률 0으로 센다(G5가 따로 실패시킨다).
+    const ap = Array.isArray(bouncer.affected_paths)
+      ? bouncer.affected_paths.filter((p): p is string => typeof p === 'string')
+      : [];
+    const deps = Array.isArray(bouncer.depends_on)
+      ? bouncer.depends_on.filter((d): d is string => typeof d === 'string')
+      : [];
+    commit.set(id, { paths: ap, deps });
+  }
+
+  // commit→commit edge만 (선행, 후행) id 순으로 모은다. verification 쪽 edge는
+  // commit 맵에 없는 id라 여기서 자연히 빠진다.
+  const edges: Array<{ from: string; to: string; ratio: number }> = [];
+  for (const [to, node] of commit) {
+    for (const from of node.deps) {
+      const pred = commit.get(from);
+      if (!pred) continue;
+      edges.push({ from, to, ratio: pathOverlapRatio(pred.paths, node.paths) });
+    }
+  }
+  edges.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : a.to < b.to ? -1 : a.to > b.to ? 1 : 0));
+
+  // 1. 체인: 중첩률 기준을 넘는 edge만 이은 부분 그래프에서 시작점(들어오는 edge 없음)
+  //    부터 끝점까지의 최대 경로를 모은다. G19가 통과했으므로 순환은 없어 DFS가 끝난다.
+  const strong = edges.filter((e) => e.ratio >= DAG_SERIAL_OVERLAP_MIN);
+  const outs = new Map<string, Array<{ to: string; ratio: number }>>();
+  const hasIn = new Set<string>();
+  for (const e of strong) {
+    if (!outs.has(e.from)) outs.set(e.from, []);
+    (outs.get(e.from) as Array<{ to: string; ratio: number }>).push({ to: e.to, ratio: e.ratio });
+    hasIn.add(e.to);
+  }
+  const chains: Array<{ ids: string[]; min: number }> = [];
+  const walk = (ids: string[], min: number): void => {
+    const next = outs.get(ids[ids.length - 1]) || [];
+    if (next.length === 0) {
+      if (ids.length >= DAG_SERIAL_CHAIN_MIN_TASKS) chains.push({ ids, min });
+      return;
+    }
+    for (const n of next) walk([...ids, n.to], Math.min(min, n.ratio));
+  };
+  for (const start of [...outs.keys()].sort()) {
+    if (!hasIn.has(start)) walk([start], 1);
+  }
+  chains.sort((a, b) => {
+    const x = a.ids.join(' ');
+    const y = b.ids.join(' ');
+    return x < y ? -1 : x > y ? 1 : 0;
+  });
+  for (const chain of chains) {
+    ctx.warnings.push({
+      code: 'dag-serial-overlap',
+      message:
+        `serial chain ${chain.ids.join(' → ')} shares paths (min overlap ${chain.min.toFixed(2)}); `
+        + 'consider merging the tasks or splitting shared paths so they can run in parallel',
+      file,
+    });
+  }
+
+  // 2. 경로가 하나도 겹치지 않는 edge: 실제 의존이 아닐 수 있는 직렬화다.
+  const disjoint = edges.filter((e) => e.ratio === 0);
+  if (disjoint.length > 0) {
+    ctx.warnings.push({
+      code: 'dag-disjoint-edge',
+      message:
+        `serial edges with no shared paths: ${disjoint.map((e) => `${e.from} → ${e.to}`).join(', ')}; `
+        + 'if the dependency is not real, drop it or make the dependent task fixture-first '
+        + 'so it can run in parallel',
+      file,
+    });
+  }
 }
 
 /**
@@ -972,7 +1076,10 @@ function runCheckGate(
     }
     // G19: blueprint 안 모든 task를 한 번 모아 depends_on 참조·중복·순환을
     // 결정적으로 판정한다. shape/enum은 S28; 여기는 graph 무결성만.
+    const beforeG19 = failures.length;
     checkTaskDependencyGraph(tasksList, failures);
+    // G19가 실패한 graph는 모양 경고를 계산하지 않는다(순환이면 체인 탐색도 무의미).
+    if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
     checkVerificationTaskGraph(tasksList, failures);
     return;
   }
@@ -1437,7 +1544,10 @@ function checkPlanDraft(
   for (const tasksDoc of tasksList) {
     checkTaskScope(tasksDoc, tasksDoc.rel || rels.tasks, sectionKeys, failures, ctx);
   }
+  const beforeG19 = failures.length;
   checkTaskDependencyGraph(tasksList, failures);
+  // plan gate와 같은 조건: G19가 실패하면 모양 경고를 건너뛴다.
+  if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   checkVerificationTaskGraph(tasksList, failures);
 }
 

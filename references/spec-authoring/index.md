@@ -82,6 +82,21 @@ body content only; never edits harness-owned frontmatter fields. Used from
        `[]`와 `parallel_safe`의 `false`만 자리표시자다). 알 수 없는 id·자기
        참조·중복·cycle은 plan gate G19가, 잘못된 shape·enum·자원 id는 S28이
        거절한다.
+
+       plan gate와 plan draft 검사는 DAG 모양에 권고 경고 두 가지를 `warnings[]`에
+       싣는다. 실패가 아니므로 `ok`는 바뀌지 않고, 받으면 아래를 검토한다.
+       - `dag-serial-overlap`: 경로 중첩률 0.5 이상인 edge로 이어진 task가 3개
+         이상 직렬이다. 같은 파일을 연달아 고치는 task는 한 task로 **병합**할 수
+         있는지 먼저 본다. 병합이 크면 공유 경로를 앞 task로 몰고 나머지가 서로
+         다른 경로를 갖도록 쪼개 `parallel_safe` wave로 보낼 수 있는지 검토한다.
+       - `dag-disjoint-edge`: 경로가 하나도 겹치지 않는데 `depends_on`으로 직렬인
+         commit→commit edge다. 실제 의존이 아니면 edge를 지우고
+         `parallel_safe: true`를 검토한다. 후행 task가 선행 결과를 fixture·테스트로만
+         쓴다면 그 fixture만 바꾸는 **fixture 선행 task**를 따로 떼어 병렬 wave로
+         보낸다.
+       - 예: `TASKS-002`가 `TASKS-001`이 만든 fixture만 읽는다면, fixture 생성을
+         `TASKS-001`로 두고 `TASKS-002`·`TASKS-003`을 각자 다른 경로로 나눠 둘 다
+         `depends_on: [TASKS-001]`로 걸면 한 wave에 함께 실행된다.
      - **execution_kind**: 신규 구현 task는 `commit`을 명시한다. 전체 CI fan-in
        node만 `verification`으로 쓰고, non-empty `depends_on`,
        `parallel_safe: false`, `dependency_gate: integrated`, 실행 가능한 `verify`,

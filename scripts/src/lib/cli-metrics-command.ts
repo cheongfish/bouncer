@@ -14,16 +14,18 @@ type CliIo = {
   err: (s: string) => void;
 };
 
-const USAGE_BLOCK = '  metrics start --kind <coordinator-session|context-review> --blueprint <dir> [--label <text>]\n'
+const KINDS = 'coordinator-session|context-review|root-direct-session';
+
+const USAGE_BLOCK = `  metrics start --kind <${KINDS}> --blueprint <dir> [--label <text>]\n`
   + '             [--target-digest <64hex>]\n'
-  + '             Record a coordinator session or plan context-review call start in drive-metrics.json.\n'
+  + '             Record a coordinator, root-direct, or plan context-review session start in drive-metrics.json.\n'
   + '  metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>]\n'
   + '             [--model <slug>] [--host-duration-ms <n>]\n'
   + '             Record host-reported tokens and time; missing values are stored as null with a reason.\n'
   + '  metrics summary --blueprint <dir>\n'
   + '             Sum sessions per kind (null tokens and costs are counted as missing, never as 0).\n';
 
-const USAGE = 'usage: bouncer metrics start --kind <coordinator-session|context-review> --blueprint <dir> '
+const USAGE = `usage: bouncer metrics start --kind <${KINDS}> --blueprint <dir> `
   + '[--label <text>] [--target-digest <64hex>]\n'
   + '       bouncer metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>] '
   + '[--model <slug>] [--host-duration-ms <n>]\n'

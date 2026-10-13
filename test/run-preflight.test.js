@@ -284,3 +284,155 @@ test('run preflight without --blueprint → exits 2', () => {
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /blueprint/);
 });
+
+// 세 번째 task 문서를 추가한다. 기본값은 TASKS-002에 직렬로 매달린 commit task다.
+function writeTask003(repo, over = {}) {
+  const rel = `${BP_REL}/tasks/003/tasks.md`;
+  writeDoc(repo, rel, {
+    type: 'bouncer.tasks', title: 'Third', description: 'd', resource: rel,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-003', epic_id: '001', blueprint_id: '001', status: 'ready',
+      execution_kind: 'commit', affected_paths: ['c.ts'], depends_on: ['TASKS-002'],
+      ...over,
+    },
+  }, '# Tasks 003\n');
+}
+
+test('run preflight with three chained commit tasks → emits serial shape', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, {
+    task001: { review_risk: ['public_interface'] },
+    task002: { review_risk: ['public_interface'] },
+  });
+  writeTask003(repo);
+  setPointer(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.deepEqual(payload.shape, {
+    drive_shape: 'serial',
+    max_wave_width: 1,
+    commit_tasks: 3,
+    review_risk: ['public_interface'],
+    parallel_safe_tasks: 0,
+  });
+});
+
+test('run preflight with a verification node → shape does not count the node', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  writeTask003(repo, { execution_kind: 'verification', depends_on: ['TASKS-001', 'TASKS-002'] });
+  setPointer(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.equal(payload.shape.commit_tasks, 2);
+  assert.equal(payload.shape.drive_shape, 'serial');
+});
+
+test('run preflight with a failing pointer → omits shape', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.equal(payload.ok, false);
+  assert.equal(payload.shape, undefined);
+});
+
+// direct_eligible 경계: 설정(coordinator.direct_max_commit_tasks)과 shape·scale·delegable이
+// 모두 맞을 때만 true여야 한다. 직렬 task 수는 TASKS-001/002 위에 003.. 을 이어 붙여 만든다.
+function writeChain(repo, count) {
+  writePlanTree(repo);
+  for (let n = 3; n <= count; n += 1) {
+    const id = String(n).padStart(3, '0');
+    const prev = String(n - 1).padStart(3, '0');
+    const rel = `${BP_REL}/tasks/${id}/tasks.md`;
+    writeDoc(repo, rel, {
+      type: 'bouncer.tasks', title: `T${id}`, description: 'd', resource: rel,
+      tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${id}`, epic_id: '001', blueprint_id: '001', status: 'ready',
+        execution_kind: 'commit', affected_paths: [`${id}.ts`], depends_on: [`TASKS-${prev}`],
+      },
+    }, `# Tasks ${id}\n`);
+  }
+  setPointer(repo);
+}
+
+function writeDirectConfig(repo, directMax) {
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer', 'config.json'), `${JSON.stringify({
+    coordinator: { direct_max_commit_tasks: directMax },
+  })}\n`);
+}
+
+test('run preflight with three serial commit tasks and no config → direct_eligible is true', () => {
+  const repo = makeRepo();
+  writeChain(repo, 3);
+
+  assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, true);
+});
+
+test('run preflight with four serial commit tasks and no config → direct_eligible is false', () => {
+  const repo = makeRepo();
+  writeChain(repo, 4);
+
+  assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, false);
+});
+
+test('run preflight with four serial tasks and direct_max_commit_tasks 4 → direct_eligible is true', () => {
+  const repo = makeRepo();
+  writeChain(repo, 4);
+  writeDirectConfig(repo, 4);
+
+  assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, true);
+});
+
+test('run preflight with direct_max_commit_tasks 0, "x" or -1 → direct_eligible is false', () => {
+  for (const value of [0, 'x', -1, 1.5]) {
+    const repo = makeRepo();
+    writeChain(repo, 2);
+    writeDirectConfig(repo, value);
+
+    assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, false, String(value));
+  }
+});
+
+test('run preflight with two independent parallel_safe tasks → direct_eligible is false', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, {
+    task001: { parallel_safe: true },
+    task002: { parallel_safe: true, depends_on: [] },
+  });
+  setPointer(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.shape.drive_shape, 'parallel');
+  assert.strictEqual(payload.direct_eligible, false);
+});
+
+test('run preflight with a light blueprint → direct_eligible is false', () => {
+  const repo = makeRepo();
+  writeChain(repo, 2);
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+
+  assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, false);
+});
+
+test('run preflight with a closed blueprint → direct_eligible is false', () => {
+  const repo = makeRepo();
+  writeChain(repo, 2);
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('status: approved', 'status: closed'));
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.delegable, false);
+  assert.strictEqual(payload.direct_eligible, false);
+});

@@ -3245,3 +3245,103 @@ test('context G18: 관점 2개 delta round → 실패 없음', () => {
     ],
   }), []);
 });
+
+// --- plan DAG 모양 경고: dag-serial-overlap / dag-disjoint-edge ---
+
+function shapeWarnings(taskDocs, code) {
+  const warnings = [];
+  const failures = [];
+  checkGate('plan', planDocsWithTasks(taskDocs), rels, failures, { warnings });
+  return { warnings: warnings.filter((x) => x.code === code), all: warnings, failures };
+}
+
+const SHARED = ['src/auth/login.js', 'test/auth/login.test.js'];
+
+function serialChain() {
+  return [
+    planTaskDoc('001', { affected_paths: SHARED, depends_on: [] }),
+    planTaskDoc('002', { affected_paths: SHARED, depends_on: ['TASKS-001'] }),
+    planTaskDoc('003', { affected_paths: SHARED, depends_on: ['TASKS-002'] }),
+  ];
+}
+
+test('plan gate when three tasks serially share the same files → one dag-serial-overlap warning', () => {
+  const { warnings: w } = shapeWarnings(serialChain(), 'dag-serial-overlap');
+  assert.equal(w.length, 1);
+  assert.match(w[0].message, /TASKS-001 → TASKS-002 → TASKS-003/);
+  assert.equal(w[0].file, rels.blueprintIndex);
+  assert.equal(w[0].next, undefined);
+});
+
+test('plan gate when two commit→commit edges share no paths → one dag-disjoint-edge warning listing both', () => {
+  const { warnings: e } = shapeWarnings([
+    planTaskDoc('001', { affected_paths: ['src/a.js'] }),
+    planTaskDoc('002', { affected_paths: ['src/b.js'], depends_on: ['TASKS-001'] }),
+    planTaskDoc('003', { affected_paths: ['src/c.js'] }),
+    planTaskDoc('004', { affected_paths: ['src/d.js'], depends_on: ['TASKS-003'] }),
+  ], 'dag-disjoint-edge');
+  assert.equal(e.length, 1);
+  assert.match(e[0].message, /TASKS-001 → TASKS-002, TASKS-003 → TASKS-004/);
+  assert.equal(e[0].next, undefined);
+  assert.equal(e[0].file, rels.blueprintIndex);
+});
+
+test('checkPlanDraft when a serial overlap chain exists → same dag-serial-overlap warning', () => {
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const warnings = [];
+  const failures = [];
+  checkPlanDraft(planDocsWithTasks(serialChain()), rels, failures, { warnings });
+  assert.equal(warnings.filter((x) => x.code === 'dag-serial-overlap').length, 1);
+});
+
+test('plan gate when the chain is only two tasks → no dag-serial-overlap warning', () => {
+  const { warnings } = shapeWarnings(serialChain().slice(0, 2), 'dag-serial-overlap');
+  assert.deepStrictEqual(warnings, []);
+});
+
+test('plan gate when G19 fails (cycle) → no DAG shape warnings', () => {
+  const { all, failures } = shapeWarnings([
+    planTaskDoc('001', { affected_paths: SHARED, depends_on: ['TASKS-003'] }),
+    planTaskDoc('002', { affected_paths: SHARED, depends_on: ['TASKS-001'] }),
+    planTaskDoc('003', { affected_paths: SHARED, depends_on: ['TASKS-002'] }),
+  ], 'dag-serial-overlap');
+  assert.ok(failures.some((f) => f.code === 'G19'));
+  assert.deepStrictEqual(all.filter((x) => x.code.startsWith('dag-')), []);
+});
+
+test('plan gate when a verification node depends on a disjoint commit task → edge is not listed', () => {
+  const { all } = shapeWarnings([
+    planTaskDoc('001', { affected_paths: ['src/a.js'] }),
+    planTaskDoc('002', { affected_paths: ['src/b.js'], depends_on: ['TASKS-001'] }),
+    planTaskDoc('003', {
+      execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-002'],
+      parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
+    }),
+  ], 'dag-disjoint-edge');
+  const edge = all.find((x) => x.code === 'dag-disjoint-edge');
+  assert.ok(edge);
+  assert.match(edge.message, /TASKS-001 → TASKS-002/);
+  assert.doesNotMatch(edge.message, /TASKS-003/);
+});
+
+test('plan gate when task-split and DAG warnings coexist → task-split comes first', () => {
+  const many = Array.from({ length: 21 }, (_, i) => `src/m${i}.js`);
+  const { all } = shapeWarnings([
+    planTaskDoc('001', { affected_paths: many }),
+    planTaskDoc('002', { affected_paths: many, depends_on: ['TASKS-001'] }),
+    planTaskDoc('003', { affected_paths: many, depends_on: ['TASKS-002'] }),
+    planTaskDoc('004', { affected_paths: ['docs/x.md'], depends_on: ['TASKS-003'] }),
+  ], 'dag-serial-overlap');
+  const codes = all.map((x) => x.code);
+  assert.equal(codes.indexOf('task-split'), 0);
+  assert.deepStrictEqual(
+    codes.filter((c) => c.startsWith('dag-')),
+    ['dag-serial-overlap', 'dag-disjoint-edge'],
+  );
+});
+
+test('execute gate when a serial overlap chain exists → no DAG shape warnings', () => {
+  const warnings = [];
+  checkGate('execute', planDocsWithTasks(serialChain()), rels, [], { warnings });
+  assert.deepStrictEqual(warnings.filter((x) => x.code.startsWith('dag-')), []);
+});

@@ -11,7 +11,9 @@ the user approved the start ACQ. You call the deterministic `bouncer
 coordinate` core, dispatch one worker per role, judge what they return, and
 return progress plus `continue` (non-terminal) or one terminal outcome. You
 are the drive's only controller: the root run renders your reports and does
-not edit code.
+not edit code. A session that starts from a `direct-run.md` handoff has the
+same authority; the root's earlier direct steps recorded no judgment for you
+to inherit.
 
 ## Authority
 
@@ -233,10 +235,12 @@ same mutation argv right away.
    `integrated`, call `bouncer coordinate advance --blueprint <dir>` again (the
    `checkpoint` matches `coordinate status`). If only part of this session's
    prepared wave is integrated, do not return `continue` and do not Close; stay in Drive/Judge
-   (revoke/requeue/fan-in) until that wave is done. If `active_tasks` is
-   non-empty after the prepared wave is fully `integrated`, do not prepare
-   again and return `continue`; do not prepare, dispatch, or integrate more
-   when returning `continue`. A `continue` is valid only when this session's
+   (revoke/requeue/fan-in) until that wave is done. Once the prepared wave is
+   fully `integrated`, `advance` decides what follows: when it auto-prepares
+   the next wave, keep driving in this session (a verification node never
+   yields, so run it here). Return `continue` only when `advance` stops with
+   `yield` and `active_tasks` is non-empty; do not prepare, dispatch, or
+   integrate more when returning `continue`. A `continue` is valid only when this session's
    whole prepared wave (inherited tasks included) is integrated, at least one
    newly integrated task id is reported, and every worker report is collected;
    an empty newly integrated list is never `continue`. If `active_tasks` is
