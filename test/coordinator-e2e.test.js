@@ -183,6 +183,22 @@ function writeTerminalEvidence(worker, blueprint, id, sha) {
 
 
 /**
+ * `coordinate report`가 읽는 worker 보고 파일을 쓴다. full 모드 report 호출 전에 필요하다.
+ * `revision`·`open`·`weak`로 줄이나 섹션을 바꾸거나 null로 빼서 거절 경로를 만든다.
+ */
+function writeWorkerReport(worker, task, attempt, hash, {
+  revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
+  open = '- none', weak = '- none',
+} = {}) {
+  const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
+  fs.mkdirSync(dir, { recursive: true });
+  const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  if (open !== null) parts.push(`## Open choices\n${open}`);
+  if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
+  fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
+}
+
+/**
  * dispatch → accepted report → record. TASKS-001 이후 record는 활성 attempt의
  * accepted 보고와 brief hash 일치가 있어야만 worker HEAD를 올린다.
  */
@@ -191,6 +207,7 @@ function acceptDispatchAndRecord(repo, blueprint, worker, task) {
     command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
     attempt: dispatched.metadata.attempt,
@@ -254,6 +271,8 @@ test('parallel ready wave를 drive함 → worker worktrees에 commit하고 하�
         }),
       },
     });
+    // 첫 wave의 evidence가 dirty로 남은 두 번째 wave도 허용 경로라 거절되지 않는다.
+    assert.notStrictEqual(integrated.reason, 'integration-source-mutated', JSON.stringify(integrated));
     assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
     assert.deepStrictEqual(integrated.integrated, [id]);
   }
@@ -326,6 +345,16 @@ test('worker commits를 cherry-pick함 → provenance trailers가 안정적으�
   assert.match(body, /^Bouncer-Intent: EPIC-010\/BP-001$/m);
   assert.strictEqual((body.match(/^Bouncer-Task:/gm) || []).length, 1);
   assert.strictEqual((body.match(/^Bouncer-Intent:/gm) || []).length, 1);
+  // worker 출처 trailer는 ledger에 기록된 worker 전체 SHA와 같고 한 줄만 있어야 한다.
+  const ledger = JSON.parse(fs.readFileSync(
+    path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8',
+  ));
+  const recorded = ledger.tasks.find((t) => t.id === '001').sha;
+  assert.strictEqual(recorded, workerSha);
+  const workerTrailer = body.match(/^Bouncer-Worker-Commit: ([0-9a-f]{40})$/m);
+  assert.notStrictEqual(workerTrailer, null);
+  assert.strictEqual(workerTrailer[1], recorded);
+  assert.strictEqual((body.match(/^Bouncer-Worker-Commit:/gm) || []).length, 1);
 });
 
 test('fan-in이 거절됨 → ledger를 보존하고 중복 cherry-pick 없이 재개함', () => {

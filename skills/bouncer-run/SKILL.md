@@ -35,7 +35,7 @@ it. On a full drive, do not use execute's inline branch.
 
 Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
 dispatch, and coordinator output fields belong to
-`${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — do not repeat them here.
+`${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
 For every commit task on a full drive, the coordinator must require its
 implementer to read `${BOUNCER_ROOT}/references/coding-standards/index.md`
 before editing code. That reference's Korean comment and docstring contract is
@@ -137,6 +137,7 @@ stay on the execute round.
      per task boundary, `auto` batches), so no per-task ACQ under either value
 
    Take `completed_tasks.length` immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
+   Wrap every coordinator session in `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md).
    Wait in the foreground per `${BOUNCER_ROOT}/rules/subagent-model.md` item 6 until the
    coordinator returns its outcome. A background handle or a "drive started" status is not that outcome:
    never end the turn or render step 5 while the coordinator still runs.
@@ -165,9 +166,8 @@ stay on the execute round.
    `worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer.
    If `completed_tasks.length` grew, dispatch a new coordinator
    with the same payload plus that checkpoint (no ACQ). Wait in the foreground
-   for that new coordinator and apply the same continue / no-progress / terminal-stop rules again (a
-   loop, one at a time).
-   Do not go to step 5 while a coordinator runs. If it did not grow, stop here
+   for that new coordinator and apply the same continue / no-progress / terminal-stop rules again.
+   If it did not grow, stop here
    — except the table's single recovery re-dispatch; a second `continue` without a new integrated task goes to `no-progress` —
    (not step 5) with `blocked` cause `no-progress`, emit
    `중단: <blueprint> · no-progress · …`, and preserve ledger, worktrees,
@@ -180,7 +180,7 @@ stay on the execute round.
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
-   not as your own re-judgment. This skill does not enter finalize.
+   not as your own re-judgment, plus the `metrics summary` totals. This skill does not enter finalize.
    `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.

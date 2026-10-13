@@ -29,6 +29,7 @@ const SUBCOMMANDS = [
   'dispatch',
   'config',
   'retro',
+  'metrics',
 ];
 
 function capture(argv) {

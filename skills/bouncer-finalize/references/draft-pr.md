@@ -38,7 +38,7 @@ checkboxes.
 | `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for changed files, behavior, and interfaces only. Do not write task DAG, task split/order, repair wave, scope revision, worker·agent, branch·sha, integration head, or 작업 과정. |
 | `변경 그림` (필수) | Mermaid diagram chosen by change kind (rules below). Never omitted. |
 | `변경 전후` (필수) | Digest `pr.sections.verification`, Explain `## Code`, and the diff only. When no before-change observation exists, write `변경 전 결과 미관측` — never present an unobserved before-result as a run result. |
-| `리뷰 포인트` | Digest `pr.sections.review_points` first, then Explain `## Code` + diff hot paths only where the digest left a gap. No guessed risk. |
+| `리뷰 포인트` | Digest `pr.sections.review_points` first (it already carries worker open choices and known weaknesses from `tasks[].worker_notes`), then Explain `## Code` + diff hot paths only where the digest left a gap. No guessed risk. |
 | `되돌리기 · 영향 범위` (필수) | Three items: how to revert and what it restores; data, external behavior, or contract effects a commit revert does not restore; features, consumers, or data affected if applied wrongly. State in one line that the risk classification is not approval or auto-merge grounds. |
 | `확인 방법` | Digest `pr.sections.verification` in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. Do not re-open task `verification.md` files. Reference verification and review through the digest `evidence` field (`evidence.verification[].evidence_id`, `evidence.review`). Do not open verification or review logs. |
 

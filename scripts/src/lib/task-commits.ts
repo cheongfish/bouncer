@@ -6,9 +6,11 @@ const { normalizeCommitSha } = commitSha;
 type GitExecResult = { status: number; stdout: string };
 type GitExec = (args: string[]) => GitExecResult;
 
-type ResolvedCommit = { sha: string; sha8: string };
+type ResolvedCommit = { sha: string; sha8: string; workerSha: string | null };
 
 const TRAILER_RE = /^Bouncer-Task\s*:\s*(.*?)\s*$/;
+// fan-in이 붙인 worker 출처. 40자리 hex가 아니면 매칭하지 않아 workerSha가 null이 된다.
+const WORKER_TRAILER_RE = /^Bouncer-Worker-Commit\s*:\s*([0-9a-f]{40})\s*$/m;
 // `%H%x00%B`는 커밋 사이에 구분 NUL이 없어 다음 SHA가 본문 뒤에 붙는다.
 // SHA\0 위치를 먼저 찾고, 본문은 다음 SHA 직전까지로 자른다.
 const FULL_SHA_NUL_RE = /([0-9a-f]{40})\0/gi;
@@ -74,7 +76,7 @@ function parseShaBodyLog(stdout: string): Array<{ sha: string; body: string }> {
  * @param {string} opts.head - 범위 끝(포함). 보통 HEAD
  * @param {string[]} opts.stableIds - 찾을 `EPIC-…/BP-…/TASK-…` 목록
  * @param {(args: string[]) => { status: number, stdout: string }} [opts.exec] - `git` 뒤 argv seam
- * @returns {Map<string, { sha: string, sha8: string }>} 매칭된 ID만 담은 맵
+ * @returns {Map<string, { sha: string, sha8: string, workerSha: string | null }>} 매칭된 ID만 담은 맵
  */
 function resolveTaskCommits({
   repoRoot, base, head, stableIds, exec,
@@ -110,7 +112,8 @@ function resolveTaskCommits({
     if (!taskId || !wanted.has(taskId) || out.has(taskId)) continue;
     const sha8 = normalizeCommitSha(record.sha);
     if (!sha8) continue;
-    out.set(taskId, { sha: record.sha, sha8 });
+    const workerSha = WORKER_TRAILER_RE.exec(record.body)?.[1] ?? null;
+    out.set(taskId, { sha: record.sha, sha8, workerSha });
   }
   return out;
 }

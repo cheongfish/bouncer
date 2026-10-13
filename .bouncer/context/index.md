@@ -54,3 +54,4 @@ bouncer_schema: '0.1'
 * [095 coding-standards-pr-retro](epics/095-coding-standards-pr-retro/index.md) - Give implementers and reviewers one canonical coding and test standard, add test-trust review and a test-name lint, require change diagrams and decision data in every PR, and run an evidence-based retro after finalize.
 * [096 plan-review-convergence](epics/096-plan-review-convergence/index.md) - Bound planning review restarts, preserve review history, and certify document revisions without resetting the review cycle.
 * [097 intent-fence-guard](epics/097-intent-fence-guard/index.md) - Make blueprint Intent parsing skip code fences and report malformed Intent as a structured failure before finalize reaches commit message generation.
+* [098 drive-plan-cost-control](epics/098-drive-plan-cost-control/index.md) - Cut drive restart and plan review costs, fix environment and output faults, and close worker report and role provenance gaps with measured effects.

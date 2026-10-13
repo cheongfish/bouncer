@@ -327,7 +327,8 @@ function advance(opts: {
       return failAdvance(
         'unclear-result',
         outcome.detail,
-        'Inspect the command output, then call coordinate next again.',
+        'Re-read state with coordinate next or coordinate status and run only the action it names; '
+        + 'do not re-run the same mutation argv first.',
         executed,
       );
     }

@@ -101,6 +101,11 @@ to your `Decision required` judgment, never a second brief.
   scope, and Blueprint necessity; the repair depends on the then-integrated
   leaves and the terminal verification node moves its dependency to that repair.
   After a second repair still fails, automatic execution stops.
+- A failing CI, lint, or word-count check never lets you edit files yourself.
+  Inside a task's scope it is `rework`; a terminal failure goes through
+  `coordinate repair` so a worker fixes it. `coordinate integrate` refuses
+  uncommitted integration changes outside the seeded and evidence paths with
+  `integration-source-mutated`: revert them and move the change to a worker task.
 - A final-review `must_fix` that is only an in-scope gap in test evidence (test
   paths inside an integrated task's `affected_paths`; product behavior already
   correct) is closed in place with `bouncer coordinate repair --kind
@@ -168,6 +173,9 @@ is not a prompt to invent a new hash. When the stop is `blocked`, take its
 `reason`, `cause`, and `next` as Judge inputs; do not repeat the same `argv`
 without a judgment. Check a command's flags, allowed values, and input format
 with `bouncer <command> <sub> --help`; do not read plugin sources for them.
+When `advance` returns `unclear-result`, re-read state with `coordinate next` or
+`coordinate status` and run only the action that result names. Do not re-run the
+same mutation argv right away.
 
 1. **Advance** — Call `bouncer coordinate advance --blueprint <dir>` (or with
    `--task <NNN>` when driving one prepared task). The stop's `next` is the
@@ -262,7 +270,9 @@ your diffs, so return these fields and nothing else actionable:
   paths, and the recovery action a human can take.
 - **Decisions** — each recorded judgment with its cause and next action.
 - **Provenance** — the changed paths recorded in your decisions, each worker's
-  ledger `branch` and commit SHA, and any task or edge added during the drive.
+  ledger `branch` and worker commit SHA, the integration task SHA linked to it
+  by its `Bouncer-Worker-Commit` trailer (label each SHA as worker or
+  integration), and any task or edge added during the drive.
 - **Partial close** — both repair-wave decisions, the last CI command and paths,
   post-wave-two nonzero failure evidence, `NEXT_PLAN.md`, preserved ledger and
   worktrees, and the user confirmation result.

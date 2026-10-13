@@ -82,6 +82,22 @@ function writeCoordinatorConfig(repoRoot, coordinator) {
 }
 
 /**
+ * `coordinate report`가 읽는 worker 보고 파일을 쓴다. full 모드 report 호출 전에 필요하다.
+ * `revision`·`open`·`weak`로 줄이나 섹션을 바꾸거나 null로 빼서 거절 경로를 만든다.
+ */
+function writeWorkerReport(worker, task, attempt, hash, {
+  revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
+  open = '- none', weak = '- none', pathAttempt = attempt,
+} = {}) {
+  const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
+  fs.mkdirSync(dir, { recursive: true });
+  const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  if (open !== null) parts.push(`## Open choices\n${open}`);
+  if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
+  fs.writeFileSync(path.join(dir, `${task}-${pathAttempt}.md`), `${parts.join('\n\n')}\n`);
+}
+
+/**
  * dispatch → accepted report. record 사전조건을 채운 뒤 호출부가 record를 이어서 부른다.
  */
 function acceptDispatchReport(repo, blueprint, worker, task = '001') {
@@ -89,6 +105,7 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
     command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
     attempt: dispatched.metadata.attempt,
@@ -1141,6 +1158,135 @@ test('commit integrate with worker evidence that is not terminal or stamps anoth
   assert.deepStrictEqual(snapshotTree(path.join(drive.integrationPath, bundle)), integrationBundle);
 });
 
+// 001 worker를 terminal 증적까지 갖춘 integrate 가능 상태로 만든다.
+function integrableDrive(prefix, blueprint) {
+  const drive = recordedDrive(prefix, blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  return drive;
+}
+const integrateOne = (drive, blueprint) => coordinate({
+  command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+  deps: { runVerification: passVerify },
+});
+
+test('integration checkout with an uncommitted file outside the allowed paths → integrate refuses with integration-source-mutated and keeps the ledger bytes', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/001-mutated';
+  const drive = integrableDrive('bouncer-integrate-mutated-', blueprint);
+  fs.mkdirSync(path.join(drive.integrationPath, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/extra.js'), 'direct edit\n');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const headBefore = drive.head();
+
+  const refused = integrateOne(drive, blueprint);
+  assert.strictEqual(refused.ok, false, JSON.stringify(refused));
+  assert.strictEqual(refused.reason, 'integration-source-mutated');
+  assert.ok(refused.paths.includes('src/extra.js'), JSON.stringify(refused.paths));
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+  assert.strictEqual(drive.head(), headBefore);
+
+  // 직접 수정분을 되돌리면 같은 호출이 통과한다.
+  fs.rmSync(path.join(drive.integrationPath, 'src/extra.js'));
+  const retried = integrateOne(drive, blueprint);
+  assert.strictEqual(retried.ok, true, JSON.stringify(retried));
+});
+
+test('integration checkout dirty only at seeded plan paths and earlier wave evidence → integrate succeeds', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/002-allowed';
+  const drive = integrableDrive('bouncer-integrate-allowed-', blueprint);
+  // 계획이 미커밋이라 seed 경로는 이미 dirty이다. 이전 wave evidence도 dirty로 남긴다.
+  const first = integrateOne(drive, blueprint);
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  assert.ok(status.includes(`${blueprint}/tasks/001/tasks.md`), status);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks.find((t) => t.id === '001').status, 'integrated');
+  // 두 번째 integrate가 필요한 task는 없으므로 nothing-to-integrate이지 mutated가 아니다.
+  const second = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(second.reason, 'nothing-to-integrate', JSON.stringify(second));
+});
+
+test('dirty extra file with a verification node integrate or a light ledger → dirty check does not apply', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/003-skip';
+  const repo = uncommittedPlanRepo('bouncer-integrate-skip-ver-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  fs.writeFileSync(path.join(boot.integrationPath, 'extra.js'), 'direct edit\n');
+  const verified = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: { runVerification: passVerify },
+  });
+  assert.notStrictEqual(verified.reason, 'integration-source-mutated', JSON.stringify(verified));
+  assert.strictEqual(verified.ok, true, JSON.stringify(verified));
+
+  const lightBp = '.bouncer/context/epics/098-x/blueprints/004-skip-light';
+  const light = lightScaleRepo('bouncer-integrate-skip-light-', lightBp);
+  const lightBoot = coordinate({ command: 'bootstrap', repoRoot: light.repo, blueprint: lightBp });
+  fs.writeFileSync(path.join(lightBoot.integrationPath, 'extra.js'), 'direct edit\n');
+  const lightResult = coordinate({
+    command: 'integrate', repoRoot: light.repo, blueprint: lightBp, cwd: lightBoot.integrationPath,
+  });
+  assert.strictEqual(lightResult.reason, 'nothing-to-integrate', JSON.stringify(lightResult));
+});
+
+test('report Changed files one path short of the commit → integrate succeeds with a report-paths-mismatch warning', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/005-warn';
+  const drive = integrableDrive('bouncer-integrate-warn-', blueprint);
+  // 기본 보고는 src/a.js를 적지만 커밋은 src/task.js만 바꾼다. backtick이 없는 항목은
+  // 경로 집합에서 빠지므로 src/task.js를 backtick 없이 적으면 커밋 경로가 extra로 남는다.
+  const reportFile = path.join(drive.worker, '.bouncer/runtime/reports/001-1.md');
+  const body = fs.readFileSync(reportFile, 'utf8');
+  fs.writeFileSync(reportFile, body.replace(/## Changed files\n[^\n]*\n/, '## Changed files\n- src/task.js without backticks\n'));
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+
+  const result = integrateOne(drive, blueprint);
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.warnings[0],
+    { task: '001', code: 'report-paths-mismatch', missing: [], extra: ['src/task.js'] });
+  // 경고는 결과 JSON에만 있고 ledger에는 쓰이지 않는다.
+  assert.ok(!fs.readFileSync(drive.ledgerFile, 'utf8').includes('report-paths-mismatch'));
+  void ledgerBefore;
+});
+
+test('report Changed files naming exactly the commit paths → integrate result has no warnings key', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/006-nowarn';
+  const drive = integrableDrive('bouncer-integrate-nowarn-', blueprint);
+  const reportFile = path.join(drive.worker, '.bouncer/runtime/reports/001-1.md');
+  const body = fs.readFileSync(reportFile, 'utf8');
+  fs.writeFileSync(reportFile, body.replace('`src/a.js`', '`src/task.js`'));
+  const result = integrateOne(drive, blueprint);
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual('warnings' in result, false);
+});
+
+test('missing report file or Changed files heading → integrate warns report-changed-files-unavailable', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/007-unavail';
+  const drive = integrableDrive('bouncer-integrate-unavail-', blueprint);
+  fs.rmSync(path.join(drive.worker, '.bouncer/runtime/reports/001-1.md'));
+  const result = integrateOne(drive, blueprint);
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.warnings, [{ task: '001', code: 'report-changed-files-unavailable' }]);
+
+  const headingBp = '.bouncer/context/epics/098-x/blueprints/008-unavail-heading';
+  const second = integrableDrive('bouncer-integrate-unavail-h-', headingBp);
+  const reportFile = path.join(second.worker, '.bouncer/runtime/reports/001-1.md');
+  fs.writeFileSync(reportFile, fs.readFileSync(reportFile, 'utf8').replace('## Changed files', '## Files'));
+  const headingResult = integrateOne(second, headingBp);
+  assert.strictEqual(headingResult.ok, true, JSON.stringify(headingResult));
+  assert.deepStrictEqual(headingResult.warnings, [{ task: '001', code: 'report-changed-files-unavailable' }]);
+});
+
 test('a cherry-pick CONFLICT → returns fanin-conflict without touching canonical HEAD', () => {
   const blueprint = '.bouncer/context/epics/054-x/blueprints/055-y';
   const drive = recordedDrive('bouncer-coordinator-restore-', blueprint);
@@ -1207,6 +1353,40 @@ test('a non-conflict cherry-pick failure → aborts the candidate without a fani
   assert.strictEqual(failed.task, '001');
   assert.notStrictEqual(failed.reason, 'fanin-conflict');
   assert.strictEqual(drive.head(), headBefore);
+  const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(after.fanin, null);
+  assert.strictEqual(after.tasks.find((t) => t.id === '001').status, 'recorded');
+  const { faninPath } = __coordinatorPathsFor({ repoRoot: drive.repo, blueprint });
+  assert.strictEqual(fs.existsSync(faninPath), false);
+});
+
+test('the worker-trailer amend fails after a clean cherry-pick → stops as cherry-pick-failed without abort or verified fanin', () => {
+  const blueprint = '.bouncer/context/epics/054-x/blueprints/057-y';
+  const drive = recordedDrive('bouncer-coordinator-amend-fail-', blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  const calls = [];
+  const failingAmend = (file, args, options) => {
+    calls.push(args[0] === 'cherry-pick' ? `cherry-pick ${args[1]}` : args.join(' '));
+    if (args[0] === 'commit' && args.includes('--amend')) {
+      const err = new Error('amend failed');
+      err.stderr = 'fatal: unable to write commit\n';
+      err.status = 128;
+      throw err;
+    }
+    return execFileSync(file, args, options);
+  };
+
+  const failed = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    deps: {
+      execFileSync: failingAmend,
+      runVerification: () => ({ ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) }),
+    },
+  });
+  assert.strictEqual(failed.reason, 'cherry-pick-failed', JSON.stringify(failed));
+  assert.strictEqual(failed.task, '001');
+  // cherry-pick은 이미 끝나 진행 중 상태가 없으므로 abort를 부르지 않는다.
+  assert.strictEqual(calls.includes('cherry-pick --abort'), false);
   const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
   assert.strictEqual(after.fanin, null);
   assert.strictEqual(after.tasks.find((t) => t.id === '001').status, 'recorded');
@@ -1407,6 +1587,7 @@ test('duplicate dispatch and an accepted report → rejects the duplicate and en
   assert.strictEqual(dup.reason, 'dispatch-already-active');
 
   const hash = first.metadata.task_brief_hash;
+  writeWorkerReport(drive.worker, '001', 1, hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: 1, taskBriefHash: hash, outcome: 'accepted', summary: 'implementer done',
@@ -1446,6 +1627,8 @@ test('stale report → appends expected/received and keeps the active attempt op
     task_brief_hash: 'a'.repeat(64),
   };
   const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  // 파일 경로는 활성 dispatch attempt(1) 기준이고, 내용만 늦은 보고 값이다.
+  writeWorkerReport(drive.worker, '001', received.attempt, received.task_brief_hash, { pathAttempt: 1 });
   const stale = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: received.attempt, taskBriefHash: received.task_brief_hash,
@@ -1466,6 +1649,80 @@ test('stale report → appends expected/received and keeps the active attempt op
   assert.notStrictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
 });
 
+/**
+ * 새 full 드라이브에서 dispatch만 열고 report 호출 인자와 거절 전 ledger 바이트를 돌려준다.
+ */
+function openReportAttempt(prefix, blueprint) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const { attempt, task_brief_hash: hash } = dispatched.metadata;
+  const report = () => coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt, taskBriefHash: hash, outcome: 'accepted', summary: 'worker done',
+  });
+  return { drive, attempt, hash, report };
+}
+
+function assertRefusedWithoutWrite(drive, run, reason) {
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const refused = run();
+  assert.strictEqual(refused.ok, false, JSON.stringify(refused));
+  assert.strictEqual(refused.reason, reason);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+  const ledger = JSON.parse(before);
+  assert.strictEqual(ledger.tasks[0].dispatch.status, 'active');
+  return refused;
+}
+
+test('full report whose report file is absent → report-revision-missing without a ledger write', () => {
+  const { drive, report } = openReportAttempt('bouncer-report-nofile-', '.bouncer/context/epics/098-x/blueprints/001-y');
+  const refused = assertRefusedWithoutWrite(drive, report, 'report-revision-missing');
+  assert.ok(refused.report_path.endsWith('.bouncer/runtime/reports/001-1.md'));
+});
+
+test('full report whose file lacks the task_brief_hash line → report-revision-missing without a ledger write', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-nohash-', '.bouncer/context/epics/098-x/blueprints/002-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt, hash, { revision: `attempt: ${attempt}` });
+  assertRefusedWithoutWrite(drive, report, 'report-revision-missing');
+});
+
+test('full report whose file attempt differs from the argument → report-revision-conflict without a ledger write', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-conflict-', '.bouncer/context/epics/098-x/blueprints/003-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt + 1, hash, { pathAttempt: attempt });
+  const refused = assertRefusedWithoutWrite(drive, report, 'report-revision-conflict');
+  assert.deepStrictEqual(refused.file, { attempt: attempt + 1, task_brief_hash: hash });
+  assert.deepStrictEqual(refused.args, { attempt, task_brief_hash: hash });
+});
+
+test('full report whose file lacks Known weaknesses → report-section-missing without a ledger write', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-nosection-', '.bouncer/context/epics/098-x/blueprints/004-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt, hash, { weak: null });
+  const refused = assertRefusedWithoutWrite(drive, report, 'report-section-missing');
+  assert.deepStrictEqual(refused.missing, ['Known weaknesses']);
+});
+
+test('full report with a valid file → stores open_choices and known_weaknesses on the ReportDecision', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-items-', '.bouncer/context/epics/098-x/blueprints/005-y',
+  );
+  writeWorkerReport(drive.worker, '001', attempt, hash, {
+    open: '- 환경변수 값의 앞뒤 공백을 제거한다.', weak: '- none',
+  });
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.deepStrictEqual(reported.decision.open_choices, ['환경변수 값의 앞뒤 공백을 제거한다.']);
+  assert.deepStrictEqual(reported.decision.known_weaknesses, []);
+});
+
 test('record after brief bytes change following an accepted report → rejects', () => {
   const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
   const drive = preparedCommitDrive('bouncer-dispatch-stale-record-', blueprint);
@@ -1473,6 +1730,7 @@ test('record after brief bytes change following an accepted report → rejects',
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(drive.worker, '001', 1, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: 1, taskBriefHash: dispatched.metadata.task_brief_hash,
@@ -1547,6 +1805,7 @@ test('record with a non-accepted report → rejects without storing the worker S
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt,
@@ -1586,6 +1845,7 @@ test('report without an active dispatch attempt → is rejected', () => {
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const closed = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: dispatched.metadata.attempt,
@@ -1680,6 +1940,33 @@ function checkpointFixture() {
   return { repo, blueprint, integration: boot.integrationPath, ledgerFile, sha };
 }
 
+test('status checkpoint → drive-metrics.json의 같은 blueprint coordinator 세션만 sessions로 노출한다', () => {
+  const drive = checkpointFixture();
+  const status = () => coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+  }).checkpoint.sessions;
+  // 파일이 없으면 빈 배열이다.
+  assert.deepStrictEqual(status(), []);
+  const session = (id, blueprint, kind) => ({
+    id, kind, blueprint, label: null, started_at: '2026-01-01T00:00:00.000Z', ended_at: null,
+    start: null, tasks_completed: ['001'], exception_decisions: 0, tokens: 10,
+  });
+  const file = path.join(drive.repo, '.bouncer', 'runtime', 'drive-metrics.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({
+    version: 1,
+    sessions: [
+      session('m-1111111111111111', drive.blueprint, 'coordinator-session'),
+      session('m-2222222222222222', drive.blueprint, 'coordinator-session'),
+      session('m-3333333333333333', '.bouncer/context/epics/098-z/blueprints/009-z', 'coordinator-session'),
+      session('m-4444444444444444', drive.blueprint, 'context-review'),
+    ],
+  }));
+  const sessions = status();
+  assert.strictEqual(sessions.length, 2);
+  assert.deepStrictEqual(sessions.map((s) => s.id), ['m-1111111111111111', 'm-2222222222222222']);
+});
+
 test('status checkpoint with completed tasks → summarizes them without dispatch or decision bodies', () => {
   const drive = checkpointFixture();
   const status = coordinate({
@@ -1771,6 +2058,7 @@ test('pre-launch active and hash-only changes → executor_observation stays unk
   const first = coordinate({ command: 'status', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath });
   assert.strictEqual(first.checkpoint.active_tasks[0].dispatch.status, 'active');
   assert.deepStrictEqual(first.checkpoint.executor_observation, UNKNOWN_EXECUTOR);
+  writeWorkerReport(drive.worker, '001', 9, 'a'.repeat(64), { pathAttempt: 1 });
   const stale = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
     attempt: 9, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'late report',
@@ -2559,7 +2847,8 @@ test('verification integrate before runVerification → prepares integration dep
   assert.deepStrictEqual(npmCalls, [{
     command: 'npm',
     args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
-    options: { cwd: boot.integrationPath, stdio: 'inherit' },
+    // coordinator는 npm 출력을 stderr로 보낸다(CLI stdout JSON 보호).
+    options: { cwd: boot.integrationPath, stdio: ['ignore', 2, 2] },
   }]);
   // 설치 성공 뒤 lockfile sha256 stamp가 남아야 다음 호출이 재설치를 건너뛴다.
   assert.strictEqual(
@@ -3088,6 +3377,26 @@ test('opposite-mode bootstrap resume → rejects with ledger-mode-mismatch', () 
   assert.strictEqual(resumed.reason, 'ledger-mode-mismatch');
 });
 
+test('light report without a report file → accepts inline and stores no open_choices', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/006-light';
+  const { repo } = lightScaleRepo('bouncer-light-nofile-', blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const cwd = boot.integrationPath;
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd, task: '001' });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const reported = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd, task: '001',
+    attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'rework', summary: 'inline light report',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual(reported.decision.open_choices, undefined);
+  assert.strictEqual(reported.decision.known_weaknesses, undefined);
+});
+
 test('accepted report without accepted rounds on a light ledger → rejects with light-review-required', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/007-rev';
   const { repo } = lightScaleRepo('bouncer-light-rev-', blueprint);
@@ -3556,4 +3865,112 @@ test('dispatch issuing report_path → status projects report present/absent wit
   assert.strictEqual(path.basename(second.report_path), '001-2.md');
   assert.deepStrictEqual(statusOf().checkpoint.active_tasks[0].report,
     { path: second.report_path, attempt: 2, state: 'absent' });
+});
+
+// --- coordinator 의존성 설치 stdio (CLI stdout 오염 방지) -----------------------
+// advance는 자식 CLI stdout 전체를 JSON 한 개로 파싱하므로 npm 출력이 stdout으로 새면
+// unclear-result가 반복된다. 네 호출 지점 모두 npm을 stderr로 보내는지 고정한다.
+
+/**
+ * npm 호출만 가로채 options를 기록하고 나머지는 실제 execFileSync로 넘기는 fake를 만든다.
+ *
+ * @returns {{ exec: Function, npmCalls: Array<{ options: object }> }} 주입용 exec와 기록
+ */
+function npmRecordingExec() {
+  const npmCalls = [];
+  return {
+    npmCalls,
+    exec(command, args, options) {
+      if (command === 'npm') {
+        npmCalls.push({ options });
+        return Buffer.from('');
+      }
+      return execFileSync(command, args, options);
+    },
+  };
+}
+
+test('prepare seeding a worker with a lockfile → runs npm with stdio sent to stderr', () => {
+  const blueprint = '.bouncer/context/epics/098-stdio/blueprints/001-worker';
+  const repo = uncommittedPlanRepo('bouncer-install-stdio-worker-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const rec = npmRecordingExec();
+  const result = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { execFileSync: rec.exec },
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.ok(rec.npmCalls.length >= 1);
+  for (const call of rec.npmCalls) assert.deepStrictEqual(call.options.stdio, ['ignore', 2, 2]);
+});
+
+test('verification integrate with a lockfile → runs npm with stdio sent to stderr', () => {
+  const blueprint = '.bouncer/context/epics/098-stdio/blueprints/002-verify';
+  const repo = uncommittedPlanRepo('bouncer-install-stdio-verify-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  // integration 작업 트리의 lockfile만 있으면 prepareDependencies가 npm ci를 탄다.
+  fs.writeFileSync(path.join(boot.integrationPath, 'package-lock.json'), '{}\n');
+  const rec = npmRecordingExec();
+  const passed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      execFileSync: rec.exec,
+      runVerification: () => ({ ok: true, command: 'node --test', exitCode: 0, evidenceId: 'ev-1' }),
+    },
+  });
+  assert.strictEqual(passed.ok, true, JSON.stringify(passed));
+  assert.strictEqual(rec.npmCalls.length, 1);
+  assert.deepStrictEqual(rec.npmCalls[0].options.stdio, ['ignore', 2, 2]);
+});
+
+test('wave integrate seeding the fan-in candidate with a lockfile → runs npm with stdio sent to stderr', () => {
+  const blueprint = '.bouncer/context/epics/098-stdio/blueprints/003-fanin';
+  const drive = twoRecordedWave('bouncer-install-stdio-fanin-', blueprint);
+  commitIntegrationPackageLock(drive.integrationPath);
+  // lockfile 커밋으로 integration HEAD가 움직였으므로 원장 head를 맞춰 stale 판정을 피한다.
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.integrationHead = drive.head();
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const rec = npmRecordingExec();
+  const out = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { execFileSync: rec.exec, runVerification: passVerify },
+  });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  // fan-in candidate seed가 npm을 부른다(integration은 prepare 단계에서 이미 stamp가 있을 수 있다).
+  assert.ok(rec.npmCalls.length >= 1, `npm count ${rec.npmCalls.length}`);
+  for (const call of rec.npmCalls) assert.deepStrictEqual(call.options.stdio, ['ignore', 2, 2]);
+});
+
+test('supplement repair with a lockfile → runs npm with stdio sent to stderr', () => {
+  const drive = supplementDrive('bouncer-install-stdio-supp-', '.bouncer/context/epics/098-stdio/blueprints/004-supp');
+  assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
+  fs.mkdirSync(path.join(drive.integrationPath, 'test'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'test/a.test.js'), '// supplement\n');
+  // lockfile은 보완 범위 밖 변경으로 잡히지 않도록 저장소 공용 exclude에 둔다.
+  fs.appendFileSync(path.join(drive.repo, '.git/info/exclude'), 'package-lock.json\n');
+  fs.writeFileSync(path.join(drive.integrationPath, 'package-lock.json'), '{}\n');
+  const rec = npmRecordingExec();
+  const out = coordinate(supplementOpts(drive, {
+    done: true, reviewFindings: undefined, summary: 'tests added',
+    deps: {
+      execFileSync: rec.exec,
+      runVerification: () => ({ ok: true, command: 'node --test', exitCode: 0, evidenceId: 'b'.repeat(64) }),
+    },
+  }));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(rec.npmCalls.length, 1);
+  assert.deepStrictEqual(rec.npmCalls[0].options.stdio, ['ignore', 2, 2]);
 });

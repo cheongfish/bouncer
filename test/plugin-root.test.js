@@ -227,3 +227,60 @@ test('bouncer with lib/cli.js missing on the self-exec path → prints build gui
   assert.strictEqual(res.status, 1);
   assert.match(res.stderr, /scripts\/lib is missing; run `npm run build`/);
 });
+
+/**
+ * 개발 checkout 모양의 tmp root를 만든다: scripts/src, build-stamp helper, 두 launcher,
+ * 복사한 lib. stamp는 호출자가 정한다.
+ *
+ * @param {string|null} stamp - scripts/lib/.build-stamp 내용. null이면 쓰지 않는다
+ * @returns {string} tmp root
+ */
+function devCheckoutFixture(stamp) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-stale-build-'));
+  const scriptsDir = path.join(tmp, 'scripts');
+  fs.mkdirSync(path.join(scriptsDir, 'src', 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(scriptsDir, 'src', 'lib', 'x.ts'), 'export const x = 1;\n');
+  fs.writeFileSync(path.join(tmp, 'tsconfig.json'), '{}');
+  for (const name of ['bouncer', 'bouncer-root', 'build-stamp.js']) {
+    if (fs.existsSync(path.join(repoScripts, name))) {
+      fs.copyFileSync(path.join(repoScripts, name), path.join(scriptsDir, name));
+    }
+  }
+  fs.cpSync(path.join(repoScripts, 'lib'), path.join(scriptsDir, 'lib'), { recursive: true });
+  fs.cpSync(path.join(repoScripts, 'vendor'), path.join(scriptsDir, 'vendor'), { recursive: true });
+  fs.rmSync(path.join(scriptsDir, 'lib', '.build-stamp'), { force: true });
+  if (stamp !== null) fs.writeFileSync(path.join(scriptsDir, 'lib', '.build-stamp'), stamp);
+  fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '9.9.9' }));
+  return tmp;
+}
+
+const STALE = /bouncer: stale-build: scripts\/lib does not match scripts\/src; run `npm run build` in /;
+
+for (const [label, stamp] of [['stamp hash differs', `sha256:${'0'.repeat(64)}\n`], ['stamp is missing', null]]) {
+  test(`launchers on a checkout where ${label} → stale-build and exit 1`, () => {
+    const tmp = devCheckoutFixture(stamp);
+    const env = isolatedLauncherEnv(tmp);
+    const viaBouncer = spawnSync(process.execPath, [path.join(tmp, 'scripts', 'bouncer'), '--help'], {
+      encoding: 'utf8', env,
+    });
+    assert.strictEqual(viaBouncer.status, 1);
+    assert.match(viaBouncer.stderr, STALE);
+    const viaRoot = spawnSync(process.execPath, [path.join(tmp, 'scripts', 'bouncer-root'), '--auto'], {
+      encoding: 'utf8', env,
+    });
+    assert.strictEqual(viaRoot.status, 1);
+    assert.match(viaRoot.stderr, STALE);
+  });
+}
+
+test('bouncer-root on a checkout without scripts/src → skips the freshness check', () => {
+  const tmp = devCheckoutFixture(null);
+  fs.rmSync(path.join(tmp, 'scripts', 'src'), { recursive: true });
+  fs.rmSync(path.join(tmp, 'scripts', 'build-stamp.js'), { force: true });
+  const res = spawnSync(process.execPath, [path.join(tmp, 'scripts', 'bouncer-root'), '--auto'], {
+    encoding: 'utf8',
+    env: isolatedLauncherEnv(tmp),
+  });
+  assert.strictEqual(res.status, 0);
+  assert.strictEqual(res.stdout.trim(), tmp);
+});

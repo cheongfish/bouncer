@@ -188,6 +188,7 @@ function recordedDrive() {
     cwd: drive.worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeWorkerReport(drive.worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   assert.strictEqual(coordinate({
     command: 'report', repoRoot: drive.repo, blueprint: BP_REL,
     cwd: drive.worker, task: '001',
@@ -201,6 +202,22 @@ function recordedDrive() {
   });
   assert.strictEqual(recorded.ok, true);
   return { ...drive, run, oldSha };
+}
+
+/**
+ * `coordinate report`가 읽는 worker 보고 파일을 쓴다. full 모드 report 호출 전에 필요하다.
+ * `revision`·`open`·`weak`로 줄이나 섹션을 바꾸거나 null로 빼서 거절 경로를 만든다.
+ */
+function writeWorkerReport(worker, task, attempt, hash, {
+  revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
+  open = '- none', weak = '- none',
+} = {}) {
+  const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
+  fs.mkdirSync(dir, { recursive: true });
+  const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  if (open !== null) parts.push(`## Open choices\n${open}`);
+  if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
+  fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
 }
 
 test('coordinate rerecord → replaces only a recorded SHA with the worker direct-child HEAD', () => {
@@ -518,6 +535,7 @@ test('coordinate dispatch and report without worker cwd or report metadata flags
   assert.strictEqual(badOutcome.code, 1);
   assert.match(JSON.parse(badOutcome.buf.out).reason, /outcome/);
 
+  writeWorkerReport(drive.worker, '001', meta.attempt, meta.task_brief_hash);
   const reported = coordinateCli(drive.worker, 'report', [
     '--repo', drive.repo, '--task', '001',
     '--attempt', String(meta.attempt), '--task-brief-hash', meta.task_brief_hash,
@@ -636,6 +654,7 @@ test('coordinate integrate without --task → returns integrated array', () => {
   const dispatched = coordinateCli(worker, 'dispatch', ['--repo', drive.repo, '--task', '001']);
   assert.strictEqual(dispatched.code, 0, dispatched.buf.err + dispatched.buf.out);
   const meta = JSON.parse(dispatched.buf.out).metadata;
+  writeWorkerReport(worker, '001', meta.attempt, meta.task_brief_hash);
   const reported = coordinateCli(worker, 'report', [
     '--repo', drive.repo, '--task', '001',
     '--attempt', String(meta.attempt), '--task-brief-hash', meta.task_brief_hash,

@@ -280,6 +280,20 @@ function buildReviewPoints(digest: {
   }
   pushFindingPoints(points, seenFindings, asRecord(digest.blueprint_review).findings);
 
+  // worker가 보고한 사양 해석·약점은 finding 뒤, unverified 앞에 둔다. 값은 digest
+  // task 항목(worker_notes)으로만 들어온다 — 원장을 직접 읽지 않는다.
+  for (const entry of tasks) {
+    const task = asRecord(entry);
+    const notes = asRecord(task.worker_notes);
+    const id = typeof task.id === 'string' ? task.id : '';
+    for (const item of Array.isArray(notes.open_choices) ? notes.open_choices : []) {
+      if (typeof item === 'string' && item) points.push(`구현 선택(${id}): ${item}`);
+    }
+    for (const item of Array.isArray(notes.known_weaknesses) ? notes.known_weaknesses : []) {
+      if (typeof item === 'string' && item) points.push(`알려진 약점(${id}): ${item}`);
+    }
+  }
+
   const unverified = Array.isArray(digest.unverified) ? digest.unverified : [];
   for (const raw of unverified) {
     const row = asRecord(raw);
