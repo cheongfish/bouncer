@@ -25,7 +25,7 @@ const { pathOverlapRatio } = dagShape;
 import validateSections = require('./validate-sections');
 const {
   VERIFY_SECTION_DEFS, TODO_RE,
-  parseSections, parseTasksSections, parseExplainSections, extractPathCandidates,
+  parseSections, parseTasksSections, parseExplainSections, extractPathCandidates, parseTouchRows,
   pathsOverlap, pathJustifiedByTouch, collectFindingFailures,
   CONTEXT_REVIEW_STATUS, EXECUTE_REVIEW_STATUS,
 } = validateSections;
@@ -1079,7 +1079,14 @@ function runCheckGate(
     const beforeG19 = failures.length;
     checkTaskDependencyGraph(tasksList, failures);
     // G19가 실패한 graph는 모양 경고를 계산하지 않는다(순환이면 체인 탐색도 무의미).
-    if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
+    if (failures.length === beforeG19) {
+      checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
+      // G25는 repoRoot가 있는 plan gate 전용이다(checkPlanDraft는 repoRoot가 없다).
+      // light는 Touch가 bullet이라 표 판정 대상이 아니므로 건너뛴다.
+      if (!isLight && typeof ctx.repoRoot === 'string') {
+        checkTouchPathsExist(tasksList, ctx.repoRoot, failures);
+      }
+    }
     checkVerificationTaskGraph(tasksList, failures);
     return;
   }
@@ -1354,6 +1361,72 @@ function planScaleOf(docs: BlueprintDocs): { isLight: boolean; sectionKeys: stri
     ? ['goal', 'touch', 'checklist']
     : ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
   return { isLight, sectionKeys };
+}
+
+/**
+ * G25: 실행 전 commit task의 Touch 표에서 Modify·Delete·Rename-old 경로가 저장소에도,
+ * 전이 `depends_on` 선행 commit task의 Create·Rename-new 경로에도 없으면 task당 실패 하나를 낸다.
+ * 읽기 전용 existsSync만 쓴다(git index·HEAD를 읽지 않는다). G19가 통과한 graph에서만
+ * 불려야 closure 탐색이 순환·미존재 id로 꼬이지 않는다.
+ *
+ * @param {DocLeaf[]} tasksList - blueprint의 tasks.md 문서들
+ * @param {string} repoRoot - 경로 존재를 확인할 checkout 루트
+ * @param {FailureEntry[]} failures - G25 실패를 누적할 배열
+ * @returns {void} 결과는 failures에 push로만 남긴다
+ */
+function checkTouchPathsExist(tasksList: DocLeaf[], repoRoot: string, failures: FailureEntry[]): void {
+  type Entry = { doc: DocLeaf; deps: string[]; rows: ReturnType<typeof parseTouchRows> };
+  const byId = new Map<string, Entry>();
+  for (const tasksDoc of tasksList) {
+    const data = asData(tasksDoc);
+    const b = data && data.bouncer && typeof data.bouncer === 'object'
+      ? data.bouncer as Record<string, unknown>
+      : undefined;
+    const id = b && typeof b.id === 'string' ? b.id : '';
+    if (!b || !id || executionKindOf(b) !== 'commit') continue;
+    const sections = parseTasksSections(typeof tasksDoc.body === 'string' ? tasksDoc.body : '');
+    byId.set(id, {
+      doc: tasksDoc,
+      deps: Array.isArray(b.depends_on) ? b.depends_on.filter((d): d is string => typeof d === 'string') : [],
+      rows: parseTouchRows(sections.touch),
+    });
+  }
+  // 선행 task가 만드는 경로: 전이 closure의 Create 경로와 Rename new 경로.
+  const createdBy = (id: string): Set<string> => {
+    const made = new Set<string>();
+    const seen = new Set<string>();
+    const stack = [...(byId.get(id)?.deps ?? [])];
+    while (stack.length > 0) {
+      const dep = stack.pop() as string;
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      const entry = byId.get(dep);
+      if (!entry) continue;
+      for (const row of entry.rows) {
+        if (row.change === 'Create') made.add(row.path);
+        if (row.change === 'Rename' && row.renameTo) made.add(row.renameTo);
+      }
+      stack.push(...entry.deps);
+    }
+    return made;
+  };
+  for (const [id, entry] of byId) {
+    if (!(FRESHNESS_TASK_STATUSES as unknown[]).includes(statusOf(entry.doc))) continue;
+    const made = createdBy(id);
+    const missing = new Set<string>();
+    for (const row of entry.rows) {
+      if (row.change === 'Create') continue;
+      if (fs.existsSync(path.join(repoRoot, row.path)) || made.has(row.path)) continue;
+      missing.add(row.path);
+    }
+    if (missing.size > 0) {
+      failures.push({
+        code: 'G25',
+        message: `Touch path does not exist: ${[...missing].sort().join(', ')}`,
+        file: entry.doc.rel || '',
+      });
+    }
+  }
 }
 
 /**

@@ -178,6 +178,42 @@ function extractPathCandidates(text: unknown): string[] {
   return [...found];
 }
 
+type TouchRow = {
+  change: 'Create' | 'Modify' | 'Delete' | 'Rename';
+  path: string;
+  renameTo: string | null;
+};
+const TOUCH_CHANGES: readonly string[] = ['Create', 'Modify', 'Delete', 'Rename'];
+
+/**
+ * Touch 절의 Markdown 표 행을 `변경` 열 기준으로 읽는다. G25가 "어느 경로를 수정·삭제·
+ * 이름 변경하는가"를 판정하려면 경로 후보만 모으는 extractPathCandidates로는 부족하다.
+ * 머리행·구분행, `변경` 값이 네 값 밖인 행, 표가 아닌 줄(bullet Touch)은 조용히 건너뛴다 —
+ * 형식 판정은 G10·S 코드의 몫이고 여기서 실패로 만들면 기존 문서가 막힌다.
+ *
+ * @param {string} touchText - parseTasksSections(body).touch 본문
+ * @returns {TouchRow[]} 행 순서대로의 `{ change, path, renameTo }`. Rename은 경로 칸을
+ *   `→`로 나눠 path=old, renameTo=new로 두고, `→`가 없으면 renameTo는 null이다
+ */
+function parseTouchRows(touchText: unknown): TouchRow[] {
+  const rows: TouchRow[] = [];
+  const norm = (cell: string): string =>
+    toPosix(cell.replace(/`/g, '').trim()).replace(/^\.\//, '');
+  for (const line of (typeof touchText === 'string' ? touchText : '').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|')) continue;
+    const cells = trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+    const change = cells[2];
+    if (cells.length < 3 || !TOUCH_CHANGES.includes(change)) continue;
+    const [first, second] = cells[0].split('→');
+    const rowPath = norm(first);
+    if (!rowPath) continue;
+    const renameTo = change === 'Rename' && second !== undefined && norm(second) ? norm(second) : null;
+    rows.push({ change: change as TouchRow['change'], path: rowPath, renameTo });
+  }
+  return rows;
+}
+
 // 디렉터리 prefix도 교차로 본다. `scripts/` 금지가 `scripts/lib/x.js`를
 // 통과시키면 G12가 파일 단위 affected_paths를 놓친다.
 function pathsOverlap(a: string, b: string): boolean {
@@ -469,6 +505,7 @@ export = {
   parseTasksSections,
   parseExplainSections,
   extractPathCandidates,
+  parseTouchRows,
   pathsOverlap,
   pathJustifiedByTouch,
   findingFingerprint,

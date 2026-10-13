@@ -82,6 +82,12 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
       + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
   },
   {
+    code: 'G25',
+    match: /Touch path does not exist/,
+    next: 'Fix the path typo, change `변경` to `Create` if the task creates it, '
+      + 'or add the creating predecessor task to `depends_on`, then rerun the plan gate.',
+  },
+  {
     code: 'S32',
     match: /must be a YAML list/,
     next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '

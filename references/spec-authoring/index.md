@@ -144,7 +144,10 @@ body content only; never edits harness-owned frontmatter fields. Used from
      - **Touch**: write a Markdown table with columns
        `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
        `변경` is `Create`, `Modify`, `Delete`, or `Rename`. Wrap path and
-       symbol cells in backticks. List only symbols
+       symbol cells in backticks. Write a `Rename` path cell as
+       `` `old` → `new` ``. The plan gate (G25) fails a `Modify`, `Delete`, or
+       `Rename` old path that is absent from the repository and from every
+       predecessor task's `Create` or `Rename` new path. List only symbols
        tied to the entry point, state change, or verification point, and give
        the selection reason in `근거`. When the symbol name is not yet
        grounded, write `신규 추출 지점: <responsibility>` instead of inventing
