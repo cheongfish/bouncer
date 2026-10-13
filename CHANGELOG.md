@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **미해결 must_fix context review 사이클 닫기와 accepted-risk 허용 (EPIC 063 BP 004)** —
+  `bouncer context-review close`로 마지막 round 뒤 남은 finding 처분을 사용자 동의(`--accept-risk`·note)와 함께
+  기록해 cycle을 닫는다. 닫힌 cycle은 restart할 수 있고, projection에 `accepted_risk: true`를 남겨 G18에서
+  미해결로 세지 않는다. execute review(G14)는 accepted-risk 예외를 인정하지 않는다.
 - **coordinator 설치 출력 분리 (EPIC 098 BP 001)** — coordinator 자동 action의 의존성 설치가
   npm 출력을 stderr로 보내 advance 자식 stdout이 단일 JSON 객체로 유지된다. 결과가 불명확하면
   상태를 확인하기 전에 같은 mutation을 다시 실행하지 않는다.

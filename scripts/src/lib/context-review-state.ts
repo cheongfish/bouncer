@@ -54,12 +54,14 @@ type Cycle = {
   active_reports: ReportRef[];
   latest_dispatch: Ref;
 };
+type Closure = { dispositions: Ref; accept_risk: string[] };
 type State = {
   version: 1;
   blueprint: string;
   cycle: Cycle;
   transitions: string[];
   closed: boolean;
+  closure?: Closure;
   projection: { findings: Finding[]; rounds: unknown[] } | null;
 };
 type Dispatch = { sha256: string; digest: string; text: string };
@@ -398,6 +400,15 @@ function loadState(ctx: Ctx): State | null | Fail {
     || typeof parsed.closed !== 'boolean') {
     return corrupt('shape');
   }
+  // closure는 선택 필드다. 존재하면 형상과 dispositions 참조를 검증한다.
+  if (parsed.closure !== undefined) {
+    if (!isRecord(parsed.closure)
+      || !isRecord(parsed.closure.dispositions)
+      || !Array.isArray(parsed.closure.accept_risk)
+      || !parsed.closure.accept_risk.every((x) => typeof x === 'string')) {
+      return corrupt('closure shape');
+    }
+  }
   const c = parsed.cycle;
   if (typeof c.id !== 'string' || !CYCLE_ID_RE.test(c.id)
     || (c.restart_count !== 0 && c.restart_count !== 1)
@@ -408,6 +419,9 @@ function loadState(ctx: Ctx): State | null | Fail {
   const prefix = `${ctx.nsRel}/cycles/${c.id}/`;
   const reportDispatches = c.active_reports.map((r) => (isRecord(r) ? r.dispatch : null));
   const refs: unknown[] = [c.latest_dispatch, ...c.active_reports, ...reportDispatches];
+  if (parsed.closure && isRecord(parsed.closure) && isRecord(parsed.closure.dispositions)) {
+    refs.push(parsed.closure.dispositions);
+  }
   for (const ref of refs) {
     // 정규화된 POSIX 상대 경로만 인정한다: `..`·`.`·빈 구간·절대 경로는 prefix 검사를 우회한다.
     const ok = isRecord(ref) && typeof ref.path === 'string' && ref.path.startsWith(prefix)
@@ -728,7 +742,14 @@ function projectClosure(findings: Finding[], acceptRisk: string[]): Finding[] | 
     return fail('context-review-unresolved-findings', bad,
       'resolve open findings or record explicit user-approved accepted-risk with note');
   }
-  return findings;
+  // 통과한 finding 중 사용자 동의가 명시된 accepted must_fix에만 accepted_risk: true 표식을 붙인다.
+  // 사람이 손으로 붙인 값은 배제하고 CLI projection에서만 부여해 G18 판정에 넘긴다.
+  return findings.map((f) => {
+    if (f.status === 'accepted' && f.actionability === 'must_fix' && risky.has(f.id as string)) {
+      return { ...f, accepted_risk: true };
+    }
+    return { ...f };
+  });
 }
 
 /**
@@ -867,6 +888,149 @@ function recordReport(input: {
 }
 
 /**
+ * 마지막 round 뒤 남은 finding 처분을 사용자 동의(--accept-risk·note)와 함께 기록해 cycle을 닫는다.
+ * 닫힌 cycle은 restart할 수 있고, accepted-risk must_fix는 G18에서 미해결로 세지 않는다.
+ * dispositions를 immutable 파일로 먼저 저장하고 state 교체가 마지막이라, 어느 단계에서
+ * 실패해도 기존 state는 유지된다. 같은 전이 키의 재요청은 no-op이다.
+ *
+ * @param {object} input - 입력 객체
+ * @param {string} input.repoRoot - 저장소 루트 절대 경로
+ * @param {string} input.blueprintDir - blueprint 상대 경로
+ * @param {string} input.dispositionsFile - [{ id, status, note }] JSON 파일 경로
+ * @param {string[]} [input.acceptRisk] - 사용자 동의가 있는 must_fix accepted ID 목록
+ * @returns {Record<string, unknown>} 성공 {ok:true,noop,cycle,closed,projection}, 실패 {ok:false,...}
+ */
+function closeCycle(input: {
+  repoRoot: string; blueprintDir: string; dispositionsFile: string; acceptRisk?: string[];
+}): Record<string, unknown> {
+  const { repoRoot } = input;
+  // 중복을 제거하고 정렬해 전이 키와 closure 원장의 결정론적 형식을 보장한다.
+  const acceptRisk = Array.from(new Set(input.acceptRisk || [])).sort();
+  const ctx = openContext(repoRoot, input.blueprintDir, false);
+  if (isFail(ctx)) return ctx;
+
+  let dispBytes: Buffer;
+  let rawText: string;
+  try {
+    dispBytes = fs.readFileSync(input.dispositionsFile);
+    rawText = dispBytes.toString('utf8');
+  } catch (error) {
+    return fail('context-review-input-invalid', isRecord(error) ? error.code : String(error),
+      'pass --dispositions <json-file>');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    return fail('context-review-input-invalid', error.message, 'pass valid dispositions JSON array');
+  }
+
+  if (!Array.isArray(parsed)) {
+    return fail('context-review-input-invalid', 'dispositions must be a JSON array',
+      'pass an array of { id, status, note }');
+  }
+
+  if (!fs.existsSync(path.join(ctx.nsAbs, 'state.json'))) {
+    const evidence = readLegacy(repoRoot, ctx.bp);
+    if (isFail(evidence)) return evidence;
+    if (evidence.marker >= 1) return markerWithoutState(evidence.marker);
+    return fail('context-review-state-conflict', 'no cycle started', 'run context-review start first');
+  }
+
+  return withLock(ctx, () => {
+    const state = loadState(ctx);
+    if (isFail(state)) return state;
+    if (!state) return fail('context-review-state-conflict', 'no cycle started', 'run context-review start first');
+    const evidence = readLegacy(repoRoot, ctx.bp);
+    if (isFail(evidence)) return evidence;
+    const mismatch = reconcileMarker(ctx, repoRoot, state, evidence);
+    if (mismatch) return mismatch;
+    const cycle = state.cycle;
+
+    // 1. 전이 키: cycle id, restart count, 'close', dispositions 원본 바이트 sha256, 정렬된 accept-risk
+    const key = transitionKey([cycle.id, cycle.restart_count, 'close', sha256(dispBytes), acceptRisk.join(',')]);
+    if (state.transitions.includes(key)) {
+      return {
+        ok: true, noop: true, cycle, closed: state.closed,
+        ...(state.projection ? { projection: state.projection } : {}),
+      };
+    }
+
+    // 2. 상태 충돌 검사: 이미 닫힌 cycle이거나 아직 기록된 round가 없으면 거절
+    if (state.closed) {
+      return fail('context-review-state-conflict', 'cycle is already closed', 'restart only when the plan changed');
+    }
+    if (cycle.active_reports.length === 0) {
+      return fail('context-review-state-conflict', 'no round has been recorded in this cycle',
+        'record at least one round before close');
+    }
+
+    // 3. active 보고들을 fold하여 기존 finding 목록을 취합한다
+    const folded = foldReports(ctx, repoRoot, cycle.active_reports);
+    if (isFail(folded)) return folded;
+
+    // 4. dispositions 항목 유효성 검사 및 합성
+    const seenIds = new Set<string>();
+    const merged = folded.findings.map((f) => ({ ...f }));
+    for (const item of parsed) {
+      if (!isRecord(item) || typeof item.id !== 'string') {
+        return fail('context-review-input-invalid', 'disposition item missing valid id',
+          'each disposition must be an object with string id');
+      }
+      if (seenIds.has(item.id)) {
+        return fail('context-review-input-invalid', `duplicate disposition id ${item.id}`,
+          'each finding id must appear at most once in dispositions');
+      }
+      seenIds.add(item.id);
+      const targetIndex = merged.findIndex((f) => f.id === item.id);
+      if (targetIndex < 0) {
+        return fail('context-review-input-invalid', `finding id ${item.id} not found in recorded findings`,
+          'only dispose recorded findings');
+      }
+      if (item.status !== 'resolved' && item.status !== 'accepted') {
+        return fail('context-review-input-invalid', `disposition status ${String(item.status)} invalid`,
+          'disposition status must be resolved or accepted');
+      }
+      merged[targetIndex] = {
+        ...merged[targetIndex],
+        status: item.status,
+        ...(item.note !== undefined ? { note: item.note } : {}),
+      };
+    }
+
+    // 5. projectClosure 검증: open finding 잔존 여부, note 없는 accepted, --accept-risk 매칭을 확인
+    const projected = projectClosure(merged, acceptRisk);
+    if (isFail(projected)) return projected;
+
+    // 6. 쓰기: immutable dispositions 저장 후 state.json 원자적 교체
+    const dispSha = sha256(rawText);
+    const dispRel = `${cyclePrefix(ctx, cycle.id)}/r${cycle.restart_count}/dispositions/${dispSha.slice(0, 16)}.json`;
+    const dispRef: Ref = { path: dispRel, sha256: dispSha };
+
+    const stored = guardWrites(() => {
+      writeImmutable(ctx.nsAbs, path.join(repoRoot, dispRel), rawText);
+    });
+    if (isFail(stored)) return stored;
+
+    const next: State = {
+      ...state,
+      transitions: [...state.transitions, key],
+      closed: true,
+      closure: { dispositions: dispRef, accept_risk: acceptRisk },
+      projection: { findings: projected, rounds: folded.rounds },
+    };
+    const saved = guardWrites(() => saveState(ctx, next));
+    if (isFail(saved)) return saved;
+
+    return {
+      ok: true, noop: false, cycle: next.cycle, closed: next.closed, projection: next.projection,
+    };
+  }) as Record<string, unknown>;
+}
+
+/**
  * cycle을 전체 재시작한다. 누적 1회만 허용하며 active 증거(rounds·findings·보고·dispatch)는
  * history로 보관한다. 직전 certified target과 현재 snapshot이 같으면 거절하고, delta 뒤
  * 미해결 must_fix가 있으면 restart로 해결을 우회하지 못하게 거절한다. state가 없고
@@ -930,10 +1094,16 @@ function restartCycle(input: {
     if (state) {
       const folded = foldReports(ctx, repoRoot, state.cycle.active_reports);
       if (isFail(folded)) return folded;
+      // 닫힌 cycle은 미해결 검사를 projection 기준으로 판정한다.
+      // 열려 있는 cycle은 fold된 active 보고의 open must_fix를 검사한다.
+      const findingsToCheck = (state.closed && state.projection)
+        ? state.projection.findings
+        : folded.findings;
       if (state.cycle.active_reports.length >= 2
-        && folded.findings.some((f) => f.status === 'open' && f.actionability === 'must_fix')) {
+        && findingsToCheck.some((f) => f.status === 'open' && f.actionability === 'must_fix')) {
         return fail('context-review-unresolved-findings', 'must_fix remains open after the delta round',
-          'restart cannot resolve findings; fix them, accept with explicit user consent, or stop');
+          'record explicit user-approved accepted-risk with context-review close, or fix open findings; '
+          + 'restart cannot resolve findings');
       }
       const latest = readRef(ctx, repoRoot, state.cycle.latest_dispatch);
       if (isFail(latest)) return latest;
@@ -947,9 +1117,10 @@ function restartCycle(input: {
         restart_index: 1,
         reason,
         rounds: folded.rounds,
-        findings: folded.findings,
+        findings: findingsToCheck,
         reports: state.cycle.active_reports,
         dispatches: dispatches.filter((d, i) => dispatches.findIndex((x) => x.sha256 === d.sha256) === i),
+        ...(state.closure ? { closure: state.closure } : {}),
       };
       base = state;
     } else {
@@ -999,6 +1170,7 @@ function restartCycle(input: {
       },
       transitions: [...base.transitions, key],
       closed: false,
+      closure: undefined,
       projection: null,
     };
     // state가 먼저, 표식이 나중이다. 사이에 죽으면 다음 전이의 reconcileMarker가 표식을 채운다.
@@ -1076,7 +1248,8 @@ function routeFollowUp(input: {
     if (isFail(folded)) return folded;
     if (folded.findings.some((f) => f.status === 'open' && f.actionability === 'must_fix')) {
       return route('user', 'context-review-unresolved-findings', 'must_fix remains open after the delta round',
-        'fix them, accept with explicit user consent, or stop; restart cannot resolve findings', cycle);
+        'record explicit user-approved accepted-risk with context-review close, or fix open findings; '
+        + 'restart cannot resolve findings', cycle);
     }
   }
   // 4. discovery 뒤 닫히지 않은 cycle의 partial만 delta다. 닫힌 cycle은 round 기록이 거절되므로 제외한다.
@@ -1129,7 +1302,7 @@ function readLegacyEvidence(repoRoot: string, bp: string):
 }
 
 export = {
-  startCycle, recordReport, restartCycle, routeFollowUp, readStoredLatest, readLegacyEvidence,
+  startCycle, recordReport, closeCycle, restartCycle, routeFollowUp, readStoredLatest, readLegacyEvidence,
   // 단위 테스트가 symlink·덮어쓰기 거부를 직접 확인하도록 노출한다.
   writeAtomic, writeImmutable,
 };

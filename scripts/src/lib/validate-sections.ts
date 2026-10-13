@@ -326,7 +326,17 @@ function collectFindingFailures({
       if (!(FINDING_ORIGIN as readonly unknown[]).includes(rec.origin)) {
         messages.push(`${findingLabel} finding ${id} origin invalid`);
       }
-      if (reviewStatus === 'accepted' && rec.actionability === 'must_fix' && rec.status !== 'resolved') {
+      // context namespace(G18)는 reviewStatus 인자가 생략되더라도 게이트 진입 조건에서 이미 status=accepted를
+      // 확인하므로 accepted 검사를 적용한다. execute(G14)는 reviewStatus === 'accepted'일 때 검사한다.
+      // context namespace에서만 명시적 사용자 동의가 반영된 accepted_risk: true(비어 있지 않은 note 필수)를
+      // 예외로 인정하며, execute namespace에서는 accepted_risk를 인정하지 않는다.
+      const isReviewAccepted = reviewStatus === 'accepted' || namespace === CONTEXT_FINDING_NAMESPACE;
+      const isContextAcceptedRisk = namespace === CONTEXT_FINDING_NAMESPACE
+        && rec.status === 'accepted'
+        && rec.accepted_risk === true
+        && typeof rec.note === 'string'
+        && rec.note.trim() !== '';
+      if (isReviewAccepted && rec.actionability === 'must_fix' && rec.status !== 'resolved' && !isContextAcceptedRisk) {
         messages.push(`${findingLabel} accepted with open must_fix ${id}`);
       }
     }
