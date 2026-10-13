@@ -53,7 +53,11 @@ type TaskDigest = {
   title: string;
   execution_kind: string;
   status: string;
-  commit: { sha: string; sha8: string; source: 'trailer' | 'commit_sha' } | null;
+  commit: {
+    sha: string; sha8: string; source: 'trailer' | 'commit_sha';
+    // fan-in이 남긴 Bouncer-Worker-Commit 값. trailer가 없거나 commit_sha 경로면 null.
+    worker_sha: string | null;
+  } | null;
   affected_paths: string[];
   verification: {
     status: string;
@@ -757,6 +761,7 @@ function prepareFinalizeDigest({
             sha: commitShaField,
             sha8: commitShaField,
             source: 'commit_sha',
+            worker_sha: null,
           }
           : null,
         affected_paths: affected,
@@ -778,13 +783,17 @@ function prepareFinalizeDigest({
   for (const item of built) {
     const hit = trailerMap.get(item.digest.stable_id);
     if (hit) {
-      item.digest.commit = { sha: hit.sha, sha8: hit.sha8, source: 'trailer' };
+      item.digest.commit = {
+        sha: hit.sha, sha8: hit.sha8, source: 'trailer', worker_sha: hit.workerSha,
+      };
       continue;
     }
     // trailer가 없고 commit_sha만 있으면 짧은 hex를 유지한다. 전체 SHA는 없다.
     if (item.digest.commit && item.digest.commit.source === 'commit_sha') {
       const short = item.digest.commit.sha8;
-      item.digest.commit = { sha: short, sha8: short, source: 'commit_sha' };
+      item.digest.commit = {
+        sha: short, sha8: short, source: 'commit_sha', worker_sha: null,
+      };
     }
   }
 

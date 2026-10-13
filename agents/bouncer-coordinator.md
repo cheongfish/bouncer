@@ -265,7 +265,9 @@ your diffs, so return these fields and nothing else actionable:
   paths, and the recovery action a human can take.
 - **Decisions** — each recorded judgment with its cause and next action.
 - **Provenance** — the changed paths recorded in your decisions, each worker's
-  ledger `branch` and commit SHA, and any task or edge added during the drive.
+  ledger `branch` and worker commit SHA, the integration task SHA linked to it
+  by its `Bouncer-Worker-Commit` trailer (label each SHA as worker or
+  integration), and any task or edge added during the drive.
 - **Partial close** — both repair-wave decisions, the last CI command and paths,
   post-wave-two nonzero failure evidence, `NEXT_PLAN.md`, preserved ledger and
   worktrees, and the user confirmation result.

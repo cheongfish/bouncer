@@ -47,6 +47,10 @@
 
 `완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: /bouncer-finalize (.worktrees/001/001/integration)`
 
+SHA를 쓸 때는 출처를 접두로 붙인다: worker 브랜치 커밋은 `worker <branch>@<sha8>`, integration 커밋은 `integration <sha8>`. 둘은 `Bouncer-Worker-Commit` trailer로 연결되며 같은 SHA가 아니다.
+
+`진행: 003 · worker bouncer/098/001/003@9f8e7d6 → integration a1b2c3d`
+
 `부분 종결: 001-login · 마지막 검증: npm run ci 실패 · 보존: ledger·integration·worker·NEXT_PLAN.md · 다음: NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`
 
 ## debug

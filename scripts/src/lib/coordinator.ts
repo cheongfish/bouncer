@@ -617,6 +617,26 @@ function git(exec: Exec, cwd: string, args: string[]): string {
 }
 
 /**
+ * 커밋 메시지 끝에 `Bouncer-Worker-Commit` trailer 한 줄을 붙인 새 메시지를 만든다.
+ * 마지막 문단이 전부 `Key: value` 줄이고 제목 문단이 아니면 기존 trailer 블록의 마지막 줄
+ * 바로 뒤에 붙이고, 아니면 빈 줄 하나를 두고 새 블록으로 붙인다. 제목만 있는 메시지의
+ * `feat: x`가 trailer로 오인되지 않도록 문단이 둘 이상일 때만 블록으로 본다.
+ *
+ * @param {string} message - cherry-pick된 커밋의 원본 메시지(`%B`)
+ * @param {string} workerSha - 원본 worker 커밋 전체 SHA
+ * @returns {string} trailer가 추가된 메시지
+ */
+function appendWorkerCommitTrailer(message: string, workerSha: string): string {
+  const trimmed = message.replace(/\s+$/, '');
+  const paragraphs = trimmed.split(/\n\s*\n/);
+  const last = paragraphs[paragraphs.length - 1];
+  const isTrailerBlock = paragraphs.length > 1
+    && last.split('\n').every((line) => /^[A-Za-z][A-Za-z0-9-]*\s*:\s*\S/.test(line));
+  const line = `Bouncer-Worker-Commit: ${workerSha}`;
+  return `${trimmed}${isTrailerBlock ? '\n' : '\n\n'}${line}\n`;
+}
+
+/**
  * canonical tasks.md의 SHA-256. 파일을 읽은 뒤 taskBriefHash에 맡겨 dispatch·record가
  * 같은 정규형 계약을 쓰게 한다 — intent-bundle의 task_brief_hash와 맞춘다.
  *
@@ -2667,6 +2687,28 @@ function integrateCommitWave({
         ledger.fanin = null;
         if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
         writeLedger(integration.ledgerFile, ledger);
+        return { ok: false, reason: 'cherry-pick-failed', task: id };
+      });
+    }
+    // integration 커밋에 worker 출처를 남긴다. candidateHead를 읽기 전에 끝내야 ledger의
+    // fanin.candidate_head가 amend 뒤 SHA를 가리킨다. hook이 fan-in worktree에서 lint를
+    // 다시 돌리지 않도록 --no-verify, author/date는 cherry-pick 결과를 그대로 둔다.
+    try {
+      const picked = git(exec, faninPath, ['log', '-1', '--format=%B']);
+      git(exec, faninPath, [
+        'commit', '--amend', '--no-verify', '-m', appendWorkerCommitTrailer(picked, pickSha),
+      ]);
+    } catch (_amendError) {
+      // cherry-pick은 이미 끝나 진행 중 상태가 없으므로 --abort를 부르지 않는다.
+      // 어떤 git 실패든 candidate를 지우고 cherry-pick 실패와 같은 reason으로 멈춘다 —
+      // trailer 없는 integration 커밋이 verified fanin으로 남으면 출처 연결이 끊긴다.
+      removeFaninWorktree(exec, repoRoot, faninPath);
+      return withLedgerLock(integration.ledgerFile, (owns) => {
+        const loaded = loadLedgerBytes(integration.ledgerFile);
+        if (!loaded) return { ok: false, reason: 'missing-ledger' };
+        loaded.ledger.fanin = null;
+        if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+        writeLedger(integration.ledgerFile, loaded.ledger);
         return { ok: false, reason: 'cherry-pick-failed', task: id };
       });
     }

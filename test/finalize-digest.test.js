@@ -59,6 +59,10 @@ ${constraints}
  *
  * @returns {{ repoRoot: string, blueprintDir: string, base: string }}
  */
+// fan-in 커밋이 남기는 worker 출처 trailer. TASK-001 커밋에만 붙여 없는 경로도 같이 본다.
+const WORKER_SHA = 'c'.repeat(40);
+const WORKER_TRAILER = `Bouncer-Worker-Commit: ${WORKER_SHA}`;
+
 function buildStandaloneFixture() {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-'));
   git(repoRoot, ['init', '-b', 'work']);
@@ -159,7 +163,7 @@ function buildStandaloneFixture() {
   git(repoRoot, ['add', 'src/greet.js']);
   git(repoRoot, [
     'commit', '-m',
-    'feat: greet\n\nBouncer-Task: EPIC-001/BP-001/TASK-001\nBouncer-Intent: EPIC-001/BP-001\n',
+    `feat: greet\n\nBouncer-Task: EPIC-001/BP-001/TASK-001\nBouncer-Intent: EPIC-001/BP-001\n${WORKER_TRAILER}\n`,
   ]);
 
   fs.writeFileSync(path.join(repoRoot, 'src/helper.js'), 'const helper = 1;\n');
@@ -180,6 +184,9 @@ test('trailer commits, unverified tasks, symbols and afterClose → prepareFinal
   assert.strictEqual(d.ok, true, JSON.stringify(d));
   assert.strictEqual(d.version, 2);
   assert.strictEqual(d.tasks[0].commit.source, 'trailer');
+  assert.strictEqual(d.tasks[0].commit.worker_sha, WORKER_SHA);
+  // worker trailer가 없는 trailer 커밋은 null이다.
+  assert.strictEqual(d.tasks[1].commit.worker_sha, null);
   assert.deepStrictEqual(
     d.unverified.map((u) => u.kind).sort(),
     ['finding-deferred', 'review-skipped', 'terminal-missing'],
@@ -354,6 +361,7 @@ test('a missing trailer → prepareFinalizeDigest falls back to tasks.md commit_
   assert.strictEqual(d.ok, true, JSON.stringify(d));
   assert.strictEqual(d.tasks.length, 1);
   assert.strictEqual(d.tasks[0].commit.source, 'commit_sha');
+  assert.strictEqual(d.tasks[0].commit.worker_sha, null);
   assert.strictEqual(d.tasks[0].commit.sha8, 'c0ffeeee');
   assert.strictEqual(d.tasks[0].commit.sha, 'c0ffeeee');
 });

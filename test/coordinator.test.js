@@ -1214,6 +1214,40 @@ test('a non-conflict cherry-pick failure → aborts the candidate without a fani
   assert.strictEqual(fs.existsSync(faninPath), false);
 });
 
+test('the worker-trailer amend fails after a clean cherry-pick → stops as cherry-pick-failed without abort or verified fanin', () => {
+  const blueprint = '.bouncer/context/epics/054-x/blueprints/057-y';
+  const drive = recordedDrive('bouncer-coordinator-amend-fail-', blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  const calls = [];
+  const failingAmend = (file, args, options) => {
+    calls.push(args[0] === 'cherry-pick' ? `cherry-pick ${args[1]}` : args.join(' '));
+    if (args[0] === 'commit' && args.includes('--amend')) {
+      const err = new Error('amend failed');
+      err.stderr = 'fatal: unable to write commit\n';
+      err.status = 128;
+      throw err;
+    }
+    return execFileSync(file, args, options);
+  };
+
+  const failed = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    deps: {
+      execFileSync: failingAmend,
+      runVerification: () => ({ ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) }),
+    },
+  });
+  assert.strictEqual(failed.reason, 'cherry-pick-failed', JSON.stringify(failed));
+  assert.strictEqual(failed.task, '001');
+  // cherry-pick은 이미 끝나 진행 중 상태가 없으므로 abort를 부르지 않는다.
+  assert.strictEqual(calls.includes('cherry-pick --abort'), false);
+  const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(after.fanin, null);
+  assert.strictEqual(after.tasks.find((t) => t.id === '001').status, 'recorded');
+  const { faninPath } = __coordinatorPathsFor({ repoRoot: drive.repo, blueprint });
+  assert.strictEqual(fs.existsSync(faninPath), false);
+});
+
 test('record with a SHA that is not the assigned worker HEAD → refuses it', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/004-x/blueprints/005-y';

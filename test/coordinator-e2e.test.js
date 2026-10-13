@@ -326,6 +326,16 @@ test('worker commits를 cherry-pick함 → provenance trailers가 안정적으�
   assert.match(body, /^Bouncer-Intent: EPIC-010\/BP-001$/m);
   assert.strictEqual((body.match(/^Bouncer-Task:/gm) || []).length, 1);
   assert.strictEqual((body.match(/^Bouncer-Intent:/gm) || []).length, 1);
+  // worker 출처 trailer는 ledger에 기록된 worker 전체 SHA와 같고 한 줄만 있어야 한다.
+  const ledger = JSON.parse(fs.readFileSync(
+    path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8',
+  ));
+  const recorded = ledger.tasks.find((t) => t.id === '001').sha;
+  assert.strictEqual(recorded, workerSha);
+  const workerTrailer = body.match(/^Bouncer-Worker-Commit: ([0-9a-f]{40})$/m);
+  assert.notStrictEqual(workerTrailer, null);
+  assert.strictEqual(workerTrailer[1], recorded);
+  assert.strictEqual((body.match(/^Bouncer-Worker-Commit:/gm) || []).length, 1);
 });
 
 test('fan-in이 거절됨 → ledger를 보존하고 중복 cherry-pick 없이 재개함', () => {
