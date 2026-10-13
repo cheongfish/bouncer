@@ -38,6 +38,16 @@ Codex는 전체 대화를 이어받는 fork 호출에 `model` 지정을 받지 �
 - `test/subagents.test.js`: 1번 항목에 Codex, `fork_turns: "none"`, slug 조건이 함께 있는지 고정하는 계약 테스트.
 - `config.example.json`: 최상위 `_models`에 codex·cursor·claude 모델 목록을 둔다. cursor 목록은 Cursor 자체 모델(grok 4.7/4.6/4.5, composer-2.5)만 담고, Cursor에서 Claude·GPT를 쓰려면 다른 목록 slug에 `-high`를 붙인다. resolver는 `subagents`만 읽으므로 동작은 바뀌지 않는다.
 
+## 변경 전후
+
+| 항목 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| Codex에서 slug를 넘길 때의 호출 규칙 (`rules/subagent-model.md` 1번) | 규칙에 조건이 없어 역할별 모델이 적용되지 않을 수 있었음 (변경 전 결과 미관측) | 같은 호출에 `fork_turns: "none"`을 함께 지정 |
+| 출력이 `inherit`일 때 | `model`만 생략 | 동일. `fork_turns`는 호출 워크플로가 정함 |
+| slug 거절 시 | `inherit`로 1회 재시도 | 동일 (바뀌지 않음) |
+| 계약 테스트 (`test/subagents.test.js`) | 해당 조건을 고정하는 테스트 없음 | Codex·`fork_turns: "none"`·slug 조건을 단언하는 테스트 추가 |
+| 예제 설정 (`config.example.json`) | 모델 slug 목록 없음 | `_models`에 codex·cursor·claude 목록 추가. resolver는 `subagents`만 읽으므로 동작 불변 |
+
 ## Quiz
 
 1. Codex에서 `bouncer subagent-model`이 slug를 출력하면 named dispatch는 어떻게 호출해야 하는가?
