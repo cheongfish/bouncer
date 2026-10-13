@@ -20,6 +20,14 @@ bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
 ```
 
+`run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
+every simulated wave has width 1, `parallel` for a single wave of width 2+,
+`mixed` otherwise, `null` with no open commit task, `unknown` when the
+simulation cannot open the remaining tasks), `max_wave_width`, `commit_tasks`,
+`review_risk` (sorted union over open commit tasks) and `parallel_safe_tasks`.
+It simulates `readyWave` over open commit tasks only; verification nodes and
+edges to them are ignored. Failure payloads omit `shape`.
+
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag

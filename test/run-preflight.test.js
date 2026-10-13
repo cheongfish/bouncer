@@ -284,3 +284,59 @@ test('run preflight without --blueprint → exits 2', () => {
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /blueprint/);
 });
+
+// 세 번째 task 문서를 추가한다. 기본값은 TASKS-002에 직렬로 매달린 commit task다.
+function writeTask003(repo, over = {}) {
+  const rel = `${BP_REL}/tasks/003/tasks.md`;
+  writeDoc(repo, rel, {
+    type: 'bouncer.tasks', title: 'Third', description: 'd', resource: rel,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-003', epic_id: '001', blueprint_id: '001', status: 'ready',
+      execution_kind: 'commit', affected_paths: ['c.ts'], depends_on: ['TASKS-002'],
+      ...over,
+    },
+  }, '# Tasks 003\n');
+}
+
+test('run preflight with three chained commit tasks → emits serial shape', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, {
+    task001: { review_risk: ['public_interface'] },
+    task002: { review_risk: ['public_interface'] },
+  });
+  writeTask003(repo);
+  setPointer(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.deepEqual(payload.shape, {
+    drive_shape: 'serial',
+    max_wave_width: 1,
+    commit_tasks: 3,
+    review_risk: ['public_interface'],
+    parallel_safe_tasks: 0,
+  });
+});
+
+test('run preflight with a verification node → shape does not count the node', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  writeTask003(repo, { execution_kind: 'verification', depends_on: ['TASKS-001', 'TASKS-002'] });
+  setPointer(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.equal(payload.shape.commit_tasks, 2);
+  assert.equal(payload.shape.drive_shape, 'serial');
+});
+
+test('run preflight with a failing pointer → omits shape', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.equal(payload.ok, false);
+  assert.equal(payload.shape, undefined);
+});

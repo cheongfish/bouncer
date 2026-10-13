@@ -68,6 +68,7 @@
     "coordinate-next.test.js",
     "coordinator-e2e.test.js",
     "coordinator.test.js",
+    "dag-shape.test.js",
     "current.test.js",
     "cursor-plugin.test.js",
     "distribution.test.js",
