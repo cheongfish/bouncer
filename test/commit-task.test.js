@@ -620,6 +620,8 @@ test('reviseTaskScope on a task with a reason → moves ledger and task document
   });
   assert.strictEqual(revised.ok, true);
   assert.strictEqual(revised.revision, 'r1');
+  // 넓히기는 이전 경로를 모두 덮으므로 경고 키 자체가 없어야 한다.
+  assert.ok(!('warnings' in revised));
 
   const doc = yaml.load(
     fs.readFileSync(path.join(worker, blueprint, 'tasks/001/tasks.md'), 'utf8')
@@ -650,8 +652,43 @@ test('reviseTaskScope on a task with a reason → moves ledger and task document
     repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'session write reverted',
   });
   assert.strictEqual(again.revision, 'r2');
+  // 축소: 새 집합이 덮지 못한 이전 경로만 이전 범위 순서로 경고한다.
+  assert.deepStrictEqual(again.warnings, [{ code: 'scope-paths-dropped', paths: ['src/session/'] }]);
   const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   assert.strictEqual(after.decisions.filter((d) => d.kind === 'scope').length, 2);
+
+  const same = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'same set',
+  });
+  assert.strictEqual(same.ok, true);
+  assert.ok(!('warnings' in same));
+
+  const parent = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/'], reason: 'widen to parent',
+  });
+  assert.strictEqual(parent.ok, true);
+  assert.ok(!('warnings' in parent));
+
+  const child = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'narrow to child',
+  });
+  assert.deepStrictEqual(child.warnings, [{ code: 'scope-paths-dropped', paths: ['src/'] }]);
+});
+
+test('reviseTaskScope on a task whose previous scope is empty → no warnings key', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  const docAbs = path.join(worker, blueprint, 'tasks/001/tasks.md');
+  const text = fs.readFileSync(docAbs, 'utf8');
+  // 원장 scope가 아직 없으므로 previous는 문서 affected_paths가 된다.
+  const emptied = text.replace(/affected_paths:\n(?:\s+- .*\n)+/, 'affected_paths: []\n');
+  assert.notStrictEqual(emptied, text);
+  fs.writeFileSync(docAbs, emptied);
+  const result = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'first scope',
+  });
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.previous, []);
+  assert.ok(!('warnings' in result));
 });
 
 test('reviseTaskScope on the main worktree or an unknown task → refuses', () => {

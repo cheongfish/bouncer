@@ -421,12 +421,15 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
     registry: '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
       + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Record one scope decision in the task document and ledger.\n'
+      + '             --paths replaces the whole scope with exactly the given set.\n'
       + '             Takes no --repo: the write boundary is the current directory, so\n'
       + '             run it from the assigned task worktree, not the main checkout.\n',
     help: `usage: bouncer coordinate revise
   --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... --reason <text>
   ${COORDINATE_FENCE_NOTE}
   Record one scope decision in the task document and ledger.
+  --paths replaces the whole scope with exactly the given set; pass every path
+  the task still needs, not only new ones (dropped paths are reported as warnings).
   Takes no --repo: the write boundary is the current directory, so
   run it from the assigned task worktree, not the main checkout.
 `,
