@@ -436,3 +436,220 @@ test('run preflight with a closed blueprint → direct_eligible is false', () =>
   assert.strictEqual(payload.delegable, false);
   assert.strictEqual(payload.direct_eligible, false);
 });
+
+// ---- 포인터 불일치·승인 전/종료 상태·원장 상태 거절 ----
+
+function preflightFor(repo, blueprint) {
+  return capture(['run', 'preflight', '--blueprint', blueprint, '--repo', repo]);
+}
+
+function setBpStatus(repo, from, to) {
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace(from, to));
+}
+
+function writeLedger(repo, status) {
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1, blueprint: BP_REL, base: 'main', mode: 'light', status, tasks: [], decisions: [],
+  }, null, 2)}\n`);
+}
+
+test('run preflight with a pointer on another epic → rejects with pointer-mismatch', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  const other = '.bouncer/context/epics/002-billing/blueprints/001-invoices';
+  setPointer(repo, { blueprint: other, task: null });
+
+  const result = preflight(repo);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 1);
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.expected, other);
+  assert.strictEqual(payload.actual, BP_REL);
+});
+
+test('run preflight with a pointer on another blueprint of the same epic → rejects with the requested string as actual', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  const other = `${EPIC_REL}/blueprints/002-other`;
+  setPointer(repo, { blueprint: other, task: null });
+
+  const requested = `./${BP_REL}/`;
+  const result = preflightFor(repo, requested);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 1);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.expected, other);
+  assert.strictEqual(payload.actual, requested);
+});
+
+test('run preflight with a blueprint path carrying no ids → rejects with pointer-mismatch', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+
+  const payload = parsePayload(preflightFor(repo, 'not/a/blueprint'));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+});
+
+test('run preflight with non-approved blueprint status → refuses delegation per status', () => {
+  const cases = [
+    ['draft', 'blueprint-draft'],
+    ['superseded', 'blueprint-superseded'],
+    ['imported', 'blueprint-imported'],
+    ['partial_closed', 'blueprint-partial-closed'],
+  ];
+  for (const [bpStatus, reason] of cases) {
+    const repo = makeRepo();
+    writePlanTree(repo, { bpStatus });
+    setPointer(repo);
+
+    const payload = parsePayload(preflight(repo));
+
+    assert.strictEqual(payload.ok, true, bpStatus);
+    assert.strictEqual(payload.delegable, false, bpStatus);
+    assert.strictEqual(payload.reason, reason, bpStatus);
+  }
+});
+
+test('run preflight with an index lacking a status key → reports blueprint-status-unknown', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setBpStatus(repo, 'status: approved\n', '');
+  setPointer(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.delegable, false);
+  assert.strictEqual(payload.reason, 'blueprint-status-unknown');
+});
+
+test('run preflight with an out-of-enum blueprint status → reports blueprint-status-unknown', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { bpStatus: 'bogus' });
+  setPointer(repo);
+
+  assert.strictEqual(parsePayload(preflight(repo)).reason, 'blueprint-status-unknown');
+});
+
+test('run preflight with an approved blueprint and non-active ledger → reports the ledger reason', () => {
+  const cases = [
+    ['awaiting_confirmation', 'awaiting-confirmation'],
+    ['partial_closed', 'partial-closed'],
+  ];
+  for (const [ledgerStatus, reason] of cases) {
+    const repo = makeRepo();
+    writePlanTree(repo);
+    setPointer(repo);
+    writeLedger(repo, ledgerStatus);
+
+    const payload = parsePayload(preflight(repo));
+
+    assert.strictEqual(payload.delegable, false, ledgerStatus);
+    assert.strictEqual(payload.reason, reason, ledgerStatus);
+  }
+});
+
+test('run preflight with an active ledger and approved blueprint → stays delegable', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  writeLedger(repo, 'active');
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.delegable, true);
+  assert.strictEqual(payload.reason, null);
+});
+
+test('run preflight with awaiting_confirmation ledger and draft blueprint → ledger reason wins', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { bpStatus: 'draft' });
+  setPointer(repo);
+  writeLedger(repo, 'awaiting_confirmation');
+
+  assert.strictEqual(parsePayload(preflight(repo)).reason, 'awaiting-confirmation');
+});
+
+test('run preflight with a draft blueprint and no open task → document status reason wins over no-open-task', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, {
+    bpStatus: 'draft',
+    task001: { status: 'integrated' },
+    task002: { status: 'integrated' },
+  });
+  setPointer(repo);
+
+  assert.strictEqual(parsePayload(preflight(repo)).reason, 'blueprint-draft');
+});
+
+test('run preflight with a refused blueprint status → direct_eligible is false', () => {
+  const repo = makeRepo();
+  writeChain(repo, 2);
+  setBpStatus(repo, 'status: approved', 'status: draft');
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.delegable, false);
+  assert.strictEqual(payload.direct_eligible, false);
+});
+
+test('run preflight with trailing slash, ./ prefix or absolute path → treats it as the same blueprint', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+
+  for (const requested of [`${BP_REL}/`, `./${BP_REL}`, path.join(repo, BP_REL)]) {
+    const payload = parsePayload(preflightFor(repo, requested));
+
+    assert.strictEqual(payload.ok, true, requested);
+    assert.strictEqual(payload.delegable, true, requested);
+  }
+});
+
+test('run preflight with an absolute blueprint path outside the repo carrying the same ids → rejects with pointer-mismatch', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const elsewhere = path.join(makeRepo(), BP_REL);
+
+  const payload = parsePayload(preflightFor(repo, elsewhere));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.expected, BP_REL);
+  assert.strictEqual(payload.actual, elsewhere);
+});
+
+test('run preflight with a ../ blueprint path escaping the repo → rejects with pointer-mismatch', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const escaping = `../${path.basename(repo)}-sibling/${BP_REL}`;
+
+  const payload = parsePayload(preflightFor(repo, escaping));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.actual, escaping);
+});
+
+test('run preflight with an absolute blueprint path inside the repo → stays accepted', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+
+  const payload = parsePayload(preflightFor(repo, path.join(repo, BP_REL)));
+
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.blueprint.dir, BP_REL);
+});

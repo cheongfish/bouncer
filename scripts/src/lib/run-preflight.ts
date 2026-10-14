@@ -10,7 +10,7 @@ const { listTasksDocs } = tasksDocs;
 import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import paths = require('./paths');
-const { toPosix } = paths;
+const { toPosix, parsePathIds } = paths;
 import schema = require('./schema');
 const {
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, DEFAULT_SCALE,
@@ -67,7 +67,11 @@ type PreflightOk = {
   // root가 coordinator 없이 직접 돌려도 되는 드라이브인지. 시작 ACQ가 D 선택지를 보일지 정한다.
   direct_eligible: boolean;
   // promotion-stopped는 원장 status만 본다. 원장 부재 시에는 이 값을 내지 않는다.
-  reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped' | null;
+  // 위임을 막는 이유. 판정 순서는 원장 상태 → 문서 status → no-open-task 이다.
+  reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped'
+    | 'awaiting-confirmation' | 'partial-closed'
+    | 'blueprint-partial-closed' | 'blueprint-draft' | 'blueprint-superseded'
+    | 'blueprint-imported' | 'blueprint-status-unknown' | null;
 };
 
 type PreflightFail = {
@@ -75,6 +79,9 @@ type PreflightFail = {
   reason: string;
   candidates?: unknown;
   issues?: unknown;
+  // pointer-mismatch에서만 채운다: 포인터 blueprint 경로와 요청 입력값(toPosix만 적용).
+  expected?: string;
+  actual?: string;
 };
 
 type PreflightResult = PreflightOk | PreflightFail;
@@ -183,10 +190,41 @@ function readBlueprintMeta(repoRoot: string, blueprintDir: string): {
     const scale = bouncer && typeof bouncer.scale === 'string' ? bouncer.scale : DEFAULT_SCALE;
     return { status, scale };
   } catch (_error) {
-    // index 부재·파싱 실패는 위임 거절로 승격하지 않는다. 열린 task 유무로만 본다.
+    // index 부재·파싱 실패는 status를 ''로 접는다. 호출부(docStatusReason)가 ''를
+    // blueprint-status-unknown으로 거절하므로 읽지 못한 blueprint는 위임되지 않는다.
     return { status: '', scale: DEFAULT_SCALE };
   }
 }
+
+// approved가 아닌 문서 status → 위임 거절 reason. 목록에 없는 값(빈 값 포함)은
+// 모두 status-unknown으로 접어, 새 status가 생겨도 기본이 "위임 거절"이 되게 한다.
+const STATUS_REASON: Record<string, NonNullable<PreflightOk['reason']>> = {
+  closed: 'blueprint-closed',
+  partial_closed: 'blueprint-partial-closed',
+  draft: 'blueprint-draft',
+  superseded: 'blueprint-superseded',
+  imported: 'blueprint-imported',
+};
+
+/**
+ * blueprint 문서 status를 위임 거절 reason으로 바꾼다.
+ *
+ * @param {string} status - index.md `bouncer.status` (읽지 못하면 '')
+ * @returns {PreflightOk['reason']} approved면 null, 아니면 상태별 reason
+ */
+function docStatusReason(status: string): PreflightOk['reason'] {
+  if (status === 'approved') return null;
+  return Object.prototype.hasOwnProperty.call(STATUS_REASON, status)
+    ? STATUS_REASON[status]
+    : 'blueprint-status-unknown';
+}
+
+// 원장 status → 위임 거절 reason. active는 막지 않으므로 목록에 없다.
+const LEDGER_REASON: Record<string, NonNullable<PreflightOk['reason']>> = {
+  promotion_stopped: 'promotion-stopped',
+  awaiting_confirmation: 'awaiting-confirmation',
+  partial_closed: 'partial-closed',
+};
 
 function collectTasks(repoRoot: string, blueprintDir: string): {
   openTasks: OpenTask[];
@@ -264,8 +302,9 @@ function collectTasks(repoRoot: string, blueprintDir: string): {
 /**
  * drive 시작에 필요한 pointer·blueprint·열린 task·DAG·autonomy를 한 JSON으로
  * 정규화한다. 파일을 쓰지 않으며, 위임 가능 여부는 상태만 보고 결정한다.
- * integration 원장이 `promotion_stopped`이면 위임을 막고 그 reason을 낸다.
- * 원장 부재는 정지를 알 수 없으므로 기존 blueprint/open-task 이유를 유지한다.
+ * 요청 blueprint가 포인터와 다르면 `pointer-mismatch`(ok:false)로 거절한다.
+ * 위임은 원장이 active이거나 없고, 문서 status가 approved이며, 열린 task가
+ * 있을 때만 열린다. 그 밖에는 상태별 reason과 함께 delegable:false이다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 포인터와 plan 문서가 있는 checkout
@@ -276,7 +315,7 @@ function runPreflight({ repoRoot, blueprintDir }: {
   repoRoot: string;
   blueprintDir: string;
 }): PreflightResult {
-  const blueprint = toPosix(blueprintDir);
+  const requested = toPosix(blueprintDir);
   let pointer: Pointer | null;
   try {
     pointer = readCurrent({ repoRoot });
@@ -291,24 +330,55 @@ function runPreflight({ repoRoot, blueprintDir }: {
   }
   if (!pointer) return { ok: false, reason: 'no-current' };
 
+  // 포인터와 다른 blueprint를 요청하면 그 task에 포인터의 base를 섞어 위임 가능으로
+  // 판정하게 된다. 문자열이 아니라 epic/blueprint id 쌍으로 비교해 끝 슬래시·`./`·
+  // 절대 경로 표기 차이는 같은 blueprint로 본다. id를 못 뽑는 입력도 같은 거절이다.
+  const want = parsePathIds(requested);
+  const have = parsePathIds(pointer.blueprint);
+  if (
+    !want.epicId || !want.blueprintId
+    || want.epicId !== have.epicId || want.blueprintId !== have.blueprintId
+  ) {
+    return {
+      ok: false, reason: 'pointer-mismatch', expected: pointer.blueprint, actual: requested,
+    };
+  }
+
+  // 문서·원장 조회는 repo 상대 경로가 필요하다. 절대 경로를 path.join(repoRoot, …)에
+  // 그대로 넘기면 경로가 겹쳐 읽기에 실패하므로 repoRoot 기준 상대 경로로 맞춘다.
+  // 절대·상대 입력 모두 path.relative로 정규화해 같은 규칙으로 repo 경계를 검사한다.
+  const relative = toPosix(path.relative(repoRoot, path.resolve(repoRoot, requested)));
+
+  // epic/blueprint id가 포인터와 같아도 repo 밖(다른 경로의 절대 경로, 루트를 벗어나는
+  // `../`)이면 그 바깥 문서를 읽어 위임 가능으로 판정하게 된다. id 불일치와 같은
+  // pointer-mismatch로 거절하되 actual은 요청 원문 그대로 둔다.
+  if (relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) {
+    return {
+      ok: false, reason: 'pointer-mismatch', expected: pointer.blueprint, actual: requested,
+    };
+  }
+  const blueprint = path.posix.normalize(relative).replace(/\/$/, '');
+
   const meta = readBlueprintMeta(repoRoot, blueprint);
   const { openTasks, waveTasks, shapeTasks } = collectTasks(repoRoot, blueprint);
-  const closed = meta.status === 'closed';
-  let reason: PreflightOk['reason'] = null;
-  if (closed) reason = 'blueprint-closed';
-  else if (openTasks.length === 0) reason = 'no-open-task';
 
-  // 원장이 있을 때만 승격 정지를 본다. 부재는 기존 blueprint/open-task 이유를 유지한다.
-  // 정지가 있으면 closed·no-open-task보다 우선해 위임이 다시 열리지 않게 한다.
+  // 우선순위: 원장 상태 → 문서 status → no-open-task. 원장이 진행 중 정지·확인 대기·
+  // 부분 종료이면 문서가 approved여도 새 drive를 시작하면 안 된다. 원장 부재·손상·
+  // integration 경로 해석 실패는 정지 여부를 알 수 없으므로 miss로 두고 문서만 본다.
+  let reason: PreflightOk['reason'] = null;
   try {
     const paths = coordinatorPathsFor({ repoRoot, blueprint });
     const ledger = loadLedger(paths.ledgerFile);
-    if (ledger && ledger.status === 'promotion_stopped') {
-      reason = 'promotion-stopped';
+    const ledgerStatus = ledger ? ledger.status : undefined;
+    if (ledgerStatus && Object.prototype.hasOwnProperty.call(LEDGER_REASON, ledgerStatus)) {
+      reason = LEDGER_REASON[ledgerStatus];
     }
   } catch (_error) {
-    // blueprint 경로에서 integration id를 못 뽑으면 정지 여부를 알 수 없다 — miss.
+    // 원장 부재·손상·git 실패는 miss로 흡수한다. 위임을 열어 주는 방향이지만
+    // 이어지는 문서 status 검사가 승인 전·종료 blueprint를 여전히 막는다.
   }
+  if (reason === null) reason = docStatusReason(meta.status);
+  if (reason === null && openTasks.length === 0) reason = 'no-open-task';
 
   // preflight는 repoRoot config를 본다. invalid면 1로 접어 ACQ 미리보기가
   // prepare보다 넓은 wave를 약속하지 않게 한다.

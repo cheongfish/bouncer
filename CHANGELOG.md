@@ -9,6 +9,11 @@
 
 ### Changed
 
+- **run 시작 계약 정리 (EPIC 099 BP 002)** — `run preflight`가 포인터와 다른 blueprint
+  요청(`pointer-mismatch`)과 승인되지 않았거나 종료 중인 blueprint·원장 상태에서 위임을 거절한다.
+  `/bouncer-run`은 scale과 관계없이 preflight, 시작 ACQ, bootstrap을 거친 뒤에만 light 절차로
+  넘어간다. plan gate는 S34를 검사한다.
+
 - **plan context review 관점 통합과 기계 검사 이관 (EPIC 098 BP 003)** — context reviewer의 필수 판단을
   문서 정합성·범위(`cross_document`)와 검증 가능성(`success_criteria`) 두 가지로 줄였다. commit task
   3개 이하 계획은 `combined` 한 번으로 리뷰하고 4개 이상은 기존 `local` + `global`이다. Touch의 존재하지
