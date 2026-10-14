@@ -47,5 +47,5 @@ rule's items 2-4 unchanged, and this document does not apply.
 6. **Report.** The report is the JSON `report` field from `dispatch print`.
    Pass the implementer the dispatch `report_path` and have it write the report
    body there too; `coordinate report` reads that file.
-   On `{ ok: false }`, follow `next`. A non-zero exit or a missing `result` event is a dispatch failure, not a report. Never fall back to a Task
+   On `{ ok: false }`, follow `next`. A non-zero exit, a missing `result` event, or a final `result` that is absent or blank is a dispatch failure, not a report. Never fall back to a Task
    subagent.
