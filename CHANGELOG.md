@@ -9,6 +9,13 @@
 
 ### Changed
 
+- **plan context review 관점 통합과 기계 검사 이관 (EPIC 098 BP 003)** — context reviewer의 필수 판단을
+  문서 정합성·범위(`cross_document`)와 검증 가능성(`success_criteria`) 두 가지로 줄였다. commit task
+  3개 이하 계획은 `combined` 한 번으로 리뷰하고 4개 이상은 기존 `local` + `global`이다. Touch의 존재하지
+  않는 수정 경로는 plan gate `G25`가, 보안 경로를 건드리는데 비어 있는 `review_risk`는 경고
+  `review-risk-missing`이 판정한다. Contract 저장 위치·상태 소유권과 task 브리프의 대조를 rubric에
+  더했다. 기존 `context-review.md`의 legacy `scope`·`korean_quality` 관점은 계속 읽는다.
+  `benchmarks/plan-review/`에 결함 D1–D5를 심은 small·large 계획 fixture와 변경 전후 측정 절차를 추가했다.
 - **직렬 드라이브 세션 연속과 DAG 모양 판단 (EPIC 098 BP 002)** — 직렬·무예외 wave는
   `coordinator.waves_per_session`(기본 `auto`, 상한 4) 안에서 같은 coordinator 세션으로 이어지고,
   `coordinate next`·`advance`가 `yield`로 세션 경계를 알린다. `bouncer run preflight`가 `shape`와
