@@ -31,7 +31,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    step 1 freeze.
 
    On `strategy: single`, dispatch one `bouncer-context-reviewer` call with
-   perspective `combined` (all four rubrics). On `strategy: clustered`,
+   perspective `combined` (both rubrics). On `strategy: clustered`,
    dispatch one `local` call per CLI cluster in that same cluster-id order,
    then one `global` call. Record round 1 perspectives in that CLI dispatch
    order (`combined`, or each `local` then `global`). Each named call uses

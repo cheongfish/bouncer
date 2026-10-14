@@ -64,15 +64,17 @@ On a light plan, approved scope rests on the user's confirmation of
 3. **Judge** — In `discovery`, the controller first runs
    `bouncer review-dispatch plan` on the frozen snapshot and uses that
    strategy as the only call shape. On `single`, one call with perspective
-   `combined` judges every rubric scope. On `clustered`, one `local` call per
+   `combined` judges both rubrics. On `clustered`, one `local` call per
    CLI cluster (same cluster-id order) plus one `global` call cover the same
-   four rubrics without loss: `local` owns task-local cross-document
-   consistency, `affected_paths`/Checklist edit paths, and red assertions
-   inside its cluster; `global` owns epic→blueprint→tasks and cross-cluster
-   consistency, shared paths and DAG, Korean quality overall, and epic
-   success-criteria coverage. Legacy perspective names
-   `cross_document | scope | korean_quality | success_criteria` remain valid
-   on recorded rounds. Each call judges only its assigned perspective and
+   two rubrics without loss: `local` owns task-local consistency (Interface ·
+   Touch · Checklist), Checklist edit paths against `affected_paths`, task
+   `review_risk` marking, and red assertions inside its cluster; `global` owns
+   epic→blueprint→tasks and cross-cluster consistency, the Contract storage
+   location and state ownership check, shared paths and DAG, and epic
+   success-criteria coverage. Path existence is judged by plan gate G25 and
+   sentence quality by stop-slop; neither is a reviewer finding. Legacy
+   perspective names `cross_document | scope | korean_quality |
+   success_criteria` are only read on recorded rounds. Each call judges only its assigned perspective and
    never sees another call's findings. When the CLI returns `ok: false` or
    the digest/document set drifts from the freeze, do not judge and do not
    accept. In `delta`, one call certifies whether the previous findings are
@@ -89,7 +91,7 @@ On a light plan, approved scope rests on the user's confirmation of
    The scope bodies, the delta origin rule, what each scope excludes, and the
    severity mapping are canonical in the named agent
    `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` (`## Review modes`,
-   `## Rubric — four scopes`, `## Calibration (severity)`). Read them there;
+   `## Rubric — two scopes`, `## Calibration (severity)`). Read them there;
    this skill does not carry a second copy.
 
 4. **Return** — Return a Findings list only. The controller (not this

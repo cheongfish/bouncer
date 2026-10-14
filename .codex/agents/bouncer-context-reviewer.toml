@@ -57,27 +57,23 @@ selects call shape from `bouncer review-dispatch plan` (`single` → one
 react to another reviewer's findings. Adaptive perspectives map onto the
 Rubric scopes below without dropping a judgment item:
 
-- `combined` — judge every Rubric scope (`cross_document`, `scope`,
-  `korean_quality`, `success_criteria`) on the full attached document list
-- `local` — inside the assigned cluster only: Cross-document contradiction
-  limited to task-internal clause consistency (Interface · Touch · Checklist
-  within those tasks); Scope review for those tasks' `affected_paths` and
-  Checklist edit paths; Verifiability of success criteria limited to those
-  tasks' Checklist red assertions. Do not score Korean quality, epic/blueprint
-  contract, DAG, or cross-cluster sharing on a `local` call
-- `global` — Cross-document contradiction across epic → blueprint → tasks and
-  between clusters; Scope review for shared paths and the task DAG; Korean
-  quality on the full judged set; Verifiability of success criteria for epic
-  coverage across all tasks. Do not re-litigate a single cluster's local
-  Interface/Touch/Checklist seam that `local` already owns
+- `combined` — judge both Rubric scopes (`cross_document`,
+  `success_criteria`) on the full attached document list
+- `local` — inside the assigned cluster only: task-internal clause consistency
+  (Interface · Touch · Checklist within those tasks); Checklist edit paths
+  against `affected_paths`; each task's `review_risk` marking; Verifiability of
+  success criteria limited to those tasks' Checklist red assertions. Do not
+  judge epic/blueprint contract, DAG, or cross-cluster sharing on a `local`
+  call
+- `global` — Cross-document consistency across epic → blueprint → tasks and
+  between clusters; the Contract storage location and state ownership check
+  against task briefs; shared paths and the task DAG; Verifiability of success
+  criteria for epic coverage across all tasks. Do not re-litigate a single
+  cluster's local Interface/Touch/Checklist seam that `local` already owns
 
-Legacy perspective names remain valid when the controller assigns them
-one-to-one onto a single Rubric scope:
-
-- `cross_document` — Cross-document contradiction
-- `scope` — Scope review
-- `korean_quality` — Korean quality
-- `success_criteria` — Verifiability of success criteria
+Legacy perspective names (`cross_document`, `scope`, `korean_quality`,
+`success_criteria`) are only read as categories on recorded rounds. Do not
+assign them on a new call.
 
 Do not report a finding outside the assigned perspective, even when it would
 otherwise be valid. Every discovery finding has `origin: discovery`.
@@ -98,13 +94,12 @@ a concrete false-acceptance path. Attach that origin evidence to every new
 delta finding. If `revision_diff` or `related_documents` is missing, report the
 missing input instead of judging.
 
-## Rubric — four scopes
+## Rubric — two scopes
 
-Each scope below is one judgment body. Adaptive perspectives reuse these
-bodies (`combined` all four; `local` / `global` the slices under Discovery);
-legacy names still mean exactly one scope.
+Each scope below is one judgment body. `combined` judges both; `local` /
+`global` judge the slices under Discovery.
 
-### Cross-document contradiction (`cross_document`)
+### Cross-document consistency and scope (`cross_document`)
 
 Walk epic → blueprint → tasks. Flag goal or scope that disagrees across those
 documents (a success criterion the tasks never open, a Touch path the epic put
@@ -117,21 +112,25 @@ together with `cache miss` or `fallback` states `in one list`. When Mermaid
 charts are present for a flow change, also judge the zoom: epic whole flow →
 blueprint PR segment → tasks implementation branch. Flag a child chart that
 contradicts its parent zoom (wrong PR segment, a new box, or a copied
-whole-flow chart). Chart absence is optional and not a finding; Mermaid is a
-Cross-document detail, not a fifth judgment scope.
+whole-flow chart). Chart absence is optional and not a finding.
 
-### Scope review (`scope`)
+Judge scope semantically: flag a file the Checklist must edit that the task's
+`affected_paths` omits, and a Touch or Checklist item that contradicts the
+approved scope or the Out of scope list.
 
-For each task document, check:
+Check storage location and state ownership: compare the location (document,
+field, or runtime file) and owner the blueprint Contract `데이터·상태` fixes
+against what each task's Interface, Touch, and Checklist point to. A vague
+phrase such as "cycle-owned runtime" is a finding when the Contract already
+named a location. Example (096-001): the Contract put the cycle in
+`context-review.md` `bouncer.context_review.cycle`, the task said only
+"cycle-owned runtime", and the implementation wrote runtime `state.json`.
 
-- `affected_paths` entries exist (or are Create targets the Checklist will add);
-- files the Checklist must edit that `affected_paths` omitted.
-
-### Korean quality (`korean_quality`)
-
-Judge human-facing bodies under `.bouncer/context/epics/**` against
-`references/stop-slop/index.md` (advisory). Identifiers, paths, and fenced code
-stay as-is. Do not score derived `graphify-out/**` artifacts or plugin skill markdown.
+Check the security-risk marking: when a task's Interface or Touch changes a
+public API, authentication, authorization, or credentials and its `review_risk`
+is empty or lacks the matching value, flag it. The plan gate warning
+`review-risk-missing` is input evidence only; it does not replace this
+judgment.
 
 ### Verifiability of success criteria (`success_criteria`)
 
@@ -143,6 +142,11 @@ criterion is verifiable when a later reader can say yes or no from a command,
 a file, or a gate result.
 
 ### Out of judgment
+
+Path existence (Modify, Delete, and Rename sources) is judged by plan gate G25,
+and sentence quality belongs to the authoring-stage stop-slop check
+(advisory). Do not report a finding on path existence or sentence quality
+alone.
 
 OKF fields (`type`, `title`, `resource`, `tags`, `timestamp`, `bouncer.id` /
 `epic_id` / `blueprint_id`) and document `bouncer.status` are excluded — gates
@@ -170,8 +174,9 @@ Return **only** a Findings list. For each finding include:
 - relation to previous findings: `new | resolved | regressed` (reuse the
   previous ID for `resolved` and `regressed`)
 - `severity`: `blocker | major | minor | nit`
-- `category` — the perspective name (`combined | local | global |
-  cross_document | scope | korean_quality | success_criteria`)
+- `category` — the perspective name (`combined | local | global`; the legacy
+  names `cross_document | scope | korean_quality | success_criteria` stay
+  only for compatibility with recorded rounds)
 - `brief_clause` — the document clause the finding sits on, e.g.
   `tasks/002 Interface` or `epic Success criteria 4`
 - `file` — repository-relative path of the plan document
