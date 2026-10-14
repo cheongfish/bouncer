@@ -157,6 +157,8 @@ Ship login validation.
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: paths21,
+      // src/auth/ Touch가 보안 토큰에 걸리므로 review-risk-missing이 task-split 단언을 흐리지 않게 한다.
+      review_risk: ['authentication'],
     },
   })}---\n${tasksBody}`);
   writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
@@ -206,6 +208,97 @@ Ship login validation.
   assert.match(parsed.warnings[0].message, /21/);
   assert.match(parsed.warnings[0].message, /split the task|task를 분리/i);
   assert.strictEqual(buf.err, '', 'no stderr advisory prose outside JSON');
+});
+
+test('validate --gate plan with security Touch and empty review_risk → exits 0 with review-risk-missing', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const tasksBody = `# Tasks
+
+## Goal & intent
+Ship login validation.
+
+## Interface
+\`validateLogin(input) -> Result\`
+
+## Touch
+- \`src/auth/login.js\`
+
+## Do not touch
+- \`src/payments/\`
+
+## Checklist
+- [ ] implement validateLogin
+`;
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth epic', description: 'auth epic',
+    resource: '.bouncer/context/epics/001-auth/index.md',
+    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
+    resource: `${BP_REL}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
+  });
+  const tasksRel = `${BP_REL}/tasks/001/tasks.md`;
+  const abs = path.join(repo, tasksRel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---\n${yaml.dump({
+    type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for 001',
+    resource: tasksRel, tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+      affected_paths: ['src/auth/login.js'],
+      review_risk: [],
+    },
+  })}---\n${tasksBody}`);
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
+    type: 'bouncer.verification', title: 'Verify 001', description: 'v',
+    resource: `${BP_REL}/tasks/001/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'pending' },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/review.md`, {
+    type: 'bouncer.review', title: 'Review 001', description: 'r',
+    resource: `${BP_REL}/tasks/001/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'pending' },
+  });
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review', title: '001 context review', description: 'c',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      context_review: { findings: [] },
+    },
+  });
+  const crAbs = path.join(repo, `${BP_REL}/context-review.md`);
+  fs.writeFileSync(
+    crAbs,
+    fs.readFileSync(crAbs, 'utf8').replace('# x\n', '# Context review\n\n## Findings\n(none)\n'),
+  );
+  const indexAbs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
+  fs.writeFileSync(
+    indexAbs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n'
+    + '* [001 auth](epics/001-auth/index.md) - auth epic\n',
+  );
+  const { io, buf } = capture();
+  const code = runCli(
+    ['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'plan'],
+    io,
+  );
+  assert.strictEqual(code, 0, `warnings alone must exit 0; stderr=${buf.err}`);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.deepStrictEqual(parsed.failures, []);
+  assert.strictEqual(parsed.warnings.length, 1);
+  assert.strictEqual(parsed.warnings[0].code, 'review-risk-missing');
+  assert.match(parsed.warnings[0].message, /src\/auth\/login\.js/);
 });
 
 test('unknown command → exits 2', () => {

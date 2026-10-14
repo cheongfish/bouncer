@@ -157,7 +157,7 @@ type BlueprintDocs = {
  * @param {boolean} [opts.planDraft] - true면 gate 대신 status 무관 plan draft 검사를 돌린다
  * @param {GateDeps} [opts.deps] - gate 검사에 주입할 의존성(테스트용)
  * @returns {{ ok: boolean, failures: FailureEntry[], warnings?: FailureEntry[] }}
- *   failures가 비면 ok:true. task-split 경고가 있을 때만 warnings 키를 싣는다
+ *   failures가 비면 ok:true. 경고(task-split·dag-*·review-risk-missing 등)가 있을 때만 warnings 키를 싣는다
  * @throws {Error} planDraft와 gate를 함께 주면 'planDraft cannot be combined with gate'
  */
 function validateBlueprint({

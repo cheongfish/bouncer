@@ -1508,6 +1508,30 @@ function contextReviewFreshnessFailure(
 }
 
 /**
+ * Touch 경로의 segment·basename 조각과 정확히 비교할 보안 토큰. 부분 문자열이 아니라
+ * 완전 일치만 보므로 `tokenizer`·`sessions` 같은 이름은 걸리지 않는다. review-dispatch의
+ * REVIEW_RISK_ENUM을 import하면 validate와 순환하므로 이 목록은 여기서 독립으로 둔다.
+ */
+const SECURITY_PATH_TOKENS: readonly string[] = [
+  'auth', 'login', 'session', 'token', 'credential', 'secret',
+  'password', 'permission', 'acl', 'oauth', 'jwt',
+];
+
+/**
+ * 경로 하나가 보안 토큰과 일치하는지 판정한다. `.bouncer/`로 시작하는 계획 문서는
+ * 코드 경로가 아니므로 epic 제목에 auth가 들어 있어도 검사하지 않는다.
+ * 조각 = `/` segment 전체 + 각 segment를 `.`·`_`·`-`로 나눈 조각(basename 포함).
+ *
+ * @param {string} p - 저장소 상대 posix 경로 후보
+ * @returns {boolean} 소문자 기준으로 토큰과 정확히 같은 조각이 있으면 true
+ */
+function isSecurityPath(p: string): boolean {
+  if (p === '.bouncer' || p.startsWith('.bouncer/')) return false;
+  return p.toLowerCase().split('/').some((seg) =>
+    SECURITY_PATH_TOKENS.includes(seg) || seg.split(/[._-]/).some((x) => SECURITY_PATH_TOKENS.includes(x)));
+}
+
+/**
  * task 문서 하나에 status와 무관한 plan 검사(G5·G10·G11·G12)를 현재 순서대로 적용한다.
  * plan gate는 G3 다음에, plan draft 검사는 G3 없이 이 함수를 부른다 — 두 경로가
  * 한 구현을 공유해야 draft에서 통과한 문서가 승인 뒤 gate에서 다른 답을 받지 않는다.
@@ -1581,6 +1605,23 @@ function checkTaskScope(
     if (overlap.length) {
       addTask('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`);
     }
+    // 보안 경로를 건드리는데 review_risk가 비면 execute가 security reviewer를 빼므로
+    // 승인 전에 알린다. 실패가 아닌 경고이고, G10 통과 분기에서만 Touch를 신뢰해 판정한다.
+    // task-split 뒤에 push해 같은 task의 경고 순서를 고정한다.
+    const risk = taskBouncer ? taskBouncer.review_risk : undefined;
+    if (executionKind === 'commit' && (!Array.isArray(risk) || risk.length === 0)
+      && Array.isArray(ctx.warnings)) {
+      const hits = extractPathCandidates(touchText).filter(isSecurityPath).sort();
+      if (hits.length) {
+        ctx.warnings.push({
+          code: 'review-risk-missing',
+          message:
+            `Touch paths look security-sensitive but review_risk is empty: ${hits.join(', ')}; `
+            + 'record public_interface | authentication | authorization | credential if they apply',
+          file,
+        });
+      }
+    }
   }
 }
 
@@ -1624,4 +1665,4 @@ function checkPlanDraft(
   checkVerificationTaskGraph(tasksList, failures);
 }
 
-export = { checkGate, checkPartialCloseEvidence, checkPlanDraft };
+export = { checkGate, checkPartialCloseEvidence, checkPlanDraft, SECURITY_PATH_TOKENS };
