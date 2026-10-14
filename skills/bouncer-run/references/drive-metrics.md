@@ -23,7 +23,7 @@ reason, and totals never count it as 0.
 
    Keep the `id` from the JSON result. `ok: false` is reported but never blocks the drive.
 
-3. Immediately after the coordinator returns, pass what the host's task notification gave you:
+3. Once the coordinator's hand-back report has arrived (item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md`; a `completed` notification without a result body does not count), pass what the host's final task notification gave you, never an intermediate one:
 
    ```bash
    bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>

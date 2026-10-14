@@ -631,3 +631,17 @@ test('rule 4 → defines the same role brief as the whole role document plus con
   // named dispatch는 compact 원칙을 유지한다 — 전체 본문은 fallback 한정이다.
   assert.match(rule, /named\s+dispatch[\s\S]{0,160}(?:does not|never)\s+(?:carry|repeat)/i);
 });
+
+// 결과 본문 없는 completed 알림으로 metrics를 닫으면 중간값이 기록된다. item 6이
+// 완료 판정과 metrics end 시점을, item 8이 지연 로드 툴 스키마 로드 순서를 말해야
+// 모든 dispatcher가 같은 기준을 따른다.
+test('dispatch rule → item 6 defines completed notices and metrics end timing, item 8 loads deferred tools', () => {
+  const contract = fs.readFileSync(
+    path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',
+  );
+  const item6 = contract.match(/\n6\. [\s\S]*?(?=\n7\. )/)?.[0] || '';
+  assert.match(item6, /`completed`/);
+  assert.match(item6, /metrics end/);
+  const item8 = contract.match(/\n8\. [\s\S]*?(?=\n\n|$)/)?.[0] || '';
+  assert.match(item8, /ToolSearch/);
+});

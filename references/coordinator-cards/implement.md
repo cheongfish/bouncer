@@ -6,6 +6,10 @@ from the coordinator Worker dispatch and the execute agent-dispatch reference.
 - Dispatch named `bouncer-implementer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   Never play that role yourself and never let one worker judge another's
   report.
+- The model argument for that dispatch is the `bouncer subagent-model --agent
+  bouncer-implementer` output you already passed to `coordinate dispatch --model
+  <value>`; that call is what records it. Pass the same value to the
+  implementer dispatch. Do not record it a second time, including after an `inherit` retry: the ledger keeps the first value.
 - Before a `bouncer-implementer` edits a commit task, require it to read
   `${BOUNCER_ROOT}/references/coding-standards/index.md`. This is mandatory, not a suggested
   reference: it holds the Korean comment and docstring contract and the test

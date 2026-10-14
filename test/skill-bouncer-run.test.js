@@ -22,3 +22,10 @@ test('run start ACQ → 판독 블록이 D를 포함하고 권장은 A이며 dir
   assert.strictEqual(parsed.recommended, 'A');
   assert.ok(fs.existsSync(path.join(root, 'skills/bouncer-run/references/direct-run.md')));
 });
+
+// step 4의 사전 모델 확인 명령은 기계 계약이다. 규칙만 가리키면 dispatch 뒤에야 실행된다.
+test('run step 4 → runs the coordinator model check before dispatch', () => {
+  const skill = fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-run/SKILL.md'), 'utf8');
+  const step4 = skill.match(/4\. \*\*Coordinator dispatch\.\*\*[\s\S]*?(?=\n5\. \*\*Report\.\*\*)/)?.[0] || '';
+  assert.ok(step4.includes('bouncer subagent-model --agent bouncer-coordinator'));
+});

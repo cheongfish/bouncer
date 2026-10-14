@@ -46,7 +46,7 @@ const LEDGER_REL = COORDINATOR_LEDGER_REL;
  */
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open',
+  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open', 'worker-model',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
@@ -71,10 +71,25 @@ type PromotionRecord = {
 type DispatchState = {
   attempt: number; task_brief_hash: string; base_head: string; initial_worktree_state: string;
   status: 'active' | 'reported'; outcome?: ReportOutcome; summary?: string;
+  // dispatch에 넘긴 모델 인자(slug 또는 inherit). `--model`을 준 attempt에만 있다.
+  model?: string;
 };
 type DispatchDecision = {
   task: string; kind: 'dispatch'; attempt: number; task_brief_hash: string;
   base_head: string; initial_worktree_state: string;
+  model?: string;
+};
+// reviewer·debugger dispatch에 넘긴 모델 인자를 남기는 기록 전용 decision.
+// dispatch·lease·status는 건드리지 않는다.
+// execute review 관점 열거(validate-sections.ts REVIEW_PERSPECTIVE)의 사본이다. 그 상수가
+// 모듈 밖으로 export되지 않고 이 task는 validate-sections.ts를 건드릴 수 없어 복제한다.
+// 관점이 늘면 두 곳을 함께 고쳐야 한다.
+const WORKER_MODEL_REVIEW_PERSPECTIVES: readonly string[] = [
+  'combined', 'spec_scope', 'correctness_tests', 'minimality_maintainability', 'security',
+];
+type WorkerModelDecision = {
+  kind: 'worker-model'; role: 'reviewer' | 'debugger'; model: string;
+  task?: string; perspective?: string;
 };
 type ReportDecision = {
   task: string; kind: 'report'; attempt: number; task_brief_hash: string;
@@ -3135,6 +3150,9 @@ function finishFaninAfterFf({
  * @param {boolean} [opts.done] - supplement 전용. 보완 완료를 알리고 검증을 돌린다
  * @param {string} [opts.outcome] - report 또는 critical-recovery 결과
  * @param {string} [opts.reason] - revoke·critical-recovery 사유
+ * @param {string | true} [opts.model] - dispatch·worker-model 모델 인자. true는 값 없는 플래그
+ * @param {string} [opts.role] - worker-model 대상 role(reviewer|debugger)
+ * @param {string} [opts.perspective] - worker-model reviewer 관점
  * @param {number} [opts.attempt] - dispatch report attempt
  * @param {string} [opts.taskBriefHash] - dispatch report brief hash
  * @param {string} [opts.leaseId] - task lease id
@@ -3149,7 +3167,7 @@ function finishFaninAfterFf({
  */
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
   failureCommand, summary, paths: repairPaths, findings, reviewFindings, kind, done, outcome, reason, attempt,
-  taskBriefHash,
+  taskBriefHash, model, role, perspective,
   leaseId, generation,
   ledgerPath, ledgerHash,
   userConfirmed = false, deps = {} }: {
@@ -3157,6 +3175,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; reviewFindings?: string[]; kind?: string; done?: boolean; outcome?: string; reason?: string;
   attempt?: number; taskBriefHash?: string;
+  model?: string | true; role?: string; perspective?: string;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
   deps?: {
@@ -3402,6 +3421,39 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       { const lost = commitWrite(); if (lost) return lost; }
       return withCheckpoint({
         ok: true as const, command, decision: session,
+      }, ledger, integration.ledgerFile);
+    }
+
+    // 기록 전용 명령이다. dispatch·lease·status·attempt를 바꾸지 않고 decision만 덧붙이므로
+    // 검증을 모두 통과한 뒤에만 commitWrite()를 부르고, 어느 거절도 원장을 쓰지 않는다.
+    if (command === 'worker-model') {
+      ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      if (role !== 'reviewer' && role !== 'debugger') {
+        return { ok: false, reason: 'worker-model-role-invalid' };
+      }
+      // 값 없는 플래그(true)와 공백 문자열은 모두 빈 값이다. 누락(undefined)은 CLI가 usage로 막는다.
+      if (typeof model !== 'string' || model.trim() === '') return { ok: false, reason: 'model-invalid' };
+      // 관점은 reviewer 전용이고 execute review 관점 열거 안이어야 한다.
+      if (perspective !== undefined
+        && (role !== 'reviewer'
+          || !WORKER_MODEL_REVIEW_PERSPECTIVES.includes(perspective))) {
+        return { ok: false, reason: 'worker-model-perspective-invalid' };
+      }
+      let owner: Task | undefined;
+      if (task !== undefined) {
+        owner = ledger.tasks.find((x) => x.id === task);
+        if (!owner) return { ok: false, reason: 'task-outside-blueprint' };
+      }
+      const recorded: WorkerModelDecision = {
+        kind: 'worker-model', role, model: model.trim(),
+        ...(task !== undefined ? { task } : {}),
+        ...(perspective !== undefined ? { perspective } : {}),
+      };
+      if (owner) owner.decisions = [...(owner.decisions || []), recorded];
+      ledger.decisions.push(recorded);
+      { const lost = commitWrite(); if (lost) return lost; }
+      return withCheckpoint({
+        ok: true as const, command, decision: recorded,
       }, ledger, integration.ledgerFile);
     }
 
@@ -3695,6 +3747,11 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       if ((item.status || 'pending') !== 'prepared') return { ok: false, reason: 'illegal-transition' };
     }
     if (command === 'dispatch') {
+      // --model은 선택이지만 줬다면 비어 있으면 안 된다. attempt를 열기 전에 거절해
+      // 잘못된 값이 원장에 반쯤 남지 않게 한다.
+      if (model !== undefined && (typeof model !== 'string' || model.trim() === '')) {
+        return { ok: false, reason: 'model-invalid' };
+      }
       if (item.dispatch?.status === 'active') {
         return { ok: false, reason: 'dispatch-already-active' };
       }
@@ -3719,10 +3776,12 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       item.dispatch = {
         attempt: nextAttempt, task_brief_hash: hash, base_head: baseHead,
         initial_worktree_state: porcelain, status: 'active',
+        ...(model !== undefined ? { model: model.trim() } : {}),
       };
       const dispatchDecision: DispatchDecision = {
         task, kind: 'dispatch', attempt: nextAttempt, task_brief_hash: hash,
         base_head: baseHead, initial_worktree_state: porcelain,
+        ...(model !== undefined ? { model: model.trim() } : {}),
       };
       item.decisions = [...(item.decisions || []), dispatchDecision];
       ledger.decisions.push(dispatchDecision);
@@ -4192,6 +4251,20 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'stale-worker-report': {
     cause: 'The task brief changed after the accepted report, so the report no longer matches the brief.',
     next: 'Open a new `bouncer coordinate dispatch` for this task and rerun the implementer; do not retry record.',
+  },
+  'model-invalid': {
+    cause: 'The model argument is empty or was given without a value.',
+    next: 'Retry with the one-line output of `bouncer subagent-model --agent <name>` as `--model <value>`.',
+  },
+  'worker-model-role-invalid': {
+    cause: 'worker-model records only the reviewer or debugger role.',
+    next: 'Retry `bouncer coordinate worker-model` with `--role reviewer` or `--role debugger`.',
+  },
+  'worker-model-perspective-invalid': {
+    cause: 'The perspective is not a reviewer perspective, or it was given with a non-reviewer role.',
+    // 열거를 하드코딩하면 WORKER_MODEL_REVIEW_PERSPECTIVES와 어긋난다 — 상수에서 만든다.
+    next: `Retry with a reviewer perspective (${WORKER_MODEL_REVIEW_PERSPECTIVES.join(', ')}), `
+      + 'or drop `--perspective` for the debugger.',
   },
   'summary-required': {
     cause: 'Report requires a non-empty summary.',

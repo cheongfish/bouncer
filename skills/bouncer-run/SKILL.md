@@ -111,7 +111,9 @@ stay on the execute round.
    When the ledger `mode` or pointer `scale` is `light`, follow
    [light-run.md](./references/light-run.md) from `integrationPath` and skip step 4.
 
-4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` one at a time
+4. **Coordinator dispatch.** Just before dispatch, run
+   `bouncer subagent-model --agent bouncer-coordinator` and report its output
+   to the user (`inherit` omits the model argument). Dispatch named `bouncer-coordinator` singly
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
    guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
@@ -139,8 +141,7 @@ stay on the execute round.
    Take `completed_tasks.length` immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
    Wrap every coordinator session in `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md).
    Wait in the foreground per `${BOUNCER_ROOT}/rules/subagent-model.md` item 6 until the
-   coordinator returns its outcome. A background handle or a "drive started" status is not that outcome:
-   never end the turn or render step 5 while the coordinator still runs.
+   coordinator returns its outcome; never end the turn or render step 5 while the coordinator still runs.
    On `continue`, do not go to step 5. `interactive` emits the
    `${BOUNCER_ROOT}/rules/output.md` continue line; remaining `N` is re-fetched
    `active_tasks.length`. Call `coordinate status --write-input` again to

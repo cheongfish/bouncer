@@ -8,6 +8,13 @@ review and Procedure step 6 (Close).
   execute`) once through this final-review procedure, record the round from
   `judge` `review-round`, then call `next` again. Do not Close while that root
   `review.md` is not `accepted`.
+- Immediately before each reviewer dispatch, run `bouncer subagent-model
+  --agent bouncer-reviewer`, then record it with `bouncer coordinate
+  worker-model --blueprint <dir> --role reviewer --model <value> [--perspective
+  <name>] --ledger-path <p> --ledger-hash <h>` from the integration cwd (no
+  `--task`: the final review spans the blueprint), and pass the same value to
+  the dispatch. If a slug rejection forces the `inherit` retry, record the
+  retried value again.
 - Blueprint review mode is `bouncer.review_scope: blueprint` on blueprint
   `index.md`. In that mode do **not** dispatch a per-task execute reviewer.
   Open one final review after every commit task is integrated and the terminal

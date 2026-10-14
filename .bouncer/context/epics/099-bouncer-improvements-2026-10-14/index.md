@@ -20,7 +20,7 @@ bouncer:
 
 ## Intent
 2026-10-14 개선 백로그의 작업을 우선순위에 따라 독립 blueprint로 계획하고 검증함.
-blueprint 001은 리뷰 입력을 작업 트리 스냅샷에 연결하고, 002는 run 시작 계약과 plan 단계 커밋 문장 검사를, 003은 repair task 통합 경로와 preflight 경로 비교를, 004는 CLI 실행·범위 계약 결함을 맞춤.
+blueprint 001은 리뷰 입력을 작업 트리 스냅샷에 연결하고, 002는 run 시작 계약과 plan 단계 커밋 문장 검사를, 003은 repair task 통합 경로와 preflight 경로 비교를, 004는 CLI 실행·범위 계약 결함을, 005는 dispatch 완료 판정·최종 metrics·워커 모델 기록을 맞춤.
 
 ## Diagram
 ```mermaid
@@ -55,16 +55,24 @@ flowchart LR
 20. `coordinate revise`가 이전 범위의 경로를 뺀 집합으로 성공하면 결과에 `warnings: [{ code: 'scope-paths-dropped', paths }]`가 있고, 뺀 경로가 없으면 `warnings` 키가 없다. coordinator 역할 문서와 CLI 도움말은 `--paths`가 범위 전체를 교체한다고 적는다(B-02).
 21. `coordinate integrate`는 미커밋 경로를 `git status --porcelain -z`로 읽어 Git escape 없는 원래 문자열로 허용 목록과 비교하고, 허용 밖 경로(한국어·공백·` -> ` 포함)를 그 원래 문자열 그대로 `integration-source-mutated`의 `paths`에 담는다(C-02).
 22. plan gate G25는 Touch의 모든 행에서 절대 경로이거나 정규화 결과가 repoRoot 밖인 경로를 실패로 보고, 저장소에도 선행 task에도 없는 Rename old 경로를 실패로 본다(C-03·C-06).
+23. `rules/subagent-model.md`는 결과 본문 없는 `completed`·대기 알림을 outcome으로 보지 않고, `metrics end`를 hand-back 보고가 온 뒤 그 최종 알림 값으로 닫는다고 적는다. run의 `drive-metrics.md`와 plan의 `context-review.md` metrics 절차도 같은 기준을 가리킨다(B-05).
+24. `/bouncer-run` step 4는 coordinator dispatch 직전에 `bouncer subagent-model --agent bouncer-coordinator`를 실행하고 그 출력을 사용자에게 보고하는 단계를 갖는다(B-07).
+25. `rules/subagent-model.md`는 지연 로드 툴을 호출하기 전에 그 스키마를 먼저 로드한다고 적는다(Claude Code에서는 `ToolSearch` `select:<name>`)(B-14).
+26. `coordinate dispatch --model <값>`은 task의 `dispatch`와 `dispatch` decision에 `model`을 기록하고, 플래그가 없으면 `model` 키 없이 기존 결과를 낸다(B-10).
+27. `coordinate worker-model`은 fence가 맞을 때 task와 원장 decisions에 `kind: 'worker-model'` 항목(role·model, 선택 perspective)을 추가하고 dispatch·lease·status를 바꾸지 않는다. 잘못된 role, 빈 model, fence 불일치는 reason과 함께 거절한다(B-10).
+28. coordinator의 dispatch·implement·review·verify 카드는 implementer·reviewer·debugger dispatch마다 `subagent-model` 출력값을 위 두 명령으로 기록하라고 적는다(B-10).
 
 ## Out of scope
 - 기존 075의 리뷰 전략 임계값, 081의 finding 병합·원자 기록 및 095의 코딩 표준을 재설계하지 않는다. A-01은 그 계약의 입력과 스냅샷 연결만 확장한다.
-- blueprint 001은 A-01만, 002는 A-02·A-04·A-05·B-06만, 003은 099/002 retro의 R1·R2·R3과 리뷰 F2만, 004는 A-06·B-01·B-08·B-02·C-02·C-03·C-06만 다룬다. `verify --task`, seed manifest 변경, coordinator 보고 형식(R4), 손상 원장 fail-closed(F3)는 하지 않는다. 백로그의 다른 항목, 모델 선택, 검증 증거 재사용, 효율 계측은 후속 blueprint에서 각각 범위를 확정한다.
+- blueprint 001은 A-01만, 002는 A-02·A-04·A-05·B-06만, 003은 099/002 retro의 R1·R2·R3과 리뷰 F2만, 004는 A-06·B-01·B-08·B-02·C-02·C-03·C-06만, 005는 B-05·B-07·B-10·B-14만 다룬다. `verify --task`, seed manifest 변경, coordinator 보고 형식(R4), 손상 원장 fail-closed(F3)는 하지 않는다. 백로그의 다른 항목, 모델 선택 정책, 검증 증거 재사용, 효율 계측은 후속 blueprint에서 각각 범위를 확정한다.
 - `coordinate revise --add-path`(B-03), `sourceStatus`와 dirty 무시 목록 통합, seed worktree의 `ls-files` 경로 escape, commit 실패 뒤 index 복원 방식 변경, revise 축소 거절 모드.
 - run preflight의 명시적 대상 선택(포인터와 다른 blueprint 실행), 원장 상태 전이 변경, 커밋 검증기 허용 어미 목록 변경.
 - 과거 커밋 전용 리뷰 모드, 새 설정 키, 자동 위험 수용, 이미 저장한 리뷰 기록의 강제 마이그레이션.
+- light-run·단독 `/bouncer-execute`·plan context-reviewer의 모델 기록, host가 실제 실행한 모델의 검증, `metrics` 스키마·pricing 변경.
 
 ## Blueprints
 * [001 리뷰 입력 정합성](blueprints/001-review-input-consistency/index.md) - 실행 리뷰의 작업 트리 수집·규모 분류·라운드 기록·reviewer 입력을 같은 스냅샷에 연결한다.
 * [002 run 시작 계약](blueprints/002-run-start-contract/index.md) - run preflight의 포인터·상태 거절, run 시작 순서와 plan gate의 커밋 문장 검사를 맞춘다.
 * [003 repair 통합 경로](blueprints/003-repair-integrate-path/index.md) - coordinator integrate가 repair task 문서를 받아들이게 하고 run preflight의 경로 비교를 정규화·realpath 기준으로 바꾼다.
 * [004 CLI 실행·범위 계약](blueprints/004-cli-execution-scope-contract/index.md) - print dispatch의 빈 보고서 거절, commit 실패 JSON 출력, revise 축소 경고, integrate dirty 경로 `-z` 파싱, G25 저장소 밖 경로 거절을 맞춘다.
+* [005 dispatch 실행 기록](blueprints/005-dispatch-execution-record/index.md) - dispatch 완료 알림 판정·최종 metrics·사전 모델 확인·지연 로드 툴 규칙을 문서에 넣고, coordinator 원장에 워커 dispatch 모델을 기록한다.

@@ -11,6 +11,12 @@ the coordinator Task round and the execute verification-recovery reference.
 
 ## Verify failure
 
+- Immediately before each debugger dispatch, run `bouncer subagent-model
+  --agent bouncer-debugger`, then record it with `bouncer coordinate
+  worker-model --blueprint <dir> --role debugger --model <value> --task <NNN>
+  --ledger-path <p> --ledger-hash <h>` from the integration cwd, and pass the
+  same value to the dispatch. If a slug rejection forces the `inherit` retry,
+  record the retried value again.
 - Dispatch named `bouncer-debugger` (plugin `${BOUNCER_ROOT}/agents/bouncer-debugger.md`) with
   the failing verify evidence, only the pointer task brief's Goal & intent,
   Interface, Touch, Do not touch, Constraints, and Checklist, the shared

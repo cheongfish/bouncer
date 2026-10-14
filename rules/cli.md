@@ -85,7 +85,7 @@ Do not scaffold tasks into a closed blueprint.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
@@ -107,6 +107,21 @@ track host executors, so a task `dispatch.status: active` (recorded before the
 host launch) and a changed `ledger.sha256` (fencing token only) are not proof a
 worker is running or made progress; only the root session's real host handle
 can show running or terminated.
+
+`coordinate dispatch [--model <value>]` records the dispatch model argument
+(`bouncer subagent-model --agent <name>` output, a slug or `inherit`) as
+`model` on the task's `dispatch` and on the dispatch decision; omit the flag and
+no `model` key is written. A valueless or blank `--model` is refused with
+`model-invalid` before any attempt opens. `coordinate worker-model --blueprint
+<dir> --role <reviewer|debugger> --model <value> --ledger-path <p> --ledger-hash
+<h> [--task <ddd>] [--perspective <name>]` runs from the integration cwd and
+appends `{kind: worker-model, role, model, task?, perspective?}` to the ledger
+decisions (and to that task's decisions when `--task` is given) without
+changing dispatch, lease, status, or attempt. `--perspective` is reviewer-only
+and must be an execute review perspective. Refusals: `worker-model-role-invalid`,
+`worker-model-perspective-invalid`, `model-invalid`, `task-outside-blueprint`.
+The recorded value is what the coordinator passed to the dispatch, not proof of
+the model the host ran.
 
 `coordinate dispatch` also returns a top-level `report_path`
 (`<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md`, absolute) that the

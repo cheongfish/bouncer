@@ -310,7 +310,7 @@ function cmdExecute(rest: string[], io: CliIo) {
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-  'promote-stop', 'session-open',
+  'promote-stop', 'session-open', 'worker-model',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -362,12 +362,13 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   },
   dispatch: {
     registry: '  coordinate dispatch --blueprint <dir> --task <ddd> --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             [--repo <main>] [--lease-id <id> --generation <n>]\n'
+      + '             [--repo <main>] [--lease-id <id> --generation <n>] [--model <value>]\n'
       + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n',
     help: `usage: bouncer coordinate dispatch
   --blueprint <dir> --task <ddd> ${COORDINATE_FENCE_NOTE}
-  [--repo <main>] [--lease-id <id>] [--generation <n>]
+  [--repo <main>] [--lease-id <id>] [--generation <n>] [--model <value>]
   Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.
+  --model records the dispatch model argument (\`bouncer subagent-model\` output) on the ledger.
 `,
   },
   report: {
@@ -539,6 +540,20 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   awaiting_confirmation ledger.
 `,
   },
+  'worker-model': {
+    registry: '  coordinate worker-model --blueprint <dir> --role <reviewer|debugger> --model <value>\n'
+      + '             --ledger-path <path> --ledger-hash <sha256> [--task <ddd>] [--perspective <name>]\n'
+      + '             Record the model argument passed to a reviewer or debugger dispatch.\n',
+    help: `usage: bouncer coordinate worker-model
+  --blueprint <dir> --role <reviewer|debugger> --model <value> ${COORDINATE_FENCE_NOTE}
+  [--task <ddd>] [--perspective <name>] [--repo <dir>]
+  Run from the integration worktree. Appends a worker-model decision (role, model, task,
+  perspective) to the ledger; --task also appends it to that task. The model is the one-line
+  \`bouncer subagent-model --agent <name>\` output (slug or inherit); it records what the
+  coordinator passed, not proof of what the host ran. --perspective is reviewer-only.
+  Does not change dispatch, lease, status, or attempt state.
+`,
+  },
   'promote-stop': {
     registry: '  coordinate promote-stop --blueprint <dir> --reason <enum> --summary <text>\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
@@ -556,7 +571,7 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
 const COORDINATE_REGISTRY_ORDER: CoordinateCommand[] = [
   'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
   'partial-close', 'critical-recovery', 'revise', 'next', 'advance', 'promote-stop',
-  'session-open',
+  'session-open', 'worker-model',
 ];
 
 /**
@@ -680,13 +695,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   const fencedCommands = new Set([
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
     'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
+    'worker-model',
   ]);
   if (!commands.includes(command)) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
       + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, '
-      + 'advance, promote-stop, or session-open\n',
+      + 'advance, promote-stop, session-open, or worker-model\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -703,6 +719,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   }
   const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
   const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
+  // worker-model은 fence 플래그 누락을 다른 fenced 명령과 달리 usage(2)로 막는다
+  // (task 002 Interface: --role·--model·fence 플래그 누락은 core 호출 전 exit 2).
+  if (command === 'worker-model' && (ledgerPath === undefined || ledgerPath === ''
+    || ledgerHash === undefined || ledgerHash === '')) {
+    return failCoordinateUsage(
+      io, 'coordinate worker-model: --ledger-path and --ledger-hash are required\n', command,
+    );
+  }
   if (fencedCommands.has(command)) {
     // Interface: 누락은 usage(2)가 아니라 다른 coordinate 거절과 같은 JSON reason + exit 1.
     // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
@@ -758,6 +782,25 @@ function cmdCoordinate(rest: string[], io: CliIo) {
         );
       }
       repairDone = true;
+    }
+  }
+  if (command === 'worker-model') {
+    // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
+    if (typeof f.role !== 'string' || f.role === '') {
+      return failCoordinateUsage(io, 'coordinate worker-model: --role is required\n', command);
+    }
+    if (!Object.prototype.hasOwnProperty.call(f, 'model')) {
+      return failCoordinateUsage(io, 'coordinate worker-model: --model is required\n', command);
+    }
+    // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
+    // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
+    for (const name of ['task', 'perspective']) {
+      if (Object.prototype.hasOwnProperty.call(f, name)
+        && (typeof f[name] !== 'string' || f[name] === '')) {
+        return failCoordinateUsage(
+          io, `coordinate worker-model: --${name} requires a value\n`, command,
+        );
+      }
     }
   }
   if (command === 'revoke') {
@@ -912,6 +955,12 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
       reason: typeof f.reason === 'string' ? f.reason : undefined,
       attempt: attemptNum,
+      // 값 없는 --model(parseFlags가 true)은 ''로 넘겨 core가 model-invalid로 거절하게 한다.
+      // 플래그가 없으면 undefined라 기록하지 않는다.
+      model: Object.prototype.hasOwnProperty.call(f, 'model')
+        ? (typeof f.model === 'string' ? f.model : '') : undefined,
+      role: typeof f.role === 'string' ? f.role : undefined,
+      perspective: typeof f.perspective === 'string' ? f.perspective : undefined,
       taskBriefHash: typeof f['task-brief-hash'] === 'string' ? f['task-brief-hash'] : undefined,
       leaseId,
       generation,
