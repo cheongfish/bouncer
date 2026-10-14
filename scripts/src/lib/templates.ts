@@ -14,11 +14,14 @@ const PR_TEMPLATE = `## 관련 이슈
 
 ## 배경 · 변경 의도
 
-- <background and intent>
+- 문제: <problem>
+- 의도: <intent>
 
 ## 주요 변경 내용
 
-- <main changes>
+| 파일 | 변경 |
+| --- | --- |
+| <changed file or group> | <what changed> |
 
 ## 변경 그림
 
@@ -29,7 +32,9 @@ flowchart TD
 
 ## 변경 전후
 
-- <before and after; 변경 전 결과 미관측 when not observed>
+| 항목 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| <behavior> | <before; 변경 전 결과 미관측 when not observed> | <after> |
 
 ## 리뷰 포인트
 
