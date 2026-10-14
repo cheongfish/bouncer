@@ -346,9 +346,18 @@ function runPreflight({ repoRoot, blueprintDir }: {
 
   // 문서·원장 조회는 repo 상대 경로가 필요하다. 절대 경로를 path.join(repoRoot, …)에
   // 그대로 넘기면 경로가 겹쳐 읽기에 실패하므로 repoRoot 기준 상대 경로로 맞춘다.
-  const blueprint = path.posix.normalize(
-    path.isAbsolute(requested) ? toPosix(path.relative(repoRoot, requested)) : requested,
-  ).replace(/\/$/, '');
+  // 절대·상대 입력 모두 path.relative로 정규화해 같은 규칙으로 repo 경계를 검사한다.
+  const relative = toPosix(path.relative(repoRoot, path.resolve(repoRoot, requested)));
+
+  // epic/blueprint id가 포인터와 같아도 repo 밖(다른 경로의 절대 경로, 루트를 벗어나는
+  // `../`)이면 그 바깥 문서를 읽어 위임 가능으로 판정하게 된다. id 불일치와 같은
+  // pointer-mismatch로 거절하되 actual은 요청 원문 그대로 둔다.
+  if (relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) {
+    return {
+      ok: false, reason: 'pointer-mismatch', expected: pointer.blueprint, actual: requested,
+    };
+  }
+  const blueprint = path.posix.normalize(relative).replace(/\/$/, '');
 
   const meta = readBlueprintMeta(repoRoot, blueprint);
   const { openTasks, waveTasks, shapeTasks } = collectTasks(repoRoot, blueprint);

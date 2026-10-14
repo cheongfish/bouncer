@@ -615,3 +615,41 @@ test('run preflight with trailing slash, ./ prefix or absolute path → treats i
     assert.strictEqual(payload.delegable, true, requested);
   }
 });
+
+test('run preflight with an absolute blueprint path outside the repo carrying the same ids → rejects with pointer-mismatch', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const elsewhere = path.join(makeRepo(), BP_REL);
+
+  const payload = parsePayload(preflightFor(repo, elsewhere));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.expected, BP_REL);
+  assert.strictEqual(payload.actual, elsewhere);
+});
+
+test('run preflight with a ../ blueprint path escaping the repo → rejects with pointer-mismatch', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const escaping = `../${path.basename(repo)}-sibling/${BP_REL}`;
+
+  const payload = parsePayload(preflightFor(repo, escaping));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.actual, escaping);
+});
+
+test('run preflight with an absolute blueprint path inside the repo → stays accepted', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+
+  const payload = parsePayload(preflightFor(repo, path.join(repo, BP_REL)));
+
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.blueprint.dir, BP_REL);
+});
