@@ -24,13 +24,14 @@ const USAGE = 'usage: bouncer review record --blueprint <dir> [--task <ddd>] '
 /**
  * `review record --help`에 실리는 예시 round JSON.
  * blueprint 모드에서 두 맵을 round 최상위에 두고 target 안에 넣지 않게 보여
- * 준다. 검증기를 통과하는 discovery round 1이며 펜스는 하나다.
+ * 준다. 검증기를 통과하는 discovery round 1이며 펜스는 하나다. aaa/bbb와
+ * `<snapshot_id>`는 placeholder이고 실제 값은 review-dispatch execute 출력에서 옮긴다.
  */
 const HELP_ROUND_EXAMPLE = `{
   "round": {
     "round": 1,
     "mode": "discovery",
-    "target": { "base": "aaa", "head": "bbb" },
+    "target": { "base": "aaa", "head": "bbb", "snapshot_id": "<snapshot_id>" },
     "perspectives": [{ "name": "combined", "target_head": "bbb" }],
     "task_brief_hashes": { "TASKS-001": "<hash>" },
     "intent_bundles": { "TASKS-001": { "id": "...", "revision": 1 } },
@@ -65,6 +66,11 @@ const HELP_ROUND_EXAMPLE = `{
 const HELP = `${USAGE}
 --round file format: a JSON object { "round": object, "findings": array }.
 Blueprint review (omit --task) puts task_brief_hashes and intent_bundles on round.
+Every new round needs round.target.snapshot_id (64 lowercase hex) from review-dispatch execute,
+with target.base and target.head copied from the same output. The recorder rejects it with
+review-snapshot-required|invalid|mismatch when missing, unknown, corrupt or for another scope.
+With --status accepted (or an inherited accepted status) it also rejects review-snapshot-stale
+when the worktree no longer matches the snapshot; dispatch a new review on the current state.
 
 \`\`\`json
 ${HELP_ROUND_EXAMPLE}

@@ -124,7 +124,8 @@ Discovery round (`--status requested`):
     "mode": "discovery",
     "target": {
       "base": "aaa",
-      "head": "bbb"
+      "head": "bbb",
+      "snapshot_id": "<snapshot_id>"
     },
     "perspectives": [
       {
@@ -168,7 +169,8 @@ Delta round (`--status accepted`):
     "mode": "delta",
     "target": {
       "base": "aaa",
-      "head": "ccc"
+      "head": "ccc",
+      "snapshot_id": "<snapshot_id>"
     },
     "task_brief_hash": "<hash>",
     "intent_bundle_id": "<id>",

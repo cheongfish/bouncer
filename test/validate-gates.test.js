@@ -1208,6 +1208,24 @@ function convergenceRound(overrides = {}) {
   });
 }
 
+test('execute gate G14 stored target.snapshot_id → absent passes and malformed is rejected', () => {
+  // 저장된 기록의 snapshot_id: 부재(과거 기록)는 통과, 있으면 64자 소문자 hex여야 한다.
+  const legacyNoId = executeReviewFailures({ findings: [convergenceFinding()], rounds: [convergenceRound()] });
+  assert.ok(!legacyNoId.some((f) => /snapshot_id/.test(f.message)));
+  const goodId = executeReviewFailures({
+    findings: [convergenceFinding()],
+    rounds: [convergenceRound({ target: { base: 'base-sha', head: 'head-sha', snapshot_id: 'a'.repeat(64) } })],
+  });
+  assert.ok(!goodId.some((f) => /snapshot_id/.test(f.message)));
+  for (const bad of ['A'.repeat(64), 'abc', 42, '']) {
+    const badId = executeReviewFailures({
+      findings: [convergenceFinding()],
+      rounds: [convergenceRound({ target: { base: 'base-sha', head: 'head-sha', snapshot_id: bad } })],
+    });
+    assert.ok(badId.some((f) => /round 1 target snapshot_id invalid/.test(f.message)), `bad id ${String(bad)}`);
+  }
+});
+
 test('findingFingerprint identity components → are normalized', () => {
   assert.strictEqual(
     findingFingerprint({ category: ' Spec ', brief_clause: 'Interface.거부', file: './a/b.ts', symbol: 'f' }),
