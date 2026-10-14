@@ -25,6 +25,15 @@ advisory projection data and do not override the brief. Do not mix a different
 brief hash or bundle revision into this round, and do not consume the full
 Explain body.
 
+The frozen target also carries `snapshot_id` and `snapshot_path`: read the
+change from that frozen artifact (its content and metadata are your judgement
+basis) and never re-collect it with `git diff` or present the current
+checkout's other content as the snapshot's. If the artifact cannot be read, or
+its target differs from the supplied base/head, report a reclassification
+request as a Finding instead of judging. In delta, judge the whole change in
+the new snapshot; previous findings and the prior snapshot are comparison
+evidence only.
+
 Use only these task-brief sections (`tasks/<NNN>/tasks.md`) as each
 brief: Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
 Interface states what the change rejects as well as what it provides — an

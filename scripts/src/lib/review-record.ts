@@ -14,6 +14,8 @@ import validateSections = require('./validate-sections');
 const {
   findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,
 } = validateSections;
+import reviewSnapshot = require('./review-snapshot');
+const { loadReviewSnapshot, checkReviewSnapshotCurrent } = reviewSnapshot;
 
 type RecordReviewInput = {
   repoRoot: string;
@@ -93,6 +95,84 @@ function isAllowedSequencePrefix(rounds: unknown[]): boolean {
     }
   }
   return false;
+}
+
+/**
+ * 새 라운드의 target.snapshot_id가 실제 동결 상태에 묶였는지, 그리고 acceptance라면 그 상태가
+ * 지금도 현재 작업 트리와 같은지 검사한다. 저장 문서 검증기(G14/G21)는 과거 기록을 위해
+ * id가 없는 기록도 받으므로, "새 입력에는 id 필수"와 "지금도 신선한가"는 쓰기 시점의
+ * 이 함수만 판정한다. 호출부가 쓰기 전에 부르므로 거절은 항상 파일을 건드리지 않는다.
+ *
+ * 이 라운드의 snapshot만 본다. delta 뒤에는 앞 discovery snapshot이 정상적으로 stale이므로
+ * 이전 라운드의 id로 acceptance를 막으면 수정 후 재승인이 영원히 불가능해진다.
+ *
+ * @param {object} args - 검사 입력
+ * @param {string} args.repoRoot - 저장소 루트
+ * @param {string} args.blueprintDir - blueprint 상대 경로
+ * @param {string | null} args.task - task 리뷰면 세 자리 id, blueprint 모드면 null
+ * @param {Record<string, unknown>} args.round - 이번에 추가할 round 객체
+ * @param {boolean} args.accepted - 기록 뒤 effective status가 accepted인지(상속 포함)
+ * @returns {RecordReviewFail | null} 거절 사유, 통과하면 null
+ */
+function checkSnapshotBinding(args: {
+  repoRoot: string;
+  blueprintDir: string;
+  task: string | null;
+  round: Record<string, unknown>;
+  accepted: boolean;
+}): RecordReviewFail | null {
+  const { repoRoot, blueprintDir, task, round, accepted } = args;
+  const target = isRecord(round.target) ? round.target : {};
+  const snapshotId = target.snapshot_id;
+  if (snapshotId === undefined || snapshotId === null || snapshotId === '') {
+    return fail(
+      'review-snapshot-required',
+      'round.target.snapshot_id is required for a new round',
+      'run review-dispatch execute for this scope and put its snapshot_id in round.target',
+    );
+  }
+  // 형식·존재·손상은 loader가 한 번에 가린다. 형식 검사 없이 경로에 쓰면 입력이 runtime 밖을 가리킨다.
+  const loaded = loadReviewSnapshot({ repoRoot, snapshotId: snapshotId as string });
+  if (!loaded.ok) {
+    return fail('review-snapshot-invalid', `${loaded.reason}: ${loaded.cause}`, loaded.next);
+  }
+  const stored = loaded.snapshot;
+  const scopeTask = task || null;
+  if (stored.scope.blueprint !== blueprintDir || stored.scope.task !== scopeTask) {
+    return fail(
+      'review-snapshot-mismatch',
+      `snapshot scope ${JSON.stringify(stored.scope)} differs from this review`,
+      'run review-dispatch execute for this blueprint/task and use its snapshot_id',
+    );
+  }
+  if (target.base !== stored.target.base || target.head !== stored.target.head) {
+    return fail(
+      'review-snapshot-mismatch',
+      'round.target base/head differ from the snapshot target',
+      'copy target.base and target.head from the same review-dispatch execute output as snapshot_id',
+    );
+  }
+  if (!accepted) return null;
+  const current = checkReviewSnapshotCurrent({
+    repoRoot,
+    blueprintDir,
+    taskId: scopeTask,
+    base: stored.target.base,
+    head: stored.target.head,
+    snapshotId: snapshotId as string,
+  });
+  if (current.ok) return null;
+  // HEAD가 움직인 것도 "리뷰한 상태와 지금이 다르다"이므로 stale로 안내한다.
+  // 범위·target 차이는 위에서 이미 걸렀으므로 여기 남는 건 stale 계열과 수집 실패다.
+  if (current.reason === 'snapshot-stale' || current.reason === 'head-mismatch') {
+    return fail(
+      'review-snapshot-stale',
+      `${current.reason}: ${current.cause}`,
+      'the worktree changed after the review snapshot; dispatch a new review on the current state '
+        + 'and re-review before accepting',
+    );
+  }
+  return fail('review-snapshot-invalid', `${current.reason}: ${current.cause}`, current.next);
 }
 
 function fingerprintMissing(finding: Record<string, unknown>): boolean {
@@ -248,6 +328,19 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   review.rounds = mergedRounds;
   review.findings = mergedFindings;
   if (status) bouncer.status = status;
+
+  // 2-1. 스냅샷 바인딩은 원장 검증 앞에서 본다. 뒤에 두면 잘못된 id가 저장 검증기의
+  //      형식 메시지(review-ledger-invalid)로 먼저 나가 reason이 뭉개진다. 어느 쪽이든
+  //      쓰기 전이라 거절은 파일을 건드리지 않는다. accepted는 이번 --status뿐 아니라
+  //      상속한 상태도 포함한다.
+  const snapshotFailure = checkSnapshotBinding({
+    repoRoot,
+    blueprintDir,
+    task,
+    round: parsedInput.round,
+    accepted: bouncer.status === 'accepted',
+  });
+  if (snapshotFailure) return snapshotFailure;
 
   const messages = collectFindingFailures({
     body,

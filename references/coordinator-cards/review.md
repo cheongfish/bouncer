@@ -19,6 +19,16 @@ dispatch and the execute agent-dispatch and review-round references.
   `risk_flags` as the only discovery dispatch choice — do not recompute
   file/line stats, guess risk from path names or diff bodies, or override the
   returned list.
+- The returned `target.snapshot_id` and `target.snapshot_path` go into the
+  existing Target slot (and the print `--input` Target) of every reviewer
+  call, including the generic and print paths, and into the recorded round's
+  `target.snapshot_id`; reviewers read that frozen artifact and never
+  re-collect the change with `git diff`. The artifact is a runtime file the
+  dispatch writes — source, index, and branch stay untouched. On a snapshot
+  failure (`snapshot-missing`, `snapshot-corrupt`, target mismatch) or a
+  `review record` rejection (`review-snapshot-stale`, `-mismatch`, `-invalid`,
+  `-required`), follow `next`: dispatch a new snapshot, reclassify, and
+  re-review; never edit status or rounds by hand to bypass it.
 - Dispatch discovery reviewers by walking the CLI `perspectives` array in order
   — that list is the only fan-out. Do not also branch on `strategy` to invent
   calls, and do not append `security` from `risk_flags` separately; the CLI
@@ -50,7 +60,7 @@ as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
 Do not read `${BOUNCER_ROOT}/agents/*.md`, `reviewer-prompt.md`, or `review-rounds.md`.
 
 `--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
-Target, Brief, Intent sections, Constraints, Red run, then delta inputs
+Target (including `snapshot_id` and `snapshot_path`), Brief, Intent sections, Constraints, Red run, then delta inputs
 (previous findings, resolution, revision diff) when mode is delta.
 
 `## Red run` holds one `TASKS-NNN: <value>` line for the task under review: copy
@@ -74,8 +84,11 @@ attempt's latest report.
   new `coordinate dispatch` so the fix implementer receives the increased
   attempt, task_brief_hash, base_head, initial_worktree_state, and
   `payload.report`.
-- After one aggregate and one fix batch, dispatch exactly one delta reviewer
-  with previous findings and the revision diff — delta does not receive a
+- After one aggregate and one fix batch, take a new snapshot (run
+  `review-dispatch execute` again with the post-fix head), then dispatch
+  exactly one delta reviewer with previous findings and the revision diff — the
+  prior findings and prior `snapshot_id` are comparison evidence, the new
+  snapshot is what delta judges in full — delta does not receive a
   discovery perspective. Fail-closed compares against that round's frozen
   target. Never repeat full discovery after delta certification or split
   findings into separate implementer dispatches.
@@ -124,7 +137,8 @@ Discovery round (`--status requested`):
     "mode": "discovery",
     "target": {
       "base": "aaa",
-      "head": "bbb"
+      "head": "bbb",
+      "snapshot_id": "<snapshot_id>"
     },
     "perspectives": [
       {
@@ -168,7 +182,8 @@ Delta round (`--status accepted`):
     "mode": "delta",
     "target": {
       "base": "aaa",
-      "head": "ccc"
+      "head": "ccc",
+      "snapshot_id": "<snapshot_id>"
     },
     "task_brief_hash": "<hash>",
     "intent_bundle_id": "<id>",

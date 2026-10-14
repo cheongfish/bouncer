@@ -55,3 +55,4 @@ bouncer_schema: '0.1'
 * [096 plan-review-convergence](epics/096-plan-review-convergence/index.md) - Bound planning review restarts, preserve review history, and certify document revisions without resetting the review cycle.
 * [097 intent-fence-guard](epics/097-intent-fence-guard/index.md) - Make blueprint Intent parsing skip code fences and report malformed Intent as a structured failure before finalize reaches commit message generation.
 * [098 drive-plan-cost-control](epics/098-drive-plan-cost-control/index.md) - Cut drive restart and plan review costs, fix environment and output faults, and close worker report and role provenance gaps with measured effects.
+* [099 bouncer-improvements-2026-10-14](epics/099-bouncer-improvements-2026-10-14/index.md) - Plans and verifies prioritized Bouncer backlog improvements in independent blueprints.

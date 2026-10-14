@@ -1024,13 +1024,21 @@ test('light single-task drive → worker worktree 없이 integration에서 prepa
   writeTerminalEvidence(integrationPath, blueprint, '001', sha);
   // blueprint review_scope: task review.md는 fan-in에서 빠지지만 writeTerminalEvidence가 만든다.
 
-  const roundFile = path.join(integrationPath, 'round.json');
+  // 라운드는 실제로 동결한 상태에 묶여야 기록된다. 라운드 입력은 저장소 밖에 써서
+  // 파일 자체가 작업 트리 변경(stale)이 되지 않게 한다.
+  const { captureReviewSnapshot } = require('../scripts/lib/review-snapshot');
+  const baseSha = git(integrationPath, ['rev-parse', `${sha}~1`]);
+  const frozen = captureReviewSnapshot({
+    repoRoot: integrationPath, blueprintDir: blueprint, taskId: null, base: baseSha, head: sha,
+  });
+  assert.strictEqual(frozen.ok, true, JSON.stringify(frozen));
+  const roundFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-e2e-round-')), 'round.json');
   fs.writeFileSync(roundFile, `${JSON.stringify({
     round: {
       round: 1,
       mode: 'discovery',
-      target: { base: boot.checkpoint?.ledger ? 'aaa' : 'aaa', head: sha.slice(0, 8) },
-      perspectives: [{ name: 'combined', target_head: sha.slice(0, 8) }],
+      target: { base: baseSha, head: sha, snapshot_id: frozen.snapshot_id },
+      perspectives: [{ name: 'combined', target_head: sha }],
       previous_finding_ids: [],
       new: 0,
       resolved: 0,

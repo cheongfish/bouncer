@@ -248,6 +248,14 @@ function makeRepo() {
   return repo;
 }
 
+// 계획 문서(.bouncer/context 아래)는 새 계약에서 리뷰 대상이다. fixture가 만든 계획 문서를
+// 변경으로 세지 않도록 baseline 커밋에 모두 담고 그 SHA를 base로 돌려준다.
+function commitBaseline(repo) {
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-qm', 'baseline with plan documents']);
+  return git(repo, ['rev-parse', 'HEAD']).trim();
+}
+
 function capture(argv) {
   const buf = { out: '', err: '' };
   const code = runCli(argv, {
@@ -800,7 +808,7 @@ test('validateBlueprint planDraft with structural failures → skips draft check
 test('execute with a small diff → returns single combined', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
   fs.writeFileSync(path.join(repo, 'src/b.ts'), 'export const b = 1;\n');
@@ -816,13 +824,18 @@ test('execute with a small diff → returns single combined', () => {
   assert.ok(result.changed_lines <= EXECUTE_SMALL_MAX_LINES);
   assert.deepStrictEqual(result.risk_flags, []);
   assert.deepStrictEqual(result.perspectives, ['combined']);
-  assert.deepStrictEqual(result.target, { base, head, task: '001' });
+  assert.deepStrictEqual(result.target, {
+    base, head, task: '001',
+    snapshot_id: result.target.snapshot_id,
+    snapshot_path: `.bouncer/runtime/review-snapshots/${result.target.snapshot_id}/snapshot.json`,
+  });
+  assert.match(result.target.snapshot_id, /^[0-9a-f]{64}$/);
 });
 
 test('execute over the file threshold → returns parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   for (const name of ['a', 'b', 'c', 'd']) {
     fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
@@ -846,7 +859,7 @@ test('execute over the file threshold → returns parallel', () => {
 test('execute with light scale and a large diff via --blueprint → returns single combined', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'light', tasks: ['001'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   for (const name of ['a', 'b', 'c', 'd']) {
     fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
@@ -876,7 +889,7 @@ test('execute with light scale and a large diff via --blueprint → returns sing
 test('execute with full scale and a large diff even with --blueprint → stays parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   for (const name of ['a', 'b', 'c', 'd']) {
     fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
@@ -900,7 +913,7 @@ test('execute with light scale and review_risk → yields combined and security'
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'light', tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
   git(repo, ['add', 'src/a.ts']);
@@ -919,7 +932,7 @@ test('execute with risk flags → appends security on single and parallel', () =
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
   git(repo, ['add', 'src/a.ts']);
@@ -958,7 +971,7 @@ test('parallel diff와 review_risk에 --mode delta → strategy single, perspect
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   for (const name of ['a', 'b', 'c', 'd']) {
     fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
@@ -995,7 +1008,7 @@ test('--mode discovery → --mode 생략과 같은 JSON', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   for (const name of ['a', 'b', 'c', 'd']) {
     fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
@@ -1128,7 +1141,7 @@ test('execute with a lines-only breach → returns parallel', () => {
   const lines = Array.from({ length: EXECUTE_SMALL_MAX_LINES + 1 }, (_, i) => `// ${i}`).join('\n') + '\n';
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/a.ts'), lines);
   fs.writeFileSync(path.join(repo, 'src/b.ts'), 'export const b = 1;\n');
@@ -1147,27 +1160,125 @@ test('execute with a lines-only breach → returns parallel', () => {
   ]);
 });
 
-test('execute with a binary row → counts as file but not lines and does not force parallel', () => {
-  const numstat = '1\t1\tsrc/a.ts\n-\t-\tassets/logo.png\n';
+test('execute with a binary file → counts as file but not lines and does not force parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
+  const base = commitBaseline(repo);
+  fs.mkdirSync(path.join(repo, 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'assets/logo.png'), Buffer.from([0, 1, 2, 255, 0]));
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  git(repo, ['add', 'assets', 'src']);
+  git(repo, ['commit', '-qm', 'binary']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const result = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.changed_files, 2);
+  assert.strictEqual(result.changed_lines, 1);
+  assert.strictEqual(result.strategy, 'single');
+});
+
+// 미커밋 변경을 세지 않던 결함의 회귀: 커밋 diff만 보면 아래 상태는 changed_lines 0이다.
+test('execute with a 500-line uncommitted tracked edit → counts 500 lines and returns parallel', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), '');
+  const base = commitBaseline(repo);
+  fs.writeFileSync(
+    path.join(repo, 'src/a.ts'),
+    `${Array.from({ length: 500 }, (_, i) => `export const v${i} = ${i};`).join('\n')}\n`,
+  );
+  const result = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head: base,
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.changed_lines, 500);
+  assert.strictEqual(result.changed_files, 1);
+  assert.strictEqual(result.strategy, 'parallel');
+});
+
+test('execute with untracked files added or edited → snapshot_id changes each time', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  const base = commitBaseline(repo);
+  const run = () => classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head: base,
+  });
+  const clean = run();
+  fs.writeFileSync(path.join(repo, 'new.ts'), 'a\n');
+  const added = run();
+  fs.writeFileSync(path.join(repo, 'new.ts'), 'b\n');
+  const edited = run();
+  assert.notStrictEqual(added.target.snapshot_id, clean.target.snapshot_id);
+  assert.notStrictEqual(edited.target.snapshot_id, added.target.snapshot_id);
+});
+
+test('execute with the same final content but a staged index → snapshot_id differs and lines match', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  fs.writeFileSync(path.join(repo, 'a.ts'), 'old\n');
+  const base = commitBaseline(repo);
+  fs.writeFileSync(path.join(repo, 'a.ts'), 'new\n');
+  const run = () => classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head: base,
+  });
+  const unstaged = run();
+  git(repo, ['add', 'a.ts']);
+  const staged = run();
+  assert.strictEqual(staged.changed_lines, unstaged.changed_lines);
+  assert.notStrictEqual(staged.target.snapshot_id, unstaged.target.snapshot_id);
+});
+
+test('execute with a head that is not the current HEAD → fails with reason cause next', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  const base = commitBaseline(repo);
+  fs.writeFileSync(path.join(repo, 'later.ts'), 'x\n');
+  git(repo, ['add', 'later.ts']);
+  git(repo, ['commit', '-qm', 'later']);
+  const result = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head: base,
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'head-mismatch');
+  assert.ok(result.cause && result.next);
+  const cli = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', base, '--head', base, '--repo', repo,
+  ]);
+  assert.strictEqual(cli.code, 1);
+  assert.strictEqual(JSON.parse(cli.out).reason, 'head-mismatch');
+});
+
+test('execute classification → routes every git call through the injected exec and never diffs base against head', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  const base = commitBaseline(repo);
+  fs.writeFileSync(path.join(repo, 'a.ts'), 'a\n');
+  git(repo, ['add', 'a.ts']);
+  git(repo, ['commit', '-qm', 'a']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.writeFileSync(path.join(repo, 'b.ts'), 'b\n');
+  const calls = [];
   const result = classifyExecuteReview({
     repoRoot: repo,
     blueprintDir: BP_REL,
     taskId: '001',
-    base: 'base',
-    head: 'head',
-    exec: (file, args) => {
-      assert.strictEqual(file, 'git');
-      if (args[0] === 'rev-parse') return `${args[2]}\n`;
-      if (args[0] === 'diff' && args.includes('--numstat')) return numstat;
-      throw new Error(`unexpected git ${args.join(' ')}`);
+    base,
+    head,
+    exec: (file, args, options) => {
+      calls.push(args);
+      return execFileSync(file, args, { ...options, env: gitEnv() });
     },
   });
-  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.ok(calls.length > 0);
+  // 커밋 범위 diff(base head)는 미커밋 변경을 빠뜨리므로 쓰지 않는다.
+  assert.ok(!calls.some((args) => args.includes('diff') && args.includes(head)));
   assert.strictEqual(result.changed_files, 2);
-  assert.strictEqual(result.changed_lines, 2);
-  assert.strictEqual(result.strategy, 'single');
 });
 
 test('execute with an unknown task and bad ref → fails without perspectives', () => {
@@ -1206,7 +1317,7 @@ test('CLI review-dispatch plan and execute → emit JSON exit contracts', () => 
 
   // CT-004: execute 성공(exit 0 + Execute JSON)과 분류 실패(exit 1 + ok:false)를
   // plan-only·argv exit 2만으로 대체하지 않는다.
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
   git(repo, ['add', 'src/a.ts']);
@@ -1257,7 +1368,7 @@ test('execute without taskId → classifies the whole blueprint diff and unions 
     interfaceText: '- `sharedFn`\n- `classifyPlanReview`\n',
     touchText: '- `src/shared.ts`\n- `src/b.ts`\n',
   });
-  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
   git(repo, ['add', 'src/a.ts']);
@@ -1267,7 +1378,11 @@ test('execute without taskId → classifies the whole blueprint diff and unions 
     repoRoot: repo, blueprintDir: BP_REL, base, head,
   });
   assert.strictEqual(result.ok, true);
-  assert.deepStrictEqual(result.target, { base, head, task: null });
+  assert.deepStrictEqual(result.target, {
+    base, head, task: null,
+    snapshot_id: result.target.snapshot_id,
+    snapshot_path: `.bouncer/runtime/review-snapshots/${result.target.snapshot_id}/snapshot.json`,
+  });
   assert.deepStrictEqual(result.risk_flags, ['public_interface', 'authentication']);
   assert.strictEqual(result.perspectives.at(-1), 'security');
 });

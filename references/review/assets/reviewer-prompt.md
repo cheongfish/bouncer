@@ -27,7 +27,8 @@ reviewer. This is a read-only pass: do not modify files, commit, or change
   (`single` | `parallel`); leave empty for delta
 - `{{RISK_FLAGS}}` — CLI `risk_flags` array (may be empty); leave empty for
   delta
-- `{{TARGET}}` — frozen target: base, head, brief revision, `task_brief_hash`
+- `{{TARGET}}` — frozen target: base, head, `snapshot_id` and `snapshot_path`
+  from `review-dispatch execute` `target`, brief revision, `task_brief_hash`
   or `task_brief_hashes`, `intent_bundle_id` / `intent_bundles`,
   `intent_bundle_revision`, and latest verify result
 - `{{BRIEF}}` — when `review_scope` is `blueprint`, every commit task brief
@@ -70,6 +71,12 @@ reviewer. This is a read-only pass: do not modify files, commit, or change
 
 ### Target
 {{TARGET}}
+
+Read the change from the frozen snapshot artifact at `snapshot_path` (its
+content and metadata are the judgement basis); do not re-collect it with
+`git diff` or claim the current checkout's content as the snapshot's. When the
+artifact cannot be read or its target disagrees with the base/head above,
+report a reclassification request instead of judging.
 
 The target records the **Latest verification** result alongside its base, head,
 brief revision, `task_brief_hash`, `intent_bundle_id`, and
@@ -125,9 +132,10 @@ Under `correctness_tests`, report a new or changed test that violates the
 ### Delta rules
 
 When mode is `delta`, certify previous-finding resolution and regressions in
-`{{REVISION_DIFF}}`. In blueprint review mode the standalone last-commit
-delta still judges the whole-worktree diff (`git diff <base>` plus untracked
-after the fix), not only the repair hunks; `{{REVISION_DIFF}}` remains origin
+`{{REVISION_DIFF}}`. Delta judges the whole change in its own new
+snapshot (taken after the fix; the target carries that `snapshot_id`), not only
+the repair hunks; the previous findings and the previous snapshot are
+comparison evidence only; `{{REVISION_DIFF}}` remains origin
 evidence for new findings. Do not reopen the target as a new discovery pass and do
 not receive a discovery perspective. Do not report a new `minor` or `nit` in
 unchanged code. A new finding must be either:

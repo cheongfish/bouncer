@@ -68,6 +68,8 @@ const CONTEXT_REVIEW_PERSPECTIVE = [
 // execute fingerprint는 접두가 없고 context fingerprint만 이 접두를 갖는다. 두 원장이
 // 같은 문자열을 만들 수 없게 해 finding을 다른 리뷰로 옮겨 적는 실수를 게이트가 잡는다.
 const CONTEXT_FINDING_NAMESPACE = 'context';
+// review-snapshot의 id 형식과 같다(64자 소문자 hex). 모듈을 import하면 검증기가 git 수집 코드에 묶인다.
+const SNAPSHOT_ID_RE = /^[0-9a-f]{64}$/;
 
 /**
  * round 원장 검사에서 execute와 context가 달라지는 값만 모은다.
@@ -438,6 +440,15 @@ function collectRoundFailures(
       const target = isRecord(entry.target) ? entry.target : undefined;
       if (!target || contract.targetKeys.some((key) => !target[key])) {
         messages.push(`${findingLabel} round ${round} target invalid`);
+      }
+      // snapshot_id는 새 라운드에만 있고 과거 저장 기록에는 없으므로 부재는 허용하고 있을 때만
+      // 형식을 본다. counters로 execute 계약에만 적용해 context digest 계약을 건드리지 않는다.
+      // 파일 존재·현재 freshness는 쓰기 시점의 recorder가 판정한다.
+      if (
+        contract.counters && target && target.snapshot_id !== undefined
+        && !(typeof target.snapshot_id === 'string' && SNAPSHOT_ID_RE.test(target.snapshot_id))
+      ) {
+        messages.push(`${findingLabel} round ${round} target snapshot_id invalid`);
       }
       if (entry.perspectives !== undefined) {
         const perspectives = Array.isArray(entry.perspectives) ? entry.perspectives : [entry.perspectives];

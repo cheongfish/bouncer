@@ -21,6 +21,16 @@ review and Procedure step 6 (Close).
   base/head, or when `risk_flags` disagree with the union of commit-task
   `review_risk`, stop — do not open a review round, do not call reviewers, and
   do not record the review `accepted`.
+- The returned `target.snapshot_id` and `target.snapshot_path` go into the
+  existing Target slot (and the print `--input` Target) of every reviewer
+  call, including the generic and print paths, and into the recorded round's
+  `target.snapshot_id`; reviewers read that frozen artifact and never
+  re-collect the change with `git diff`. The artifact is a runtime file the
+  dispatch writes — source, index, and branch stay untouched. On a snapshot
+  failure (`snapshot-missing`, `snapshot-corrupt`, target mismatch) or a
+  `review record` rejection (`review-snapshot-stale`, `-mismatch`, `-invalid`,
+  `-required`), follow `next`: dispatch a new snapshot, reclassify, and
+  re-review; never edit status or rounds by hand to bypass it.
 - In discovery, walk the CLI `perspectives` array in order as the only
   discovery fan-out — do not also branch on `strategy` to invent calls, and do
   not append `security` from `risk_flags` separately (the CLI list already
@@ -49,9 +59,11 @@ review and Procedure step 6 (Close).
   same `base` and the post-repair integration HEAD and run the `final_review`
   argv from `coordinate next` as returned (it ends with `--mode delta`) — for
   example `bouncer review-dispatch execute --blueprint <dir> --base <sha>
-  --head <sha> --mode delta`. That result's `perspectives` is one `combined`;
-  dispatch that single reviewer with every previous finding and the revision
-  diff. Do not reopen discovery or walk the discovery perspective list again.
+  --head <sha> --mode delta`. That result carries a new `snapshot_id`; record the delta round
+  against it (not the discovery snapshot, which is stale after the repair) so
+  the latest delta binds the latest snapshot. Its `perspectives` is one
+  `combined`; dispatch that single reviewer with every previous finding and the
+  revision diff as comparison evidence. Do not reopen discovery or walk the discovery perspective list again.
   Record the round with `mode: delta`; if you list perspectives, list only
   `combined` (two or more and `review record` rejects the round). Fail-closed
   compares against that round's frozen target.
@@ -80,7 +92,8 @@ as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
 Do not read `${BOUNCER_ROOT}/agents/*.md`, `reviewer-prompt.md`, or `review-rounds.md`.
 
 `--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
-Target, Brief (every commit task brief plus the blueprint Contract),
+Target (including `snapshot_id` and `snapshot_path`), Brief (every commit
+task brief plus the blueprint Contract),
 Intent sections, Constraints, Red run, then delta inputs when mode is delta.
 
 `## Red run` holds one `TASKS-NNN: <value>` line for every commit task in the
@@ -125,7 +138,8 @@ Discovery round (`--status requested`):
     "mode": "discovery",
     "target": {
       "base": "aaa",
-      "head": "bbb"
+      "head": "bbb",
+      "snapshot_id": "<snapshot_id>"
     },
     "perspectives": [
       {
@@ -175,7 +189,8 @@ Delta round (`--status accepted`):
     "mode": "delta",
     "target": {
       "base": "aaa",
-      "head": "ccc"
+      "head": "ccc",
+      "snapshot_id": "<snapshot_id>"
     },
     "task_brief_hashes": {
       "TASKS-001": "<hash>"

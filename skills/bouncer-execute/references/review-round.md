@@ -23,8 +23,8 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 
             Standalone last-commit final review (blueprint review mode):
             base is `git merge-base <bouncer current base> HEAD`; head is
-            HEAD; the reviewed diff is `git diff <base>` plus untracked
-            files for the whole worktree. A coordinator final review uses
+            HEAD; the reviewed change is the whole worktree as frozen by the
+            dispatch snapshot (not a fresh `git diff`). A coordinator final review uses
             the drive payload base SHA and the integration HEAD.
 
 2 discover  When `review_scope` is absent, run
@@ -52,7 +52,10 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             `spec_scope`, `correctness_tests`, `minimality_maintainability`;
             large risk → those three then `security`). Record round 1
             perspectives in that CLI order. Each discovery call receives the
-            same frozen target, brief hash / bundle identifiers,
+            same frozen target (including the dispatch `target.snapshot_id`
+            and `snapshot_path`, which reviewers read instead of re-running
+            `git diff`; the artifact is a runtime file, source and index stay
+            untouched), brief hash / bundle identifiers,
             intent_sections from
             `bouncer intent sections --task <current.task.path> --role reviewer`,
             latest verify, and the `Red run` lines (one `TASKS-NNN: <value>`
@@ -88,10 +91,11 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             attempt's latest report value per task) — never a discovery perspective and never a
             second strategy-shaped fan-out. Delta keeps the frozen base and
             pins head to HEAD after the fix (standalone) or the post-repair
-            integration HEAD (drive). Standalone blueprint-mode delta reviews
-            the whole worktree (`git diff <base>` plus untracked after the
-            fix), not only the repair hunks. Fail-closed compares against that
-            round's frozen target.
+            integration HEAD (drive). Take a new snapshot with
+            `review-dispatch execute` after the fix: delta judges the whole
+            change in that new snapshot, not only the repair hunks, and the
+            previous findings and prior `snapshot_id` are comparison evidence
+            only. Fail-closed compares against that round's frozen target.
 7 outcome   All must_fix resolved and verify passed: accepted.
 ```
 
@@ -104,8 +108,8 @@ Do not edit `review.md` YAML by hand. Record every state transition with
 `bouncer.review.findings[]`. In blueprint review mode that file
 is the blueprint-root `review.md` (omit `--task`); when `review_scope` is
 absent pass `--task <NNN>` for `<pointer task directory>/review.md`. Every
-round JSON records its frozen `target`
-(`base` and `head`), `task_brief_hash` or `task_brief_hashes`,
+new round JSON records its frozen `target`
+(`base`, `head`, and the dispatch `snapshot_id`), `task_brief_hash` or `task_brief_hashes`,
 `intent_bundle_id` / `intent_bundle_revision` or `intent_bundles`,
 `intent_sections` from
 `bouncer intent sections --task <current.task.path> --role reviewer`,
@@ -116,7 +120,11 @@ Findings record a stable fingerprint, `severity_changes`, `actionability`,
 disposition, origin, and the first and last round where they were seen.
 The command fills a missing `fingerprint` and writes only when the gate
 checks pass. On `{ ok: false }`, follow `reason` / `next`; do not recover by
-editing frontmatter or reading validator sources.
+editing frontmatter or reading validator sources. A stale or mismatched
+snapshot (`review-snapshot-stale`, `-mismatch`, `-invalid`, `-required`) is
+answered with a new snapshot, reclassification, and re-review per `next`, never
+by editing status or rounds. A stored round without `target.snapshot_id` stays
+readable, but it cannot be reused as input for a new record.
 
 - `mode: discovery` is the first, parallel evidence-collection round. Findings
   first seen here use `origin: discovery`.
