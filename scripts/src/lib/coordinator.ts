@@ -2564,7 +2564,7 @@ function integrateLightCommitWave({
  * dynamic task 문서는 repair 시점에 integration에 untracked로 쓰이고 integrate 때
  * 비로소 worker 증적으로 덮어써지므로, status가 integrated가 아니어도 허용해야 한다.
  * 넓은 prefix를 허용하면 coordinator가 직접 고친 소스가 섞여 들어와도 통과하므로
- * 파일 단위로만 비교한다. rename(`R  a -> b`)은 양쪽 경로를 모두 본다.
+ * 파일 단위로만 비교한다. rename·copy(`-z`에서는 새 경로 토큰 뒤에 원래 경로 토큰)는 양쪽 경로를 모두 본다.
  * `git()`은 출력을 trim해 첫 줄의 선행 공백 상태 코드를 깨뜨리므로 exec 원문을 쓴다.
  *
  * @param {Exec} exec - git 호출 seam
@@ -2576,7 +2576,7 @@ function integrateLightCommitWave({
 function disallowedDirtyPaths(
   exec: Exec, integrationPath: string, blueprint: string, ledger: Ledger,
 ): string[] {
-  const raw = String(exec('git', ['status', '--porcelain', '--untracked-files=all'], {
+  const raw = String(exec('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
     cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   }));
   const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
@@ -2588,15 +2588,25 @@ function disallowedDirtyPaths(
     }
   }
   const dirty = new Set<string>();
-  for (const line of raw.split('\n')) {
-    if (line.length < 4) continue;
-    for (const entry of line.slice(3).split(' -> ')) {
+  // -z 출력은 경로를 C-quote하지 않고 NUL로 끝맺는다. 한국어·따옴표·" -> " 이름도
+  // 허용 목록과 같은 원래 문자열로 비교하려면 줄 단위 파싱을 쓸 수 없다.
+  const tokens = raw.split('\0');
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token.length < 4) continue;
+    const entries = [token.slice(3)];
+    // rename·copy는 다음 토큰이 원래 경로이고 그 토큰에는 상태 코드가 없다.
+    if (/[RC]/.test(token.slice(0, 2)) && i + 1 < tokens.length) {
+      i += 1;
+      entries.push(tokens[i]);
+    }
+    for (const entry of entries) {
       // worktree 등록·CLI 런타임 파일(.bouncer/runtime, config.json)은 source가 아니다.
       // 실제 프로젝트에서는 gitignore라 안 보이지만, .gitignore가 없는 bootstrap fixture에서는
       // ledger 자체가 dirty로 보여 모든 integrate가 거절되므로 이 경로만 제외한다.
       if (entry.startsWith('.worktrees/') || entry.startsWith('.bouncer/runtime/')
         || entry === '.bouncer/config.json') continue;
-      dirty.add(entry.replace(/^"|"$/g, ''));
+      dirty.add(entry);
     }
   }
   return [...dirty].filter((entry) => !allowed.has(entry)).sort();

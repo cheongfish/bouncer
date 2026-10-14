@@ -1244,6 +1244,39 @@ test('integration checkout with an uncommitted file outside the allowed paths �
   assert.strictEqual(retried.ok, true, JSON.stringify(retried));
 });
 
+test('integration checkout with Korean and " -> " named uncommitted files → integrate refuses with the unescaped paths sorted', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/001-quoted';
+  const drive = integrableDrive('bouncer-integrate-quoted-', blueprint);
+  fs.mkdirSync(path.join(drive.integrationPath, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/한글 파일.js'), 'x\n');
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a -> b.js'), 'x\n');
+
+  const refused = integrateOne(drive, blueprint);
+  assert.strictEqual(refused.reason, 'integration-source-mutated', JSON.stringify(refused));
+  assert.deepStrictEqual(refused.paths, ['src/a -> b.js', 'src/한글 파일.js']);
+
+  fs.rmSync(path.join(drive.integrationPath, 'src/한글 파일.js'));
+  fs.rmSync(path.join(drive.integrationPath, 'src/a -> b.js'));
+  const retried = integrateOne(drive, blueprint);
+  assert.strictEqual(retried.ok, true, JSON.stringify(retried));
+});
+
+test('integration checkout with a staged rename to a Korean path → integrate reports both the old and the new unescaped path', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/001-renamed';
+  const drive = integrableDrive('bouncer-integrate-renamed-', blueprint);
+  const cwd = drive.integrationPath;
+  // 허용 목록 밖이고 추적 중인 소스 파일 하나를 고른다.
+  const old = execFileSync('git', ['ls-files', '-z'], { cwd, encoding: 'utf8' })
+    .split('\0').find((f) => f && !f.startsWith('.bouncer/') && !f.startsWith('.worktrees/') && /^[\x20-\x7e]+$/.test(f));
+  assert.ok(old, 'tracked ASCII file outside .bouncer');
+  fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
+  execFileSync('git', ['mv', old, 'src/옮긴 파일.js'], { cwd });
+
+  const refused = integrateOne(drive, blueprint);
+  assert.strictEqual(refused.reason, 'integration-source-mutated', JSON.stringify(refused));
+  assert.deepStrictEqual(refused.paths, [old, 'src/옮긴 파일.js'].sort());
+});
+
 test('dynamic task directory with a non-evidence file → integrate refuses with integration-source-mutated for that file only and keeps the ledger bytes', () => {
   const blueprint = '.bouncer/context/epics/098-x/blueprints/001-dynamic';
   const drive = integrableDrive('bouncer-integrate-dynamic-', blueprint);
