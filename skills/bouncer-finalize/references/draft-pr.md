@@ -34,7 +34,7 @@ checkboxes.
 | Section | Allowed sources only |
 | --- | --- |
 | `관련 이슈` | Linked tracker issues with real evidence; plus one Explain Markdown link from `finalize links` (below). No issue → no issue bullet. Prefer `pr.sections.related` when it already lists facts. |
-| `배경 · 변경 의도` | Explain `## Background` and `## Intuition`, tightened against the diff. Write bullets, not a paragraph: one `문제:` bullet per problem, then one `의도:` bullet. |
+| `배경 · 변경 의도` | Explain `## Background` and `## Intuition`, tightened against the diff. Write nested bullets, not a paragraph: a top-level `문제` bullet with one indented sub-bullet per problem, then a top-level `의도` bullet with one indented sub-bullet per intent. |
 | `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for changed files, behavior, and interfaces only. Do not write task DAG, task split/order, repair wave, scope revision, worker·agent, branch·sha, integration head, or 작업 과정. Write a table with columns `파일 / 변경`, one row per changed file or file group. |
 | `변경 그림` (필수) | Mermaid diagram chosen by change kind (rules below). Never omitted. |
 | `변경 전후` (필수) | Digest `pr.sections.verification`, Explain `## Code`, and the diff only. When no before-change observation exists, write `변경 전 결과 미관측` — never present an unobserved before-result as a run result. Write a table with columns `항목 / 변경 전 / 변경 후`, one row per behavior; when the before column is read from code or the diff rather than a run, say so in one line under the table. |

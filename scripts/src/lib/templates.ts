@@ -14,8 +14,12 @@ const PR_TEMPLATE = `## 관련 이슈
 
 ## 배경 · 변경 의도
 
-- 문제: <problem>
-- 의도: <intent>
+- 문제
+  - <problem>
+  - <problem>
+- 의도
+  - <intent>
+  - <intent>
 
 ## 주요 변경 내용
 
