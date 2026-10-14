@@ -3583,3 +3583,50 @@ test('plan gate with G19 cycle, in_progress task, light blueprint, or no repoRoo
   checkPlanDraft(planDocsWithTasks([g25Task('001', [['Modify', '`src/missing.ts`']])]), rels, draft, {});
   assert.deepStrictEqual(draft.filter((f) => f.code === 'G25'), []);
 });
+
+// ---- G25: 저장소 밖을 가리키는 Touch 경로 ----
+
+test('plan gate with an escaping Touch path of any change kind → fails G25 with escape message', () => {
+  const cases = [
+    [[['Create', '`../outside.js`']], [], '../outside.js'],
+    [[['Modify', '`/etc/hosts`']], [], '/etc/hosts'],
+    [[['Rename', '`src/a.js` → `../b.js`']], ['src/a.js'], '../b.js'],
+    [[['Modify', '`src/../../x.js`']], [], 'src/../../x.js'],
+    [[['Delete', '`../d.js`']], [], '../d.js'],
+    [[['Rename', '`../old.js` → `src/new.js`']], [], '../old.js'],
+    [[['Modify', '`C:/x.js`']], [], 'C:/x.js'],
+  ];
+  for (const [rows, files, escaped] of cases) {
+    const hits = g25Run([g25Task('001', rows)], { files });
+    assert.deepStrictEqual(hits.map((h) => h.message), [`Touch path escapes repository: ${escaped}`]);
+  }
+});
+
+test('plan gate with a Touch path that normalizes inside the repository → no G25', () => {
+  assert.deepStrictEqual(g25Run([g25Task('001', [['Modify', '`src/../a.js`']])], { files: ['a.js'] }), []);
+  assert.deepStrictEqual(
+    g25Run([g25Task('001', [['Modify', '`.bouncer/config.json`']])], { files: ['.bouncer/config.json'] }),
+    [],
+  );
+});
+
+test('plan gate with escaping and missing paths in one task → fails G25 twice', () => {
+  const hits = g25Run([g25Task('001', [['Modify', '`../x.js`'], ['Modify', '`src/missing.js`']])]);
+  assert.deepStrictEqual(hits.map((h) => h.message).sort(), [
+    'Touch path does not exist: src/missing.js',
+    'Touch path escapes repository: ../x.js',
+  ]);
+});
+
+test('plan gate with a missing Rename old path → fails G25 with does-not-exist message', () => {
+  const hits = g25Run([g25Task('001', [['Rename', '`src/gone.js` → `src/new.js`']])]);
+  assert.deepStrictEqual(hits.map((h) => h.message), ['Touch path does not exist: src/gone.js']);
+});
+
+test('G25 escape failure → gets a repository-relative hint', () => {
+  const { withGateFailureHints } = require('../scripts/lib/validate');
+  const out = withGateFailureHints({ ok: false, failures: [
+    { code: 'G25', message: 'Touch path escapes repository: ../x.js', file: 'x.md' },
+  ] });
+  assert.match(out.failures[0].next, /repository-relative/);
+});
