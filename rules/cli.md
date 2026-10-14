@@ -28,6 +28,17 @@ simulation cannot open the remaining tasks), `max_wave_width`, `commit_tasks`,
 It simulates `readyWave` over open commit tasks only; verification nodes and
 edges to them are ignored. Failure payloads omit `shape`.
 
+`run preflight` refuses in this order: (1) `ok:false` with a `CURRENT_*`
+selection error, (2) `ok:false` `no-current`, (3) `ok:false` `pointer-mismatch`
+with `expected` (the pointer blueprint) and `actual` (the `--blueprint` input,
+`toPosix` only) when the epic or blueprint ids differ or cannot be parsed,
+(4) `delegable:false` from the ledger status: `promotion-stopped`,
+`awaiting-confirmation`, `partial-closed`, (5) `delegable:false` from the
+blueprint document status when it is not `approved`: `blueprint-closed`,
+`blueprint-partial-closed`, `blueprint-draft`, `blueprint-superseded`,
+`blueprint-imported`, `blueprint-status-unknown`, (6) `delegable:false`
+`no-open-task`. Every `delegable:false` refusal also has `direct_eligible:false`.
+
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag

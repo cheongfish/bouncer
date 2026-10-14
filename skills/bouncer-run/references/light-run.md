@@ -5,6 +5,9 @@ is `light` and that has exactly one independent commit task), `/bouncer-run`
 follows this procedure instead of dispatching `bouncer-coordinator`. Do not
 apply it to a full ledger.
 
+It starts only after the `SKILL.md` step 2 approval (A) and step 3 bootstrap
+are done, so the light ledger already exists.
+
 ## Procedure
 
 1. **Implement.** When `coordinate next` returns `implement` with

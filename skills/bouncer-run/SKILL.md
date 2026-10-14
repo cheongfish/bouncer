@@ -76,9 +76,7 @@ stay on the execute round.
    holds the pointer, remaining-task fields (including `affected_paths`), DAG,
    reporting cadence, and `direct_eligible`. Follow its status and `delegable` result; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
-   pointer return values. When the ledger / pointer `scale` is `light`, read
-   [light-run.md](./references/light-run.md) and follow that procedure for the
-   rest of the drive instead of coordinator dispatch. When nothing to delegate,
+   pointer return values. When nothing to delegate,
    tell the user to run `/bouncer-finalize` themselves and stop. Finalize
    consent stays with the user; this session and the coordinator never run
    `/bouncer-finalize` or any part of it.
@@ -90,7 +88,7 @@ stay on the execute round.
 
    **AskUserQuestion — run.start_drive**
    <!-- acq {"gate":"run.start_drive","options":["A","B","C","D"],"recommended":"A"} -->
-   1. **Re-ground**: Hand remaining tasks to a coordinator drive?
+   1. **Re-ground**: Start the drive for the remaining tasks?
    2. **Recommend-why**: Delegating now covers each ready wave until
       the blueprint is done. This
       approval covers the whole drive: neither autonomy value asks again per
@@ -110,6 +108,8 @@ stay on the execute round.
    ```
    This is the one command run against the main checkout; it writes no source there. Keep `integrationPath` from the JSON result. On
    `ok: false`, report the reason and stop — do not retry into a different path.
+   When the ledger `mode` or pointer `scale` is `light`, follow
+   [light-run.md](./references/light-run.md) from `integrationPath` and skip step 4.
 
 4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` one at a time
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
