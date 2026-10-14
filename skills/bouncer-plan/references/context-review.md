@@ -48,7 +48,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    **Metrics.** Around every reviewer call (discovery and delta) record it:
    `bouncer metrics start --kind context-review --blueprint <dir> --label <perspective> --target-digest <call target_digest>`
    just before dispatch, then `bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>`
-   from the host's task notification right after it returns (omit flags the host did not give).
+   from the host's final task notification once the reviewer's hand-back report has arrived, per item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md` (omit flags the host did not give).
    Procedure and rules: `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`. A failed `metrics` call
    never changes the review result.
 3. **Merge** — Verify each finding's evidence. Record `category`,

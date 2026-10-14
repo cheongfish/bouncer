@@ -56,11 +56,19 @@ limits.
    instead of a report, keep waiting on that handle before any next step. A
    handle, a "started" or "running" status, or a task id is not a report, and
    the dispatcher must not end its turn while a dispatched subagent still runs.
+   A `completed` or waiting notification that carries no result body is not an
+   outcome either; keep waiting for the hand-back report (the subagent's final
+   result body). Defer `metrics end` and the next step until that report
+   arrives, then close with the usage values of the final notification, never
+   an intermediate one.
 7. On Cursor, `subagents.dispatch: "print"` in `.bouncer/config.json` is an
    explicit opt-in. Only when `subagents.provider` is `cursor` and that value is
    exactly `print`, read `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` before the first
    dispatch and follow it in place of items 2-4 for every dispatch, including
    named ones. Otherwise ignore this item.
+8. A deferred tool is not callable until its schema is loaded. Load the schema
+   first with the host's tool-search mechanism (on Claude Code, `ToolSearch`
+   with `select:<name>`), then call the tool.
 
 No workflow may add another provider setting or a subagent helper while applying this
 contract. Light and `/bouncer-run` exceptions remain with the execute workflow
