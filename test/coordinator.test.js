@@ -1244,6 +1244,28 @@ test('integration checkout with an uncommitted file outside the allowed paths �
   assert.strictEqual(retried.ok, true, JSON.stringify(retried));
 });
 
+test('dynamic task directory with a non-evidence file → integrate refuses with integration-source-mutated for that file only and keeps the ledger bytes', () => {
+  const blueprint = '.bouncer/context/epics/098-x/blueprints/001-dynamic';
+  const drive = integrableDrive('bouncer-integrate-dynamic-', blueprint);
+  // repair가 남긴 dynamic task 009: 증적 문서는 허용되고 같은 디렉터리의 증적 외 파일만 거절되어야 한다.
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.tasks.push({
+    id: '009', depends_on: [], dependency_gate: 'integrated', parallel_safe: false,
+    execution_kind: 'commit', status: 'pending', dynamic: true,
+  });
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const dir = path.join(drive.integrationPath, blueprint, 'tasks/009');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'tasks.md'), 'repair doc\n');
+  fs.writeFileSync(path.join(dir, 'notes.md'), 'stray\n');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+
+  const refused = integrateOne(drive, blueprint);
+  assert.strictEqual(refused.reason, 'integration-source-mutated', JSON.stringify(refused));
+  assert.deepStrictEqual(refused.paths, [`${blueprint}/tasks/009/notes.md`]);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+});
+
 test('integration checkout dirty only at seeded plan paths and earlier wave evidence → integrate succeeds', () => {
   const blueprint = '.bouncer/context/epics/098-x/blueprints/002-allowed';
   const drive = integrableDrive('bouncer-integrate-allowed-', blueprint);

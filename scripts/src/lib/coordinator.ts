@@ -2559,7 +2559,10 @@ function integrateLightCommitWave({
 
 /**
  * integration checkout에서 허용 경로 밖에 있는 미커밋 경로를 모은다.
- * 허용 경로는 seed manifest 경로와 이미 integrated된 task의 evidence 문서뿐이다.
+ * 허용 경로는 seed manifest 경로, 이미 integrated된 task의 evidence 문서, 그리고
+ * `coordinate repair`가 만든 dynamic task의 evidence 문서뿐이다.
+ * dynamic task 문서는 repair 시점에 integration에 untracked로 쓰이고 integrate 때
+ * 비로소 worker 증적으로 덮어써지므로, status가 integrated가 아니어도 허용해야 한다.
  * 넓은 prefix를 허용하면 coordinator가 직접 고친 소스가 섞여 들어와도 통과하므로
  * 파일 단위로만 비교한다. rename(`R  a -> b`)은 양쪽 경로를 모두 본다.
  * `git()`은 출력을 trim해 첫 줄의 선행 공백 상태 코드를 깨뜨리므로 exec 원문을 쓴다.
@@ -2579,7 +2582,7 @@ function disallowedDirtyPaths(
   const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
   const allowed = new Set<string>((ledger.seedManifest || []).map((entry) => entry.path));
   for (const task of ledger.tasks) {
-    if (task.status !== 'integrated') continue;
+    if (task.status !== 'integrated' && task.dynamic !== true) continue;
     for (const [name] of evidenceFiles(reviewMode)) {
       allowed.add(`${blueprint.replaceAll('\\', '/')}/tasks/${task.id}/${name}`);
     }
@@ -4141,7 +4144,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Commit the new worker work, then retry `bouncer coordinate rerecord`.',
   },
   'integration-source-mutated': {
-    cause: 'The integration checkout has uncommitted changes outside the seed manifest and integrated task evidence.',
+    cause: 'The integration checkout has uncommitted changes outside the seed manifest '
+      + 'and integrated or repair task evidence.',
     next: 'Move the change into a worker task or `bouncer coordinate repair`, '
       + 'revert the direct edits in the integration checkout, then call integrate again.',
   },

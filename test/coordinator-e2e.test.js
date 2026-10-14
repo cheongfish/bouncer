@@ -575,6 +575,82 @@ test('uncommitted-plan을 drive함 → integrate 뒤 open task 없이 finalize g
   assert.strictEqual(dry.reason, 'validate', JSON.stringify(dry));
 });
 
+test('repair task를 integrate함 → 증적 문서가 허용되어 integrated·verified가 되고 finalize 대조가 맞음', () => {
+  const epic = '.bouncer/context/epics/015-repair';
+  const blueprint = `${epic}/blueprints/005-drive`;
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'source']);
+  const ids = { epic_id: '015', blueprint_id: '005' };
+  writePlanDoc(repo, `${epic}/index.md`, 'bouncer.epic', { id: '015', epic_id: '015', status: 'approved' }, '# Epic\n');
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: '015', name: 'repair', description: 'd' });
+  writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint',
+    { id: '005', ...ids, status: 'approved', commit_type: 'feat' },
+    '# Blueprint\n\n## Intent\n- repair task도 같은 경로로 integrate된다\n');
+  const body = '# Tasks\n\n## Goal & intent\nalpha를 바꾼다.\n\n## Interface\n- 제공: alpha\n\n'
+    + '## Touch\n- Modify `src/alpha.js`\n\n## Do not touch\n- `README.md`\n\n'
+    + '## Constraints\n- 없음\n\n## Checklist\n- [ ] alpha를 바꾼다\n';
+  writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-001', ...ids, status: 'ready', depends_on: [], parallel_safe: false,
+    dependency_gate: 'integrated', affected_paths: ['src/alpha.js'],
+  }, body);
+  writePlanDoc(repo, `${blueprint}/tasks/002/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-002', ...ids, status: 'ready', execution_kind: 'verification', depends_on: ['TASKS-001'],
+    parallel_safe: false, dependency_gate: 'integrated', affected_paths: [], verify: 'node --test',
+  }, body);
+  for (const id of ['001', '002']) {
+    writePlanDoc(repo, `${blueprint}/tasks/${id}/verification.md`, 'bouncer.verification',
+      { id: `VERIFY-${id}`, ...ids, status: 'pending' }, '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n');
+    writePlanDoc(repo, `${blueprint}/tasks/${id}/review.md`, 'bouncer.review',
+      { id: `REVIEW-${id}`, ...ids, status: 'pending', review: { required: true } }, '# Review\n\n## Findings\n- <finding>\n');
+  }
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integrationPath = boot.integrationPath;
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', sha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, '001').ok, true);
+  const verifyOk = () => ({ ok: true, command: 'node --test', exitCode: 0, evidenceId: 'e'.repeat(64) });
+  const integrate = (task, runVerification) => coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task, deps: { runVerification },
+  });
+  assert.strictEqual(integrate('001', verifyOk).ok, true);
+
+  // terminal CI가 실패하면 repair task 003이 동적으로 생기고 문서가 integration에 untracked로 남는다.
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  const failed = integrate('002', () => ({ ok: false, command: 'node --test', exitCode: 1 }));
+  assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
+  const repair = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/alpha.js'], decision: 'repair alpha',
+  });
+  assert.strictEqual(repair.ok, true, JSON.stringify(repair));
+  const repairId = repair.repairTask.id;
+
+  const repairPrepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(repairPrepared.ok, true, JSON.stringify(repairPrepared));
+  const repairWorker = repairPrepared.tasks.find((entry) => entry.id === repairId).workerPath;
+  const repairSha = commitInWorker(repairWorker, 'src/alpha.js', 'repaired by 003\n', 'fix: repair 003');
+  writeTerminalEvidence(repairWorker, blueprint, repairId, repairSha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, repairWorker, repairId).ok, true);
+
+  const integrated = integrate(repairId, verifyOk);
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  assert.match(fs.readFileSync(path.join(integrationPath, blueprint, `tasks/${repairId}/tasks.md`), 'utf8'), /status: verified/);
+
+  // terminal까지 통과시켜 원장과 integration 증적이 모두 맞는 drive 상태로 만든다.
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  const terminal = integrate('002', verifyOk);
+  assert.strictEqual(terminal.ok, true, JSON.stringify(terminal));
+  const noGit = { changedFiles: () => [], untrackedFiles: () => [], stage: () => {}, commit: () => {} };
+  const dry = finalize({ repoRoot: integrationPath, blueprintDir: blueprint, git: noGit });
+  assert.notStrictEqual(dry.reason, 'coordinator-evidence-mismatch', JSON.stringify(dry));
+});
+
 test('drive finalize 뒤 finalize release-main → main이 plan conflict 없이 integration branch를 merge함', () => {
   const { releaseMain } = require('../scripts/lib/finalize-release-main');
   const epic = '.bouncer/context/epics/014-release';
