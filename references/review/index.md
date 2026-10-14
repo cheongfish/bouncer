@@ -44,10 +44,12 @@ unresolved. Used from `/bouncer-execute`.
 
 1. **Load** — Read the existing review document (do not create a new file):
    blueprint-root `review.md` when `review_scope` is `blueprint`, otherwise
-   `<pointer task directory>/review.md`. Load the worktree diff basis
-   (`git diff <base>` plus untracked in blueprint review mode, or
-   `git diff <base>...HEAD` plus untracked when `review_scope` is absent)
-   and the brief set: every commit task (`tasks/<NNN>/tasks.md`: Goal & intent,
+   `<pointer task directory>/review.md`. Load the review target from the frozen
+   snapshot artifact that `review-dispatch execute` returns (`target.snapshot_id`
+   and `target.snapshot_path` under `.bouncer/runtime/review-snapshots/`), not
+   from a fresh `git diff`. The artifact holds the same frozen content the
+   dispatch used to size the review, so what the reviewer reads and how the
+   review was classified cannot diverge. Then load the brief set: every commit task (`tasks/<NNN>/tasks.md`: Goal & intent,
    Interface, Touch, Do not touch, Constraints, Checklist) plus the blueprint
    Contract in blueprint review mode, or that same section list from the
    pointer task when `review_scope` is absent, together with the frozen
@@ -81,14 +83,19 @@ unresolved. Used from `/bouncer-execute`.
    --task <NNN> --base <frozen-base> --head <frozen-head>` when `review_scope`
    is absent, or `--blueprint <dir> --base <frozen-base> --head <frozen-head>`
    (no `--task`) in blueprint review mode. That CLI result is the only
-   discovery dispatch authority: do not recompute file/line stats, guess risk
+   discovery dispatch authority and the only source of the snapshot (it freezes
+   the artifact as a runtime side effect; source files, the index, and the
+   branch stay untouched): do not recompute file/line stats, guess risk
    from path names or diff bodies, or override `strategy` / `perspectives` /
    `risk_flags`. When the payload is `ok: false`, or when its `target` /
    `risk_flags` disagree with the frozen values and the current task's
    `review_risk` (absent `review_scope`) or the union of commit-task
    `review_risk` (blueprint review mode), stop —
    do not call a reviewer and do not mark the review
-   accepted.
+   accepted. When the payload fails with a snapshot reason (artifact missing,
+   corrupt, or its target differing from the frozen base/head/scope), follow
+   its `next`: run `review-dispatch execute` again for a new snapshot and
+   reclassify. Never repair the artifact or edit review status by hand.
 
    Dispatch discovery reviewers by walking the CLI `perspectives` array in
    order — that list is the only fan-out. Do not also branch on `strategy` to
@@ -98,14 +105,15 @@ unresolved. Used from `/bouncer-execute`.
    `parallel` without risk → the three non-security perspectives; large risk →
    those three then `security`). Fill
    [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md)
-   for each reviewer without sharing another discovery reviewer's findings and
+   (its existing `TARGET` slot carries `snapshot_id` and `snapshot_path`; add
+   no new slot) for each reviewer without sharing another discovery reviewer's findings and
    without the full Explain body, and with the `Red run` lines after
    Constraints. Use named **`bouncer-reviewer`** with the
    resolved model and only that filled call slot. When named agents are
    unavailable, use a **fresh generic** subagent whose payload carries the
    entire body of `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` — every section from Authority
    through Output contract, verbatim —    plus the filled reviewer-prompt: frozen
-   base and HEAD, task brief revision, `task_brief_hash` or
+   base and HEAD, `snapshot_id` / `snapshot_path`, task brief revision, `task_brief_hash` or
    `task_brief_hashes`, `intent_bundle_id` / `intent_bundles`,
    `intent_bundle_revision`, `intent_sections`, mode, perspective, strategy,
    risk_flags, latest verify, and for delta the previous findings and revision
@@ -118,14 +126,23 @@ unresolved. Used from `/bouncer-execute`.
    `advisory` from the brief, evidence, and changed range. It dispatches one
    implementer once for all must-fix findings, reruns verify, then dispatches
    one delta reviewer with the prior findings and, in blueprint review mode,
-   the whole-worktree diff after the fix (`git diff <base>` plus untracked),
-   not only the repair hunks — delta does
+   the whole change after the fix, taken from a new snapshot (run
+   `review-dispatch execute` again; the prior finding list and the prior
+   `snapshot_id` go in as comparison evidence only), not only the repair
+   hunks — delta does
    not receive a discovery perspective.    The controller (not the subagent)
    records `## Findings`, `bouncer.review.findings[]`, and
    `bouncer.review.rounds[]` with `bouncer review record --blueprint <dir>
    [--task <ddd>] --round <json-file> [--status <requested|addressed|accepted>]`
    (blueprint-root `review.md` when `review_scope` is `blueprint`, otherwise
-   the pointer task directory; omit `--task` in blueprint mode). Do not edit
+   the pointer task directory; omit `--task` in blueprint mode). Put the dispatch `snapshot_id` in
+   the round's `target.snapshot_id`; a stored round without one stays readable
+   but cannot be reused as input for a new record. When `review record` rejects
+   a stale or mismatched snapshot (`review-snapshot-stale`,
+   `review-snapshot-mismatch`, `review-snapshot-invalid`,
+   `review-snapshot-required`), follow its `next` — a new snapshot,
+   reclassification, and re-review — and never hand-edit status or rounds to
+   get around it. Do not edit
    that YAML by hand. An advisory is
    recorded once as accepted or deferred with a note, not fixed.
 4. **Assert** — Confirm `## Findings` is present and every finding has an

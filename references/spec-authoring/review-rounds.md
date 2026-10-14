@@ -49,6 +49,7 @@ bouncer:
         target:
           base: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
           head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          snapshot_id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
         perspectives:
           - name: combined
             target_head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -67,6 +68,7 @@ bouncer:
         target:
           base: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
           head: 'dddddddddddddddddddddddddddddddddddddddd'
+          snapshot_id: 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
         perspectives:
           - name: combined
             target_head: 'dddddddddddddddddddddddddddddddddddddddd'
@@ -84,6 +86,8 @@ bouncer:
         regressed: 0
 ---
 # Review
+
+신규 round의 `target`은 `snapshot_id`를 가진다. id 없는 저장 round는 읽기 호환일 뿐 신규 `review record` 입력으로 재사용할 수 없다.
 
 ## Findings
 
