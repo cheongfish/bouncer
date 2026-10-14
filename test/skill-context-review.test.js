@@ -27,3 +27,30 @@ test('context review docs → carry a G18-valid fingerprint example', () => {
     );
   }
 });
+
+// 브리프(098-003/004)가 rubric 문구를 계약으로 고정했으므로 제목·키워드만 단언한다.
+// 두 판단 밖의 일(경로 존재 G25, 문장 품질 stop-slop)이 다시 finding으로 새지 않게 막는 회귀 장치다.
+test('context reviewer rubric → judges two scopes with storage ownership and review_risk checks', () => {
+  const md = fs.readFileSync(path.join(root, 'agents', 'bouncer-context-reviewer.md'), 'utf8');
+  // `### <title>` 절 본문을 다음 `##`/`###` 제목 직전까지 잘라낸다.
+  const section = (src, title) => {
+    const start = src.indexOf(`### ${title}`);
+    assert.ok(start >= 0, `section ${title} exists`);
+    const rest = src.slice(start + 4);
+    const end = rest.search(/\n##+ /);
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+  assert.ok(!md.includes('### Scope review'), 'no Scope review heading');
+  assert.ok(!md.includes('### Korean quality'), 'no Korean quality heading');
+  assert.ok(md.includes('## Rubric — two scopes'));
+  const cross = section(md, 'Cross-document consistency and scope');
+  for (const phrase of ['storage location', 'state ownership', 'review_risk']) {
+    assert.ok(cross.includes(phrase), `cross-document mentions ${phrase}`);
+  }
+  const out = section(md, 'Out of judgment');
+  for (const phrase of ['G25', 'stop-slop']) {
+    assert.ok(out.includes(phrase), `out of judgment mentions ${phrase}`);
+  }
+  const index = fs.readFileSync(path.join(root, 'references', 'context-review', 'index.md'), 'utf8');
+  assert.ok(!index.includes('four rubrics'));
+});

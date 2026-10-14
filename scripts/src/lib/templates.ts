@@ -295,12 +295,13 @@ const LEGACY_SCAFFOLD_COMMENT_BODIES: readonly string[] = Object.freeze([
     'status: resolved | accepted\n' +
     'mode를 쓰는 rounds[]면 category, brief_clause, file, symbol, fingerprint, actionability,\n' +
     'origin, first_seen_round, last_seen_round도 필수.\n' +
-    'category: cross_document | scope | korean_quality | success_criteria\n' +
+    'category: combined | local | global (cross_document | scope | korean_quality | success_criteria는 기존 기록 읽기 호환용)\n' +
     'brief_clause: finding이 걸린 문서 절 (예: tasks/002 Interface)\nfile: 계획 문서의 저장소 상대 경로, symbol: 절 제목 slug (절이 없으면 -)\n' +
     'fingerprint: context:<category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ ' +
     '제거)\nactionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\n' +
     'optional bouncer.context_review.rounds[]: round (양의 정수), mode (discovery | delta),\ntarget (digest),\n' +
-    'perspectives (combined | local | global | cross_document | scope | korean_quality | success_criteria,\n' +
+    'perspectives (combined | local | global 사용.\n' +
+    'cross_document | scope | korean_quality | success_criteria는 기존 기록 읽기 호환용,\n' +
     'target_digest는 target.digest와 동일), severity_changes. rounds 없는 구문서는 기존 계약으로 통과한다.',
   '이 변경이 생긴 배경. 무엇을 고치려 했는가.',
   '한 줄로 말하면 무엇인가. 비유·그림이 있으면 여기.',

@@ -1646,6 +1646,7 @@ function planReadyTasks() {
       status: 'ready',
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['./src/auth/login.js', './test/auth/login.test.js'],
+      review_risk: ['authentication'],
     },
   };
 }
@@ -3344,4 +3345,223 @@ test('execute gate when a serial overlap chain exists → no DAG shape warnings'
   const warnings = [];
   checkGate('execute', planDocsWithTasks(serialChain()), rels, [], { warnings });
   assert.deepStrictEqual(warnings.filter((x) => x.code.startsWith('dag-')), []);
+});
+
+// --- plan 보안 경로 경고: review-risk-missing ---
+
+function securityBody(touchPaths) {
+  return READY_BODY.replace(
+    '## Touch\n- `src/auth/`\n- `test/auth/`\n',
+    `## Touch\n${touchPaths.map((p) => `- \`${p}\``).join('\n')}\n`,
+  );
+}
+
+function riskWarnings(touchPaths, extra = {}) {
+  return shapeWarnings([
+    planTaskDoc('001', { affected_paths: touchPaths, ...extra }, securityBody(touchPaths)),
+  ], 'review-risk-missing');
+}
+
+test('plan task touching src/auth/login.ts with empty review_risk → warns review-risk-missing', () => {
+  const { warnings, failures } = riskWarnings(['src/auth/login.ts'], { review_risk: [] });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0].message, /src\/auth\/login\.ts/);
+  assert.equal(warnings[0].file, planTaskDoc('001').rel);
+  assert.deepStrictEqual(failures.filter((f) => f.code === 'review-risk-missing'), []);
+});
+
+test('plan task touching a security path with review_risk absent → warns review-risk-missing', () => {
+  assert.equal(riskWarnings(['src/auth/login.ts']).warnings.length, 1);
+});
+
+test('plan task touching a security path with review_risk set → no review-risk-missing warning', () => {
+  assert.deepStrictEqual(
+    riskWarnings(['src/auth/login.ts'], { review_risk: ['authentication'] }).warnings, [],
+  );
+});
+
+test('plan task touching tokenizer and sessions paths (substring/plural) → no warning', () => {
+  assert.deepStrictEqual(riskWarnings(['src/tokenizer.ts', 'src/sessions/list.ts']).warnings, []);
+});
+
+test('plan task touching only .bouncer plan documents under an auth-named epic → no warning', () => {
+  assert.deepStrictEqual(
+    riskWarnings(['.bouncer/context/epics/080-auth-token/index.md']).warnings, [],
+  );
+});
+
+test('plan task matching two security paths → one warning listing both sorted', () => {
+  const { warnings } = riskWarnings(['src/login.ts', 'src/auth/x.ts']);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0].message, /src\/auth\/x\.ts, src\/login\.ts;/);
+});
+
+test('plan task basename pieces split on dot underscore hyphen → password_reset.ts matches', () => {
+  assert.equal(riskWarnings(['src/password_reset.ts']).warnings.length, 1);
+});
+
+test('plan task with security Touch and task-split → review-risk-missing comes after task-split', () => {
+  const many = Array.from({ length: 21 }, (_, i) => `src/auth/m${i}.js`);
+  const { all } = shapeWarnings([
+    planTaskDoc('001', { affected_paths: many }, securityBody(['src/auth/'])),
+  ], 'review-risk-missing');
+  assert.deepStrictEqual(all.map((x) => x.code), ['task-split', 'review-risk-missing']);
+});
+
+test('plan task with security Touch but missing sections (G10 fails) → no warning', () => {
+  const { warnings, failures } = shapeWarnings([
+    planTaskDoc('001', {}, '# Tasks\n\n## Touch\n- `src/auth/login.ts`\n'),
+  ], 'review-risk-missing');
+  assert.ok(failures.some((f) => f.code === 'G10'));
+  assert.deepStrictEqual(warnings, []);
+});
+
+test('plan task of verification kind with security Touch → no warning', () => {
+  const { warnings } = shapeWarnings([
+    planTaskDoc('001', {
+      execution_kind: 'verification', affected_paths: [], depends_on: [],
+      parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
+    }, securityBody(['src/auth/login.ts'])),
+  ], 'review-risk-missing');
+  assert.deepStrictEqual(warnings, []);
+});
+
+test('checkPlanDraft with security Touch and empty review_risk → same review-risk-missing warning', () => {
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const warnings = [];
+  checkPlanDraft(planDocsWithTasks([
+    planTaskDoc('001', { affected_paths: ['src/auth/login.ts'] }, securityBody(['src/auth/login.ts'])),
+  ]), rels, [], { warnings });
+  assert.equal(warnings.filter((x) => x.code === 'review-risk-missing').length, 1);
+});
+
+test('execute gate with security Touch and empty review_risk → no review-risk-missing warning', () => {
+  const warnings = [];
+  checkGate('execute', planDocsWithTasks([
+    planTaskDoc('001', { affected_paths: ['src/auth/login.ts'] }, securityBody(['src/auth/login.ts'])),
+  ]), rels, [], { warnings });
+  assert.deepStrictEqual(warnings.filter((x) => x.code === 'review-risk-missing'), []);
+});
+
+test('SECURITY_PATH_TOKENS → exports the fixed token list', () => {
+  const { SECURITY_PATH_TOKENS } = require('../scripts/lib/validate-gates');
+  assert.deepStrictEqual(SECURITY_PATH_TOKENS, [
+    'auth', 'login', 'session', 'token', 'credential', 'secret',
+    'password', 'permission', 'acl', 'oauth', 'jwt',
+  ]);
+});
+
+// ---- G25: Touch 표의 수정 대상 경로 존재 ----
+
+const G25_HEAD = '| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |\n| --- | --- | --- | --- | --- | --- |\n';
+
+/** Touch 표 행 [변경, 경로 칸] 목록으로 task 문서를 만든다. */
+function g25Task(nnn, rows, extra = {}) {
+  const table = rows.map(([change, cell]) => `| ${cell} | \`s\` | ${change} | a | b | c |`).join('\n');
+  const body = READY_BODY.replace(
+    '## Touch\n- `src/auth/`\n- `test/auth/`',
+    `## Touch\n${G25_HEAD}${table}`,
+  );
+  return planTaskDoc(nnn, { execution_kind: 'commit', ...extra }, body);
+}
+
+function g25Run(taskDocs, { files = [], blueprint, ctx } = {}) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g25-'));
+  for (const f of files) {
+    fs.mkdirSync(path.dirname(path.join(repo, f)), { recursive: true });
+    fs.writeFileSync(path.join(repo, f), 'x');
+  }
+  const docs = planDocsWithTasks(taskDocs);
+  if (blueprint) docs.blueprintIndex = blueprint;
+  const failures = [];
+  checkGate('plan', docs, rels, failures, ctx === undefined ? { repoRoot: repo } : ctx);
+  return failures.filter((f) => f.code === 'G25');
+}
+
+test('plan gate with a Touch Modify path missing → fails G25', () => {
+  const failures = [];
+  const docs = planDocsWithTasks([g25Task('001', [['Modify', '`src/missing.ts`']])]);
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g25-'));
+  checkGate('plan', docs, rels, failures, { repoRoot: repo });
+  const hit = failures.find((f) => f.code === 'G25');
+  assert.ok(hit, JSON.stringify(failures));
+  assert.ok(hit.message.includes('src/missing.ts'));
+  assert.strictEqual(hit.message, 'Touch path does not exist: src/missing.ts');
+  assert.match(hit.file, /tasks\/001\/tasks\.md$/);
+});
+
+test('parseTouchRows with header, separator, and Rename rows → returns normalized rows', () => {
+  const { parseTouchRows } = require('../scripts/lib/validate-sections');
+  const text = `${G25_HEAD}`
+    + '| `./src/a.ts` | `f` | Modify | a | b | c |\n'
+    + '| `src/old.ts` → `src/new.ts` | `f` | Rename | a | b | c |\n'
+    + '| `src/bare.ts` | `f` | Rename | a | b | c |\n'
+    + '| `src/n.ts` | `f` | Create | a | b | c |\n'
+    + '| `src/x.ts` | `f` | Other | a | b | c |\n';
+  assert.deepStrictEqual(parseTouchRows(text), [
+    { change: 'Modify', path: 'src/a.ts', renameTo: null },
+    { change: 'Rename', path: 'src/old.ts', renameTo: 'src/new.ts' },
+    { change: 'Rename', path: 'src/bare.ts', renameTo: null },
+    { change: 'Create', path: 'src/n.ts', renameTo: null },
+  ]);
+  assert.deepStrictEqual(parseTouchRows('- `src/a.ts`'), []);
+});
+
+test('plan gate with existing, predecessor-created, or Create-only Touch paths → no G25', () => {
+  // 존재하는 파일 Modify, Rename old 존재, Create만 있는 task.
+  assert.deepStrictEqual(g25Run([
+    g25Task('001', [['Modify', '`src/here.ts`'], ['Rename', '`src/old.ts` → `src/new.ts`'], ['Create', '`src/fresh.ts`']]),
+  ], { files: ['src/here.ts', 'src/old.ts'] }), []);
+
+  // 001 → 002 → 003: 003이 001의 Create와 002의 Rename new를 Modify한다(전이 선행).
+  assert.deepStrictEqual(g25Run([
+    g25Task('001', [['Create', '`src/made.ts`']]),
+    g25Task('002', [['Rename', '`src/gone.ts` → `src/moved.ts`']], { depends_on: ['TASKS-001'] }),
+    g25Task('003', [['Modify', '`src/made.ts`'], ['Modify', '`src/moved.ts`']], { depends_on: ['TASKS-002'] }),
+  ], { files: ['src/gone.ts'] }), []);
+});
+
+test('plan gate with unrelated Create, missing Delete, or sorted duplicates → fails G25', () => {
+  // 선행 관계 없는 task의 Create는 근거가 아니다.
+  const unrelated = g25Run([
+    g25Task('001', [['Create', '`src/made.ts`']]),
+    g25Task('002', [['Modify', '`src/made.ts`']]),
+  ]);
+  assert.strictEqual(unrelated.length, 1);
+  assert.match(unrelated[0].file, /tasks\/002\/tasks\.md$/);
+
+  const del = g25Run([g25Task('001', [['Delete', '`src/gone.ts`']])]);
+  assert.strictEqual(del.length, 1);
+
+  // 같은 경로는 한 번, 목록은 정렬.
+  const multi = g25Run([
+    g25Task('001', [['Modify', '`src/b.ts`'], ['Modify', '`src/a.ts`'], ['Delete', '`src/b.ts`']]),
+  ]);
+  assert.strictEqual(multi[0].message, 'Touch path does not exist: src/a.ts, src/b.ts');
+});
+
+test('plan gate with G19 cycle, in_progress task, light blueprint, or no repoRoot → no G25', () => {
+  const cycle = [];
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g25-'));
+  checkGate('plan', planDocsWithTasks([
+    g25Task('001', [['Modify', '`src/missing.ts`']], { depends_on: ['TASKS-002'] }),
+    g25Task('002', [['Modify', '`src/missing.ts`']], { depends_on: ['TASKS-001'] }),
+  ]), rels, cycle, { repoRoot: repo });
+  assert.ok(cycle.some((f) => f.code === 'G19'));
+  assert.deepStrictEqual(cycle.filter((f) => f.code === 'G25'), []);
+
+  assert.deepStrictEqual(g25Run([
+    g25Task('001', [['Modify', '`src/missing.ts`']], { status: 'in_progress' }),
+  ]), []);
+  assert.deepStrictEqual(g25Run([
+    g25Task('001', [['Modify', '`src/missing.ts`']]),
+  ], { blueprint: doc('approved', { scale: 'light' }) }), []);
+  assert.deepStrictEqual(g25Run([
+    g25Task('001', [['Modify', '`src/missing.ts`']]),
+  ], { ctx: {} }), []);
+
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const draft = [];
+  checkPlanDraft(planDocsWithTasks([g25Task('001', [['Modify', '`src/missing.ts`']])]), rels, draft, {});
+  assert.deepStrictEqual(draft.filter((f) => f.code === 'G25'), []);
 });

@@ -25,7 +25,7 @@ const { pathOverlapRatio } = dagShape;
 import validateSections = require('./validate-sections');
 const {
   VERIFY_SECTION_DEFS, TODO_RE,
-  parseSections, parseTasksSections, parseExplainSections, extractPathCandidates,
+  parseSections, parseTasksSections, parseExplainSections, extractPathCandidates, parseTouchRows,
   pathsOverlap, pathJustifiedByTouch, collectFindingFailures,
   CONTEXT_REVIEW_STATUS, EXECUTE_REVIEW_STATUS,
 } = validateSections;
@@ -1079,7 +1079,14 @@ function runCheckGate(
     const beforeG19 = failures.length;
     checkTaskDependencyGraph(tasksList, failures);
     // G19가 실패한 graph는 모양 경고를 계산하지 않는다(순환이면 체인 탐색도 무의미).
-    if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
+    if (failures.length === beforeG19) {
+      checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
+      // G25는 repoRoot가 있는 plan gate 전용이다(checkPlanDraft는 repoRoot가 없다).
+      // light는 Touch가 bullet이라 표 판정 대상이 아니므로 건너뛴다.
+      if (!isLight && typeof ctx.repoRoot === 'string') {
+        checkTouchPathsExist(tasksList, ctx.repoRoot, failures);
+      }
+    }
     checkVerificationTaskGraph(tasksList, failures);
     return;
   }
@@ -1357,6 +1364,72 @@ function planScaleOf(docs: BlueprintDocs): { isLight: boolean; sectionKeys: stri
 }
 
 /**
+ * G25: 실행 전 commit task의 Touch 표에서 Modify·Delete·Rename-old 경로가 저장소에도,
+ * 전이 `depends_on` 선행 commit task의 Create·Rename-new 경로에도 없으면 task당 실패 하나를 낸다.
+ * 읽기 전용 existsSync만 쓴다(git index·HEAD를 읽지 않는다). G19가 통과한 graph에서만
+ * 불려야 closure 탐색이 순환·미존재 id로 꼬이지 않는다.
+ *
+ * @param {DocLeaf[]} tasksList - blueprint의 tasks.md 문서들
+ * @param {string} repoRoot - 경로 존재를 확인할 checkout 루트
+ * @param {FailureEntry[]} failures - G25 실패를 누적할 배열
+ * @returns {void} 결과는 failures에 push로만 남긴다
+ */
+function checkTouchPathsExist(tasksList: DocLeaf[], repoRoot: string, failures: FailureEntry[]): void {
+  type Entry = { doc: DocLeaf; deps: string[]; rows: ReturnType<typeof parseTouchRows> };
+  const byId = new Map<string, Entry>();
+  for (const tasksDoc of tasksList) {
+    const data = asData(tasksDoc);
+    const b = data && data.bouncer && typeof data.bouncer === 'object'
+      ? data.bouncer as Record<string, unknown>
+      : undefined;
+    const id = b && typeof b.id === 'string' ? b.id : '';
+    if (!b || !id || executionKindOf(b) !== 'commit') continue;
+    const sections = parseTasksSections(typeof tasksDoc.body === 'string' ? tasksDoc.body : '');
+    byId.set(id, {
+      doc: tasksDoc,
+      deps: Array.isArray(b.depends_on) ? b.depends_on.filter((d): d is string => typeof d === 'string') : [],
+      rows: parseTouchRows(sections.touch),
+    });
+  }
+  // 선행 task가 만드는 경로: 전이 closure의 Create 경로와 Rename new 경로.
+  const createdBy = (id: string): Set<string> => {
+    const made = new Set<string>();
+    const seen = new Set<string>();
+    const stack = [...(byId.get(id)?.deps ?? [])];
+    while (stack.length > 0) {
+      const dep = stack.pop() as string;
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      const entry = byId.get(dep);
+      if (!entry) continue;
+      for (const row of entry.rows) {
+        if (row.change === 'Create') made.add(row.path);
+        if (row.change === 'Rename' && row.renameTo) made.add(row.renameTo);
+      }
+      stack.push(...entry.deps);
+    }
+    return made;
+  };
+  for (const [id, entry] of byId) {
+    if (!(FRESHNESS_TASK_STATUSES as unknown[]).includes(statusOf(entry.doc))) continue;
+    const made = createdBy(id);
+    const missing = new Set<string>();
+    for (const row of entry.rows) {
+      if (row.change === 'Create') continue;
+      if (fs.existsSync(path.join(repoRoot, row.path)) || made.has(row.path)) continue;
+      missing.add(row.path);
+    }
+    if (missing.size > 0) {
+      failures.push({
+        code: 'G25',
+        message: `Touch path does not exist: ${[...missing].sort().join(', ')}`,
+        file: entry.doc.rel || '',
+      });
+    }
+  }
+}
+
+/**
  * plan 검사 대상 task 문서 목록을 고른다.
  * tasksDocs가 없으면 단위 테스트용 단일 docs.tasks로 폴백한다.
  *
@@ -1435,6 +1508,30 @@ function contextReviewFreshnessFailure(
 }
 
 /**
+ * Touch 경로의 segment·basename 조각과 정확히 비교할 보안 토큰. 부분 문자열이 아니라
+ * 완전 일치만 보므로 `tokenizer`·`sessions` 같은 이름은 걸리지 않는다. review-dispatch의
+ * REVIEW_RISK_ENUM을 import하면 validate와 순환하므로 이 목록은 여기서 독립으로 둔다.
+ */
+const SECURITY_PATH_TOKENS: readonly string[] = [
+  'auth', 'login', 'session', 'token', 'credential', 'secret',
+  'password', 'permission', 'acl', 'oauth', 'jwt',
+];
+
+/**
+ * 경로 하나가 보안 토큰과 일치하는지 판정한다. `.bouncer/`로 시작하는 계획 문서는
+ * 코드 경로가 아니므로 epic 제목에 auth가 들어 있어도 검사하지 않는다.
+ * 조각 = `/` segment 전체 + 각 segment를 `.`·`_`·`-`로 나눈 조각(basename 포함).
+ *
+ * @param {string} p - 저장소 상대 posix 경로 후보
+ * @returns {boolean} 소문자 기준으로 토큰과 정확히 같은 조각이 있으면 true
+ */
+function isSecurityPath(p: string): boolean {
+  if (p === '.bouncer' || p.startsWith('.bouncer/')) return false;
+  return p.toLowerCase().split('/').some((seg) =>
+    SECURITY_PATH_TOKENS.includes(seg) || seg.split(/[._-]/).some((x) => SECURITY_PATH_TOKENS.includes(x)));
+}
+
+/**
  * task 문서 하나에 status와 무관한 plan 검사(G5·G10·G11·G12)를 현재 순서대로 적용한다.
  * plan gate는 G3 다음에, plan draft 검사는 G3 없이 이 함수를 부른다 — 두 경로가
  * 한 구현을 공유해야 draft에서 통과한 문서가 승인 뒤 gate에서 다른 답을 받지 않는다.
@@ -1508,6 +1605,23 @@ function checkTaskScope(
     if (overlap.length) {
       addTask('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`);
     }
+    // 보안 경로를 건드리는데 review_risk가 비면 execute가 security reviewer를 빼므로
+    // 승인 전에 알린다. 실패가 아닌 경고이고, G10 통과 분기에서만 Touch를 신뢰해 판정한다.
+    // task-split 뒤에 push해 같은 task의 경고 순서를 고정한다.
+    const risk = taskBouncer ? taskBouncer.review_risk : undefined;
+    if (executionKind === 'commit' && (!Array.isArray(risk) || risk.length === 0)
+      && Array.isArray(ctx.warnings)) {
+      const hits = extractPathCandidates(touchText).filter(isSecurityPath).sort();
+      if (hits.length) {
+        ctx.warnings.push({
+          code: 'review-risk-missing',
+          message:
+            `Touch paths look security-sensitive but review_risk is empty: ${hits.join(', ')}; `
+            + 'record public_interface | authentication | authorization | credential if they apply',
+          file,
+        });
+      }
+    }
   }
 }
 
@@ -1551,4 +1665,4 @@ function checkPlanDraft(
   checkVerificationTaskGraph(tasksList, failures);
 }
 
-export = { checkGate, checkPartialCloseEvidence, checkPlanDraft };
+export = { checkGate, checkPartialCloseEvidence, checkPlanDraft, SECURITY_PATH_TOKENS };

@@ -307,7 +307,7 @@ function expectedDigest(repo) {
 }
 
 test('size constants → are exported from one module', () => {
-  assert.strictEqual(PLAN_SMALL_MAX_TASKS, 1);
+  assert.strictEqual(PLAN_SMALL_MAX_TASKS, 3);
   assert.strictEqual(EXECUTE_SMALL_MAX_FILES, 3);
   assert.strictEqual(EXECUTE_SMALL_MAX_LINES, 200);
 });
@@ -573,7 +573,7 @@ test('plan follow_up with an added task → is full', () => {
     previous: previousPayload(before),
   });
   assert.strictEqual(out.ok, true);
-  assert.strictEqual(out.strategy, 'clustered');
+  assert.strictEqual(out.strategy, 'single');
   assert.strictEqual(out.follow_up, 'full');
   assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/tasks/002/tasks.md`]);
 });
@@ -628,21 +628,53 @@ test('plan with parts present → aggregate digest stays invariant', () => {
   assert.notStrictEqual(joinedParts.digest('hex'), out.target.digest);
 });
 
-test('plan with two overlapping tasks → returns clustered local+global', () => {
+test('plan with three commit tasks → returns single combined', () => {
   const repo = makeRepo();
-  writePlanTree(repo, { scale: 'full', tasks: ['001', '002'] });
+  writePlanTree(repo, { scale: 'full', tasks: ['001', '002', '003'] });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.strategy, 'single');
+  assert.strictEqual(result.task_count, 3);
+  assert.deepStrictEqual(result.perspectives, ['combined']);
+  assert.ok(result.reasons[0].includes('<= 3'));
+  assert.strictEqual(result.clusters.length, 1);
+  assert.deepStrictEqual(result.clusters[0].tasks, ['TASKS-001', 'TASKS-002', 'TASKS-003']);
+  assert.deepStrictEqual(result.clusters[0].touch_paths, ['src/a.ts', 'src/b.ts', 'src/shared.ts']);
+});
+
+test('plan with four commit tasks → returns clustered local+global', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001', '002', '003', '004'] });
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.strategy, 'clustered');
-  assert.strictEqual(result.task_count, 2);
+  assert.strictEqual(result.task_count, 4);
+  assert.strictEqual(result.perspectives[result.perspectives.length - 1], 'global');
+});
+
+test('context-review template → guides new categories combined local global', () => {
+  const { LEGACY_SCAFFOLD_COMMENT_BODIES } = require('../scripts/lib/templates');
+  const guide = LEGACY_SCAFFOLD_COMMENT_BODIES.find((body) => body.includes('optional bouncer.context_review.rounds[]'));
+  assert.ok(guide);
+  assert.ok(guide.includes('category: combined | local | global'));
+  assert.ok(!guide.includes('category: cross_document | scope | korean_quality'));
+});
+
+test('plan with two overlapping tasks → returns clustered local+global', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001', '002', '003', '004'] });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.strategy, 'clustered');
+  assert.strictEqual(result.task_count, 4);
   assert.strictEqual(result.clusters.length, 1);
-  assert.deepStrictEqual(result.clusters[0].tasks, ['TASKS-001', 'TASKS-002']);
+  assert.deepStrictEqual(result.clusters[0].tasks, ['TASKS-001', 'TASKS-002', 'TASKS-003', 'TASKS-004']);
   assert.ok(result.clusters[0].interface_keys.includes('sharedFn'));
   assert.ok(result.clusters[0].touch_paths.some((p) => p.includes('shared')));
   assert.deepStrictEqual(result.perspectives, ['local', 'global']);
 });
 
-test('plan with two non-overlapping tasks → still gets local clusters plus global', () => {
+test('plan with two non-overlapping task pairs → still gets local clusters plus global', () => {
   const repo = makeRepo();
   writeBundleIndex(repo);
   writeDoc(repo, `${EPIC_REL}/index.md`, {
@@ -662,6 +694,16 @@ test('plan with two non-overlapping tasks → still gets local clusters plus glo
     touchText: '- `src/alpha.ts`\n',
   });
   writeCommitTask(repo, '002', {
+    dependsOn: ['TASKS-001'],
+    interfaceText: '- `alphaOnly`\n',
+    touchText: '- `src/alpha.ts`\n',
+  });
+  writeCommitTask(repo, '003', {
+    dependsOn: ['TASKS-001'],
+    interfaceText: '- `betaOnly`\n',
+    touchText: '- `src/beta.ts`\n',
+  });
+  writeCommitTask(repo, '004', {
     dependsOn: ['TASKS-001'],
     interfaceText: '- `betaOnly`\n',
     touchText: '- `src/beta.ts`\n',
@@ -1732,13 +1774,15 @@ function writeSharedKeyPair(repo) {
   writeCommitTask(repo, '001', { interfaceText: '- `sharedKey`\n', touchText: '- `src/one.ts`\n' });
   writeCommitTask(repo, '002', { interfaceText: '- `sharedKey`\n', touchText: '- `src/two.ts`\n' });
   writeSoloTask(repo, '003');
+  // 3개 이하는 single이라 cluster 분담을 보려면 commit task가 4개여야 한다.
+  writeSoloTask(repo, '004');
 }
 
 test('plan with a task that leaves its cluster → still relates the previous cluster neighbour', () => {
   const repo = makeRepo();
   writeSharedKeyPair(repo);
   const before = planOf(repo);
-  assert.strictEqual(before.clusters.length, 2);
+  assert.strictEqual(before.clusters.length, 3);
   writeCommitTask(repo, '002', { interfaceText: '- `loneKey`\n', touchText: '- `src/two.ts`\n' });
   const after = planOf(repo, before);
   assert.strictEqual(after.follow_up, 'partial');

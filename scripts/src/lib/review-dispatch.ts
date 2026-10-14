@@ -30,7 +30,7 @@ const { executionKindOf } = schema;
 
 // Plan·Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
 // 복제하면 single/clustered·parallel 판정이 갈라진다.
-const PLAN_SMALL_MAX_TASKS = 1;
+const PLAN_SMALL_MAX_TASKS = 3;
 const EXECUTE_SMALL_MAX_FILES = 3;
 const EXECUTE_SMALL_MAX_LINES = 200;
 
@@ -627,13 +627,16 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
 
   const taskCount = commitTasks.tasks.length;
   if (taskCount <= PLAN_SMALL_MAX_TASKS) {
-    const only = commitTasks.tasks[0];
-    const clusters: PlanCluster[] = only
+    // single은 task가 최대 PLAN_SMALL_MAX_TASKS개라 combined 리뷰어 한 명이 전부 읽는다.
+    // cluster를 첫 task만으로 만들면 나머지 task의 Interface·Touch가 reviewer 입력에서
+    // 빠지므로, 모든 commit task를 한 cluster에 담는다. task가 0개면 cluster도 없다.
+    const sortedUnique = (values: string[]): string[] => [...new Set(values)].sort();
+    const clusters: PlanCluster[] = taskCount > 0
       ? [{
         id: 'c1',
-        tasks: [only.id],
-        interface_keys: [...only.interfaceKeys].sort(),
-        touch_paths: [...only.touchPaths].sort(),
+        tasks: commitTasks.tasks.map((task) => task.id).sort(),
+        interface_keys: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.interfaceKeys])),
+        touch_paths: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.touchPaths])),
       }]
       : [];
     return {

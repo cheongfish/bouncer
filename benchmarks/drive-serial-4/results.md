@@ -22,6 +22,8 @@
 
 ## plan context review 변경 전후 (BP 003)
 
+입력은 [`../plan-review/`](../plan-review/README.md) fixture(결함 D1–D5를 심은 small·large 계획)이고 측정 절차도 그곳에 있다.
+
 | 항목 | 변경 전 | 변경 후 |
 | --- | --- | --- |
 | 호출 수 | 미측정 | 미측정 |
