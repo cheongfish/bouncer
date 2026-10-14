@@ -109,6 +109,10 @@ display and default sort order — not execution authority.
 Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
 YAML lists of 1–2 Korean terminal sentences (each item a `- ` line). A scalar
 string such as `commit_intent: 문장함` fails structural validation as `S32`.
+On the plan gate, an item that fails the commit-time Korean terminal sentence
+check (for example `…시킴.`) fails as `S34` (`commit_intent invalid: …` or
+`commit_summary invalid: …`), so the error surfaces before approval; a list-shape
+error stays `S32` only.
 Absent or `[]` keeps drafts and older tasks readable, and `/bouncer-commit` treats
 `[]` like an absent field by omitting that body line. `/bouncer-commit` renders present
 fields in that order and rejects malformed values without partial omission;

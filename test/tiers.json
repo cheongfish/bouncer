@@ -81,6 +81,7 @@
     "graphify.test.js",
     "import-history.test.js",
     "init.test.js",
+    "commit-sentence-gate.test.js",
     "intent-fence-guard.test.js",
     "intent-bundle.test.js",
     "intent-provenance.test.js",
