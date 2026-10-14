@@ -15,7 +15,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop', 'worker-model',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -4082,4 +4082,119 @@ test('supplement repair with a lockfile → runs npm with stdio sent to stderr',
   assert.strictEqual(out.ok, true, JSON.stringify(out));
   assert.strictEqual(rec.npmCalls.length, 1);
   assert.deepStrictEqual(rec.npmCalls[0].options.stdio, ['ignore', 2, 2]);
+});
+
+// ---- dispatch --model 기록과 worker-model 원장 기록 ----
+
+const MODEL_BP = '.bouncer/context/epics/099-x/blueprints/005-y';
+
+function workerModelCall(drive, extra) {
+  return coordinate({
+    command: 'worker-model', repoRoot: drive.repo, blueprint: drive.blueprint,
+    cwd: drive.integrationPath, ...extra,
+  });
+}
+
+test('dispatch with model claude-sonnet-5-5 → records it on task.dispatch and the dispatch decision', () => {
+  const drive = preparedCommitDrive('bouncer-dispatch-model-', MODEL_BP);
+  const r = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.worker,
+    task: '001', model: 'claude-sonnet-5-5',
+  });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks[0].dispatch.model, 'claude-sonnet-5-5');
+  const decision = ledger.decisions.filter((d) => d.kind === 'dispatch').pop();
+  assert.strictEqual(decision.model, 'claude-sonnet-5-5');
+  assert.deepStrictEqual(Object.keys(r.metadata).sort(), [
+    'attempt', 'base_head', 'initial_worktree_state', 'task_brief_hash',
+  ]);
+});
+
+test('dispatch without model → leaves no model key on task.dispatch or the dispatch decision', () => {
+  const drive = preparedCommitDrive('bouncer-dispatch-nomodel-', MODEL_BP);
+  const r = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.ok(!('model' in ledger.tasks[0].dispatch));
+  assert.ok(!('model' in ledger.decisions.filter((d) => d.kind === 'dispatch').pop()));
+});
+
+test('dispatch with an empty or valueless model → model-invalid without opening an attempt', () => {
+  for (const model of ['', '  ', true]) {
+    const drive = preparedCommitDrive('bouncer-dispatch-badmodel-', MODEL_BP);
+    const before = fs.readFileSync(drive.ledgerFile);
+    const r = coordinate({
+      command: 'dispatch', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.worker,
+      task: '001', model,
+    });
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, 'model-invalid');
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+    assert.strictEqual(JSON.parse(before).tasks[0].dispatch, undefined);
+  }
+});
+
+test('worker-model reviewer/security on task 001 → appends the decision to ledger and task without touching dispatch, lease or status', () => {
+  const drive = preparedCommitDrive('bouncer-worker-model-', MODEL_BP);
+  const beforeTask = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8')).tasks[0];
+  const r = workerModelCall(drive, { role: 'reviewer', model: 'inherit', task: '001', perspective: 'security' });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const expected = {
+    kind: 'worker-model', role: 'reviewer', model: 'inherit', task: '001', perspective: 'security',
+  };
+  assert.deepStrictEqual(r.decision, expected);
+  assert.ok(r.checkpoint);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.decisions.pop(), expected);
+  const task = ledger.tasks[0];
+  assert.deepStrictEqual(task.decisions.pop(), expected);
+  assert.deepStrictEqual(task.dispatch, beforeTask.dispatch);
+  assert.deepStrictEqual(task.lease, beforeTask.lease);
+  assert.strictEqual(task.status, beforeTask.status);
+  assert.ok(r.checkpoint.unresolved_decisions.some((d) => d.kind === 'worker-model'));
+});
+
+test('worker-model debugger without task → records only on the ledger and stays out of unresolved_decisions', () => {
+  const drive = preparedCommitDrive('bouncer-worker-model-notask-', MODEL_BP);
+  const r = workerModelCall(drive, { role: 'debugger', model: 'claude-opus-4-7' });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.decision, { kind: 'worker-model', role: 'debugger', model: 'claude-opus-4-7' });
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.decisions.pop().kind, 'worker-model');
+  assert.ok(!(ledger.tasks[0].decisions || []).some((d) => d.kind === 'worker-model'));
+  assert.ok(!r.checkpoint.unresolved_decisions.some((d) => d.kind === 'worker-model'));
+});
+
+test('worker-model with a bad role, perspective, model or task → refuses with the matching reason and keeps the ledger bytes', () => {
+  const cases = [
+    [{ role: 'implementer', model: 'inherit' }, 'worker-model-role-invalid'],
+    [{ role: 'debugger', model: 'inherit', task: '001', perspective: 'security' }, 'worker-model-perspective-invalid'],
+    [{ role: 'reviewer', model: 'inherit', perspective: 'bogus' }, 'worker-model-perspective-invalid'],
+    [{ role: 'reviewer', model: '  ' }, 'model-invalid'],
+    [{ role: 'reviewer', model: true }, 'model-invalid'],
+    [{ role: 'reviewer', model: 'inherit', task: '009' }, 'task-outside-blueprint'],
+  ];
+  for (const [extra, reason] of cases) {
+    const drive = preparedCommitDrive('bouncer-worker-model-bad-', MODEL_BP);
+    const before = fs.readFileSync(drive.ledgerFile);
+    const r = workerModelCall(drive, extra);
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, reason);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, reason);
+  }
+});
+
+test('worker-model on a promotion_stopped ledger → refuses with promotion-stopped and keeps the ledger bytes', () => {
+  const drive = preparedCommitDrive('bouncer-worker-model-stopped-', MODEL_BP);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.status = 'promotion_stopped';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const before = fs.readFileSync(drive.ledgerFile);
+  const r = workerModelCall(drive, { role: 'reviewer', model: 'inherit' });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'promotion-stopped');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
 });

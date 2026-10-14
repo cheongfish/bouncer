@@ -7,6 +7,12 @@ dispatch and the execute agent-dispatch and review-round references.
 - Dispatch named `bouncer-reviewer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   `bouncer-reviewer` stays read-only. Never play that role yourself and never
   let one worker judge another's report.
+- Immediately before each reviewer dispatch (one per perspective), run
+  `bouncer subagent-model --agent bouncer-reviewer`, then record it with
+  `bouncer coordinate worker-model --blueprint <dir> --role reviewer --model
+  <value> --task <NNN> --perspective <name> --ledger-path <p> --ledger-hash <h>`
+  from the integration cwd, and pass the same value to the dispatch. If a slug
+  rejection forces the `inherit` retry, record the retried value again.
 - When `review_scope` is absent, keep the existing per-task procedure: freeze
   base/head first, then run `bouncer review-dispatch execute --blueprint <dir>
   --task <NNN> --base <sha> --head <sha>`. On `ok: false`, a frozen

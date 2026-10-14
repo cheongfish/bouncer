@@ -16,7 +16,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'worker-model',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -146,7 +146,7 @@ function coordinateCli(cwd, command, extra, { fence = true } = {}) {
   try {
     const fenced = new Set([
       'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-      'repair', 'partial-close', 'critical-recovery', 'release', 'revoke', 'session-open',
+      'repair', 'partial-close', 'critical-recovery', 'release', 'revoke', 'session-open', 'worker-model',
     ]);
     let args = [...extra];
     if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
@@ -512,12 +512,12 @@ test('coordinate release → is no longer a command', () => {
   const drive = preparedDrive();   // 기존 :472 테스트의 fixture
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 2);
-  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, promote-stop, or session-open/);
+  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, promote-stop, session-open, or worker-model/);
   const help = capture(); runCli(['help'], help.io);
   assert.doesNotMatch(help.buf.out, /coordinate release/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, promote-stop, or session-open/);
+  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, promote-stop, session-open, or worker-model/);
 });
 
 
@@ -1077,4 +1077,76 @@ test('coordinate usage → lists session-open', () => {
   const { io, buf } = capture();
   runCli(['help'], io);
   assert.match(buf.out, /coordinate session-open --blueprint <dir>/);
+});
+
+test('coordinate dispatch --model claude-sonnet-5-5 → stores the value on the ledger task dispatch', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.worker, 'dispatch', [
+    '--repo', drive.repo, '--task', '001', '--model', 'claude-sonnet-5-5',
+  ]);
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const ledger = JSON.parse(fs.readFileSync(ledgerOf(drive), 'utf8'));
+  assert.strictEqual(ledger.tasks[0].dispatch.model, 'claude-sonnet-5-5');
+});
+
+test('coordinate dispatch with a valueless --model → exits 1 with model-invalid and opens no attempt', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.worker, 'dispatch', ['--repo', drive.repo, '--task', '001', '--model']);
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  assert.strictEqual(JSON.parse(r.buf.out).reason, 'model-invalid');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-model with a current fence → appends a worker-model decision and prints the checkpoint', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--task', '001',
+    '--perspective', 'security',
+  ]);
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const out = JSON.parse(r.buf.out);
+  assert.strictEqual(out.ok, true);
+  assert.deepStrictEqual(out.decision, {
+    kind: 'worker-model', role: 'reviewer', model: 'inherit', task: '001', perspective: 'security',
+  });
+  assert.ok(out.checkpoint);
+  const decisions = JSON.parse(fs.readFileSync(ledgerOf(drive), 'utf8')).decisions;
+  assert.strictEqual(decisions[decisions.length - 1].kind, 'worker-model');
+});
+
+test('coordinate worker-model with a stale --ledger-hash → refuses with stale-ledger-checkpoint and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'debugger', '--model', 'inherit',
+    '--ledger-path', '.bouncer/runtime/coordinator.json', '--ledger-hash', 'f'.repeat(64),
+  ], { fence: false });
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  assert.strictEqual(JSON.parse(r.buf.out).reason, 'stale-ledger-checkpoint');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-model without --role or --model → is usage exit 2 naming worker-model', () => {
+  const drive = preparedDrive();
+  for (const args of [['--model', 'inherit'], ['--role', 'reviewer']]) {
+    const r = coordinateCli(drive.integration, 'worker-model', ['--repo', drive.repo, ...args]);
+    assert.strictEqual(r.code, 2, r.buf.err + r.buf.out);
+    assert.match(r.buf.err, /usage: bouncer coordinate worker-model/);
+  }
+});
+
+test('coordinate worker-model with a valueless --model → exits 1 with model-invalid', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model',
+  ]);
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  assert.strictEqual(JSON.parse(r.buf.out).reason, 'model-invalid');
+});
+
+test('coordinate usage → lists worker-model', () => {
+  const { io, buf } = capture();
+  runCli(['help'], io);
+  assert.match(buf.out, /coordinate worker-model --blueprint <dir>/);
 });
