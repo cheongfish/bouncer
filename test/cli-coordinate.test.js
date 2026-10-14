@@ -396,6 +396,20 @@ test('coordinate revise with repeated --paths values → records every one in on
   assert.strictEqual(ledger.decisions[0].kind, 'scope');
 });
 
+test('coordinate revise narrowing the previous scope → prints scope-paths-dropped warning in stdout', () => {
+  const { worker, repo } = preparedDrive();
+  const widen = revise(worker, [
+    '--task', '001', '--paths', 'src/auth/', '--paths', 'src/session/', '--reason', 'widen',
+  ], [], repo);
+  assert.strictEqual(widen.code, 0, widen.buf.err);
+  assert.ok(!('warnings' in JSON.parse(widen.buf.out)));
+  const { code, buf } = revise(worker, [
+    '--task', '001', '--paths', 'src/auth/', '--reason', 'narrow',
+  ], [], repo);
+  assert.strictEqual(code, 0, buf.err);
+  assert.deepStrictEqual(JSON.parse(buf.out).warnings, [{ code: 'scope-paths-dropped', paths: ['src/session/'] }]);
+});
+
 test('coordinate revise with any reviseTaskScope reason code → carries it to stderr with exit 1', () => {
   const drive = preparedDrive();
   const cases = [

@@ -11,7 +11,7 @@ const { prepareFinalizeDigest } = finalizeDigestMod;
 import finalizePrMod = require('./finalize-pr');
 const { resolveExplainLinks } = finalizePrMod;
 import commit = require('./commit');
-const { commitTask } = commit;
+const { commitTask, commitExceptionResult } = commit;
 import seedWorktreeMod = require('./seed-worktree');
 const { seedWorktree } = seedWorktreeMod;
 import importHistory = require('./import-history');
@@ -39,13 +39,26 @@ function cmdCommit(rest: string[], io: CliIo) {
     io.err('commit: --blueprint is required\n');
     return 2;
   }
-  const result = commitTask({
-    repoRoot: (f.repo || process.cwd()) as string,
-    blueprintDir: f.blueprint,
-    // === true: parseFlags가 값 없는 --yes만 boolean으로 둔다. `--yes 1` 같은
-    // 문자열은 동의로 치지 않아 실수 커밋을 막는다.
-    yes: f.yes === true,
-  });
+  let result;
+  try {
+    result = commitTask({
+      repoRoot: (f.repo || process.cwd()) as string,
+      blueprintDir: f.blueprint,
+      // === true: parseFlags가 값 없는 --yes만 boolean으로 둔다. `--yes 1` 같은
+      // 문자열은 동의로 치지 않아 실수 커밋을 막는다.
+      yes: f.yes === true,
+    });
+  } catch (error) {
+    // git commit hook 거절 등 모든 commitTask 예외를 stdout JSON 실패로 바꾼다.
+    // 그렇지 않으면 stdout이 비어 advance가 unclear-result로 원인을 잃는다.
+    // 플래그 오류는 위에서 이미 반환했고, 예외 종류와 무관하게 사용자에게
+    // 보이는 결과가 같아야 하므로(report-and-stop) 구분 없이 흡수한다.
+    // stage된 경로는 건드리지 않는다.
+    const failure = commitExceptionResult(error);
+    io.err(`commit: ${failure.cause}\n`);
+    io.out(`${JSON.stringify(failure, null, 2)}\n`);
+    return 1;
+  }
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   // 스코프 실패·훅 거절은 게이트 결과(1). 플래그는 이미 통과했으므로 2가 아니다.
   return result.ok ? 0 : 1;
@@ -408,12 +421,15 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
     registry: '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
       + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Record one scope decision in the task document and ledger.\n'
+      + '             --paths replaces the whole scope with exactly the given set.\n'
       + '             Takes no --repo: the write boundary is the current directory, so\n'
       + '             run it from the assigned task worktree, not the main checkout.\n',
     help: `usage: bouncer coordinate revise
   --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... --reason <text>
   ${COORDINATE_FENCE_NOTE}
   Record one scope decision in the task document and ledger.
+  --paths replaces the whole scope with exactly the given set; pass every path
+  the task still needs, not only new ones (dropped paths are reported as warnings).
   Takes no --repo: the write boundary is the current directory, so
   run it from the assigned task worktree, not the main checkout.
 `,

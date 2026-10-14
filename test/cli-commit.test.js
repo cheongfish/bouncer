@@ -523,3 +523,23 @@ test('commit from the main worktree while a coordinator ledger is live → is re
   }).trim();
   assert.strictEqual(staged, '');
 });
+
+test('commit --yes when a pre-commit hook rejects → exits 1 with one commit-exception JSON and no stack', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
+  // 전역 git 설정이 아니라 이 저장소의 config에만 실패 hook을 건다.
+  const hooks = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hooks-'));
+  fs.writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  execFileSync('git', ['-C', repo, 'config', 'core.hooksPath', hooks]);
+  const { io, buf } = capture();
+  const code = runCli(['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io);
+  assert.strictEqual(code, 1);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'commit-exception');
+  assert.strictEqual(parsed.recovery.action, 'report-and-stop');
+  assert.ok(!buf.out.includes('    at '));
+  assert.ok(buf.err.startsWith('commit: '));
+});

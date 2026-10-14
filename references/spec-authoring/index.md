@@ -147,7 +147,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
        symbol cells in backticks. Write a `Rename` path cell as
        `` `old` → `new` ``. The plan gate (G25) fails a `Modify`, `Delete`, or
        `Rename` old path that is absent from the repository and from every
-       predecessor task's `Create` or `Rename` new path. List only symbols
+       predecessor task's `Create` or `Rename` new path, and fails any path that is
+       absolute or resolves outside the repository. List only symbols
        tied to the entry point, state change, or verification point, and give
        the selection reason in `근거`. When the symbol name is not yet
        grounded, write `신규 추출 지점: <responsibility>` instead of inventing

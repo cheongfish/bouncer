@@ -83,9 +83,10 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
   },
   {
     code: 'G25',
-    match: /Touch path does not exist/,
+    match: /Touch path (does not exist|escapes repository)/,
     next: 'Fix the path typo, change `변경` to `Create` if the task creates it, '
-      + 'or add the creating predecessor task to `depends_on`, then rerun the plan gate.',
+      + 'or add the creating predecessor task to `depends_on`; Touch paths must be '
+      + 'repository-relative and stay inside the repository. Then rerun the plan gate.',
   },
   {
     code: 'S32',

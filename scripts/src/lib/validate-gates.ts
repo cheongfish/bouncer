@@ -1364,8 +1364,23 @@ function planScaleOf(docs: BlueprintDocs): { isLight: boolean; sectionKeys: stri
 }
 
 /**
+ * Touch 경로가 저장소 밖을 가리키는지 문자열 정규화만으로 판정한다.
+ * 절대 경로(Windows 드라이브 문자 포함)이거나 정규화 결과가 `..`·`../…`이면 밖이다.
+ * `a/../b`처럼 정규화 뒤에도 안쪽이면 밖이 아니다(scope.ts의 `..` 전면 거절과 의도적으로 다르다).
+ *
+ * @param {string} p - parseTouchRows가 만든 Touch 경로
+ * @returns {boolean} 저장소 밖이면 true
+ */
+function touchPathEscapesRepo(p: string): boolean {
+  if (path.posix.isAbsolute(p) || /^[A-Za-z]:/.test(p)) return true;
+  const n = path.posix.normalize(p);
+  return n === '..' || n.startsWith('../');
+}
+
+/**
  * G25: 실행 전 commit task의 Touch 표에서 Modify·Delete·Rename-old 경로가 저장소에도,
  * 전이 `depends_on` 선행 commit task의 Create·Rename-new 경로에도 없으면 task당 실패 하나를 낸다.
+ * 절대 경로이거나 저장소 밖으로 정규화되는 경로는 존재 검사 없이 별도 실패 하나로 보고한다.
  * 읽기 전용 existsSync만 쓴다(git index·HEAD를 읽지 않는다). G19가 통과한 graph에서만
  * 불려야 closure 탐색이 순환·미존재 id로 꼬이지 않는다.
  *
@@ -1414,10 +1429,24 @@ function checkTouchPathsExist(tasksList: DocLeaf[], repoRoot: string, failures: 
     if (!(FRESHNESS_TASK_STATUSES as unknown[]).includes(statusOf(entry.doc))) continue;
     const made = createdBy(id);
     const missing = new Set<string>();
+    const escaped = new Set<string>();
     for (const row of entry.rows) {
+      // escape 판정은 Create·Rename new를 포함한 모든 경로에 한다. 저장소 밖 경로는
+      // 존재 검사에서 제외해야 밖에 파일이 있다는 이유로 계획이 통과하지 않는다.
+      for (const p of [row.path, row.renameTo]) {
+        if (p && touchPathEscapesRepo(p)) escaped.add(p);
+      }
+      if (touchPathEscapesRepo(row.path)) continue;
       if (row.change === 'Create') continue;
       if (fs.existsSync(path.join(repoRoot, row.path)) || made.has(row.path)) continue;
       missing.add(row.path);
+    }
+    if (escaped.size > 0) {
+      failures.push({
+        code: 'G25',
+        message: `Touch path escapes repository: ${[...escaped].sort().join(', ')}`,
+        file: entry.doc.rel || '',
+      });
     }
     if (missing.size > 0) {
       failures.push({

@@ -261,6 +261,42 @@ test('stdout without a result event → is result-missing', () => {
   }
 });
 
+test('final result without a report string → is report-missing', () => {
+  const lines = [
+    '{"type":"result","is_error":false}',
+    '{"type":"result","result":"","is_error":false}',
+    '{"type":"result","result":"  \\n","is_error":false}',
+    '{"type":"result","result":42,"is_error":false}',
+  ];
+  for (const line of lines) {
+    const tree = makeTree();
+    try {
+      writeFakeAgent(tree.agentBin, { stdoutLines: ['{"type":"assistant"}', line] });
+      const result = runPrint(tree);
+      assert.equal(result.ok, false, line);
+      assert.equal(result.reason, 'report-missing', line);
+      assert.ok(result.stdout);
+      assert.ok(result.stderr);
+    } finally {
+      fs.rmSync(tree.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('is_error true with an empty result → stays result-error', () => {
+  const tree = makeTree();
+  try {
+    writeFakeAgent(tree.agentBin, {
+      stdoutLines: ['{"type":"result","result":"","is_error":true}'],
+    });
+    const result = runPrint(tree);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'result-error');
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});
+
 test('last result is_error true → is result-error', () => {
   const tree = makeTree();
   try {

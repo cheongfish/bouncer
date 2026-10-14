@@ -255,8 +255,8 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 `dispatch print` runs one Cursor print process. It returns JSON for success
 (`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
 `reason` is `print-dispatch-disabled`, `agent-unavailable`,
-`agent-exit-nonzero`, `result-missing`, `result-error`,
-`dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
+`agent-exit-nonzero`, `result-missing`, `result-error`, `report-missing`
+(the final `result` is absent or blank), `dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
 assemble the identity line, role body, or `agent --print` argv in the
 session. Invalid argv (`print` missing, unknown `--role`, duplicate or
 missing `--role`/`--cwd`/`--input`/`--out`) is exit 2.

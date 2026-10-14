@@ -78,7 +78,9 @@ to your `Decision required` judgment, never a second brief.
   --ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`
   from that task's worktree. That command is the only surface that revises
   scope; it moves the task document and the ledger to one revision and appends
-  the decision behind it, which is what makes the widening reviewable. A scope revision
+  the decision behind it, which is what makes the widening reviewable. `--paths` replaces the task scope with exactly the given set; pass every path
+  the task still needs, not only new ones.
+  A scope revision
   moves the task document and the ledger to one revision and is refused without a reason.
   A revision names repository source paths only — never an absolute or escaping
   path, the whole tree, `.git/`, or the `.bouncer/` governance tree — and inside
@@ -160,8 +162,8 @@ Drive one commit task from its worker cwd. Per-action rules come from the
 `dispatch`, `implement`, `verify`, `review`, `report`, and `record` cards.
 Do not load the standalone execute skill.
 
-After the execute gate and before report or record, from the worker cwd run
-`bouncer commit --blueprint <dir> --yes`.
+`advance` runs `bouncer commit --blueprint <dir> --yes` from the worker cwd
+after the execute gate; do not run it by hand.
 
 ## Procedure
 

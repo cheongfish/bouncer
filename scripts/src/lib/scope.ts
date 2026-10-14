@@ -655,7 +655,13 @@ function lockedTaskWrite(
  * task 문서와 ledger를 같은 revision으로 옮기고, 이유 없는 변경은 거절한다.
  * 저장소 밖·`.bouncer/`·`.git/`·트리 전체 표기는 scope로 받지 않는다.
  *
- * @returns {{ok: true, revision: string, previous: string[], paths: string[]} | {ok: false, reason: string}}
+ * `paths`는 task scope를 전달한 집합 전체로 교체한다(추가가 아니다). 이전 범위에서
+ * 빠졌는데 새 집합이 덮지 못한 경로가 있으면 성공 결과에 `warnings`로 알린다.
+ *
+ * @returns {{ok: true, revision: string, previous: string[], paths: string[],
+ *   revoked?: string[],
+ *   warnings?: Array<{code: 'scope-paths-dropped', paths: string[]}>}
+ *   | {ok: false, reason: string}}
  */
 function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }: {
   repoRoot: unknown; blueprint: unknown; task: unknown; paths: unknown; reason: unknown;
@@ -771,9 +777,26 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
 
     if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(ledgerFile, ledger);
-    return revoked.length > 0
-      ? { ok: true, revision, previous, paths: next, revoked }
-      : { ok: true, revision, previous, paths: next };
+    // --paths는 전체 교체인데 경로 추가로 착각해 새 경로만 넘기면 범위가 조용히
+    // 줄었다. 거절하면 의도적 축소(재작업 되돌림)를 막으므로 경고만 붙인다.
+    // "덮는다" = 정규화한 두 경로가 같거나 새 경로가 이전 경로의 상위 디렉터리.
+    // 이 함수의 잠금 안에서 쓴 previous를 그대로 쓰므로 추가 읽기는 없다.
+    const nextNormalized = next.map(normalize);
+    const dropped = previous.filter((p) => {
+      const prev = normalize(p);
+      return !nextNormalized.some((n) => isUnder(prev, n));
+    });
+    return {
+      ok: true,
+      revision,
+      previous,
+      paths: next,
+      ...(revoked.length > 0 ? { revoked } : {}),
+      // 경고가 없으면 키를 두지 않아 기존 성공 결과와 바이트가 같다.
+      ...(dropped.length > 0
+        ? { warnings: [{ code: 'scope-paths-dropped', paths: dropped }] }
+        : {}),
+    };
   });
 }
 
