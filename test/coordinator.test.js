@@ -4187,6 +4187,17 @@ test('worker-model with a bad role, perspective, model or task → refuses with 
   }
 });
 
+test('worker-model-perspective-invalid hint → names every perspective the core accepts', () => {
+  const accepted = ['combined', 'spec_scope', 'correctness_tests', 'minimality_maintainability', 'security'];
+  for (const perspective of accepted) {
+    const drive = preparedCommitDrive('bouncer-worker-model-persp-', MODEL_BP);
+    const r = workerModelCall(drive, { role: 'reviewer', model: 'inherit', perspective });
+    assert.strictEqual(r.ok, true, perspective);
+  }
+  const { next } = COORDINATE_FAILURE_HINTS['worker-model-perspective-invalid'];
+  for (const perspective of accepted) assert.ok(next.includes(perspective), perspective);
+});
+
 test('worker-model on a promotion_stopped ledger → refuses with promotion-stopped and keeps the ledger bytes', () => {
   const drive = preparedCommitDrive('bouncer-worker-model-stopped-', MODEL_BP);
   const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));

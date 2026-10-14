@@ -719,6 +719,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   }
   const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
   const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
+  // worker-model은 fence 플래그 누락을 다른 fenced 명령과 달리 usage(2)로 막는다
+  // (task 002 Interface: --role·--model·fence 플래그 누락은 core 호출 전 exit 2).
+  if (command === 'worker-model' && (ledgerPath === undefined || ledgerPath === ''
+    || ledgerHash === undefined || ledgerHash === '')) {
+    return failCoordinateUsage(
+      io, 'coordinate worker-model: --ledger-path and --ledger-hash are required\n', command,
+    );
+  }
   if (fencedCommands.has(command)) {
     // Interface: 누락은 usage(2)가 아니라 다른 coordinate 거절과 같은 JSON reason + exit 1.
     // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
@@ -783,6 +791,16 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     }
     if (!Object.prototype.hasOwnProperty.call(f, 'model')) {
       return failCoordinateUsage(io, 'coordinate worker-model: --model is required\n', command);
+    }
+    // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
+    // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
+    for (const name of ['task', 'perspective']) {
+      if (Object.prototype.hasOwnProperty.call(f, name)
+        && (typeof f[name] !== 'string' || f[name] === '')) {
+        return failCoordinateUsage(
+          io, `coordinate worker-model: --${name} requires a value\n`, command,
+        );
+      }
     }
   }
   if (command === 'revoke') {

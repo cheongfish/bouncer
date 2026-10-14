@@ -34,8 +34,11 @@ from the coordinator Task round and Worker dispatch.
   <value>` (`next` does not put it in `argv`). The ledger then records the model
   argument you pass, so it can be compared with `config.json` later; it is not
   proof of the model the host ran. If a slug rejection forces the `inherit`
-  retry from `${BOUNCER_ROOT}/rules/subagent-model.md` item 3, redispatch with `--model
-  inherit` so the retried value is recorded.
+  retry from `${BOUNCER_ROOT}/rules/subagent-model.md` item 3, retry only the
+  host dispatch. Do not run `coordinate dispatch` again: the attempt is still
+  active (`dispatch-already-active`) and a second call would not be a retry. The
+  ledger keeps the slug first passed; state the `inherit` retry in your own
+  report to the user instead.
 - After `rework`, `scope_revision`, or `task_change`, revise only when the
   outcome requires it, then redispatch so runtime supplies the increased
   `attempt` and `previous_outcome`. After `ok: false` or a fence refusal,

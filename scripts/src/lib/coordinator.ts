@@ -4262,8 +4262,9 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'worker-model-perspective-invalid': {
     cause: 'The perspective is not a reviewer perspective, or it was given with a non-reviewer role.',
-    next: 'Retry with a reviewer perspective (combined, spec_scope, correctness_tests, '
-      + 'minimality_maintainability, security), or drop `--perspective` for the debugger.',
+    // 열거를 하드코딩하면 WORKER_MODEL_REVIEW_PERSPECTIVES와 어긋난다 — 상수에서 만든다.
+    next: `Retry with a reviewer perspective (${WORKER_MODEL_REVIEW_PERSPECTIVES.join(', ')}), `
+      + 'or drop `--perspective` for the debugger.',
   },
   'summary-required': {
     cause: 'Report requires a non-empty summary.',

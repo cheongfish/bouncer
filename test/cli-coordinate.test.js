@@ -1136,6 +1136,30 @@ test('coordinate worker-model without --role or --model → is usage exit 2 nami
   }
 });
 
+test('coordinate worker-model without fence flags → is usage exit 2 and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit',
+  ], { fence: false });
+  assert.strictEqual(r.code, 2, r.buf.err + r.buf.out);
+  assert.match(r.buf.err, /usage: bouncer coordinate worker-model/);
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-model with a valueless --task or --perspective → is usage exit 2 and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  for (const extra of [['--task'], ['--perspective'], ['--task', '001', '--perspective']]) {
+    const r = coordinateCli(drive.integration, 'worker-model', [
+      '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', ...extra,
+    ]);
+    assert.strictEqual(r.code, 2, `${extra.join(' ')}: ${r.buf.err}${r.buf.out}`);
+    assert.match(r.buf.err, /usage: bouncer coordinate worker-model/);
+  }
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
 test('coordinate worker-model with a valueless --model → exits 1 with model-invalid', () => {
   const drive = preparedDrive();
   const r = coordinateCli(drive.integration, 'worker-model', [
