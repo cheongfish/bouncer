@@ -94,6 +94,7 @@
     "public-name-regression.test.js",
     "context-review-state.test.js",
     "review-dispatch.test.js",
+    "review-snapshot.test.js",
     "run-preflight.test.js",
     "runtime-state.test.js",
     "seed-worktree.test.js",

@@ -27,6 +27,8 @@ import contextReviewState = require('./context-review-state');
 const { isRecord } = guards;
 import schema = require('./schema');
 const { executionKindOf } = schema;
+import reviewSnapshot = require('./review-snapshot');
+const { captureReviewSnapshot } = reviewSnapshot;
 
 // Plan·Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
 // 복제하면 single/clustered·parallel 판정이 갈라진다.
@@ -46,7 +48,7 @@ const REVIEW_RISK_ENUM = [
 type ExecFileSyncFn = (
   file: string,
   args: readonly string[],
-  options?: { cwd?: string; encoding?: BufferEncoding },
+  options?: { cwd?: string; encoding?: BufferEncoding; maxBuffer?: number },
 ) => string | Buffer;
 
 type PlanCluster = {
@@ -102,7 +104,12 @@ type PlanDispatchOk = PlanDispatchSkip | PlanDispatchReview;
 type ExecuteDispatchOk = {
   ok: true;
   phase: 'execute';
-  target: { base: string; head: string; task: string | null };
+  // snapshot_id·snapshot_path는 동결한 최종 작업 트리 artifact를 가리킨다. 통계도
+  // 같은 artifact에서 나오므로 리뷰어가 읽는 내용과 규모 분류가 어긋나지 않는다.
+  target: {
+    base: string; head: string; task: string | null;
+    snapshot_id: string; snapshot_path: string;
+  };
   strategy: 'single' | 'parallel';
   changed_files: number;
   changed_lines: number;
@@ -674,7 +681,10 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
 }
 
 /**
- * frozen base/head의 numstat과 승인된 review_risk로 Execute 리뷰 전략을 고른다.
+ * base 이후 최종 작업 트리의 동결 스냅샷 통계와 승인된 review_risk로 Execute 리뷰 전략을 고른다.
+ * 스냅샷 artifact는 `.bouncer/runtime/review-snapshots/`에 저장되며(그 밖에는 쓰지 않는다),
+ * target에 snapshot_id·snapshot_path가 실린다. head가 현재 HEAD와 다르거나 수집이 실패하면
+ * 줄 수 0으로 접지 않고 ok:false(reason·cause·next)를 돌려준다.
  * 경로명·diff 본문 키워드로 위험을 추측하지 않는다.
  * blueprint `bouncer.scale`이 `light`이면 diff 크기와 관계없이 `single`/
  * `combined`다 — light run의 단일 reviewer 계약이 임계값에 갈리지 않게 하기
@@ -691,7 +701,7 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
  * }} opts - repoRoot는 저장소 루트, blueprintDir는 canonical blueprint 상대 경로,
  *   taskId는 선택적 commit task 번호, base/head는 frozen git ref,
  *   reviewMode는 discovery(기본)|delta, exec는 git 호출기
- * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험, 실패 시 ok:false.
+ * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험·snapshot target, 실패 시 ok:false.
  *   blueprint 범위 성공의 `target.task`는 null. S30 위반이면 perspectives 없음.
  *   delta 성공은 항상 `single`/`['combined']`이고 reasons에 한 줄이 더 있다.
  */
@@ -794,13 +804,29 @@ function classifyExecuteReview({
     return { ok: false, error: `git ref resolve failed: ${message}` };
   }
 
-  let stats: { changed_files: number; changed_lines: number };
-  try {
-    stats = readNumstat(exec, repoRoot, resolvedBase, resolvedHead);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, error: `git diff failed: ${message}` };
-  }
+  // 별도 live diff로 분류한 뒤 다시 수집하면 분류와 리뷰 입력이 갈라진다. 최종 작업
+  // 트리를 한 번만 동결하고 그 artifact의 통계로 임계값을 판정한다. base 이후의
+  // 미커밋(staged·unstaged·untracked) 변경도 이 경로로만 센다.
+  const captured = captureReviewSnapshot({
+    repoRoot,
+    blueprintDir: bp,
+    taskId: targetTask,
+    base: resolvedBase,
+    head: resolvedHead,
+    deps: {
+      // 기존 exec 주입 호환: 모든 git 호출이 같은 exec를 지나가 테스트가 한 곳에서 대체한다.
+      runGit: (args) => Buffer.from(exec('git', args, { cwd: repoRoot, maxBuffer: 512 * 1024 * 1024 })),
+    },
+  });
+  if (!captured.ok) return captured;
+  const stats = captured.snapshot;
+  const frozenTarget = {
+    base: captured.snapshot.target.base,
+    head: captured.snapshot.target.head,
+    task: targetTask,
+    snapshot_id: captured.snapshot_id,
+    snapshot_path: captured.snapshot_path,
+  };
 
   const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
     && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
@@ -834,7 +860,7 @@ function classifyExecuteReview({
     return {
       ok: true,
       phase: 'execute',
-      target: { base: resolvedBase, head: resolvedHead, task: targetTask },
+      target: frozenTarget,
       strategy: 'single',
       changed_files: stats.changed_files,
       changed_lines: stats.changed_lines,
@@ -847,7 +873,7 @@ function classifyExecuteReview({
   return {
     ok: true,
     phase: 'execute',
-    target: { base: resolvedBase, head: resolvedHead, task: targetTask },
+    target: frozenTarget,
     strategy,
     changed_files: stats.changed_files,
     changed_lines: stats.changed_lines,
@@ -1111,45 +1137,6 @@ function gitRevParse(exec: ExecFileSyncFn, repoRoot: string, ref: string): strin
     encoding: 'utf8',
   });
   return String(out).trim();
-}
-
-/**
- * `git diff --numstat`을 파싱한다. binary(`-`) 행은 파일만 세고 줄 합계에는
- * 넣지 않으며, binary만으로 parallel로 올리지 않는다.
- *
- * @param {ExecFileSyncFn} exec - 주입 가능한 execFileSync
- * @param {string} repoRoot - cwd
- * @param {string} base - resolved base SHA
- * @param {string} head - resolved head SHA
- * @returns {{ changed_files: number, changed_lines: number }}
- */
-function readNumstat(
-  exec: ExecFileSyncFn,
-  repoRoot: string,
-  base: string,
-  head: string,
-): { changed_files: number; changed_lines: number } {
-  const out = String(exec('git', ['diff', '--numstat', base, head], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  }));
-  let changedFiles = 0;
-  let changedLines = 0;
-  for (const line of out.split('\n')) {
-    if (!line.trim()) continue;
-    const parts = line.split('\t');
-    if (parts.length < 3) continue;
-    changedFiles += 1;
-    const add = parts[0];
-    const del = parts[1];
-    // binary는 `-`/`-`. 숫자로 합치면 NaN이 되어 임계값을 오염시킨다.
-    if (add === '-' || del === '-') continue;
-    const additions = Number(add);
-    const deletions = Number(del);
-    if (Number.isFinite(additions)) changedLines += additions;
-    if (Number.isFinite(deletions)) changedLines += deletions;
-  }
-  return { changed_files: changedFiles, changed_lines: changedLines };
 }
 
 export = {
