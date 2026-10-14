@@ -160,8 +160,8 @@ Drive one commit task from its worker cwd. Per-action rules come from the
 `dispatch`, `implement`, `verify`, `review`, `report`, and `record` cards.
 Do not load the standalone execute skill.
 
-After the execute gate and before report or record, from the worker cwd run
-`bouncer commit --blueprint <dir> --yes`.
+`advance` runs `bouncer commit --blueprint <dir> --yes` from the worker cwd
+after the execute gate; do not run it by hand.
 
 ## Procedure
 

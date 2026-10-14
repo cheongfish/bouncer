@@ -260,3 +260,20 @@ test('prepare then yield → executes prepare once and stops with yield', () => 
   assert.strictEqual(r.executed.length, 1);
   assert.strictEqual(r.executed[0].action, 'prepare');
 });
+
+test('auto commit prints commit-exception JSON with status 1 → advance fails with that reason and recovery', () => {
+  const body = {
+    ok: false,
+    reason: 'commit-exception',
+    cause: 'Command failed: git commit --only',
+    recovery: { action: 'report-and-stop', detail: 'Stop and report commit-exception.' },
+  };
+  const { deps } = scriptedDeps(
+    [okNext('commit', { argv: ['bouncer', 'commit', '--blueprint', 'bp', '--yes'] })],
+    [{ stdout: `${JSON.stringify(body)}\n`, status: 1 }],
+  );
+  const out = advance({ repoRoot: '/r', blueprint: 'bp', deps });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.reason, 'commit-exception');
+  assert.strictEqual(out.recovery.action, 'report-and-stop');
+});
