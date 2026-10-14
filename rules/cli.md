@@ -31,7 +31,9 @@ edges to them are ignored. Failure payloads omit `shape`.
 `run preflight` refuses in this order: (1) `ok:false` with a `CURRENT_*`
 selection error, (2) `ok:false` `no-current`, (3) `ok:false` `pointer-mismatch`
 with `expected` (the pointer blueprint) and `actual` (the `--blueprint` input,
-`toPosix` only) when the epic or blueprint ids differ or cannot be parsed,
+`toPosix` only) when the `--blueprint` input, normalized to a repo-relative POSIX path with
+no trailing slash, differs from the normalized pointer blueprint, resolves
+outside the repo, or (when it exists) its realpath is outside the repo realpath,
 (4) `delegable:false` from the ledger status: `promotion-stopped`,
 `awaiting-confirmation`, `partial-closed`, (5) `delegable:false` from the
 blueprint document status when it is not `approved`: `blueprint-closed`,

@@ -2,6 +2,7 @@
 
 import guards = require('./guards');
 const { isRecord } = guards;
+const fs = require('node:fs');
 const path = require('node:path');
 import current = require('./current');
 const { readCurrent, CurrentSelectionError } = current;
@@ -10,7 +11,7 @@ const { listTasksDocs } = tasksDocs;
 import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import paths = require('./paths');
-const { toPosix, parsePathIds } = paths;
+const { toPosix } = paths;
 import schema = require('./schema');
 const {
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, DEFAULT_SCALE,
@@ -300,6 +301,46 @@ function collectTasks(repoRoot: string, blueprintDir: string): {
 }
 
 /**
+ * blueprint 경로를 repo 상대 POSIX 문자열로 정규화한다. 절대·상대 입력 모두
+ * repoRoot 기준으로 풀고 `./`·`..` 세그먼트와 끝 슬래시를 제거해, 같은 blueprint는
+ * 표기와 무관하게 같은 문자열이 되게 한다. repo 밖이면 `..` 접두 또는 절대 경로가 남는다.
+ *
+ * @param {string} repoRoot - 기준 checkout
+ * @param {string} input - repo 상대 또는 절대 경로
+ * @returns {string} 정규화한 repo 상대 POSIX 경로
+ */
+function normalizeBlueprintPath(repoRoot: string, input: string): string {
+  const relative = toPosix(path.relative(repoRoot, path.resolve(repoRoot, toPosix(input))));
+  return path.posix.normalize(relative).replace(/\/$/, '');
+}
+
+/** 정규화한 repo 상대 경로가 repo 밖을 가리키는지 본다. */
+function isOutsideRepo(relative: string): boolean {
+  return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative);
+}
+
+/**
+ * 요청 경로가 실재할 때 symlink를 풀어 repo 밖으로 나가는지 본다. 문자열 정규화만으로는
+ * repo 안 symlink가 밖의 같은 id blueprint를 가리켜도 통과하기 때문이다. 경로가
+ * 실재하지 않으면(ENOENT·ENOTDIR) 풀 대상이 없으므로 문자열 판정에 맡기고 false를 돌려준다.
+ *
+ * @param {string} repoRoot - 기준 checkout
+ * @param {string} requested - `--blueprint` 값
+ * @returns {boolean} 실재하는 요청 경로의 realpath가 repo realpath 밖이면 true
+ */
+function resolvesOutsideRepo(repoRoot: string, requested: string): boolean {
+  let real: string;
+  try {
+    real = fs.realpathSync(path.resolve(repoRoot, toPosix(requested)));
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return false;
+    throw error;
+  }
+  return isOutsideRepo(toPosix(path.relative(fs.realpathSync(repoRoot), real)));
+}
+
+/**
  * drive 시작에 필요한 pointer·blueprint·열린 task·DAG·autonomy를 한 JSON으로
  * 정규화한다. 파일을 쓰지 않으며, 위임 가능 여부는 상태만 보고 결정한다.
  * 요청 blueprint가 포인터와 다르면 `pointer-mismatch`(ok:false)로 거절한다.
@@ -331,33 +372,21 @@ function runPreflight({ repoRoot, blueprintDir }: {
   if (!pointer) return { ok: false, reason: 'no-current' };
 
   // 포인터와 다른 blueprint를 요청하면 그 task에 포인터의 base를 섞어 위임 가능으로
-  // 판정하게 된다. 문자열이 아니라 epic/blueprint id 쌍으로 비교해 끝 슬래시·`./`·
-  // 절대 경로 표기 차이는 같은 blueprint로 본다. id를 못 뽑는 입력도 같은 거절이다.
-  const want = parsePathIds(requested);
-  const have = parsePathIds(pointer.blueprint);
+  // 판정하게 된다. 원본 문자열에서 id를 뽑으면 `<bp>/../<다른 bp>`가 id 비교를 통과하므로,
+  // 요청과 포인터를 같은 규칙으로 정규화한 문자열을 비교한다. 끝 슬래시·`./`·repo 안
+  // 절대 경로 표기 차이는 정규화로 같아지고, id를 못 뽑는 입력은 포인터와 달라 거절된다.
+  const blueprint = normalizeBlueprintPath(repoRoot, requested);
   if (
-    !want.epicId || !want.blueprintId
-    || want.epicId !== have.epicId || want.blueprintId !== have.blueprintId
+    blueprint !== normalizeBlueprintPath(repoRoot, pointer.blueprint)
+    // 정규화 결과가 repo 밖(다른 경로의 절대 경로, 루트를 벗어나는 `../`)이면 그 바깥
+    // 문서를 읽게 되므로 같은 pointer-mismatch로 거절한다. actual은 요청 원문 그대로 둔다.
+    || isOutsideRepo(blueprint)
+    || resolvesOutsideRepo(repoRoot, requested)
   ) {
     return {
       ok: false, reason: 'pointer-mismatch', expected: pointer.blueprint, actual: requested,
     };
   }
-
-  // 문서·원장 조회는 repo 상대 경로가 필요하다. 절대 경로를 path.join(repoRoot, …)에
-  // 그대로 넘기면 경로가 겹쳐 읽기에 실패하므로 repoRoot 기준 상대 경로로 맞춘다.
-  // 절대·상대 입력 모두 path.relative로 정규화해 같은 규칙으로 repo 경계를 검사한다.
-  const relative = toPosix(path.relative(repoRoot, path.resolve(repoRoot, requested)));
-
-  // epic/blueprint id가 포인터와 같아도 repo 밖(다른 경로의 절대 경로, 루트를 벗어나는
-  // `../`)이면 그 바깥 문서를 읽어 위임 가능으로 판정하게 된다. id 불일치와 같은
-  // pointer-mismatch로 거절하되 actual은 요청 원문 그대로 둔다.
-  if (relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) {
-    return {
-      ok: false, reason: 'pointer-mismatch', expected: pointer.blueprint, actual: requested,
-    };
-  }
-  const blueprint = path.posix.normalize(relative).replace(/\/$/, '');
 
   const meta = readBlueprintMeta(repoRoot, blueprint);
   const { openTasks, waveTasks, shapeTasks } = collectTasks(repoRoot, blueprint);

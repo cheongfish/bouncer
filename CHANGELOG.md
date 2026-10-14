@@ -9,6 +9,12 @@
 
 ### Changed
 
+- **repair 경로 통합과 preflight 포인터 비교 정리 (EPIC 099 BP 003)** — integrate 단계가 동적으로
+  추가된 repair task의 증적도 인정한다. `run preflight`는 요청 경로와 포인터를 같은 규칙으로 정규화한
+  문자열로 비교해 `<bp>/../<다른 bp>`를 거절하고, 요청 경로가 실재하면 realpath로 repo 경계를
+  확인해 repo 밖을 가리키는 symlink를 `pointer-mismatch`로 거절한다. 손상된 원장 파일은 miss로 보고
+  문서 status로 판정한다.
+
 - **run 시작 계약 정리 (EPIC 099 BP 002)** — `run preflight`가 포인터와 다른 blueprint
   요청(`pointer-mismatch`)과 승인되지 않았거나 종료 중인 blueprint·원장 상태에서 위임을 거절한다.
   `/bouncer-run`은 scale과 관계없이 preflight, 시작 ACQ, bootstrap을 거친 뒤에만 light 절차로

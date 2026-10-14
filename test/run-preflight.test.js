@@ -653,3 +653,71 @@ test('run preflight with an absolute blueprint path inside the repo → stays ac
   assert.strictEqual(payload.ok, true);
   assert.strictEqual(payload.blueprint.dir, BP_REL);
 });
+
+test('run preflight with a ../ path resolving to another blueprint of the same epic → rejects with the raw request as actual', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const otherRel = `${EPIC_REL}/blueprints/002-other`;
+  const otherTask = `${otherRel}/tasks/001/tasks.md`;
+  writeDoc(repo, `${otherRel}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Other', description: 'd', resource: `${otherRel}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '002', epic_id: '001', blueprint_id: '002', status: 'approved', scale: 'full',
+    },
+  }, '# Other\n');
+  writeDoc(repo, otherTask, {
+    type: 'bouncer.tasks', title: 'Other task', description: 'd', resource: otherTask,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '002', status: 'ready',
+      execution_kind: 'commit', affected_paths: ['c.ts'],
+    },
+  }, '# Other task\n');
+  const requested = `${BP_REL}/../002-other`;
+
+  const payload = parsePayload(preflightFor(repo, requested));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.expected, BP_REL);
+  assert.strictEqual(payload.actual, requested);
+});
+
+test('run preflight with a blueprint directory symlinked outside the repo → rejects with pointer-mismatch', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  // 같은 id의 approved blueprint를 repo 밖에 만들고 repo 안 경로를 그쪽 symlink로 바꾼다.
+  const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-run-preflight-out-')));
+  writePlanTree(outside);
+  fs.rmSync(path.join(repo, BP_REL), { recursive: true });
+  fs.symlinkSync(path.join(outside, BP_REL), path.join(repo, BP_REL), 'dir');
+
+  const payload = parsePayload(preflightFor(repo, BP_REL));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'pointer-mismatch');
+  assert.strictEqual(payload.expected, BP_REL);
+  assert.strictEqual(payload.actual, BP_REL);
+});
+
+test('run preflight with a corrupt ledger file → falls back to the document status', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { bpStatus: 'draft' });
+  setPointer(repo);
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(paths.ledgerFile, '{not json');
+
+  const draft = parsePayload(preflight(repo));
+  setBpStatus(repo, 'status: draft', 'status: approved');
+  const approved = parsePayload(preflight(repo));
+
+  assert.strictEqual(draft.delegable, false);
+  assert.strictEqual(draft.reason, 'blueprint-draft');
+  assert.strictEqual(approved.delegable, true);
+  assert.strictEqual(approved.reason, null);
+});
