@@ -37,7 +37,7 @@ CLI가 계측·세션 경계·출처 검사를 결정적으로 처리하고 모�
 11. `bouncer run preflight`의 `direct_eligible`은 full 원장·`drive_shape: serial`·열린 commit task 수 ≤ `coordinator.direct_max_commit_tasks`(기본 3, 0이면 끔)일 때만 true이고, 테스트가 이 경계를 고정한다. `/bouncer-run` 시작 ACQ는 그때만 직접 실행 선택지를 보이며 권장은 coordinator에 둔다. `skills/bouncer-run/references/direct-run.md`는 root가 정상 판단을 카드대로 기록하고, accepted가 아닌 판단이나 예외 정지에서는 그 판단을 원장에 기록하지 않고 coordinator에 넘기며(인계 디스패치 전 `coordinate session-open`의 `session` 결정만 남는다), root 직접 구현을 금지한다고 명시한다. `light-run.md`는 바뀌지 않는다.
 12. 직렬 4-task fixture 생성 스크립트·측정 절차·기록 문서가 `benchmarks/drive-serial-4/`(`setup.cjs`, `README.md`, `results.md`)에 있다. 기록 문서는 기준선·다중 wave·직접 실행과 plan context review 변경 전후 결과 행을 `미측정`으로 두고, wave 상한 4와 N 3을 잠정값으로 표시한다. 실제 측정값과 최종 상한·N은 merge 뒤 사용자가 fixture를 실행해 같은 문서에 기록하며, 측정하지 못한 값은 사유와 함께 미확인으로 남는다.
 13. plan context review의 필수 판단은 문서 정합성·범위(`cross_document`)와 검증 가능성(`success_criteria`)이고, commit task 3개 이하는 `combined` 한 번으로 dispatch된다. 기존 `korean_quality`·`scope` 기록은 읽기 호환되고 새 dispatch는 만들지 않는다.
-14. Touch의 Modify·Delete·Rename 경로가 존재하지 않으면 plan gate가 새 G 코드로 실패한다. context reviewer rubric은 Contract 저장 위치·상태 소유권과 task 브리프 문구의 대조, 보안 위험 표시 누락 확인을 포함하고, plan gate는 보안 경로 분류에 걸리는 Touch에 빈 `review_risk`를 경고한다.
+14. Touch의 Modify·Delete·Rename 경로가 저장소에 없고 선행 task가 만드는 경로도 아니면 plan gate가 새 G 코드로 실패한다. context reviewer rubric은 Contract 저장 위치·상태 소유권과 task 브리프 문구의 대조, 보안 위험 표시 누락 확인을 포함하고, plan gate는 보안 경로 분류에 걸리는 Touch에 빈 `review_risk`를 경고한다.
 15. 각 BP의 최종 검증은 `npm run ci`이고, 바뀐 `agents/*.md`마다 `.codex/agents/*.toml`이 생성 결과와 바이트 단위로 같으며, 진입 skill 단어 수 합계가 기준선 8665 미만이고, CHANGELOG.md `Unreleased`에 해당 BP 변경이 기록된다.
 
 ## Out of scope
@@ -69,3 +69,4 @@ BP 002와 003은 BP 001이 대상 base에 통합된 뒤 별도 `/bouncer-plan`�
 ## Blueprints
 * [001 드라이브 기반 안정화와 실행 출처·계측](blueprints/001-drive-foundation-provenance/index.md) - `advance` 출력 오염, stale build, SHA 출처, 세션 계측, worker 보고 구조화, integrate 역할 경계를 coordinator·launcher·finalize에서 고친다.
 * [002 직렬 드라이브 세션 연속과 DAG 모양 판단](blueprints/002-serial-drive-shape/index.md) - coordinate next·advance에 세션 경계와 `yield`를, preflight·plan gate에 DAG 모양 계산과 경고를, `/bouncer-run`에 짧은 직렬 체인 직접 실행을 더하고 측정 fixture를 둔다.
+* [003 plan context review 관점 통합과 기계 검사 이관](blueprints/003-plan-review-focus/index.md) - plan context review를 정합성·범위와 검증 가능성 두 판단으로 줄여 commit task 3개 이하는 한 번에 리뷰하고, Touch 경로 존재(G25)와 보안 위험 표시 누락 경고를 plan gate로 옮기며, seeded fixture로 탐지를 잰다.
