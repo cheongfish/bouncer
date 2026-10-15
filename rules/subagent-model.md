@@ -59,8 +59,10 @@ limits.
    A `completed` or waiting notification that carries no result body is not an
    outcome either; keep waiting for the hand-back report (the subagent's final
    result body). Defer `metrics end` and the next step until that report
-   arrives, then close with the usage values of the final notification, never
-   an intermediate one.
+   arrives. The hand-back message carries no `subagent_tokens`; wait for the
+   same agent's `<task-notification>`, read its `usage` (`subagent_tokens`,
+   `duration_ms`), and only then call `metrics end` with those values, never an
+   intermediate notification's. A session already closed is not corrected.
 7. On Cursor, `subagents.dispatch: "print"` in `.bouncer/config.json` is an
    explicit opt-in. Only when `subagents.provider` is `cursor` and that value is
    exactly `print`, read `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` before the first
