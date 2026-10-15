@@ -8,7 +8,9 @@ const { isDeepStrictEqual } = require('node:util');
 import guards = require('./guards');
 const { isRecord } = guards;
 import frontmatter = require('./frontmatter');
-const { readDoc } = frontmatter;
+const { readDoc, parseFrontmatter } = frontmatter;
+import render = require('./render');
+const { renderDoc } = render;
 import planSnapshot = require('./plan-snapshot');
 const { SNAPSHOT_VERSION, computePlanSnapshot, computePlanParts } = planSnapshot;
 import scaffold = require('./scaffold');
@@ -21,12 +23,13 @@ import validateSections = require('./validate-sections');
 const {
   REVIEW_SEVERITY, CONTEXT_REVIEW_STATUS, FINDING_ACTIONABILITY,
   REPORT_FINDING_STATUS: FINDING_STATUS, CONTEXT_ROUND_MODES: ROUND_MODES,
-  CONTEXT_REPORT_STATUS: REPORT_STATUS,
+  CONTEXT_REPORT_STATUS: REPORT_STATUS, collectFindingFailures,
 } = validateSections;
 
 // 계획 리뷰 cycle의 단일 writer. 전체 재시작을 누적 1회로 제한하고, 재시작이
-// 이전 finding을 지우지 못하게 archive로 보관한다. 이 모듈은 context-review.md나
-// execute review.md를 쓰지 않는다 — 기록 성공은 plan gate(G18) 통과가 아니다.
+// 이전 finding을 지우지 못하게 archive로 보관한다. cycle을 닫는 전이(close, record --status accepted)만
+// context-review.md에 투영을 기록하고 execute review.md는 쓰지 않는다. 기록 성공이 곧 plan gate(G18)
+// 전체 통과는 아니다(다른 문서와 신선도는 게이트가 본다).
 
 const RESTART_LIMIT = 1;
 // cycle id는 newCycleId가 만드는 형식 하나뿐이다. 경로 구성요소로 쓰이므로 그 밖은 손상이다.
@@ -587,6 +590,109 @@ function prepareMarker(repoRoot: string, bp: string, count: number): { abs: stri
   return { abs, text };
 }
 
+// context-review.md `## Findings` 절 제목. validate-sections의 REVIEW_SECTION_DEFS(G18이 읽는 정의)와
+// 같은 별칭을 받아야 재작성한 절을 게이트가 같은 절로 인식한다.
+const FINDINGS_HEADING_RE = /^##\s+(Findings|발견사항|리뷰\s*결과)\s*$/i;
+// plan 스킬이 print dispatch 실패 증거로 `## Findings`에 적는 줄의 접두. 재작성 때 보존한다.
+const INLINE_EVIDENCE_PREFIX = '- inline context review:';
+
+/** 목록 한 줄에 들어갈 값의 줄바꿈을 공백으로 접는다. 줄바꿈이 남으면 한 finding이 여러 줄로 갈라진다. */
+function oneLine(value: unknown): string {
+  return String(value).replace(/\s*\n\s*/g, ' ').trim();
+}
+
+/**
+ * 투영 finding 목록을 `## Findings` 본문 줄로 만든다. 없으면 `- none` 한 줄이다.
+ * G18은 목록 내용을 보지 않지만 사람이 읽는 증적이라 finding마다 한 줄씩 남긴다.
+ *
+ * @param {Finding[]} findings - 닫힌 cycle의 projection.findings
+ * @returns {string[]} 목록 줄들
+ */
+function findingLines(findings: Finding[]): string[] {
+  if (findings.length === 0) return ['- none'];
+  return findings.map((f) => {
+    const note = f.note === undefined || f.note === null ? '' : oneLine(f.note);
+    return `- ${oneLine(f.id)} (${oneLine(f.severity)}, ${oneLine(f.actionability)}, ${oneLine(f.status)}): `
+      + `${oneLine(f.brief_clause)}${note === '' ? '' : ` — ${note}`}`;
+  });
+}
+
+/**
+ * 본문의 `## Findings` 절만 생성 목록으로 바꾼다. 절 안의 `- inline context review:` 줄은
+ * 원래 순서로 목록 앞에 남기고, 절 밖 바이트와 절 끝의 빈 줄은 그대로 둔다. 절이 없으면
+ * 본문 끝에 새로 붙인다(G18이 제목 존재를 요구하므로 문서가 이 절 없이 닫히면 안 된다).
+ * 이미 생성된 절에 다시 적용해도 결과가 같아 재실행이 멱등이다.
+ *
+ * @param {string} body - frontmatter 뒤 본문
+ * @param {string[]} generated - findingLines 결과
+ * @returns {string} 새 본문
+ */
+function rewriteFindingsSection(body: string, generated: string[]): string {
+  const lines = body.split('\n');
+  const heading = lines.findIndex((l) => FINDINGS_HEADING_RE.test(l.trim()));
+  if (heading < 0) {
+    const sep = body === '' || body.endsWith('\n\n') ? '' : (body.endsWith('\n') ? '\n' : '\n\n');
+    return `${body}${sep}## Findings\n${generated.join('\n')}\n`;
+  }
+  let end = lines.findIndex((l, i) => i > heading && /^##\s/.test(l));
+  if (end < 0) end = lines.length;
+  const section = lines.slice(heading + 1, end);
+  // 절 끝의 빈 줄(다음 절과의 간격, 파일 끝 개행)은 원문 그대로 되돌려 절 밖 바이트를 지킨다.
+  let keep = section.length;
+  while (keep > 0 && section[keep - 1].trim() === '') keep -= 1;
+  const trailing = section.slice(keep);
+  const inline = section.slice(0, keep).filter((l) => l.startsWith(INLINE_EVIDENCE_PREFIX));
+  return [...lines.slice(0, heading + 1), ...inline, ...generated, ...trailing, ...lines.slice(end)].join('\n');
+}
+
+/**
+ * 닫힌 cycle의 projection을 반영한 context-review.md 새 본문을 만든다(쓰지는 않는다).
+ * 호출부는 state를 바꾸기 전에 이 함수를 먼저 불러, 문서 부재·깨진 frontmatter·렌더 검증
+ * 실패를 쓰기 전에 거절한다. bouncer.status와 context_review.{rounds,findings}만 바꾸고
+ * restart_count 등 다른 키는 파싱 값 그대로 두며, 직렬화는 renderDoc을 쓴다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} bp - blueprint 상대 POSIX 경로
+ * @param {{ findings: Finding[]; rounds: unknown[] }} projection - 닫힌 cycle의 투영
+ * @returns {{ abs: string, text: string, rel: string } | Fail} 쓸 파일·본문·저장소 상대 경로, 또는 거절
+ */
+function prepareClosureDoc(
+  repoRoot: string, bp: string, projection: { findings: Finding[]; rounds: unknown[] },
+): { abs: string; text: string; rel: string } | Fail {
+  const rel = `${bp}/context-review.md`;
+  const abs = path.join(repoRoot, bp, 'context-review.md');
+  if (!fs.existsSync(abs)) {
+    return targetInvalid(`${rel} not found`, `bouncer scaffold context-review --blueprint ${bp}`);
+  }
+  let parsed: { data: unknown; body: string };
+  try {
+    parsed = parseFrontmatter(fs.readFileSync(abs, 'utf8'));
+  } catch (error) {
+    // 파싱 오류(Error)만 legacy-evidence로 바꾼다. readLegacy와 같은 거절이다.
+    if (!(error instanceof Error)) throw error;
+    return fail('context-review-legacy-evidence', error.message, 'fix context-review.md frontmatter, then retry');
+  }
+  const data: Record<string, unknown> = isRecord(parsed.data)
+    ? JSON.parse(JSON.stringify(parsed.data)) : {};
+  if (!isRecord(data.bouncer)) data.bouncer = {};
+  const bouncer = data.bouncer as Record<string, unknown>;
+  const cr: Record<string, unknown> = isRecord(bouncer.context_review) ? bouncer.context_review : {};
+  bouncer.status = 'accepted';
+  cr.rounds = JSON.parse(JSON.stringify(projection.rounds));
+  cr.findings = JSON.parse(JSON.stringify(projection.findings));
+  bouncer.context_review = cr;
+  const body = rewriteFindingsSection(parsed.body, findingLines(projection.findings));
+  const messages = collectFindingFailures({
+    body, findings: cr.findings, rounds: cr.rounds, sectionLabel: 'context-review',
+    findingLabel: 'context-review', allowedStatuses: CONTEXT_REVIEW_STATUS, namespace: 'context',
+  });
+  if (messages.length > 0) {
+    return fail('context-review-input-invalid', messages,
+      'fix the recorded round and finding fields so they pass the context-review format, then retry');
+  }
+  return { abs, text: renderDoc(data, body), rel };
+}
+
 /**
  * 표식과 state를 대조한다(잠금 안에서 호출). 표식이 state보다 크면 state가 지워졌거나 낮춰진
  * 것이라 거절하고, state가 표식보다 크면 직전 restart가 표식 쓰기 전에 죽은 것이므로 여기서
@@ -806,9 +912,20 @@ function recordReport(input: {
     const key = transitionKey([cycle.id, cycle.restart_count, String(round), sha256(dispatchBytes),
       sha256(report.text), status, acceptRisk.join(',')]);
     if (state.transitions.includes(key)) {
+      // 닫는 전이의 재실행은 문서를 투영 상태로 되돌려 쓴다: 첫 성공 뒤 문서가 바뀌었거나
+      // state 저장 뒤 문서 쓰기가 실패했어도 같은 입력의 재실행이 복구한다.
+      let written: string | undefined;
+      if (status === 'accepted' && state.projection) {
+        const doc = prepareClosureDoc(repoRoot, ctx.bp, state.projection);
+        if (isFail(doc)) return doc;
+        const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
+        if (isFail(wrote)) return wrote;
+        written = doc.rel;
+      }
       return {
         ok: true, noop: true, cycle, status, closed: state.closed,
         ...(state.projection ? { projection: state.projection } : {}),
+        ...(written ? { written } : {}),
       };
     }
     const dispatch = loadDispatch(repoRoot, ctx.bp, input.dispatchFile);
@@ -847,10 +964,14 @@ function recordReport(input: {
       else merged.push(f);
     }
     let projection: State['projection'] = null;
+    let closureDoc: ReturnType<typeof prepareClosureDoc> | null = null;
     if (status === 'accepted') {
       const projected = projectClosure(merged, acceptRisk);
       if (isFail(projected)) return projected;
       projection = { findings: projected, rounds: [...folded.rounds, report.round] };
+      // state를 바꾸기 전에 문서를 렌더·검증한다: 부재·검증 실패 거절이 아무것도 남기지 않는다.
+      closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection);
+      if (isFail(closureDoc)) return closureDoc;
     }
     // 4. 쓰기: immutable 자료 → state 교체 순.
     const reportSha = sha256(report.text);
@@ -878,9 +999,16 @@ function recordReport(input: {
     };
     const saved = guardWrites(() => saveState(ctx, next));
     if (isFail(saved)) return saved;
+    // 문서는 state 저장 뒤에 쓴다. 쓰기가 실패해도 같은 입력의 재실행(noop 경로)이 복구한다.
+    if (closureDoc && !isFail(closureDoc)) {
+      const doc = closureDoc;
+      const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
+      if (isFail(wrote)) return wrote;
+    }
     return {
       ok: true, noop: false, cycle: next.cycle, status, closed: next.closed,
       ...(projection ? { projection } : {}),
+      ...(closureDoc && !isFail(closureDoc) ? { written: closureDoc.rel } : {}),
     };
   }) as Record<string, unknown>;
 }
@@ -950,10 +1078,20 @@ function closeCycle(input: {
     // 1. 전이 키: cycle id, restart count, 'close', dispositions 원본 바이트 sha256, 정렬된 accept-risk
     const key = transitionKey([cycle.id, cycle.restart_count, 'close', sha256(dispBytes), acceptRisk.join(',')]);
     if (state.transitions.includes(key)) {
-      // 이미 반영된 close 전이이므로 closure 결과(status: 'accepted')를 그대로 돌려준다.
+      // 이미 반영된 close 전이이므로 closure 결과(status: 'accepted')를 돌려주되, 문서는
+      // 투영 상태로 다시 쓴다(첫 성공 뒤 변경·쓰기 실패 복구).
+      let written: string | undefined;
+      if (state.projection) {
+        const doc = prepareClosureDoc(repoRoot, ctx.bp, state.projection);
+        if (isFail(doc)) return doc;
+        const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
+        if (isFail(wrote)) return wrote;
+        written = doc.rel;
+      }
       return {
         ok: true, noop: true, cycle, status: 'accepted', closed: state.closed,
         ...(state.projection ? { projection: state.projection } : {}),
+        ...(written ? { written } : {}),
       };
     }
 
@@ -1002,6 +1140,10 @@ function closeCycle(input: {
     // 5. projectClosure 검증: open finding 잔존 여부, note 없는 accepted, --accept-risk 매칭을 확인
     const projected = projectClosure(merged, acceptRisk);
     if (isFail(projected)) return projected;
+    const projection = { findings: projected, rounds: folded.rounds };
+    // 5-1. state를 바꾸기 전에 문서를 렌더·검증한다(부재·검증 실패는 무변경 거절).
+    const closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection);
+    if (isFail(closureDoc)) return closureDoc;
 
     // 6. 쓰기: immutable dispositions 저장 후 state.json 원자적 교체
     const dispSha = sha256(rawText);
@@ -1018,14 +1160,18 @@ function closeCycle(input: {
       transitions: [...state.transitions, key],
       closed: true,
       closure: { dispositions: dispRef, accept_risk: acceptRisk },
-      projection: { findings: projected, rounds: folded.rounds },
+      projection,
     };
     const saved = guardWrites(() => saveState(ctx, next));
     if (isFail(saved)) return saved;
+    // 문서는 state 저장 뒤에 쓴다. 쓰기가 실패해도 같은 입력의 재실행(noop 경로)이 복구한다.
+    const wrote = guardWrites(() => writeAtomic(closureDoc.abs, closureDoc.text));
+    if (isFail(wrote)) return wrote;
 
     // 정상적으로 cycle이 closed/accepted 되었음을 알리는 반환 객체
     return {
-      ok: true, noop: false, cycle: next.cycle, status: 'accepted', closed: next.closed, projection: next.projection,
+      ok: true, noop: false, cycle: next.cycle, status: 'accepted', closed: next.closed,
+      projection: next.projection, written: closureDoc.rel,
     };
   }) as Record<string, unknown>;
 }

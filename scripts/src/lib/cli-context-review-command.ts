@@ -122,6 +122,9 @@ Allowed values:
 
 --status accepted or close with dispositions closes the cycle: every finding must be resolved or accepted
 with a note; a must_fix accepted needs --accept-risk <id> and explicit user consent.
+When it closes the cycle, close and record --status accepted also write <blueprint>/context-review.md
+(status accepted, rounds, findings, and the ## Findings list) and return its path as written; a rerun
+of the same input rewrites it. A missing context-review.md is rejected: bouncer scaffold context-review.
 
 Exit: 0 success or help, 1 rejected transition, 2 usage error.
 Failure JSON: { ok: false, reason, cause, next }. reason is one of
