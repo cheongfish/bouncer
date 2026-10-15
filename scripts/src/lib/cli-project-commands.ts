@@ -18,8 +18,6 @@ import retentionMigration = require('./retention-migration');
 const { auditRetention, migrateRetention } = retentionMigration;
 import runtimeState = require('./runtime-state');
 const { runtimePaths } = runtimeState;
-import graphSearch = require('./graph-search');
-const { graphSuggest } = graphSearch;
 import runPreflightMod = require('./run-preflight');
 const { runPreflight } = runPreflightMod;
 import subagents = require('./subagents');
@@ -67,104 +65,6 @@ function cmdGraphSync(rest: string[], io: CliIo) {
   // missing은 상태가 아니라 오류가 아니다(그래프 부재). failed만 종료 코드를 가른다.
   io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
   return result.failed.length === 0 ? 0 : 1;
-}
-
-type GraphSuggestArgs = {
-  error?: string;
-  query: string | null;
-  seeds: string[];
-  repo?: string;
-  debug: boolean;
-};
-
-/**
- * graph-suggest 전용 인자 파서. --seed는 반복 가능해서 parseFlags(마지막 값만
- * 남김)로 처리하지 않는다. 값 없는 --query/--seed는 사용법 오류(exit 2).
- * --debug는 값 없는 singleton boolean — 중복·값 첨부 모두 거절한다.
- *
- * @param {string[]} rest - 서브커맨드 뒤 argv
- * @returns {GraphSuggestArgs} 성공 시 query·seeds·debug, 실패 시 error
- */
-function parseGraphSuggestArgs(rest: string[]): GraphSuggestArgs {
-  let query: string | null = null;
-  let querySeen = false;
-  const seeds: string[] = [];
-  let repo: string | undefined;
-  let debug = false;
-  let debugSeen = false;
-  const fail = (message: string): GraphSuggestArgs => ({
-    error: `graph-suggest: ${message}\n`,
-    query,
-    seeds,
-    repo,
-    debug,
-  });
-
-  for (let i = 0; i < rest.length; i += 1) {
-    const token = rest[i];
-    if (token === '--query') {
-      const value = rest[++i];
-      // 빈 문자열도 거절 — parseFlags는 ''를 값으로 받아 통과시키므로 여기서 막는다.
-      if (value === undefined || value.startsWith('--') || value.length === 0) {
-        return fail('--query requires a non-empty text value');
-      }
-      query = value;
-      querySeen = true;
-      continue;
-    }
-    if (token === '--seed') {
-      const value = rest[++i];
-      if (value === undefined || value.startsWith('--') || value.length === 0) {
-        return fail('--seed requires a value');
-      }
-      seeds.push(value);
-      continue;
-    }
-    if (token === '--repo') {
-      const value = rest[++i];
-      if (!value || value.startsWith('--')) return fail('--repo requires a directory');
-      repo = value;
-      continue;
-    }
-    if (token === '--debug') {
-      // intent --symbol과 같이 singleton. 두 번째 --debug는 덮지 않고 거절한다.
-      if (debugSeen) return fail('duplicate option: --debug');
-      debugSeen = true;
-      const next = rest[i + 1];
-      // `--debug yes`처럼 값이 붙으면 boolean flag 계약을 깨므로 거절한다.
-      if (next !== undefined && !next.startsWith('--')) {
-        return fail('--debug is a boolean flag and does not take a value');
-      }
-      debug = true;
-      continue;
-    }
-    if (token.startsWith('--')) return fail(`unknown option: ${token}`);
-    return fail(`unexpected argument: ${token}`);
-  }
-
-  if (!querySeen || query === null) {
-    return fail('--query <text> is required');
-  }
-  return { query, seeds, repo, debug };
-}
-
-function cmdGraphSuggest(rest: string[], io: CliIo) {
-  const parsed = parseGraphSuggestArgs(rest);
-  if (parsed.error) {
-    io.err(parsed.error);
-    return 2;
-  }
-  const repoRoot = (parsed.repo || process.cwd()) as string;
-  // 그래프 부재·손상은 예외 대신 JSON status로 수렴 — stdout은 JSON 하나만.
-  // debug는 같은 ranking projection만 추가하고 기본 필드·순위를 바꾸지 않는다.
-  const result = graphSuggest({
-    repoRoot,
-    query: parsed.query as string,
-    seeds: parsed.seeds,
-    debug: parsed.debug,
-  });
-  io.out(`${JSON.stringify(result, null, 2)}\n`);
-  return 0;
 }
 
 /**
@@ -456,12 +356,6 @@ export = {
   'graph-sync': {
     run: cmdGraphSync,
     usage: `  graph-sync Rebuild stale graphify source + test graphs (SessionStart / plan).
-`,
-  },
-  'graph-suggest': {
-    run: cmdGraphSuggest,
-    usage: `  graph-suggest --query <text> [--seed <value>]... [--debug]
-             Rank implementation/test file candidates from graphify source/test graphs (JSON).
 `,
   },
   intent: {
