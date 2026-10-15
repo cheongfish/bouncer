@@ -235,6 +235,16 @@ function cmdPlan(rest: string[], io: CliIo) {
       io.err('plan approve: --blueprint requires a directory\n');
       return 2;
     }
+    // --repo도 같은 이유로 거절한다: 중복이면 마지막 값이 이겨 다른 저장소를 승인할 수 있고,
+    // 값이 없으면 parseFlags가 true를 줘 cwd로 조용히 폴백한다. 둘 다 사용법(2).
+    if (rest.filter((tok) => tok === '--repo').length > 1) {
+      io.err('plan approve: --repo given more than once\n');
+      return 2;
+    }
+    if (Object.hasOwn(f, 'repo') && (typeof f.repo !== 'string' || f.repo === '')) {
+      io.err('plan approve: --repo requires a directory\n');
+      return 2;
+    }
     const approved = approvePlan({
       repoRoot: (f.repo || process.cwd()) as string,
       blueprintDir: f.blueprint,

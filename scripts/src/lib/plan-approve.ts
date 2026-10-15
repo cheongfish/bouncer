@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 import layout = require('./layout');
 const { isCanonicalBlueprintDir } = layout;
 import paths = require('./paths');
@@ -50,9 +51,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @returns {void}
  */
 function atomicWriteFile(abs: string, text: string): void {
-  const tmp = path.join(path.dirname(abs), `.${path.basename(abs)}.${process.pid}.tmp`);
+  // 임시 이름은 무작위 접미사 + 배타 생성('wx')이라 예측해 미리 심어 둔 파일이나
+  // 심볼릭 링크를 따라가 엉뚱한 곳에 쓰는 일이 없다(이미 있으면 EEXIST로 실패).
+  const tmp = path.join(path.dirname(abs), `.${path.basename(abs)}.${crypto.randomBytes(8).toString('hex')}.tmp`);
+  // 대상의 기존 권한을 보존한다. 임시 파일은 umask 기본 모드로 생기므로 rename 전에 맞춘다.
+  // stat 실패(대상 부재 등)는 호출자가 이미 readDoc으로 걸러 이쪽이 던지면 그대로 실패시킨다.
+  const mode = fs.statSync(abs).mode & 0o7777;
   try {
-    fs.writeFileSync(tmp, text);
+    fs.writeFileSync(tmp, text, { flag: 'wx', mode });
+    // writeFileSync의 mode는 umask에 깎이므로 chmod로 정확한 값을 되돌린다.
+    fs.chmodSync(tmp, mode);
     fs.renameSync(tmp, abs);
   } catch (error) {
     try {

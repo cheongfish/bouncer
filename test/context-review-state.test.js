@@ -1088,6 +1088,16 @@ test('open must_fix로 close 거절 → context-review.md 바이트 불변', () 
   assert.deepEqual(fs.readFileSync(crDocPath(repo)), before);
 });
 
+test('note에 CR·CRLF가 든 finding close → Findings 항목이 한 줄로 접힘', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [{ ...RESOLVED, note: 'first\r\nsecond\rthird' }]);
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 0, res.out + res.err);
+  const body = readDoc(crDocPath(repo)).body;
+  assert.equal(body.includes('\r'), false);
+  assert.ok(body.split('\n').some((l) => l.startsWith('- CR-1 (') && l.endsWith('first second third')), body);
+});
+
 test('context-review.md 부재에서 close → context-review-target-invalid, state 불변', () => {
   const repo = makeRepo();
   cycleAfterDelta(repo, [RESOLVED]);

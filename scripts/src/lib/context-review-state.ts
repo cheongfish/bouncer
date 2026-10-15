@@ -596,9 +596,12 @@ const FINDINGS_HEADING_RE = /^##\s+(Findings|발견사항|리뷰\s*결과)\s*$/i
 // plan 스킬이 print dispatch 실패 증거로 `## Findings`에 적는 줄의 접두. 재작성 때 보존한다.
 const INLINE_EVIDENCE_PREFIX = '- inline context review:';
 
-/** 목록 한 줄에 들어갈 값의 줄바꿈을 공백으로 접는다. 줄바꿈이 남으면 한 finding이 여러 줄로 갈라진다. */
+/**
+ * 목록 한 줄에 들어갈 값의 줄바꿈을 공백으로 접는다. 줄바꿈이 남으면 한 finding이 여러 줄로 갈라진다.
+ * LF뿐 아니라 CR·CRLF도 줄 경계로 읽히므로 함께 접는다(`\r`만 있는 값도 마찬가지).
+ */
 function oneLine(value: unknown): string {
-  return String(value).replace(/\s*\n\s*/g, ' ').trim();
+  return String(value).replace(/\s*[\r\n]+\s*/g, ' ').trim();
 }
 
 /**

@@ -148,6 +148,28 @@ test('plan approve에 --blueprint 중복 → exit 2', () => {
   assert.strictEqual(r.code, 2);
 });
 
+test('plan approve에 --repo 중복 → exit 2, 파일 불변', () => {
+  const repo = makeRepo();
+  const r = capture(['plan', 'approve', '--repo', repo, '--repo', repo, '--blueprint', BP]);
+  assert.strictEqual(r.code, 2);
+  assert.strictEqual(statusOf(repo, BP_REL), 'draft');
+});
+
+test('plan approve에 값 없는 --repo → exit 2', () => {
+  const r = capture(['plan', 'approve', '--blueprint', BP, '--repo']);
+  assert.strictEqual(r.code, 2);
+});
+
+test('기본 atomic write → 대상 파일 권한 보존, 임시 파일 잔재 없음', () => {
+  const repo = makeRepo();
+  const abs = path.join(repo, BP_REL);
+  fs.chmodSync(abs, 0o640);
+  const r = approve(repo);
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(fs.statSync(abs).mode & 0o7777, 0o640);
+  assert.deepStrictEqual(fs.readdirSync(path.dirname(abs)).filter((n) => n.endsWith('.tmp')), []);
+});
+
 test('plan에 모르는 하위 명령 → exit 2, stderr에 inspect or approve', () => {
   const r = capture(['plan', 'bogus']);
   assert.strictEqual(r.code, 2);

@@ -46,8 +46,10 @@ blueprint document status when it is not `approved`: `blueprint-closed`,
 `plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
 tasks to `ready` all-or-nothing; run it only after the user approves the
 plan. Success prints `{ ok: true, changed, unchanged }` (exit 1 on refusal:
-`{ ok: false, reason, cause, next }`, no file changed); a missing or repeated
-`--blueprint` is exit 2.
+`{ ok: false, reason, cause, next }`, no file changed). Only the
+`plan-approve-write` refusal (an I/O failure mid-write) also carries `changed`,
+the files already written; rerunning completes the rest. A missing or repeated
+`--blueprint` or `--repo` is exit 2.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag
 `routing` is `null`. The signal does not select or approve light.
