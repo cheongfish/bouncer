@@ -2012,3 +2012,9 @@ test('legacy digest-only previous after a recorded round → the migration revie
   ]);
   assert.strictEqual(again.code, 1, 'the restart limit still applies after a migration');
 });
+
+test('review-dispatch --help → Enums에 기록용·보고용 finding status 두 줄 출력', () => {
+  const out = capture(['review-dispatch', '--help']).out;
+  assert.match(out, /finding status \(record input\): open\|resolved\|accepted/);
+  assert.match(out, /finding status \(context-review\.md\): resolved\|accepted/);
+});

@@ -12,11 +12,14 @@ const { computePlanSnapshot, computePlanParts } = require('../scripts/lib/plan-s
 const { validateBlueprint } = require('../scripts/lib/validate');
 const crState = require('../scripts/lib/context-review-state');
 const { readDoc } = require('../scripts/lib/frontmatter');
+const { findingFingerprint } = require('../scripts/lib/validate-sections');
 
 const TS = '2026-07-01T00:00:00+09:00';
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
-const MUST_FIX = {
+// 닫는 명령은 기록 전에 G18과 같은 형식 검증을 하므로 finding은 fingerprint를 갖춰야 한다.
+const withFingerprint = (f) => ({ ...f, fingerprint: findingFingerprint(f, 'context') });
+const MUST_FIX = withFingerprint({
   id: 'CR-1',
   severity: 'major',
   status: 'open',
@@ -28,14 +31,14 @@ const MUST_FIX = {
   origin: 'discovery',
   first_seen_round: 1,
   last_seen_round: 1,
-};
-const ADVISORY = {
+});
+const ADVISORY = withFingerprint({
   ...MUST_FIX,
   id: 'CR-2',
   severity: 'minor',
   actionability: 'advisory',
   symbol: 'g',
-};
+});
 
 function capture(argv) {
   const buf = { out: '', err: '' };
@@ -1016,4 +1019,247 @@ test('route 동사에 follow_up 없는 payload → exit 1과 input-invalid를 �
   const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d]);
   assert.equal(r.code, 1);
   assert.equal(r.json.reason, 'context-review-input-invalid');
+});
+
+test('도움말 round·dispositions 예시를 그대로 기록 → start·record·record·close 모두 ok', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  const digest = JSON.parse(fs.readFileSync(d, 'utf8')).target.digest;
+  const help = capture(['context-review', '--help']).out;
+  const blocks = [...help.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => m[1]);
+  assert.equal(blocks.length, 3);
+  const files = blocks.map((b, i) => {
+    const file = path.join(repo, `help-${i}.json`);
+    fs.writeFileSync(file, b.split('<target.digest>').join(digest));
+    return file;
+  });
+  const started = start(repo, d);
+  assert.equal(started.code, 0, started.out + started.err);
+  const r1 = record(repo, d, files[0]);
+  assert.equal(r1.json.ok, true, r1.out + r1.err);
+  const r2 = record(repo, d, files[1]);
+  assert.equal(r2.json.ok, true, r2.out + r2.err);
+  const closed = close(repo, files[2]);
+  assert.equal(closed.json.ok, true, closed.out + closed.err);
+});
+
+// --- cycle을 닫는 명령이 context-review.md를 직접 기록한다 ---
+
+const crDocPath = (repo) => path.join(repo, BP, 'context-review.md');
+const RESOLVED = { ...MUST_FIX, status: 'resolved', last_seen_round: 2 };
+
+/** delta까지 기록하고 열린 finding이 없는 상태에서 `[]` dispositions로 닫는다. */
+function closeResolved(repo, extra = []) {
+  const d = cycleAfterDelta(repo, [RESOLVED]);
+  const disp = writeJson(repo, 'dispositions.json', []);
+  return { d, disp, res: close(repo, disp, extra) };
+}
+
+test('close 성공 → context-review.md status accepted와 projection rounds·findings 기록', () => {
+  const repo = makeRepo();
+  const { res } = closeResolved(repo);
+  assert.equal(res.code, 0, res.out + res.err);
+  assert.equal(res.json.written, `${BP}/context-review.md`);
+  const doc = readDoc(crDocPath(repo));
+  assert.equal(doc.data.bouncer.status, 'accepted');
+  assert.deepEqual(doc.data.bouncer.context_review.findings, res.json.projection.findings);
+  assert.deepEqual(doc.data.bouncer.context_review.rounds, res.json.projection.rounds);
+});
+
+test('close 재실행 → context-review.md 바이트 동일', () => {
+  const repo = makeRepo();
+  const { disp, res } = closeResolved(repo);
+  assert.equal(res.code, 0, res.out + res.err);
+  const first = fs.readFileSync(crDocPath(repo));
+  const again = close(repo, disp);
+  assert.equal(again.code, 0, again.out + again.err);
+  assert.equal(again.json.noop, true);
+  assert.equal(again.json.written, `${BP}/context-review.md`);
+  assert.deepEqual(fs.readFileSync(crDocPath(repo)), first);
+});
+
+test('open must_fix로 close 거절 → context-review.md 바이트 불변', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [MUST_FIX]);
+  const before = fs.readFileSync(crDocPath(repo));
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 1);
+  assert.equal(res.json.reason, 'context-review-unresolved-findings');
+  assert.deepEqual(fs.readFileSync(crDocPath(repo)), before);
+});
+
+test('note에 CR·CRLF가 든 finding close → Findings 항목이 한 줄로 접힘', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [{ ...RESOLVED, note: 'first\r\nsecond\rthird' }]);
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 0, res.out + res.err);
+  const body = readDoc(crDocPath(repo)).body;
+  assert.equal(body.includes('\r'), false);
+  assert.ok(body.split('\n').some((l) => l.startsWith('- CR-1 (') && l.endsWith('first second third')), body);
+});
+
+test('context-review.md 부재에서 close → context-review-target-invalid, state 불변', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [RESOLVED]);
+  fs.rmSync(crDocPath(repo));
+  const stateBefore = fs.readFileSync(findState(repo));
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 1);
+  assert.equal(res.json.reason, 'context-review-target-invalid');
+  assert.equal(res.json.next, `bouncer scaffold context-review --blueprint ${BP}`);
+  assert.deepEqual(fs.readFileSync(findState(repo)), stateBefore);
+  assert.equal(fs.existsSync(crDocPath(repo)), false);
+});
+
+test('## Findings 밖 본문 → close 뒤에도 바이트 동일', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [RESOLVED]);
+  const parsed = readDoc(crDocPath(repo));
+  const head = '# Context review\n\nIntro stays.\n\n';
+  const tail = '\n## Notes\nkeep this exactly.\n';
+  fs.writeFileSync(crDocPath(repo),
+    fs.readFileSync(crDocPath(repo), 'utf8').replace(parsed.body, `${head}## Findings\n- <finding>\n${tail}`));
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 0, res.out + res.err);
+  const body = readDoc(crDocPath(repo)).body;
+  assert.ok(body.startsWith(head), body);
+  assert.ok(body.endsWith(tail), body);
+  assert.equal(body.includes('- <finding>'), false);
+});
+
+test('record --status accepted → context-review.md 기록, written 필드 반환', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const res = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [ADVISORY]), ['--status', 'accepted']);
+  assert.equal(
+    res.code, 1, 'advisory open은 accepted로 닫을 수 없다');
+  const ok = record(repo, d, roundFile(repo, 'r1b.json', 1, 'discovery', [{ ...ADVISORY, status: 'resolved' }]),
+    ['--status', 'accepted']);
+  assert.equal(ok.code, 0, ok.out + ok.err);
+  assert.equal(ok.json.written, `${BP}/context-review.md`);
+  const doc = readDoc(crDocPath(repo));
+  assert.equal(doc.data.bouncer.status, 'accepted');
+  assert.deepEqual(doc.data.bouncer.context_review.findings, ok.json.projection.findings);
+  assert.deepEqual(doc.data.bouncer.context_review.rounds, ok.json.projection.rounds);
+});
+
+test('record --status requested → context-review.md 불변', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const before = fs.readFileSync(crDocPath(repo));
+  const res = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [MUST_FIX]), ['--status', 'requested']);
+  assert.equal(res.code, 0, res.out + res.err);
+  assert.equal(res.json.written, undefined);
+  assert.deepEqual(fs.readFileSync(crDocPath(repo)), before);
+});
+
+test('restart_count 표식이 있는 문서 close → restart_count 유지', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [MUST_FIX]));
+  changeDocs(repo);
+  const d2 = dispatchFile(repo, 'dispatch2.json');
+  assert.equal(restart(repo, d2).code, 0);
+  assert.equal(readDoc(crDocPath(repo)).data.bouncer.context_review.restart_count, 1);
+  const res = record(repo, d2, roundFile(repo, 'r1c.json', 1, 'discovery', [{ ...RESOLVED, last_seen_round: 1 }]),
+    ['--status', 'accepted']);
+  assert.equal(res.code, 0, res.out + res.err);
+  assert.equal(readDoc(crDocPath(repo)).data.bouncer.context_review.restart_count, 1);
+});
+
+test('close 뒤 status·context_review 밖 frontmatter → 파싱 값 동일', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [RESOLVED]);
+  const before = readDoc(crDocPath(repo)).data;
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 0, res.out + res.err);
+  const after = readDoc(crDocPath(repo)).data;
+  const without = (obj, keys) => Object.fromEntries(Object.entries(obj).filter(([k]) => !keys.includes(k)));
+  assert.deepEqual(
+    without(after.bouncer, ['status', 'context_review']),
+    without(before.bouncer, ['status', 'context_review']),
+  );
+  assert.deepEqual(without(after, ['bouncer']), without(before, ['bouncer']));
+});
+
+test('## Findings에 inline context review 줄이 있는 문서 close → 그 줄이 생성 목록 앞에 남음', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [RESOLVED]);
+  const line = '- inline context review: print dispatch failed, reviewed in-session';
+  fs.writeFileSync(crDocPath(repo),
+    fs.readFileSync(crDocPath(repo), 'utf8').replace('- <finding>', `${line}\n- stale hand-written entry`));
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 0, res.out + res.err);
+  const body = readDoc(crDocPath(repo)).body;
+  const lines = body.split('\n');
+  const at = lines.indexOf('## Findings');
+  assert.equal(lines[at + 1], line);
+  assert.ok(lines[at + 2].startsWith('- CR-1 (major, must_fix, resolved): tasks/001 Interface'), body);
+  assert.equal(body.includes('stale hand-written entry'), false);
+});
+
+test('context-review.md 부재에서 record --status accepted → context-review-target-invalid, state 불변', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  fs.rmSync(crDocPath(repo));
+  const stateBefore = fs.readFileSync(findState(repo));
+  const res = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...ADVISORY, status: 'resolved' }]),
+    ['--status', 'accepted']);
+  assert.equal(res.code, 1);
+  assert.equal(res.json.reason, 'context-review-target-invalid');
+  assert.equal(res.json.next, `bouncer scaffold context-review --blueprint ${BP}`);
+  assert.deepEqual(fs.readFileSync(findState(repo)), stateBefore);
+});
+
+test('frontmatter가 깨진 context-review.md에서 close → context-review-legacy-evidence, 파일 바이트 불변', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [RESOLVED]);
+  fs.writeFileSync(crDocPath(repo), 'no frontmatter here\n');
+  const before = fs.readFileSync(crDocPath(repo));
+  const res = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(res.code, 1);
+  assert.equal(res.json.reason, 'context-review-legacy-evidence');
+  assert.deepEqual(fs.readFileSync(crDocPath(repo)), before);
+});
+
+test('frontmatter가 깨진 context-review.md에서 record --status accepted → context-review-legacy-evidence, 파일 바이트 불변', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  fs.writeFileSync(crDocPath(repo), 'no frontmatter here\n');
+  const before = fs.readFileSync(crDocPath(repo));
+  const res = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...ADVISORY, status: 'resolved' }]),
+    ['--status', 'accepted']);
+  assert.equal(res.code, 1);
+  assert.equal(res.json.reason, 'context-review-legacy-evidence');
+  assert.deepEqual(fs.readFileSync(crDocPath(repo)), before);
+});
+
+test('close 뒤 문서를 scaffold 상태로 되돌리고 같은 close 재실행 → 문서가 첫 성공 바이트로 복구', () => {
+  const repo = makeRepo();
+  const scaffolded = fs.readFileSync(crDocPath(repo));
+  const { disp, res } = closeResolved(repo);
+  assert.equal(res.code, 0, res.out + res.err);
+  const first = fs.readFileSync(crDocPath(repo));
+  fs.writeFileSync(crDocPath(repo), scaffolded);
+  const again = close(repo, disp);
+  assert.equal(again.code, 0, again.out + again.err);
+  assert.equal(again.json.noop, true);
+  assert.deepEqual(fs.readFileSync(crDocPath(repo)), first);
+});
+
+test('close 뒤 계획 수정 후 restart → 성공, context-review.md에 restart_count 1 기록', () => {
+  const repo = makeRepo();
+  const { res } = closeResolved(repo);
+  assert.equal(res.code, 0, res.out + res.err);
+  changeDocs(repo);
+  const rs = restart(repo, dispatchFile(repo, 'dispatch2.json'));
+  assert.equal(rs.code, 0, rs.out + rs.err);
+  const doc = readDoc(crDocPath(repo));
+  assert.equal(doc.data.bouncer.context_review.restart_count, 1);
+  assert.equal(doc.data.bouncer.context_review.rounds.length, 2);
 });

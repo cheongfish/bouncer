@@ -478,3 +478,9 @@ test('context-review 동사 없음·필수 플래그 누락 → usage를 stderr�
     assert.match(r.err, /usage: bouncer context-review/);
   }
 });
+
+test('context-review --help → json 예시 블록 3개와 finding status open|resolved|accepted 출력', () => {
+  const out = capture(['context-review', '--help']).out;
+  assert.equal([...out.matchAll(/```json\n/g)].length, 3);
+  assert.match(out, /open\|resolved\|accepted/);
+});

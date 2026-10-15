@@ -97,10 +97,9 @@ On a light plan, approved scope rests on the user's confirmation of
 4. **Return** — Return a Findings list only. The controller (not this
    skill, not the named agent) saves the raw report and records it with
    `bouncer context-review record`; the CLI owns the cycle, the active
-   reports, and the restart limit. The controller copies the `projection`
-   the accepted record returns (canonical `rounds`/`findings`) into
-   blueprint-root `context-review.md` along with the body `## Findings`,
-   then disposes each finding. A recorded disposition is not plan approval
+   reports, and the restart limit. The `record`/`close` call that closes
+   the cycle writes blueprint-root `context-review.md`; the controller
+   disposes each finding. A recorded disposition is not plan approval
    or a plan gate pass. Do **not**
    edit plan documents to "fix" a finding; that is `/bouncer-plan`
    authoring. Do **not** set `context-review` status.

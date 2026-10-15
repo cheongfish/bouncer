@@ -44,6 +44,15 @@ const REVIEW_STATUS = CONTEXT_REVIEW_STATUS;
 const NOTE_REQUIRED_STATUS = ['accepted', 'deferred'];
 const FINDING_ACTIONABILITY = ['must_fix', 'advisory'];
 const FINDING_ORIGIN = ['discovery', 'introduced_by_revision', 'missed_critical'];
+// `context-review record` 입력(--round)의 finding status. 진행 중 보고는 해결 전 `open`을
+// 허용하지만 context-review.md에 남는 canonical 값(CONTEXT_REVIEW_STATUS)에는 `open`이 없다.
+// 도움말과 record 검증이 같은 배열을 보게 해 두 곳이 어긋나는 일을 막는다.
+const REPORT_FINDING_STATUS = ['open', ...CONTEXT_REVIEW_STATUS];
+// canonical context round 계약(discovery 또는 discovery→delta)의 mode 순서.
+// ROUND_MODE(critical_recovery 포함)와 달리 record가 받는 순서 있는 두 값만 담는다.
+const CONTEXT_ROUND_MODES = ['discovery', 'delta'];
+// `context-review record --status`의 허용 값.
+const CONTEXT_REPORT_STATUS = ['requested', 'addressed', 'accepted'];
 const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
 // adaptive Execute는 combined를 추가하고, legacy 네 이름은 기존 round를 계속
 // 통과시킨다. security는 위험 flag가 있을 때만 별도 call로 붙는다.
@@ -508,6 +517,11 @@ export = {
   REVIEW_STATUS,
   CONTEXT_REVIEW_STATUS,
   CONTEXT_REVIEW_PERSPECTIVE,
+  FINDING_ACTIONABILITY,
+  FINDING_ORIGIN,
+  REPORT_FINDING_STATUS,
+  CONTEXT_ROUND_MODES,
+  CONTEXT_REPORT_STATUS,
   EXECUTE_REVIEW_STATUS,
   EXPLAIN_SECTION_HEADINGS,
   TODO_RE,

@@ -929,3 +929,46 @@ test('blueprint review mode with a missing task review.md → does not emit S17'
   const parsed = JSON.parse(buf.out);
   assert.ok(!parsed.failures.some((f) => f.code === 'S17'), JSON.stringify(parsed.failures));
 });
+
+test('close가 쓴 context-review.md → plan 게이트 G18 실패 없음', () => {
+  const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+  const { computePlanSnapshot, computePlanParts } = require('../scripts/lib/plan-snapshot');
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const ts = '2026-07-01T00:00:00+09:00';
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: ts, description: 'Auth epic description' });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth', blueprintId: '001', name: 'login', timestamp: ts,
+  });
+  const run = (argv) => {
+    const { io, buf } = capture();
+    const code = runCli(argv, io);
+    return { code, json: JSON.parse(buf.out) };
+  };
+  const snap = computePlanSnapshot({ repoRoot: repo, blueprintDir: BP_REL });
+  const parts = computePlanParts({ repoRoot: repo, blueprintDir: BP_REL });
+  const dispatch = path.join(repo, 'dispatch.json');
+  fs.writeFileSync(dispatch, JSON.stringify({
+    ok: true, phase: 'plan', target: { digest: snap.digest, documents: snap.documents }, strategy: 'single',
+    snapshot_version: 2, parts: parts.parts, scope_parts: parts.scope_parts,
+    structure_parts: parts.structure_parts, documents_content: parts.documents_content,
+  }));
+  const round = path.join(repo, 'round.json');
+  fs.writeFileSync(round, JSON.stringify({
+    round: {
+      round: 1, mode: 'discovery', target: { digest: snap.digest },
+      perspectives: [{ name: 'combined', target_digest: snap.digest }], severity_changes: [],
+    },
+    findings: [],
+  }));
+  const dispositions = path.join(repo, 'dispositions.json');
+  fs.writeFileSync(dispositions, '[]');
+  const base = ['--repo', repo, '--blueprint', BP_REL];
+  assert.equal(run(['context-review', 'start', ...base, '--dispatch', dispatch]).code, 0);
+  assert.equal(run(['context-review', 'record', ...base, '--dispatch', dispatch, '--round', round]).code, 0);
+  const closed = run(['context-review', 'close', ...base, '--dispositions', dispositions]);
+  assert.equal(closed.code, 0, JSON.stringify(closed.json));
+
+  const plan = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  assert.deepEqual(plan.failures.filter((f) => f.code === 'G18'), []);
+});

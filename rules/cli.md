@@ -11,6 +11,7 @@ actual write cwd.
 ```sh
 bouncer init [--upgrade-graphify]
 bouncer plan inspect [--epic-dir <dir>] [--blueprint <dir>]
+bouncer plan approve --blueprint <dir> [--repo <dir>]
 bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 bouncer verify --blueprint <dir>
 bouncer execute prepare --blueprint <dir>
@@ -42,6 +43,13 @@ blueprint document status when it is not `approved`: `blueprint-closed`,
 `no-open-task`. Every `delegable:false` refusal also has `direct_eligible:false`.
 
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
+`plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
+tasks to `ready` all-or-nothing; run it only after the user approves the
+plan. Success prints `{ ok: true, changed, unchanged }` (exit 1 on refusal:
+`{ ok: false, reason, cause, next }`, no file changed). Only the
+`plan-approve-write` refusal (an I/O failure mid-write) also carries `changed`,
+the files already written; rerunning completes the rest. A missing or repeated
+`--blueprint` or `--repo` is exit 2.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag
 `routing` is `null`. The signal does not select or approve light.
@@ -253,7 +261,7 @@ cycle `latest_dispatch`). `--previous` without a path or a repeated
 owns cycle state (`start|record|restart|route` take `--blueprint <dir> --dispatch <json>`;
 `record` also takes `--round <json>`, `--status`, `--accept-risk`;
 `close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk`;
-`restart` takes `--reason`, at most once); run `bouncer context-review --help`. A stale target after the delta
+`restart` takes `--reason`, at most once); run `bouncer context-review --help`. The path that closes the cycle (`close` or `record --status accepted`) writes `context-review.md` and returns `written`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),
 `restart` (delta used or structural, `restart_count` below 1) or `user`
 (round pending, open `must_fix`, restart spent); routing never writes state.

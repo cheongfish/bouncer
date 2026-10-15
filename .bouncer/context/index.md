@@ -57,3 +57,4 @@ bouncer_schema: '0.1'
 * [098 drive-plan-cost-control](epics/098-drive-plan-cost-control/index.md) - Cut drive restart and plan review costs, fix environment and output faults, and close worker report and role provenance gaps with measured effects.
 * [099 bouncer-improvements-2026-10-14](epics/099-bouncer-improvements-2026-10-14/index.md) - Plans and verifies prioritized Bouncer backlog improvements in independent blueprints.
 * [100 graphify-raw-query](epics/100-graphify-raw-query/index.md) - Replaces the plan-time graph-suggest file estimation with raw Graphify queries plus grep and removes graph-suggest.
+* [101 plan-review-call-reduction](epics/101-plan-review-call-reduction/index.md) - Cut plan context-review model calls by making review CLI help complete, writing context-review.md on close, and approving plan status in one command.

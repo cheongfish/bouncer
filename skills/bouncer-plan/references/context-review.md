@@ -59,8 +59,9 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    same fingerprint into one; record `severity_changes`; set `origin:
    discovery`; and decide `actionability` (`must_fix` or `advisory`) from the
    plan and the evidence.
-4. **Revise once** — As `/bouncer-plan` author, edit the plan documents once
-   for all `must_fix` findings together. Record each `advisory` finding as
+4. **Revise once** — As `/bouncer-plan` author, group all `must_fix`
+   findings by target document and edit each document once (several edits in
+   one pass are fine), so the revision is one pass over each document. Record each `advisory` finding as
    `accepted` with a note instead of editing for it. When no `must_fix`
    exists, skip the revision and the delta; the round sequence stays
    `discovery`.
@@ -171,9 +172,12 @@ with `--accept-risk <id>` after the user explicitly approved that risk.
 Alternatively, close an open cycle after the last round using
 `bouncer context-review close --blueprint <dir> --dispositions <json> [--accept-risk <id[,id...]>]`
 with explicit user approval. `--dispositions` takes a JSON array of `{ id, status, note }`.
-The returned `projection` is the canonical `rounds`/`findings`; copy it into the
-existing blueprint-root `context-review.md` (body `## Findings` included) and
-only then set `context-review → accepted`. A recorded success is a review
+The `close` and `record --status accepted` calls that close the cycle write
+the blueprint-root `context-review.md` themselves (`bouncer.context_review`,
+body `## Findings`, `status: accepted`) and return `written`; do not copy the
+returned `projection` by hand. Any `- inline context review: dispatch print
+failed (<reason>)` line already in `## Findings` stays ahead of the generated
+list after close. Run `close` only after explicit user approval. A recorded success is a review
 disposition, not plan approval or a plan gate pass.
 
 When recording finding `note` (and any other author-written frontmatter
