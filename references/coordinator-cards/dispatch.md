@@ -9,6 +9,9 @@ from the coordinator Task round and Worker dispatch.
   ```bash
   bouncer intent bundle --task <path> --symbol <name>...
   ```
+  Pass only source-file functions or methods picked from the Touch table as
+  `--symbol`; never document headings, item numbers, or test names. With none,
+  run `bouncer intent bundle --task <path> --no-symbols`.
   Capture `intent_bundle_id` and `intent_bundle_revision` from that single
   resolve. For every later named or fallback payload, put the stdout of
   `bouncer intent sections --task <path> --role <role>` as that role's
@@ -17,10 +20,12 @@ from the coordinator Task round and Worker dispatch.
   bundle is advisory only. If bundle creation fails, do not start role
   dispatch.
 - The `intent-symbols` judge is filled by naming the related functions as
-  `--symbol <name>...` on that single `bouncer intent bundle` resolve.
+  `--symbol <name>...` on that single `bouncer intent bundle` resolve, or by
+  `--no-symbols` when there are none.
 - **Scope revision revalidation.** After `coordinate revise`, open a new
   `coordinate dispatch` and re-call `bouncer intent bundle` against the
-  revised brief hash and related function set. When function blob and section
+  revised brief hash and the function set re-picked from the revised brief
+  (`--no-symbols` when it is empty). When function blob and section
   hashes match, keep the existing `intent_bundle_revision`; when either
   differs, pin the new revision for every later role. If that revalidation
   fails, do not start role dispatch.

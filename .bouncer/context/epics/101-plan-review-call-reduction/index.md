@@ -49,6 +49,10 @@ flowchart LR
 13. `bouncer review record`와 `bouncer context-review record`가 같은 round 안에서 file·symbol이 같고 category가 다른 finding을 `warnings`의 `finding-merge-candidate`로 알려 주고, 기록과 거절 조건은 바뀌지 않는다.
 14. `.bouncer/config.json`의 `worktree.setup`이 있으면 worktree 의존성 준비 끝에 그 명령이 실행되고, 잘못된 값이나 실행 실패는 `dependency-install-failed`로 보고된다. 키가 없으면 동작이 같다.
 15. `bouncer init`이 새 config를 만들 때 `package.json#scripts.build`가 있으면 `worktree.setup: npm run build`를 넣고, 기존 config는 바꾸지 않으며, 설정 문서가 이 키를 설명한다.
+16. `bouncer intent bundle --task <tasks.md> --no-symbols`가 `functions: []` bundle을 만들거나 재사용하고, `bundle_id`·`revision`·`task_brief_hash`를 기존 형태로 낸다. 그 bundle에 `intent sections`를 부르면 `ok: true`와 `functions: []`다.
+17. `--no-symbols`를 `--symbol`·`--candidate`와 같이 쓰거나 두 번 쓰면 exit 2 사용법 오류이고, 둘 다 없으면 지금처럼 `--symbol <function-name> is required`로 거절한다.
+18. coordinator dispatch 카드와 execute 스킬이 `--symbol`에는 소스 파일의 함수·메서드만 넣고 문서 제목·항목 번호·테스트 이름은 넣지 않으며, 넣을 함수가 없으면 `--no-symbols`를 쓴다고 적는다.
+19. `skills/bouncer-run/SKILL.md` 4단계가 `metrics end`는 hand-back 직후가 아니라 같은 에이전트의 `<task-notification>` usage가 도착한 뒤 부른다고 직접 적고, 테스트가 이 문장을 고정한다.
 
 ## Out of scope
 - plan 스킬 분할, 리뷰 컨트롤러를 새 세션으로 분리하는 일.
@@ -61,3 +65,4 @@ flowchart LR
 ## Blueprints
 * [001 리뷰 CLI 마감](blueprints/001-review-cli-closure/index.md) - review 도움말·close 문서 기록·plan approve 명령과 plan 스킬 지침을 `scripts/src/lib`와 `skills/bouncer-plan`에서 바꾼다.
 * [002 drive 회고 후속 가드](blueprints/002-retro-guards/index.md) - 메트릭 토큰 시점·tier 안내·record 병합 경고·worktree setup을 `skills/bouncer-run`·`test`·`scripts/src/lib`에서 바꾼다.
+* [003 심볼 없는 intent bundle](blueprints/003-intent-bundle-no-symbols/index.md) - `intent bundle --no-symbols`와 심볼 선택 지침, run 스킬 metrics 시점을 `scripts/src/lib`·`references/coordinator-cards`·`skills`에서 바꾼다.

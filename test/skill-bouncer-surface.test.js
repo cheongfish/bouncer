@@ -427,3 +427,18 @@ test('canonical skill descriptions → stay within the locked YAML-scalar budget
       + 'raising this cap requires a human review of the contract',
   );
 });
+
+// 심볼 선택 지침은 controller가 읽는 문서가 곧 계약이다. 문서 제목·테스트 이름을
+// 함수처럼 넣어 빈 intent 투영을 만드는 일을 막으므로 이 문구 자체를 계약으로 확인한다.
+test('intent bundle paragraphs → name --no-symbols and the excluded symbol sources', () => {
+  const docs = {
+    'references/coordinator-cards/dispatch.md': fs.readFileSync(path.join(root, 'references/coordinator-cards/dispatch.md'), 'utf8'),
+    'skills/bouncer-execute/SKILL.md': readWorkflow('bouncer-execute'),
+  };
+  for (const [name, body] of Object.entries(docs)) {
+    const flat = body.replace(/\s+/g, ' ');
+    for (const needle of ['--no-symbols', 'document headings', 'item numbers', 'test names']) {
+      assert.ok(flat.includes(needle), `${name} missing ${needle}`);
+    }
+  }
+});

@@ -29,3 +29,14 @@ test('run step 4 → runs the coordinator model check before dispatch', () => {
   const step4 = skill.match(/4\. \*\*Coordinator dispatch\.\*\*[\s\S]*?(?=\n5\. \*\*Report\.\*\*)/)?.[0] || '';
   assert.ok(step4.includes('bouncer subagent-model --agent bouncer-coordinator'));
 });
+
+// 루트가 drive-metrics.md를 열지 않고 4단계만 읽어도 metrics end 시점을 알아야 한다.
+// 시점 문구 자체가 이 지침의 계약이라 문구를 직접 확인한다.
+test('run step 4 → metrics end waits for the task-notification usage, not the hand-back', () => {
+  const skill = fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-run/SKILL.md'), 'utf8');
+  const step4 = skill.match(/4\. \*\*Coordinator dispatch\.\*\*[\s\S]*?(?=\n5\. \*\*Report\.\*\*)/)?.[0] || '';
+  assert.ok(step4.includes('metrics end'));
+  assert.ok(step4.includes('task-notification'));
+  assert.ok(step4.includes('subagent_tokens'));
+  assert.ok(step4.includes('not right after the hand-back'));
+});
