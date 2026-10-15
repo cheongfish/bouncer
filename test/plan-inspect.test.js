@@ -227,7 +227,7 @@ test('plan inspect with a malformed or missing --epic-dir → rejects with inval
 test('plan without a subcommand → exits 2', () => {
   const result = capture(['plan']);
   assert.strictEqual(result.code, 2);
-  assert.match(result.err, /inspect/);
+  assert.match(result.err, /inspect or approve/);
 });
 
 // --- routing signals (plan inspect --blueprint) ---

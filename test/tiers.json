@@ -86,6 +86,7 @@
     "intent-provenance.test.js",
     "migrate-task-layout.test.js",
     "native-profile-e2e.test.js",
+    "plan-approve.test.js",
     "plan-inspect.test.js",
     "plugin-root.test.js",
     "pre-commit-hook.test.js",
