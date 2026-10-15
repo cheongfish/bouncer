@@ -9,6 +9,7 @@ const { parseFlags } = cliFlags;
 import validateSections = require('./validate-sections');
 const {
   CONTEXT_REVIEW_PERSPECTIVE, CONTEXT_REVIEW_STATUS, REVIEW_SEVERITY, findingFingerprint,
+  REPORT_FINDING_STATUS, FINDING_ACTIONABILITY, FINDING_ORIGIN, CONTEXT_ROUND_MODES,
 } = validateSections;
 
 type CliIo = {
@@ -103,10 +104,11 @@ ${HELP_CONTEXT_REVIEW_EXAMPLE}
 
 Enums:
   severity: ${REVIEW_SEVERITY.join('|')}
-  finding status: ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
-  actionability: must_fix|advisory
-  origin: discovery|introduced_by_revision|missed_critical
-  round mode: discovery|delta
+  finding status (context-review.md): ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
+  finding status (record input): ${REPORT_FINDING_STATUS.join('|')} (open is in-progress only)
+  actionability: ${FINDING_ACTIONABILITY.join('|')}
+  origin: ${FINDING_ORIGIN.join('|')}
+  round mode: ${CONTEXT_ROUND_MODES.join('|')}
   perspective name (also finding category): ${CONTEXT_REVIEW_PERSPECTIVE.join('|')}
 
 fingerprint formula: context:lower(category):lower(brief_clause):posix(file)#symbol

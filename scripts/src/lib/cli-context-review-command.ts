@@ -2,13 +2,21 @@
 
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
+// validate-sections는 의도적으로 가벼운 모듈이라 argv 검증 전에 context-review-state를
+// 적재하지 않는 현재 순서를 깨지 않고 도움말 열거값을 검증기 상수에서 만들 수 있다.
+import validateSections = require('./validate-sections');
+const {
+  REVIEW_SEVERITY, CONTEXT_REVIEW_STATUS, REPORT_FINDING_STATUS, FINDING_ACTIONABILITY,
+  FINDING_ORIGIN, CONTEXT_ROUND_MODES, CONTEXT_REPORT_STATUS, CONTEXT_REVIEW_PERSPECTIVE,
+  findingFingerprint,
+} = validateSections;
 
 type CliIo = {
   out: (s: string) => void;
   err: (s: string) => void;
 };
 
-const ALLOWED_STATUS = ['requested', 'addressed', 'accepted'];
+const ALLOWED_STATUS = CONTEXT_REPORT_STATUS;
 
 const USAGE_BLOCK = '  context-review <start|record|close|restart|route> --blueprint <dir>\n'
   + '             Track plan context-review cycles; limit full restarts to one.\n';
@@ -24,10 +32,94 @@ const USAGE = 'usage: bouncer context-review start --blueprint <dir> --dispatch 
   + '\n'
   + USAGE_BLOCK;
 
+// 예시 finding의 구성 요소. fingerprint는 검증기와 같은 함수로 계산해 손으로 쓴 값이
+// 공식과 어긋나는 일을 없앤다(cli-review-dispatch-command의 예시와 같은 방식).
+const EXAMPLE_FILE = '.bouncer/context/epics/014-auth/blueprints/001-signup/tasks/001/tasks.md';
+const EXAMPLE_FINDINGS = [
+  {
+    id: 'CR-1', category: 'scope', brief_clause: 'tasks/001 touch', symbol: 'touch',
+    severity: 'major', actionability: 'must_fix',
+  },
+  {
+    id: 'CR-2', category: 'scope', brief_clause: 'tasks/001 wording', symbol: 'wording',
+    severity: 'minor', actionability: 'advisory',
+  },
+].map((f) => ({
+  id: f.id,
+  severity: f.severity,
+  status: 'open',
+  category: f.category,
+  brief_clause: f.brief_clause,
+  file: EXAMPLE_FILE,
+  symbol: f.symbol,
+  fingerprint: findingFingerprint({ ...f, file: EXAMPLE_FILE }, 'context'),
+  actionability: f.actionability,
+  origin: 'discovery',
+  first_seen_round: 1,
+  last_seen_round: 1,
+}));
+
+/**
+ * 도움말 예시 round 보고 하나를 JSON 문자열로 만든다. 바꿀 자리는 `<target.digest>`
+ * 하나뿐이며 `review-dispatch plan` 출력의 target.digest를 그대로 넣는다.
+ *
+ * @param {number} round - round 번호(discovery는 1, delta는 2)
+ * @param {string} mode - round mode
+ * @param {object[]} findings - 이 round가 보고하는 finding 목록
+ * @returns {string} 파일 하나로 복사할 수 있는 들여쓴 JSON
+ */
+function exampleRound(round: number, mode: string, findings: object[]): string {
+  return JSON.stringify({
+    round: {
+      round,
+      mode,
+      target: { digest: '<target.digest>' },
+      perspectives: [{ name: 'combined', target_digest: '<target.digest>' }],
+      severity_changes: [],
+    },
+    findings,
+  }, null, 2);
+}
+
+const EXAMPLE_DISPOSITIONS = JSON.stringify([
+  { id: 'CR-1', status: 'resolved' },
+  { id: 'CR-2', status: 'accepted', note: 'Wording only; the clause is still unambiguous.' },
+], null, 2);
+
 const HELP = `${USAGE}
 --dispatch is the JSON printed by \`review-dispatch plan --blueprint <dir>\`.
 --round is { "round": object, "findings": object[] } (discovery, then delta).
 --dispositions is a JSON array of [{ id, status, note }] to dispose folded findings.
+
+Each example below is a complete file. Replace only <target.digest> with the
+target.digest from the \`review-dispatch plan\` JSON.
+
+--round, discovery (round 1):
+\`\`\`json
+${exampleRound(1, 'discovery', EXAMPLE_FINDINGS)}
+\`\`\`
+
+--round, delta (round 2; findings may be [] when nothing new is reported):
+\`\`\`json
+${exampleRound(2, 'delta', [])}
+\`\`\`
+
+--dispositions (close; one entry per finding still open or to be disposed):
+\`\`\`json
+${EXAMPLE_DISPOSITIONS}
+\`\`\`
+
+Allowed values:
+  round.round: 1 for discovery, 2 for delta (record in that order)
+  round.mode: ${CONTEXT_ROUND_MODES.join('|')}
+  finding severity: ${REVIEW_SEVERITY.join('|')}
+  finding status (--round): ${REPORT_FINDING_STATUS.join('|')}
+  finding actionability: ${FINDING_ACTIONABILITY.join('|')}
+  finding origin: ${FINDING_ORIGIN.join('|')}
+  perspectives[].name (also finding category): ${CONTEXT_REVIEW_PERSPECTIVE.join('|')}
+  disposition status (--dispositions): ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
+  --status: ${ALLOWED_STATUS.join('|')}
+
 --status accepted or close with dispositions closes the cycle: every finding must be resolved or accepted
 with a note; a must_fix accepted needs --accept-risk <id> and explicit user consent.
 

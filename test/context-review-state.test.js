@@ -1017,3 +1017,25 @@ test('route 동사에 follow_up 없는 payload → exit 1과 input-invalid를 �
   assert.equal(r.code, 1);
   assert.equal(r.json.reason, 'context-review-input-invalid');
 });
+
+test('도움말 round·dispositions 예시를 그대로 기록 → start·record·record·close 모두 ok', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  const digest = JSON.parse(fs.readFileSync(d, 'utf8')).target.digest;
+  const help = capture(['context-review', '--help']).out;
+  const blocks = [...help.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => m[1]);
+  assert.equal(blocks.length, 3);
+  const files = blocks.map((b, i) => {
+    const file = path.join(repo, `help-${i}.json`);
+    fs.writeFileSync(file, b.split('<target.digest>').join(digest));
+    return file;
+  });
+  const started = start(repo, d);
+  assert.equal(started.code, 0, started.out + started.err);
+  const r1 = record(repo, d, files[0]);
+  assert.equal(r1.json.ok, true, r1.out + r1.err);
+  const r2 = record(repo, d, files[1]);
+  assert.equal(r2.json.ok, true, r2.out + r2.err);
+  const closed = close(repo, files[2]);
+  assert.equal(closed.json.ok, true, closed.out + closed.err);
+});

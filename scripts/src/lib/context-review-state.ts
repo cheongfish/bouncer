@@ -18,7 +18,11 @@ const { toPosix } = paths;
 import layout = require('./layout');
 const { isCanonicalBlueprintDir } = layout;
 import validateSections = require('./validate-sections');
-const { REVIEW_SEVERITY } = validateSections;
+const {
+  REVIEW_SEVERITY, CONTEXT_REVIEW_STATUS, FINDING_ACTIONABILITY,
+  REPORT_FINDING_STATUS: FINDING_STATUS, CONTEXT_ROUND_MODES: ROUND_MODES,
+  CONTEXT_REPORT_STATUS: REPORT_STATUS,
+} = validateSections;
 
 // 계획 리뷰 cycle의 단일 writer. 전체 재시작을 누적 1회로 제한하고, 재시작이
 // 이전 finding을 지우지 못하게 archive로 보관한다. 이 모듈은 context-review.md나
@@ -28,12 +32,6 @@ const RESTART_LIMIT = 1;
 // cycle id는 newCycleId가 만드는 형식 하나뿐이다. 경로 구성요소로 쓰이므로 그 밖은 손상이다.
 const CYCLE_ID_RE = /^cr-[0-9a-f]{16}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
-const REPORT_STATUS = ['requested', 'addressed', 'accepted'] as const;
-// canonical context round 계약(discovery 또는 discovery→delta)과 같은 순서.
-// validate-sections의 계약 상수는 비공개라 mode 순서만 여기 둔다.
-const ROUND_MODES = ['discovery', 'delta'] as const;
-const FINDING_STATUS = ['open', 'resolved', 'accepted'];
-const FINDING_ACTIONABILITY = ['must_fix', 'advisory'];
 
 type Fail = { ok: false; reason: string; cause: unknown; next: string };
 type Ref = { path: string; sha256: string };
@@ -772,7 +770,7 @@ function recordReport(input: {
 }): Record<string, unknown> {
   const { repoRoot } = input;
   const status = input.status || 'requested';
-  if (!(REPORT_STATUS as readonly string[]).includes(status)) {
+  if (!REPORT_STATUS.includes(status)) {
     return fail('context-review-input-invalid', `status ${status}`, 'use requested, addressed or accepted');
   }
   const acceptRisk = [...(input.acceptRisk || [])].sort();
@@ -990,7 +988,7 @@ function closeCycle(input: {
         return fail('context-review-input-invalid', `finding id ${item.id} not found in recorded findings`,
           'only dispose recorded findings');
       }
-      if (item.status !== 'resolved' && item.status !== 'accepted') {
+      if (!CONTEXT_REVIEW_STATUS.includes(item.status as string)) {
         return fail('context-review-input-invalid', `disposition status ${String(item.status)} invalid`,
           'disposition status must be resolved or accepted');
       }
