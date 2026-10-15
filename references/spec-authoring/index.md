@@ -153,7 +153,11 @@ body content only; never edits harness-owned frontmatter fields. Used from
        the selection reason in `근거`. When the symbol name is not yet
        grounded, write `신규 추출 지점: <responsibility>` instead of inventing
        a name. Internal symbol names are search hints — completion must not
-       depend on keeping that exact name. A bare directory still opens every
+       depend on keeping that exact name. When `explain(<symbol>)` ran for a
+       Touch symbol, `근거` may carry its caller count in the form
+       `explain(<symbol>): 호출 N / 파일 M`. Never set a test expectation from
+       a graph result, and re-check an export's impact range with `rg` because
+       indirect links do not show in the graph. A bare directory still opens every
        file under it, so Touch must justify every `affected_paths` entry.
      - **Touch** (contract change): when Interface revises a shared
        serialized shape or gate input, also list every test/fixture file that
@@ -233,13 +237,13 @@ body content only; never edits harness-owned frontmatter fields. Used from
 - **Discovery fields.** For new or modified docs, `title` stays Korean as the
   `.gitmessage` nominal commit-title source; do not translate it. Write
   `description` and `tags` in English ASCII. Search queries also use English
-  ASCII for graph-suggest; do not propose tokenizer or Korean-search support or
+  ASCII for Graphify queries and `grep`; do not propose tokenizer or Korean-search support or
   bulk-rewrite the existing corpus.
 - **Domain tags.** Frontmatter `tags` are the domain search vocabulary that
-  people and `graph-suggest` queries use. Each item is an English ASCII
+  people and Graphify queries and `grep` use. Each item is an English ASCII
   single token matching `[A-Za-z0-9_./-]`. Keep scaffold `bouncer` and the
   document's own kind tag, then add 2–5 domain tags (for
-  example `worktree`, `intent`, `graph-suggest`).
+  example `worktree`, `intent`, `affected-paths`).
 - **Stop slop.** After drafting Korean plan/explain bodies, apply the
   `stop-slop` skill (`${BOUNCER_ROOT}/references/stop-slop/index.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.

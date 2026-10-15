@@ -11,8 +11,9 @@ const referencesDir = path.join(root, 'skills', 'bouncer-plan', 'references');
 // `npm run lint:docs`로 검사하고, 게이트·시나리오 동작은 validate·scaffold 테스트가 지킨다.
 // 여기에는 reference 파일의 존재·부재만 둔다.
 test('bouncer-plan → ships its skill-local references and no distill preflight', () => {
-  for (const file of ['evidence-dispatch.md', 'scope-confirm.md', 'graphify-suggestions.md', 'context-review.md']) {
+  for (const file of ['evidence-dispatch.md', 'scope-confirm.md', 'context-review.md']) {
     assert.ok(fs.existsSync(path.join(referencesDir, file)), file);
   }
   assert.strictEqual(fs.existsSync(path.join(referencesDir, 'distill-preflight.md')), false);
+  assert.strictEqual(fs.existsSync(path.join(referencesDir, ['graphify', 'suggestions.md'].join('-'))), false);
 });

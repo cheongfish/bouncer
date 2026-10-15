@@ -874,7 +874,7 @@ const PATH_CONTRACTS = {
       order: true,
       acq: [1, 2, 3, 4, 6],
       links: {
-        3: ['./references/evidence-dispatch.md', './references/graphify-suggestions.md'],
+        3: ['./references/evidence-dispatch.md'],
         4: ['./references/scope-confirm.md'],
         5: ['./references/context-review.md'],
       },

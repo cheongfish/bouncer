@@ -44,11 +44,11 @@ Korean-search support or a bulk rewrite of the existing corpus.
   bundle index summary. The summary row is derived by `scaffold epic` and may
   be appended or replaced, while S13 reports a mismatch; the row is not an
   authoring surface.
-- `tags` are the domain search vocabulary that people and `graph-suggest`
-  queries use. Each item is an English ASCII single token matching
+- `tags` are the domain search vocabulary that people and Graphify
+  queries and `grep` use. Each item is an English ASCII single token matching
   `[A-Za-z0-9_./-]`. Keep the scaffold's `bouncer` and document-kind tag;
   add 2–5 durable domain tags (for example `worktree`, `intent`, or
-  `graph-suggest`). Do not add temporary
+  `affected-paths`). Do not add temporary
   ticket ids, one-off filenames, or synonyms for the same concept.
 
 **Plan fields.** `bouncer.affected_paths` is the minimum approved set of
@@ -63,7 +63,7 @@ task's acceptance criteria, not prose such as "run tests." Blueprint
 merely to make an implementation easier to fit. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
-`graph-suggest` candidates and `bouncer intent` results are advisory input; do
+Graphify query candidates, `grep` results, and `bouncer intent` results are advisory input; do
 not store them in frontmatter. No code reads leftover `bouncer.scope_evidence`
 or `bouncer.graph` on older task documents.
 
