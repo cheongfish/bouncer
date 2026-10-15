@@ -49,6 +49,9 @@ const LEGACY_ALLOWLIST = new Set([
 // 벤치마크 계획서는 비교 조건으로 이름을 든다. 제품 통합 참조가 아니다.
 const SUPERPOWERS_COMPARISON_DOCS = new Set(['benchmark-plan.md']);
 
+// 브랜딩 논의 문서는 SDD 범주와 Superpowers 비교를 주제로 한다. 제품 통합 참조나 레거시 입력이 아니다.
+const BRANDING_DISCUSSION_DOCS = new Set(['docs/branding-discussion.md']);
+
 const SUPERPOWERS_NEGATIVE_TESTS = new Set([
   'test/cli-validate.test.js',
   'test/skill-bouncer-commit.test.js',
@@ -106,7 +109,8 @@ test('active surfaces → contain no Superpowers integration reference', () => {
     if (file === 'test/public-name-regression.test.js') continue;
     const text = read(file);
     if (!SUPERPOWERS_RE.test(text)) continue;
-    if (SUPERPOWERS_NEGATIVE_TESTS.has(file) || SUPERPOWERS_COMPARISON_DOCS.has(file)) continue;
+    if (SUPERPOWERS_NEGATIVE_TESTS.has(file) || SUPERPOWERS_COMPARISON_DOCS.has(file)
+      || BRANDING_DISCUSSION_DOCS.has(file)) continue;
     offenders.push(file);
   }
   assert.deepStrictEqual(offenders, [], `Superpowers references in:\n${offenders.join('\n')}`);
@@ -115,7 +119,7 @@ test('active surfaces → contain no Superpowers integration reference', () => {
 test('active surfaces → omit sdd names except legacy-rejection allowlist', () => {
   const offenders = [];
   for (const file of activeFiles()) {
-    if (LEGACY_ALLOWLIST.has(file)) continue;
+    if (LEGACY_ALLOWLIST.has(file) || BRANDING_DISCUSSION_DOCS.has(file)) continue;
     const text = read(file);
     if (SDD_RE.test(text)) offenders.push(file);
   }
