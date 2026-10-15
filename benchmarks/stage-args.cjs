@@ -16,6 +16,28 @@ const stages = new Map([
     + 'show A), B), C) options, and request all answers in one batch.'],
 ]);
 
+// 평가자 정책이 `benchmark_choices.plan_review_close`를 선언하면 plan 단계 지시에 이 문장을 더한다.
+// context review의 close는 사용자 동의 동작이라 응답기가 문구로 추측해 답하지 않고, 승인한 범위를 시작 지시에 적는다.
+const PLAN_REVIEW_CLOSE_VALUE = 'close_when_only_advisory_findings';
+const PLAN_REVIEW_CLOSE_SENTENCE = 'For the context review close decision: when the delta round leaves no open must_fix finding, '
+  + 'you have the user\'s approval to run `bouncer context-review close` with the dispositions you proposed. '
+  + 'Never close, and never accept a risk, while a must_fix finding is open; ask the user instead.';
+
+/**
+ * 단계 시작 지시를 만든다. 정책 선택이 없으면 `stages` 표의 문장 그대로다.
+ *
+ * @param {string} stage - 단계 이름(예: bouncer-plan)
+ * @param {object} policy - loadPolicy가 돌려준 평가자 정책
+ * @returns {string} 시작 지시
+ */
+function stagePrompt(stage, policy) {
+  const base = stages.get(stage);
+  if (stage === 'bouncer-plan' && policy?.benchmark_choices?.plan_review_close === PLAN_REVIEW_CLOSE_VALUE) {
+    return `${base} ${PLAN_REVIEW_CLOSE_SENTENCE}`;
+  }
+  return base;
+}
+
 function argsOf(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i += 2) {
@@ -51,4 +73,4 @@ function argsOf(argv) {
   return out;
 }
 
-module.exports = { argsOf, stages };
+module.exports = { argsOf, stages, stagePrompt, PLAN_REVIEW_CLOSE_VALUE };

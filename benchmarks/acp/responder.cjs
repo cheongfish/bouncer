@@ -154,6 +154,11 @@ function loadPolicy(file, deps = {}) {
     || policy.benchmark_choices?.finalize_quiz !== 'first_option_for_each_presented_question') {
     throw new Error('unsupported benchmark decision policy');
   }
+  // 선택 항목: 선언한 값이 구현된 값이 아니면 시작을 거절한다(승인한 범위를 벗어난 위임을 막는다).
+  const reviewClose = policy.benchmark_choices?.plan_review_close;
+  if (reviewClose !== undefined && reviewClose !== 'close_when_only_advisory_findings') {
+    throw new Error('unsupported benchmark decision policy');
+  }
   return policy;
 }
 

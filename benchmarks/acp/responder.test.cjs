@@ -62,6 +62,20 @@ test('accepts only the approved benchmark policy version and choices', () => {
   rmSync(dir, { recursive: true });
 });
 
+test('plan_review_close 선언 → 구현된 값만 받고 그 밖의 값은 시작을 거절한다', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
+  const policyFile = path.join(dir, 'policy.json');
+  try {
+    const choices = (extra) => ({ ...fastifyPolicy, benchmark_choices: { ...fastifyPolicy.benchmark_choices, ...extra } });
+    writeFileSync(policyFile, JSON.stringify(choices({ plan_review_close: 'close_when_only_advisory_findings' })));
+    assert.equal(loadPolicy(policyFile).benchmark_choices.plan_review_close, 'close_when_only_advisory_findings');
+    writeFileSync(policyFile, JSON.stringify(choices({ plan_review_close: 'always_close' })));
+    assert.throws(() => loadPolicy(policyFile), /unsupported benchmark decision policy/);
+    writeFileSync(policyFile, JSON.stringify(choices({ plan_review_close: undefined })));
+    assert.equal(loadPolicy(policyFile).policy_version, 3);
+  } finally { rmSync(dir, { recursive: true }); }
+});
+
 test('approves the explicit plan question without quality preselection', () => {
   const questions = [{ id: 'approve', title: 'plan.approval', prompt: 'Plan approval?', options: [
     { id: 'a', label: 'Approve plan (Recommended)' },
