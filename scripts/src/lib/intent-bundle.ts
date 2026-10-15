@@ -196,6 +196,7 @@ const ROLE_SECTION_NAMES: Record<IntentRole, readonly string[]> = {
  * @param {string} input.repoRoot - 저장소 루트
  * @param {string} input.taskFile - repo-relative canonical tasks.md
  * @param {FunctionRequest[]} input.functions - 중복·빈 이름 없는 함수 요청
+ * @param {boolean} [input.allowEmpty] - true일 때만 빈 `functions`를 허용한다(함수 없는 task용)
  * @param {BundleDeps} [input.deps] - fs·Git·resolver 주입(테스트용)
  * @returns {BundleResult} created | reused 와 bundle_id·revision·function entries
  */
@@ -203,6 +204,7 @@ function resolveTaskIntentBundle(input: {
   repoRoot: string;
   taskFile: string;
   functions: FunctionRequest[];
+  allowEmpty?: boolean;
   deps?: BundleDeps | null;
 }): BundleResult {
   const deps = input.deps || {};
@@ -212,7 +214,7 @@ function resolveTaskIntentBundle(input: {
   const runSymbol = deps.resolveSymbol || resolveSymbol;
 
   // 1. 요청·경로·stable ID를 먼저 고정한다. 잘못된 입력이면 cache를 읽지도 않는다.
-  const requests = normalizeFunctionRequests(input.functions);
+  const requests = normalizeFunctionRequests(input.functions, input.allowEmpty === true);
   const { repoReal, taskRel, stableTask, taskBriefHash } = loadExecutionTask({
     repoRoot: input.repoRoot,
     taskFile: input.taskFile,
@@ -297,10 +299,12 @@ function resolveTaskIntentBundle(input: {
  * 정렬은 기록 단계에서만 한다 — 호출 순서를 바꿔 중복 판정을 숨기지 않는다.
  *
  * @param {unknown} functions - 호출자 함수 요청
+ * @param {boolean} allowEmpty - true면 빈 배열을 허용한다. 기본 거절을 유지해
+ *   실수로 빈 요청이 가짜 "함수 없음" bundle로 기록되지 않게 한다.
  * @returns {FunctionRequest[]} 정규화된 요청
  */
-function normalizeFunctionRequests(functions: unknown): FunctionRequest[] {
-  if (!Array.isArray(functions) || functions.length === 0) {
+function normalizeFunctionRequests(functions: unknown, allowEmpty: boolean): FunctionRequest[] {
+  if (!Array.isArray(functions) || (functions.length === 0 && !allowEmpty)) {
     throw new Error('functions must be a non-empty array');
   }
   const seen = new Set<string>();

@@ -592,6 +592,47 @@ test('intent bundle run twice → creates then reuses the same bundle_id and rev
   assert.equal(reused.revision, created.revision);
 });
 
+test('intent bundle --no-symbols run twice → creates then reuses an empty bundle that sections accepts', () => {
+  const { repo, taskFile } = seedIntentBundleRepo();
+  const args = ['intent', 'bundle', '--repo', repo, '--task', taskFile, '--no-symbols'];
+  const first = capture(args);
+  assert.equal(first.code, 0);
+  assert.equal(first.err, '');
+  const created = JSON.parse(first.out);
+  assert.equal(created.status, 'created');
+  assert.deepEqual(created.functions, []);
+  const second = capture(args);
+  assert.equal(second.code, 0);
+  const reused = JSON.parse(second.out);
+  assert.equal(reused.status, 'reused');
+  assert.equal(reused.revision, created.revision);
+  const sections = capture([
+    'intent', 'sections', '--repo', repo, '--task', taskFile, '--role', 'implementer',
+  ]);
+  assert.equal(sections.code, 0);
+  const payload = JSON.parse(sections.out);
+  assert.equal(payload.ok, true);
+  assert.deepEqual(payload.functions, []);
+});
+
+test('intent bundle with --no-symbols misuse or no symbol option → rejects with exit 2', () => {
+  const task = intentBundleTaskRel();
+  const combo = 'intent: --no-symbols cannot be combined with --symbol or --candidate\n';
+  const cases = [
+    [['--no-symbols', '--symbol', 'fn'], combo],
+    [['--symbol', 'fn', '--no-symbols'], combo],
+    [['--no-symbols', '--candidate', 'x'], combo],
+    [['--no-symbols', '--no-symbols'], 'intent: duplicate option: --no-symbols\n'],
+    [[], 'intent: --symbol <function-name> is required\n'],
+  ];
+  for (const [extra, err] of cases) {
+    const result = capture(['intent', 'bundle', '--task', task, ...extra]);
+    assert.equal(result.code, 2, extra.join(' '));
+    assert.equal(result.out, '');
+    assert.equal(result.err, err);
+  }
+});
+
 test('intent bundle when function body, Explain section, or set changes → bumps revision', () => {
   const { repo, taskFile } = seedIntentBundleRepo(1);
   const base = capture([

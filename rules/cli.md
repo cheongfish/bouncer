@@ -199,6 +199,7 @@ user confirmation and is unresolved handoff, not ordinary completion.
 bouncer project-root
 bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
 bouncer intent bundle --task <tasks.md> --symbol <name>... [--candidate <qualified-ref>]...
+bouncer intent bundle --task <tasks.md> --no-symbols
 bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
 bouncer graphify-bin
 bouncer graph-sync
@@ -225,7 +226,7 @@ failures are `{ ok: false, reason: unreadable|unsupported-schema }` (exit 1).
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
-`intent bundle` creates or reuses the task intent cache. `intent sections` is
+`intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. `intent sections` is
 read-only: it projects role-specific section bodies from that cache. On
 `{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`,
 `intent-sections-drift`, or `intent-task-invalid` (exit 1). For the first three,

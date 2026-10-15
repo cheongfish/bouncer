@@ -442,6 +442,40 @@ test('empty or duplicate function requests → are rejected before cache writes'
   assert.equal(fs.existsSync(located.intentFile), false);
 });
 
+test('empty functions without allowEmpty → still throws and writes no cache', () => {
+  const { repo, taskFile } = seedResolvedRepo();
+  const located = intentBundlePathFor({ repoRoot: repo, taskRel: taskFile, deps: { execFileSync } });
+  for (const allowEmpty of [undefined, false]) {
+    assert.throws(() => resolveTaskIntentBundle({
+      repoRoot: repo, taskFile, functions: [], allowEmpty, deps: { execFileSync },
+    }), /functions must be a non-empty array/);
+  }
+  assert.equal(fs.existsSync(located.intentFile), false);
+});
+
+test('empty functions with allowEmpty → creates, reuses, then bumps revision after a function record', () => {
+  const { repo, taskFile } = seedResolvedRepo();
+  const empty = () => resolveTaskIntentBundle({
+    repoRoot: repo, taskFile, functions: [], allowEmpty: true, deps: { execFileSync },
+  });
+  const created = empty();
+  assert.equal(created.status, 'created');
+  assert.deepEqual(created.functions, []);
+  const reused = empty();
+  assert.equal(reused.status, 'reused');
+  assert.equal(reused.revision, created.revision);
+  assert.equal(reused.bundle_id, created.bundle_id);
+
+  const withFn = resolveTaskIntentBundle({
+    repoRoot: repo, taskFile, functions: [{ symbol: 'targetFn' }], deps: { execFileSync },
+  });
+  assert.equal(withFn.revision, created.revision + 1);
+  const back = empty();
+  assert.equal(back.status, 'created');
+  assert.deepEqual(back.functions, []);
+  assert.equal(back.revision, withFn.revision + 1);
+});
+
 test('current task brief bytes → task_brief_hash is their sha256', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const result = resolveTaskIntentBundle({
