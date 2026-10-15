@@ -556,7 +556,7 @@ const FALLBACK_SITES = [
   },
   {
     role: 'reviewer',
-    rel: 'skills/bouncer-execute/references/agent-dispatch.md',
+    rel: 'skills/bouncer-run/references/agent-dispatch.md',
     after: 'For review,',
     start: 'If named agents are unavailable',
     end: '\n\n',
@@ -565,7 +565,7 @@ const FALLBACK_SITES = [
   },
   {
     role: 'debugger',
-    rel: 'skills/bouncer-execute/references/verification-recovery.md',
+    rel: 'skills/bouncer-run/references/verification-recovery.md',
     start: 'When named agents are unavailable',
     end: '\n\n',
     inline: true,
@@ -576,7 +576,7 @@ const FALLBACK_SITES = [
   },
   {
     role: 'implementer',
-    rel: 'skills/bouncer-execute/references/agent-dispatch.md',
+    rel: 'skills/bouncer-run/references/agent-dispatch.md',
     start: 'If the TOML is missing',
     end: '\n\n',
     inline: true,

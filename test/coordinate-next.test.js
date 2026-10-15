@@ -1288,7 +1288,7 @@ test('card에서 directory 확인 → 정확히 card 아홉 개이고 index.md �
 // 공통 규칙은 카드와 execute reference가 같은 정규식으로 맞아야 한다. 한쪽만
 // 바뀌면 coordinator drive와 standalone execute가 다른 상한을 따르게 된다.
 const EXEC_REF = (name) => fs.readFileSync(
-  path.join(__dirname, '..', 'skills', 'bouncer-execute', 'references', `${name}.md`), 'utf8',
+  path.join(__dirname, '..', 'skills', 'bouncer-run', 'references', `${name}.md`), 'utf8',
 );
 const cardOf = (id) => fs.readFileSync(path.join(CARD_DIR, `${id}.md`), 'utf8');
 const SHARED_RULES = [

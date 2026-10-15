@@ -206,7 +206,9 @@ const CONDITIONAL_HELPERS = {
   },
   'bouncer-execute': {
     root: ['minimality/index.md', 'debugging/index.md'],
-    local: ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'],
+    local: [],
+    // run 아래로 옮긴 reference는 sibling 링크(../bouncer-run/references/…)로 적재한다.
+    sibling: ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'],
   },
   'bouncer-commit': { root: [], local: [] },
   'bouncer-run': { root: [], local: [] },
@@ -220,7 +222,7 @@ const CONDITIONAL_HELPERS = {
 test('entry skills → do not load conditional helpers before numbered steps', () => {
   for (const name of WORKFLOW) {
     const preamble = numberedProcedurePreamble(readWorkflow(name));
-    const { root, local } = CONDITIONAL_HELPERS[name];
+    const { root, local, sibling = [] } = CONDITIONAL_HELPERS[name];
     for (const helper of root) {
       assert.doesNotMatch(
         preamble,
@@ -233,6 +235,13 @@ test('entry skills → do not load conditional helpers before numbered steps', (
         preamble,
         new RegExp(`\\./references/${file.replace(/\./g, '\\.')}`),
         `${name}: ./references/${file} is owned by a later conditional step`,
+      );
+    }
+    for (const file of sibling) {
+      assert.doesNotMatch(
+        preamble,
+        new RegExp(`\\.\\./bouncer-run/references/${file.replace(/\./g, '\\.')}`),
+        `${name}: sibling ${file} is owned by a later conditional step`,
       );
     }
   }
@@ -257,7 +266,7 @@ test('workflow skills → use directory-matching names and explicit-invocation d
  * @returns {string[]} bare 경로 목록
  */
 function bareReferenceCites(md) {
-  return [...md.matchAll(/(?<!\$\{BOUNCER_ROOT\}\/|\.\/)references\/[A-Za-z0-9._/-]+/g)]
+  return [...md.matchAll(/(?<!\$\{BOUNCER_ROOT\}\/|\.\/|\.\.\/bouncer-run\/)references\/[A-Za-z0-9._/-]+/g)]
     .map((m) => m[0]);
 }
 
@@ -269,11 +278,7 @@ const SKILL_LOCAL_REFS = {
     'scope-confirm.md',
     'evidence-dispatch.md',
   ],
-  'bouncer-execute': [
-    'agent-dispatch.md',
-    'verification-recovery.md',
-    'review-round.md',
-  ],
+  'bouncer-execute': [],
   'bouncer-commit': [],
   'bouncer-finalize': [
     'explain-quiz.md',
@@ -284,6 +289,18 @@ const SKILL_LOCAL_REFS = {
   'bouncer-run': ['light-run.md', 'direct-run.md'],
   'bouncer-retro': [],
 };
+
+// execute가 sibling 링크로 읽는 run 소유 reference. 옛 execute 경로는 존재하면 안 된다.
+const EXECUTE_SIBLING_REFS = ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'];
+
+test('bouncer-execute → reads run-owned references via sibling links; old paths are gone', () => {
+  const md = readWorkflow('bouncer-execute');
+  for (const file of EXECUTE_SIBLING_REFS) {
+    assert.ok(md.includes(`../bouncer-run/references/${file}`), `execute must link ../bouncer-run/references/${file}`);
+    assert.ok(fs.existsSync(path.join(root, 'skills', 'bouncer-run', 'references', file)), `run ${file} must exist`);
+    assert.equal(fs.existsSync(path.join(root, 'skills', 'bouncer-execute', 'references', file)), false, `old execute ${file} must be removed`);
+  }
+});
 
 test('workflow skills → classify references as root or skill-local without bare collision', () => {
   for (const name of WORKFLOW) {

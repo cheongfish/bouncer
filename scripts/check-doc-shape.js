@@ -830,19 +830,19 @@ const PATH_CONTRACTS = {
     frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-execute' } },
     links: [
       {
-        href: './references/agent-dispatch.md',
+        href: '../bouncer-run/references/agent-dispatch.md',
         resolve: true,
         referencePreamble: true,
         conditionalLoad: { triggers: ['dispatch', 'fallback'] },
       },
       {
-        href: './references/verification-recovery.md',
+        href: '../bouncer-run/references/verification-recovery.md',
         resolve: true,
         referencePreamble: true,
         conditionalLoad: { triggers: ['verify', 'recover'] },
       },
       {
-        href: './references/review-round.md',
+        href: '../bouncer-run/references/review-round.md',
         resolve: true,
         referencePreamble: true,
         conditionalLoad: { triggers: ['review', 'round'] },
@@ -853,9 +853,9 @@ const PATH_CONTRACTS = {
       order: true,
       noAcq: true,
       links: {
-        3: ['./references/agent-dispatch.md'],
-        4: ['./references/verification-recovery.md'],
-        5: ['./references/review-round.md'],
+        3: ['../bouncer-run/references/agent-dispatch.md'],
+        4: ['../bouncer-run/references/verification-recovery.md'],
+        5: ['../bouncer-run/references/review-round.md'],
       },
     },
     acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },

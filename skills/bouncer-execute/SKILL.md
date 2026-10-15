@@ -118,7 +118,7 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
 
    When dispatching a named agent or applying its fallback, apply
    [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../rules/subagent-model.md) and read this
-   reference: [agent-dispatch.md](./references/agent-dispatch.md). That reference
+   reference: [agent-dispatch.md](../bouncer-run/references/agent-dispatch.md). That reference
    owns the compact named payload and the full fallback payload. In every path,
    pass only the pointer task brief's Goal & intent, Current behavior, Target
    behavior, Interface, Touch, Do not touch, Constraints, and Checklist as
@@ -176,7 +176,7 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
 
    **On verify failure**, when recovering through debugger then implementer,
    apply [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../rules/subagent-model.md) and read
-   this reference: [verification-recovery.md](./references/verification-recovery.md).
+   this reference: [verification-recovery.md](../bouncer-run/references/verification-recovery.md).
    The `debugging` skill (`${BOUNCER_ROOT}/references/debugging/index.md`) is
    the behavioral brief. The debugger report is evidence, never authority to
    widen scope or skip a gate; the controller
@@ -196,7 +196,7 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    latest verification passes. Only a path that actually runs a review — that
    last-commit final review, or the absent-`review_scope` per-task review —
    enters the controller-owned review state procedure in the [`review` skill](`${BOUNCER_ROOT}/references/review/index.md`).
-   When a review round may start or stop, read [review-round.md](./references/review-round.md).
+   When a review round may start or stop, read [review-round.md](../bouncer-run/references/review-round.md).
    Freeze the target, then run `bouncer review-dispatch execute --blueprint <dir>
    --task <NNN> --base <sha> --head <sha>` when `review_scope` is absent, or
    `--blueprint <dir> --base <sha> --head <sha>` (no `--task`) for the last-commit
