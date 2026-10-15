@@ -126,3 +126,16 @@ node benchmarks/run-bouncer-full.cjs --task fastify-001 --model cursor-grok-4.5-
 
 계획 산출물은 작업 공간 아카이브(`.benchmarks/archive/<run-id>.tar.gz`)의 `.bouncer/context/`에서 읽는다.
 
+### plan 단계를 게이트까지 끝까지 돌리기
+
+plan step 5(context review)의 close는 사용자 동의 동작이고 ACQ 게이트 ID가 없는 자유 문장 질문이다. 응답기는 문구로 질문을
+추측하지 않으므로, 정책에 아래 선택이 없으면 에이전트가 "close할까요?"를 묻고 멈춰 plan 게이트에 닿지 못한다.
+
+| 정책 키 | 값 | 동작 |
+|---|---|---|
+| `benchmark_choices.plan_review_close` | `close_when_only_advisory_findings` | plan 단계 시작 지시에 "delta 뒤 열린 must_fix가 없으면 제안한 dispositions로 close해도 좋다. must_fix가 열려 있으면 close도 위험 수용도 하지 말고 사용자에게 물어라"는 한 문장을 더한다 |
+
+- 선언하지 않으면 시작 지시는 `stage-args.cjs`의 기본 문장 그대로다. 다른 값은 `loadPolicy`가 시작 전에 거절한다.
+- 평가자 정책을 바꾸는 일이라 사용자의 명시적 승인이 필요하다. 승인 기록은 정책 `approval_record`에 남긴다. 현재 `fastify-001` 정책만 선언했다.
+- delta 뒤에도 must_fix가 열려 있으면 여전히 `awaiting_user_decision`으로 멈춘다. 위험 수용은 사용자 동의라서 하네스가 대신하지 않는다. 이 멈춤도 plan 결과로 기록한다.
+

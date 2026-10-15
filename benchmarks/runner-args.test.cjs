@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { options } = require('./run-cursor.cjs');
 const { configOf } = require('./run-bouncer-full.cjs');
-const { argsOf } = require('./stage-args.cjs');
+const { argsOf, stagePrompt, stages } = require('./stage-args.cjs');
 
 /**
  * 인자 파서가 파일 시스템 검사에서 먼저 실패하지 않도록 임시 키 파일·작업 디렉터리를 만든다.
@@ -59,3 +59,20 @@ test('run-cursor --build-only 없음 → buildOnly false', (t) => {
   const parsed = options(['--task', 'x-001', '--condition', 'vanilla', '--model', 'm', '--key-file', keyFile]);
   assert.equal(parsed.buildOnly, false);
 });
+
+test('정책에 plan_review_close 없음 → stagePrompt가 stages 표의 문장 그대로다', () => {
+  assert.equal(stagePrompt('bouncer-plan', { benchmark_choices: {} }), stages.get('bouncer-plan'));
+  assert.equal(stagePrompt('bouncer-plan', undefined), stages.get('bouncer-plan'));
+});
+
+test('plan_review_close 선언 → plan 단계 지시에만 close 사전 승인 문장이 붙는다', () => {
+  const policy = { benchmark_choices: { plan_review_close: 'close_when_only_advisory_findings' } };
+  const plan = stagePrompt('bouncer-plan', policy);
+  assert.ok(plan.startsWith(stages.get('bouncer-plan')));
+  assert.match(plan, /no open must_fix finding/);
+  assert.match(plan, /Never close, and never accept a risk, while a must_fix finding is open/);
+  for (const other of ['bouncer-init', 'bouncer-run', 'bouncer-finalize']) {
+    assert.equal(stagePrompt(other, policy), stages.get(other));
+  }
+});
+

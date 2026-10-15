@@ -9,7 +9,7 @@ const { setTimeout, clearTimeout } = require('node:timers');
 const { AcpClient } = require('./acp/client.cjs');
 const { loadPolicy, answerAskQuestion, answerQuizText, answerPermission, turnQuestionState } = require('./acp/responder.cjs');
 const { transcriptFiles, usageFromAcp, usageFromCursorLogs } = require('./usage.cjs');
-const { argsOf, stages } = require('./stage-args.cjs');
+const { argsOf, stagePrompt } = require('./stage-args.cjs');
 const { loadCard } = require('./task-card.cjs');
 const { assertImagePluginVersion } = require('./plugin-version.cjs');
 const { loadPrepared } = require('./prepare-deepswe-task.cjs');
@@ -32,7 +32,7 @@ async function main() {
   const cursorLogs = path.join(runDir, 'cursor-logs');
   mkdirSync(cursorLogs);
   const promptFile = path.join(runDir, 'prompt.txt');
-  writeFileSync(promptFile, `${stages.get(stage)}\n\n${task.requestText}`);
+  writeFileSync(promptFile, `${stagePrompt(stage, policy)}\n\n${task.requestText}`);
   // DeepSWE 카드면 과제 이미지 기반 서비스와 그 빌드 env를, 아니면 기존 bouncer 서비스를 쓴다.
   const runtime = agentRuntime({ taskId: args.taskId, condition: 'bouncer-full', prepared: loadPrepared(args.taskId) });
   const env = {
