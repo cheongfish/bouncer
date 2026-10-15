@@ -881,3 +881,109 @@ test('linkLocalEnv on the main checkout → does nothing', () => {
   assert.deepStrictEqual(linkLocalEnv(repo), []);
   assert.strictEqual(fs.lstatSync(path.join(repo, '.env')).isSymbolicLink(), false);
 });
+
+// worktree.setup 테스트: 실제 git worktree 없이 임시 디렉터리를 main checkout으로
+// 지정(deps.mainCheckout)하고, exec는 호출만 기록하는 가짜로 바꾼다.
+function makeSetupFixture(config, { lock = true, installed = false } = {}) {
+  const main = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-main-')));
+  if (config !== undefined) write(main, CONFIG_REL, typeof config === 'string' ? config : JSON.stringify(config));
+  const wt = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-wt-')));
+  if (lock) write(wt, 'package-lock.json', '{}\n');
+  if (installed) writeInstalled(wt);
+  const calls = [];
+  const deps = {
+    mainCheckout: main,
+    execFileSync(command, args, options) { calls.push({ command, args, options }); },
+  };
+  return { wt, deps, calls };
+}
+
+const BUILD_CALL = (wt) => ({ command: 'npm', args: ['run', 'build'], options: { cwd: wt, stdio: 'inherit' } });
+const NPM_CI_ARGS = ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'];
+
+test('prepareDependencies when worktree.setup is set and the lockfile is missing → runs setup once', () => {
+  const { wt, deps, calls } = makeSetupFixture({ worktree: { setup: 'npm run build' } }, { lock: false });
+
+  const res = prepareDependencies(wt, deps);
+
+  assert.deepStrictEqual(res, { ok: true });
+  assert.deepStrictEqual(calls, [BUILD_CALL(wt)]);
+});
+
+test('prepareDependencies when worktree.setup is set and the stamp matches → skips npm ci and runs setup', () => {
+  const { wt, deps, calls } = makeSetupFixture({ worktree: { setup: 'npm run build' } }, { installed: true });
+
+  const res = prepareDependencies(wt, deps);
+
+  assert.deepStrictEqual(res, { ok: true });
+  assert.deepStrictEqual(calls, [BUILD_CALL(wt)]);
+});
+
+test('prepareDependencies when worktree.setup is set and install is needed → runs npm ci before setup', () => {
+  const { wt, deps, calls } = makeSetupFixture({ worktree: { setup: 'npm run build' } });
+
+  const res = prepareDependencies(wt, deps);
+
+  assert.deepStrictEqual(res, { ok: true });
+  assert.deepStrictEqual(calls.map((c) => c.args), [NPM_CI_ARGS, ['run', 'build']]);
+});
+
+for (const [label, setup] of [
+  ['a chained command', 'npm run build && x'],
+  ['a cd prefix', 'cd x'],
+  ['an empty string', ''],
+  ['a non-string value', 42],
+  ['an executable outside the allowlist', 'curl x'],
+]) {
+  test(`prepareDependencies when worktree.setup is ${label} → fails with dependency-install-failed and runs no setup`, () => {
+    const { wt, deps, calls } = makeSetupFixture({ worktree: { setup } }, { lock: false });
+
+    const res = prepareDependencies(wt, deps);
+
+    assert.strictEqual(res.ok, false);
+    assert.strictEqual(res.reason, 'dependency-install-failed');
+    assert.match(res.message, /^worktree\.setup/);
+    assert.deepStrictEqual(calls, []);
+  });
+}
+
+test('prepareDependencies when the setup command throws → fails with dependency-install-failed', () => {
+  const { wt, deps } = makeSetupFixture({ worktree: { setup: 'npm run build' } }, { lock: false });
+  deps.execFileSync = () => { throw new Error('boom'); };
+
+  const res = prepareDependencies(wt, deps);
+
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'dependency-install-failed');
+  assert.match(res.message, /^worktree\.setup/);
+});
+
+test('prepareDependencies when npm ci fails → returns the install failure without running setup', () => {
+  const { wt, deps } = makeSetupFixture({ worktree: { setup: 'npm run build' } });
+  const calls = [];
+  deps.execFileSync = (command, args) => { calls.push(args); throw new Error('npm down'); };
+
+  const res = prepareDependencies(wt, deps);
+
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'dependency-install-failed');
+  assert.deepStrictEqual(calls, [NPM_CI_ARGS]);
+});
+
+test('prepareDependencies when the config has no worktree key → keeps the existing npm ci call only', () => {
+  const { wt, deps, calls } = makeSetupFixture({ verify: 'npm test' });
+
+  const res = prepareDependencies(wt, deps);
+
+  assert.deepStrictEqual(res, { ok: true });
+  assert.deepStrictEqual(calls.map((c) => c.args), [NPM_CI_ARGS]);
+});
+
+test('prepareDependencies when the main checkout has no config file → makes no setup call', () => {
+  const { wt, deps, calls } = makeSetupFixture(undefined, { lock: false });
+
+  const res = prepareDependencies(wt, deps);
+
+  assert.deepStrictEqual(res, { ok: true });
+  assert.deepStrictEqual(calls, []);
+});
