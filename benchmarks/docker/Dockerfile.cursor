@@ -31,7 +31,8 @@ RUN npm ci && npm run build
 FROM cursor-base AS bouncer
 ENV BOUNCER_HOME=/home/node/.cursor/plugins/local/bouncer
 COPY --from=plugin-build --chown=node:node /opt/bouncer/scripts/ /home/node/.cursor/plugins/local/bouncer/scripts/
-COPY --chown=node:node package.json plugin.json AGENTS.md /home/node/.cursor/plugins/local/bouncer/
+# build-stamp.js는 scripts/src가 있으면 tsconfig.json까지 해시한다. 복사하지 않으면 아래 루트 해석 RUN이 ENOENT로 끝난다.
+COPY --chown=node:node package.json tsconfig.json plugin.json AGENTS.md /home/node/.cursor/plugins/local/bouncer/
 COPY --chown=node:node .cursor-plugin/ /home/node/.cursor/plugins/local/bouncer/.cursor-plugin/
 COPY --chown=node:node agents/ /home/node/.cursor/plugins/local/bouncer/agents/
 COPY --chown=node:node hooks/ /home/node/.cursor/plugins/local/bouncer/hooks/

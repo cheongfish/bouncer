@@ -8,7 +8,7 @@ const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { setupExcludes } = require('./task-card.cjs');
 const { applyVerdict, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
-  bootstrapCommit, configOf, runtimeFieldsFor } = require('./run-bouncer-full.cjs');
+  bootstrapCommit, configOf, disableGraphify, runtimeFieldsFor } = require('./run-bouncer-full.cjs');
 
 const BLUEPRINT = '.bouncer/context/epics/001-e/blueprints/001-x';
 const BRANCH = 'feat/001-001-x';
@@ -175,6 +175,42 @@ test('--timeout-minutes 생략 → configOf timeoutMinutes 180', (t) => {
 test('--timeout-minutes 241 → configOf invalid timeout', (t) => {
   assert.throws(() => configOf(['--task', 'x-001', '--model', 'm', '--key-file', keyFileIn(t),
     '--timeout-minutes', '241']), /invalid timeout/);
+});
+
+test('--stop-after·--graphify 생략 → configOf stopAfter null, graphify on', (t) => {
+  const config = configOf(['--task', 'x-001', '--model', 'm', '--key-file', keyFileIn(t)]);
+  assert.equal(config.stopAfter, null);
+  assert.equal(config.graphify, 'on');
+});
+
+test('--stop-after 02-plan --graphify off → configOf가 값을 돌려준다', (t) => {
+  const config = configOf(['--task', 'x-001', '--model', 'm', '--key-file', keyFileIn(t),
+    '--stop-after', '02-plan', '--graphify', 'off']);
+  assert.equal(config.stopAfter, '02-plan');
+  assert.equal(config.graphify, 'off');
+});
+
+test('--stop-after 04-finalize → configOf invalid stop-after', (t) => {
+  assert.throws(() => configOf(['--task', 'x-001', '--model', 'm', '--key-file', keyFileIn(t),
+    '--stop-after', '04-finalize']), /invalid stop-after/);
+});
+
+test('--graphify maybe → configOf invalid graphify', (t) => {
+  assert.throws(() => configOf(['--task', 'x-001', '--model', 'm', '--key-file', keyFileIn(t),
+    '--graphify', 'maybe']), /invalid graphify/);
+});
+
+test('graphify.enabled true → disableGraphify가 enabled만 false로 바꾸고 나머지는 보존한다', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'dg-'));
+  try {
+    mkdirSync(path.join(dir, '.bouncer'), { recursive: true });
+    writeFileSync(path.join(dir, '.bouncer', 'config.json'), JSON.stringify({
+      verify: 'npm test', graphify: { enabled: true, bin: '/x/graphify', exclude_dirs: ['a'] },
+    }));
+    disableGraphify(dir);
+    const out = JSON.parse(require('node:fs').readFileSync(path.join(dir, '.bouncer', 'config.json'), 'utf8'));
+    assert.deepEqual(out, { verify: 'npm test', graphify: { enabled: false, bin: '/x/graphify', exclude_dirs: ['a'] } });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('DeepSWE prepared → runtimeFieldsFor가 bouncer 과제 이미지 id와 agent_network를 돌려준다', (t) => {

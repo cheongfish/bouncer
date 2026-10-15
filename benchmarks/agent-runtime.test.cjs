@@ -131,6 +131,10 @@ test('남은 시간이 줄어듦 → 각 단계가 남은 분을 받는다', asy
   assert.deepEqual(seen, [100, 69]);
 });
 
+test('stop_after로 멈춘 실행 → exitCodeFor 0', () => {
+  assert.equal(exitCodeFor({ status: 'stopped', stop_reason: 'stop_after' }), 0);
+});
+
 test('finalized → exitCodeFor 0', () => {
   assert.equal(exitCodeFor({ status: 'finalized' }), 0);
 });
