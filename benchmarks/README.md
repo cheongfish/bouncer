@@ -34,6 +34,8 @@ benchmarks/
   plan-review/README.md
   plan-review/setup.cjs
   plan-review/setup.test.cjs
+  co-change-impact/README.md
+  ontology-retrieval/README.md
 ```
 
 공개 저장소의 실제 커밋을 과제로 쓰는 상류 과제(`fastify-001` 등)는 [`upstream/README.md`](upstream/README.md)에

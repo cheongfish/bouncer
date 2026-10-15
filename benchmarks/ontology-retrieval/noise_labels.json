@@ -1,0 +1,1878 @@
+[
+ {
+  "qid": "Q01",
+  "kind": "gate-code",
+  "entity": "S11",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   "test/validate-structural.test.js": 4
+  },
+  "examples": [
+   "- validate-structural.test.js: test('S11: a blueprint with no documents is reported as absent, not as a gate failure', () => {",
+   "+ validate-structural.test.js: test('S11: a blueprint with no documents → is reported as absent, not as a gate failure', () => {",
+   "- validate-structural.test.js: test('S11 does not mask a partially scaffolded blueprint', () => {",
+   "+ validate-structural.test.js: test('S11 → does not mask a partially scaffolded blueprint', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 0
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "065/001",
+  "title": "Task 수명주기 안정화",
+  "doc_index": false,
+  "doc_grep": true,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "skills/bouncer-run/SKILL.md": 1
+  },
+  "examples": [
+   "+ SKILL.md: ceilings: at most **1** debugger recovery, and the conditional review-round"
+  ],
+  "label": "A",
+  "why": "run 스킬에 review-round 상한 문장 추가. 재배치인지 규칙 추가인지 diff만으로 불명",
+  "idx": 1
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "067/001",
+  "title": "DAG 코디네이터 위임 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "skills/bouncer-run/SKILL.md": 2
+  },
+  "examples": [
+   "+ SKILL.md: execute's conditional review-round ceiling. It also owns the pointer during the",
+   "- SKILL.md: ceilings: at most **1** debugger recovery, and the conditional review-round"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 2
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "083/002",
+  "title": "지침 읽기 범위 축소",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 5,
+  "minus": 0,
+  "files": {
+   ".codex/agents/bouncer-coordinator.toml": 2,
+   "agents/bouncer-coordinator.md": 2,
+   "test/agents.test.js": 1
+  },
+  "examples": [
+   "+ bouncer-coordinator.toml: metadata. Follow worker payload, review-round, and verify-failure recovery",
+   "+ bouncer-coordinator.toml: `skills/bouncer-execute/references/review-round.md`, and",
+   "+ bouncer-coordinator.md: metadata. Follow worker payload, review-round, and verify-failure recovery",
+   "+ bouncer-coordinator.md: `skills/bouncer-execute/references/review-round.md`, and"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 3
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "085/002",
+  "title": "coordinator 회차 계약 이전",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   ".codex/agents/bouncer-coordinator.toml": 2,
+   "agents/bouncer-coordinator.md": 2
+  },
+  "examples": [
+   "- bouncer-coordinator.toml: metadata. Follow worker payload, review-round, and verify-failure recovery",
+   "+ bouncer-coordinator.toml: metadata.    Follow worker payload, review-round, and verify-failure recovery",
+   "- bouncer-coordinator.md: metadata. Follow worker payload, review-round, and verify-failure recovery",
+   "+ bouncer-coordinator.md: metadata.    Follow worker payload, review-round, and verify-failure recovery"
+  ],
+  "label": "R",
+  "why": "공백 변경",
+  "idx": 4
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "088/002",
+  "title": "coordinator 다음 행동 CLI",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 8,
+  "minus": 2,
+  "files": {
+   ".codex/agents/bouncer-coordinator.toml": 3,
+   "agents/bouncer-coordinator.md": 3,
+   "scripts/src/lib/coordinate-next.ts": 2,
+   "test/coordinate-next.test.js": 2
+  },
+  "examples": [
+   "+ coordinate-next.ts: judge: { kind: 'review-round', fields: [] },",
+   "+ coordinate-next.ts: judge: { kind: 'review-round', fields: [] },",
+   "+ coordinate-next.test.js: assert.strictEqual(r.judge.kind, 'review-round');",
+   "+ coordinate-next.test.js: assert.strictEqual(r.judge.kind, 'review-round');"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 5
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "088/003",
+  "title": "coordinator 계약 카드",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 4,
+  "minus": 6,
+  "files": {
+   ".codex/agents/bouncer-coordinator.toml": 3,
+   "agents/bouncer-coordinator.md": 3,
+   "test/coordinate-next.test.js": 2,
+   "references/coordinator-cards/final_review.md": 1
+  },
+  "examples": [
+   "+ final_review.md: `judge` `review-round`, then call `next` again. Do not Close while that root",
+   "+ review.md: dispatch and the execute agent-dispatch and review-round references.",
+   "+ coordinate-next.test.js: cards: ['review'], refs: ['review-round'],",
+   "+ coordinate-next.test.js: cards: ['review', 'final_review'], refs: ['agent-dispatch', 'review-round'],"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 6
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "089/001",
+  "title": "coordinator 연쇄 실행과 판단 문맥 제한",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "test/coordinate-advance.test.js": 1
+  },
+  "examples": [
+   "+ coordinate-advance.test.js: judge: { kind: 'review-round', fields: ['findings'] },"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 7
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "089/004",
+  "title": "재작업 분류와 finalize 입력 축소",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 2,
+  "minus": 0,
+  "files": {
+   "test/agents.test.js": 2
+  },
+  "examples": [
+   "+ agents.test.js: test('supplement classification is stated in the cards, coordinator doc and review-round reference', () => {",
+   "+ agents.test.js: path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8',"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 8
+ },
+ {
+  "qid": "Q02",
+  "kind": "kebab-code",
+  "entity": "review-round",
+  "bp": "092/002",
+  "title": "동작 중심 테스트 지침과 테스트 계층 분리",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 3,
+  "files": {
+   "test/agents.test.js": 3,
+   "scripts/check-doc-shape.js": 2
+  },
+  "examples": [
+   "- agents.test.js: for (const ref of ['agent-dispatch', 'review-round', 'verification-recovery']) {",
+   "- agents.test.js: test('supplement classification is stated in the cards, coordinator doc and review-round reference', () => {",
+   "- agents.test.js: path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8',",
+   "+ check-doc-shape.js: href: './references/review-round.md',"
+  ],
+  "label": "R",
+  "why": "092/002 테스트 계층 정리로 단언 삭제",
+  "idx": 9
+ },
+ {
+  "qid": "Q03",
+  "kind": "symbol",
+  "entity": "DEFAULT_VERIFY_ALLOWLIST",
+  "bp": "061/001",
+  "title": "검증 실행과 커밋 범위 경계 강화",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 16,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/verification.ts": 5,
+   "scripts/src/lib/config.ts": 4,
+   "scripts/src/lib/init.ts": 3,
+   "test/init.test.js": 2
+  },
+  "examples": [
+   "+ config.ts: const DEFAULT_VERIFY_ALLOWLIST: readonly string[] = Object.freeze([",
+   "+ config.ts: return DEFAULT_VERIFY_ALLOWLIST;",
+   "+ config.ts: return DEFAULT_VERIFY_ALLOWLIST;",
+   "+ config.ts: DEFAULT_VERIFY_ALLOWLIST,"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 10
+ },
+ {
+  "qid": "Q03",
+  "kind": "symbol",
+  "entity": "DEFAULT_VERIFY_ALLOWLIST",
+  "bp": "061/003",
+  "title": "스킬 경로와 모듈 타입 계약 정비",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 2,
+  "files": {
+   "scripts/src/lib/init.ts": 1,
+   "scripts/src/lib/verification.ts": 1
+  },
+  "examples": [
+   "- init.ts: DEFAULT_VERIFY_ALLOWLIST: readonly string[];",
+   "- verification.ts: DEFAULT_VERIFY_ALLOWLIST: readonly string[];"
+  ],
+  "label": "R",
+  "why": "061/003 모듈 타입 정비(require 타입 선언 제거)",
+  "idx": 11
+ },
+ {
+  "qid": "Q03",
+  "kind": "symbol",
+  "entity": "DEFAULT_VERIFY_ALLOWLIST",
+  "bp": "064/001",
+  "title": "검증 정책 일관성",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 3,
+  "minus": 2,
+  "files": {
+   "scripts/src/lib/validate-structural.ts": 2,
+   "scripts/src/lib/verification.ts": 2,
+   "scripts/src/lib/config.ts": 1
+  },
+  "examples": [
+   "+ config.ts: return { ok: true, reason: 'missing', allowlist: DEFAULT_VERIFY_ALLOWLIST };",
+   "+ validate-structural.ts: DEFAULT_VERIFY_ALLOWLIST,",
+   "+ validate-structural.ts: verifyAllowlist: readonly string[] = DEFAULT_VERIFY_ALLOWLIST,",
+   "- verification.ts: : DEFAULT_VERIFY_ALLOWLIST;"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 12
+ },
+ {
+  "qid": "Q04",
+  "kind": "gate-code",
+  "entity": "G3",
+  "bp": "043/010",
+  "title": "워크플로 출력과 구현 프롬프트 경량화",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 1,
+  "files": {
+   "skills/bouncer-plan/SKILL.md": 1
+  },
+  "examples": [
+   "- SKILL.md: `bouncer.scale` is `light`**, G3 tasks ready,"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 13
+ },
+ {
+  "qid": "Q04",
+  "kind": "gate-code",
+  "entity": "G3",
+  "bp": "065/001",
+  "title": "Task 수명주기 안정화",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "docs/gates.md": 2
+  },
+  "examples": [
+   "- gates.md: | **plan** | G1 epic `approved` · G2 blueprint `approved`(`finalize --yes`가 잠근 `closed` blueprint도 같은 G2 코드로 걸리지만 메시지는 미승인 `draft`",
+   "+ gates.md: | **plan** | G1 epic `approved` · G2 blueprint `approved`(`finalize --yes`가 잠근 `closed` blueprint도 같은 G2 코드로 걸리지만 메시지는 미승인 `draft`"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 14
+ },
+ {
+  "qid": "Q04",
+  "kind": "gate-code",
+  "entity": "G3",
+  "bp": "067/001",
+  "title": "DAG 코디네이터 위임 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "docs/gates.md": 2
+  },
+  "examples": [
+   "- gates.md: | **plan** | G1 epic `approved` · G2 blueprint `approved`(`finalize --yes`가 잠근 `closed` blueprint도 같은 G2 코드로 걸리지만 메시지는 미승인 `draft`",
+   "+ gates.md: | **plan** | G1 epic `approved` · G2 blueprint `approved`(`finalize --yes`가 잠근 `closed` blueprint도 같은 G2 코드로 걸리지만 메시지는 미승인 `draft`"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 15
+ },
+ {
+  "qid": "Q04",
+  "kind": "gate-code",
+  "entity": "G3",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 3,
+  "minus": 3,
+  "files": {
+   "test/validate-gates.test.js": 6
+  },
+  "examples": [
+   "- validate-gates.test.js: test('plan gate flags G3 and G5', () => {",
+   "+ validate-gates.test.js: test('plan gate → flags G3 and G5', () => {",
+   "- validate-gates.test.js: test('plan gate G3 accepts ready, in_progress, and verified', () => {",
+   "+ validate-gates.test.js: test('plan gate G3 → accepts ready, in_progress, and verified', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 16
+ },
+ {
+  "qid": "Q05",
+  "kind": "kebab-code",
+  "entity": "supplement-delta-used",
+  "bp": "089/004",
+  "title": "재작업 분류와 finalize 입력 축소",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 6,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/coordinator.ts": 2,
+   "references/coordinator-cards/final_review.md": 1,
+   "references/coordinator-cards/supplement.md": 1,
+   "test/agents.test.js": 1
+  },
+  "examples": [
+   "+ final_review.md: `supplement-delta-used` refuses it, take the repair path above or `blocked`.",
+   "+ supplement.md: delta round exists, `supplement-delta-used` refuses another one.",
+   "+ coordinator.ts: if (rootReviewHasDelta(integrationPath, blueprint)) return { ok: false, reason: 'supplement-delta-used' };",
+   "+ coordinator.ts: 'supplement-delta-used': {"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 17
+ },
+ {
+  "qid": "Q05",
+  "kind": "kebab-code",
+  "entity": "supplement-delta-used",
+  "bp": "092/002",
+  "title": "동작 중심 테스트 지침과 테스트 계층 분리",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 1,
+  "files": {
+   "test/agents.test.js": 1
+  },
+  "examples": [
+   "- agents.test.js: assert.match(card, /supplement-delta-used/);"
+  ],
+  "label": "R",
+  "why": "092/002 테스트 계층 정리로 단언 삭제",
+  "idx": 18
+ },
+ {
+  "qid": "Q06",
+  "kind": "symbol",
+  "entity": "parseExplainSections",
+  "bp": "062/005",
+  "title": "문서와 커밋 수명주기 계약",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 6,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/validate-gates.ts": 2,
+   "scripts/src/lib/validate-sections.ts": 2,
+   "test/validate-gates.test.js": 2
+  },
+  "examples": [
+   "+ validate-gates.ts: parseSections, parseTasksSections, parseExplainSections, extractPathCandidates,",
+   "+ validate-gates.ts: const sections = parseExplainSections(explainBody);",
+   "+ validate-sections.ts: function parseExplainSections(body: unknown): Record<string, string | null> {",
+   "+ validate-sections.ts: parseExplainSections,"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 19
+ },
+ {
+  "qid": "Q06",
+  "kind": "symbol",
+  "entity": "parseExplainSections",
+  "bp": "098/003",
+  "title": "plan context review 관점 통합과 기계 검사 이관",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "scripts/src/lib/validate-gates.ts": 2
+  },
+  "examples": [
+   "- validate-gates.ts: parseSections, parseTasksSections, parseExplainSections, extractPathCandidates,",
+   "+ validate-gates.ts: parseSections, parseTasksSections, parseExplainSections, extractPathCandidates, parseTouchRows,"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 20
+ },
+ {
+  "qid": "Q07",
+  "kind": "gate-code",
+  "entity": "S15",
+  "bp": "080/001",
+  "title": "실행 계약 보완과 리뷰 횟수 축소",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   "rules/gates.md": 4
+  },
+  "examples": [
+   "- gates.md: - `S15`–`S17`: a commit task uses",
+   "+ gates.md: - `S15`–`S17`: a commit task uses `tasks/<NNN>/{tasks,verification,review}.md`",
+   "- gates.md: - `S15`–`S17`: a commit task uses",
+   "+ gates.md: - `S15`–`S17`: a commit task uses `tasks/<NNN>/{tasks,verification,review}.md`"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 21
+ },
+ {
+  "qid": "Q07",
+  "kind": "gate-code",
+  "entity": "S15",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   "test/tasks-docs.test.js": 2,
+   "test/validate-structural.test.js": 2
+  },
+  "examples": [
+   "- tasks-docs.test.js: test('listTasksDocs: legacy tasks.md is retained only for the S15 reporter', () => {",
+   "+ tasks-docs.test.js: test('listTasksDocs: legacy tasks.md → is retained only for the S15 reporter', () => {",
+   "- validate-structural.test.js: test('S15: legacy root task files are rejected', () => {",
+   "+ validate-structural.test.js: test('S15: legacy root task files → are rejected', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 22
+ },
+ {
+  "qid": "Q08",
+  "kind": "kebab-code",
+  "entity": "no-open-task",
+  "bp": "089/003",
+  "title": "light run 경로 개편",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "scripts/src/lib/run-preflight.ts": 2
+  },
+  "examples": [
+   "- run-preflight.ts: reason: 'blueprint-closed' | 'no-open-task' | null;",
+   "+ run-preflight.ts: reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped' | null;"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 23
+ },
+ {
+  "qid": "Q09",
+  "kind": "symbol",
+  "entity": "normalizeRepoPath",
+  "bp": "061/003",
+  "title": "스킬 경로와 모듈 타입 계약 정비",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 1,
+  "files": {
+   "scripts/src/lib/scaffold.ts": 1
+  },
+  "examples": [
+   "- scaffold.ts: normalizeRepoPath: (value: unknown) => string;"
+  ],
+  "label": "R",
+  "why": "061/003 모듈 타입 정비(require 타입 선언 제거)",
+  "idx": 24
+ },
+ {
+  "qid": "Q10",
+  "kind": "gate-code",
+  "entity": "S10",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "test/validate-structural.test.js": 2
+  },
+  "examples": [
+   "- validate-structural.test.js: test('S10: legacy-prefixed blueprint path is not canonical', () => {",
+   "+ validate-structural.test.js: test('S10: legacy-prefixed blueprint path → is not canonical', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 25
+ },
+ {
+  "qid": "Q11",
+  "kind": "kebab-code",
+  "entity": "worker-model",
+  "bp": "099/005",
+  "title": "dispatch 완료 판정과 워커 모델 기록",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 66,
+  "minus": 0,
+  "files": {
+   "test/cli-coordinate.test.js": 23,
+   "scripts/src/lib/cli-git-commands.ts": 14,
+   "test/coordinator.test.js": 13,
+   "scripts/src/lib/coordinator.ts": 9
+  },
+  "examples": [
+   "+ final_review.md: worker-model --blueprint <dir> --role reviewer --model <value> [--perspective",
+   "+ review.md: `bouncer coordinate worker-model --blueprint <dir> --role reviewer --model",
+   "+ verify.md: worker-model --blueprint <dir> --role debugger --model <value> --task <NNN>",
+   "+ cli.md: bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|cr"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 26
+ },
+ {
+  "qid": "Q12",
+  "kind": "symbol",
+  "entity": "checkEpicIndexConsistency",
+  "bp": "061/003",
+  "title": "스킬 경로와 모듈 타입 계약 정비",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 2,
+  "files": {
+   "scripts/src/lib/validate.ts": 3
+  },
+  "examples": [
+   "- validate.ts: const { checkEpicIndexConsistency } = require('./epic-index') as {",
+   "- validate.ts: checkEpicIndexConsistency: (opts: { repoRoot: string }) => FailureEntry[];",
+   "+ validate.ts: const { checkEpicIndexConsistency } = epicIndex;"
+  ],
+  "label": "R",
+  "why": "061/003 모듈 타입 정비(require 타입 선언 제거)",
+  "idx": 27
+ },
+ {
+  "qid": "Q13",
+  "kind": "gate-code",
+  "entity": "S3",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "test/validate-structural.test.js": 2
+  },
+  "examples": [
+   "- validate-structural.test.js: test('S3/S6/S7 detect resource, status, affected_paths problems', () => {",
+   "+ validate-structural.test.js: test('S3/S6/S7 on resource, status, affected_paths problems → detect them', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 28
+ },
+ {
+  "qid": "Q14",
+  "kind": "kebab-code",
+  "entity": "fanin-invalid",
+  "bp": "078/001",
+  "title": "Pointer 독립 병렬 Task 실행",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 10,
+  "minus": 0,
+  "files": {
+   "test/coordinator.test.js": 4,
+   "test/runtime-state.test.js": 4,
+   "scripts/src/lib/runtime-state.ts": 2
+  },
+  "examples": [
+   "+ runtime-state.ts: return { ok: false, reason: 'fanin-invalid' };",
+   "+ coordinator.test.js: test('ledger with bogus fanin status returns fanin-invalid', () => {",
+   "+ coordinator.test.js: assert.strictEqual(rejected.reason, 'fanin-invalid');",
+   "+ runtime-state.test.js: }).reason, 'fanin-invalid');"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 29
+ },
+ {
+  "qid": "Q14",
+  "kind": "kebab-code",
+  "entity": "fanin-invalid",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "test/coordinator.test.js": 2
+  },
+  "examples": [
+   "- coordinator.test.js: test('ledger with bogus fanin status returns fanin-invalid', () => {",
+   "+ coordinator.test.js: test('ledger with bogus fanin status → returns fanin-invalid', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 30
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "061/003",
+  "title": "스킬 경로와 모듈 타입 계약 정비",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 3,
+  "files": {
+   "scripts/src/lib/scaffold.ts": 3,
+   "scripts/src/lib/import-history.ts": 2
+  },
+  "examples": [
+   "- import-history.ts: const { listEpicDirNames, ensureEpicIndexEntry } = require('./epic-index');",
+   "+ import-history.ts: const { listEpicDirNames, ensureEpicIndexEntry } = epicIndex;",
+   "- scaffold.ts: const { ensureEpicIndexEntry, listEpicDirNames } = require('./epic-index') as {",
+   "- scaffold.ts: ensureEpicIndexEntry: (opts: {"
+  ],
+  "label": "R",
+  "why": "061/003 모듈 타입 정비(require 타입 선언 제거)",
+  "idx": 31
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "064/002",
+  "title": "활성 포인터 namespace",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "test/cli-current.test.js": 1
+  },
+  "examples": [
+   "+ cli-current.test.js: ensureEpicIndexEntry({"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 32
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "067/001",
+  "title": "DAG 코디네이터 위임 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "test/cli-commit.test.js": 1
+  },
+  "examples": [
+   "+ cli-commit.test.js: ensureEpicIndexEntry({"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 33
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "078/001",
+  "title": "Pointer 독립 병렬 Task 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 0,
+  "files": {
+   "test/commit-task.test.js": 2
+  },
+  "examples": [
+   "+ commit-task.test.js: ensureEpicIndexEntry({ repoRoot: repo, epicId: '097', name: 'eff', description: 'd' });",
+   "+ commit-task.test.js: ensureEpicIndexEntry({ repoRoot: repo, epicId: '097', name: 'eff', description: 'd' });"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 34
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "084/001",
+  "title": "finalize 메인 사본 정리와 pointer 자동 이동",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "test/coordinator-e2e.test.js": 2
+  },
+  "examples": [
+   "+ coordinator-e2e.test.js: ensureEpicIndexEntry({ repoRoot: repo, epicId: '014', name: 'release', description: 'd' });",
+   "- coordinator-e2e.test.js: ensureEpicIndexEntry({ repoRoot: repo, epicId: '014', name: 'release', description: 'd' });"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 35
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "089/003",
+  "title": "light run 경로 개편",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "test/coordinator-e2e.test.js": 1
+  },
+  "examples": [
+   "+ coordinator-e2e.test.js: ensureEpicIndexEntry({ repoRoot: repo, epicId: '089', name: 'e2e-light', description: 'd' });"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 36
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "097/001",
+  "title": "blueprint Intent 코드 펜스 검사 보강",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 3,
+  "minus": 0,
+  "files": {
+   "test/intent-fence-guard.test.js": 3
+  },
+  "examples": [
+   "+ intent-fence-guard.test.js: const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');",
+   "+ intent-fence-guard.test.js: ensureEpicIndexEntry({",
+   "+ intent-fence-guard.test.js: ensureEpicIndexEntry({"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 37
+ },
+ {
+  "qid": "Q15",
+  "kind": "symbol",
+  "entity": "ensureEpicIndexEntry",
+  "bp": "099/003",
+  "title": "repair task 통합 경로와 preflight 경로 비교",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "test/coordinator-e2e.test.js": 1
+  },
+  "examples": [
+   "+ coordinator-e2e.test.js: ensureEpicIndexEntry({ repoRoot: repo, epicId: '015', name: 'repair', description: 'd' });"
+  ],
+  "label": "T",
+  "why": "테스트 준비 코드에서 헬퍼·픽스처로만 사용",
+  "idx": 38
+ },
+ {
+  "qid": "Q16",
+  "kind": "gate-code",
+  "entity": "G19",
+  "bp": "067/001",
+  "title": "DAG 코디네이터 위임 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 31,
+  "minus": 0,
+  "files": {
+   "test/validate-gates.test.js": 12,
+   "scripts/src/lib/validate-gates.ts": 6,
+   "test/cli-validate.test.js": 3,
+   "docs/workflow.md": 2
+  },
+  "examples": [
+   "+ governance.md: The plan gate (G19) rejects unknown task ids, self-references, duplicate",
+   "+ okf.md: validation (S28) checks shape; the plan gate (G19) checks missing ids,",
+   "+ validate-gates.ts: * plan 게이트 G19 — task `depends_on` graph의 참조 무결성과 순환을 판정한다.",
+   "+ validate-gates.ts: code: 'G19',"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 39
+ },
+ {
+  "qid": "Q16",
+  "kind": "gate-code",
+  "entity": "G19",
+  "bp": "078/001",
+  "title": "Pointer 독립 병렬 Task 실행",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   "scripts/src/lib/validate-structural.ts": 4
+  },
+  "examples": [
+   "- validate-structural.ts: // 읽히므로 통과. 참조 무결성·cycle은 G19.",
+   "+ validate-structural.ts: // 빈 exclusive_resources로 읽히므로 통과. 참조 무결성·cycle은 G19.",
+   "- validate-structural.ts: // 읽히므로 통과. 참조 무결성·cycle은 G19.",
+   "+ validate-structural.ts: // 빈 exclusive_resources로 읽히므로 통과. 참조 무결성·cycle은 G19."
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 40
+ },
+ {
+  "qid": "Q16",
+  "kind": "gate-code",
+  "entity": "G19",
+  "bp": "092/002",
+  "title": "동작 중심 테스트 지침과 테스트 계층 분리",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 2,
+  "files": {
+   "test/master-rules.test.js": 1,
+   "test/skill-bouncer-plan.test.js": 1
+  },
+  "examples": [
+   "- master-rules.test.js: assert.match(plan, /G19|DAG/);",
+   "- skill-bouncer-plan.test.js: assert.match(body, /G19|plan gate[\\s\\S]{0,120}DAG|DAG[\\s\\S]{0,120}plan gate|depends_on[\\s\\S]{0,200}validate/i);"
+  ],
+  "label": "R",
+  "why": "092/002 테스트 계층 정리로 단언 삭제",
+  "idx": 41
+ },
+ {
+  "qid": "Q16",
+  "kind": "gate-code",
+  "entity": "G19",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 5,
+  "minus": 5,
+  "files": {
+   "test/validate-gates.test.js": 6,
+   "test/cli-validate.test.js": 2,
+   "test/review-dispatch.test.js": 2
+  },
+  "examples": [
+   "- cli-validate.test.js: test('validate --gate plan preserves G19 DAG error code and task path', () => {",
+   "+ cli-validate.test.js: test('validate --gate plan with a DAG error → preserves G19 code and task path', () => {",
+   "- review-dispatch.test.js: test('plan draft validation rejects a depends_on self-edge before reviewers (G19)', () => {",
+   "+ review-dispatch.test.js: test('plan draft validation with a depends_on self-edge → rejects before reviewers (G19)', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 42
+ },
+ {
+  "qid": "Q16",
+  "kind": "gate-code",
+  "entity": "G19",
+  "bp": "098/002",
+  "title": "직렬 드라이브 세션 연속과 DAG 모양 판단",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 3,
+  "minus": 0,
+  "files": {
+   "test/validate-gates.test.js": 2,
+   "scripts/src/lib/validate-gates.ts": 1
+  },
+  "examples": [
+   "+ validate-gates.ts: * G19 실패가 있으면 호출자가 부르지 않는다: 깨진 graph 위의 모양 경고는 소음이다.",
+   "+ validate-gates.test.js: test('plan gate when G19 fails (cycle) → no DAG shape warnings', () => {",
+   "+ validate-gates.test.js: assert.ok(failures.some((f) => f.code === 'G19'));"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 43
+ },
+ {
+  "qid": "Q16",
+  "kind": "gate-code",
+  "entity": "G19",
+  "bp": "098/003",
+  "title": "plan context review 관점 통합과 기계 검사 이관",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 2,
+  "minus": 0,
+  "files": {
+   "test/validate-gates.test.js": 2
+  },
+  "examples": [
+   "+ validate-gates.test.js: test('plan gate with G19 cycle, in_progress task, light blueprint, or no repoRoot → no G25', () => {",
+   "+ validate-gates.test.js: assert.ok(cycle.some((f) => f.code === 'G19'));"
+  ],
+  "label": "A",
+  "why": "G25 테스트에서 G19 cycle을 조건으로 사용. G19 자체 변경은 아님",
+  "idx": 44
+ },
+ {
+  "qid": "Q17",
+  "kind": "kebab-code",
+  "entity": "critical-recovery-closed",
+  "bp": "078/001",
+  "title": "Pointer 독립 병렬 Task 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   "scripts/src/lib/coordinator.ts": 4
+  },
+  "examples": [
+   "+ coordinator.ts: if (item.criticalRecovery.outcome !== null) return { ok: false, reason: 'critical-recovery-closed' };",
+   "- coordinator.ts: if (item.criticalRecovery.outcome !== null) return { ok: false, reason: 'critical-recovery-closed' };",
+   "+ coordinator.ts: if (item.criticalRecovery.outcome !== null) return { ok: false, reason: 'critical-recovery-closed' };",
+   "- coordinator.ts: if (item.criticalRecovery.outcome !== null) return { ok: false, reason: 'critical-recovery-closed' };"
+  ],
+  "label": "R",
+  "why": "같은 줄 이동",
+  "idx": 45
+ },
+ {
+  "qid": "Q17",
+  "kind": "kebab-code",
+  "entity": "critical-recovery-closed",
+  "bp": "080/001",
+  "title": "실행 계약 보완과 리뷰 횟수 축소",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/coordinator.ts": 2
+  },
+  "examples": [
+   "+ coordinator.ts: 'critical-recovery-closed': {",
+   "+ coordinator.ts: 'critical-recovery-closed': {"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 46
+ },
+ {
+  "qid": "Q18",
+  "kind": "symbol",
+  "entity": "realTestDirs",
+  "bp": "061/003",
+  "title": "스킬 경로와 모듈 타입 계약 정비",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 1,
+  "files": {
+   "scripts/src/lib/session-graph.ts": 1
+  },
+  "examples": [
+   "- session-graph.ts: realTestDirs: (repoRoot: string) => OptionalDirList;"
+  ],
+  "label": "R",
+  "why": "061/003 모듈 타입 정비(require 타입 선언 제거)",
+  "idx": 47
+ },
+ {
+  "qid": "Q19",
+  "kind": "gate-code",
+  "entity": "G6",
+  "bp": "043/010",
+  "title": "워크플로 출력과 구현 프롬프트 경량화",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 5,
+  "files": {
+   "skills/bouncer-execute/references/agent-dispatch.md": 2,
+   "skills/bouncer-commit/SKILL.md": 2,
+   "skills/bouncer-execute/SKILL.md": 2,
+   "test/skill-bouncer-execute.test.js": 1
+  },
+  "examples": [
+   "- agent-dispatch.md: Dispatch named `bouncer-implementer` (plugin `agents/bouncer-implementer.md`) with the task-brief authority named by execute. If n",
+   "+ agent-dispatch.md: receives G6–G8 judgment after verify and review.",
+   "+ SKILL.md: step-2 ACQ. This dry-run runs the commit gate once (G6/G7/G8 and G17); on a",
+   "- SKILL.md: Gate `commit` re-checks G6/G7/G8 for the pointer task and G17 (staged paths"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 48
+ },
+ {
+  "qid": "Q19",
+  "kind": "gate-code",
+  "entity": "G6",
+  "bp": "065/001",
+  "title": "Task 수명주기 안정화",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "docs/gates.md": 2
+  },
+  "examples": [
+   "- gates.md: | **execute** | 활성 포인터가 가리키는 task 묶음만 판정: G6 `tasks` `verified` · G7 같은 디렉터리의 `verification` `passed` · G8 같은 디렉터리의 `review` `acce",
+   "+ gates.md: | **execute** | 활성 포인터가 가리키는 task 묶음만 판정: G6 `tasks` `verified` · G7 같은 디렉터리의 `verification` `passed` · G8 같은 디렉터리의 `review` `acce"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 49
+ },
+ {
+  "qid": "Q19",
+  "kind": "gate-code",
+  "entity": "G6",
+  "bp": "067/001",
+  "title": "DAG 코디네이터 위임 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 4,
+  "minus": 4,
+  "files": {
+   "docs/workflow.md": 6,
+   "skills/bouncer-commit/SKILL.md": 2
+  },
+  "examples": [
+   "- SKILL.md: step-2 ACQ. This dry-run runs the commit gate once (G6/G7/G8 and G17); on a",
+   "+ SKILL.md: This dry-run runs the commit gate once (G6/G7/G8 and G17); on a gate",
+   "- workflow.md: | `/bouncer-commit` | 스코프 dry-run → task 하나 커밋 → 다음 task로 포인터 이동 | commit (G6/G7/G8 + G17) |",
+   "+ workflow.md: | `/bouncer-commit` | 스코프 dry-run → task 하나 커밋 → 위임 주행이면 결과를 coordinator에 보고, 직접 실행이면 다음 task로 포인터 이동 | commit (G6/G7/G8 + G17) |"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 50
+ },
+ {
+  "qid": "Q19",
+  "kind": "gate-code",
+  "entity": "G6",
+  "bp": "078/001",
+  "title": "Pointer 독립 병렬 Task 실행",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 4,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/validate-docs.ts": 2,
+   "test/cli-validate.test.js": 2
+  },
+  "examples": [
+   "+ validate-docs.ts: // worker fail-closed: 빈 entries로 flat docs에 떨어지면 G6 부재를 숨긴다.",
+   "+ cli-validate.test.js: (noLeaseOut.failures || []).some((f) => f.code === 'G6' || /task/i.test(f.message || '')),",
+   "+ validate-docs.ts: // worker fail-closed: 빈 entries로 flat docs에 떨어지면 G6 부재를 숨긴다.",
+   "+ cli-validate.test.js: (noLeaseOut.failures || []).some((f) => f.code === 'G6' || /task/i.test(f.message || '')),"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 51
+ },
+ {
+  "qid": "Q19",
+  "kind": "gate-code",
+  "entity": "G6",
+  "bp": "088/004",
+  "title": "coordinator 지침 탐색 제거",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 2,
+  "minus": 0,
+  "files": {
+   "test/validate-gates.test.js": 2
+  },
+  "examples": [
+   "+ validate-gates.test.js: test('execute gate promotes ready pointer commit task so G6 does not fire', () => {",
+   "+ validate-gates.test.js: assert.ok(!res.failures.some((f) => f.code === 'G6'));"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 52
+ },
+ {
+  "qid": "Q19",
+  "kind": "gate-code",
+  "entity": "G6",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 4,
+  "minus": 4,
+  "files": {
+   "test/validate-gates.test.js": 8
+  },
+  "examples": [
+   "- validate-gates.test.js: test('execute gate promotes ready pointer commit task so G6 does not fire', () => {",
+   "+ validate-gates.test.js: test('execute gate → promotes ready pointer commit task so G6 does not fire', () => {",
+   "- validate-gates.test.js: test('execute gate G6 G7 G8 report files under the pointer tasks/002 unit', () => {",
+   "+ validate-gates.test.js: test('execute gate with files under the pointer tasks/002 unit → G6 G7 G8 report them', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 53
+ },
+ {
+  "qid": "Q20",
+  "kind": "kebab-code",
+  "entity": "task-split",
+  "bp": "062/002",
+  "title": "task 분해 임계치 경고",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 3,
+  "minus": 0,
+  "files": {
+   "test/validate-gates.test.js": 2,
+   "scripts/src/lib/validate-gates.ts": 1
+  },
+  "examples": [
+   "+ validate-gates.ts: code: 'task-split',",
+   "+ validate-gates.test.js: `non-plan gate must not expose task-split warnings: ${JSON.stringify(execute.warnings)}`,",
+   "+ validate-gates.test.js: `gate-less validation must not expose task-split warnings: ${JSON.stringify(structural.warnings)}`,"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 54
+ },
+ {
+  "qid": "Q20",
+  "kind": "kebab-code",
+  "entity": "task-split",
+  "bp": "089/003",
+  "title": "light run 경로 개편",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 10,
+  "minus": 0,
+  "files": {
+   "test/coordinator.test.js": 3,
+   "rules/cli.md": 2,
+   "scripts/src/lib/coordinator.ts": 2,
+   "scripts/src/lib/cli-git-commands.ts": 1
+  },
+  "examples": [
+   "+ cli.md: --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \\",
+   "+ cli.md: evidence ids). Reasons are `security-risk`, `out-of-scope`, `task-split`,",
+   "+ cli-git-commands.ts: --blueprint <dir> --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope>",
+   "+ coordinator.ts: 'security-risk', 'out-of-scope', 'task-split', 'interface-semantics', 'reviewer-wider-scope',"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 55
+ },
+ {
+  "qid": "Q20",
+  "kind": "kebab-code",
+  "entity": "task-split",
+  "bp": "098/002",
+  "title": "직렬 드라이브 세션 연속과 DAG 모양 판단",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 2,
+  "minus": 0,
+  "files": {
+   "test/validate-gates.test.js": 2
+  },
+  "examples": [
+   "+ validate-gates.test.js: test('plan gate when task-split and DAG warnings coexist → task-split comes first', () => {",
+   "+ validate-gates.test.js: assert.equal(codes.indexOf('task-split'), 0);"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 56
+ },
+ {
+  "qid": "Q20",
+  "kind": "kebab-code",
+  "entity": "task-split",
+  "bp": "098/003",
+  "title": "plan context review 관점 통합과 기계 검사 이관",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 5,
+  "minus": 1,
+  "files": {
+   "scripts/src/lib/validate.ts": 2,
+   "test/validate-gates.test.js": 2,
+   "scripts/src/lib/validate-gates.ts": 1,
+   "test/cli-validate.test.js": 1
+  },
+  "examples": [
+   "+ validate-gates.ts: // task-split 뒤에 push해 같은 task의 경고 순서를 고정한다.",
+   "- validate.ts: *   failures가 비면 ok:true. task-split 경고가 있을 때만 warnings 키를 싣는다",
+   "+ validate.ts: *   failures가 비면 ok:true. 경고(task-split·dag-*·review-risk-missing 등)가 있을 때만 warnings 키를 싣는다",
+   "+ cli-validate.test.js: // src/auth/ Touch가 보안 토큰에 걸리므로 review-risk-missing이 task-split 단언을 흐리지 않게 한다."
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 57
+ },
+ {
+  "qid": "Q21",
+  "kind": "symbol",
+  "entity": "shouldEnsureCodexAgents",
+  "bp": "061/003",
+  "title": "스킬 경로와 모듈 타입 계약 정비",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 2,
+  "files": {
+   "scripts/src/lib/init.ts": 3
+  },
+  "examples": [
+   "- init.ts: const { ensureCodexAgents, shouldEnsureCodexAgents } = require('./codex-agents') as {",
+   "- init.ts: shouldEnsureCodexAgents: (repoRoot: string, optIn?: boolean) => boolean;",
+   "+ init.ts: const { ensureCodexAgents, shouldEnsureCodexAgents } = codexAgents;"
+  ],
+  "label": "R",
+  "why": "061/003 모듈 타입 정비(require 타입 선언 제거)",
+  "idx": 58
+ },
+ {
+  "qid": "Q22",
+  "kind": "gate-code",
+  "entity": "S8",
+  "bp": "088/001",
+  "title": "coordinator 복구 루프 제거",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/seed-worktree.ts": 1
+  },
+  "examples": [
+   "+ seed-worktree.ts: * worker execute 게이트에서 S8·S13으로 막히지 않게 한다."
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 59
+ },
+ {
+  "qid": "Q22",
+  "kind": "gate-code",
+  "entity": "S8",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "test/validate-structural.test.js": 2
+  },
+  "examples": [
+   "- validate-structural.test.js: test('S8: leaf present but blueprint index absent', () => {",
+   "+ validate-structural.test.js: test('S8 with leaf present but blueprint index absent → reports it', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 60
+ },
+ {
+  "qid": "Q23",
+  "kind": "kebab-code",
+  "entity": "get-url",
+  "bp": "078/002",
+  "title": "Finalize digest 기반 Explain·PR 입력",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 6,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/finalize-pr.ts": 4,
+   "test/finalize-pr.test.js": 2
+  },
+  "examples": [
+   "+ finalize-pr.ts: * @param {string} url - `git remote get-url origin` 결과",
+   "+ finalize-pr.ts: const remote = run(['remote', 'get-url', 'origin']);",
+   "+ finalize-pr.test.js: if (key === 'remote get-url origin') {",
+   "+ finalize-pr.ts: * @param {string} url - `git remote get-url origin` 결과"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 61
+ },
+ {
+  "qid": "Q24",
+  "kind": "symbol",
+  "entity": "findingFingerprint",
+  "bp": "081/001",
+  "title": "역할 projection·print 디스패치·리뷰 기록 CLI",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 4,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/review-record.ts": 4
+  },
+  "examples": [
+   "+ review-record.ts: findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,",
+   "+ review-record.ts: finding.fingerprint = findingFingerprint({",
+   "+ review-record.ts: findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,",
+   "+ review-record.ts: finding.fingerprint = findingFingerprint({"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 62
+ },
+ {
+  "qid": "Q24",
+  "kind": "symbol",
+  "entity": "findingFingerprint",
+  "bp": "088/005",
+  "title": "리뷰 기록 형식과 finalize 정책 정리",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/cli-review-dispatch-command.ts": 2
+  },
+  "examples": [
+   "+ cli-review-dispatch-command.ts: CONTEXT_REVIEW_PERSPECTIVE, CONTEXT_REVIEW_STATUS, REVIEW_SEVERITY, findingFingerprint,",
+   "+ cli-review-dispatch-command.ts: fingerprint: ${findingFingerprint(EXAMPLE_FINDING, 'context')}"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 63
+ },
+ {
+  "qid": "Q24",
+  "kind": "symbol",
+  "entity": "findingFingerprint",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   "test/validate-gates.test.js": 4
+  },
+  "examples": [
+   "- validate-gates.test.js: test('findingFingerprint prefixes the context namespace', () => {",
+   "+ validate-gates.test.js: test('findingFingerprint with the context namespace → prefixes it', () => {",
+   "- validate-gates.test.js: test('findingFingerprint normalizes its identity components', () => {",
+   "+ validate-gates.test.js: test('findingFingerprint identity components → are normalized', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 64
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "043/010",
+  "title": "워크플로 출력과 구현 프롬프트 경량화",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 5,
+  "files": {
+   "skills/bouncer-finalize/SKILL.md": 3,
+   "test/skill-bouncer-finalize.test.js": 2
+  },
+  "examples": [
+   "- SKILL.md: Gate `finalize` checks G16 (every task `verified`, explain published with one",
+   "- SKILL.md: After G16 passes and `--yes` succeeds through verification, the same",
+   "- SKILL.md: into `explain.md` `bouncer.task_commits`. On G16 failure, verify failure,",
+   "- skill-bouncer-finalize.test.js: // 삭제는 remainder commit의 일부이며, G16·verify 실패면 수행하지 않는다."
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 65
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "061/003",
+  "title": "스킬 경로와 모듈 타입 계약 정비",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/validate-gates.ts": 1
+  },
+  "examples": [
+   "+ validate-gates.ts: add('G16', 'explain diff_sha could not be computed (missing-repo)', 'explain');"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 66
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "062/005",
+  "title": "문서와 커밋 수명주기 계약",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 3,
+  "minus": 0,
+  "files": {
+   "references/explain-diff/index.md": 1,
+   "scripts/src/lib/templates.ts": 1,
+   "scripts/src/lib/validate-sections.ts": 1
+  },
+  "examples": [
+   "+ index.md: its absence does not make G16 fail.",
+   "+ templates.ts: task별 소제목으로 보존한다. 이 절은 선택 사항이며 G16 필수 절이 아니다. -->",
+   "+ validate-sections.ts: // task 맥락은 finalize가 선택적으로 채우며 G16 필수 목록과 분리한다."
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 67
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "067/001",
+  "title": "DAG 코디네이터 위임 실행",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 2,
+  "minus": 2,
+  "files": {
+   "docs/audit-debt-decisions.md": 4
+  },
+  "examples": [
+   "- audit-debt-decisions.md: | B7 | 유지 | `autonomy`는 `/bouncer-run` ACQ 빈도만 정한다. finalize 이해 확인(G16 comprehension)은 생략하지 않는다 | `autonomy`가 퀴즈를 끄면 G16 이해 증적이 약해",
+   "+ audit-debt-decisions.md: | B7 | 유지 | `autonomy`는 보고 주기만 정한다. finalize 이해 확인(G16 comprehension)은 그 키 밖이고 생략하지 않는다 | `autonomy`가 퀴즈를 끄면 G16 이해 증적이 약해진다. 설정 키",
+   "- audit-debt-decisions.md: 물어보는지만 정한다. finalize의 G16 comprehension(퀴즈·`diff_sha` 대조)은",
+   "+ audit-debt-decisions.md: 정한다 — task별 승인 질문을 여는 키가 아니다. finalize의 G16"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 68
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "078/002",
+  "title": "Finalize digest 기반 Explain·PR 입력",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 4,
+  "minus": 4,
+  "files": {
+   "scripts/src/lib/templates.ts": 4,
+   "references/explain-diff/index.md": 4
+  },
+  "examples": [
+   "- templates.ts: task별 소제목으로 보존한다. 이 절은 선택 사항이며 G16 필수 절이 아니다. -->",
+   "+ templates.ts: 이 절은 선택 사항이며 G16 필수 절이 아니다. -->",
+   "- index.md: its absence does not make G16 fail.",
+   "+ index.md: copied. The section is optional and its absence does not make G16 fail."
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 69
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "080/001",
+  "title": "실행 계약 보완과 리뷰 횟수 축소",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 8,
+  "minus": 0,
+  "files": {
+   "rules/gates.md": 4,
+   "scripts/src/lib/validate-gates.ts": 4
+  },
+  "examples": [
+   "+ gates.md: validator. Do not reopen a closed blueprint; plan a sibling instead. G16",
+   "+ gates.md: - `G21`: after open-task G16 and before Explain, the root `review.md` must be",
+   "+ validate-gates.ts: // G16 open-tasks 다음, Explain 앞. 모드가 아니면 루트 review.md가 있어도",
+   "+ validate-gates.ts: // 구형 fixture의 G16 판정을 바꾸지 않는다."
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 70
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "084/002",
+  "title": "템플릿 안내 주석을 스킬 문서로 이전",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 4,
+  "minus": 2,
+  "files": {
+   "scripts/src/lib/templates.ts": 4,
+   "test/validate-gates.test.js": 2
+  },
+  "examples": [
+   "- templates.ts: 이 절은 선택 사항이며 G16 필수 절이 아니다. -->",
+   "+ templates.ts: \"finalize가 삭제하기 전에 task의 Goal & intent, Current behavior, Target behavior,\\nInterface, Touch, Constraints를 task별 소제목으로 보존한다.\\n제목은 ",
+   "+ validate-gates.test.js: test('finalize gate G16 rejects the shipped explain template as unwritten', () => {",
+   "+ validate-gates.test.js: assert.ok(failures.some((f) => f.code === 'G16'));"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 71
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "085/001",
+  "title": "퀴즈·explain·PR의 drive 기록 제거",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 1,
+  "minus": 1,
+  "files": {
+   "references/explain-diff/index.md": 2
+  },
+  "examples": [
+   "- index.md: - Do not block finalize on score. G16 checks the record and hash match for the",
+   "+ index.md: - Do not block finalize on a wrong answer. G16 checks the record and hash match"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 72
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "092/002",
+  "title": "동작 중심 테스트 지침과 테스트 계층 분리",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 0,
+  "minus": 1,
+  "files": {
+   "test/skill-bouncer-finalize.test.js": 1
+  },
+  "examples": [
+   "- skill-bouncer-finalize.test.js: test('bouncer-finalize documents sibling follow-up after G16 and cites remainder for retention', () => {"
+  ],
+  "label": "R",
+  "why": "092/002 테스트 계층 정리로 단언 삭제",
+  "idx": 73
+ },
+ {
+  "qid": "Q25",
+  "kind": "gate-code",
+  "entity": "G16",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 18,
+  "minus": 18,
+  "files": {
+   "test/validate-gates.test.js": 32,
+   "test/finalize.test.js": 4
+  },
+  "examples": [
+   "- finalize.test.js: test('G16 failure leaves transient docs and approved status untouched', () => {",
+   "+ finalize.test.js: test('G16 failure → leaves transient docs and approved status untouched', () => {",
+   "- finalize.test.js: test('drive finalize stops before G16 when an integrated ledger task has an open integration document', () => {",
+   "+ finalize.test.js: test('a drive with an integrated ledger task that has an open integration document → finalize stops before G16', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 74
+ },
+ {
+  "qid": "Q26",
+  "kind": "kebab-code",
+  "entity": "context-review-target-unchanged",
+  "bp": "096/002",
+  "title": "계획 변경분 인증과 리뷰 만료 처리",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/context-review-state.ts": 1
+  },
+  "examples": [
+   "+ context-review-state.ts: return route('reuse', 'context-review-target-unchanged', 'plan snapshot equals the last reviewed target',"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 75
+ },
+ {
+  "qid": "Q27",
+  "kind": "symbol",
+  "entity": "runPrintDispatch",
+  "bp": "081/001",
+  "title": "역할 projection·print 디스패치·리뷰 기록 CLI",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 8,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/print-dispatch.ts": 4,
+   "scripts/src/lib/cli-dispatch-command.ts": 2,
+   "test/print-dispatch.test.js": 2
+  },
+  "examples": [
+   "+ cli-dispatch-command.ts: const result = printDispatch.runPrintDispatch({",
+   "+ print-dispatch.ts: function runPrintDispatch({",
+   "+ print-dispatch.ts: runPrintDispatch,",
+   "+ print-dispatch.test.js: return printDispatch.runPrintDispatch({"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 76
+ },
+ {
+  "qid": "Q27",
+  "kind": "symbol",
+  "entity": "runPrintDispatch",
+  "bp": "088/006",
+  "title": "print dispatch 계약 빈칸 채우기",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "test/cli-coordinate.test.js": 1
+  },
+  "examples": [
+   "+ cli-coordinate.test.js: const result = require('../scripts/lib/print-dispatch').runPrintDispatch({"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 77
+ },
+ {
+  "qid": "Q28",
+  "kind": "gate-code",
+  "entity": "S17",
+  "bp": "080/001",
+  "title": "실행 계약 보완과 리뷰 횟수 축소",
+  "doc_index": true,
+  "doc_grep": true,
+  "plus": 10,
+  "minus": 2,
+  "files": {
+   "rules/gates.md": 4,
+   "test/cli-validate.test.js": 4,
+   "test/validate-gates.test.js": 4
+  },
+  "examples": [
+   "- gates.md: - `S15`–`S17`: a commit task uses",
+   "+ gates.md: - `S15`–`S17`: a commit task uses `tasks/<NNN>/{tasks,verification,review}.md`",
+   "+ cli-validate.test.js: test('blueprint review mode does not emit S17 for missing task review.md', () => {",
+   "+ cli-validate.test.js: assert.ok(!parsed.failures.some((f) => f.code === 'S17'), JSON.stringify(parsed.failures));"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 78
+ },
+ {
+  "qid": "Q28",
+  "kind": "gate-code",
+  "entity": "S17",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 3,
+  "minus": 3,
+  "files": {
+   "test/cli-validate.test.js": 2,
+   "test/validate-gates.test.js": 2,
+   "test/validate-structural.test.js": 2
+  },
+  "examples": [
+   "- cli-validate.test.js: test('blueprint review mode does not emit S17 for missing task review.md', () => {",
+   "+ cli-validate.test.js: test('blueprint review mode with a missing task review.md → does not emit S17', () => {",
+   "- validate-gates.test.js: test('without review_scope, missing task review.md is still S17 even with root review.md', () => {",
+   "+ validate-gates.test.js: test('without review_scope, missing task review.md → is still S17 even with root review.md', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 79
+ },
+ {
+  "qid": "Q28",
+  "kind": "gate-code",
+  "entity": "S17",
+  "bp": "098/003",
+  "title": "plan context review 관점 통합과 기계 검사 이관",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 1,
+  "minus": 0,
+  "files": {
+   "benchmarks/plan-review/setup.cjs": 1
+  },
+  "examples": [
+   "+ setup.cjs: * task 번들의 짝 문서(verification·review)를 pending으로 만든다. plan 게이트의 구조 검사(S17)가"
+  ],
+  "label": "M",
+  "why": "다른 목적의 줄 수정에 엔티티가 함께 포함(표 행, 문장 재배치, import·타입 목록, 주석)",
+  "idx": 80
+ },
+ {
+  "qid": "Q29",
+  "kind": "kebab-code",
+  "entity": "skip-no-dirs",
+  "bp": "095/002",
+  "title": "테스트 이름 형식 검사",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 4,
+  "minus": 4,
+  "files": {
+   "test/session-graph.test.js": 6,
+   "test/graphify.test.js": 2
+  },
+  "examples": [
+   "- graphify.test.js: test('upgradeGraphify accepts empty-dir skip-no-dirs rebuild as success', () => {",
+   "+ graphify.test.js: test('upgradeGraphify with an empty-dir skip-no-dirs rebuild → accepts it as success', () => {",
+   "- session-graph.test.js: test('syncSessionGraphs omits scope from missing when leftover graph exists under skip-no-dirs', () => {",
+   "+ session-graph.test.js: test('syncSessionGraphs when leftover graph exists under skip-no-dirs → omits scope from missing', () => {"
+  ],
+  "label": "R",
+  "why": "095/002 테스트 이름 형식 변경(→ 삽입)",
+  "idx": 81
+ },
+ {
+  "qid": "Q30",
+  "kind": "symbol",
+  "entity": "readMetricsPricing",
+  "bp": "098/001",
+  "title": "드라이브 기반 안정화와 실행 출처·계측",
+  "doc_index": false,
+  "doc_grep": false,
+  "plus": 4,
+  "minus": 0,
+  "files": {
+   "scripts/src/lib/cli-metrics-command.ts": 2,
+   "scripts/src/lib/config.ts": 2
+  },
+  "examples": [
+   "+ cli-metrics-command.ts: const { readMetricsPricing } = configMod;",
+   "+ cli-metrics-command.ts: const priced = readMetricsPricing(main.projectRoot);",
+   "+ config.ts: function readMetricsPricing(repoRoot: string): MetricsPricingResult {",
+   "+ config.ts: readMetricsPricing,"
+  ],
+  "label": "I",
+  "why": "BP 목적상 엔티티를 도입·변경·검증",
+  "idx": 82
+ }
+]
