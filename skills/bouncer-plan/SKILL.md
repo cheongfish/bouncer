@@ -237,9 +237,8 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    overlapping `affected_paths` among `parallel_safe: true` peers, or edges
    that would create a cycle). Fix conflicts in authoring; do not ask for
    approval on an invalid graph. **ACQ — Approval (`plan.approval`):** ask the user to approve the
-   plan. On approval, transition
-   `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks
-   `draft → ready`. Never approve silently.
+   plan. On approval, run
+   `bouncer plan approve --blueprint <dir>`. Never approve silently.
 
 7. **Activate.** Record the approved blueprint's namespace key:
    ```bash
