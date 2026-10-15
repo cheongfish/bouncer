@@ -49,7 +49,6 @@ const COMMANDS: Record<string, CliCommand> = {
   // --upgrade-graphify 는 init 핸들러(parseFlags)와 그 usage 문자열에만 있다.
   // 여기 레지스트리는 도움말 조립이라 플래그를 다시 파싱하지 않는다.
   'graph-sync': projectCommands['graph-sync'],
-  'graph-suggest': projectCommands['graph-suggest'],
   intent: projectCommands.intent,
   'graphify-bin': projectCommands['graphify-bin'],
   'project-root': projectCommands['project-root'],

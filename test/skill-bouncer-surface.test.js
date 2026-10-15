@@ -202,7 +202,7 @@ const CONDITIONAL_HELPERS = {
   'bouncer-init': { root: [], local: ['init-result.md'] },
   'bouncer-plan': {
     root: ['minimality/index.md', 'context-review/index.md'],
-    local: ['graphify-suggestions.md', 'context-review.md', 'scope-confirm.md', 'evidence-dispatch.md'],
+    local: ['context-review.md', 'scope-confirm.md', 'evidence-dispatch.md'],
   },
   'bouncer-execute': {
     root: ['minimality/index.md', 'debugging/index.md'],
@@ -265,7 +265,6 @@ function bareReferenceCites(md) {
 const SKILL_LOCAL_REFS = {
   'bouncer-init': ['init-result.md'],
   'bouncer-plan': [
-    'graphify-suggestions.md',
     'context-review.md',
     'scope-confirm.md',
     'evidence-dispatch.md',

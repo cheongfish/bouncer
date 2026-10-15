@@ -16,7 +16,6 @@
     "finalize-pure.test.js",
     "frontmatter.test.js",
     "githooks.test.js",
-    "graph-search.test.js",
     "guards.test.js",
     "legacy-comments.test.js",
     "master-rules.test.js",

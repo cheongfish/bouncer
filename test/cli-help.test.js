@@ -8,7 +8,6 @@ const { NAMED_AGENTS } = require('../scripts/lib/codex-agents');
 
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
-  'graph-suggest',
   'intent',
   'graphify-bin',
   'project-root',
@@ -114,35 +113,10 @@ test('graph-sync help → source와 test scope를 명시한다', () => {
   assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test graphs/);
 });
 
-test('usage → graph-suggest --query <text> [--seed <value>]... [--debug]를 나열한다', () => {
-  const r = capture([]);
-  assert.match(
-    r.out,
-    /graph-suggest\s+--query <text> \[--seed <value>\]\.\.\. \[--debug\]/,
-  );
-  // --debug는 값 없는 boolean flag — usage에 <...> 값을 붙이지 않는다.
-  assert.doesNotMatch(r.out, /graph-suggest[\s\S]{0,120}--debug\s+</);
-});
-
-test('--query 없는 graph-suggest → stderr에 exit 2를 낸다', () => {
-  const r = capture(['graph-suggest']);
+test('graph-suggest 실행 → unknown command로 exit 2를 낸다', () => {
+  const r = capture(['graph-suggest', '--query', 'x']);
   assert.strictEqual(r.code, 2);
-  assert.match(r.err, /query/i);
-  assert.strictEqual(r.out, '');
-});
-
-test('빈 --query인 graph-suggest → exit 2를 낸다', () => {
-  const r = capture(['graph-suggest', '--query', '']);
-  assert.strictEqual(r.code, 2);
-  assert.match(r.err, /query/i);
-  assert.strictEqual(r.out, '');
-});
-
-test('값 없는 --seed인 graph-suggest → exit 2를 낸다', () => {
-  const r = capture(['graph-suggest', '--query', 'x', '--seed']);
-  assert.strictEqual(r.code, 2);
-  assert.match(r.err, /seed/i);
-  assert.strictEqual(r.out, '');
+  assert.match(r.err.split('\n')[0], /^unknown command: graph-suggest$/);
 });
 
 test('help 출력 → context-search를 나열하지 않는다', () => {

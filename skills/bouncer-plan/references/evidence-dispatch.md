@@ -9,6 +9,14 @@ call. A background handle is not a report.
 
 Input allowlist: task id, task skeleton, discovery `Goal` and `Scope`, candidate paths, and the read-only cwd.
 
+When a source graph is available, `io_coupling` starts from an `explain` of
+the entry function (anchor rules: `graphify-runner` Step 3,
+`${BOUNCER_ROOT}/references/graphify-runner/index.md`). Use that result to
+narrow which callees to read, then read only those line ranges to fix each
+`file:line`. The graph does not show I/O, so every `io_coupling` entry still
+comes from reading the code. Find `tests` with `rg`, starting from the
+confirmed source modules. Without a graph, read the entry file as before.
+
 The payload is read-only. The subagent reports only these four fields:
 `observations`, `io_coupling`, `tests`, `unresolved`.
 The subagent writes no file and runs no `bouncer` command that changes frontmatter, status, or the pointer.

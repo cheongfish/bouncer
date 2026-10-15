@@ -187,7 +187,6 @@ bouncer intent bundle --task <tasks.md> --symbol <name>... [--candidate <qualifi
 bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
 bouncer graphify-bin
 bouncer graph-sync
-bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
 bouncer subagent-model --agent <name> [--provider <name>]
 bouncer config --help
 bouncer retro sources [--repo <dir>] [--limit <1..200>] [--claude-root <dir>] [--codex-root <dir>] [--cursor-root <dir>]
