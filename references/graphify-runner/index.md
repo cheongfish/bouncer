@@ -121,9 +121,11 @@ task frontmatter.
    "$GRAPHIFY_BIN" explain "<function>" --graph graphify-out/source/graph.json; \
    "$GRAPHIFY_BIN" query "<CONSTANT>" --graph graphify-out/source/graph.json --budget 1000
    ```
-   When a `query` result ends with `[!] TRUNCATED` or `Complete answer over
-   budget`, re-run that one query once with `--budget 3000`; do not re-run for
-   any other reason and do not loop.
+   When a `query` result starts with `[!] TRUNCATED` (the notice sits at the
+   top of the output), re-run that one query once with `--budget 3000`. A
+   result that starts with `[i] Complete answer over budget` already holds
+   every node, so a larger budget changes nothing: do not re-run it. Do not
+   re-run for any other reason and do not loop.
 
    Never use: a natural-language sentence as a `query`, a generic noun as an
    anchor, a symbol whose existence is unconfirmed, a test graph with
