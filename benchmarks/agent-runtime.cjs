@@ -111,7 +111,7 @@ async function runStagesWithBudget({ stages, totalMinutes, startedAt, now, runSt
  * @returns {0 | 1} `finalized` 또는 `budget_exhausted` 중단이면 0, 그 밖에는 1
  */
 function exitCodeFor(record) {
-  return record.status === 'finalized' || record.stop_reason === 'budget_exhausted' ? 0 : 1;
+  return record.status === 'finalized' || record.stop_reason === 'budget_exhausted' || record.stop_reason === 'stop_after' ? 0 : 1;
 }
 
 /**

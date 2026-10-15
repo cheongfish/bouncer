@@ -106,3 +106,23 @@ Cursor 실행기는 작업 디렉터리를 `.benchmarks/work/<run-id>/`에 만�
 조건별 Cursor 설정은 일회용 컨테이너의 홈 디렉터리에 둔다. 실행 방법은
 [`docker/README.md`](docker/README.md)를 참조한다. 로그에
 인증 정보가 들어갈 수 있으므로 원본 결과를 공개 저장소에 올리기 전에 검토한다.
+
+## bouncer-full 실행 옵션
+
+`run-bouncer-full.cjs`는 기본으로 `01-init`부터 `04-finalize`까지 돈다. 단계별 비용을 재거나 한 설정만 바꿔
+비교할 때 아래 옵션을 쓴다. 둘 다 생략하면 기존 실행과 같다.
+
+| 옵션 | 값 | 동작 |
+|---|---|---|
+| `--stop-after <단계>` | `01-init` · `02-plan` · `03-run` | 그 단계까지 돌고 `stopped`/`stop_reason: stop_after`로 끝낸다. 채점하지 않는 기록이라 표본에서 빠지고 종료 코드는 0이다. 단계별 사용량과 계획 산출물만 남는다 |
+| `--graphify <on\|off>` | 기본 `on` | `off`면 `01-init` 뒤에 `.bouncer/config.json`의 `graphify.enabled`만 `false`로 쓴다. 설치된 graphify와 나머지 설정은 그대로라 두 팔의 차이가 이 키 하나다. `run.json`에 `graphify_arm`, `stop_after`가 남는다 |
+
+```sh
+node benchmarks/run-bouncer-full.cjs --task fastify-001 --model cursor-grok-4.5-medium --key-file "$K" \
+  --run-id gq-on  --stop-after 02-plan --graphify on  --detach
+node benchmarks/run-bouncer-full.cjs --task fastify-001 --model cursor-grok-4.5-medium --key-file "$K" \
+  --run-id gq-off --stop-after 02-plan --graphify off --detach
+```
+
+계획 산출물은 작업 공간 아카이브(`.benchmarks/archive/<run-id>.tar.gz`)의 `.bouncer/context/`에서 읽는다.
+

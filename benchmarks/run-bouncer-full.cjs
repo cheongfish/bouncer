@@ -41,7 +41,7 @@ function configOf(argv) {
       i -= 1;
       continue;
     }
-    if (!['--task', '--model', '--key-file', '--run-id', '--timeout-minutes'].includes(argv[i])
+    if (!['--task', '--model', '--key-file', '--run-id', '--timeout-minutes', '--stop-after', '--graphify'].includes(argv[i])
       || !argv[i + 1] || out[argv[i]]) throw new Error(`invalid option: ${argv[i]}`);
     out[argv[i]] = argv[i + 1];
   }
@@ -49,6 +49,11 @@ function configOf(argv) {
   // 기본 과제가 없다: 파일 검사 전에 --task 명시를 요구한다.
   if (!out['--task']) throw new Error('--task is required');
   out.taskId = out['--task'];
+  // 계측용 옵션. 기본(전체 단계, 그래프 켬)은 기존 실행과 같다.
+  out.stopAfter = out['--stop-after'] ?? null;
+  if (out.stopAfter !== null && !['01-init', '02-plan', '03-run'].includes(out.stopAfter)) throw new Error('invalid stop-after');
+  out.graphify = out['--graphify'] ?? 'on';
+  if (!['on', 'off'].includes(out.graphify)) throw new Error('invalid graphify');
   out.runId = out['--run-id'] ?? `${Date.now()}-bouncer-full`;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$/.test(out.runId)) throw new Error('invalid run id');
   out.keyFile = path.resolve(out['--key-file']);
@@ -126,6 +131,19 @@ function stage(config, policyFile, name, workspace, runDir, sessionCwd, minutes)
       { stage: name, usage: record?.usage });
   }
   return record;
+}
+
+/**
+ * 그래프 끔 팔: init이 켠 `graphify.enabled`만 false로 쓴다. 설치된 graphify와 나머지 설정은 그대로 둬서
+ * 두 팔의 차이를 이 한 키로 한정한다.
+ *
+ * @param {string} workspace - 호스트 작업 공간
+ */
+function disableGraphify(workspace) {
+  const file = path.join(workspace, '.bouncer', 'config.json');
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  config.graphify = { ...(config.graphify && typeof config.graphify === 'object' ? config.graphify : {}), enabled: false };
+  writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
 }
 
 function statusLines(workspace) {
@@ -440,6 +458,7 @@ async function main() {
       record.usage_total = sumUsage(Object.values(record.stage_usage));
       record.usage_total_status = usageTotalStatus(record.stage_usage);
       if (name === '01-init') {
+        if (config.graphify === 'off') disableGraphify(workspace);
         bootstrapCommit(workspace, policy, setupStatus);
         Object.assign(record, runtimeFieldsFor(config, prepared, { runDocker: (args) => command('docker', args, projectRoot) }));
       }
@@ -447,9 +466,17 @@ async function main() {
       if (name === '03-run') record.integration = checkIntegration(workspace, integrationWorktree(workspace));
       save(path.join(runDir, 'run.json'), record);
     };
-    const { skipped } = await runStagesWithBudget({ stages: ['01-init', '02-plan', '03-run', '04-finalize'],
+    record.graphify_arm = config.graphify;
+    record.stop_after = config.stopAfter;
+    const allStages = ['01-init', '02-plan', '03-run', '04-finalize'];
+    const wanted = config.stopAfter ? allStages.slice(0, allStages.indexOf(config.stopAfter) + 1) : allStages;
+    const { skipped } = await runStagesWithBudget({ stages: wanted,
       totalMinutes: config.timeoutMinutes, startedAt: startedAtMs, now: Date.now, runStage });
-    if (skipped.length) {
+    if (config.stopAfter && !skipped.length) {
+      // 지정 단계까지만 돌린 실행은 채점하지 않는다. 단계별 사용량과 계획 산출물만 증거로 남는다.
+      Object.assign(record, { status: 'stopped', stop_reason: 'stop_after', skipped_stages: allStages.slice(wanted.length),
+        judge_status: 'unjudgeable', error: null, score: null, outcome_success: null, reward: null });
+    } else if (skipped.length) {
       // 예산이 소진되면 채점할 증거가 없다: 오류가 아니라 채점 불가 기록으로 남기고 표본에서 뺀다.
       Object.assign(record, budgetStopRecord(skipped));
     } else {
@@ -506,5 +533,5 @@ function applyVerdict(record, { verifierJson }) {
   Object.assign(record, verdictFields(verifierJson));
 }
 
-module.exports = { applyVerdict, configOf, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
+module.exports = { applyVerdict, configOf, disableGraphify, gitignoreAgainstPolicy, collectFinalEvidence, integrationFromPrepare, pluginVersionFromStages,
   bootstrapCommit, runtimeFieldsFor };
