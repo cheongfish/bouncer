@@ -44,6 +44,11 @@ flowchart LR
 8. plan `SKILL.md` 6단계가 사용자 승인 뒤 `bouncer plan approve`를 쓰라고 안내하고, `references/context-review.md`가 `must_fix`를 문서별로 묶어 문서당 편집 1회로 반영하라고 하며 close가 문서를 직접 기록한다고 적는다. `npm run lint:docs`와 `test/skill-bouncer-*.test.js`가 통과한다.
 9. 새·변경 명령은 `rules/cli.md`와 도움말에 함께 반영되고, 새 테스트 이름은 `<조건> → <결과>` 형식이며(`npm run lint:test-names`), `npm run build` 후 `npm run check:emit`와 `npm run ci`가 통과한다.
 10. 병합 뒤 `node benchmarks/run-bouncer-full.cjs --task fastify-001 --stop-after 02-plan`을 설정당 3회 이상 실행해 리뷰 구간의 형식 탐색 0회, 손작업 0회, 상태 편집 1회 이하, 수정 편집 수 ≤ 수정 대상 문서 수인지 기록한다. 이 항목은 재측정 보고 대상이며 게이트 조건이 아니다.
+11. `skills/bouncer-run/references/drive-metrics.md` 3단계와 `rules/subagent-model.md` 6번 항목이 hand-back 메시지에는 토큰 사용량이 없고 `metrics end`는 같은 에이전트의 `<task-notification>` usage를 받은 뒤 호출한다고 적는다.
+12. `test/tiers.json`에 없는·중복된·존재하지 않는 테스트 파일이 있으면 `test/test-tiers.test.js` 실패 메시지가 파일 이름과 고칠 방법을 말한다.
+13. `bouncer review record`와 `bouncer context-review record`가 같은 round 안에서 file·symbol이 같고 category가 다른 finding을 `warnings`의 `finding-merge-candidate`로 알려 주고, 기록과 거절 조건은 바뀌지 않는다.
+14. `.bouncer/config.json`의 `worktree.setup`이 있으면 worktree 의존성 준비 끝에 그 명령이 실행되고, 잘못된 값이나 실행 실패는 `dependency-install-failed`로 보고된다. 키가 없으면 동작이 같다.
+15. `bouncer init`이 새 config를 만들 때 `package.json#scripts.build`가 있으면 `worktree.setup: npm run build`를 넣고, 기존 config는 바꾸지 않으며, 설정 문서가 이 키를 설명한다.
 
 ## Out of scope
 - plan 스킬 분할, 리뷰 컨트롤러를 새 세션으로 분리하는 일.
@@ -55,3 +60,4 @@ flowchart LR
 
 ## Blueprints
 * [001 리뷰 CLI 마감](blueprints/001-review-cli-closure/index.md) - review 도움말·close 문서 기록·plan approve 명령과 plan 스킬 지침을 `scripts/src/lib`와 `skills/bouncer-plan`에서 바꾼다.
+* [002 drive 회고 후속 가드](blueprints/002-retro-guards/index.md) - 메트릭 토큰 시점·tier 안내·record 병합 경고·worktree setup을 `skills/bouncer-run`·`test`·`scripts/src/lib`에서 바꾼다.
