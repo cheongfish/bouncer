@@ -86,6 +86,11 @@ Enums:
   perspective name: combined|spec_scope|correctness_tests|minimality_maintainability|security
   --status: requested|addressed|accepted
 
+Success is { ok: true, path, round, status, findings } (exit 0). When findings recorded in this round
+share a file and symbol under different categories it also carries warnings: [{ code:
+'finding-merge-candidate', file, symbol, ids }] (ids in input order); the key is omitted when there is
+none. A warning never blocks the record; the controller decides whether to merge those findings.
+
 fingerprint formula: lower(category):lower(brief_clause):posix(file)#symbol
 
 Repair wave example (open in discovery, resolved in delta): see the review and

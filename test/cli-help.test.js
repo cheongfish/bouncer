@@ -378,6 +378,8 @@ test('review record와 dispatch print에 --help/-h를 주면 → stdout에 출�
     assert.strictEqual(r.code, 0, `${argv.join(' ')} exit`);
     assert.strictEqual(r.err, '', `${argv.join(' ')} stderr`);
   }
+  assert.ok(capture(['review', 'record', '--help']).out.includes('finding-merge-candidate'));
+  assert.ok(capture(['context-review', '--help']).out.includes('finding-merge-candidate'));
   const dispatchHelp = capture(['dispatch', 'print', '--help']);
   assert.match(dispatchHelp.out, /not JSON/);
 });

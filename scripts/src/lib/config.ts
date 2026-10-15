@@ -194,6 +194,33 @@ function readCoordinatorPolicy(repoRoot: string): CoordinatorPolicy {
 }
 
 /**
+ * `worktree.setup`을 읽어 worktree 의존성 준비 끝에 실행할 명령을 돌려준다.
+ * 형태만 본다 — argv 파싱과 허용 목록 검사는 호출자(prepareDependencies)가
+ * command-argv로 한다. config.ts가 command-argv를 가져오면 순환하기 때문이다.
+ * `worktree` 키나 `setup` 키가 없으면 command:null(설정 안 함)이고, `worktree`가
+ * 객체가 아니거나 `setup`이 문자열이 아니면 invalid다. 값을 조용히 무시하면
+ * 운영자가 빌드 단계가 돌 거라 믿고 산출물 없는 worktree에서 검증하게 된다.
+ *
+ * @param {unknown} config - `.bouncer/config.json` 파싱 결과
+ * @returns {{ ok: true, command: string | null } | { ok: false, reason: 'invalid' }}
+ *   command는 원문 문자열(빈 문자열 포함)이고 미설정이면 null
+ */
+function readWorktreeSetup(
+  config: unknown,
+): { ok: true; command: string | null } | { ok: false; reason: 'invalid' } {
+  if (!isRecord(config) || !Object.prototype.hasOwnProperty.call(config, 'worktree')) {
+    return { ok: true, command: null };
+  }
+  const worktree = config.worktree;
+  if (!isRecord(worktree)) return { ok: false, reason: 'invalid' };
+  if (!Object.prototype.hasOwnProperty.call(worktree, 'setup')) {
+    return { ok: true, command: null };
+  }
+  if (typeof worktree.setup !== 'string') return { ok: false, reason: 'invalid' };
+  return { ok: true, command: worktree.setup };
+}
+
+/**
  * `coordinator.waves_per_session`을 읽어 한 coordinator 세션이 처리할 wave 수 상한을
  * 돌려준다. `"auto"`와 부재는 기본 상한(4)이고 정수 1–8은 그대로 쓴다. 그 밖의 값과
  * 깨진 config는 invalid — prepare는 worktree를 만들기 전에 거절하고, 읽기 전용 소비자
@@ -296,6 +323,7 @@ export = {
   readConfig,
   readVerifyPolicy,
   readCoordinatorPolicy,
+  readWorktreeSetup,
   readWavesPerSession,
   readDirectMaxCommitTasks,
   DEFAULT_VERIFY_ALLOWLIST,

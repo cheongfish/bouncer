@@ -31,6 +31,8 @@ type RecordReviewOk = {
   round: number;
   status: unknown;
   findings: number;
+  // 같은 file·symbol을 다른 category가 가리키는 병합 후보. 없으면 키를 생략한다.
+  warnings?: ReturnType<typeof validateSections.findingMergeCandidates>;
 };
 
 type RecordReviewFail = {
@@ -380,12 +382,15 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     throw error;
   }
 
+  // 경고는 이번 round 입력만 대상으로 하고(기존 원장은 제외) 기록에는 영향을 주지 않는다.
+  const warnings = validateSections.findingMergeCandidates(parsedInput.findings);
   return {
     ok: true,
     path: rel,
     round: expectedRound,
     status: bouncer.status,
     findings: mergedFindings.length,
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 

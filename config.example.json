@@ -60,6 +60,9 @@
     "false"
   ],
   "base_branch": "main",
+  "worktree": {
+    "setup": "npm run build"
+  },
   "autonomy": "auto",
   "coordinator": {
     "max_parallel": 2,

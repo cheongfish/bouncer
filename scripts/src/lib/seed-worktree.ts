@@ -10,6 +10,10 @@ import layout = require('./layout');
 const { CONTEXT_ROOT } = layout;
 import scope = require('./scope');
 const { isUnder } = scope;
+import configMod = require('./config');
+const { readConfig, readWorktreeSetup, getVerifyAllowlist } = configMod;
+import commandArgv = require('./command-argv');
+const { parseVerifyArgv, isValidVerifyCommand } = commandArgv;
 
 type SeedGit = {
   changedFiles: () => string[];
@@ -23,7 +27,7 @@ type SeedGit = {
 type PendingWrite = { rel: string; write: true; dst: string; content: Buffer; absent?: boolean };
 type PendingSkip = { rel: string; write: false; absent?: boolean };
 type Pending = PendingWrite | PendingSkip;
-type SeedDeps = { execFileSync?: typeof execFileSync };
+type SeedDeps = { execFileSync?: typeof execFileSync; mainCheckout?: string };
 type ConfigSeedStatus = 'copied' | 'preserved' | 'missing';
 
 // plan target이 아니라 별도 복사 단계의 경로. makeIsTarget에 넣으면
@@ -110,14 +114,84 @@ function linkLocalEnv(worktreePath: string): string[] {
  * checkout, finalize가 같은 계약을 타게 한다. 설치 성공 뒤 stamp 쓰기가 실패해도
  * 결과는 ok:true다(다음 호출이 stamp 부재로 재설치하므로 안전하다).
  * lockfile 확인 전에 linkLocalEnv로 main checkout의 `.venv`·`.env`를 먼저 연결한다.
+ * 설치(또는 건너뜀) 뒤에는 main checkout config의 `worktree.setup` 명령을 실행한다.
  *
  * @param {string} worktreePath - 설치 cwd. package-lock.json을 이 경로에서 본다
- * @param {SeedDeps} deps - execFileSync 주입. 테스트가 npm 호출을 가로채는 용도
+ * @param {SeedDeps} deps - execFileSync·mainCheckout 주입. 테스트가 호출을 가로채는 용도
  * @returns {{ ok: true } | { ok: false, reason: string, message: unknown }}
- *   lockfile 없음·stamp 일치·설치 성공은 ok:true. npm ci 실패는 ok:false와
- *   dependency-install-failed이며 이때 stamp는 쓰지 않는다
+ *   설치 경로와 setup 모두 성공이면 ok:true. npm ci 실패(stamp 미기록)와 setup 거절·실패는
+ *   ok:false와 dependency-install-failed이며 setup 실패 message는 `worktree.setup`으로 시작한다
  */
 function prepareDependencies(
+  worktreePath: string,
+  deps: SeedDeps,
+): { ok: true } | { ok: false; reason: string; message: unknown } {
+  const installed = installDependencies(worktreePath, deps);
+  if (!installed.ok) return installed;
+  // 설치 실패는 위에서 먼저 반환한다. 설치·건너뜀·lockfile 없음 어느 경로든
+  // gitignore 대상 빌드 산출물은 따로 만들어야 하므로 setup은 항상 마지막에 돈다.
+  return runWorktreeSetup(worktreePath, deps);
+}
+
+/**
+ * config의 `worktree.setup` 명령을 worktree에서 셸 없이 한 번 실행한다.
+ * config는 새 worktree가 아니라 main checkout에서 읽는다 — 이 시점에 worktree에는
+ * 아직 config가 복사되지 않았다(seedConfig가 준비 뒤에 돈다). main checkout을
+ * 못 찾거나 config가 없거나 키가 없으면 설정 없음으로 보고 아무것도 하지 않는다.
+ * 설정이 있는데 형태·argv·허용 목록이 어긋나면 실행하지 않고 실패로 알린다.
+ *
+ * @param {string} worktreePath - 명령 실행 cwd
+ * @param {SeedDeps} deps - execFileSync·mainCheckout 주입(테스트 seam)
+ * @returns {{ ok: true } | { ok: false, reason: string, message: unknown }}
+ *   미설정·실행 성공은 ok:true. 검사 거절과 실행 실패는 dependency-install-failed이며
+ *   message는 `worktree.setup`으로 시작한다
+ */
+function runWorktreeSetup(
+  worktreePath: string,
+  deps: SeedDeps,
+): { ok: true } | { ok: false; reason: string; message: unknown } {
+  const mainRoot = deps.mainCheckout ?? mainCheckoutOf(worktreePath);
+  if (!mainRoot) return { ok: true };
+  // 파일 없음·깨진 JSON은 모두 null이다. 깨진 config를 여기서 막으면 setup을
+  // 쓰지 않는 저장소의 준비까지 멈추므로 설정 없음과 같게 둔다.
+  const config = readConfig(mainRoot);
+  if (config === null) return { ok: true };
+  const setup = readWorktreeSetup(config);
+  if (!setup.ok) {
+    return { ok: false, reason: 'dependency-install-failed', message: 'worktree.setup must be a string' };
+  }
+  if (setup.command === null) return { ok: true };
+  if (!isValidVerifyCommand(setup.command, getVerifyAllowlist(config))) {
+    return {
+      ok: false,
+      reason: 'dependency-install-failed',
+      message: `worktree.setup is not an allowed single command: ${JSON.stringify(setup.command)}`,
+    };
+  }
+  // isValidVerifyCommand가 통과했으므로 argv는 null이 아니다.
+  const argv = parseVerifyArgv(setup.command) as string[];
+  try {
+    (deps.execFileSync || execFileSync)(argv[0], argv.slice(1), { cwd: worktreePath, stdio: 'inherit' });
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'dependency-install-failed',
+      message: `worktree.setup failed: ${(error as { message: unknown }).message}`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * 의존성 설치 단계(`.venv`·`.env` 연결, npm ci, stamp). 계약은 prepareDependencies의
+ * 설치 부분과 같다.
+ *
+ * @param {string} worktreePath - 설치 cwd
+ * @param {SeedDeps} deps - execFileSync 주입
+ * @returns {{ ok: true } | { ok: false, reason: string, message: unknown }}
+ *   lockfile 없음·stamp 일치·설치 성공은 ok:true, npm ci 실패는 ok:false
+ */
+function installDependencies(
   worktreePath: string,
   deps: SeedDeps,
 ): { ok: true } | { ok: false; reason: string; message: unknown } {

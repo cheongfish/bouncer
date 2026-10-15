@@ -603,3 +603,34 @@ test('legacy stored round without snapshot_id → stays valid and accepts a boun
   assert.deepEqual(after[0], legacy);
   assert.match(after[1].target.snapshot_id, SHA_RE);
 });
+
+// 병합 후보 경고: 같은 file·symbol을 다른 category가 가리키는 finding 묶음을 알린다.
+const SS_FINDING = {
+  ...EXAMPLE_FINDING, id: 'SS-1', category: 'spec_scope', file: 'scripts/src/lib/a.ts', symbol: 'f',
+};
+const CT_FINDING = { ...SS_FINDING, id: 'CT-5', category: 'correctness_tests' };
+
+test('같은 file·symbol에 category가 다른 finding 두 건 기록 → warnings에 병합 후보가 들어간다', () => {
+  const fx = makeFixture();
+  const result = fx.record(fx.payload({ new: 2 }, [SS_FINDING, CT_FINDING]), { status: 'addressed' });
+  assert.equal(result.ok, true);
+  assert.deepStrictEqual(result.warnings, [
+    { code: 'finding-merge-candidate', file: 'scripts/src/lib/a.ts', symbol: 'f', ids: ['SS-1', 'CT-5'] },
+  ]);
+});
+
+test('같은 file이어도 symbol이 다른 finding 기록 → warnings 키가 없다', () => {
+  const fx = makeFixture();
+  const result = fx.record(fx.payload({ new: 2 }, [SS_FINDING, { ...CT_FINDING, symbol: 'g' }]), { status: 'addressed' });
+  assert.equal(result.ok, true);
+  assert.equal('warnings' in result, false);
+});
+
+test('symbol이 비었거나 모양이 틀린 항목 → findingMergeCandidates가 건너뛰고 던지지 않는다', () => {
+  const { findingMergeCandidates } = require('../scripts/lib/validate-sections');
+  const blank = [{ ...SS_FINDING, symbol: ' ' }, { ...CT_FINDING, symbol: ' ' }, null, 'x', { id: 'Z', file: 3, symbol: 'f' }];
+  assert.deepStrictEqual(findingMergeCandidates(blank), []);
+  assert.deepStrictEqual(findingMergeCandidates('not-array'), []);
+  const dotted = [SS_FINDING, { ...CT_FINDING, file: './scripts/src/lib/a.ts' }];
+  assert.deepStrictEqual(findingMergeCandidates(dotted).map((c) => c.ids), [['SS-1', 'CT-5']]);
+});

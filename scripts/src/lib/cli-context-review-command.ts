@@ -133,6 +133,9 @@ Failure JSON: { ok: false, reason, cause, next }. reason is one of
   context-review-legacy-evidence | context-review-round-order |
   context-review-input-invalid
 A recorded success is not a plan gate pass.
+record success may carry warnings: [{ code: 'finding-merge-candidate', file, symbol, ids }] when findings
+of that round share a file and symbol under different categories; the key is omitted when there is none
+(and on a noop rerun). A warning never blocks the record; the controller decides whether to merge them.
 
 route is read-only: it reads follow_up from the --dispatch payload (a
 review-dispatch plan run with --previous) and prints { ok, next_action, reason,

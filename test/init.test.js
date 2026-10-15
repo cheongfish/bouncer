@@ -163,6 +163,42 @@ test('init → writes the exact config.json shape', () => {
   });
 });
 
+test('init → package.json에 scripts.build가 있으면 worktree.setup을 npm run build로 넣는다', () => {
+  const repo = tmpRepo();
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { build: 'tsc' } }));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(config.worktree, { setup: 'npm run build' });
+});
+
+test('init → scripts.build가 없는 package.json이면 worktree 키를 만들지 않는다', () => {
+  const repo = tmpRepo();
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.ok(!Object.hasOwn(config, 'worktree'));
+});
+
+test('init → 깨진 package.json이면 실패하지 않고 worktree 키를 만들지 않는다', () => {
+  const repo = tmpRepo();
+  fs.writeFileSync(path.join(repo, 'package.json'), '{ not json');
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(res.ok, true);
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.ok(!Object.hasOwn(config, 'worktree'));
+});
+
+test('init → 준비된 저장소의 config는 build 스크립트가 있어도 바이트가 바뀌지 않는다', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  const body = JSON.stringify({ source_dirs: ['src'], verify: 'npm test' });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), body);
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { build: 'tsc' } }));
+  git(repo, ['init', '-b', 'main']);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(read(repo, '.bouncer/config.json'), body);
+});
+
 test('init → does not create Distill files or distill config', () => {
   const repo = tmpRepo();
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });

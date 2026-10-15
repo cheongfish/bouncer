@@ -31,20 +31,33 @@ test('every test file → is assigned to a tier', () => {
   const { unit, integration } = loadTiers();
   const assigned = new Set([...unit, ...integration]);
   const missing = listTestFiles().filter((f) => !assigned.has(f));
-  assert.deepStrictEqual(missing, []);
+  // 실패 시 배열 diff만으로는 어떻게 고칠지 알 수 없어 파일 이름과 조치를 메시지에 싣는다.
+  assert.deepStrictEqual(
+    missing,
+    [],
+    `test files not in test/tiers.json: ${missing.join(', ')}; add each to the "unit" or "integration" list in test/tiers.json (integration when it spawns processes)`,
+  );
 });
 
 test('no test file → is in both tiers', () => {
   const { unit, integration } = loadTiers();
   const both = unit.filter((f) => integration.includes(f));
-  assert.deepStrictEqual(both, []);
+  assert.deepStrictEqual(
+    both,
+    [],
+    `test files listed in both tiers of test/tiers.json: ${both.join(', ')}; remove each from one of the "unit" or "integration" lists`,
+  );
 });
 
 test('tier → lists name only existing files', () => {
   const { unit, integration } = loadTiers();
   const existing = new Set(listTestFiles());
   const ghost = [...unit, ...integration].filter((f) => !existing.has(f));
-  assert.deepStrictEqual(ghost, []);
+  assert.deepStrictEqual(
+    ghost,
+    [],
+    `test/tiers.json lists files that do not exist in test/: ${ghost.join(', ')}; remove each entry from test/tiers.json or restore the file`,
+  );
 });
 
 test('unit guard → rejects process spawning and lets pure tests pass', () => {

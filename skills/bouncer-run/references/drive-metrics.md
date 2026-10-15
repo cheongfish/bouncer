@@ -23,7 +23,7 @@ reason, and totals never count it as 0.
 
    Keep the `id` from the JSON result. `ok: false` is reported but never blocks the drive.
 
-3. Once the coordinator's hand-back report has arrived (item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md`; a `completed` notification without a result body does not count), pass what the host's final task notification gave you, never an intermediate one:
+3. Once the coordinator's hand-back report has arrived (item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md`; a `completed` notification without a result body does not count), do not call `metrics end` yet. The hand-back message carries no `subagent_tokens`. Wait for the same agent's `<task-notification>`, read its `usage` (`subagent_tokens`, `duration_ms`), and only then pass those values, never an intermediate notification's. A session already closed is not corrected afterward:
 
    ```bash
    bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>
