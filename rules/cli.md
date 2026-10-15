@@ -68,6 +68,13 @@ install failure exits 1 with `code: DEPENDENCY_INSTALL_FAILED`, `cause`, and
 `next` before verify, staging, commit, or pointer clearing — repair the
 install in that checkout as `next` says, then rerun the same finalize command.
 `VERIFY_FAILED` still means only that verify failed after dependencies were ready.
+Worktree dependency preparation (`seed-worktree`, `execute prepare`, finalize)
+also runs the optional `worktree.setup` command from the main checkout config
+once after the install step. It is one argv (no shell operators) and must pass
+`verify_allowlist`; a rejected or failing setup is `dependency-install-failed`
+with a message starting `worktree.setup`. `bouncer init` seeds it as
+`npm run build` only for a new config whose `package.json` has `scripts.build`;
+existing configs are never rewritten.
 `finalize release-main --blueprint <dir>` is main-checkout-only: it cleans
 main plan copies after a closed drive.
 

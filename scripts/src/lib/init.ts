@@ -85,6 +85,34 @@ function detectDefaultBranch(repoRoot: string) {
   return gitSymbolicRefShort(repoRoot, 'HEAD');
 }
 
+/**
+ * package.json에 문자열 `scripts.build`가 있는지 본다.
+ * 읽기·파싱 실패는 "build 없음"으로 수렴한다 — 이 값은 선택 기본값일 뿐이라
+ * package.json 문제로 init을 실패시키지 않는다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @returns {boolean} 문자열 build 스크립트가 있으면 true
+ */
+function hasBuildScript(repoRoot: string): boolean {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8');
+  } catch (_e) {
+    // 파일 없음·권한 없음 등 읽기 실패는 모두 "build 없음"으로 본다.
+    // 기본값을 못 넣을 뿐 데이터 손실이 없어 안전하다.
+    return false;
+  }
+  try {
+    const pkg = JSON.parse(raw);
+    const scripts = pkg && typeof pkg === 'object' ? pkg.scripts : null;
+    return !!scripts && typeof scripts === 'object'
+      && Object.hasOwn(scripts, 'build') && typeof scripts.build === 'string';
+  } catch (_e) {
+    // 깨진 JSON(SyntaxError)만 흡수한다. 다른 스크립트 이름으로 추측하지 않는다.
+    return false;
+  }
+}
+
 function defaultConfig(repoRoot: string) {
   // base_branch와 pr.base는 같은 탐지 결과를 쓴다. 갈라지는 경로를 만들지 않는다.
   const detected = detectDefaultBranch(repoRoot);
@@ -105,6 +133,10 @@ function defaultConfig(repoRoot: string) {
     // 바뀌어도 이미 init된 저장소의 실행 경계를 조용히 넓히지 않기 위함.
     verify_allowlist: [...DEFAULT_VERIFY_ALLOWLIST],
     ...(detected ? { base_branch: detected } : {}),
+    // build 스크립트가 있는 새 저장소만 worktree 준비 끝에 빌드를 돌려, 빌드
+    // 산출물(gitignore 대상)이 없는 worktree에서 verify가 깨지지 않게 한다.
+    // 기존 config에는 쓰지 않는다(준비된 저장소는 다시 쓰지 않는 계약).
+    ...(hasBuildScript(repoRoot) ? { worktree: { setup: 'npm run build' } } : {}),
     autonomy: 'auto',
     // draft는 항상 둔다. base는 탐지 성공 시에만 — 실패를 develop/main으로
     // 채우지 않고 키를 비워 /bouncer-init이 묻게 한다.

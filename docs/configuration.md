@@ -10,6 +10,7 @@
 | --- | --- | --- | --- |
 | `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`). 실행 시 argv로 파싱되며 `shell: false` | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
 | `verify_allowlist` | argv0 실행 파일명 문자열 배열. Windows에서는 `npm.cmd`·`node.exe`처럼 관용 확장자를 벗긴 뒤 비교 | 런타임 검증 실행 직전 허용 목록. 없거나 배열이 아니면 기본값(`npm`·`node`·`make` 등). plan/S12의 `tasks.bouncer.verify` 검사는 이 키가 아니라 기본 목록만 사용 | `["npm", "node", "make"]` |
+| `worktree.setup` | 단일 실행 문자열 (선택). `verify`와 같은 argv 규칙(`&&`·`;`·파이프·리디렉션 불가)과 `verify_allowlist`를 적용 | worktree 의존성 준비(`seed-worktree`·finalize) 끝에 worktree에서 한 번 실행. **main checkout의 config**에서 읽는다. 허용 목록 밖·형식 오류·실행 실패는 `dependency-install-failed`(message가 `worktree.setup`으로 시작) | `"npm run build"` |
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
 | `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
 | `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |
@@ -26,6 +27,8 @@
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
 | `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-execute`·`/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
 | `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
+
+`bouncer init`은 새 config를 만들 때 `package.json`에 `scripts.build`가 있으면 `worktree.setup`을 `"npm run build"`로 넣습니다. 이미 있는 config에는 자동으로 들어가지 않으니 필요하면 직접 추가하세요.
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
 `bouncer-context-reviewer` · `bouncer-coordinator` 다섯입니다.
