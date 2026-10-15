@@ -1263,3 +1263,49 @@ test('close 뒤 계획 수정 후 restart → 성공, context-review.md에 resta
   assert.equal(doc.data.bouncer.context_review.restart_count, 1);
   assert.equal(doc.data.bouncer.context_review.rounds.length, 2);
 });
+
+// 병합 후보 경고: 같은 file·symbol을 다른 category가 가리키는 finding 묶음을 알린다.
+const mergePair = (overrides = {}) => [
+  withFingerprint({ ...MUST_FIX, id: 'CR-1', category: 'spec_scope', file: 'scripts/src/lib/a.ts', symbol: 'f', ...overrides }),
+  withFingerprint({ ...MUST_FIX, id: 'CR-2', category: 'correctness_tests', file: 'scripts/src/lib/a.ts', symbol: 'f', ...overrides }),
+];
+
+test('같은 file·symbol에 category가 다른 finding 기록 → warnings에 병합 후보가 들어간다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const result = record(repo, d, roundFile(repo, 'w1.json', 1, 'discovery', mergePair()));
+  assert.equal(result.code, 0);
+  assert.deepStrictEqual(result.json.warnings, [
+    { code: 'finding-merge-candidate', file: 'scripts/src/lib/a.ts', symbol: 'f', ids: ['CR-1', 'CR-2'] },
+  ]);
+});
+
+test('후보가 없는 finding 기록 → warnings 키가 없다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const result = record(repo, d, roundFile(repo, 'w2.json', 1, 'discovery', [MUST_FIX, ADVISORY]));
+  assert.equal(result.code, 0);
+  assert.equal('warnings' in result.json, false);
+});
+
+test('symbol이 빈 finding 기록 → warnings 키가 없다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const result = record(repo, d, roundFile(repo, 'w3.json', 1, 'discovery', mergePair({ symbol: '' })));
+  assert.equal(result.code, 0);
+  assert.equal('warnings' in result.json, false);
+});
+
+test('후보가 있던 record를 같은 입력으로 반복 → noop 응답에 warnings 키가 없다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const rf = roundFile(repo, 'w4.json', 1, 'discovery', mergePair());
+  record(repo, d, rf);
+  const again = record(repo, d, rf);
+  assert.equal(again.json.noop, true);
+  assert.equal('warnings' in again.json, false);
+});

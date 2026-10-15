@@ -121,7 +121,7 @@ unresolved. Used from `/bouncer-execute`.
    read-only pass that first reads `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` and follows
    every section with that same input.
 
-   The controller verifies evidence, merges duplicate fingerprints, records
+   The controller verifies evidence, merges duplicate fingerprints (it also checks `warnings` in the `review record` result and decides whether each `finding-merge-candidate` — same file and symbol, different category — should be merged), records
    `severity_changes`, `origin`, and `actionability`, and decides `must_fix` or
    `advisory` from the brief, evidence, and changed range. It dispatches one
    implementer once for all must-fix findings, reruns verify, then dispatches

@@ -259,7 +259,7 @@ unreadable stored reference), or `previous-payload-stale` (differs from the
 cycle `latest_dispatch`). `--previous` without a path or a repeated
 `--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|close|restart|route`
 owns cycle state (`start|record|restart|route` take `--blueprint <dir> --dispatch <json>`;
-`record` also takes `--round <json>`, `--status`, `--accept-risk`;
+`record` also takes `--round <json>`, `--status`, `--accept-risk`, and its success may carry `warnings` (`finding-merge-candidate`: findings of the round that share `file` and `symbol` under different categories; key omitted when none, never blocks);
 `close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk`;
 `restart` takes `--reason`, at most once); run `bouncer context-review --help`. The path that closes the cycle (`close` or `record --status accepted`) writes `context-review.md` and returns `written`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),
@@ -289,7 +289,7 @@ bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file> [--st
 
 `review record` writes one round and finding updates into `review.md`
 frontmatter only after the same finding/round checks as G21 and G14 pass.
-Success is `{ ok: true, path, round, status, findings }` (exit 0). Failure is
+Success is `{ ok: true, path, round, status, findings }` (exit 0), plus `warnings: [{ code: 'finding-merge-candidate', file, symbol, ids }]` when findings of the round share `file` and `symbol` under different categories (key omitted when none; never blocks the record). Failure is
 `{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
 `reason` is `review-target-missing`, `review-task-required`,
 `review-task-not-allowed`, `review-input-invalid`,

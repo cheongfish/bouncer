@@ -81,7 +81,7 @@ attempt's latest report.
   certification 1회**. Preserve the ceilings the dispatched workflow owns
   (discovery 1, fix 1, delta 1, drive critical recovery 1), and record in the
   ledger which worker produced each result.
-- Aggregate: verify evidence, merge duplicate fingerprints, record
+- Aggregate: verify evidence, merge duplicate fingerprints (and check `warnings` in the `review record` result: each `finding-merge-candidate` lists findings on the same file and symbol under different categories; decide whether to merge them), record
   severity_changes and origin, then decide must_fix or advisory from the
   brief, evidence, and changed range — never a reviewer vote.
 - Fix, under a coordinator drive on the per-task path: judge the prior

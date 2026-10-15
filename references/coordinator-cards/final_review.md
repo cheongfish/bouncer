@@ -50,7 +50,9 @@ review and Procedure step 6 (Close).
 - Record `bouncer.review.findings[]` and `rounds[]` on the blueprint-root
   `review.md` with `bouncer review record --blueprint <dir> --round
   <json-file>` (omit `--task`; add `--status` only when changing document
-  status). Do not edit that YAML by hand. Each round records `target` (`base`,
+  status). Do not edit that YAML by hand. Check `warnings` in the result: each `finding-merge-candidate`
+  lists findings on the same file and symbol under different categories; decide
+  whether to merge them. Each round records `target` (`base`,
   `head`), `task_brief_hashes` (commit task id → brief hash),
   `intent_bundles` (commit task id → `{ id, revision }`), and each
   perspective's `target_head`.

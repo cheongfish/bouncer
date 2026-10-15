@@ -247,6 +247,17 @@ function isNonNegativeInteger(value: unknown): boolean {
 }
 
 /**
+ * finding의 file 경로 정규화(posix·trim·앞 `./` 제거). fingerprint와 병합 후보 계산이
+ * 같은 규칙을 써야 두 경로가 같은 파일을 다르게 판단하지 않는다. 대소문자는 접지 않는다.
+ *
+ * @param {unknown} file - finding.file 원본
+ * @returns {string} 정규화한 경로
+ */
+function normalizeFindingFile(file: unknown): string {
+  return toPosix(String(file ?? '').trim()).replace(/^\.\//, '');
+}
+
+/**
  * finding 식별자를 한 곳에서 정규화한다. review 작성자마다 `./`·대소문자가 달라
  * 같은 문제를 새 finding으로 기록하는 일을 막기 위해, namespace는 후속 계약이
  * 필요할 때만 정규형 앞에 붙인다.
@@ -259,10 +270,48 @@ function findingFingerprint({
   const normalized = [
     String(category ?? '').trim().toLowerCase(),
     String(brief_clause ?? '').trim().toLowerCase(),
-    toPosix(String(file ?? '').trim()).replace(/^\.\//, ''),
+    normalizeFindingFile(file),
   ].join(':');
   const fingerprint = `${normalized}#${String(symbol ?? '').trim()}`;
   return namespace ? `${namespace}:${fingerprint}` : fingerprint;
+}
+
+/**
+ * 한 round의 finding 중 정규화 file·trim symbol이 같고 category가 둘 이상인 묶음을
+ * 병합 후보로 돌려준다. 관점이 다른 리뷰어가 같은 문제를 다른 fingerprint로 보고해도
+ * controller가 병합 여부를 판단할 수 있게 알리는 용도이며, 기록을 막지 않는다.
+ * 던지지 않는다: 배열이 아니거나, 객체가 아니거나, file·symbol이 비었거나 문자열이 아닌
+ * 항목은 조용히 건너뛴다(형식 거절은 collectFindingFailures의 책임).
+ *
+ * @param {unknown[]} findings - 기록 중인 round의 finding 목록
+ * @returns {Array<{code: 'finding-merge-candidate', file: string, symbol: string, ids: string[]}>}
+ *   후보 묶음(첫 등장 순서). ids는 입력 순서이며 id가 없는 항목은 ids에서 빠진다.
+ */
+function findingMergeCandidates(findings: unknown[]): Array<{
+  code: 'finding-merge-candidate'; file: string; symbol: string; ids: string[];
+}> {
+  if (!Array.isArray(findings)) return [];
+  const groups = new Map<string, { file: string; symbol: string; ids: string[]; categories: Set<string> }>();
+  for (const item of findings) {
+    if (typeof item !== 'object' || item === null) continue;
+    const rec = item as Record<string, unknown>;
+    if (typeof rec.file !== 'string' || typeof rec.symbol !== 'string') continue;
+    const file = normalizeFindingFile(rec.file);
+    const symbol = rec.symbol.trim();
+    if (file === '' || symbol === '') continue;
+    // 구분자 충돌을 피하려고 JSON 배열을 키로 쓴다.
+    const key = JSON.stringify([file, symbol]);
+    let group = groups.get(key);
+    if (!group) {
+      group = { file, symbol, ids: [], categories: new Set() };
+      groups.set(key, group);
+    }
+    if (typeof rec.id === 'string') group.ids.push(rec.id);
+    group.categories.add(String(rec.category ?? '').trim().toLowerCase());
+  }
+  return [...groups.values()]
+    .filter((g) => g.categories.size >= 2)
+    .map((g) => ({ code: 'finding-merge-candidate' as const, file: g.file, symbol: g.symbol, ids: g.ids }));
 }
 
 function missingFindingField(record: Record<string, unknown>, field: string): boolean {
@@ -534,6 +583,7 @@ export = {
   pathsOverlap,
   pathJustifiedByTouch,
   findingFingerprint,
+  findingMergeCandidates,
   collectFindingFailures,
   EXECUTE_ROUND_CONTRACT,
 };

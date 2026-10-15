@@ -1008,8 +1008,11 @@ function recordReport(input: {
       const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
       if (isFail(wrote)) return wrote;
     }
+    // 병합 후보 경고는 noop이 아닌 이번 기록의 round 입력만 대상으로 한다(추가 I/O 없음).
+    const warnings = validateSections.findingMergeCandidates(report.findings);
     return {
       ok: true, noop: false, cycle: next.cycle, status, closed: next.closed,
+      ...(warnings.length > 0 ? { warnings } : {}),
       ...(projection ? { projection } : {}),
       ...(closureDoc && !isFail(closureDoc) ? { written: closureDoc.rel } : {}),
     };
