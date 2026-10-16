@@ -44,6 +44,10 @@ type MetricsSession = {
   output_tokens?: number | null;
   tokens?: number | null;
   tokens_unavailable_reason?: string;
+  // cache 토큰은 tokens·input/output과 독립이다. 총합·비용 계산에 들어가지 않는다.
+  cache_read_tokens?: number | null;
+  cache_write_tokens?: number | null;
+  cache_unavailable_reason?: string;
   cost?: number | null;
   cost_unavailable_reason?: string;
 };
@@ -239,6 +243,8 @@ function computeCost(
  * @param {number} [opts.tokens] - 호스트가 준 총 토큰
  * @param {number} [opts.inputTokens] - 호스트가 준 입력 토큰
  * @param {number} [opts.outputTokens] - 호스트가 준 출력 토큰
+ * @param {number} [opts.cacheReadTokens] - 호스트가 준 cache read 토큰(독립 필드, 총합·비용에 안 더함)
+ * @param {number} [opts.cacheWriteTokens] - 호스트가 준 cache write 토큰(독립 필드, 총합·비용에 안 더함)
  * @param {string} [opts.model] - 모델 slug
  * @param {number} [opts.hostDurationMs] - 호스트가 준 소요 시간
  * @param {PricingTable | null} opts.pricing - 단가 표. 깨진 설정이면 null
@@ -248,7 +254,8 @@ function computeCost(
 function endSession(opts: {
   file: string; resolveLedger: (blueprint: string) => string | null; id: string; tokens?: number;
   inputTokens?: number;
-  outputTokens?: number; model?: string; hostDurationMs?: number;
+  outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number;
+  model?: string; hostDurationMs?: number;
   pricing: PricingTable | null; now?: Clock;
 }): { ok: true; id: string } | Failure {
   const now = opts.now ?? (() => new Date());
@@ -270,6 +277,12 @@ function endSession(opts: {
     ?? (opts.inputTokens !== undefined && opts.outputTokens !== undefined
       ? opts.inputTokens + opts.outputTokens : null);
   if (session.tokens === null) session.tokens_unavailable_reason = 'not-reported';
+  // cache는 호스트가 준 값만 쓴다. 둘 다 없을 때만 사유를 남기고, 하나라도 있으면 사유 키를 쓰지 않는다.
+  session.cache_read_tokens = opts.cacheReadTokens ?? null;
+  session.cache_write_tokens = opts.cacheWriteTokens ?? null;
+  if (session.cache_read_tokens === null && session.cache_write_tokens === null) {
+    session.cache_unavailable_reason = 'not-reported';
+  }
   const cost = computeCost(session.model, session.input_tokens, session.output_tokens, opts.pricing);
   session.cost = cost.cost;
   if (cost.reason !== undefined) session.cost_unavailable_reason = cost.reason;
@@ -294,6 +307,14 @@ function endSession(opts: {
   return { ok: true, id: session.id };
 }
 
+type CacheSummary = {
+  read: { total: number; missing: number };
+  write: { total: number; missing: number };
+};
+type WorkerTokensTotal = { total: number; missing: number };
+type WorkerTokensSummary = WorkerTokensTotal & {
+  by_role: Record<'implementer' | 'reviewer' | 'debugger', WorkerTokensTotal>;
+};
 type KindSummary = {
   sessions: number; open: number; tokens_total: number; tokens_missing: number;
   wall_ms_total: number; cost_total: number; cost_missing: number; tasks_completed?: number;
@@ -303,11 +324,22 @@ type KindSummary = {
  * blueprint의 kind별 합계. 끝난 세션만 토큰·시간·비용에 합산하고, `null`은 합에서 빼
  * 누락 수로 따로 센다. 0으로 세면 측정하지 못한 세션이 값이 0인 세션처럼 읽힌다.
  *
- * @param {{file: string, blueprint: string}} opts - 기록 파일과 blueprint
- * @returns {{ok: true, blueprint: string, kinds: Record<string, KindSummary>} | Failure} 합계 또는 거절
+ * @param {{file: string, blueprint: string, resolveLedger?: Function}} opts - 기록 파일, blueprint,
+ *   원장 경로 해석기 `(blueprint) => string | null`(주입)
+ * worker_tokens는 원장의 `worker-model`·`worker-tokens` decision에서 따로 합산한다. coordinator
+ * 총량에 이미 포함됐는지 알 수 없으므로 `kinds`에 더하지 않는다. 원장이 없거나 resolveLedger가
+ * 없으면 0이고, 깨진 원장은 `metrics-ledger-invalid`로 거절한다.
+ * cache read·write는 kind와 무관하게 blueprint 전체 합을 최상위 `cache`에 낸다. 숫자만 합산하고
+ * `null`·필드 부재(필드가 생기기 전 기록)는 `missing`으로 센다. `0`은 값이다.
+ *
+ * @returns {{ok: true, blueprint: string, kinds: Record<string, KindSummary>, cache: CacheSummary} | Failure} 합계 또는 거절
  */
-function summarize(opts: { file: string; blueprint: string }):
-  { ok: true; blueprint: string; kinds: Record<string, KindSummary> } | Failure {
+function summarize(opts: {
+  file: string; blueprint: string; resolveLedger?: (blueprint: string) => string | null;
+}): {
+  ok: true; blueprint: string; kinds: Record<string, KindSummary>; cache: CacheSummary;
+  worker_tokens: WorkerTokensSummary;
+} | Failure {
   const current = readMetrics(opts.file);
   if (current.ok === false) return current;
   const blueprint = normalizeBlueprint(opts.blueprint);
@@ -319,6 +351,7 @@ function summarize(opts: { file: string; blueprint: string }):
     };
     if (kind === 'coordinator-session') kinds[kind].tasks_completed = 0;
   }
+  const cache: CacheSummary = { read: { total: 0, missing: 0 }, write: { total: 0, missing: 0 } };
   for (const s of current.data.sessions) {
     if (s.blueprint !== blueprint || !Object.hasOwn(kinds, s.kind)) continue;
     const sum = kinds[s.kind];
@@ -328,13 +361,64 @@ function summarize(opts: { file: string; blueprint: string }):
       continue;
     }
     if (typeof s.tokens === 'number') sum.tokens_total += s.tokens; else sum.tokens_missing += 1;
+    if (typeof s.cache_read_tokens === 'number') cache.read.total += s.cache_read_tokens;
+    else cache.read.missing += 1;
+    if (typeof s.cache_write_tokens === 'number') cache.write.total += s.cache_write_tokens;
+    else cache.write.missing += 1;
     if (typeof s.cost === 'number') sum.cost_total += s.cost; else sum.cost_missing += 1;
     sum.wall_ms_total += s.wall_ms ?? 0;
     if (sum.tasks_completed !== undefined && Array.isArray(s.tasks_completed)) {
       sum.tasks_completed += s.tasks_completed.length;
     }
   }
-  return { ok: true, blueprint, kinds };
+  const workerTokens = summarizeWorkerTokens(opts.resolveLedger?.(blueprint) ?? null);
+  if (workerTokens.ok === false) return workerTokens;
+  return { ok: true, blueprint, kinds, cache, worker_tokens: workerTokens.summary };
+}
+
+/**
+ * 원장 decision에서 하위 에이전트 토큰을 합산한다. 키 `(task, role, perspective)`마다
+ * `runs`(worker-model 수)와 `reported`(숫자 tokens가 달린 worker-model + worker-tokens 수)를
+ * 세어, 누락은 `max(0, runs - reported)`다. 늦게 온 worker-tokens가 같은 키의 토큰 없는
+ * worker-model을 메우므로 한 호출이 두 번 세이지 않는다. 호스트가 주지 않은 값은 만들지 않는다.
+ *
+ * @param {string | null} ledgerFile - 원장 경로. null이면 기록 없음으로 본다
+ * @returns {{ok: true, summary: WorkerTokensSummary} | Failure} 합계 또는 깨진 원장 거절
+ */
+function summarizeWorkerTokens(ledgerFile: string | null):
+  { ok: true; summary: WorkerTokensSummary } | Failure {
+  const roles = ['implementer', 'reviewer', 'debugger'] as const;
+  const summary: WorkerTokensSummary = {
+    total: 0, missing: 0,
+    by_role: {
+      implementer: { total: 0, missing: 0 }, reviewer: { total: 0, missing: 0 },
+      debugger: { total: 0, missing: 0 },
+    },
+  };
+  if (ledgerFile === null) return { ok: true, summary };
+  const ledger = readLedgerSnapshot(ledgerFile);
+  if (ledger.ok === false) return ledger;
+  const counts = new Map<string, { role: typeof roles[number]; runs: number; reported: number }>();
+  for (const d of ledger.decisions) {
+    if (!isRecord(d) || (d.kind !== 'worker-model' && d.kind !== 'worker-tokens')) continue;
+    const role = roles.find((r) => r === d.role);
+    if (role === undefined) continue;
+    const key = JSON.stringify([d.task ?? '', role, d.perspective ?? '']);
+    const entry = counts.get(key) ?? { role, runs: 0, reported: 0 };
+    if (d.kind === 'worker-model') entry.runs += 1;
+    if (typeof d.tokens === 'number') {
+      entry.reported += 1;
+      summary.by_role[role].total += d.tokens;
+      summary.total += d.tokens;
+    }
+    counts.set(key, entry);
+  }
+  for (const { role, runs, reported } of counts.values()) {
+    const missing = Math.max(0, runs - reported);
+    summary.by_role[role].missing += missing;
+    summary.missing += missing;
+  }
+  return { ok: true, summary };
 }
 
 /**

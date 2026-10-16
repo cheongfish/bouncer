@@ -15,6 +15,11 @@ review and Procedure step 6 (Close).
   `--task`: the final review spans the blueprint), and pass the same value to
   the dispatch. If a slug rejection forces the `inherit` retry, record the
   retried value again.
+  The host's completion notice reports `subagent_tokens`. If the notice is not
+  here yet, record without `--tokens`; once it arrives, append it with
+  `bouncer coordinate worker-tokens --blueprint <dir> --role reviewer [--perspective <name>] --tokens <n>
+  --ledger-path <p> --ledger-hash <h>` (same task and perspective). If the host
+  gives no value, leave it out: it is counted as missing, never estimated.
 - Blueprint review mode is `bouncer.review_scope: blueprint` on blueprint
   `index.md`. In that mode do **not** dispatch a per-task execute reviewer.
   Open one final review after every commit task is integrated and the terminal

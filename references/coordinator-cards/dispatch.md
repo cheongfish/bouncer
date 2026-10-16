@@ -44,6 +44,14 @@ from the coordinator Task round and Worker dispatch.
   active (`dispatch-already-active`) and a second call would not be a retry. The
   ledger keeps the slug first passed; state the `inherit` retry in your own
   report to the user instead.
+- When the implementer's completion notice reports `subagent_tokens`, record it
+  from the integration cwd with `bouncer coordinate worker-model --blueprint
+  <dir> --role implementer --model <value> --task <NNN> --tokens <n>
+  --ledger-path <p> --ledger-hash <h>`. If the notice is not here yet, record
+  without `--tokens`; once it arrives, append it with `bouncer coordinate
+  worker-tokens --blueprint <dir> --role implementer --task <NNN> --tokens <n>
+  --ledger-path <p> --ledger-hash <h>`. If the host gives no value, leave it
+  out: it is counted as missing, never estimated.
 - After `rework`, `scope_revision`, or `task_change`, revise only when the
   outcome requires it, then redispatch so runtime supplies the increased
   `attempt` and `previous_outcome`. After `ok: false` or a fence refusal,

@@ -697,6 +697,25 @@ function prepareClosureDoc(
 }
 
 /**
+ * 병합된 finding 목록에서 둘 이상이 공유하는 fingerprint를 처음 나온 순서로 돌려준다.
+ * collectFindingFailures를 통째로 부르면 round·본문 검사 메시지가 섞이므로 중복만 센다.
+ * fingerprint가 문자열이 아닌 finding은 건너뛴다(형식 오류는 close 시점 검사가 맡는다).
+ *
+ * @param {Array<{fingerprint?: unknown}>} findings 이전 round와 합친 finding
+ * @returns {string[]} 중복된 fingerprint
+ */
+function duplicateFingerprints(findings: Array<{ fingerprint?: unknown }>): string[] {
+  const seen = new Set<string>();
+  const dup = new Set<string>();
+  for (const f of findings) {
+    if (typeof f.fingerprint !== 'string') continue;
+    if (seen.has(f.fingerprint)) dup.add(f.fingerprint);
+    seen.add(f.fingerprint);
+  }
+  return [...dup];
+}
+
+/**
  * 표식과 state를 대조한다(잠금 안에서 호출). 표식이 state보다 크면 state가 지워졌거나 낮춰진
  * 것이라 거절하고, state가 표식보다 크면 직전 restart가 표식 쓰기 전에 죽은 것이므로 여기서
  * 표식을 채운다. 표식을 낮추는 경로는 없다.
@@ -965,6 +984,14 @@ function recordReport(input: {
       const at = merged.findIndex((x) => x.id === f.id);
       if (at >= 0) merged[at] = f;
       else merged.push(f);
+    }
+    // 중복 fingerprint는 status와 무관하게 쓰기 전에 거부한다. accepted 때만 막으면 중복이 requested/addressed
+    // record를 통과한 뒤 close에서야 막혀, 같은 round를 다시 기록할 수 없고 restart만 남기 때문이다.
+    const duplicates = duplicateFingerprints(merged);
+    if (duplicates.length > 0) {
+      return fail('context-review-input-invalid',
+        duplicates.map((fp) => `context-review duplicate fingerprint ${fp}`),
+        'merge the findings sharing a fingerprint into one and record the same round again');
     }
     let projection: State['projection'] = null;
     let closureDoc: ReturnType<typeof prepareClosureDoc> | null = null;

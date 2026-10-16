@@ -18,6 +18,11 @@ the coordinator Task round. When verification fails and recovery runs, read
   --ledger-path <p> --ledger-hash <h>` from the integration cwd, and pass the
   same value to the dispatch. If a slug rejection forces the `inherit` retry,
   record the retried value again.
+  The host's completion notice reports `subagent_tokens`. If the notice is not
+  here yet, record without `--tokens`; once it arrives, append it with
+  `bouncer coordinate worker-tokens --blueprint <dir> --role debugger --task <NNN> --tokens <n>
+  --ledger-path <p> --ledger-hash <h>` (same task and perspective). If the host
+  gives no value, leave it out: it is counted as missing, never estimated.
 - Dispatch named `bouncer-debugger` (plugin `${BOUNCER_ROOT}/agents/bouncer-debugger.md`) with
   the failing verify evidence, only the pointer task brief's Goal & intent,
   Interface, Touch, Do not touch, Constraints, and Checklist, the shared

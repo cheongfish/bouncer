@@ -46,7 +46,7 @@ const LEDGER_REL = COORDINATOR_LEDGER_REL;
  */
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open', 'worker-model',
+  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
@@ -87,10 +87,36 @@ type DispatchDecision = {
 const WORKER_MODEL_REVIEW_PERSPECTIVES: readonly string[] = [
   'combined', 'spec_scope', 'correctness_tests', 'minimality_maintainability', 'security',
 ];
+// worker 기록 role. implementer는 dispatch --model로도 모델이 남지만, 토큰 합산이 세 role을
+// 같은 키 체계로 다루도록 worker-model에도 허용한다.
+const WORKER_RECORD_ROLES: readonly string[] = ['implementer', 'reviewer', 'debugger'];
+type WorkerRecordRole = 'implementer' | 'reviewer' | 'debugger';
+// tokens는 호스트가 준 값일 때만 키를 쓴다. 키가 없으면 metrics summary가 누락으로 센다.
 type WorkerModelDecision = {
-  kind: 'worker-model'; role: 'reviewer' | 'debugger'; model: string;
+  kind: 'worker-model'; role: WorkerRecordRole; model: string;
+  task?: string; perspective?: string; tokens?: number;
+};
+// 완료 알림이 hand-back 뒤에 늦게 오는 경우, 토큰만 담아 덧붙이는 기록이다.
+type WorkerTokensDecision = {
+  kind: 'worker-tokens'; role: WorkerRecordRole; tokens: number;
   task?: string; perspective?: string;
 };
+
+/**
+ * `--tokens` 값을 안전한 0 이상 정수로 검증한다. CLI는 문자열을, 직접 호출은 숫자를 줄 수 있어
+ * 둘 다 받는다. 소수·음수·비숫자·안전 정수 밖의 값은 거절해 합산이 오염되지 않게 한다.
+ *
+ * @param {unknown} raw - 호스트가 준 토큰 값
+ * @returns {number | null} 검증된 정수, 유효하지 않으면 null
+ */
+function parseWorkerTokens(raw: unknown): number | null {
+  if (typeof raw === 'string') {
+    if (!/^\d+$/.test(raw)) return null;
+    const n = Number(raw);
+    return Number.isSafeInteger(n) ? n : null;
+  }
+  return typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
+}
 type ReportDecision = {
   task: string; kind: 'report'; attempt: number; task_brief_hash: string;
   outcome: ReportOutcome; summary: string;
@@ -3272,7 +3298,8 @@ function finishFaninAfterFf({
  * @param {string} [opts.outcome] - report 또는 critical-recovery 결과
  * @param {string} [opts.reason] - revoke·critical-recovery 사유
  * @param {string | true} [opts.model] - dispatch·worker-model 모델 인자. true는 값 없는 플래그
- * @param {string} [opts.role] - worker-model 대상 role(reviewer|debugger)
+ * @param {string} [opts.role] - worker-model·worker-tokens 대상 role(implementer|reviewer|debugger)
+ * @param {number | string} [opts.tokens] - worker-model 선택, worker-tokens 필수 토큰 수(0 이상 안전 정수)
  * @param {string} [opts.perspective] - worker-model reviewer 관점
  * @param {number} [opts.attempt] - dispatch report attempt
  * @param {string} [opts.taskBriefHash] - dispatch report brief hash
@@ -3288,7 +3315,7 @@ function finishFaninAfterFf({
  */
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
   failureCommand, summary, paths: repairPaths, findings, reviewFindings, kind, done, outcome, reason, attempt,
-  taskBriefHash, model, role, perspective,
+  taskBriefHash, model, role, perspective, tokens,
   leaseId, generation,
   ledgerPath, ledgerHash,
   userConfirmed = false, deps = {} }: {
@@ -3296,7 +3323,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; reviewFindings?: string[]; kind?: string; done?: boolean; outcome?: string; reason?: string;
   attempt?: number; taskBriefHash?: string;
-  model?: string | true; role?: string; perspective?: string;
+  model?: string | true; role?: string; perspective?: string; tokens?: number | string;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
   deps?: {
@@ -3547,29 +3574,43 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
 
     // 기록 전용 명령이다. dispatch·lease·status·attempt를 바꾸지 않고 decision만 덧붙이므로
     // 검증을 모두 통과한 뒤에만 commitWrite()를 부르고, 어느 거절도 원장을 쓰지 않는다.
-    if (command === 'worker-model') {
+    if (command === 'worker-model' || command === 'worker-tokens') {
       ensureIntegrationCwd(repoRoot, blueprint, cwd);
-      if (role !== 'reviewer' && role !== 'debugger') {
+      if (role === undefined || !WORKER_RECORD_ROLES.includes(role)) {
         return { ok: false, reason: 'worker-model-role-invalid' };
       }
+      const recordRole = role as WorkerRecordRole;
       // 값 없는 플래그(true)와 공백 문자열은 모두 빈 값이다. 누락(undefined)은 CLI가 usage로 막는다.
-      if (typeof model !== 'string' || model.trim() === '') return { ok: false, reason: 'model-invalid' };
+      if (command === 'worker-model'
+        && (typeof model !== 'string' || model.trim() === '')) {
+        return { ok: false, reason: 'model-invalid' };
+      }
       // 관점은 reviewer 전용이고 execute review 관점 열거 안이어야 한다.
       if (perspective !== undefined
-        && (role !== 'reviewer'
+        && (recordRole !== 'reviewer'
           || !WORKER_MODEL_REVIEW_PERSPECTIVES.includes(perspective))) {
         return { ok: false, reason: 'worker-model-perspective-invalid' };
+      }
+      // worker-model은 tokens가 선택이라 없으면 키를 쓰지 않고, worker-tokens는 필수다.
+      const parsedTokens = tokens === undefined ? null : parseWorkerTokens(tokens);
+      if ((tokens !== undefined || command === 'worker-tokens') && parsedTokens === null) {
+        return { ok: false, reason: 'tokens-invalid' };
       }
       let owner: Task | undefined;
       if (task !== undefined) {
         owner = ledger.tasks.find((x) => x.id === task);
         if (!owner) return { ok: false, reason: 'task-outside-blueprint' };
       }
-      const recorded: WorkerModelDecision = {
-        kind: 'worker-model', role, model: model.trim(),
+      const scope = {
         ...(task !== undefined ? { task } : {}),
         ...(perspective !== undefined ? { perspective } : {}),
       };
+      const recorded: WorkerModelDecision | WorkerTokensDecision = command === 'worker-model'
+        ? {
+          kind: 'worker-model', role: recordRole, model: (model as string).trim(), ...scope,
+          ...(parsedTokens !== null ? { tokens: parsedTokens } : {}),
+        }
+        : { kind: 'worker-tokens', role: recordRole, tokens: parsedTokens as number, ...scope };
       if (owner) owner.decisions = [...(owner.decisions || []), recorded];
       ledger.decisions.push(recorded);
       { const lost = commitWrite(); if (lost) return lost; }
@@ -4381,8 +4422,12 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Retry with the one-line output of `bouncer subagent-model --agent <name>` as `--model <value>`.',
   },
   'worker-model-role-invalid': {
-    cause: 'worker-model records only the reviewer or debugger role.',
-    next: 'Retry `bouncer coordinate worker-model` with `--role reviewer` or `--role debugger`.',
+    cause: 'worker-model and worker-tokens record only the implementer, reviewer or debugger role.',
+    next: 'Retry with `--role implementer`, `--role reviewer` or `--role debugger`.',
+  },
+  'tokens-invalid': {
+    cause: 'The tokens value is negative, fractional, not a number, or missing for worker-tokens.',
+    next: 'Retry with `--tokens <n>` set to the non-negative integer the host reported, or omit it for worker-model.',
   },
   'worker-model-perspective-invalid': {
     cause: 'The perspective is not a reviewer perspective, or it was given with a non-reviewer role.',

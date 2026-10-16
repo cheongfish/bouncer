@@ -15,6 +15,11 @@ start or stop, read [review-round](../../skills/bouncer-run/references/review-ro
   <value> --task <NNN> --perspective <name> --ledger-path <p> --ledger-hash <h>`
   from the integration cwd, and pass the same value to the dispatch. If a slug
   rejection forces the `inherit` retry, record the retried value again.
+  The host's completion notice reports `subagent_tokens`. If the notice is not
+  here yet, record without `--tokens`; once it arrives, append it with
+  `bouncer coordinate worker-tokens --blueprint <dir> --role reviewer [--task <NNN>] [--perspective <name>] --tokens <n>
+  --ledger-path <p> --ledger-hash <h>` (same task and perspective). If the host
+  gives no value, leave it out: it is counted as missing, never estimated.
 - When `review_scope` is absent, keep the existing per-task procedure: freeze
   base/head first, then run `bouncer review-dispatch execute --blueprint <dir>
   --task <NNN> --base <sha> --head <sha>`. On `ok: false`, a frozen

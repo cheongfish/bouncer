@@ -136,6 +136,8 @@ A recorded success is not a plan gate pass.
 record success may carry warnings: [{ code: 'finding-merge-candidate', file, symbol, ids }] when findings
 of that round share a file and symbol under different categories; the key is omitted when there is none
 (and on a noop rerun). A warning never blocks the record; the controller decides whether to merge them.
+record rejects (context-review-input-invalid) a round whose merged findings share a fingerprint under different
+ids, at any --status and before writing anything; merge them into one finding and record the same round again.
 
 route is read-only: it reads follow_up from the --dispatch payload (a
 review-dispatch plan run with --previous) and prints { ok, next_action, reason,
