@@ -64,14 +64,14 @@
 
 | 파일 | 현재 고정 대상 | 보호 동작 | 판단 | 담당 task/blueprint |
 | --- | --- | --- | --- | --- |
-| `test/coordinator.test.js` | reason 검사 | 판단 사유 코드가 기록되는 동작 | 사유 문자열 대신 관찰 가능한 판정 결과로 전환 | TASKS-003 |
-| `test/tasks-docs.test.js` | 단독 로드 | tasks 문서 구조 검증 | 모듈을 따로 적재하는 방식을 공개 경계 호출로 전환 | TASKS-003 |
-| `test/master-rules.test.js` | init 검사 | master rules가 init 결과에 반영되는 동작 | 문구 일치 대신 init 산출물의 동작 검사로 전환 | TASKS-005 |
-| `test/ci-contract.test.js` | emit·CI 순서 검사 | CI가 요구하는 emit과 단계 순서 | 순서 자체가 계약인 부분만 남기고 나머지는 동작 검사로 전환 | TASKS-005 |
-| `test/public-name-regression.test.js` | 허용 목록 | 폐기한 제품 이름이 소스에 남지 않는 동작 | 목록 위치가 아니라 내용 표식으로 판단해야 하므로 지금은 유지 | 후속(내용 표식 필요) |
-| `test/typescript-module-contract.test.js` | 정상 경계 fixture | TypeScript 모듈 경계 계약 | fixture를 공개 경계 기준으로 갱신 | TASKS-005 |
-| `test/cli-project-commands.test.js` | 지연 로딩 | 명령이 필요한 시점에만 모듈을 적재하는 동작 | 적재 개수 대신 허용 의존성 기준으로 전환 | TASKS-003 |
-| `test/symbol-index.test.js` | 배포 의존성 | symbol index가 배포 의존성으로 동작하는지 | 의존성 선언 확인을 동작 검사로 전환 | TASKS-003 |
-| `test/skill-bouncer-run.test.js` | 단계 제목 구간 | run 스킬의 단계 흐름 | 제목 구간 위치 대신 단계 계약 기준으로 전환 | TASKS-005 |
+| `test/coordinator.test.js` | `coordinator.ts` 한 파일 소스의 `reason` 리터럴 | `coordinator.ts`와 정적으로 닿는 `coordinator-*` 모듈의 모든 `reason`이 `COORDINATE_FAILURE_HINTS`에 전용 힌트를 가져, 거절 응답이 일반 폴백 힌트로 떨어지지 않는 동작 | 전환함: 단일 파일 대신 도달 가능한 소스 파일 집합을 훑고, 실제 거절 응답의 `cause !== reason`으로 폴백 여부를 확인하며, 힌트 없는 reason을 주입해 검사 유효성을 확인 | TASKS-003 |
+| `test/tasks-docs.test.js` | 공유 `require.cache`를 지운 단독 로드 | `tasks-docs`가 CLI·coordinator·gate 같은 상위 계층 모듈을 전이적으로 끌어오지 않는 계층 경계 | 전환함: 캐시 삭제 대신 소스 의존 그래프의 전이 도달 집합으로 금지 모듈 도달을 검사하고, 가짜 그래프로 검사 유효성을 확인 | TASKS-003 |
+| `test/master-rules.test.js` | init 소스 문자열 | `init`이 플러그인 마스터 규칙을 프로젝트 루트(`AGENTS.md`·`CLAUDE.md`)에 설치하지 않고, 기존 프로젝트 `AGENTS.md`를 바이트 그대로 둔다 | 전환함: 소스 문자열 대신 임시 git 저장소에서 실제 `init`을 실행해 산출물을 검사하고, 가짜 `initFn`으로 설치 실패 모드를 되살려 단언 유효성을 확인. git·init 실행이 필요해 `integration` 계층으로 옮김 | TASKS-005 |
+| `test/ci-contract.test.js` | `ci` 스크립트 전체 문자열과 check-emit 소스 문구 | `ci`의 단계 순서(emit 검사가 coverage보다 앞, `lint:test-names`는 typecheck 뒤·audit 앞), check-emit이 shell 없이 실행되는 것, 관련 없는 수정 파일이 있어도 깨끗한 emit이면 종료 코드 0 | 전환함: `&&` 단계 토큰의 존재와 순서만 고정하고 Git 인자·상태 판정은 동작 fixture로 검사. shell 미사용 한 건만 실행 경계 속성이라 소스 텍스트를 의도적으로 유지 | TASKS-005 |
+| `test/public-name-regression.test.js` | 허용 목록 | 폐기한 제품 이름이 소스에 남지 않는 동작 | 유지함(전환 안 함): 목록 위치가 아니라 내용 표식으로 판단해야 하므로 후속으로 미룸 | 후속(내용 표식 필요) |
+| `test/typescript-module-contract.test.js` | 모듈 두 개를 이름으로 고정한 정상 경계 fixture | 최상위 `export =`를 가진 모든 `scripts/src/lib/*.ts` 모듈이 `typeof import()`로 타입 검사를 통과하는 경계 계약 | 전환함: 모듈 이름 대신 디렉터리 스캔으로 대상을 모아 이름 변경·분리에 거짓 실패하지 않고 새 `export =` 모듈도 자동 포함. 스캔이 비면 먼저 실패 | TASKS-005 |
+| `test/cli-project-commands.test.js` | intent 모듈 네 개의 파일명 정규식 | 프로젝트 명령 실행 시 intent 기능 영역을 적재하지 않는 지연 로딩 | 전환함: 파일명 나열 대신 `test/helpers/feature-areas.js` 표로 적재된 영역을 판정(`loadedAreas`). 의도 모듈을 먼저 적재한 자식 프로세스로 검사 유효성을 확인 | TASKS-003 |
+| `test/symbol-index.test.js` | 배포된 symbol-index 소스의 `typescript` 의존 여부 | 배포된 `symbol-index`가 `typescript` 패키지 없이 `.ts` 심볼을 해석하는 동작 | 전환함: `typescript` 해석을 막은 자식 프로세스에서 `resolveSymbol`을 실행하고, `typescript`를 요구하는 lib 사본이 막힌 모듈로 실패하는지로 probe 유효성을 확인. 자식 프로세스를 띄우므로 `integration` 계층으로 옮김 | TASKS-003 |
+| `test/skill-bouncer-run.test.js` | 4단계 제목으로 자른 구간 | run 스킬이 dispatch 전에 coordinator 모델 확인 명령을 안내하고, metrics end 시점을 task-notification usage 기준으로 안내하는 문서 계약 | 전환함: 단계 번호·제목 대신 문장이 속한 빈 줄 구분 문단을 찾아 같은 문단 안의 명령 순서를 검사 | TASKS-005 |
 
 나머지 94개 테스트 파일의 분류는 미분류 — 해당 영역을 수정하는 blueprint에서 채운다.

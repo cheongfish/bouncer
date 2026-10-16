@@ -111,10 +111,6 @@ function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }: {
 // (scope revision) 단일 경로다. 일반 execute는 ledger가 없어 `active: false`로
 // 떨어지고 예전 판정을 그대로 쓴다.
 
-// 읽기 타입은 execution-contracts 정본에서 파생한다. 정본 필드가 바뀌면 컴파일러가
-// 이 파일을 짚는다. import type은 런타임 require를 만들지 않으므로 "scope는
-// coordinator를 가져오지 않는다"는 아래 제약과 충돌하지 않는다.
-type LedgerScope = NonNullable<CanonicalTask['scope']>;
 // 디스크에 있는 ledger task 한 벌의 전체 뷰다. DAG 필드까지 여기 두는 이유:
 // `CoordinatorContext.tasks`가 그대로 coordinator.readyWave로 넘어가고 그
 // 함수가 depends_on·parallel_safe·dependency_gate를 실제로 읽기 때문이다.

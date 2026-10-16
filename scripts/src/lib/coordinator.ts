@@ -39,8 +39,8 @@ import reviewPolicy = require('./review-policy');
 // worker-model 기록의 관점 소속 검사와 `next` 문구가 validate-sections와 같은 정본을 쓴다.
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 import type {
-  ReportOutcome, PromoteStopReason, PromotionRecord, DispatchState, Lease, Task, Ledger,
-  FaninState, FailureEvidence, RepairDecision, LedgerRef,
+  ReportOutcome, PromoteStopReason, PromotionRecord, DispatchState, Task, Ledger,
+  FailureEvidence, RepairDecision, LedgerRef,
 } from './execution-contracts';
 import driveMetrics = require('./drive-metrics');
 const { issueLease, revokeLease, checkLease } = leaseMod;
@@ -60,7 +60,9 @@ const LEDGER_FENCED_COMMANDS = new Set([
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
 // 타입 합집합의 정본은 execution-contracts다. satisfies로 이 배열이 합집합을 벗어나지 않게 묶는다.
-const REPORT_OUTCOMES = ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'] as const satisfies readonly ReportOutcome[];
+const REPORT_OUTCOMES = [
+  'accepted', 'rework', 'scope_revision', 'task_change', 'blocked',
+] as const satisfies readonly ReportOutcome[];
 
 /** light 승격 정지 사유. CLI·원장·힌트가 같은 다섯 값만 쓴다. */
 const PROMOTE_STOP_REASONS = [

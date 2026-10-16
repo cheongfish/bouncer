@@ -20,7 +20,6 @@
     "githooks.test.js",
     "guards.test.js",
     "legacy-comments.test.js",
-    "master-rules.test.js",
     "open-source-readiness.test.js",
     "paths.test.js",
     "plugin-doc-cites.test.js",
@@ -42,7 +41,6 @@
     "skill-stop-slop.test.js",
     "smoke.test.js",
     "subagents.test.js",
-    "symbol-index.test.js",
     "task-brief-hash.test.js",
     "tasks-docs.test.js",
     "time.test.js",
@@ -107,6 +105,8 @@
     "test-tiers.test.js",
     "typescript-module-contract.test.js",
     "validate-gates.test.js",
-    "verification-runner.test.js"
+    "verification-runner.test.js",
+    "master-rules.test.js",
+    "symbol-index.test.js"
   ]
 }
