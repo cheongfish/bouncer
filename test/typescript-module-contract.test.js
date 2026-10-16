@@ -38,24 +38,35 @@ test('intentional export=/import=require signature → mismatch fails tsc --noEm
   assert.match(out, /Type 'string' is not assignable to type 'number'/);
 });
 
-test('intent-bundle and cli-intent-command export= boundaries → typecheck', () => {
+const libSrc = path.join(root, 'scripts', 'src', 'lib');
+
+/**
+ * `scripts/src/lib/*.ts` 중 최상위 `export =`를 가진 모듈을 디렉터리 스캔으로 모은다.
+ * 모듈 이름을 테스트에 고정하지 않아야 이름 변경·분리에 거짓 실패하지 않고,
+ * 새로 추가된 `export =` 모듈도 자동으로 경계 검사에 들어온다.
+ *
+ * @returns {string[]} 확장자를 뗀 모듈 절대 경로(슬래시 구분), 이름순
+ */
+function exportAssignmentModules() {
+  return fs.readdirSync(libSrc)
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.d.ts'))
+    .filter((name) => /^export =/m.test(fs.readFileSync(path.join(libSrc, name), 'utf8')))
+    .sort()
+    .map((name) => path.join(libSrc, name.slice(0, -'.ts'.length)).replace(/\\/g, '/'));
+}
+
+test('every scripts/src/lib export= module → typechecks through typeof import()', () => {
+  const modules = exportAssignmentModules();
+  // 스캔이 비면 fixture가 아무것도 검사하지 않고 통과하므로 먼저 막는다.
+  assert.ok(modules.length > 0, `no export= module found under ${libSrc}`);
   // affected_paths 밖 fixture를 추가하지 않고, 임시 파일에서 export= 경계를 검사한다.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ts-intent-ok-'));
-  const okFixture = path.join(dir, 'intent-ok.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ts-export-ok-'));
+  const okFixture = path.join(dir, 'export-assignment-ok.ts');
   fs.writeFileSync(okFixture, [
     "'use strict';",
-    "type IntentBundle = typeof import('"
-      + path.join(root, 'scripts/src/lib/intent-bundle').replace(/\\/g, '/')
-      + "');",
-    "type IntentCommand = typeof import('"
-      + path.join(root, 'scripts/src/lib/cli-intent-command').replace(/\\/g, '/')
-      + "');",
-    'declare const intentBundle: IntentBundle;',
-    'declare const intentCommand: IntentCommand;',
-    "const resolve: IntentBundle['resolveTaskIntentBundle'] = intentBundle.resolveTaskIntentBundle;",
-    "const run: IntentCommand['run'] = intentCommand.run;",
-    'void resolve;',
-    'void run;',
+    ...modules.map((modulePath, i) => `type Module${i} = typeof import('${modulePath}');`),
+    ...modules.map((_, i) => `declare const module${i}: Module${i};`),
+    ...modules.map((_, i) => `void module${i};`),
     '',
   ].join('\n'));
 
