@@ -8,14 +8,30 @@ const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const {
-  executeVerify, readVerifyCommand, runVerification, recordVerificationResult,
+  executeVerify, runVerification: runRawVerification, recordVerificationResult,
   parseVerifyArgv, isValidVerifyCommand, computeSourceDigest,
 } = require('../scripts/lib/verification');
+const { resolveVerificationTarget, runSelectedVerification, readVerifyCommand } = require('../scripts/lib/verification-target');
+const runVerification = (opts) => {
+  if (opts.taskId !== undefined || opts.effectiveTask !== undefined) return runRawVerification(opts);
+  const { effectiveTask } = resolveVerificationTarget({
+    repoRoot: opts.repoRoot, blueprintDir: opts.blueprintDir, deps: opts.deps,
+  });
+  return runRawVerification({ ...opts, effectiveTask });
+};
 const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
 const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
 const { checkGate } = require('../scripts/lib/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
+
+test('runVerification without taskId or effectiveTask → rejects missing verification target', () => {
+  const repo = setupRepo();
+  assert.throws(
+    () => runRawVerification({ repoRoot: repo, blueprintDir: BP_REL }),
+    (error) => error.code === 'VERIFY_TARGET_REQUIRED',
+  );
+});
 
 function setupRepo(verify = 'npm test') {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-'));
@@ -1646,7 +1662,9 @@ bouncer:
 const {
   writeCurrent: __writeCurrent,
 } = require('../scripts/lib/current');
-const { entriesForVerify: __entriesForVerify } = require('../scripts/lib/verification');
+const __resolveEntries = (repoRoot, blueprintDir, taskId) => resolveVerificationTarget({
+  repoRoot, blueprintDir, taskId,
+}).entries;
 const __coordMod = require('../scripts/lib/coordinator');
 const { coordinatorPathsFor: __cpFor } = require('../scripts/lib/runtime-state');
 const __crypto2 = require('node:crypto');
@@ -1739,9 +1757,9 @@ function leaseVerifyFixture() {
   };
 }
 
-test('entriesForVerify and readVerifyCommand → follow the worker lease over the pointer', () => {
+test('resolveVerificationTarget and readVerifyCommand → follow the worker lease over the pointer', () => {
   const { epic, worker002, integration } = leaseVerifyFixture();
-  const fromWorker = __entriesForVerify(worker002, epic);
+  const fromWorker = resolveVerificationTarget({ repoRoot: worker002, blueprintDir: epic }).entries;
   assert.strictEqual(fromWorker.length, 1);
   assert.strictEqual(fromWorker[0].id, 'TASKS-002');
   assert.strictEqual(readVerifyCommand(worker002, epic), 'node -e "process.exit(0)"');
@@ -1750,7 +1768,7 @@ test('entriesForVerify and readVerifyCommand → follow the worker lease over th
 
 test('runVerification → refuses a worker cwd without an active lease', () => {
   const { epic, worker002, integration } = leaseVerifyFixture();
-  // entriesForVerify가 비면 레거시 verification.md로 떨어진 뒤 scope에서 거절한다.
+  // 선택 목록이 비면 레거시 verification.md로 떨어진 뒤 scope에서 거절한다.
   const legacy = path.join(worker002, epic, 'verification.md');
   fs.mkdirSync(path.dirname(legacy), { recursive: true });
   fs.copyFileSync(path.join(worker002, epic, 'tasks/002/verification.md'), legacy);
@@ -1848,7 +1866,7 @@ bouncer:
   // RD-002: 세 자리가 아닌 taskId는 조용히 무시하지 않고 identity 거절.
   for (const badId of ['6', '06', '0001', 'TASKS-006', '00a', '']) {
     assert.throws(
-      () => __entriesForVerify(repo, BP_REL, badId),
+      () => __resolveEntries(repo, BP_REL, badId),
       (error) => error.code === 'VERIFY_IDENTITY_INVALID',
       `taskId=${JSON.stringify(badId)}`,
     );

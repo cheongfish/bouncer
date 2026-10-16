@@ -91,23 +91,7 @@ type SelectionLocation =
 
 type WorkerSlot = { epicId: string; blueprintId: string; taskId: string };
 
-type EffectiveTask =
-  | {
-    source: 'lease';
-    blueprint: string;
-    path: string;
-    id: string;
-    lease_id: string | null;
-    generation: number | null;
-  }
-  | { source: 'pointer'; blueprint: string; path: string; id: string | null }
-  | {
-    source: null;
-    blueprint: string;
-    reason: 'no-active-lease' | 'unreadable-ledger';
-    path: null;
-    id: null;
-  };
+import type { EffectiveTask } from './execution-contracts';
 
 /**
  * cwd가 `.worktrees/<epic>/<bp>` 중첩인지, `.worktrees/<bp>` 평면인지,

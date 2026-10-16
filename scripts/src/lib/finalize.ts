@@ -20,7 +20,9 @@ const { normalizeCommitSha, buildStableProvenance } = commitSha;
 import scope = require('./scope');
 const { makeFinalizeAllowed, isRuntimeArtifact, readCoordinatorLedger } = scope;
 import verification = require('./verification');
-const { readVerifyCommand, executeVerify } = verification;
+const { executeVerify } = verification;
+import verificationTarget = require('./verification-target');
+const { readVerifyCommand } = verificationTarget;
 
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;

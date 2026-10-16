@@ -15,6 +15,21 @@ test('module graph → has no import cycle', () => {
   assert.deepEqual(findCycles(graph), []);
 });
 
+test('verification → never reaches current', () => {
+  assert.deepEqual([...reachable(graph, 'verification')].filter((m) => m === 'current'), []);
+});
+
+test('fake graph where verification imports current → reachability check flags it', () => {
+  const fake = new Map(graph);
+  fake.set('verification', new Set([...graph.get('verification'), 'current']));
+  assert.ok(reachable(fake, 'verification').has('current'));
+});
+
+test('verification-target → never imports cli, validate, finalize or coordinator directly', () => {
+  const direct = [...graph.get('verification-target')];
+  assert.deepEqual(direct.filter((m) => /^(cli|validate|finalize)|^coordinator$/.test(m)), []);
+});
+
 test('low-layer modules → never reach cli, validate, coordinator, current, verification or finalize', () => {
   for (const name of LOW_LAYER) {
     const offenders = [...reachable(graph, name)].filter((mod) => FORBIDDEN.test(mod));

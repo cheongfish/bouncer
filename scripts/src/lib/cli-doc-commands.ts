@@ -14,8 +14,8 @@ import paths = require('./paths');
 const { isNumericContextId } = paths;
 import schema = require('./schema');
 const { SCALE_ENUM, DEFAULT_SCALE } = schema;
-import verification = require('./verification');
-const { runVerification } = verification;
+import verificationTarget = require('./verification-target');
+const { runSelectedVerification } = verificationTarget;
 import config = require('./config');
 const { readVerifyPolicy } = config;
 import time = require('./time');
@@ -68,7 +68,7 @@ function cmdVerify(rest: string[], io: CliIo) {
     return 2;
   }
   try {
-    const result = runVerification({
+    const result = runSelectedVerification({
       repoRoot: (f.repo || process.cwd()) as string,
       blueprintDir: f.blueprint,
       markTaskVerified: true,

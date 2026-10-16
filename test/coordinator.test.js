@@ -3382,7 +3382,7 @@ test('repair stamping bouncer.verify without config.json → takes it from the t
     boot.integrationPath, blueprint, 'tasks', repairId, 'tasks.md',
   ));
   assert.strictEqual(repairDoc.data.bouncer.verify, 'npm run verify:strict');
-  const { readVerifyCommand } = require('../scripts/lib/verification');
+  const { readVerifyCommand } = require('../scripts/lib/verification-target');
   assert.strictEqual(
     readVerifyCommand(boot.integrationPath, blueprint, repairId),
     'npm run verify:strict',
