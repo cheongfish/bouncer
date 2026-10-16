@@ -327,3 +327,117 @@ test('metrics CLI --kind root-direct-session → ok:true로 시작한다', () =>
   assert.strictEqual(code, 0, buf.out + buf.err);
   assert.strictEqual(JSON.parse(buf.out).ok, true);
 });
+
+// cache 토큰 테스트가 공유하는 CLI 헬퍼: 실제 git 저장소에서 세션을 시작하고 id를 돌려준다.
+function startCliSession() {
+  const repo = tmp();
+  const { execFileSync } = require('node:child_process');
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const buf = { out: '', err: '' };
+  const io = { out: (s) => { buf.out += s; }, err: (s) => { buf.err += s; } };
+  const start = runCli(['metrics', 'start', '--kind', 'coordinator-session', '--blueprint', BLUEPRINT, '--repo', repo], io);
+  assert.strictEqual(start, 0, buf.out + buf.err);
+  const { id } = JSON.parse(buf.out);
+  buf.out = '';
+  const session = () => JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/runtime/drive-metrics.json'), 'utf8')).sessions[0];
+  return { repo, io, buf, id, session };
+}
+
+test('metrics CLI end의 cache 플래그 → cache read·write 토큰을 세션에 저장하고 사유 키를 쓰지 않는다', () => {
+  const c = startCliSession();
+  const code = runCli(['metrics', 'end', '--id', c.id, '--tokens', '500',
+    '--cache-read-tokens', '120', '--cache-write-tokens', '30', '--repo', c.repo], c.io);
+  assert.strictEqual(code, 0, c.buf.out + c.buf.err);
+  const s = c.session();
+  assert.strictEqual(s.cache_read_tokens, 120);
+  assert.strictEqual(s.cache_write_tokens, 30);
+  assert.strictEqual(Object.hasOwn(s, 'cache_unavailable_reason'), false);
+  // cache는 총합과 독립이라 tokens에 더해지지 않는다.
+  assert.strictEqual(s.tokens, 500);
+});
+
+test('metrics CLI end에 cache 플래그 하나만 → 준 쪽만 저장하고 다른 쪽은 null이다', () => {
+  const c = startCliSession();
+  assert.strictEqual(runCli(['metrics', 'end', '--id', c.id, '--cache-read-tokens', '0', '--repo', c.repo], c.io), 0);
+  const s = c.session();
+  assert.strictEqual(s.cache_read_tokens, 0);
+  assert.strictEqual(s.cache_write_tokens, null);
+  assert.strictEqual(Object.hasOwn(s, 'cache_unavailable_reason'), false);
+});
+
+test('cache 플래그가 없는 end → 두 cache 필드가 null이고 not-reported 사유를 남긴다', () => {
+  const f = fixture();
+  const s = metrics.startSession({
+    file: f.file, ledgerFile: f.ledgerFile, kind: 'coordinator-session', blueprint: BLUEPRINT,
+    now: clock('2026-01-01T00:00:00Z'), randomId: () => 'f1f1f1f1f1f1f1f1',
+  });
+  metrics.endSession({ file: f.file, resolveLedger: () => f.ledgerFile, id: s.id, pricing: {}, now: clock('2026-01-01T00:00:01Z') });
+  const session = JSON.parse(fs.readFileSync(f.file, 'utf8')).sessions[0];
+  assert.strictEqual(session.cache_read_tokens, null);
+  assert.strictEqual(session.cache_write_tokens, null);
+  assert.strictEqual(session.cache_unavailable_reason, 'not-reported');
+});
+
+test('metrics CLI end의 음수·소수·비숫자·값 없는 cache 플래그 → invalid-metrics-input과 exit 1을 낸다', () => {
+  const c = startCliSession();
+  for (const flag of ['--cache-read-tokens', '--cache-write-tokens']) {
+    for (const bad of ['-1', '1.5', 'abc']) {
+      c.buf.out = '';
+      const code = runCli(['metrics', 'end', '--id', c.id, flag, bad, '--repo', c.repo], c.io);
+      assert.strictEqual(code, 1, `${flag} ${bad}`);
+      assert.strictEqual(JSON.parse(c.buf.out).reason, 'invalid-metrics-input');
+    }
+    c.buf.out = '';
+    assert.strictEqual(runCli(['metrics', 'end', '--id', c.id, flag, '--repo', c.repo], c.io), 1);
+    assert.strictEqual(JSON.parse(c.buf.out).reason, 'invalid-metrics-input');
+  }
+  // 거절된 호출은 세션을 닫지 않는다.
+  assert.strictEqual(c.session().ended_at, null);
+});
+
+test('metrics start·summary에 cache 플래그 → usage와 exit 2를 낸다', () => {
+  const buf = { out: '', err: '' };
+  const io = { out: (s) => { buf.out += s; }, err: (s) => { buf.err += s; } };
+  assert.strictEqual(runCli(['metrics', 'summary', '--blueprint', BLUEPRINT, '--cache-read-tokens', '1'], io), 2);
+  assert.strictEqual(runCli(['metrics', 'start', '--kind', 'coordinator-session', '--blueprint', BLUEPRINT,
+    '--cache-write-tokens', '1'], io), 2);
+});
+
+test('summary → cache 값은 합산하고 null·필드 없는 세션은 missing으로 세며 0은 값으로 더한다', () => {
+  const f = fixture();
+  const mk = (id) => metrics.startSession({
+    file: f.file, ledgerFile: f.ledgerFile, kind: 'coordinator-session', blueprint: BLUEPRINT,
+    now: clock('2026-01-01T00:00:00Z'), randomId: () => id,
+  });
+  const a = mk('a1a1a1a1a1a1a1a1');
+  const b = mk('a2a2a2a2a2a2a2a2');
+  const c = mk('a3a3a3a3a3a3a3a3');
+  const open = mk('a4a4a4a4a4a4a4a4');
+  assert.strictEqual(open.ok, true);
+  const end = (id, extra) => metrics.endSession({
+    file: f.file, resolveLedger: () => f.ledgerFile, id, pricing: {}, now: clock('2026-01-01T00:00:01Z'), ...extra,
+  });
+  end(a.id, { cacheReadTokens: 120, cacheWriteTokens: 0 });
+  end(b.id, {});
+  end(c.id, { cacheReadTokens: 0 });
+  const summary = metrics.summarize({ file: f.file, blueprint: BLUEPRINT });
+  assert.deepStrictEqual(summary.cache, { read: { total: 120, missing: 1 }, write: { total: 0, missing: 2 } });
+  // 기존 kinds 모양은 그대로다.
+  assert.strictEqual(summary.kinds['coordinator-session'].sessions, 4);
+  assert.strictEqual(Object.hasOwn(summary.kinds['coordinator-session'], 'cache'), false);
+});
+
+test('cache 필드가 없는 기존 형태의 기록 파일 → summary가 읽고 missing으로 센다', () => {
+  const f = fixture();
+  fs.writeFileSync(f.file, JSON.stringify({
+    version: 1,
+    sessions: [{
+      id: 'm-0000000000000000', kind: 'coordinator-session', blueprint: BLUEPRINT, label: null,
+      started_at: '2026-01-01T00:00:00.000Z', ended_at: '2026-01-01T00:00:01.000Z', wall_ms: 1000, tokens: 10,
+    }],
+  }));
+  const summary = metrics.summarize({ file: f.file, blueprint: BLUEPRINT });
+  assert.strictEqual(summary.ok, true);
+  assert.deepStrictEqual(summary.cache, { read: { total: 0, missing: 1 }, write: { total: 0, missing: 1 } });
+  assert.strictEqual(summary.kinds['coordinator-session'].tokens_total, 10);
+});

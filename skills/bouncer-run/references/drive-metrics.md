@@ -31,6 +31,8 @@ reason, and totals never count it as 0.
 
    Add `--input-tokens`, `--output-tokens`, and `--model <slug>` only when the host reports them
    separately; they let the CLI compute cost from `metrics.pricing` in `.bouncer/config.json`.
+   Add `--cache-read-tokens` and `--cache-write-tokens` only when the host reports them; they are
+   stored apart from the totals, and `metrics summary` sums them under `cache`.
    Omit any flag the host did not give. If the coordinator ended without a notification, still
    call `metrics end` with no token flags so the session closes.
 

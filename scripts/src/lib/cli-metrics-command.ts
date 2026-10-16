@@ -20,7 +20,7 @@ const USAGE_BLOCK = `  metrics start --kind <${KINDS}> --blueprint <dir> [--labe
   + '             [--target-digest <64hex>]\n'
   + '             Record a coordinator, root-direct, or plan context-review session start in drive-metrics.json.\n'
   + '  metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>]\n'
-  + '             [--model <slug>] [--host-duration-ms <n>]\n'
+  + '             [--cache-read-tokens <n>] [--cache-write-tokens <n>] [--model <slug>] [--host-duration-ms <n>]\n'
   + '             Record host-reported tokens and time; missing values are stored as null with a reason.\n'
   + '  metrics summary --blueprint <dir>\n'
   + '             Sum sessions per kind (null tokens and costs are counted as missing, never as 0).\n';
@@ -28,13 +28,16 @@ const USAGE_BLOCK = `  metrics start --kind <${KINDS}> --blueprint <dir> [--labe
 const USAGE = `usage: bouncer metrics start --kind <${KINDS}> --blueprint <dir> `
   + '[--label <text>] [--target-digest <64hex>]\n'
   + '       bouncer metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>] '
-  + '[--model <slug>] [--host-duration-ms <n>]\n'
+  + '[--cache-read-tokens <n>] [--cache-write-tokens <n>] [--model <slug>] [--host-duration-ms <n>]\n'
   + '       bouncer metrics summary --blueprint <dir>\n';
 
 // 모든 하위 명령이 받는 --repo 외 플래그 목록. 모르는 플래그는 오타라 usage(2)로 거절한다.
 const FLAGS: Record<string, string[]> = {
   start: ['kind', 'blueprint', 'label', 'target-digest', 'repo'],
-  end: ['id', 'tokens', 'input-tokens', 'output-tokens', 'model', 'host-duration-ms', 'repo'],
+  end: [
+    'id', 'tokens', 'input-tokens', 'output-tokens', 'cache-read-tokens', 'cache-write-tokens',
+    'model', 'host-duration-ms', 'repo',
+  ],
   summary: ['blueprint', 'repo'],
 };
 
@@ -112,6 +115,8 @@ function cmdMetrics(rest: string[], io: CliIo): number {
     tokens: parseCount(flags.tokens),
     inputTokens: parseCount(flags['input-tokens']),
     outputTokens: parseCount(flags['output-tokens']),
+    cacheReadTokens: parseCount(flags['cache-read-tokens']),
+    cacheWriteTokens: parseCount(flags['cache-write-tokens']),
     hostDurationMs: parseCount(flags['host-duration-ms']),
   };
   if (id === undefined || Object.values(counts).some((v) => v !== undefined && Number.isNaN(v))) {
