@@ -984,7 +984,9 @@ function prepareFinalizeDependencies(
  *   verifyExec 주입은 검증만 바꾸며 설치를 생략시키지 않는다
  * @returns {object} 성공이면 `ok: true`와 worktrees·branch, 실패면 reason.
  *   설치 실패는 `reason: 'dependency-install-failed'`·`code: 'DEPENDENCY_INSTALL_FAILED'`와
- *   cause·next·integration·branch로, 검증 실패(`VERIFY_FAILED`)와 구분된다
+ *   cause·next·integration·branch로, 검증 실패(`VERIFY_FAILED`)와 구분된다.
+ *   `VERIFY_FAILED`는 verify 출력 마지막 100줄 이하인 `output_tail: string`을 함께 돌려준다
+ *   (설정 오류·설치 실패 응답에는 이 키가 없다)
  */
 function finalize({
   repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent,
@@ -1199,6 +1201,10 @@ function finalize({
       code: 'VERIFY_FAILED',
       command,
       exitCode: execution.exitCode,
+      // 종료 코드만으로는 일시적 실패와 회귀를 가를 수 없어, executeVerify가 이미
+      // 100줄로 자른 출력(stdout+stderr tail)을 그대로 싣는다. 새 상수를 두지 않아
+      // task verify 증적의 output_tail과 같은 상한을 공유한다.
+      output_tail: execution.output,
       integration,
       branch,
     };

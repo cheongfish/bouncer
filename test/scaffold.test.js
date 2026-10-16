@@ -57,6 +57,28 @@ test('scaffoldEpic with a placeholder or missing description → rejects it and 
   assert.strictEqual(fs.existsSync(path.join(repo, CONTEXT_ROOT, 'epics', '061-auth')), false);
 });
 
+test('scaffoldEpic new epic with a non-printable-ASCII description → rejects it before writing', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  for (const description of ['인증 epic', 'Auth\tepic', 'Auth — epic', 'Auth epic']) {
+    assert.throws(
+      () => scaffoldEpicImpl({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description }),
+      /ASCII/,
+    );
+  }
+  assert.strictEqual(fs.existsSync(path.join(repo, CONTEXT_ROOT, 'epics', '061-auth')), false);
+});
+
+test('scaffoldEpic re-entry with a non-ASCII description → succeeds and keeps the existing frontmatter', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: 'First description' });
+  const epicPath = path.join(repo, CONTEXT_ROOT, 'epics/061-auth/index.md');
+  const before = fs.readFileSync(epicPath);
+  assert.doesNotThrow(() => scaffoldEpicImpl({
+    repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: '인증 epic',
+  }));
+  assert.deepStrictEqual(fs.readFileSync(epicPath), before);
+});
+
 test('scaffoldEpic re-entry → preserves the epic bytes and synchronizes one index row', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: 'First description' });
@@ -363,6 +385,24 @@ test('scaffold epic CLI with missing, blank, and placeholder descriptions → re
     ]);
     assert.strictEqual(r.code, 2, `expected reject for ${JSON.stringify(descriptionArgs)}`);
     assert.match(r.err, /description/i);
+    assert.strictEqual(r.out, '');
+    assert.strictEqual(
+      fs.existsSync(path.join(repo, '.bouncer/context/epics/061-auth/index.md')),
+      false,
+    );
+    assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context/index.md')), false);
+  }
+});
+
+test('scaffold epic CLI with a non-printable-ASCII description → exits 2 before writing', () => {
+  for (const description of ['인증 epic', 'Auth\tepic', 'Auth — epic']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    const r = captureScaffold([
+      'scaffold', 'epic', '--repo', repo, '--id', '061', '--name', 'auth',
+      '--description', description, '--timestamp', TS,
+    ]);
+    assert.strictEqual(r.code, 2, `expected reject for ${JSON.stringify(description)}`);
+    assert.match(r.err, /ASCII/);
     assert.strictEqual(r.out, '');
     assert.strictEqual(
       fs.existsSync(path.join(repo, '.bouncer/context/epics/061-auth/index.md')),

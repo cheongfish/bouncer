@@ -112,7 +112,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `bouncer scaffold`:
    ```bash
    bouncer scaffold epic --id <ddd> --name <slug> \
-     --description "<one sentence confirmed in discovery>"
+     --description "<one English ASCII sentence confirmed in discovery>"
    bouncer scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
    ```

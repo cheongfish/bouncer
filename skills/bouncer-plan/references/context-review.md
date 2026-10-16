@@ -67,7 +67,13 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    one pass are fine), so the revision is one pass over each document. Record each `advisory` finding as
    `accepted` with a note instead of editing for it. When no `must_fix`
    exists, skip the revision and the delta; the round sequence stays
-   `discovery`.
+   `discovery`. Editing a task's `affected_paths`, `depends_on`,
+   `parallel_safe`, `dependency_gate`, `exclusive_resources` or
+   `execution_kind`, a blueprint's `scale` or `review_scope`, or adding or
+   removing a document is a structure change: the next `review-dispatch plan
+   --previous` returns `follow_up: full`, so the round is a restart, not a
+   delta. Editing only bodies, `review_risk`, or epic frontmatter returns
+   `partial` (delta). Put any needed structure change into the one revision.
 5. **Certify the delta** — After the revision, rerun `bouncer review-dispatch
    plan --blueprint <dir> --previous <stored-latest-payload.json>` (the
    payload the last `start`/`record`/`restart` stored; `--previous` is
