@@ -1,7 +1,8 @@
 # implement
 
 Contract card for the `coordinate next` action `implement`. Rules are copied
-from the coordinator Worker dispatch and the execute agent-dispatch reference.
+from the coordinator Worker dispatch. When dispatching a named implementer or applying
+its fallback, read [agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md).
 
 - Dispatch named `bouncer-implementer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   Never play that role yourself and never let one worker judge another's

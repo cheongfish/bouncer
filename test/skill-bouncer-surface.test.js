@@ -97,7 +97,7 @@ function readWorkflow(name) {
 
 // 세션이 루트를 먼저 얻고 plugin-root 계약을 루트 기준으로 연다. 여섯 문단이 바이트까지
 // 같아야 한다는 일치 계약이며, 규칙 문서의 설명 문장은 고정하지 않는다.
-test('workflow Plugin root paragraphs → are byte-identical across the six workflow skills', () => {
+test('workflow Plugin root paragraphs → are byte-identical across the five workflow skills', () => {
   const PLUGIN_ROOT_LINE = '**Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.';
   for (const name of WORKFLOW) assert.ok(readWorkflow(name).includes(`\n${PLUGIN_ROOT_LINE}\n`), name);
 });
@@ -117,17 +117,20 @@ const ENTRY_WORD_BASELINE = {
   'bouncer-retro': 473,
 };
 
-// 102-001에서 제거한 스킬의 BP001 착수 시점 단어 수. 합계 기준(before)은 착수 시점 값이므로
-// 파일이 사라져도 이 값을 유지하고, 현재 단어 수는 0으로 센다. 남은 스킬의 영수증은 올리지 않는다.
-const RETIRED_WORD_BASELINE = { 'bouncer-execute': 2018, 'bouncer-commit': 943 };
+// 102-001에서 제거한 스킬이 제거 직전에 실제로 차지한 단어 수. 원래 합계 상한(일곱 영수증의 합)에서
+// 이 값만 빼야 run이 흡수한 내용이 "퇴역 스킬의 영수증" 뒤에 숨어 상한을 느슨하게 만들지 못한다.
+// 남은 스킬의 영수증은 올리지 않는다.
+const RETIRED_WORD_COUNT = { 'bouncer-execute': 1856, 'bouncer-commit': 796 };
+const RETIRED_RECEIPT = { 'bouncer-execute': 2018, 'bouncer-commit': 943 };
 
 test('entry-skill word count → stays below the BP001 baseline', () => {
   const counts = Object.fromEntries(Object.keys(ENTRY_WORD_BASELINE).map((name) => [
     name,
     readWorkflow(name).trim().split(/\s+/).length,
   ]));
-  const before = [...Object.values(ENTRY_WORD_BASELINE), ...Object.values(RETIRED_WORD_BASELINE)]
-    .reduce((sum, count) => sum + count, 0);
+  const sumOf = (record) => Object.values(record).reduce((sum, count) => sum + count, 0);
+  // 착수 시점 상한 − 퇴역 스킬이 실제로 쓰던 단어 수. 영수증과 실제 수의 차이(재량 폭)는 그대로 유지한다.
+  const before = sumOf(ENTRY_WORD_BASELINE) + sumOf(RETIRED_RECEIPT) - sumOf(RETIRED_WORD_COUNT);
   const after = Object.values(counts).reduce((sum, count) => sum + count, 0);
   assert.ok(after < before, `expected < ${before} words, received ${after}`);
 });
@@ -217,7 +220,7 @@ const CONDITIONAL_HELPERS = {
 test('entry skills → do not load conditional helpers before numbered steps', () => {
   for (const name of WORKFLOW) {
     const preamble = numberedProcedurePreamble(readWorkflow(name));
-    const { root, local, sibling = [] } = CONDITIONAL_HELPERS[name];
+    const { root, local } = CONDITIONAL_HELPERS[name];
     for (const helper of root) {
       assert.doesNotMatch(
         preamble,
@@ -230,13 +233,6 @@ test('entry skills → do not load conditional helpers before numbered steps', (
         preamble,
         new RegExp(`\\./references/${file.replace(/\./g, '\\.')}`),
         `${name}: ./references/${file} is owned by a later conditional step`,
-      );
-    }
-    for (const file of sibling) {
-      assert.doesNotMatch(
-        preamble,
-        new RegExp(`\\.\\./bouncer-run/references/${file.replace(/\./g, '\\.')}`),
-        `${name}: sibling ${file} is owned by a later conditional step`,
       );
     }
   }
@@ -261,7 +257,7 @@ test('workflow skills → use directory-matching names and explicit-invocation d
  * @returns {string[]} bare 경로 목록
  */
 function bareReferenceCites(md) {
-  return [...md.matchAll(/(?<!\$\{BOUNCER_ROOT\}\/|\.\/|\.\.\/bouncer-run\/)references\/[A-Za-z0-9._/-]+/g)]
+  return [...md.matchAll(/(?<!\$\{BOUNCER_ROOT\}\/|\.\/)references\/[A-Za-z0-9._/-]+/g)]
     .map((m) => m[0]);
 }
 

@@ -1,6 +1,6 @@
 # Commit scope
 
-실행 경로(execute · commit · finalize)가 commit 단위와 변경 범위를 판단할 때
+실행 경로(run · finalize)가 commit 단위와 변경 범위를 판단할 때
 직접 읽는 공유 계약이다. run과 coordinator는 `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`의 pointer
 문장을 따라 같은 정본에 도달한다. **승인 scope**는 plan 시점에 task 문서에서 확정한
 `affected_paths`이고, **ledger scope**는 coordinator가 현재 `revision`에 기록한

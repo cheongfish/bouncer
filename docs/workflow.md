@@ -99,8 +99,9 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
   wave가 연 task마다 worker worktree
   `.worktrees/<epic-id>/<bp-id>/workers/<NNN>` 하나를 씁니다. 생성은
   `bouncer coordinate bootstrap`·`prepare`만, 제거는 `/bouncer-finalize`만
-  합니다. coordinator를 거치지 않는 직접 실행 run은 blueprint 하나짜리
-  `.worktrees/<epic-id>/<bp-id>`를 만들어 그 blueprint의 task가 공유합니다.
+  합니다. 직접 실행(run 시작 선택지 D)은 coordinator를 띄우지 않고 이 session이
+  `coordinate advance` 루프를 돌릴 뿐, worktree 구조는 같습니다. 같은 bootstrap으로
+  integration worktree를 만들고 task마다 worker worktree를 씁니다.
 - **main worktree는 읽기 전용 provenance입니다.** 주행 중 coordinator와 worker는
   자기에게 배정된 worktree에만 씁니다. main checkout에서 낸 커밋은 `bouncer
   commit`과 `commit-safety` 훅이 `main-worktree-source-write`로 거절합니다.
