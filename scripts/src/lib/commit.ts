@@ -20,8 +20,8 @@ import scope = require('./scope');
 const {
   filterTaskCommitCandidates, isTaskWorkflowArtifact, coordinatorContext, recordActualPaths,
 } = scope;
-import coordinatorCore = require('./coordinator');
-const { readyWave } = coordinatorCore;
+import executionDag = require('./execution-dag');
+const { readyWave } = executionDag;
 import configMod = require('./config');
 const { readCoordinatorPolicy } = configMod;
 import paths = require('./paths');

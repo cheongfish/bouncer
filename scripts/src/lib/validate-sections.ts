@@ -3,6 +3,10 @@ import guards = require('./guards');
 const { isRecord } = guards;
 import paths = require('./paths');
 import reviewPolicy = require('./review-policy');
+// pathsOverlap 정본은 path-overlap.ts다. scope 등 하위 모듈이 검증 계층 없이 쓸 수
+// 있도록 옮겼고, 기존 소비자는 이 모듈의 export로 같은 이름을 계속 받는다.
+import pathOverlapMod = require('./path-overlap');
+const { pathsOverlap } = pathOverlapMod;
 const { toPosix } = paths;
 
 // 본문 파싱 층. 게이트(G)와 구조(S)가 같은 heading/경로 규칙을 보게 여기만 둔다.
@@ -236,12 +240,6 @@ function parseTouchRows(touchText: unknown): TouchRow[] {
     rows.push({ change: change as TouchRow['change'], path: rowPath, renameTo });
   }
   return rows;
-}
-
-// 디렉터리 prefix도 교차로 본다. `scripts/` 금지가 `scripts/lib/x.js`를
-// 통과시키면 G12가 파일 단위 affected_paths를 놓친다.
-function pathsOverlap(a: string, b: string): boolean {
-  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
 function pathJustifiedByTouch(ap: string, touchText: string): boolean {

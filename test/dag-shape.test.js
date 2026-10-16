@@ -116,3 +116,13 @@ test('pathOverlapRatio with an empty side → 0', () => {
   assert.equal(pathOverlapRatio([], ['src/a.ts']), 0);
   assert.equal(pathOverlapRatio(['src/a.ts'], []), 0);
 });
+
+test('pathOverlapRatio with ./ prefixes, trailing slash, bare root and empty-after-strip → keeps the same ratios', () => {
+  // 정규화 사본을 공유 함수로 바꿔도 같은 결과여야 한다(동작 보존 특성화).
+  assert.equal(pathOverlapRatio(['./a/'], ['a']), 1);
+  assert.equal(pathOverlapRatio(['a'], ['./a/']), 1);
+  assert.equal(pathOverlapRatio(['/'], ['/']), 1);
+  assert.equal(pathOverlapRatio(['./'], ['./']), 1);
+  assert.equal(pathOverlapRatio(['./a/'], ['b']), 0);
+  assert.equal(pathOverlapRatio(['/'], ['a']), 0);
+});

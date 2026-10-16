@@ -1,9 +1,9 @@
 'use strict';
 
-import coordinator = require('./coordinator');
-const { readyWave } = coordinator;
-import validateSections = require('./validate-sections');
-const { pathsOverlap } = validateSections;
+import executionDag = require('./execution-dag');
+const { readyWave, normalizeOverlapPath } = executionDag;
+import pathOverlapMod = require('./path-overlap');
+const { pathsOverlap } = pathOverlapMod;
 
 type DriveShape = 'serial' | 'parallel' | 'mixed' | 'unknown' | null;
 
@@ -31,22 +31,6 @@ type DriveShapeResult = {
 };
 
 /**
- * pathsOverlap에 넘기기 전에 경로 표기만 맞춘다. `./src/`처럼 적힌 항목이
- * 조상 비교에서 빠지지 않게 하려는 목적이다. coordinator의 같은 이름 함수는
- * export되지 않고 그 파일을 TASKS-003이 바꾸므로, 규칙(`./`·trailing `/` 제거)만
- * 같게 이 모듈에 둔다.
- *
- * @param {string} raw - affected_paths 항목
- * @returns {string} `./`와 trailing `/`(단독 `/` 제외)를 제거한 경로
- */
-function normalizePath(raw: string): string {
-  let p = raw;
-  while (p.startsWith('./')) p = p.slice(2);
-  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
-  return p;
-}
-
-/**
  * a의 경로 중 b의 어떤 경로와 겹치는(같거나 조상·자손) 것의 비율을 낸다.
  * 분모는 더 짧은 쪽 길이다 — 작은 task가 큰 task 안에 거의 포함되는 경우를
  * 큰 쪽 크기에 희석되지 않고 드러내기 위해서다. 겹침 판정은 plan gate와 같은
@@ -58,9 +42,9 @@ function normalizePath(raw: string): string {
  */
 function pathOverlapRatio(a: string[], b: string[]): number {
   if (a.length === 0 || b.length === 0) return 0;
-  const bNorm = b.map(normalizePath);
+  const bNorm = b.map(normalizeOverlapPath);
   const hits = a.filter((p) => {
-    const norm = normalizePath(p);
+    const norm = normalizeOverlapPath(p);
     return bNorm.some((other) => pathsOverlap(norm, other));
   }).length;
   return Math.min(1, hits / Math.min(a.length, b.length));
