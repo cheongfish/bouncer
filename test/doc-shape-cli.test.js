@@ -186,3 +186,38 @@ test('argument-less runCli in an empty cwd → reports every missing path-contra
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// run이 소유한 reference를 읽는 coordinator 카드는 링크가 실재하고 조건부 적재 문장 안에
+// 있어야 한다. 사본에 reference 세 개를 같이 복사해 정상 통과를 먼저 확인한 뒤 위반을 만든다.
+const RUN_REFERENCES = ['agent-dispatch', 'verification-recovery', 'review-round'];
+for (const card of ['implement', 'verify', 'review']) {
+  test(`coordinator ${card} card with an unconditional or broken run-reference link → exit 1 naming the link`, () => {
+    const rel = `references/coordinator-cards/${card}.md`;
+    const { dir, abs, markdown } = copyDocToTmp(rel);
+    try {
+      for (const name of RUN_REFERENCES) {
+        const from = path.join(root, 'skills', 'bouncer-run', 'references', `${name}.md`);
+        const to = path.join(dir, 'skills', 'bouncer-run', 'references', `${name}.md`);
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        fs.copyFileSync(from, to);
+      }
+      const ok = runInTmp([rel], dir);
+      assert.strictEqual(ok.code, 0, ok.err);
+
+      // 링크 문단에서 조건·적재 동사를 지운 무조건 링크는 거절한다.
+      fs.writeFileSync(abs, markdown.replace(/\b(?:read|when|if)\b/gi, 'see'));
+      const unconditional = runInTmp([rel], dir);
+      assert.strictEqual(unconditional.code, 1, unconditional.err);
+      assert.ok(unconditional.err.includes('skills/bouncer-run/references/'), unconditional.err);
+
+      // 대상 reference가 사라지면 깨진 링크로 거절한다.
+      fs.writeFileSync(abs, markdown);
+      fs.rmSync(path.join(dir, 'skills'), { recursive: true });
+      const broken = runInTmp([rel], dir);
+      assert.strictEqual(broken.code, 1, broken.err);
+      assert.ok(broken.err.includes('broken Markdown link'), broken.err);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}

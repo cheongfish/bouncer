@@ -751,7 +751,7 @@ test('proposed 정책 → loadPolicy가 explicit user approval로 거부', () =>
 });
 
 test('IMPLEMENTED_ANSWERS 키 → 모두 loadCatalog 결과 합집합이나 legacy ID 안', () => {
-  const known = new Set([...Object.values(loadCatalog()).flat(), 'plan.activate_pointer', 'finalize.quiz']);
+  const known = new Set([...Object.values(loadCatalog()).flat(), 'plan.activate_pointer', 'finalize.quiz', 'commit.next_task']);
   for (const id of Object.keys(IMPLEMENTED_ANSWERS)) assert.ok(known.has(id), id);
 });
 
@@ -840,14 +840,18 @@ test('init.graphify_promotion 권장이 건너뛰기 → null', () => {
   assert.equal(answerTextQuestion(withAnswer('init.graphify_promotion', 'enable_and_install'), 'bouncer-init', text, '/nonexistent'), null);
 });
 
+// commit.next_task는 retire된 bouncer-commit 스킬의 legacy ID다. responder 규칙은 보존하므로
+// 현재 카탈로그에 없는 ID를 주입 카탈로그로 되살려 그 규칙을 계속 검증한다.
+const legacyCommitCatalog = { catalog: { 'bouncer-commit': ['commit.next_task'] } };
+
 test('commit.next_task 권장 current --set → 권장 선택지', () => {
   const text = acq('commit.next_task', '다음 task', ['Run `bouncer current --set` for the next task (Recommended)', 'Finalize']);
-  assert.equal(answerTextQuestion(withAnswer('commit.next_task', 'advance_to_next_task'), 'bouncer-commit', text, '/nonexistent').reply, 'A');
+  assert.equal(answerTextQuestion(withAnswer('commit.next_task', 'advance_to_next_task'), 'bouncer-commit', text, '/nonexistent', legacyCommitCatalog).reply, 'A');
 });
 
 test('commit.next_task 권장이 finalize·보고만 → null', () => {
   const text = acq('commit.next_task', '다음 task', ['Finalize and report only (Recommended)', 'Run `bouncer current --set`']);
-  assert.equal(answerTextQuestion(withAnswer('commit.next_task', 'advance_to_next_task'), 'bouncer-commit', text, '/nonexistent'), null);
+  assert.equal(answerTextQuestion(withAnswer('commit.next_task', 'advance_to_next_task'), 'bouncer-commit', text, '/nonexistent', legacyCommitCatalog), null);
 });
 
 const freeInput = '**AskUserQuestion — plan.request**\n<!-- acq {"gate":"plan.request","options":[],"recommended":null} -->\n무엇을 만들까요?';

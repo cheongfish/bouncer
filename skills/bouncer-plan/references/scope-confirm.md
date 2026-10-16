@@ -27,7 +27,7 @@ docs, skills, or agents (not only code callers), run the Checklist leftover
 search *before* locking Touch and `affected_paths`. Draft Touch from that
 hit list minus Do not touch; rewrite Goal so it does not claim files outside
 the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
-be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
+be staged for the task commit belongs in `affected_paths`, or commit-safety
 blocks it.
 
 `execution_kind: verification`인 종단 fan-in node는 이 확인의 예외다.

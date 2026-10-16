@@ -750,6 +750,24 @@ function contractForKind(kind, markdown) {
   };
 }
 
+/**
+ * coordinator 카드가 run 소유 reference를 읽을 때 요구하는 링크 계약을 만든다.
+ * 카드는 skills/bouncer-run/references/ 의 reader이므로 링크가 실재하고, 대상 선두 문단과
+ * 링크 문단이 같은 조건부 적재 trigger를 가져야 한다.
+ *
+ * @param {string} name - reference 파일 이름(확장자 제외)
+ * @param {string[]} triggers - 조건부 적재가 보존해야 하는 route 의미 단위
+ * @returns {object} links 계약 항목
+ */
+function runRefLink(name, triggers) {
+  return {
+    href: `../../skills/bouncer-run/references/${name}.md`,
+    resolve: true,
+    referencePreamble: true,
+    conditionalLoad: { triggers },
+  };
+}
+
 // 경로별 문서 구조 계약 표. 키는 저장소 상대 경로, 값은 checkDocShape의 두 번째 인자와
 // 같은 계약 객체다. 종류별 고정 계약(classifyDocPath)이 표현하지 못하는 문서별 제목·단계·
 // 링크 규칙을 테스트의 인라인 계약 대신 여기에 둔다. 새 검사 종류(문장 정규식 등)는
@@ -807,6 +825,24 @@ const PATH_CONTRACTS = {
   },
   'rules/plugin-root.md': { headings: { required: ['Master and product rules'] } },
   'rules/planning.md': { headings: { required: ['Lightweight cycle'] } },
+  // 102-001에서 execute 스킬의 reference가 run 소유로 옮겨졌다. coordinator 카드가 그
+  // reference의 읽는 쪽이라, 링크가 실재하고 조건부 적재 문장 안에 있어야 한다.
+  'references/coordinator-cards/implement.md': {
+    links: [
+      runRefLink('agent-dispatch', ['dispatch', 'fallback']),
+    ],
+  },
+  'references/coordinator-cards/verify.md': {
+    links: [
+      runRefLink('verification-recovery', ['verify', 'recover']),
+    ],
+  },
+  'references/coordinator-cards/review.md': {
+    links: [
+      runRefLink('agent-dispatch', ['dispatch', 'fallback']),
+      runRefLink('review-round', ['review', 'round']),
+    ],
+  },
   // subskill frontmatter 정체성(종류별 계약은 frontmatter를 보지 않는다).
   'references/debugging/index.md': {
     frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'debugging' } },
@@ -816,49 +852,6 @@ const PATH_CONTRACTS = {
   },
   'references/context-review/index.md': {
     frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'context-review' } },
-  },
-  // commit 워크플로: 다섯 번호 단계, 마지막 포인터 ACQ만 색인.
-  'skills/bouncer-commit/SKILL.md': {
-    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-commit' } },
-    headings: { required: ['ACQ (AskUserQuestion) gates'] },
-    steps: { required: [1, 2, 3, 4, 5], order: true, acq: [5], acqOptions: [5] },
-    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [5], only: true },
-  },
-  // execute 워크플로: 여섯 번호 단계, ACQ 없음(색인은 비어 있어야 한다). 단계 3·4·5가 각
-  // reference를 조건부로 적재한다.
-  'skills/bouncer-execute/SKILL.md': {
-    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-execute' } },
-    links: [
-      {
-        href: './references/agent-dispatch.md',
-        resolve: true,
-        referencePreamble: true,
-        conditionalLoad: { triggers: ['dispatch', 'fallback'] },
-      },
-      {
-        href: './references/verification-recovery.md',
-        resolve: true,
-        referencePreamble: true,
-        conditionalLoad: { triggers: ['verify', 'recover'] },
-      },
-      {
-        href: './references/review-round.md',
-        resolve: true,
-        referencePreamble: true,
-        conditionalLoad: { triggers: ['review', 'round'] },
-      },
-    ],
-    steps: {
-      required: [1, 2, 3, 4, 5, 6],
-      order: true,
-      noAcq: true,
-      links: {
-        3: ['./references/agent-dispatch.md'],
-        4: ['./references/verification-recovery.md'],
-        5: ['./references/review-round.md'],
-      },
-    },
-    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },
   },
   // plan 워크플로: 여덟 번호 단계, ACQ는 1·2·3·4·6단계에만 둔다.
   'skills/bouncer-plan/SKILL.md': {

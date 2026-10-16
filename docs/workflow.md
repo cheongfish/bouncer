@@ -9,8 +9,7 @@
 | --- | --- | --- |
 | `/bouncer-init` | 프로젝트당 한 번 `.bouncer/` 부트스트랩 | — |
 | `/bouncer-plan` | epic → blueprint → task 묶음 작성(선택적 DAG 필드 포함), 경로 추천 주입, `affected_paths` 확정, 계획 문서 리뷰, 승인, 활성 포인터 기록 | plan (범위·DAG·verification node 포함) |
-| `/bouncer-execute` | worktree 재사용·생성 → 계획 문서 seed → 구현 → verify → review. **커밋하지 않음** | execute (G6–G8, G13–G14) |
-| `/bouncer-commit` | 스코프 dry-run → task 하나 커밋 → 위임 주행이면 결과를 coordinator에 보고, 직접 실행이면 다음 task로 포인터 이동 | commit (G6/G7/G8 + G17) |
+| `/bouncer-run` | 계획 승인 뒤 남은 task를 구현 → verify → review → task 커밋(내부 `bouncer commit`)까지 주행하고 결과를 coordinator 원장에 기록 | execute (G6–G8, G13–G14) · commit (G6/G7/G8 + G17) |
 | `/bouncer-finalize` | explain + 퀴즈 → 남은 변경 커밋 → worktree 제거 → draft PR | finalize (G16) |
 
 계획을 마치면 **`/bouncer-run`으로 이어집니다.** run은 시작 ACQ 하나만 받고
@@ -25,14 +24,13 @@ run 세션 자체는 코드를 고치지 않고 coordinator가 돌려주는 보�
 
 coordinator는 각 단계에서 `bouncer coordinate next`로 다음에 실행할 행동과
 채워진 `argv`를 받습니다. coordinator는 원장을 읽어 ready wave를 엽니다(`prepare`). commit task는 worker
-worktree에서 `/bouncer-execute` → `/bouncer-commit`을 돌리고, verification task는
+worktree에서 구현 → verify → review → task 커밋을 돌리고, verification task는
 integration worktree에서 종단 검증만 실행합니다. commit task의 **actual paths**를
 원장에 남기고, coordinator는 결과 SHA를 기록한 뒤(`record`) integration branch로
 fan-in합니다(`integrate`). `config.autonomy`(`auto` | `interactive`)는 승인
 빈도가 아니라 **보고 주기**만 정합니다 — `interactive`는 task 경계마다 진행
 한 줄, `auto`는 마감 보고에 모아서. 두 값 모두 task별 ACQ를 열지 않습니다.
-`/bouncer-execute`와 `/bouncer-commit`을 직접 부르는 것은 task 하나만
-처리하거나 멈춘 주행을 복구할 때입니다. 단계 순서 자체는 위 표 그대로입니다.
+멈춘 주행은 `/bouncer-run`을 다시 걸어 원장 지점부터 재개합니다. 단계 순서 자체는 위 표 그대로입니다.
 
 **DAG가 없는 기존 계획도 그대로 돕니다.** task frontmatter의
 `depends_on`·`parallel_safe`·`dependency_gate`가 없으면 각각 의존 없음·순차·
@@ -85,11 +83,10 @@ flowchart TD
 | 단계 | 스킬 |
 | --- | --- |
 | `/bouncer-plan` | `discovery` → `spec-authoring` → `stop-slop` → `graphify-runner` → `minimality` → `context-review` |
-| `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (verify 실패 시 `debugging` → implementer 재호출) |
-| `/bouncer-commit` | 게이트와 확인만 — explain 단계 없음 |
+| `/bouncer-run` | `implementation` → `verification` → `review` → `minimality` (verify 실패 시 `debugging` → implementer 재호출). task 커밋은 게이트와 확인만 — explain 단계 없음 |
 | `/bouncer-finalize` | `explain-diff` |
 
-execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implementer` /
+run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implementer` /
 `bouncer-reviewer` / `bouncer-debugger`로 분리됩니다. 계획 승인 직전의 문서
 판정은 `bouncer-context-reviewer`이고, 위임 주행의 컨트롤러는
 `bouncer-coordinator`입니다. coordinator는 이 세 worker를 부르되 그 역할을
@@ -102,13 +99,13 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   wave가 연 task마다 worker worktree
   `.worktrees/<epic-id>/<bp-id>/workers/<NNN>` 하나를 씁니다. 생성은
   `bouncer coordinate bootstrap`·`prepare`만, 제거는 `/bouncer-finalize`만
-  합니다. coordinator 없이 `/bouncer-execute`를 직접 부르면 예전처럼 blueprint
-  하나짜리 `.worktrees/<epic-id>/<bp-id>`를 만들어 그 blueprint의 task가
-  공유합니다.
+  합니다. 직접 실행(run 시작 선택지 D)은 coordinator를 띄우지 않고 이 session이
+  `coordinate advance` 루프를 돌릴 뿐, worktree 구조는 같습니다. 같은 bootstrap으로
+  integration worktree를 만들고 task마다 worker worktree를 씁니다.
 - **main worktree는 읽기 전용 provenance입니다.** 주행 중 coordinator와 worker는
   자기에게 배정된 worktree에만 씁니다. main checkout에서 낸 커밋은 `bouncer
   commit`과 `commit-safety` 훅이 `main-worktree-source-write`로 거절합니다.
-- **execute는 커밋하지 않습니다.** 커밋은 `/bouncer-commit`의 몫이고, 주행
+- **구현 worker는 커밋하지 않습니다.** 커밋은 run이 내부 `bouncer commit`으로 처리하고, 주행
   중에는 배정된 worker worktree 안에서 일어납니다.
 - **포인터는 blueprint namespace로 저장됩니다.** Git common directory에 있어
   linked worktree가 같은 pointer set을 공유하되, 각 worktree는 자기 위치에 맞는
@@ -127,10 +124,10 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   blocker·major가 해결되고 verify가 통과했으며 신규 actionable finding이
   Goal, Interface, Constraints, `affected_paths` 안에 있을 때만 허용합니다.
   세 번째 뒤 잔존·재발·새 설계가 필요하면 네 번째 round는 없습니다.
-  `/bouncer-execute`를 직접 돌리는 중이면 `/bouncer-plan`으로 가고, 위임 주행
+  직접 실행 run 중이면 `/bouncer-plan`으로 가고, 위임 주행
   중이면 coordinator가 rework·scope revision·terminal blocked 중 하나로
-  판정합니다. `/bouncer-run`은 이 상한을 복제하지 않고 `/bouncer-execute`를
-  따릅니다.
+  판정합니다. `/bouncer-run`은 이 상한을 복제하지 않고 review-round
+  reference를 따릅니다.
 - **좁은 범위 작업**은 `/bouncer-plan`이 경량 여부를 묻고 blueprint
   `bouncer.scale`을 `light`로 바꿉니다. 무엇이 줄고 무엇이 그대로인지는
   [`rules/planning.md`](../rules/planning.md) `## Lightweight cycle`에

@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **`/bouncer-execute`·`/bouncer-commit` 진입 스킬 제거 (EPIC 102 BP 001)** — 공개 스킬은
+  `/bouncer-init`·`/bouncer-plan`·`/bouncer-run`·`/bouncer-finalize`·`/bouncer-retro` 다섯 개다.
+  task 구현·검증·리뷰·커밋은 `/bouncer-run`이 맡고 내부 `bouncer commit` CLI와 gate는 그대로다.
+  `commit.next_task` 질문과 evaluator 정책 응답을 함께 제거했고, 호환용 slash 별칭은 없다.
+
 ### Changed
 
 - **repair 경로 통합과 preflight 포인터 비교 정리 (EPIC 099 BP 003)** — integrate 단계가 동적으로

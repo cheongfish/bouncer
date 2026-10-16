@@ -45,7 +45,7 @@ test('카탈로그 workflows 키 → ACQ 절을 가진 skills/*/SKILL.md의 skil
   });
   const keys = Object.keys(CATALOG);
   assert.deepEqual([...keys].sort(), withIndex.sort());
-  assert.deepEqual(keys, ['bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-run', 'bouncer-finalize', 'bouncer-retro']);
+  assert.deepEqual(keys, ['bouncer-init', 'bouncer-plan', 'bouncer-run', 'bouncer-finalize', 'bouncer-retro']);
 });
 
 const APPROVED_POLICY_NAMES = ['fastify-001'];
@@ -73,6 +73,14 @@ test('the benchmark evaluator policies → answer only catalogued gate IDs', () 
     for (const decision of policy.bouncer_decisions) {
       assert.ok(known.has(decision.gate) || legacy.has(decision.gate), `${name}: unknown policy gate ${decision.gate}`);
     }
+  }
+});
+
+test('the benchmark evaluator policies → carry no retired commit.next_task gate', () => {
+  assert.equal(Object.values(CATALOG).flat().includes('commit.next_task'), false);
+  for (const name of POLICY_NAMES) {
+    const gates = readPolicy(name).bouncer_decisions.map((decision) => decision.gate);
+    assert.equal(gates.includes('commit.next_task'), false, name);
   }
 });
 
@@ -166,7 +174,8 @@ test('skills/*/SKILL.md의 모든 AskUserQuestion 제목 → 다음 줄 블록�
       assert.equal(d.block.recommended, d.recommended, `${rel}: ${d.id} recommended`);
     }
   }
-  assert.ok(seen >= 3, 'scan found the chat displays');
+  // run.start_drive와 finalize.pr만 SKILL 본문에 display가 남는다(commit.next_task 제거).
+  assert.ok(seen >= 2, 'scan found the chat displays');
 });
 
 test('references/discovery/index.md → open_decisions 블록 줄이 JSON 파싱되고 kind가 open_decisions', () => {

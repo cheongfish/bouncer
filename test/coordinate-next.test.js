@@ -1285,10 +1285,10 @@ test('card에서 directory 확인 → 정확히 card 아홉 개이고 index.md �
   assert.deepStrictEqual(files, CARD_ACTIONS.map((id) => `${id}.md`).sort());
 });
 
-// 공통 규칙은 카드와 execute reference가 같은 정규식으로 맞아야 한다. 한쪽만
-// 바뀌면 coordinator drive와 standalone execute가 다른 상한을 따르게 된다.
-const EXEC_REF = (name) => fs.readFileSync(
-  path.join(__dirname, '..', 'skills', 'bouncer-execute', 'references', `${name}.md`), 'utf8',
+// 공통 규칙은 카드와 run-owned reference(skills/bouncer-run/references)가 같은 정규식으로 맞아야 한다. 한쪽만
+// 바뀌면 coordinator drive와 run reference가 서로 어긋나게 된다.
+const RUN_REF = (name) => fs.readFileSync(
+  path.join(__dirname, '..', 'skills', 'bouncer-run', 'references', `${name}.md`), 'utf8',
 );
 const cardOf = (id) => fs.readFileSync(path.join(CARD_DIR, `${id}.md`), 'utf8');
 const SHARED_RULES = [
@@ -1314,10 +1314,10 @@ const SHARED_RULES = [
   },
 ];
 
-test('card에서 shared rules 대조 → card와 execute reference 둘 다와 일치함', () => {
+test('card에서 shared rules 대조 → card와 run reference 둘 다와 일치함', () => {
   for (const rule of SHARED_RULES) {
     for (const id of rule.cards) assert.match(cardOf(id), rule.re, `${rule.label} card ${id}`);
-    for (const ref of rule.refs) assert.match(EXEC_REF(ref), rule.re, `${rule.label} ref ${ref}`);
+    for (const ref of rule.refs) assert.match(RUN_REF(ref), rule.re, `${rule.label} ref ${ref}`);
   }
 });
 

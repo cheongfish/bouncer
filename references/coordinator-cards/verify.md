@@ -1,7 +1,8 @@
 # verify
 
 Contract card for the `coordinate next` action `verify`. Rules are copied from
-the coordinator Task round and the execute verification-recovery reference.
+the coordinator Task round. When verification fails and recovery runs, read
+[verification-recovery](../../skills/bouncer-run/references/verification-recovery.md).
 
 - **Verify and execute gate.** From the worker cwd run `next`'s `argv`
   (`bouncer validate --blueprint <dir> --gate execute`). That run executes

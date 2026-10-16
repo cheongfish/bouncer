@@ -17,7 +17,7 @@ const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 
 const LAUNCHER_SKILLS = [
-  'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit',
+  'bouncer-init', 'bouncer-plan',
   'bouncer-finalize', 'bouncer-run', 'bouncer-retro', 'explain-diff', 'graphify-runner',
   'review',
 ];

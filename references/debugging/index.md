@@ -1,6 +1,6 @@
 ---
 name: debugging
-description: "Use when verify fails or behavior is unexpected, from /bouncer-execute or when named; investigate root cause before a fix."
+description: "Use when verify fails or behavior is unexpected, from /bouncer-run or when named; investigate root cause before a fix."
 ---
 
 # Debugging
@@ -21,7 +21,7 @@ identifiers and projected sections are the fixed intent inputs.
 
 When a change fails verification or behaves unexpectedly. Investigates root
 cause before proposing a fix; follows Root cause → Pattern → Hypothesis →
-Implementation. Used from `/bouncer-execute` on verify failure.
+Implementation. Used from a `/bouncer-run` worker round on verify failure.
 
 ## Steps
 

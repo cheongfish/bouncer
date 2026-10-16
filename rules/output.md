@@ -1,7 +1,7 @@
 # 워크플로 출력 계약
 
-일곱 진입 워크플로(`/bouncer-init`, `/bouncer-plan`, `/bouncer-execute`,
-`/bouncer-commit`, `/bouncer-run`, `/bouncer-finalize`, `/bouncer-retro`)는 진행·성공·실패를 이
+다섯 진입 워크플로(`/bouncer-init`, `/bouncer-plan`, `/bouncer-run`,
+`/bouncer-finalize`, `/bouncer-retro`)는 진행·성공·실패를 이
 계약으로 렌더링한다. CLI 반환값과 raw payload는 판단에 계속 사용하되, 표시
 모드는 사용자가 요청한 `debug`가 아니면 `compact`이다.
 
@@ -16,7 +16,7 @@
 
 ### compact 성공 예시
 
-`완료: execute gate 통과 · 변경: rules/output.md, skills/bouncer-execute/SKILL.md · 검증: npm run ci 통과 · 다음: /bouncer-commit`
+`완료: execute gate 통과 · 변경: rules/output.md, skills/bouncer-run/SKILL.md · 검증: npm run ci 통과 · 다음: /bouncer-finalize`
 
 ### compact 실패 예시
 

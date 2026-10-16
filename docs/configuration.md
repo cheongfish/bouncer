@@ -14,7 +14,7 @@
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
 | `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
 | `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |
-| `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준. `/bouncer-finalize` PR는 `pr.base`가 없으면 이 값, 없으면 `origin/HEAD`, 없으면 사용자에게 묻기 | `"main"` · `"develop"` |
+| `base_branch` | 브랜치 이름 | `/bouncer-run` worktree 기준. `/bouncer-finalize` PR는 `pr.base`가 없으면 이 값, 없으면 `origin/HEAD`, 없으면 사용자에게 묻기 | `"main"` · `"develop"` |
 | `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run` 위임 주행의 **보고 주기** | `"auto"` (마감 보고에 모아서) · `"interactive"` (task 경계마다 진행 한 줄) |
 | `coordinator.max_parallel` | 정수 `>= 1` (선택). 부재 시 `2` | `bouncer coordinate prepare`가 한 wave에서 여는 lease 수 상한. 잘못된 값이면 prepare가 `coordinator-config-invalid`로 거절 | `2` · `1` |
 | `coordinator.waves_per_session` | `"auto"` \| 정수 `1`–`8` (선택). 부재 시 `"auto"`(상한 4) | 한 coordinator 세션이 처리할 직렬·무예외 wave 수 상한. `coordinate next`가 상한에 닿았거나 예외·병렬 wave가 끼면 `yield`로 세션을 끊도록 알린다. 그 밖의 값이면 prepare가 `coordinator-config-invalid`로 거절하고 읽기 전용 `next`는 상한 1로 접는다 | `"auto"` · `1` (wave마다 새 세션) |
@@ -25,7 +25,7 @@
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` PR 기준. 없으면 `base_branch` → `origin/HEAD` → 사용자에게 묻기 | `"main"` |
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
-| `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-execute`·`/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
+| `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
 | `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
 
 `bouncer init`은 새 config를 만들 때 `package.json`에 `scripts.build`가 있으면 `worktree.setup`을 `"npm run build"`로 넣습니다. 이미 있는 config에는 자동으로 들어가지 않으니 필요하면 직접 추가하세요.

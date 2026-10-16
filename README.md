@@ -46,9 +46,7 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 
 ```
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
-/bouncer-execute   # worktree seed → 구현 · verify · review
-/bouncer-commit    # 스코프 · task 커밋 · 다음 task
-/bouncer-run       # execute→commit 반복 주행 (task 소진까지)
+/bouncer-run       # 구현 · verify · review · task 커밋 주행 (task 소진까지)
 /bouncer-finalize  # explain+퀴즈 · remainder · draft PR
 /bouncer-retro     # 세션 근거 개선 후보 제안 (채팅 전용)
 ```

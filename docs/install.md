@@ -153,7 +153,7 @@ Plugins Directory에 넣지 말고 `git clone -b release <사내-git-url>`로 �
 
 - **스킬** (`skills/*/SKILL.md`)은 Codex·Claude·Cursor가 공통으로 읽는 공개
   카탈로그입니다. 워크플로 진입점(`/bouncer-init`·`/bouncer-plan`·
-  `/bouncer-execute`·`/bouncer-commit`·`/bouncer-finalize`·`/bouncer-run`·`/bouncer-retro`)은
+  `/bouncer-run`·`/bouncer-finalize`·`/bouncer-retro`)은
   `skills/bouncer-*/SKILL.md`에 있고, 보조는 `references/`입니다.
 - **named agent**는 Codex도 지원합니다. 커스텀 에이전트는 프로젝트
   `.codex/agents/*.toml`입니다. 플러그인 설치는 이 역할을 등록하지 않습니다.
@@ -232,8 +232,8 @@ CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입�
 
 | 이름 | 누가 부르나 | 역할 |
 | --- | --- | --- |
-| `bouncer-implementer` | `/bouncer-execute`, coordinator | 승인된 task brief대로 구현 |
-| `bouncer-reviewer` | `/bouncer-execute`, coordinator | diff 판정(읽기 전용) |
+| `bouncer-implementer` | `/bouncer-run`, coordinator | 승인된 task brief대로 구현 |
+| `bouncer-reviewer` | `/bouncer-run`, coordinator | diff 판정(읽기 전용) |
 | `bouncer-debugger` | verify 실패 경로, coordinator | 근본 원인 리포트(읽기 전용) |
 | `bouncer-context-reviewer` | `/bouncer-plan` 승인 직전 | 계획 문서 판정 |
 | `bouncer-coordinator` | `/bouncer-run` 시작 ACQ 뒤 한 번 | 주행 컨트롤러. 위 세 worker를 부르고 결과를 판정 |

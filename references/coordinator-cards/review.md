@@ -2,7 +2,9 @@
 
 Contract card for the `coordinate next` action `review` (per-task review,
 when `review_scope` is absent). Rules are copied from the coordinator Worker
-dispatch and the execute agent-dispatch and review-round references.
+dispatch. When dispatching a reviewer or applying its fallback, read
+[agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md); when a review round may
+start or stop, read [review-round](../../skills/bouncer-run/references/review-round.md).
 
 - Dispatch named `bouncer-reviewer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   `bouncer-reviewer` stays read-only. Never play that role yourself and never

@@ -9,8 +9,8 @@ description: "Use only when the user explicitly asks /bouncer-finalize; it close
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
 Close out the active blueprint after every task has been committed via
-`/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —
-task commits already landed on `/bouncer-commit`. Comprehension (explain + quiz)
+`/bouncer-run`. Follow this sequence. Do **not** run `bouncer commit` here —
+task commits already landed during the run. Comprehension (explain + quiz)
 runs first in this skill.
 
 **cwd contract.** Step 1 explain writes and step 2
@@ -66,7 +66,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    <!-- acq {"gate":"finalize.remainder","options":["A","C","D"],"recommended":"A"} -->
    1. **Re-ground**: Commit the context-document remainder via
       `finalize --yes`; cleanup force-removes the execute worktree.
-   2. **Recommend-why**: Task commits finished on `/bouncer-commit`.
+   2. **Recommend-why**: Task commits finished during `/bouncer-run`.
    3. **Options**:
       - A) `finalize --yes` commit + remove execute worktree (Recommended)
       - C) Fix message/staging and re-check

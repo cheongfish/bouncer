@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Use from /bouncer-execute, or when named, to judge the worktree diff against the task brief and record Findings only."
+description: "Use from /bouncer-run, or when named, to judge the worktree diff against the task brief and record Findings only."
 ---
 
 # Review
@@ -38,7 +38,7 @@ standards.
 
 When reviewing a change against the tasks brief. Records `## Findings` with
 severity and disposition; never accepts while an actionable finding remains
-unresolved. Used from `/bouncer-execute`.
+unresolved. Used from `/bouncer-run`.
 
 ## Steps
 
