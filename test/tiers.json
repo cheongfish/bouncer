@@ -25,6 +25,7 @@
     "plugin-wiring.test.js",
     "retention-migration.test.js",
     "retro-read.test.js",
+    "review-policy.test.js",
     "retro-sources.test.js",
     "rule-ownership.test.js",
     "scaffold.test.js",

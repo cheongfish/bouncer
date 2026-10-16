@@ -33,6 +33,13 @@ const { taskBriefHash } = taskBriefHashMod;
 import scopeMod = require('./scope');
 const { withLedgerLock } = scopeMod;
 import leaseMod = require('./lease');
+import reviewPolicy = require('./review-policy');
+// worker-model 기록의 관점 소속 검사와 `next` 문구가 validate-sections와 같은 정본을 쓴다.
+const { REVIEW_PERSPECTIVE } = reviewPolicy;
+import type {
+  ReportOutcome, PromoteStopReason, PromotionRecord, DispatchState, Lease, Task, Ledger,
+  FaninState, FailureEvidence, RepairDecision, LedgerRef,
+} from './execution-contracts';
 import driveMetrics = require('./drive-metrics');
 const { issueLease, revokeLease, checkLease } = leaseMod;
 const { randomUUID } = require('node:crypto');
@@ -50,30 +57,14 @@ const LEDGER_FENCED_COMMANDS = new Set([
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
-const REPORT_OUTCOMES = ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'] as const;
-type ReportOutcome = (typeof REPORT_OUTCOMES)[number];
+// 타입 합집합의 정본은 execution-contracts다. satisfies로 이 배열이 합집합을 벗어나지 않게 묶는다.
+const REPORT_OUTCOMES = ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'] as const satisfies readonly ReportOutcome[];
 
 /** light 승격 정지 사유. CLI·원장·힌트가 같은 다섯 값만 쓴다. */
 const PROMOTE_STOP_REASONS = [
   'security-risk', 'out-of-scope', 'task-split', 'interface-semantics', 'reviewer-wider-scope',
-] as const;
-type PromoteStopReason = (typeof PROMOTE_STOP_REASONS)[number];
+] as const satisfies readonly PromoteStopReason[];
 
-type PromotionRecord = {
-  reason: PromoteStopReason;
-  summary: string;
-  task: string;
-  diff_sha: string;
-  verify_evidence_id?: string;
-  review_evidence_id?: string;
-};
-
-type DispatchState = {
-  attempt: number; task_brief_hash: string; base_head: string; initial_worktree_state: string;
-  status: 'active' | 'reported'; outcome?: ReportOutcome; summary?: string;
-  // dispatch에 넘긴 모델 인자(slug 또는 inherit). `--model`을 준 attempt에만 있다.
-  model?: string;
-};
 type DispatchDecision = {
   task: string; kind: 'dispatch'; attempt: number; task_brief_hash: string;
   base_head: string; initial_worktree_state: string;
@@ -81,12 +72,6 @@ type DispatchDecision = {
 };
 // reviewer·debugger dispatch에 넘긴 모델 인자를 남기는 기록 전용 decision.
 // dispatch·lease·status는 건드리지 않는다.
-// execute review 관점 열거(validate-sections.ts REVIEW_PERSPECTIVE)의 사본이다. 그 상수가
-// 모듈 밖으로 export되지 않고 이 task는 validate-sections.ts를 건드릴 수 없어 복제한다.
-// 관점이 늘면 두 곳을 함께 고쳐야 한다.
-const WORKER_MODEL_REVIEW_PERSPECTIVES: readonly string[] = [
-  'combined', 'spec_scope', 'correctness_tests', 'minimality_maintainability', 'security',
-];
 // worker 기록 role. implementer는 dispatch --model로도 모델이 남지만, 토큰 합산이 세 role을
 // 같은 키 체계로 다루도록 worker-model에도 허용한다.
 const WORKER_RECORD_ROLES: readonly string[] = ['implementer', 'reviewer', 'debugger'];
@@ -132,50 +117,6 @@ type StaleLeaseDecision = {
   task: string; kind: 'stale-lease';
   expected: { lease_id: string; generation: number } | null;
   received: { lease_id?: string; generation?: number };
-};
-type Lease = {
-  id: string; generation: number; seq: number; status: 'active' | 'revoked';
-};
-
-type Task = {
-  id: string; depends_on?: string[]; dependency_gate?: string; parallel_safe?: boolean;
-  execution_kind?: 'commit' | 'verification'; status?: string; workerPath?: string; branch?: string; sha?: string;
-  decisions?: unknown[]; scope?: { revision: string; paths: string[] }; dynamic?: boolean;
-  affected_paths?: string[]; exclusive_resources?: string[];
-  criticalRecovery?: { used: 1; findings: string[]; reason: string; outcome: 'resolved' | 'blocked' | null };
-  dispatch?: DispatchState;
-  lease?: Lease;
-  verify_evidence_id?: string; review_evidence_id?: string; advisory?: unknown;
-};
-type Ledger = {
-  version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
-  seedManifest?: Array<{ path: string; sha256: string }>;
-  decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
-  status?: 'active' | 'awaiting_confirmation' | 'partial_closed' | 'promotion_stopped';
-  userConfirmed?: boolean; revision?: string;
-  leaseSeq?: number;
-  // light만 기록한다. 부재·undefined는 full(legacy 호환). 응답 mode는 항상 light|full.
-  mode?: 'light';
-  // light 승격 정지 스냅샷. status가 promotion_stopped일 때만 쓴다. fanin·terminalFailure와 별개.
-  promotion?: PromotionRecord;
-  // candidate fan-in 진행 상태. null/부재는 진행 없음. building→verified→null.
-  fanin?: FaninState | null;
-};
-type FaninState = {
-  base_head: string;
-  candidate_head: string | null;
-  tasks: string[];
-  status: 'building' | 'verified';
-};
-type FailureEvidence = {
-  task: string; command: string; summary: string; paths: string[]; exitCode: number; repairWave: number;
-  findings?: string[];
-};
-type RepairDecision = {
-  task: string; kind: 'repair'; wave: number; reason: string; failure: FailureEvidence;
-  previousDag: Array<{ id: string; depends_on: string[] }>;
-  nextDag: Array<{ id: string; depends_on: string[] }>;
-  previousScope: string[]; nextScope: string[]; necessity: string; revision: string;
 };
 type SupplementDecision = {
   kind: 'supplement'; outcome: 'pending' | 'verified'; paths: string[]; findings: string[];
@@ -228,7 +169,6 @@ type VerificationRunner = (opts: {
   evidenceId?: string; reused?: boolean; reusedFrom?: string;
 };
 
-type LedgerRef = { path: string; sha256: string; revision: string | null };
 type CompletedTaskSummary = {
   id: string; status: string; attempt?: number; commit_sha?: string;
   changed_paths?: string[]; scope_revision?: string;
@@ -3588,7 +3528,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       // 관점은 reviewer 전용이고 execute review 관점 열거 안이어야 한다.
       if (perspective !== undefined
         && (recordRole !== 'reviewer'
-          || !WORKER_MODEL_REVIEW_PERSPECTIVES.includes(perspective))) {
+          || !REVIEW_PERSPECTIVE.includes(perspective))) {
         return { ok: false, reason: 'worker-model-perspective-invalid' };
       }
       // worker-model은 tokens가 선택이라 없으면 키를 쓰지 않고, worker-tokens는 필수다.
@@ -4431,8 +4371,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'worker-model-perspective-invalid': {
     cause: 'The perspective is not a reviewer perspective, or it was given with a non-reviewer role.',
-    // 열거를 하드코딩하면 WORKER_MODEL_REVIEW_PERSPECTIVES와 어긋난다 — 상수에서 만든다.
-    next: `Retry with a reviewer perspective (${WORKER_MODEL_REVIEW_PERSPECTIVES.join(', ')}), `
+    // 열거를 하드코딩하면 REVIEW_PERSPECTIVE(review-policy 정본)와 어긋난다 — 상수에서 만든다.
+    next: `Retry with a reviewer perspective (${REVIEW_PERSPECTIVE.join(', ')}), `
       + 'or drop `--perspective` for the debugger.',
   },
   'summary-required': {

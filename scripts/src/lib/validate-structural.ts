@@ -21,14 +21,10 @@ const {
 import config = require('./config');
 const { DEFAULT_VERIFY_ALLOWLIST } = config;
 
-// review-dispatch Execute 경로와 같은 허용 목록. 여기 S30과 분류기 거절이
-// 어긋나면 malformed 위험이 한쪽에만 통과한다.
-const REVIEW_RISK_ENUM = [
-  'public_interface',
-  'authentication',
-  'authorization',
-  'credential',
-] as const;
+// review-dispatch Execute 경로와 같은 허용 목록(review-policy 정본). 정본이 하나라
+// S30과 분류기 거절이 어긋나 malformed 위험이 한쪽에만 통과하는 일이 없다.
+import reviewPolicy = require('./review-policy');
+const { REVIEW_RISK_ENUM } = reviewPolicy;
 
 // 문서 하나(프론트매터)를 보는 S 코드 층. 게이트(G) 판정과 분리해 두면
 // 스키마/id 규칙을 고치는 사람이 checkGate 분기를 같이 읽지 않아도 된다.

@@ -8,6 +8,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import validateMod = require('./validate');
 const { validateBlueprint } = validateMod;
 import planSnapshot = require('./plan-snapshot');
+import reviewPolicy = require('./review-policy');
 const {
   SNAPSHOT_VERSION, computePlanSnapshot, computePlanParts, digestPlanContent,
   normalizeStructure, structureKindOf, hashBody, hashStructure,
@@ -36,14 +37,9 @@ const PLAN_SMALL_MAX_TASKS = 3;
 const EXECUTE_SMALL_MAX_FILES = 3;
 const EXECUTE_SMALL_MAX_LINES = 200;
 
-// S30과 같은 허용 목록. validate-structural이 먼저 거절하지만 Execute 경로는
-// 구조 게이트 없이 이 필드를 읽으므로 여기서도 동일 enum으로 막는다.
-const REVIEW_RISK_ENUM = [
-  'public_interface',
-  'authentication',
-  'authorization',
-  'credential',
-] as const;
+// S30과 같은 허용 목록(review-policy 정본). validate-structural이 먼저 거절하지만
+// Execute 경로는 구조 게이트 없이 이 필드를 읽으므로 여기서도 동일 enum으로 막는다.
+const { REVIEW_RISK_ENUM } = reviewPolicy;
 
 type ExecFileSyncFn = (
   file: string,

@@ -14,19 +14,28 @@ import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths } = runtime;
 import configMod = require('./config');
 import driveMetrics = require('./drive-metrics');
+import type {
+  Lease as CanonicalLease, DispatchState as CanonicalDispatchState, Task as CanonicalTask,
+  Ledger as CanonicalLedger, LedgerRef as CanonicalLedgerRef,
+} from './execution-contracts';
 
 type Exec = (file: string, args?: readonly string[], options?: {
   cwd?: unknown; encoding?: unknown; stdio?: unknown;
 }) => string | Buffer;
 
-type Lease = { id: string; generation: number; status?: string };
-type DispatchState = {
-  attempt: number; task_brief_hash: string; base_head: string;
-  initial_worktree_state: string; status: string; outcome?: string; summary?: string;
+// 읽기 타입은 execution-contracts 정본에서 파생한다. 이 파일이 정본보다 넓게 읽어야 하는
+// 필드만 아래에서 재선언하고 이유를 줄 주석으로 남긴다.
+// lease.status는 디스크 값을 그대로 비교만 하므로 정본 유니온보다 넓은 string으로 읽는다.
+type Lease = Omit<Pick<CanonicalLease, 'id' | 'generation' | 'status'>, 'status'> & { status?: string };
+// 이 파일은 dispatch의 status·outcome을 문자열로만 비교하고 model은 읽지 않는다.
+type DispatchState = Omit<CanonicalDispatchState, 'model' | 'status' | 'outcome'> & {
+  status: string; outcome?: string;
 };
-type LedgerTask = {
-  id: string; status?: string; execution_kind?: string; workerPath?: string;
-  lease?: Lease; dispatch?: DispatchState; sha?: string;
+// execution_kind는 알 수 없는 값도 와야 해서 string, decisions는 이 파일이 쓰는 키만 읽는 모양으로,
+// criticalRecovery는 outcome만 읽으므로 좁혀 선언한다.
+type LedgerTask = Pick<CanonicalTask, 'id' | 'status' | 'workerPath' | 'sha'> & {
+  execution_kind?: string;
+  lease?: Lease; dispatch?: DispatchState;
   criticalRecovery?: { outcome: string | null };
   decisions?: Array<{ kind?: string; outcome?: string; summary?: string; attempt?: number }>;
 };
@@ -41,16 +50,18 @@ type JudgeContext = {
   candidates: EvidenceCandidate[];
   readEvidence: ReadEvidence;
 };
-type Ledger = {
-  status?: string; base?: string; integrationHead?: string; fanin?: unknown;
+// status·base는 문자열로만 비교하고, revision은 부재를 null로 읽으므로 넓게 재선언한다.
+type Ledger = Omit<
+  Partial<Pick<CanonicalLedger, 'status' | 'base' | 'integrationHead' | 'fanin' | 'mode'>>,
+  'status' | 'base'
+> & {
+  status?: string; base?: string;
   // supplement 결정만 읽는다. 나머지 kind는 이 파일이 모른다.
   decisions?: Array<{ kind?: string; outcome?: string; paths?: string[]; findings?: string[] }>;
   terminalFailure?: { task?: string }; tasks: LedgerTask[];
   revision?: string | null;
-  // 부재는 full. light일 때만 implement payload.inline을 켠다.
-  mode?: 'light';
 };
-type LedgerRef = { path: string; sha256: string; revision: string | null };
+type LedgerRef = Pick<CanonicalLedgerRef, 'path' | 'sha256' | 'revision'>;
 type Judge = { kind: string; fields: string[]; allowed?: string[] };
 // 계약 카드를 싣는 action. 판단(judge)이나 worker 위임이 필요한 행동만 카드를 받는다.
 // argv만 실행하면 끝나는 prepare·drive_tasks·integrate·verification_node·commit·done·none은

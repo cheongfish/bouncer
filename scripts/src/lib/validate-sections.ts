@@ -2,6 +2,7 @@
 import guards = require('./guards');
 const { isRecord } = guards;
 import paths = require('./paths');
+import reviewPolicy = require('./review-policy');
 const { toPosix } = paths;
 
 // 본문 파싱 층. 게이트(G)와 구조(S)가 같은 heading/경로 규칙을 보게 여기만 둔다.
@@ -56,13 +57,8 @@ const CONTEXT_REPORT_STATUS = ['requested', 'addressed', 'accepted'];
 const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
 // adaptive Execute는 combined를 추가하고, legacy 네 이름은 기존 round를 계속
 // 통과시킨다. security는 위험 flag가 있을 때만 별도 call로 붙는다.
-const REVIEW_PERSPECTIVE = [
-  'combined',
-  'spec_scope',
-  'correctness_tests',
-  'minimality_maintainability',
-  'security',
-];
+// 목록 본체는 review-policy 정본이며 코디네이터의 worker-model 검사도 같은 값을 쓴다.
+const { REVIEW_PERSPECTIVE } = reviewPolicy;
 // adaptive Plan은 combined·local·global을 쓰되, legacy 네 관점 round도 읽는다.
 // execute 관점과 이름을 섞지 않아야 G18이 diff 리뷰 원장을 계획 원장으로 오인하지 않는다.
 const CONTEXT_REVIEW_PERSPECTIVE = [
