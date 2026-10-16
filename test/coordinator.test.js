@@ -3205,6 +3205,82 @@ test('coordinate repair from review findings without a terminal → uses the rep
   assert.deepStrictEqual(result.repairTask.depends_on, ['001']);
 });
 
+// repair 문서 테스트 공용 준비: 모든 task가 integrated인 integration worktree와 ledger 경로.
+function integratedRepairDrive(prefix, blueprint) {
+  const repo = uncommittedPlanRepo(prefix, blueprint, [['001', '  depends_on: []\n']]);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  return { repo, boot };
+}
+
+test('coordinate repair from review findings with root review.md → writes finding lines into the repair brief', () => {
+  const blueprint = '.bouncer/context/epics/103-x/blueprints/001-y';
+  const { repo, boot } = integratedRepairDrive('bouncer-review-repair-brief-', blueprint);
+  fs.writeFileSync(path.join(boot.integrationPath, blueprint, 'review.md'), [
+    '---', 'bouncer:', '  review:', '    findings:',
+    '      - id: F1', '        severity: major', '        status: open', '        category: correctness',
+    '        brief_clause: tasks/001 Interface', '        file: scripts/lib/x.js', '        symbol: f',
+    '        fingerprint: abc', '        actionability: must_fix', '        origin: discovery',
+    '        note: "first line\\nsecond line"',
+    '---', '# Review', '',
+  ].join('\n'));
+
+  const result = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    reviewFindings: ['F1', 'F9'], summary: 'must_fix from final review', paths: ['src/fix.js'],
+    decision: 'repair from final review',
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  const repairDoc = readDoc(path.join(boot.integrationPath, blueprint, 'tasks', result.repairTask.id, 'tasks.md'));
+  assert.strictEqual(repairDoc.data.title, `Review repair wave ${result.repairTask.id}`);
+  assert.match(repairDoc.body, /- F1 \(major, correctness, must_fix\) — scripts\/lib\/x\.js#f — tasks\/001 Interface — note: first line second line/);
+  assert.match(repairDoc.body, /- F9 — review\.md에서 찾지 못함/);
+  // finding file은 backtick 경로로 쓰지 않는다 — Touch 외 절의 경로 선언 오인 방지.
+  assert.doesNotMatch(repairDoc.body, /`scripts\/lib\/x\.js`/);
+});
+
+test('coordinate repair from review findings without root review.md → marks every id as not found and proceeds', () => {
+  const blueprint = '.bouncer/context/epics/103-x/blueprints/002-y';
+  const { repo, boot } = integratedRepairDrive('bouncer-review-repair-noreview-', blueprint);
+  const result = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    reviewFindings: ['F1'], summary: 'must_fix', paths: ['src/fix.js'], decision: 'repair',
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  const repairDoc = readDoc(path.join(boot.integrationPath, blueprint, 'tasks', result.repairTask.id, 'tasks.md'));
+  assert.match(repairDoc.body, /- F1 — review\.md에서 찾지 못함/);
+});
+
+test('coordinate repair from CI failure → keeps the CI repair brief wording', () => {
+  const blueprint = '.bouncer/context/epics/103-x/blueprints/003-y';
+  const repo = uncommittedPlanRepo('bouncer-ci-repair-brief-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  ledger.tasks[1].status = 'verifying';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const result = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/fix.js'], decision: 'repair ci',
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  const repairDoc = readDoc(path.join(boot.integrationPath, blueprint, 'tasks', result.repairTask.id, 'tasks.md'));
+  assert.strictEqual(repairDoc.data.title, `CI repair wave ${result.repairTask.id}`);
+  assert.match(repairDoc.body, /## Goal & intent\n\n기록된 terminal CI 실패를 복구한다\./);
+});
+
 test('repair stamping bouncer.verify without config.json → takes it from the terminal', () => {
   // G13: repair tasks.md에 verify가 없으면 readVerifyCommand가 config.json으로
   // 폴백한다. 없는 저장소에서는 VERIFY_CONFIG_MISSING — terminal 선언을 그대로

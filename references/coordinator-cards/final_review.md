@@ -64,7 +64,9 @@ review and Procedure step 6 (Close).
   classify; you declare it, and it only checks the path conditions.
 - When a `must_fix` repair remains, open one repair with `bouncer coordinate
   repair … --review-finding <id>` (repeat the flag per finding) so one repair
-  task fixes every must_fix. Re-run the terminal verification, then freeze the
+  task fixes every must_fix. The CLI writes the repair task document from the
+  finding fields in the root `review.md`; do not rewrite that brief yourself.
+  Re-run the terminal verification, then freeze the
   same `base` and the post-repair integration HEAD and run the `final_review`
   argv from `coordinate next` as returned (it ends with `--mode delta`) — for
   example `bouncer review-dispatch execute --blueprint <dir> --base <sha>
