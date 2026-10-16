@@ -23,6 +23,27 @@ import verification = require('./verification');
 const { executeVerify } = verification;
 import verificationTarget = require('./verification-target');
 const { readVerifyCommand } = verificationTarget;
+import gitOps = require('./git-ops');
+const { realGit, resolveCheckoutBranch } = gitOps;
+type GitApi = {
+  changedFiles: () => string[];
+  untrackedFiles: () => string[];
+  trackedFiles?: () => string[];
+  stage: (files: string[]) => void;
+  commit: (msg: string) => void;
+  headSha?: () => string;
+};
+import commitMessage = require('./commit-message');
+const { buildCommitMessage, buildFinalizeCommitMessage } = commitMessage;
+import finalizeCollect = require('./finalize-collect');
+const {
+  collectTransientRels, collectTaskCommits, collectCoordinatorProvenance,
+  buildCoordinatorProvenance, provenanceFromLedgerRead, stableIdFromTaskData,
+} = finalizeCollect;
+import finalizeChecks = require('./finalize-checks');
+const { buildIntegration, coordinatorEvidenceMismatches } = finalizeChecks;
+import finalizeExplain = require('./finalize-explain');
+const { writeExplainTaskCommits, buildTaskContext, writeExplainTaskContext } = finalizeExplain;
 
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
@@ -41,54 +62,8 @@ const { prepareDependencies } = seedWorktree;
 const { readBouncerBlock } = coordinatorLib;
 const { normalizeAuthoredLines, parseIntentBody } = templates;
 
-// migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
-// validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
-
-type GitApi = {
-  changedFiles: () => string[];
-  untrackedFiles: () => string[];
-  /** All paths tracked by the index, including clean paths absent from diff. */
-  trackedFiles?: () => string[];
-  stage: (files: string[]) => void;
-  commit: (msg: string) => void;
-  /** HEAD의 전체 또는 abbrev 객체 이름. 없으면 commit_sha 기록을 건너뛴다. */
-  headSha?: () => string;
-};
-
 type TaskCommitEntry = { task: string; sha: string; intent_anchor: string };
 type TrailerCommit = { sha?: string; sha8: string };
-const STABLE_TASK_RE = /^EPIC-(\d{3})\/BP-(\d{3})\/TASK-(\d{3})$/;
-
-/**
- * tasks.md frontmatter에서 stable Task ID를 만든다.
- * epic_id·blueprint_id·id가 정본이 아니면 null — 잘못된 값을 패딩하지 않는다.
- *
- * @param {unknown} data - tasks.md frontmatter 루트
- * @returns {string | null} `EPIC-ddd/BP-ddd/TASK-ddd` 또는 불가 시 null
- */
-function stableIdFromTaskData(data: unknown): string | null {
-  // data·bouncer 부재는 legacy `### Task NNN` 폴백이다. asRecord만 쓰면
-  // undefined.bouncer에서 throw해 retention·순수 테스트 fixture까지 깨진다.
-  if (!data || typeof data !== 'object') return null;
-  const bouncer = asRecord(asRecord(data).bouncer);
-  if (!bouncer || typeof bouncer !== 'object') return null;
-  try {
-    return buildStableProvenance({
-      epicId: bouncer.epic_id,
-      blueprintId: bouncer.blueprint_id,
-      taskId: bouncer.id,
-    }).task;
-  } catch (error) {
-    // 세 자리·TASKS-NNN 계약 위반만 흡수한다. 그 외는 호출부에서 본다.
-    if (
-      error instanceof Error
-      && /must be a three-digit id|must be TASKS-NNN/.test(error.message)
-    ) {
-      return null;
-    }
-    throw error;
-  }
-}
 
 /**
  * trailer 해석용 base를 고른다. 원장 base가 정본이고, 없으면 같은 blueprint pointer.
@@ -193,77 +168,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-// subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
-// 구조만 Bouncer 소유. identifier와 path는 제목·본문에 넣지 않음 — blueprint
-// 문서와 PR body에 있다. 기계가 읽는 식별자는 메시지 끝 Git trailer 두 줄로만
-// 붙인다. 본문에 섞으면 제목 규약과 충돌하고, trailer가 아니면 cherry-pick·
-// explain 소비자가 같은 키를 찾지 못한다.
-// Subject: 대상 task title (없으면 blueprint title). Body: task 문서가 저작한
-// 배경·의도와 변경 요약. verification title은 실행 증적이지 메시지 저작물이
-// 아니므로 사용하지 않는다. 새 필드가 없는 기존 task는 제목만으로 읽는다.
-// commit 경로(`bouncer commit`)가 이 빌더를 쓴다. finalize 마감 메시지는
-// buildFinalizeCommitMessage — task 문서 필드를 넣지 않는다.
-function authoredContainsBouncerTrailer(lines: string[]): boolean {
-  // Git trailer는 줄 앞의 정확한 키다. 문장 한가운데 언급이 아니라 저작 필드가
-  // 이미 trailer 한 줄을 들고 있으면, 생성기가 같은 키를 또 붙여 중복이 된다.
-  return lines.some((line) => /^(?:Bouncer-Task|Bouncer-Intent)\s*:/.test(line));
-}
-
-function buildCommitMessage(docs: DocsLike, taskUnit: TaskUnitLike | null | undefined): string {
-  const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
-  const bouncer = asRecord(bp.bouncer || {});
-  const type = bouncer.commit_type || 'feat';
-  const taskTitle = taskUnit && taskUnit.tasks && taskUnit.tasks.data
-    ? asRecord(taskUnit.tasks.data).title
-    : undefined;
-  // 대상 묶음이 없거나 title이 비면 blueprint로 떨어뜨려 빈 subject를 만들지 않음.
-  const subjectTitle = (typeof taskTitle === 'string' && taskTitle.trim())
-    ? taskTitle.trim()
-    : bp.title;
-  const taskData = taskUnit && taskUnit.tasks && taskUnit.tasks.data
-    ? asRecord(taskUnit.tasks.data)
-    : (docs.tasks && docs.tasks.data ? asRecord(docs.tasks.data) : {});
-  const taskBouncer = taskData && taskData.bouncer && typeof taskData.bouncer === 'object'
-    ? asRecord(taskData.bouncer)
-    : {};
-  const intent = normalizeAuthoredLines(taskBouncer.commit_intent, 'commit_intent');
-  const summary = normalizeAuthoredLines(taskBouncer.commit_summary, 'commit_summary');
-  const bodyLines = [...intent, ...summary];
-  // 저작 필드가 이미 Bouncer trailer를 들고 있으면 한 줄을 더 붙여 키가 두 번
-  // 나온다. Git trailer는 키당 한 줄이므로 중복을 지우지 않고 생성을 거절한다.
-  if (authoredContainsBouncerTrailer(bodyLines)) {
-    throw new Error(
-      'commit message authored fields already contain a Bouncer-Task or Bouncer-Intent trailer',
-    );
-  }
-  const provenance = buildStableProvenance({
-    epicId: taskBouncer.epic_id,
-    blueprintId: taskBouncer.blueprint_id,
-    taskId: taskBouncer.id,
-  });
-  const body = bodyLines.map((t) => `- ${t}`);
-  const lines = [`${type}: ${subjectTitle}`];
-  if (body.length) lines.push('', ...body);
-  // trailer는 본문과 빈 줄로 구분한다. subject만 있어도 같은 구분자를 써서
-  // Git이 제목을 trailer 블록으로 붙이지 않게 한다.
-  lines.push('', ...provenance.trailers);
-  return lines.join('\n');
-}
-
-// finalize 마감 커밋: subject와 body 모두 blueprint에서 읽는다. Intent를
-// 파싱할 수 없으면 task 일부를 주워 메시지를 만드는 대신 즉시 실패시킨다.
-// task title·verification bullet을 넣으면 이미 남긴 task 커밋과 겹친다.
-function buildFinalizeCommitMessage(docs: DocsLike): string {
-  const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
-  const bouncer = asRecord(bp.bouncer || {});
-  const type = bouncer.commit_type || 'feat';
-  const intent = parseIntentBody(docs.blueprintIndex && docs.blueprintIndex.body);
-  const body = intent.map((t) => `- ${t}`);
-  const lines = [`${type}: ${bp.title}`];
-  if (body.length) lines.push('', ...body);
-  return lines.join('\n');
-}
-
 // blueprint index.md를 읽어 잠금 대상인지 판정한다. 파일이 없거나 프론트매터
 // 파싱이 깨지면 target.data는 null — closedLockPath/writeClosedLock 양쪽이
 // 이를 "잠글 것 없음"으로 취급해 finalize를 실패시키지 않는다.
@@ -299,87 +203,6 @@ function writeClosedLock(repoRoot: string, target: LockTarget): void {
   fs.writeFileSync(path.join(repoRoot, target.rel), renderDoc(target.data, target.body as string));
 }
 
-
-/**
- * finalize가 closed 전이와 함께 지울 일회성 문서 경로를 모은다.
- * tasks.md·verification.md·review.md와 (있을 때만) context-review.md가 대상이다.
- * explain.md·index.md는 절대 넣지 않는다.
- * light blueprint는 context-review.md가 없으므로 목록에 나타나지 않는다.
- *
- * @param {object} opts
- * @param {string} opts.repoRoot - 저장소 루트
- * @param {string} opts.blueprintDir - blueprint 상대 경로
- * @returns {string[]} 존재하는 일회성 문서의 posix 상대 경로
- */
-/**
- * closed 전이에 지울 일회성 문서 경로를 모은다.
- * task leaf와 context-review는 항상 대상이다. 루트 review.md는
- * `review_scope: blueprint`일 때만 넣는다 — 구형 blueprint의 루트
- * 파일은 사람이 둔 증적이라 마감이 지우면 안 된다.
- *
- * @param {object} opts - 저장소와 blueprint 경로
- * @param {string} opts.repoRoot - 저장소 루트 절대 경로
- * @param {string} opts.blueprintDir - blueprint 상대 경로
- * @returns {string[]} 존재하는 일회성 문서의 상대 경로
- */
-function collectTransientRels({ repoRoot, blueprintDir }: {
-  repoRoot: string;
-  blueprintDir: string;
-}): string[] {
-  const listing = listTasksDocs({ repoRoot, blueprintDir });
-  const rels: string[] = [];
-  for (const entry of listing.entries) {
-    // verification.md도 task 실행 증적이라 closed 뒤에는 남기지 않는다.
-    for (const leaf of ['tasks', 'verification', 'review'] as const) {
-      const ref = entry[leaf];
-      // verification node는 review leaf를 만들지 않는다. 없는 leaf는 삭제
-      // 대상으로 합성하지 않고, 실제 listing이 제공한 문서만 수집한다.
-      if (!ref) continue;
-      const rel = ref.rel;
-      if (fs.existsSync(path.join(repoRoot, rel))) rels.push(rel);
-    }
-  }
-  const bp = toPosix(blueprintDir);
-  const contextReviewRel = `${bp}/context-review.md`;
-  if (fs.existsSync(path.join(repoRoot, contextReviewRel))) {
-    rels.push(contextReviewRel);
-  }
-  if (isBlueprintReviewScopeAt(repoRoot, bp)) {
-    const rootReviewRel = `${bp}/review.md`;
-    if (fs.existsSync(path.join(repoRoot, rootReviewRel))) {
-      rels.push(rootReviewRel);
-    }
-  }
-  return rels;
-}
-
-/**
- * blueprint index의 `review_scope === 'blueprint'`만 모드로 본다.
- * 파일 부재·파싱 실패는 구형 계약(지우지 않음)으로 접는다 — 모드로
- * 오인하면 남겨야 할 루트 리뷰를 지운다.
- *
- * @param {string} repoRoot - 저장소 루트
- * @param {string} blueprintDir - blueprint 상대 경로
- * @returns {boolean} 모드이면 true
- */
-function isBlueprintReviewScopeAt(repoRoot: string, blueprintDir: string): boolean {
-  const abs = path.join(repoRoot, `${toPosix(blueprintDir)}/index.md`);
-  if (!fs.existsSync(abs)) return false;
-  try {
-    const { data } = readDoc(abs);
-    const bouncer = asRecord(asRecord(data).bouncer);
-    return bouncer.review_scope === 'blueprint';
-  } catch (error) {
-    // YAML/frontmatter 파싱 실패만 흡수한다. 권한 오류는 숨기지 않는다.
-    if (error instanceof Error && (
-      error.name === 'YAMLException' || /frontmatter|YAML/i.test(error.message)
-    )) {
-      return false;
-    }
-    throw error;
-  }
-}
-
 /**
  * staged 목록에 경로를 중복 없이 덧붙인다. 삭제 대상이 git 변경에 이미
  * 있어도 한 번만 남긴다.
@@ -404,265 +227,6 @@ function mergeLocked(list: string[], lockPath: string | null): string[] {
   return list.includes(lockPath) ? list : [...list, lockPath];
 }
 
-function realGit(repoRoot: string): GitApi {
-  const run = (args: string[]) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }) as string;
-  const lines = (s: string) => s.split('\n').filter(Boolean);
-  return {
-    changedFiles: () => lines(run(['diff', '--name-only', 'HEAD'])),
-    untrackedFiles: () => lines(run(['ls-files', '--others', '--exclude-standard'])),
-    trackedFiles: () => lines(run(['ls-files', '--cached'])),
-    stage: (files: string[]) => { if (files.length) run(['add', '--', ...files]); },
-    commit: (msg: string) => {
-      // remainder 커밋도 G17 이후라 hook이 인덱스를 다시 보면 순환 차단한다.
-      execFileSync('git', ['commit', '-m', msg], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        env: internalCommitEnv(),
-      });
-    },
-    headSha: () => run(['rev-parse', 'HEAD']).trim(),
-  };
-}
-
-/**
- * explain.md frontmatter의 Epic·Blueprint 번호를 읽는다.
- * task_commits 행의 stable ref가 이 부모와 같은 번호인지 대조하기 위해서다.
- *
- * @param {object} opts
- * @param {string} opts.repoRoot - 저장소 루트
- * @param {string} opts.blueprintDir - blueprint 상대 경로
- * @returns {{epicId: string, blueprintId: string} | null} 읽을 수 없으면 null
- */
-function explainParentIds({ repoRoot, blueprintDir }: {
-  repoRoot: string;
-  blueprintDir: string;
-}): { epicId: string; blueprintId: string } | null {
-  const abs = path.join(repoRoot, `${toPosix(blueprintDir)}/explain.md`);
-  if (!fs.existsSync(abs)) return null;
-  let data: unknown;
-  try {
-    data = readDoc(abs).data;
-  } catch (_e) {
-    // 깨진 YAML·frontmatter만 흡수한다. 부모 ID를 경로에서 추측하면 다른
-    // Blueprint의 커밋이 이 Explain에 실릴 수 있다. collectTaskCommits는
-    // null이면 행을 만들지 않고, writeExplainTaskCommits도 같은 부모 대조로
-    // 직렬화를 거절한다.
-    return null;
-  }
-  if (!data || typeof data !== 'object') return null;
-  const bouncer = asRecord(asRecord(data).bouncer);
-  const epicId = bouncer.epic_id;
-  const blueprintId = bouncer.blueprint_id;
-  if (typeof epicId !== 'string' || typeof blueprintId !== 'string') return null;
-  return { epicId, blueprintId };
-}
-
-/**
- * tasks.md의 commit_sha와 stable Task ID를 모아 explain 보존용 task_commits를 만든다.
- * 새 행은 `{ task, sha, intent_anchor }`만 쓴다. sha가 없거나 짧은 hex가 아니면 건너뛴다.
- * `commits`에 trailer로 찾은 SHA가 있으면 그 sha8을 쓰고, 없을 때만 commit_sha로 폴백한다.
- * stable ID가 정본이 아니거나 Explain 부모 ID를 못 읽거나 Epic·Blueprint가
- * 다르면 행을 만들지 않는다.
- *
- * @param {object} opts
- * @param {string} opts.repoRoot - 저장소 루트
- * @param {string} opts.blueprintDir - blueprint 상대 경로
- * @param {Map<string, TrailerCommit>} [opts.commits] - resolveTaskCommits 결과. 있으면 trailer 우선
- * @returns {TaskCommitEntry[]} 쓸 수 있는 provenance 행. 없으면 빈 배열
- */
-function collectTaskCommits({ repoRoot, blueprintDir, commits }: {
-  repoRoot: string;
-  blueprintDir: string;
-  commits?: Map<string, TrailerCommit>;
-}): TaskCommitEntry[] {
-  const parent = explainParentIds({ repoRoot, blueprintDir });
-  // 부모 번호를 못 읽으면 행을 만들지 않는다. 경로에서 채우면 다른
-  // Blueprint SHA가 이 Explain에 남는다.
-  if (!parent) return [];
-  const listing = listTasksDocs({ repoRoot, blueprintDir });
-  const out: TaskCommitEntry[] = [];
-  for (const entry of listing.entries) {
-    if (entry.number == null) continue;
-    const abs = path.join(repoRoot, entry.tasks.rel);
-    if (!fs.existsSync(abs)) continue;
-    let data: unknown;
-    try {
-      data = readDoc(abs).data;
-    } catch (_e) {
-      continue;
-    }
-    const bouncer = asRecord(asRecord(data).bouncer);
-    let provenance: ReturnType<typeof buildStableProvenance>;
-    try {
-      provenance = buildStableProvenance({
-        epicId: bouncer.epic_id,
-        blueprintId: bouncer.blueprint_id,
-        taskId: bouncer.id,
-      });
-    } catch (error) {
-      // epic_id·blueprint_id가 \d{3}이 아니거나 id가 TASKS-NNN이 아닌 경우만
-      // 건너뛴다. 잘못된 값을 패딩하면 다른 Blueprint 커밋과 같은 ref가 된다.
-      if (
-        error instanceof Error
-        && /must be a three-digit id|must be TASKS-NNN/.test(error.message)
-      ) {
-        continue;
-      }
-      throw error;
-    }
-    const parts = STABLE_TASK_RE.exec(provenance.task);
-    // helper가 만든 문자열만 온다. 매칭 실패는 계약 파손이라 추측해서 채우지 않는다.
-    if (!parts) continue;
-    if (parts[1] !== parent.epicId || parts[2] !== parent.blueprintId) {
-      continue;
-    }
-    // trailer SHA가 있으면 worker worktree의 commit_sha보다 우선한다 —
-    // integration에 cherry-pick된 도달 가능 commit을 Explain이 가리키게 하기 위함.
-    const trailer = commits && commits.get(provenance.task);
-    const sha = trailer
-      ? normalizeCommitSha(trailer.sha8 || trailer.sha)
-      : normalizeCommitSha(bouncer.commit_sha);
-    if (!sha) continue;
-    out.push({
-      task: provenance.task,
-      sha,
-      intent_anchor: `task-${parts[3]}`,
-    });
-  }
-  return out;
-}
-
-/**
- * explain.md frontmatter에 task_commits를 쓴다. 파일이 없으면 false.
- * 기존 배열은 통째로 교체한다 — finalize가 삭제 직전 스냅샷의 정본이다.
- * 직렬화는 `{ task, sha, intent_anchor }`만 남긴다. legacy `{ id, sha }`는 쓰지 않는다.
- * 부모 Epic·Blueprint를 못 읽거나 행의 stable ref가 그 번호와 다르면 그 행은
- * 쓰지 않는다.
- *
- * @param {object} opts
- * @param {string} opts.repoRoot - 저장소 루트
- * @param {string} opts.blueprintDir - blueprint 상대 경로
- * @param {TaskCommitEntry[]} opts.taskCommits - collectTaskCommits 결과
- * @returns {boolean} 썼으면 true, explain 부재·파싱 실패면 false
- */
-function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
-  repoRoot: string;
-  blueprintDir: string;
-  taskCommits: TaskCommitEntry[];
-}): boolean {
-  const explainRel = `${toPosix(blueprintDir)}/explain.md`;
-  const abs = path.join(repoRoot, explainRel);
-  if (!fs.existsSync(abs)) return false;
-  const { data, body } = readDoc(abs);
-  if (!data || typeof data !== 'object') return false;
-  const bouncer = asRecord(asRecord(data).bouncer);
-  const epicId = bouncer.epic_id;
-  const blueprintId = bouncer.blueprint_id;
-  // collectTaskCommits가 걸러도 직접 호출이면 다른 Epic·Blueprint 행이
-  // 들어온다. 부모 번호를 못 읽거나 다르면 새 행을 남기지 않는다.
-  if (typeof epicId !== 'string' || typeof blueprintId !== 'string') {
-    bouncer.task_commits = [];
-  } else {
-    bouncer.task_commits = taskCommits.flatMap((entry) => {
-      const parts = STABLE_TASK_RE.exec(entry.task);
-      if (!parts || parts[1] !== epicId || parts[2] !== blueprintId) return [];
-      return [{
-        task: entry.task,
-        sha: entry.sha,
-        intent_anchor: entry.intent_anchor,
-      }];
-    });
-  }
-  fs.writeFileSync(abs, renderDoc(data, body));
-  return true;
-}
-
-/**
- * task 문서에서 장기 보존할 설계 절만 렌더링한다.
- * parseTasksSections가 반환한 본문을 그대로 사용해 작성자가 나눈 줄바꿈을
- * 보존한다. Do not touch·Checklist·verification·review는 실행 시점 범위
- * 통제·절차라서 여기 넣지 않는다 — Git history와 삭제된 task 원문이 정본이다.
- * Current/Target은 값이 있을 때만 넣어 legacy task에 두 절을 요구하지 않는다.
- * 제목은 frontmatter로 stable ID를 만들 수 있으면 `### EPIC-…/BP-…/TASK-…`이고,
- * `commits`에 그 ID의 sha8이 있으면 ` · \`sha8\``을 붙인다. 못 만들면 기존
- * `### Task NNN`으로 폴백한다.
- *
- * @param {TaskUnitLike[] | undefined} taskUnits - Blueprint의 task 묶음
- * @param {Map<string, TrailerCommit>} [commits] - resolveTaskCommits 결과. 선택
- * @returns {string} Explain `## Tasks` 본문. 장기 절이 없으면 빈 문자열
- */
-function buildTaskContext(
-  taskUnits: TaskUnitLike[] | undefined,
-  commits?: Map<string, TrailerCommit>,
-): string {
-  const units = (Array.isArray(taskUnits) ? taskUnits : [])
-    .filter((unit) => unit && unit.tasks && typeof unit.tasks.body === 'string')
-    .slice()
-    .sort((a, b) => (typeof a.number === 'number' ? a.number : Infinity)
-      - (typeof b.number === 'number' ? b.number : Infinity));
-  const rendered: string[] = [];
-  for (const unit of units) {
-    const sections = parseTasksSections(unit.tasks && unit.tasks.body);
-    // 순서는 Plan/intent 소비자가 기대하는 장기 allowlist와 같다.
-    // doNotTouch는 의도적으로 빠진다 — 후속 금지는 Interface·Constraints에 적는다.
-    const selected = [
-      ['Goal & intent', sections.goal],
-      ['Current behavior', sections.currentBehavior],
-      ['Target behavior', sections.targetBehavior],
-      ['Interface', sections.interface],
-      ['Touch', sections.touch],
-      ['Constraints', sections.constraints],
-    ].filter(([, body]) => typeof body === 'string' && body.trim()) as Array<[string, string]>;
-    if (!selected.length) continue;
-    const stableId = stableIdFromTaskData(unit.tasks && unit.tasks.data);
-    let heading: string;
-    if (stableId) {
-      const hit = commits && commits.get(stableId);
-      const sha8 = hit && normalizeCommitSha(hit.sha8 || hit.sha);
-      // SHA가 있으면 통합 commit을 제목에 남긴다. 없으면 ID만 — trailer 해석
-      // 실패·미존재 시에도 제목 형식을 깨지 않기 위함.
-      heading = sha8 ? `### ${stableId} · \`${sha8}\`` : `### ${stableId}`;
-    } else {
-      const number = typeof unit.number === 'number'
-        ? String(unit.number).padStart(3, '0')
-        : 'unknown';
-      heading = `### Task ${number}`;
-    }
-    rendered.push(
-      [heading, ...selected.flatMap(([h, body]) => [
-        `#### ${h}`,
-        body,
-      ])].join('\n\n'),
-    );
-  }
-  return rendered.length ? `## Tasks\n\n${rendered.join('\n\n')}\n` : '';
-}
-
-function replaceTaskContext(body: string, taskContext: string): string {
-  if (!taskContext) return body;
-  const lines = body.split('\n');
-  const start = lines.findIndex((line) => /^##\s+Tasks\s*$/i.test(line.trim()));
-  if (start < 0) return `${body.replace(/\s*$/, '')}\n\n${taskContext}`;
-  let end = start + 1;
-  while (end < lines.length && !/^##\s+\S/.test(lines[end].trim())) end += 1;
-  return [...lines.slice(0, start), taskContext.trimEnd(), ...lines.slice(end)].join('\n');
-}
-
-function writeExplainTaskContext({ repoRoot, blueprintDir, taskContext }: {
-  repoRoot: string;
-  blueprintDir: string;
-  taskContext: string;
-}): boolean {
-  if (!taskContext) return false;
-  const explainRel = `${toPosix(blueprintDir)}/explain.md`;
-  const abs = path.join(repoRoot, explainRel);
-  if (!fs.existsSync(abs)) return false;
-  const { data, body } = readDoc(abs);
-  if (!data || typeof data !== 'object' || typeof body !== 'string') return false;
-  fs.writeFileSync(abs, renderDoc(data, replaceTaskContext(body, taskContext)));
-  return true;
-}
-
 type LedgerTaskLike = {
   workerPath?: unknown;
 };
@@ -670,133 +234,11 @@ type CoordinatorLedgerLike = {
   base?: unknown; integrationBranch?: unknown; tasks?: unknown;
 };
 
-function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' && value !== '' ? value : null;
-}
-
-/**
- * checkout이 실제로 가리키는 local branch를 읽는다. detached HEAD·삭제된
- * worktree·Git 조회 실패는 null로 보존한다. finalize는 provenance를 못 읽었다고
- * 닫기를 거절하지 않으므로, 계산한 이름으로 빈 사실을 채우지 않는다.
- *
- * @param {string | null} worktreePath - branch를 확인할 checkout 경로
- * @returns {string | null} 실제 branch 또는 확인 불가를 뜻하는 null
- */
-function resolveCheckoutBranch(worktreePath: string | null): string | null {
-  if (!worktreePath) return null;
-  try {
-    const branch = String(execFileSync('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
-      cwd: worktreePath,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })).trim();
-    return branch || null;
-  } catch (_error) {
-    // detached HEAD와 접근 불가 checkout은 provenance에서 구별할 branch가 없다.
-    return null;
-  }
-}
-
-/**
- * 원장에서 finalize·digest가 실제로 읽는 여섯 필드만 접는다.
- * task SHA·decisions·repair wave는 마감 JSON에 실리면 모델이 drive 실행
- * 기록을 재사용하므로 여기서 버린다. worker별 `git symbolic-ref`도 같은
- * 이유로 호출하지 않는다 — 소비처는 integration branch와 worktree 경로뿐이다.
- * 원장이 없으면 위임 실행이 아니므로 null. 빈 객체를 주면 호출부가
- * "drive인데 기록이 비었다"와 구분하지 못한다.
- *
- * @param {CoordinatorLedgerLike | null | undefined} ledger - coordinator 원장. 없으면 null
- * @param {object} [paths] - integration·원장 경로. 생략 시 둘 다 null
- * @param {string | null} [paths.integrationPath] - integration worktree 절대 경로
- * @param {string | null} [paths.ledgerFile] - 원장 파일 절대 경로
- * @returns {{
- *   status: 'ok', ledgerFile: string | null, base: string | null,
- *   integrationBranch: string | null, integrationPath: string | null,
- *   worktrees: string[]
- * } | null} 원장 없으면 null
- */
-function buildCoordinatorProvenance(
-  ledger: CoordinatorLedgerLike | null | undefined,
-  { integrationPath = null, ledgerFile = null }:
-    { integrationPath?: string | null; ledgerFile?: string | null } = {},
-) {
-  if (!ledger) return null;
-  // 빈 workerPath는 정리 대상이 아니다. 순서는 원장 task 순서를 유지한다.
-  const workerPaths = (Array.isArray(ledger.tasks) ? ledger.tasks : [])
-    .filter((entry): entry is LedgerTaskLike => Boolean(entry) && typeof entry === 'object')
-    .map((entry) => stringOrNull(entry.workerPath))
-    .filter((p): p is string => Boolean(p));
-  return {
-    status: 'ok' as const,
-    // 성공 경로도 원장 경로를 싣는다. unreadable 분기에만 채우면 소비자가
-    // `ledgerFile: null`을 "원장이 없다"와 "원장은 있는데 알려주지 않았다"로
-    // 구분하지 못한다.
-    ledgerFile,
-    base: stringOrNull(ledger.base),
-    integrationBranch: stringOrNull(ledger.integrationBranch)
-      || resolveCheckoutBranch(integrationPath),
-    integrationPath,
-    // cleanup 목록: integration이 먼저고, 할당된 worker worktree가 뒤따른다.
-    // payload의 top-level `worktrees`는 정리 계약(SKILL step 5,
-    // cleanup-handoff.md)이 읽는 안정된 자리이다.
-    worktrees: [
-      ...(integrationPath ? [integrationPath] : []),
-      ...workerPaths,
-    ],
-  };
-}
-
 type CoordinatorProvenance = ReturnType<typeof buildCoordinatorProvenance>;
 type UnreadableProvenance = {
   status: 'unreadable'; ledgerFile: string | null; integrationPath: string | null;
   base: null; integrationBranch: null; worktrees: never[];
 };
-
-/**
- * 원장 읽기 결과만으로 provenance를 접는다.
- * finalize는 같은 읽기로 `integration`도 만들어 두 필드가 서로 다른 원장을
- * 가리키지 않게 한다. 공개 API는 아래 `collectCoordinatorProvenance`다.
- *
- * @param {ReturnType<typeof readCoordinatorLedger>} read - `readCoordinatorLedger` 결과
- * @returns {CoordinatorProvenance | UnreadableProvenance | null} 원장 없음은 null, 깨진 원장은 unreadable
- */
-function provenanceFromLedgerRead(read: ReturnType<typeof readCoordinatorLedger>):
-  CoordinatorProvenance | UnreadableProvenance | null {
-  if (!read.ok) {
-    if (read.reason !== 'unreadable-ledger') return null;
-    return {
-      status: 'unreadable',
-      ledgerFile: read.ledgerFile || null,
-      integrationPath: read.integrationPath || null,
-      base: null,
-      integrationBranch: null,
-      worktrees: [],
-    };
-  }
-  return buildCoordinatorProvenance(read.ledger, {
-    integrationPath: read.integrationPath,
-    ledgerFile: read.ledgerFile,
-  });
-}
-
-/**
- * 저장소에서 원장을 찾아 provenance로 접는다.
- *
- * 원장이 아예 없으면 위임 실행이 아니므로 null이다. 읽을 수는 있으나 깨진
- * 원장은 null이 아니다 — null로 접으면 top-level `worktrees: []`만 남아
- * 비-drive finalize와 구분되지 않고, 검증되지 않은 fan-in이 완료로
- * 기록된다. `status`와 고칠 파일 경로를 실어 호출부가 멈출 수 있게 한다.
- *
- * @param {object} opts
- * @param {string} opts.repoRoot - 저장소 루트 절대 경로
- * @param {string} opts.blueprintDir - blueprint 상대 경로
- * @returns {CoordinatorProvenance | UnreadableProvenance | null} 원장 없음은 null
- */
-function collectCoordinatorProvenance({ repoRoot, blueprintDir }: {
-  repoRoot: string; blueprintDir: string;
-}): CoordinatorProvenance | UnreadableProvenance | null {
-  return provenanceFromLedgerRead(readCoordinatorLedger({ repoRoot, blueprint: blueprintDir }));
-}
 
 type LedgerReadLike = ReturnType<typeof readCoordinatorLedger>;
 type IntegrationReport = {
@@ -807,121 +249,7 @@ type IntegrationReport = {
   headVerified: boolean | null;
 };
 
-/**
- * ledger task id를 세 자리 목록용으로 정규화한다.
- * 원장은 `001`과 `TASKS-001`을 섞어 쓸 수 있어, 보고 목록만 세 자리로 맞춘다.
- *
- * @param {unknown} id - 원장 task id
- * @returns {string | null} 세 자리 id. 숫자로 해석되지 않으면 null
- */
-function threeDigitTaskId(id: unknown): string | null {
-  if (typeof id === 'number' && Number.isInteger(id) && id >= 0 && id <= 999) {
-    return String(id).padStart(3, '0');
-  }
-  if (typeof id !== 'string' || id === '') return null;
-  const match = /^(?:TASKS-)?(\d{1,3})$/.exec(id);
-  return match ? match[1].padStart(3, '0') : null;
-}
-
-/**
- * finalize payload의 보고 전용 `integration` 필드를 만든다.
- * 거절 reason은 바꾸지 않는다. 깨진 원장은 기존 `coordinator-ledger`만 쓰고,
- * 미통합 task는 `complete`/`openTasks`로만 알린다.
- *
- * @param {object} read - `readCoordinatorLedger` 결과
- * @returns {IntegrationReport} absent는 비-drive, unreadable은 기존 거절과 함께 실림
- */
-function buildIntegration(read: LedgerReadLike): IntegrationReport {
-  // 1. 원장이 없으면 위임 실행이 아니다. required를 켜면 스킬이 비-drive를
-  //    미완료로 오인하고 `--yes`를 멈춘다.
-  if (!read.ok) {
-    if (read.reason !== 'unreadable-ledger') {
-      return {
-        ledger: 'absent',
-        required: false,
-        complete: true,
-        openTasks: [],
-        headVerified: null,
-      };
-    }
-    return {
-      ledger: 'unreadable',
-      required: true,
-      complete: false,
-      openTasks: [],
-      headVerified: null,
-    };
-  }
-  const tasks = (Array.isArray(read.ledger.tasks) ? read.ledger.tasks : [])
-    .filter((entry) => Boolean(entry) && typeof entry === 'object')
-    .map((entry) => asRecord(entry));
-  const open = tasks.filter((entry) => entry.status !== 'integrated');
-  const openTasks = open
-    .map((entry) => threeDigitTaskId(entry.id))
-    .filter((id): id is string => Boolean(id))
-    .sort();
-  const verification = tasks.filter((entry) => entry.execution_kind === 'verification');
-  return {
-    ledger: 'ok',
-    required: true,
-    // open.length: id를 못 읽은 미통합 task도 complete를 false로 남긴다.
-    complete: open.length === 0,
-    openTasks,
-    // verification node가 없으면 head 판정 대상이 없다. null과 false를 구분해
-    // 스킬이 "검증 실패"와 "검증 task 없음"을 같은 중지로 접지 않게 한다.
-    headVerified: verification.length === 0
-      ? null
-      : verification.every((entry) => entry.status === 'integrated'),
-  };
-}
-
 type EvidenceMismatch = { id: string | null; expected: string; actual: string | null };
-
-/**
- * 원장에서 integrated인 task마다 integration 사본의 tasks.md 상태를 대조한다.
- * commit task는 `verified`, verification task는 `integrated`여야 한다. 원장만 앞서
- * 가고 문서가 따라오지 않으면 G16이 원인 모를 열린 task로 보고하므로, 그 앞에서
- * 어긋난 task를 이름으로 돌려준다. 읽기만 한다.
- *
- * @param {object} read - 읽기에 성공한 `readCoordinatorLedger` 결과
- * @param {string} blueprintDir - blueprint 상대 경로
- * @returns {EvidenceMismatch[]} 어긋난 task. 비어 있으면 일치
- */
-function coordinatorEvidenceMismatches(
-  read: Extract<LedgerReadLike, { ok: true }>,
-  blueprintDir: string,
-): EvidenceMismatch[] {
-  const tasks = (Array.isArray(read.ledger.tasks) ? read.ledger.tasks : [])
-    .filter((entry) => Boolean(entry) && typeof entry === 'object')
-    .map((entry) => asRecord(entry))
-    .filter((entry) => entry.status === 'integrated');
-  const mismatches: EvidenceMismatch[] = [];
-  for (const entry of tasks) {
-    const id = threeDigitTaskId(entry.id);
-    const expected = entry.execution_kind === 'verification' ? 'integrated' : 'verified';
-    let actual: string | null = null;
-    if (id && read.integrationPath) {
-      const file = path.join(read.integrationPath, toPosix(blueprintDir), 'tasks', id, 'tasks.md');
-      actual = readTaskStatus(file);
-    }
-    if (actual !== expected) mismatches.push({ id, expected, actual });
-  }
-  return mismatches;
-}
-
-/**
- * tasks.md의 `bouncer.status`를 읽는다. 문서가 없거나 frontmatter를 읽을 수 없으면
- * null — 대조에서는 둘 다 기대 상태와 다른 값이다.
- *
- * @param {string} file - tasks.md 절대 경로
- * @returns {string | null} 상태 문자열 또는 null
- */
-function readTaskStatus(file: string): string | null {
-  // 부재·frontmatter 없음·깨진 YAML의 흡수 범위는 integrate 증적 판정과 같아야 하므로
-  // coordinator의 한 구현을 쓴다. integrated인데 읽을 수 없는 문서도 불일치로 보고된다.
-  const status = readBouncerBlock(file)?.status;
-  return typeof status === 'string' ? status : null;
-}
 
 // prepareDependencies의 기본 stdio는 inherit이다. finalize 결과는 CLI가 stdout에
 // JSON으로 그대로 쓰므로, npm 출력이 같은 stdout에 섞이면 소비자가 결과를 파싱하지
@@ -1316,13 +644,4 @@ function finalize({
   };
 }
 
-export = {
-  buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
-  // collectTransientRels는 retention 적용(일괄 정리)이 같은 삭제 목록을
-  // 재사용하도록 공개한다. finalize 내부 스냅샷과 목록이 갈라지면 복구 경계가 깨진다.
-  collectTransientRels,
-  buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
-  buildCoordinatorProvenance, collectCoordinatorProvenance,
-  // digest가 finalize와 같은 branch 판정을 쓰도록 공개한다.
-  resolveCheckoutBranch,
-};
+export = { finalize };

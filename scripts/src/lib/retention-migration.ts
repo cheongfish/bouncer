@@ -12,12 +12,15 @@ import tasksDocs = require('./tasks-docs');
 const { listTasksDocs, expectedTaskDocIds } = tasksDocs;
 import validateDocs = require('./validate-docs');
 const { loadBlueprintDocs, statusOf } = validateDocs;
-import finalize = require('./finalize');
+import finalizeCollect = require('./finalize-collect');
+import finalizeExplain = require('./finalize-explain');
 const {
   collectTransientRels,
+} = finalizeCollect;
+const {
   buildTaskContext,
   writeExplainTaskContext,
-} = finalize;
+} = finalizeExplain;
 
 type RetentionStatus =
   | 'eligible'
