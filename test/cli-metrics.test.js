@@ -441,3 +441,77 @@ test('cache 필드가 없는 기존 형태의 기록 파일 → summary가 읽�
   assert.deepStrictEqual(summary.cache, { read: { total: 0, missing: 1 }, write: { total: 0, missing: 1 } });
   assert.strictEqual(summary.kinds['coordinator-session'].tokens_total, 10);
 });
+
+test('summarize worker_tokens → worker-model 둘(토큰 하나)과 늦은 worker-tokens 하나를 키별로 합산하고 누락은 0이다', () => {
+  const f = fixture();
+  writeLedger(f.ledgerFile, {
+    integrated: [],
+    decisions: [
+      { kind: 'worker-model', role: 'implementer', model: 'inherit', task: '001', tokens: 100 },
+      { kind: 'worker-model', role: 'reviewer', model: 'inherit', task: '001', perspective: 'security' },
+      { kind: 'worker-tokens', role: 'reviewer', tokens: 40, task: '001', perspective: 'security' },
+      { kind: 'worker-model', role: 'reviewer', model: 'inherit', task: '002', perspective: 'security', tokens: 0 },
+    ],
+  });
+  const summary = metrics.summarize({ file: f.file, blueprint: BLUEPRINT, resolveLedger: () => f.ledgerFile });
+  assert.deepStrictEqual(summary.worker_tokens, {
+    total: 140, missing: 0,
+    by_role: {
+      implementer: { total: 100, missing: 0 },
+      reviewer: { total: 40, missing: 0 },
+      debugger: { total: 0, missing: 0 },
+    },
+  });
+  assert.strictEqual(summary.kinds['coordinator-session'].tokens_total, 0);
+});
+
+test('summarize worker_tokens → 토큰 없는 worker-model만 있으면 그 수가 missing이고 초과 보고는 음수가 되지 않는다', () => {
+  const f = fixture();
+  writeLedger(f.ledgerFile, {
+    integrated: [],
+    decisions: [
+      { kind: 'worker-model', role: 'debugger', model: 'inherit', task: '001' },
+      { kind: 'worker-model', role: 'debugger', model: 'inherit', task: '001' },
+      { kind: 'worker-model', role: 'implementer', model: 'inherit', task: '002' },
+      { kind: 'worker-tokens', role: 'implementer', tokens: 7, task: '002' },
+      { kind: 'worker-tokens', role: 'implementer', tokens: 3, task: '002' },
+    ],
+  });
+  const summary = metrics.summarize({ file: f.file, blueprint: BLUEPRINT, resolveLedger: () => f.ledgerFile });
+  assert.deepStrictEqual(summary.worker_tokens.by_role.debugger, { total: 0, missing: 2 });
+  assert.deepStrictEqual(summary.worker_tokens.by_role.implementer, { total: 10, missing: 0 });
+  assert.deepStrictEqual(
+    { total: summary.worker_tokens.total, missing: summary.worker_tokens.missing },
+    { total: 10, missing: 2 },
+  );
+});
+
+test('summarize worker_tokens → 원장이 없거나 resolveLedger가 없으면 total 0 missing 0이다', () => {
+  const f = fixture();
+  const zero = {
+    total: 0, missing: 0,
+    by_role: {
+      implementer: { total: 0, missing: 0 }, reviewer: { total: 0, missing: 0 }, debugger: { total: 0, missing: 0 },
+    },
+  };
+  assert.deepStrictEqual(
+    metrics.summarize({ file: f.file, blueprint: BLUEPRINT, resolveLedger: () => f.ledgerFile }).worker_tokens, zero,
+  );
+  assert.deepStrictEqual(metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).worker_tokens, zero);
+});
+
+test('metrics CLI summary → 원장의 worker-tokens를 worker_tokens로 낸다', () => {
+  const repo = tmp();
+  const { execFileSync } = require('node:child_process');
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { ledgerFile } = coordinatorPathsFor({ repoRoot: repo, blueprint: BLUEPRINT });
+  fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
+  writeLedger(ledgerFile, {
+    integrated: [], decisions: [{ kind: 'worker-tokens', role: 'implementer', tokens: 11 }],
+  });
+  const buf = { out: '', err: '' };
+  const io = { out: (s) => { buf.out += s; }, err: (s) => { buf.err += s; } };
+  assert.strictEqual(runCli(['metrics', 'summary', '--blueprint', BLUEPRINT, '--repo', repo], io), 0, buf.err);
+  assert.strictEqual(JSON.parse(buf.out).worker_tokens.by_role.implementer.total, 11);
+});

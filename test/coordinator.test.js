@@ -15,7 +15,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop', 'worker-model',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop', 'worker-model', 'worker-tokens',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -4271,8 +4271,12 @@ test('worker-model debugger without task → records only on the ledger and stay
 
 test('worker-model with a bad role, perspective, model or task → refuses with the matching reason and keeps the ledger bytes', () => {
   const cases = [
-    [{ role: 'implementer', model: 'inherit' }, 'worker-model-role-invalid'],
+    [{ role: 'planner', model: 'inherit' }, 'worker-model-role-invalid'],
     [{ role: 'debugger', model: 'inherit', task: '001', perspective: 'security' }, 'worker-model-perspective-invalid'],
+    [{ role: 'implementer', model: 'inherit', perspective: 'security' }, 'worker-model-perspective-invalid'],
+    [{ role: 'implementer', model: 'inherit', tokens: -1 }, 'tokens-invalid'],
+    [{ role: 'reviewer', model: 'inherit', tokens: 1.5 }, 'tokens-invalid'],
+    [{ role: 'reviewer', model: 'inherit', tokens: 'abc' }, 'tokens-invalid'],
     [{ role: 'reviewer', model: 'inherit', perspective: 'bogus' }, 'worker-model-perspective-invalid'],
     [{ role: 'reviewer', model: '  ' }, 'model-invalid'],
     [{ role: 'reviewer', model: true }, 'model-invalid'],
@@ -4282,6 +4286,61 @@ test('worker-model with a bad role, perspective, model or task → refuses with 
     const drive = preparedCommitDrive('bouncer-worker-model-bad-', MODEL_BP);
     const before = fs.readFileSync(drive.ledgerFile);
     const r = workerModelCall(drive, extra);
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, reason);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, reason);
+  }
+});
+
+test('worker-model implementer with tokens 48200 → records tokens on the decision; without tokens → no tokens key', () => {
+  const drive = preparedCommitDrive('bouncer-worker-model-impl-', MODEL_BP);
+  const r = workerModelCall(drive, { role: 'implementer', model: 'inherit', task: '001', tokens: 48200 });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.decision, {
+    kind: 'worker-model', role: 'implementer', model: 'inherit', task: '001', tokens: 48200,
+  });
+  const bare = workerModelCall(drive, { role: 'implementer', model: 'inherit' });
+  assert.strictEqual(bare.ok, true, JSON.stringify(bare));
+  assert.ok(!('tokens' in bare.decision));
+});
+
+function workerTokensCall(drive, extra) {
+  return coordinate({
+    command: 'worker-tokens', repoRoot: drive.repo, blueprint: drive.blueprint,
+    cwd: drive.integrationPath, ...extra,
+  });
+}
+
+test('worker-tokens reviewer/security on task 001 → appends the decision to ledger and task without touching dispatch, lease or status', () => {
+  const drive = preparedCommitDrive('bouncer-worker-tokens-', MODEL_BP);
+  const beforeTask = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8')).tasks[0];
+  const r = workerTokensCall(drive, { role: 'reviewer', task: '001', perspective: 'security', tokens: 1200 });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const expected = { kind: 'worker-tokens', role: 'reviewer', tokens: 1200, task: '001', perspective: 'security' };
+  assert.deepStrictEqual(r.decision, expected);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.decisions.pop(), expected);
+  const task = ledger.tasks[0];
+  assert.deepStrictEqual(task.decisions.pop(), expected);
+  assert.deepStrictEqual(task.dispatch, beforeTask.dispatch);
+  assert.deepStrictEqual(task.lease, beforeTask.lease);
+  assert.strictEqual(task.status, beforeTask.status);
+});
+
+test('worker-tokens with a bad role, perspective, tokens or task → refuses with the matching reason and keeps the ledger bytes', () => {
+  const cases = [
+    [{ role: 'planner', tokens: 5 }, 'worker-model-role-invalid'],
+    [{ role: 'debugger', tokens: 5, perspective: 'security' }, 'worker-model-perspective-invalid'],
+    [{ role: 'reviewer', tokens: 5, perspective: 'bogus' }, 'worker-model-perspective-invalid'],
+    [{ role: 'reviewer', tokens: -3 }, 'tokens-invalid'],
+    [{ role: 'reviewer', tokens: 2.5 }, 'tokens-invalid'],
+    [{ role: 'reviewer' }, 'tokens-invalid'],
+    [{ role: 'reviewer', tokens: 5, task: '009' }, 'task-outside-blueprint'],
+  ];
+  for (const [extra, reason] of cases) {
+    const drive = preparedCommitDrive('bouncer-worker-tokens-bad-', MODEL_BP);
+    const before = fs.readFileSync(drive.ledgerFile);
+    const r = workerTokensCall(drive, extra);
     assert.strictEqual(r.ok, false, JSON.stringify(r));
     assert.strictEqual(r.reason, reason);
     assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, reason);

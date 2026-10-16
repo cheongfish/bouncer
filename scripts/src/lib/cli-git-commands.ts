@@ -310,7 +310,7 @@ function cmdExecute(rest: string[], io: CliIo) {
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-  'promote-stop', 'session-open', 'worker-model',
+  'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -541,16 +541,33 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
 `,
   },
   'worker-model': {
-    registry: '  coordinate worker-model --blueprint <dir> --role <reviewer|debugger> --model <value>\n'
+    registry: '  coordinate worker-model --blueprint <dir> --role <implementer|reviewer|debugger> --model <value>\n'
       + '             --ledger-path <path> --ledger-hash <sha256> [--task <ddd>] [--perspective <name>]\n'
-      + '             Record the model argument passed to a reviewer or debugger dispatch.\n',
+      + '             [--tokens <n>]\n'
+      + '             Record the model argument (and host-reported tokens) of a worker dispatch.\n',
     help: `usage: bouncer coordinate worker-model
-  --blueprint <dir> --role <reviewer|debugger> --model <value> ${COORDINATE_FENCE_NOTE}
-  [--task <ddd>] [--perspective <name>] [--repo <dir>]
+  --blueprint <dir> --role <implementer|reviewer|debugger> --model <value> ${COORDINATE_FENCE_NOTE}
+  [--task <ddd>] [--perspective <name>] [--tokens <n>] [--repo <dir>]
   Run from the integration worktree. Appends a worker-model decision (role, model, task,
-  perspective) to the ledger; --task also appends it to that task. The model is the one-line
+  perspective, tokens) to the ledger; --task also appends it to that task. The model is the one-line
   \`bouncer subagent-model --agent <name>\` output (slug or inherit); it records what the
   coordinator passed, not proof of what the host ran. --perspective is reviewer-only.
+  --tokens is the host-reported subagent token count (non-negative integer); omit it when the
+  completion notice has not arrived, then add it later with coordinate worker-tokens.
+  Does not change dispatch, lease, status, or attempt state.
+`,
+  },
+  'worker-tokens': {
+    registry: '  coordinate worker-tokens --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n>\n'
+      + '             --ledger-path <path> --ledger-hash <sha256> [--task <ddd>] [--perspective <name>]\n'
+      + '             Append host-reported subagent tokens that arrived after the worker-model record.\n',
+    help: `usage: bouncer coordinate worker-tokens
+  --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n> ${COORDINATE_FENCE_NOTE}
+  [--task <ddd>] [--perspective <name>] [--repo <dir>]
+  Run from the integration worktree. Appends a worker-tokens decision (role, tokens, task,
+  perspective) to the ledger; --task also appends it to that task. Use it when the host's
+  completion notice arrives after the worker-model record. \`metrics summary\` adds it to
+  worker_tokens, never to the coordinator-session total. --perspective is reviewer-only.
   Does not change dispatch, lease, status, or attempt state.
 `,
   },
@@ -571,7 +588,7 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
 const COORDINATE_REGISTRY_ORDER: CoordinateCommand[] = [
   'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
   'partial-close', 'critical-recovery', 'revise', 'next', 'advance', 'promote-stop',
-  'session-open', 'worker-model',
+  'session-open', 'worker-model', 'worker-tokens',
 ];
 
 /**
@@ -695,14 +712,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   const fencedCommands = new Set([
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
     'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
-    'worker-model',
+    'worker-model', 'worker-tokens',
   ]);
   if (!commands.includes(command)) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
       + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, '
-      + 'advance, promote-stop, session-open, or worker-model\n',
+      + 'advance, promote-stop, session-open, worker-model, or worker-tokens\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -721,10 +738,10 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
   // worker-model은 fence 플래그 누락을 다른 fenced 명령과 달리 usage(2)로 막는다
   // (task 002 Interface: --role·--model·fence 플래그 누락은 core 호출 전 exit 2).
-  if (command === 'worker-model' && (ledgerPath === undefined || ledgerPath === ''
+  if ((command === 'worker-model' || command === 'worker-tokens') && (ledgerPath === undefined || ledgerPath === ''
     || ledgerHash === undefined || ledgerHash === '')) {
     return failCoordinateUsage(
-      io, 'coordinate worker-model: --ledger-path and --ledger-hash are required\n', command,
+      io, `coordinate ${command}: --ledger-path and --ledger-hash are required\n`, command,
     );
   }
   if (fencedCommands.has(command)) {
@@ -784,21 +801,26 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       repairDone = true;
     }
   }
-  if (command === 'worker-model') {
+  if (command === 'worker-model' || command === 'worker-tokens') {
     // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
     if (typeof f.role !== 'string' || f.role === '') {
-      return failCoordinateUsage(io, 'coordinate worker-model: --role is required\n', command);
+      return failCoordinateUsage(io, `coordinate ${command}: --role is required\n`, command);
     }
-    if (!Object.prototype.hasOwnProperty.call(f, 'model')) {
+    if (command === 'worker-model' && !Object.prototype.hasOwnProperty.call(f, 'model')) {
       return failCoordinateUsage(io, 'coordinate worker-model: --model is required\n', command);
+    }
+    // --tokens는 worker-tokens에서 필수, worker-model에서 선택이다. 있는데 값이 없으면
+    // 조용히 누락으로 접히지 않게 usage(2)로 막는다. 값 형식은 core가 tokens-invalid(1)로 거절한다.
+    if (command === 'worker-tokens' && !Object.prototype.hasOwnProperty.call(f, 'tokens')) {
+      return failCoordinateUsage(io, 'coordinate worker-tokens: --tokens is required\n', command);
     }
     // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
     // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
-    for (const name of ['task', 'perspective']) {
+    for (const name of ['task', 'perspective', 'tokens']) {
       if (Object.prototype.hasOwnProperty.call(f, name)
         && (typeof f[name] !== 'string' || f[name] === '')) {
         return failCoordinateUsage(
-          io, `coordinate worker-model: --${name} requires a value\n`, command,
+          io, `coordinate ${command}: --${name} requires a value\n`, command,
         );
       }
     }
@@ -961,6 +983,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
         ? (typeof f.model === 'string' ? f.model : '') : undefined,
       role: typeof f.role === 'string' ? f.role : undefined,
       perspective: typeof f.perspective === 'string' ? f.perspective : undefined,
+      tokens: typeof f.tokens === 'string' ? f.tokens : undefined,
       taskBriefHash: typeof f['task-brief-hash'] === 'string' ? f['task-brief-hash'] : undefined,
       leaseId,
       generation,

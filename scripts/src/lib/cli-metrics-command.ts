@@ -83,11 +83,6 @@ function cmdMetrics(rest: string[], io: CliIo): number {
   if (main.unavailable || !main.projectRoot) return emit(io, { ok: false, reason: 'non-git-root' });
   const file = driveMetrics.metricsFilePath(main.projectRoot);
 
-  if (sub === 'summary') {
-    if (str('blueprint') === undefined) return emit(io, invalid);
-    return emit(io, driveMetrics.summarize({ file, blueprint: str('blueprint') as string }));
-  }
-
   // 원장 경로는 blueprint에서만 나온다. end는 기록된 세션의 blueprint를 써야 하므로 아래에서 구한다.
   const ledgerFor = (blueprint: string): string | null => {
     try {
@@ -97,6 +92,13 @@ function cmdMetrics(rest: string[], io: CliIo): number {
       return null;
     }
   };
+
+  if (sub === 'summary') {
+    if (str('blueprint') === undefined) return emit(io, invalid);
+    return emit(io, driveMetrics.summarize({
+      file, blueprint: str('blueprint') as string, resolveLedger: ledgerFor,
+    }));
+  }
 
   if (sub === 'start') {
     const blueprint = str('blueprint');

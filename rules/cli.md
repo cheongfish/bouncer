@@ -128,15 +128,27 @@ can show running or terminated.
 `model` on the task's `dispatch` and on the dispatch decision; omit the flag and
 no `model` key is written. A valueless or blank `--model` is refused with
 `model-invalid` before any attempt opens. `coordinate worker-model --blueprint
-<dir> --role <reviewer|debugger> --model <value> --ledger-path <p> --ledger-hash
-<h> [--task <ddd>] [--perspective <name>]` runs from the integration cwd and
-appends `{kind: worker-model, role, model, task?, perspective?}` to the ledger
+<dir> --role <implementer|reviewer|debugger> --model <value> --ledger-path <p>
+--ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]` runs from
+the integration cwd and appends `{kind: worker-model, role, model, task?,
+perspective?, tokens?}` to the ledger
 decisions (and to that task's decisions when `--task` is given) without
 changing dispatch, lease, status, or attempt. `--perspective` is reviewer-only
-and must be an execute review perspective. Refusals: `worker-model-role-invalid`,
-`worker-model-perspective-invalid`, `model-invalid`, `task-outside-blueprint`.
-The recorded value is what the coordinator passed to the dispatch, not proof of
-the model the host ran.
+and must be an execute review perspective. `--tokens` is the host-reported
+subagent token count (`/^\d+$/`, safe integer); without it no `tokens` key is
+written and the record counts as missing. `coordinate worker-tokens --blueprint
+<dir> --role <implementer|reviewer|debugger> --tokens <n> --ledger-path <p>
+--ledger-hash <h> [--task <ddd>] [--perspective <name>]` appends
+`{kind: worker-tokens, role, tokens, task?, perspective?}` the same way for a
+completion notice that arrives after the worker-model record (a missing
+`--tokens` is usage, exit 2). Refusals: `worker-model-role-invalid`,
+`worker-model-perspective-invalid`, `tokens-invalid`, `model-invalid` (worker-model
+only), `task-outside-blueprint`; none writes the ledger. The recorded model is
+what the coordinator passed to the dispatch, not proof of the model the host ran.
+`metrics summary` adds `worker_tokens: {total, missing, by_role: {implementer,
+reviewer, debugger}}` from these decisions, per `(task, role, perspective)` key:
+`missing` is `max(0, worker-model records − reported tokens)` summed over keys,
+and it is never added to the `coordinator-session` `tokens_total`.
 
 `coordinate dispatch` also returns a top-level `report_path`
 (`<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md`, absolute) that the
