@@ -267,7 +267,7 @@ unreadable stored reference), or `previous-payload-stale` (differs from the
 cycle `latest_dispatch`). `--previous` without a path or a repeated
 `--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|close|restart|route`
 owns cycle state (`start|record|restart|route` take `--blueprint <dir> --dispatch <json>`;
-`record` also takes `--round <json>`, `--status`, `--accept-risk`, and its success may carry `warnings` (`finding-merge-candidate`: findings of the round that share `file` and `symbol` under different categories; key omitted when none, never blocks);
+`record` also takes `--round <json>`, `--status`, `--accept-risk`, and its success may carry `warnings` (`finding-merge-candidate`: findings of the round that share `file` and `symbol` under different categories; key omitted when none, never blocks), but it rejects with `context-review-input-invalid` a round whose merged findings share a fingerprint under different ids, at any `--status`, leaving state and report files unchanged (merge them and record the same round again);
 `close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk`;
 `restart` takes `--reason`, at most once); run `bouncer context-review --help`. The path that closes the cycle (`close` or `record --status accepted`) writes `context-review.md` and returns `written`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),

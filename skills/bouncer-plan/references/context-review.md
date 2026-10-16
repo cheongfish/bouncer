@@ -56,7 +56,8 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    `context:<category>:<brief_clause>:<file>#<symbol>` (for example
    `fingerprint: context:scope:blueprint success criteria:.bouncer/context/epics/014-auth/blueprints/001-signup/index.md#success-criteria`);
    merge findings with the
-   same fingerprint into one, and check `warnings` in the `context-review record`
+   same fingerprint into one (`context-review record` rejects a round that still holds
+   duplicates, at any status and without writing anything; merge and record the same round again), and check `warnings` in the `context-review record`
    result (each `finding-merge-candidate` lists findings on the same file and
    symbol under different categories) to decide whether to merge those too; record `severity_changes`; set `origin:
    discovery`; and decide `actionability` (`must_fix` or `advisory`) from the

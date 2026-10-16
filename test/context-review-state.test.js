@@ -1309,3 +1309,66 @@ test('후보가 있던 record를 같은 입력으로 반복 → noop 응답에 w
   assert.equal(again.json.noop, true);
   assert.equal('warnings' in again.json, false);
 });
+
+// record 시점 중복 fingerprint 거부: status와 무관하게 쓰기 전에 막아 같은 round를 다시 기록할 수 있게 한다.
+const dupPair = () => [MUST_FIX, { ...MUST_FIX, id: 'CR-9' }];
+
+/** runtime 아래 모든 파일의 상대 경로와 내용을 모아 쓰기 여부를 비교한다. */
+function runtimeSnapshot(repo) {
+  const root = path.join(repo, '.bouncer', 'runtime', 'context-review');
+  const out = {};
+  const walk = (dir) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(abs);
+      else out[path.relative(root, abs)] = fs.readFileSync(abs, 'utf8');
+    }
+  };
+  if (fs.existsSync(root)) walk(root);
+  return out;
+}
+
+for (const status of ['requested', 'addressed', 'accepted']) {
+  test(`fingerprint가 같은 finding 둘을 status ${status}로 record → duplicate fingerprint로 거부한다`, () => {
+    const repo = makeRepo();
+    const d = dispatchFile(repo);
+    start(repo, d);
+    const result = record(repo, d, roundFile(repo, 'dup.json', 1, 'discovery', dupPair()), ['--status', status]);
+    assert.equal(result.code, 1, result.out + result.err);
+    assert.equal(result.json.reason, 'context-review-input-invalid');
+    assert.match(JSON.stringify(result.json.cause), /context-review duplicate fingerprint context:combined:/);
+  });
+}
+
+test('중복 fingerprint round가 거부된 뒤 → state와 보고 파일이 그대로이고 합친 입력은 같은 round로 기록된다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const before = runtimeSnapshot(repo);
+  const rejected = record(repo, d, roundFile(repo, 'dup.json', 1, 'discovery', dupPair()));
+  assert.equal(rejected.code, 1);
+  assert.deepStrictEqual(runtimeSnapshot(repo), before);
+  const merged = record(repo, d, roundFile(repo, 'merged.json', 1, 'discovery', [MUST_FIX]));
+  assert.equal(merged.code, 0, merged.out + merged.err);
+  assert.equal(merged.json.cycle.active_reports.length, 1);
+});
+
+test('같은 id로 이전 round finding을 덮어쓰는 입력 → 중복이 아니어서 기록된다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  assert.equal(record(repo, d, roundFile(repo, 'o1.json', 1, 'discovery', [MUST_FIX])).code, 0);
+  const overwrite = { ...MUST_FIX, last_seen_round: 2 };
+  const r2 = record(repo, d, roundFile(repo, 'o2.json', 2, 'delta', [overwrite]));
+  assert.equal(r2.code, 0, r2.out + r2.err);
+});
+
+test('이전 round와 fingerprint가 같고 id가 다른 finding을 다음 round에 record → 거부한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  assert.equal(record(repo, d, roundFile(repo, 'p1.json', 1, 'discovery', [MUST_FIX])).code, 0);
+  const r2 = record(repo, d, roundFile(repo, 'p2.json', 2, 'delta', [{ ...MUST_FIX, id: 'CR-9' }]));
+  assert.equal(r2.code, 1);
+  assert.match(JSON.stringify(r2.json.cause), /duplicate fingerprint/);
+});
