@@ -403,7 +403,7 @@ test('load graph declarations → follow the current consumer phase sections', (
   }
 
   // run은 coordinator 위임 전에 failure 분기를 따로 갖지 않는다. 실패 복구 reference는 run이
-  // 직접 열지 않으므로 SKILL.md가 verification-recovery를 step 셀 밖에 두는지 잠근다.
+  // 직접 열지 않으므로 SKILL.md가 run-owned reference를 startup에 미리 올리지 않는지 잠근다.
   const run = read(consumerSourcePath('run'));
   const runStartup = consumerPhaseSection('run', run, 'startup');
   assert.doesNotMatch(runStartup.replaceAll('./', ''), /verification-recovery|agent-dispatch|review-round/,
