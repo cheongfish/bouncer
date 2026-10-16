@@ -58,3 +58,4 @@ bouncer_schema: '0.1'
 * [099 bouncer-improvements-2026-10-14](epics/099-bouncer-improvements-2026-10-14/index.md) - Plans and verifies prioritized Bouncer backlog improvements in independent blueprints.
 * [100 graphify-raw-query](epics/100-graphify-raw-query/index.md) - Replaces the plan-time graph-suggest file estimation with raw Graphify queries plus grep and removes graph-suggest.
 * [101 plan-review-call-reduction](epics/101-plan-review-call-reduction/index.md) - Cut plan context-review model calls by making review CLI help complete, writing context-review.md on close, and approving plan status in one command.
+* [103 drive-repair-integrity](epics/103-drive-repair-integrity/index.md) - drive의 다중 attempt fan-in 누락, 리뷰 라운드 순서와 repair wave 상한 불일치, repair brief의 finding 누락을 고친다.
