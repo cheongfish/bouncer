@@ -327,6 +327,8 @@ function checkG21(
     findingLabel: 'review',
     allowedStatuses: EXECUTE_REVIEW_STATUS,
     reviewStatus: statusOf(reviewDoc),
+    // blueprint 최종 리뷰는 repair wave마다 delta를 기록하므로 전용 순서 계약을 쓴다.
+    roundScope: 'blueprint',
   })) {
     add(message);
   }

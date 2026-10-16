@@ -12,6 +12,8 @@ import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import schema = require('./schema');
 const { DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM } = schema;
+import validateSections = require('./validate-sections');
+const { REPAIR_WAVE_LIMIT } = validateSections;
 import time = require('./time');
 const { nowIsoKst } = time;
 
@@ -322,9 +324,9 @@ function validateCoordinatorLedger(
     return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
   }
   const waves = ledger.repairWaves === undefined ? [] : ledger.repairWaves;
-  if (!Array.isArray(waves) || waves.length > 2) return { ok: false, reason: 'repair-wave-limit' };
+  if (!Array.isArray(waves) || waves.length > REPAIR_WAVE_LIMIT) return { ok: false, reason: 'repair-wave-limit' };
   if (ledger.status !== 'partial_closed') return { ok: true };
-  if (waves.length !== 2) return { ok: false, reason: 'partial-close-repair-waves-required' };
+  if (waves.length !== REPAIR_WAVE_LIMIT) return { ok: false, reason: 'partial-close-repair-waves-required' };
   const repairs = waves as Array<Record<string, unknown>>;
   if (repairs.some((entry, index) => !validRepairDecision(entry, index + 1))) {
     return { ok: false, reason: 'partial-close-repair-decision-required' };

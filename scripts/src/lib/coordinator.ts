@@ -25,7 +25,7 @@ const { parsePathIds } = pathsMod;
 import legacyComments = require('./legacy-comments');
 const { scanLegacyScaffoldComments } = legacyComments;
 import validateSections = require('./validate-sections');
-const { pathsOverlap, parseSections } = validateSections;
+const { pathsOverlap, parseSections, REPAIR_WAVE_LIMIT } = validateSections;
 import configMod = require('./config');
 const { readCoordinatorPolicy, readWavesPerSession, DEFAULT_MAX_PARALLEL } = configMod;
 import taskBriefHashMod = require('./task-brief-hash');
@@ -1157,6 +1157,69 @@ function resolveRepairVerify(
   return undefined;
 }
 
+/** 리뷰 원인 repair 문서에 싣는 finding 한 건의 필드. `found: false`면 id만 의미가 있다. */
+interface ReviewFindingLine {
+  id: string; found: boolean;
+  severity?: string; category?: string; actionability?: string;
+  file?: string; symbol?: string; brief_clause?: string; note?: string;
+}
+
+/**
+ * root `review.md`의 finding 목록에서 요청한 id들의 필드를 읽어 repair 문서용
+ * 줄 데이터로 만든다. repair는 리뷰 문서 상태와 무관하게 진행해야 하므로
+ * 파일 부재·권한 오류·YAML 오류·id 부재를 모두 `found: false`로 접는다 —
+ * 이 읽기는 보조 정보이고, 막으면 이미 확정된 repair 결정이 문서 없이 남는다.
+ *
+ * @param {string} integrationPath - integration worktree 경로
+ * @param {string} blueprint - blueprint 디렉터리(repo 상대)
+ * @param {string[]} ids - `--review-finding` 순서의 finding id
+ * @returns {ReviewFindingLine[]} ids와 같은 순서·길이의 줄 데이터
+ */
+function readReviewFindingLines(integrationPath: string, blueprint: string, ids: string[]): ReviewFindingLine[] {
+  let findings: unknown[] = [];
+  try {
+    const block = readBouncerBlock(path.join(integrationPath, blueprint, 'review.md'));
+    const list = (block?.review as { findings?: unknown } | undefined)?.findings;
+    if (Array.isArray(list)) findings = list;
+  } catch {
+    // readBouncerBlock이 던지는 권한 오류·YAML 오류 등 모든 읽기 실패를 흡수한다.
+    // 안전한 이유: 결과가 "찾지 못함" 표시일 뿐이라 repair 결정·원장에는 영향이 없다.
+    findings = [];
+  }
+  const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined);
+  return ids.map((id): ReviewFindingLine => {
+    const hit = findings.find((entry) => (entry as { id?: unknown } | null)?.id === id) as
+      Record<string, unknown> | undefined;
+    if (!hit) return { id, found: false };
+    const line: ReviewFindingLine = { id, found: true };
+    for (const key of ['severity', 'category', 'actionability', 'file', 'symbol', 'brief_clause', 'note'] as const) {
+      const value = text(hit[key]);
+      if (value !== undefined) line[key] = value;
+    }
+    return line;
+  });
+}
+
+/**
+ * finding 한 건을 repair 문서의 한 줄 목록 항목으로 쓴다. 값의 개행은 공백 하나로
+ * 접어 한 줄을 유지한다(목록 항목이 다음 줄로 번지면 절 구조를 깬다). file은 backtick으로
+ * 감싸지 않는다 — Touch 밖 절의 backtick 경로는 경로 선언으로 읽혀 G11/G12를 오인시킨다.
+ *
+ * @param {ReviewFindingLine} line - finding 줄 데이터
+ * @returns {string} `- F1 (major, correctness, must_fix) — file#symbol — clause — note: …` 형식의 한 줄
+ */
+function formatReviewFindingLine(line: ReviewFindingLine): string {
+  if (!line.found) return `- ${line.id} — review.md에서 찾지 못함`;
+  const fold = (value: string): string => value.replace(/\s*[\r\n]+\s*/g, ' ');
+  const tags = [line.severity, line.category, line.actionability].filter((v): v is string => v !== undefined);
+  const parts = [`- ${line.id}${tags.length > 0 ? ` (${fold(tags.join(', '))})` : ''}`];
+  if (line.file !== undefined) parts.push(fold(line.file) + (line.symbol !== undefined ? `#${fold(line.symbol)}` : ''));
+  else if (line.symbol !== undefined) parts.push(`#${fold(line.symbol)}`);
+  if (line.brief_clause !== undefined) parts.push(fold(line.brief_clause));
+  if (line.note !== undefined) parts.push(`note: ${fold(line.note)}`);
+  return parts.join(' — ');
+}
+
 /**
  * repair task 문서와 (있으면) terminal edge를 한 revision으로 쓴다. 두 write
  * 중 하나가 실패하면 원래 terminal 문서를 복구하고 새 task를 지워, ledger만
@@ -1166,12 +1229,16 @@ function resolveRepairVerify(
  * integrated commit)의 `bouncer.verify`를 심어 config 폴백 없이 G13이
  * 명령을 읽게 한다.
  *
- * @param {{ integrationPath: string, blueprint: string, repair: Task, terminal?: Task }} opts
- *   integration 경로, blueprint, repair task, 선택적 종단 verification
+ * `reviewFindings`가 있으면 리뷰 원인 본문(제목·Goal에 finding 목록)을, 없으면
+ * CI 원인 본문을 쓴다. CI 본문은 바이트 단위로 바뀌지 않아야 한다.
+ *
+ * @param {{ integrationPath: string, blueprint: string, repair: Task, terminal?: Task,
+ *   reviewFindings?: ReviewFindingLine[] }} opts
+ *   integration 경로, blueprint, repair task, 선택적 종단 verification, 선택적 리뷰 finding 줄
  * @returns {() => void} ledger write 실패 시 호출할 문서 롤백
  */
-function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: {
-  integrationPath: string; blueprint: string; repair: Task; terminal?: Task;
+function writeRepairDocuments({ integrationPath, blueprint, repair, terminal, reviewFindings }: {
+  integrationPath: string; blueprint: string; repair: Task; terminal?: Task; reviewFindings?: ReviewFindingLine[];
 }): () => void {
   // task 문서와 ledger revision은 한 write 단위다.
   const terminalFile = terminal
@@ -1194,7 +1261,9 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
   const bpId = idMatch ? idMatch[2] : '';
   const repairVerify = resolveRepairVerify(integrationPath, blueprint, repair, terminalData);
   const repairData = {
-    type: 'bouncer.tasks', title: `CI repair wave ${repair.id}`, description: 'Repairs terminal CI failure.',
+    type: 'bouncer.tasks',
+    title: reviewFindings ? `Review repair wave ${repair.id}` : `CI repair wave ${repair.id}`,
+    description: reviewFindings ? 'Repairs final review findings.' : 'Repairs terminal CI failure.',
     resource: path.relative(integrationPath, repairFile).replaceAll('\\', '/'), tags: ['bouncer', 'repair-wave'],
     timestamp: new Date().toISOString(), bouncer: {
       id: `TASKS-${repair.id}`, epic_id: epicId, blueprint_id: bpId,
@@ -1225,16 +1294,33 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
       review: { required: true },
     },
   };
-  const touch = (repair.scope?.paths || []).map((entry) => `- Modify \`${entry}\` — 기록된 CI 실패를 복구한다.`).join('\n');
+  // 원인별 문구만 갈아 끼운다. 절 구조는 같게 두어야 CI 본문이 바이트 단위로 보존되고,
+  // finding 목록은 새 `##` 제목 없이 Goal & intent 안에 둬 intent bundle이 그대로 싣는다.
+  const cause = reviewFindings
+    ? {
+      touch: '기록된 리뷰 finding을 수정한다.',
+      goal: `최종 리뷰 finding을 수정한다.\n\n${reviewFindings.map(formatReviewFindingLine).join('\n')}`,
+      provide: '기록된 리뷰 finding을 해소하는 최소 수정',
+      done: '기록된 리뷰 finding을 모두 수정한다.',
+      first: 'finding을 재현하고 관련 source와 regression test를 수정한다.',
+    }
+    : {
+      touch: '기록된 CI 실패를 복구한다.',
+      goal: '기록된 terminal CI 실패를 복구한다.',
+      provide: '실패 command와 관련 경로를 통과시키는 최소 수정',
+      done: '기록된 terminal CI command를 통과시킨다.',
+      first: '실패를 재현하고 관련 source와 regression test를 수정한다.',
+    };
+  const touch = (repair.scope?.paths || []).map((entry) => `- Modify \`${entry}\` — ${cause.touch}`).join('\n');
   const repairBody = `# Tasks
 
 ## Goal & intent
 
-기록된 terminal CI 실패를 복구한다.
+${cause.goal}
 
 ## Interface
 
-- 제공: 실패 command와 관련 경로를 통과시키는 최소 수정
+- 제공: ${cause.provide}
 - 거부: Blueprint 밖 scope와 새 기능
 
 ## Touch
@@ -1251,8 +1337,8 @@ ${touch}
 
 ## Checklist
 
-- [ ] 실패를 재현하고 관련 source와 regression test를 수정한다.
-- [ ] 기록된 terminal CI command를 통과시킨다.
+- [ ] ${cause.first}
+- [ ] ${cause.done}
 `;
   try {
     fs.mkdirSync(path.dirname(repairFile), { recursive: true });
@@ -2684,6 +2770,9 @@ function reportPathsWarning(
 
 /**
  * commit wave fan-in: candidate에서 cherry-pick·검증 후 CAS ff만 canonical에 쓴다.
+ * task마다 `<baseHead>..<item.sha>` 범위의 worker 커밋을 모두 적용하고 통합 커밋 1개로
+ * 합친다(rework로 쌓인 앞 attempt 커밋이 빠지지 않게). 범위 안 내용 충돌은 `fanin-conflict`
+ * (그 task만 revoke), 그 밖의 git 실패는 `cherry-pick-failed`, 빈 범위는 `nothing-to-integrate`.
  * light 원장은 cherry-pick 없이 `integrateLightCommitWave`로 보낸다.
  */
 function integrateCommitWave({
@@ -2888,6 +2977,18 @@ function integrateCommitWave({
     });
   }
 
+  // 충돌이 아닌 fan-in 실패: candidate를 지우고 fanin 표식을 풀되 task는 revoke하지 않는다.
+  const stopFaninFailed = (id: string) => {
+    removeFaninWorktree(exec, repoRoot, faninPath);
+    return withLedgerLock(integration.ledgerFile, (owns) => {
+      const loaded = loadLedgerBytes(integration.ledgerFile);
+      if (!loaded) return { ok: false, reason: 'missing-ledger' };
+      loaded.ledger.fanin = null;
+      if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+      writeLedger(integration.ledgerFile, loaded.ledger);
+      return { ok: false, reason: 'cherry-pick-failed', task: id };
+    });
+  };
   const liveForSha = loadLedger(integration.ledgerFile);
   for (const id of waveTasks) {
     const item = liveForSha?.tasks.find((x) => x.id === id);
@@ -2896,8 +2997,30 @@ function integrateCommitWave({
       removeFaninWorktree(exec, repoRoot, faninPath);
       return { ok: false, reason: 'nothing-to-integrate' };
     }
+    // 1. 범위 계산: rework로 worker 브랜치에 attempt별 커밋이 쌓이면 item.sha 하나만 pick할 때
+    //    앞 커밋의 변경이 통합에서 빠진다. baseHead(phase 1이 고정한 값) 위의 전체 범위를 구한다.
+    let range: string[];
     try {
-      git(exec, faninPath, ['cherry-pick', pickSha]);
+      range = git(exec, faninPath, ['rev-list', '--reverse', `${baseHead}..${pickSha}`])
+        .split('\n').filter(Boolean);
+    } catch (_rangeError) {
+      // rev-list 실패(bad object 등)는 충돌이 아니므로 revoke 없이 cherry-pick-failed로 멈춘다.
+      return stopFaninFailed(id);
+    }
+    // 빈 범위: item.sha가 이미 baseHead의 조상이라 통합할 변경이 없다.
+    if (range.length === 0) {
+      removeFaninWorktree(exec, repoRoot, faninPath);
+      return { ok: false, reason: 'nothing-to-integrate' };
+    }
+    // squash 시 되돌아갈 지점. 단일 커밋 경로는 git 호출 순서를 보존하려고 읽지 않는다.
+    let preHead: string | null = null;
+    try {
+      if (range.length > 1) preHead = git(exec, faninPath, ['rev-parse', 'HEAD']);
+    } catch (_headError) {
+      return stopFaninFailed(id);
+    }
+    try {
+      for (const commit of range) git(exec, faninPath, ['cherry-pick', commit]);
     } catch (error) {
       // abort 전에 충돌 여부를 본다 — abort가 unmerged를 지우면 분류가 무너진다.
       const conflict = isCherryPickConflict(error, exec, faninPath);
@@ -2936,23 +3059,21 @@ function integrateCommitWave({
     // fanin.candidate_head가 amend 뒤 SHA를 가리킨다. hook이 fan-in worktree에서 lint를
     // 다시 돌리지 않도록 --no-verify, author/date는 cherry-pick 결과를 그대로 둔다.
     try {
+      // 범위가 둘 이상이면 pick 결과를 한 커밋으로 합친다. -C item.sha가 마지막 worker
+      // 커밋의 메시지·author·date를 그대로 가져와 아래 log/amend가 trailer만 덧붙이게 한다.
+      if (preHead !== null) {
+        git(exec, faninPath, ['reset', '--soft', preHead]);
+        git(exec, faninPath, ['commit', '--no-verify', '-C', pickSha]);
+      }
       const picked = git(exec, faninPath, ['log', '-1', '--format=%B']);
       git(exec, faninPath, [
         'commit', '--amend', '--no-verify', '-m', appendWorkerCommitTrailer(picked, pickSha),
       ]);
     } catch (_amendError) {
       // cherry-pick은 이미 끝나 진행 중 상태가 없으므로 --abort를 부르지 않는다.
-      // 어떤 git 실패든 candidate를 지우고 cherry-pick 실패와 같은 reason으로 멈춘다 —
-      // trailer 없는 integration 커밋이 verified fanin으로 남으면 출처 연결이 끊긴다.
-      removeFaninWorktree(exec, repoRoot, faninPath);
-      return withLedgerLock(integration.ledgerFile, (owns) => {
-        const loaded = loadLedgerBytes(integration.ledgerFile);
-        if (!loaded) return { ok: false, reason: 'missing-ledger' };
-        loaded.ledger.fanin = null;
-        if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
-        writeLedger(integration.ledgerFile, loaded.ledger);
-        return { ok: false, reason: 'cherry-pick-failed', task: id };
-      });
+      // 합치기·amend 어느 git 실패든 candidate를 지우고 cherry-pick 실패와 같은 reason으로
+      // 멈춘다 — trailer 없는 integration 커밋이 verified fanin으로 남으면 출처 연결이 끊긴다.
+      return stopFaninFailed(id);
     }
   }
 
@@ -3530,7 +3651,9 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         }, ledger, integration.ledgerFile);
       }
       const waves = ledger.repairWaves || [];
-      if (waves.length >= 2) return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
+      if (waves.length >= REPAIR_WAVE_LIMIT) {
+        return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
+      }
       const hasReviewCause = Array.isArray(reviewFindings);
       const hasCiCause = typeof failureCommand === 'string';
       // 두 원인을 한 결정에 넣으면 failure.command가 review와 CI 중 무엇이었는지
@@ -3602,6 +3725,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         ledger.status = 'active';
         const rollbackDocuments = writeRepairDocuments({
           integrationPath: integration.integrationPath, blueprint, repair, terminal,
+          reviewFindings: readReviewFindingLines(integration.integrationPath, blueprint, reviewFindings),
         });
         try {
           { const lost = commitWrite(); if (lost) return lost; }

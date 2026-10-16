@@ -357,6 +357,83 @@ test('worker commits를 cherry-pick함 → provenance trailers가 안정적으�
   assert.strictEqual((body.match(/^Bouncer-Worker-Commit:/gm) || []).length, 1);
 });
 
+/**
+ * 한 blueprint에 task 001(+선택 002)을 준비하고 worker 경로를 돌려준다.
+ */
+function prepareFanin(blueprint, ids, sources) {
+  const repo = makeRepo({ 'README.md': 'fixture\n', ...sources });
+  for (const id of ids) writeTask(repo, blueprint, id, { depends_on: [], parallel_safe: true });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const workers = Object.fromEntries(prepared.tasks.map((task) => [task.id, task.workerPath]));
+  return { repo, boot, workers };
+}
+
+const passVerification = () => ({
+  ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+});
+
+test('worker에 커밋 2개가 쌓임 → fan-in이 두 변경을 통합 커밋 1개와 trailer 1줄로 반영함', () => {
+  const blueprint = '.bouncer/context/epics/103-range/blueprints/001-drive';
+  const { repo, boot, workers } = prepareFanin(blueprint, ['001'], {});
+  const integration = boot.integrationPath;
+  const base = git(integration, ['rev-parse', 'HEAD']);
+  const worker = workers['001'];
+  commitInWorker(worker, 'a.txt', 'a\n', 'feat: attempt 1');
+  const recordedSha = commitInWorker(worker, 'b.txt', 'b\n', [
+    'feat: attempt 2', '', 'Bouncer-Task: EPIC-103/BP-001/TASK-001', 'Bouncer-Intent: EPIC-103/BP-001',
+  ].join('\n'));
+  writeTerminalEvidence(worker, blueprint, '001', recordedSha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, '001').ok, true);
+
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integration, task: '001',
+    deps: { runVerification: passVerification },
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+
+  assert.ok(fs.existsSync(path.join(integration, 'a.txt')));
+  assert.ok(fs.existsSync(path.join(integration, 'b.txt')));
+  assert.strictEqual(git(integration, ['rev-list', '--count', `${base}..HEAD`]), '1');
+  const body = git(integration, ['log', '--format=%B', '-1']);
+  assert.deepStrictEqual(body.match(/^Bouncer-Worker-Commit: .*$/gm), [`Bouncer-Worker-Commit: ${recordedSha}`]);
+  assert.strictEqual((body.match(/^Bouncer-Task:/gm) || []).length, 1);
+  assert.strictEqual(git(integration, ['log', '--format=%s', '-1']), 'feat: attempt 2');
+});
+
+test('범위 첫 커밋이 통합 HEAD와 충돌함 → fanin-conflict로 그 task만 revoke하고 HEAD를 보존함', () => {
+  const blueprint = '.bouncer/context/epics/103-range/blueprints/002-conflict';
+  const { repo, boot, workers } = prepareFanin(blueprint, ['001', '002'], { 'shared.txt': 'base\n' });
+  const integration = boot.integrationPath;
+  const sha1 = commitInWorker(workers['001'], 'shared.txt', 'from 001\n', 'feat: task 001');
+  writeTerminalEvidence(workers['001'], blueprint, '001', sha1);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, workers['001'], '001').ok, true);
+  // 002의 범위 첫 커밋(shared.txt)이 001 통합 결과와 충돌하고, 둘째 커밋은 충돌하지 않는다.
+  commitInWorker(workers['002'], 'shared.txt', 'from 002\n', 'feat: attempt 1');
+  const sha2 = commitInWorker(workers['002'], 'c.txt', 'c\n', 'feat: attempt 2');
+  writeTerminalEvidence(workers['002'], blueprint, '002', sha2);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, workers['002'], '002').ok, true);
+  const before = git(integration, ['rev-parse', 'HEAD']);
+
+  const result = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integration,
+    deps: { runVerification: passVerification },
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'fanin-conflict', JSON.stringify(result));
+  assert.strictEqual(result.task, '002');
+  assert.strictEqual(git(integration, ['rev-parse', 'HEAD']), before);
+  const tasks = loadLedger(path.join(integration, '.bouncer/runtime/coordinator.json')).tasks;
+  assert.strictEqual(tasks.find((t) => t.id === '002').status, 'pending');
+  assert.strictEqual(tasks.find((t) => t.id === '001').status, 'recorded');
+});
+
 test('fan-in이 거절됨 → ledger를 보존하고 중복 cherry-pick 없이 재개함', () => {
   const blueprint = '.bouncer/context/epics/011-resume/blueprints/002-drive';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });

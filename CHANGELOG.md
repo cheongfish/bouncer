@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **다중 commit fan-in·blueprint 리뷰 라운드·리뷰 repair brief (EPIC 103 BP 001)** — worker가 여러
+  commit을 만든 task도 fan-in이 base부터 HEAD까지 전 범위를 가져온다. blueprint 최종 리뷰 라운드
+  순서는 `discovery,delta,delta`이고 repair wave 상한은 공용 `REPAIR_WAVE_LIMIT`로 판정한다.
+  `coordinate repair --review-finding`이 쓰는 repair task 문서는 제목·Goal이 리뷰 repair를 가리키고
+  root `review.md`의 finding 필드(severity·category·actionability·file·symbol·brief_clause·note)를
+  담아 implementer가 수정 대상을 받는다. 없는 id는 "찾지 못함"으로 표시하고 repair는 진행한다.
+  CI 원인 repair 문서는 그대로다.
+
 ### Removed
 
 - **`/bouncer-execute`·`/bouncer-commit` 진입 스킬 제거 (EPIC 102 BP 001)** — 공개 스킬은

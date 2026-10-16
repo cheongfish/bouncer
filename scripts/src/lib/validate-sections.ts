@@ -107,6 +107,23 @@ const EXECUTE_ROUND_CONTRACT: RoundContract = {
   counters: true,
 };
 
+// repair wave 상한의 단일 출처. coordinator ledger 검사(runtime-state)와 blueprint
+// 최종 리뷰 라운드 순서(BLUEPRINT_ROUND_CONTRACT)가 같은 값을 보게 해, 한쪽만 바뀌어
+// "wave는 허용하는데 그 뒤 리뷰는 기록할 수 없는" 불일치가 재발하지 않게 한다.
+const REPAIR_WAVE_LIMIT = 2;
+
+// blueprint 최종 리뷰 전용 계약. repair wave마다 delta 라운드 하나를 기록해야 하므로
+// task 계약의 순서에 `discovery` 뒤 delta를 wave 상한만큼 붙인 순서를 더한다.
+// critical_recovery를 섞은 새 조합은 일부러 열지 않는다. task 범위(G14)는 계속
+// EXECUTE_ROUND_CONTRACT를 써서 라운드 상한이 늘지 않는다.
+const BLUEPRINT_ROUND_CONTRACT: RoundContract = {
+  ...EXECUTE_ROUND_CONTRACT,
+  sequences: [
+    ...EXECUTE_ROUND_CONTRACT.sequences,
+    ['discovery', ...Array<string>(REPAIR_WAVE_LIMIT).fill('delta')].join(','),
+  ],
+};
+
 const CONTEXT_ROUND_CONTRACT: RoundContract = {
   modes: ['discovery', 'delta'],
   sequences: ['discovery', 'discovery,delta'],
@@ -339,10 +356,12 @@ function missingFindingField(record: Record<string, unknown>, field: string): bo
  *   `bouncer.context_review.rounds`. 부재면 검사 생략
  * @param {'context'} [namespace] - context review면 fingerprint 접두와 context round 계약.
  *   생략하면 execute 계약(접두 없음, commit target)
+ * @param {'blueprint'} [roundScope] - blueprint 최종 리뷰면 execute namespace에서
+ *   BLUEPRINT_ROUND_CONTRACT를 쓴다. context namespace에서는 무시한다
  * @returns {string[]} 게이트 메시지. 없으면 빈 배열
  */
 function collectFindingFailures({
-  body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, reviewStatus, namespace,
+  body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, reviewStatus, namespace, roundScope,
 }: {
   body: unknown;
   findings: unknown;
@@ -352,6 +371,7 @@ function collectFindingFailures({
   rounds?: unknown;
   reviewStatus?: unknown;
   namespace?: typeof CONTEXT_FINDING_NAMESPACE;
+  roundScope?: 'blueprint';
 }): string[] {
   const messages: string[] = [];
   const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
@@ -439,7 +459,9 @@ function collectFindingFailures({
   }
   messages.push(...collectRoundFailures(
     rounds, findingLabel, list, modeContract,
-    namespace === CONTEXT_FINDING_NAMESPACE ? CONTEXT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT,
+    namespace === CONTEXT_FINDING_NAMESPACE
+      ? CONTEXT_ROUND_CONTRACT
+      : (roundScope === 'blueprint' ? BLUEPRINT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT),
   ));
   return messages;
 }
@@ -586,4 +608,6 @@ export = {
   findingMergeCandidates,
   collectFindingFailures,
   EXECUTE_ROUND_CONTRACT,
+  BLUEPRINT_ROUND_CONTRACT,
+  REPAIR_WAVE_LIMIT,
 };
