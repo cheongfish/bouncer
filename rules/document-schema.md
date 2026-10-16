@@ -113,8 +113,8 @@ On the plan gate, an item that fails the commit-time Korean terminal sentence
 check (for example `…시킴.`) fails as `S34` (`commit_intent invalid: …` or
 `commit_summary invalid: …`), so the error surfaces before approval; a list-shape
 error stays `S32` only.
-Absent or `[]` keeps drafts and older tasks readable, and `/bouncer-commit` treats
-`[]` like an absent field by omitting that body line. `/bouncer-commit` renders present
+Absent or `[]` keeps drafts and older tasks readable, and `bouncer commit` treats
+`[]` like an absent field by omitting that body line. `bouncer commit` renders present
 fields in that order and rejects malformed values without partial omission;
 missing fields keep older task documents readable. `/bouncer-finalize` renders
 1–2 Korean terminal sentences parsed from the blueprint `## Intent` section and

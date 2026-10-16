@@ -3,8 +3,6 @@
   "workflows": {
     "bouncer-init": ["init.graphify_promotion", "init.gitignore", "init.base_branch", "init.pre_commit_hook"],
     "bouncer-plan": ["plan.request", "plan.discovery", "plan.id_allocation", "plan.light_scope", "plan.verify_command", "plan.affected_paths", "plan.approval"],
-    "bouncer-execute": [],
-    "bouncer-commit": ["commit.next_task"],
     "bouncer-run": ["run.start_drive"],
     "bouncer-finalize": ["finalize.remainder", "finalize.pr"],
     "bouncer-retro": []

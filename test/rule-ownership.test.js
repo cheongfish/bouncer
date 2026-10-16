@@ -10,7 +10,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 /** load graph가 허용하는 workflow·coordinator 이름. 목록 밖은 unknown consumer다. */
 const ALLOWED_CONSUMERS = Object.freeze([
-  'init', 'plan', 'run', 'execute', 'commit', 'finalize', 'coordinator',
+  'init', 'plan', 'run', 'finalize', 'coordinator',
 ]);
 
 /**
@@ -363,16 +363,23 @@ test('load graph → covers each workflow and keeps conditional references out o
     `BP3 complete: no workflow step should load ${sourcePath} directly`,
   );
 
-  // failure-only 참조도 표 셀에서 읽어, startup에 섞이면 실패한다.
-  const execute = graph.find((row) => row.consumer === 'execute');
-  assert.ok(execute, 'load graph must include execute');
-  const failureOnly = referencesIn(execute.failure);
-  assert.ok(failureOnly.length > 0, 'execute must declare failure-only references');
-  for (const reference of failureOnly) {
-    assert.doesNotMatch(execute.startup, new RegExp(escapeRegExp(reference)),
-      `execute startup must not preload failure-only ${reference}`);
-    assert.match(execute.failure, new RegExp(escapeRegExp(reference)),
-      `execute failure must keep ${reference}`);
+  // execute 스킬은 사라졌지만 "실패 때만 여는 reference를 startup에 미리 올리지 않는다"는 계약은
+  // run 소유 reference(agent-dispatch·verification-recovery·review-round)와 구현·디버그 reference에
+  // 그대로 남는다. 이제 소비자는 run과 coordinator이므로 둘의 startup 셀을 검사한다.
+  const lazyReferences = [
+    'skills/bouncer-run/references/agent-dispatch.md',
+    'skills/bouncer-run/references/verification-recovery.md',
+    'skills/bouncer-run/references/review-round.md',
+    'references/implementation/index.md',
+    'references/debugging/index.md',
+  ];
+  for (const consumer of ['run', 'coordinator']) {
+    const row = graph.find((candidate) => candidate.consumer === consumer);
+    assert.ok(row, `load graph must include ${consumer}`);
+    for (const reference of lazyReferences) {
+      assert.doesNotMatch(row.startup, new RegExp(escapeRegExp(reference)),
+        `${consumer} startup must not preload conditional ${reference}`);
+    }
   }
 });
 
@@ -395,21 +402,12 @@ test('load graph declarations → follow the current consumer phase sections', (
     }
   }
 
-  const executeRow = graph.find((row) => row.consumer === 'execute');
-  const execute = read(consumerSourcePath('execute'));
-  const startup = consumerPhaseSection('execute', execute, 'startup');
-  const step = consumerPhaseSection('execute', execute, 'step');
-  const failure = consumerPhaseSection('execute', execute, 'failure');
-  assert.ok(failure.length > 0, 'execute must retain an explicit verify-failure branch');
-  // failure-only 참조가 step에 남아 있으면 load-graph step 오기(誤記)도 통과한다.
-  // phase loop가 failure 존재는 이미 보므로 여기서는 step·startup 격리를 잠근다.
-  for (const reference of referencesIn(executeRow.failure)) {
-    const expected = consumerReference(reference);
-    assert.doesNotMatch(step.replaceAll('./', ''), new RegExp(escapeRegExp(expected)),
-      `execute step must not include failure-only ${reference}`);
-    assert.doesNotMatch(startup.replaceAll('./', ''), new RegExp(escapeRegExp(expected)),
-      `execute startup must not preload failure-only ${reference}`);
-  }
+  // run은 coordinator 위임 전에 failure 분기를 따로 갖지 않는다. 실패 복구 reference는 run이
+  // 직접 열지 않으므로 SKILL.md가 verification-recovery를 step 셀 밖에 두는지 잠근다.
+  const run = read(consumerSourcePath('run'));
+  const runStartup = consumerPhaseSection('run', run, 'startup');
+  assert.doesNotMatch(runStartup.replaceAll('./', ''), /verification-recovery|agent-dispatch|review-round/,
+    'run startup must not preload run-owned conditional references');
 });
 
 // 소유 문구의 내용이 아니라 표가 선언한 소유 구조를 본다: 행의 locator는 선언된 owner에

@@ -10,10 +10,9 @@ source path 집합이다. scope 개정 명령과 lock 절차, 실패 뒤의 repa
 
 ## Commit unit and staging
 
-`/bouncer-commit` closes one task (scope check → `bouncer commit`).
-`/bouncer-run` repeats that commit unit; verification node에서는 commit 대신
+`/bouncer-run` closes each task internally (scope check → `bouncer commit`); verification node에서는 commit 대신
 integration checkout의 verification runner만 실행한다.
-`/bouncer-execute` does not commit. `/bouncer-finalize` closes the blueprint
+An implementation worker does not commit. `/bouncer-finalize` closes the blueprint
 (explain + quiz, remainder commit, draft PR, worktree cleanup) after every task
 is committed.
 

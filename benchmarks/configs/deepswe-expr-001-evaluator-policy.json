@@ -139,11 +139,6 @@
       "when": "Only when the actual Bouncer plan gate passes for the current blueprint."
     },
     {
-      "gate": "commit.next_task",
-      "answer": "advance_to_next_task",
-      "when": "Only if the workflow actually asks about a non-null next task on the approved blueprint; a coordinator drive may skip this gate."
-    },
-    {
       "gate": "finalize.quiz",
       "answer": "select_first_option_for_each_question",
       "when": "Only after a 1–10 question quiz is presented with exactly three options per question; answer every question once in a batch and mark the response synthetic. A low score does not block finalize."

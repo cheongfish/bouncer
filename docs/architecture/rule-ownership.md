@@ -10,9 +10,9 @@ BP4 구현 설명 이전 이후 기준선이다. BP2 규범의 현재 소유자�
 
 `target owner`는 `AGENTS.md`, `shared rule`, `agent`, `skill`, `docs/code` 중 하나이다. 둘 이상의 소비자가 같은 판단을 하면 `shared rule`이다. 한 역할만 수행하는 절차는 `agent`이다. 한 workflow의 절차는 `skill`이다. lock, fencing, scale을 읽는 코드 위치처럼 에이전트가 실행 중 다시 추론하지 않는 설명은 `docs/code`이다. 이 파일의 단위 가운데 여섯 workflow가 모두 같은 불변조건으로 읽는 항목은 없다. 모든 세션이 읽는 네 경계는 이미 `AGENTS.md`에 있다.
 
-`migration BP`는 `BP2`, `BP3`, `BP4` 중 하나이다. BP2는 plan, init, spec-authoring, template, scaffold가 읽는 계획 계약이다. BP3는 run, execute, commit, finalize, coordinator가 읽는 실행 계약이다. BP4는 구현 함수 주석과, 정본 파일을 삭제한 뒤 남는 배포 및 공개 문서 참조이다.
+`migration BP`는 `BP2`, `BP3`, `BP4` 중 하나이다. BP2는 plan, init, spec-authoring, template, scaffold가 읽는 계획 계약이다. BP3는 run, finalize, coordinator가 읽는 실행 계약이다. BP4는 구현 함수 주석과, 정본 파일을 삭제한 뒤 남는 배포 및 공개 문서 참조이다.
 
-load graph의 열은 `consumer`, `startup`, `step`, `failure`이다. consumer는 `init`, `plan`, `run`, `execute`, `commit`, `finalize`, `coordinator` 중 하나이고 각 이름은 한 행이다. 셀 값 `없음`은 그 단계에서 추가로 여는 rule이나 reference가 없다는 뜻이다. 경로를 적은 셀은 그 단계에서 여는 파일이다.
+load graph의 열은 `consumer`, `startup`, `step`, `failure`이다. consumer는 `init`, `plan`, `run`, `finalize`, `coordinator` 중 하나이고 각 이름은 한 행이다. 셀 값 `없음`은 그 단계에서 추가로 여는 rule이나 reference가 없다는 뜻이다. 경로를 적은 셀은 그 단계에서 여는 파일이다.
 
 적재는 명령이 있는 위치로 나눈다. 번호 단계 앞에서 `Read`하는 파일만 startup이다. 번호 단계 안의 `read`는 step이다. 성공 경로에는 없고 실패 분기에서만 `read`하는 파일은 failure이다. 같은 단계가 성공 경로와 그 단계의 실패를 함께 다루면 step에 적고, 실패에서만 여는 파일은 failure에 따로 적는다. preamble의 경로 나열, 설치하지 않는다는 고지, runtime index의 링크는 적재가 아니다. `rules/plugin-root.md`가 이미 정한 대로 `AGENTS.md`만 기본 적재이고, `rules/commit-scope.md`·`rules/planning.md`는 startup에 넣지 않는다. 삭제된 `rules/governance.md`도 startup에 없다.
 
@@ -26,39 +26,39 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-SIZING-VERIFY-SHAPE | `## Blueprint sizing rule` / `source diff` | `rules/planning.md` | shared rule | plan · scripts/lib/scaffold.js · test/validate-structural.test.js | BP2 |
 | GOV-SIZING-VERIFY-RUN | `function writeVerificationTaskStatus` / `integrated로 전이하지 않는다` | `scripts/src/lib/coordinator.ts` | docs/code | scripts/lib/coordinator.js | BP4 |
 | GOV-SIZING-PATH-WARNING | `## Blueprint sizing rule` / `exceeds 20` | `rules/planning.md` | docs/code | plan · test/validate-gates.test.js | BP2 |
-| GOV-SIZING-COMMIT-UNIT | `## Commit unit and staging` / `does not commit` | `rules/commit-scope.md` | shared rule | execute · commit · run · finalize | BP3 |
-| GOV-SIZING-STAGE-TASK | `## Commit unit and staging` / `candidate set` | `rules/commit-scope.md` | shared rule | commit · scripts/lib/scope.js | BP3 |
-| GOV-SIZING-STAGE-FINALIZE | `## Commit unit and staging` / `tracked transient deletions` | `rules/commit-scope.md` | shared rule | commit · finalize | BP3 |
-| GOV-SIZING-EXPLAIN-STAMP | `## Commit unit and staging` / `sha, intent_anchor` | `rules/commit-scope.md` | shared rule | commit · finalize | BP3 |
-| GOV-LIGHT-DECLARATION | `## Lightweight cycle` / `no automatic sizing` | `rules/planning.md` | shared rule | plan · execute · scripts/lib/scaffold.js · test/lightweight-cycle.test.js | BP2 |
+| GOV-SIZING-COMMIT-UNIT | `## Commit unit and staging` / `does not commit` | `rules/commit-scope.md` | shared rule | run · finalize | BP3 |
+| GOV-SIZING-STAGE-TASK | `## Commit unit and staging` / `candidate set` | `rules/commit-scope.md` | shared rule | scripts/lib/scope.js | BP3 |
+| GOV-SIZING-STAGE-FINALIZE | `## Commit unit and staging` / `tracked transient deletions` | `rules/commit-scope.md` | shared rule | finalize | BP3 |
+| GOV-SIZING-EXPLAIN-STAMP | `## Commit unit and staging` / `sha, intent_anchor` | `rules/commit-scope.md` | shared rule | finalize | BP3 |
+| GOV-LIGHT-DECLARATION | `## Lightweight cycle` / `no automatic sizing` | `rules/planning.md` | shared rule | plan · scripts/lib/scaffold.js · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-SCALE-FLAG | `## Lightweight cycle` / `exit code 2` | `rules/planning.md` | shared rule | plan · scripts/lib/scaffold.js · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-SHRINK-CLOSED | `## Lightweight cycle` / `five things only` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-DOC-SET | `## Lightweight cycle` / `100 lines or fewer` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · scripts/lib/templates.js · scripts/lib/scaffold.js · docs/workflow.md · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-G10 | `## Lightweight cycle` / `requires only` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · docs/workflow.md · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-MAINTENANCE-EPIC | `## Lightweight cycle` / `maintenance epic` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
-| GOV-LIGHT-INLINE-DISPATCH | `## Lightweight and implement dispatch` / `named agents are unavailable` | `skills/bouncer-run/references/agent-dispatch.md` | skill | execute · run · test/workflow-safety-canon.test.js · test/lightweight-cycle.test.js | BP3 |
+| GOV-LIGHT-INLINE-DISPATCH | `## Lightweight and implement dispatch` / `named agents are unavailable` | `skills/bouncer-run/references/agent-dispatch.md` | skill | run · test/workflow-safety-canon.test.js · test/lightweight-cycle.test.js | BP3 |
 | GOV-LIGHT-QUIZ | `## Steps` / `1로 고정한다(1문항)` | `references/explain-diff/index.md` | skill | finalize · references/explain-diff/index.md · test/lightweight-cycle.test.js | BP3 |
 | GOV-LIGHT-UNCHANGED-DOCS | `## Lightweight cycle` / `are still authored` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
-| GOV-LIGHT-UNCHANGED-GATES | `## Lightweight cycle` / `G16 comprehension` | `rules/planning.md` | shared rule | plan · commit · finalize · test/lightweight-cycle.test.js | BP2 |
+| GOV-LIGHT-UNCHANGED-GATES | `## Lightweight cycle` / `G16 comprehension` | `rules/planning.md` | shared rule | plan · finalize · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-CANONICAL-CONTEXT | `## Canonical context boundary` / `Canonical context remains` | `skills/bouncer-finalize/references/explain-quiz.md` | skill | finalize | BP3 |
 | GOV-LIGHT-SCALE-READ-SITES | `function scaffoldBlueprint` / `scale을 읽는 네 곳` | `scripts/src/lib/scaffold.ts` | docs/code | scripts/lib/scaffold.js · scripts/lib/validate-gates.js · scripts/lib/validate-structural.js · test/lightweight-cycle.test.js | BP4 |
-| GOV-LIGHT-INLINE-LIMIT | `## Lightweight and implement dispatch` / `self-review pressure` | `skills/bouncer-run/references/agent-dispatch.md` | skill | execute · test/lightweight-cycle.test.js | BP3 |
+| GOV-LIGHT-INLINE-LIMIT | `## Lightweight and implement dispatch` / `self-review pressure` | `skills/bouncer-run/references/agent-dispatch.md` | skill | test/lightweight-cycle.test.js | BP3 |
 | GOV-LIGHT-RETURN-FULL | `## Lightweight cycle` / `scaffold context-review` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · docs/workflow.md · test/lightweight-cycle.test.js | BP2 |
 | GOV-DAG-FIELDS | `## Task DAG and approved scope` / `default sort key` | `rules/planning.md` | shared rule | plan · coordinator · rules/document-schema.md · test/master-rules.test.js | BP2 |
 | GOV-DAG-WAVES | `## Task DAG and approved scope` / `share a wave` | `rules/planning.md` | shared rule | plan · coordinator · test/master-rules.test.js | BP2 |
 | GOV-DAG-GATE | `## Task DAG and approved scope` / `G19` | `rules/planning.md` | docs/code | plan · test/master-rules.test.js | BP2 |
 | GOV-DAG-BASELINE | `## Task DAG and approved scope` / `does not freeze` | `rules/planning.md` | shared rule | plan · coordinator · test/master-rules.test.js | BP2 |
 | GOV-DAG-SCOPE-ESTIMATE | `## Approved and ledger scope` / `initial estimate` | `rules/commit-scope.md` | shared rule | plan · coordinator | BP3 |
-| GOV-COORD-TOPOLOGY | `## Approved and ledger scope` / `initial expected scope` | `rules/commit-scope.md` | shared rule | run · execute · commit · finalize · coordinator · test/workflow-safety-canon.test.js · test/master-rules.test.js · test/skill-bouncer-run.test.js | BP3 |
-| GOV-COORD-REVISION | `## Hard guards` / `refused without a reason` | `agents/bouncer-coordinator.md` | agent | coordinator · commit · test/master-rules.test.js | BP3 |
+| GOV-COORD-TOPOLOGY | `## Approved and ledger scope` / `initial expected scope` | `rules/commit-scope.md` | shared rule | run · finalize · coordinator · test/workflow-safety-canon.test.js · test/master-rules.test.js · test/skill-bouncer-run.test.js | BP3 |
+| GOV-COORD-REVISION | `## Hard guards` / `refused without a reason` | `agents/bouncer-coordinator.md` | agent | coordinator · test/master-rules.test.js | BP3 |
 | GOV-COORD-LOCK | `function nextRevision` / `ledger lock` | `scripts/src/lib/scope.ts` | docs/code | scripts/lib/scope.js | BP4 |
-| GOV-COORD-PATH-BOUNDARY | `## Approved and ledger scope` / `governance tree are refused. Inside that boundary` | `rules/commit-scope.md` | shared rule | coordinator · commit · test/master-rules.test.js · test/agents.test.js | BP3 |
-| GOV-COORD-SCOPE-AUDIT | `## Approved and ledger scope` / `ledger's current scope instead of the approval snapshot, and refuses a commit` | `rules/commit-scope.md` | shared rule | commit · coordinator · test/master-rules.test.js | BP3 |
-| GOV-COORD-COMMIT-WORKTREE | `## Worktree and enforcement layers` / `stays read-only` | `rules/commit-scope.md` | shared rule | run · execute · commit · finalize · coordinator · test/workflow-safety-canon.test.js | BP3 |
-| GOV-COORD-AUTHORITY | `## Worker dispatch` / `workers report` | `agents/bouncer-coordinator.md` | agent | coordinator · run · commit · execute | BP3 |
+| GOV-COORD-PATH-BOUNDARY | `## Approved and ledger scope` / `governance tree are refused. Inside that boundary` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js · test/agents.test.js | BP3 |
+| GOV-COORD-SCOPE-AUDIT | `## Approved and ledger scope` / `ledger's current scope instead of the approval snapshot, and refuses a commit` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js | BP3 |
+| GOV-COORD-COMMIT-WORKTREE | `## Worktree and enforcement layers` / `stays read-only` | `rules/commit-scope.md` | shared rule | run · finalize · coordinator · test/workflow-safety-canon.test.js | BP3 |
+| GOV-COORD-AUTHORITY | `## Worker dispatch` / `workers report` | `agents/bouncer-coordinator.md` | agent | coordinator · run | BP3 |
 | GOV-COORD-CRITICAL-RECOVERY | `## Hard guards` / `exactly one such recovery` | `agents/bouncer-coordinator.md` | agent | coordinator | BP3 |
-| GOV-COORD-G17 | `## Worktree and enforcement layers` / `weaker of the three` | `rules/commit-scope.md` | shared rule | commit · coordinator · test/master-rules.test.js | BP3 |
-| GOV-COORD-NO-LEDGER | `## Approved and ledger scope` / `Without a coordinator ledger` | `rules/commit-scope.md` | shared rule | plan · commit | BP3 |
+| GOV-COORD-G17 | `## Worktree and enforcement layers` / `weaker of the three` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js | BP3 |
+| GOV-COORD-NO-LEDGER | `## Approved and ledger scope` / `Without a coordinator ledger` | `rules/commit-scope.md` | shared rule | plan | BP3 |
 | GOV-COORD-REPAIR | `## Hard guards` / `at most two dynamic repair` | `agents/bouncer-coordinator.md` | agent | coordinator · run | BP3 |
 | GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `scripts/src/lib/coordinator.ts` | docs/code | scripts/lib/coordinator.js | BP4 |
 | GOV-COORD-PARTIAL-CLOSE | `## Hard guards` / `partial_closed` | `agents/bouncer-coordinator.md` | agent | coordinator · run · finalize | BP3 |
@@ -70,8 +70,6 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | init | `rules/plugin-root.md` · `AGENTS.md` | `2 Result handling: skills/bouncer-init/references/init-result.md` · `rules/output.md` · `rules/acq.md` | 없음 |
 | plan | `rules/plugin-root.md` · `AGENTS.md` | `1 Discover: references/discovery/index.md` · `3 Author: references/spec-authoring/index.md` · `skills/bouncer-plan/references/evidence-dispatch.md` · `rules/document-schema.md` · `rules/planning.md` · `references/stop-slop/index.md` · `references/graphify-runner/index.md` · `4 Scope confirm: skills/bouncer-plan/references/scope-confirm.md` · `rules/acq.md` · `references/minimality/index.md` · `5 Review: skills/bouncer-plan/references/context-review.md` · `references/context-review/index.md` · `6 Approval: rules/acq.md` · `7 Activate: rules/current-pointer.md` · `8 Gate: rules/output.md` | 없음 |
 | run | `rules/plugin-root.md` · `AGENTS.md` | `1 Preflight: rules/cli.md` · `rules/current-pointer.md` · `2 Start ACQ: rules/acq.md` · `4 Coordinator dispatch: rules/subagent-model.md` · `5 Report: rules/output.md` | 없음 |
-| execute | `rules/plugin-root.md` · `AGENTS.md` | `1 Preflight: rules/current-pointer.md` · `2 Prepare: rules/commit-scope.md` · `3 Implement: references/implementation/index.md` · `rules/subagent-model.md` · `skills/bouncer-run/references/agent-dispatch.md` · `4 Verify/recover: references/verification/index.md` · `5 Review: references/review/index.md` · `skills/bouncer-run/references/review-round.md` · `6 Gate: rules/output.md` | `4 Verify/recover 실패: skills/bouncer-run/references/verification-recovery.md` · `references/debugging/index.md` |
-| commit | `rules/plugin-root.md` · `AGENTS.md` | `1 Current: rules/commit-scope.md` · `5 Handoff: rules/cli.md` · `rules/output.md` · `rules/current-pointer.md` · `rules/acq.md` | 없음 |
 | finalize | `rules/plugin-root.md` · `AGENTS.md` | `1 Explain + quiz: skills/bouncer-finalize/references/explain-quiz.md` · `references/explain-diff/index.md` · `2 Remainder: rules/commit-scope.md` · `skills/bouncer-finalize/references/remainder.md` · `rules/acq.md` · `3 PR: skills/bouncer-finalize/references/draft-pr.md` · `4 Cleanup: skills/bouncer-finalize/references/cleanup-handoff.md` · `5 Handoff: rules/current-pointer.md` · `rules/output.md` | 없음 |
 | coordinator | `AGENTS.md` | `Hard guards의 scope revision: rules/commit-scope.md` · `Worker dispatch: rules/subagent-model.md` · `references/coding-standards/index.md` | 없음 |
 
@@ -87,8 +85,7 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | --- | --- | --- |
 | `skills/bouncer-init/SKILL.md:53` | init | 없음. 번호 단계 뒤의 설치 제외 고지이며 삭제된 `rules/governance.md`를 나열하지 않는다 |
 | `skills/bouncer-plan/SKILL.md:144` | plan | step 3 Author. `rules/planning.md` |
-| `skills/bouncer-execute/SKILL.md:101` | execute | step 2 Prepare. `rules/commit-scope.md` |
-| `skills/bouncer-commit/SKILL.md:34` | commit | step 1 Current. `rules/commit-scope.md` |
+| `references/coordinator-cards/revise.md:19` | run | worker 범위 경계. `rules/commit-scope.md` |
 | `skills/bouncer-finalize/SKILL.md:49` | finalize | step 2 Remainder. `rules/commit-scope.md` |
 | `agents/bouncer-coordinator.md:75` | coordinator | step. scope revision (`rules/commit-scope.md`) |
 | `rules/commit-scope.md:4, 8` | 없음 | 없음. 새 정본이 run·coordinator의 pointer 경유와 coordinator mutation 절차를 `agents/bouncer-coordinator.md`로 가리킨다 |
@@ -112,7 +109,6 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | `test/master-rules.test.js:794` | 없음 | 없음. GOV-COORD-PATH-BOUNDARY. ceiling 문장이 새 정본에 하나임을 센다 |
 | `test/workflow-safety-canon.test.js:144, 150, 153` | 없음 | 없음. GOV-COORD-COMMIT-WORKTREE. execute, commit, finalize의 commit-scope cite를 요구하고 run은 coordinator 역할을 거쳐 commit-scope로 도달함을 본다 |
 | `test/workflow-safety-canon.test.js:167` | 없음 | 없음. GOV-LIGHT-INLINE-DISPATCH. execute의 cite를 요구한다 |
-| `test/skill-bouncer-commit.test.js:86` | 없음 | 없음. commit 본문이 commit-scope와 `rules/cli.md`를 나눠 가리키는지 본다 |
 | `test/skill-bouncer-plan.test.js:542` | 없음 | 없음. plan step 3이 `rules/planning.md`를 여는지 보는 characterization이다 |
 | `test/skill-bouncer-run.test.js:68` | 없음 | 없음. run이 coordinator 문서와 cli·pointer·subagent·output을 조합하고 rules/governance.md를 읽지 않음을 본다 |
 | `test/skill-bouncer-surface.test.js:180-182` | 없음 | 없음. 여섯 workflow의 Master rules 블록에 product rule(commit-scope 포함)이 없음을 고정한다 |

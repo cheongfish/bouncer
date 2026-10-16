@@ -58,7 +58,7 @@ The legacy file `bouncer/current` remains readable. The first successful
 when the two agree. When they name different blueprints, the CLI reports
 `CURRENT_INVALID` and leaves both unchanged.
 
-For next tasks, `/bouncer-commit` requires confirm-then-set. A delegated drive
+Outside a delegated drive, a next-task pointer move requires confirm-then-set. A delegated drive
 hands pointer ownership to `bouncer-coordinator`, but the coordinator does not move the pointer per task — pointer stays for blueprint selection and
 standalone task identification, while each worker reads the `effectiveTask` the
 CLI returns for its lease and never moves the pointer. In that mode the next

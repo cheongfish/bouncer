@@ -8,9 +8,10 @@ const { GENERIC_SKILLS } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const WORKFLOW = [
-  'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize',
-  'bouncer-run', 'bouncer-retro',
+  'bouncer-init', 'bouncer-plan', 'bouncer-finalize', 'bouncer-run', 'bouncer-retro',
 ];
+// 공개 진입에서 제거한 스킬. 파일이 다시 생기면 아래 부재 단언이 실패한다.
+const RETIRED = ['bouncer-execute', 'bouncer-commit'];
 // Subskills live at references/<name>/index.md (not the host skills/ catalog).
 const SUB_PATHS = [
   'discovery', 'spec-authoring', 'implementation', 'verification',
@@ -24,8 +25,8 @@ const UNPUBLISHED = [
 ];
 const UNPUBLISHED_SET = new Set(UNPUBLISHED);
 
-// 호스트 카탈로그는 워크플로 일곱뿐이다(095-004에서 bouncer-retro 추가). 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
-const EXPECTED_SKILL_COUNT = 7;
+// 호스트 카탈로그는 워크플로 다섯뿐이다(102-001에서 execute·commit 제거). 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
+const EXPECTED_SKILL_COUNT = 5;
 const MIN_DESCRIPTION_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 180;
 const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
@@ -108,8 +109,6 @@ test('workflow Plugin root paragraphs → are byte-identical across the six work
 const ENTRY_WORD_BASELINE = {
   'bouncer-init': 428,
   'bouncer-plan': 2348,
-  'bouncer-execute': 2018,
-  'bouncer-commit': 943,
   // 090-002 repair: step 4 early-handback 복구 표·규칙이 더한 +199 단어만 반영한다.
   'bouncer-run': 1357,
   // 095-004: 자동 retro 문단 +96 단어
@@ -118,12 +117,17 @@ const ENTRY_WORD_BASELINE = {
   'bouncer-retro': 473,
 };
 
+// 102-001에서 제거한 스킬의 BP001 착수 시점 단어 수. 합계 기준(before)은 착수 시점 값이므로
+// 파일이 사라져도 이 값을 유지하고, 현재 단어 수는 0으로 센다. 남은 스킬의 영수증은 올리지 않는다.
+const RETIRED_WORD_BASELINE = { 'bouncer-execute': 2018, 'bouncer-commit': 943 };
+
 test('entry-skill word count → stays below the BP001 baseline', () => {
   const counts = Object.fromEntries(Object.keys(ENTRY_WORD_BASELINE).map((name) => [
     name,
     readWorkflow(name).trim().split(/\s+/).length,
   ]));
-  const before = Object.values(ENTRY_WORD_BASELINE).reduce((sum, count) => sum + count, 0);
+  const before = [...Object.values(ENTRY_WORD_BASELINE), ...Object.values(RETIRED_WORD_BASELINE)]
+    .reduce((sum, count) => sum + count, 0);
   const after = Object.values(counts).reduce((sum, count) => sum + count, 0);
   assert.ok(after < before, `expected < ${before} words, received ${after}`);
 });
@@ -150,8 +154,6 @@ function countNumberedSteps(md) {
 const ENTRY_STEP_COUNTS = {
   'bouncer-init': 4,
   'bouncer-plan': 8,
-  'bouncer-execute': 6,
-  'bouncer-commit': 5,
   'bouncer-run': 5,
   'bouncer-finalize': 5,
   'bouncer-retro': 5,
@@ -204,13 +206,6 @@ const CONDITIONAL_HELPERS = {
     root: ['minimality/index.md', 'context-review/index.md'],
     local: ['context-review.md', 'scope-confirm.md', 'evidence-dispatch.md'],
   },
-  'bouncer-execute': {
-    root: ['minimality/index.md', 'debugging/index.md'],
-    local: [],
-    // run 아래로 옮긴 reference는 sibling 링크(../bouncer-run/references/…)로 적재한다.
-    sibling: ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'],
-  },
-  'bouncer-commit': { root: [], local: [] },
   'bouncer-run': { root: [], local: [] },
   'bouncer-retro': { root: [], local: [] },
   'bouncer-finalize': {
@@ -278,8 +273,6 @@ const SKILL_LOCAL_REFS = {
     'scope-confirm.md',
     'evidence-dispatch.md',
   ],
-  'bouncer-execute': [],
-  'bouncer-commit': [],
   'bouncer-finalize': [
     'explain-quiz.md',
     'remainder.md',
@@ -290,15 +283,16 @@ const SKILL_LOCAL_REFS = {
   'bouncer-retro': [],
 };
 
-// execute가 sibling 링크로 읽는 run 소유 reference. 옛 execute 경로는 존재하면 안 된다.
-const EXECUTE_SIBLING_REFS = ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'];
+// 폐기한 두 진입 스킬은 파일이 없어야 하고, 이관된 reference는 run 아래에 남아 있어야 한다.
+const RUN_OWNED_REFS = ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'];
 
-test('bouncer-execute → reads run-owned references via sibling links; old paths are gone', () => {
-  const md = readWorkflow('bouncer-execute');
-  for (const file of EXECUTE_SIBLING_REFS) {
-    assert.ok(md.includes(`../bouncer-run/references/${file}`), `execute must link ../bouncer-run/references/${file}`);
+test('retired entry skills → files are gone and run keeps the migrated references', () => {
+  for (const name of RETIRED) {
+    assert.equal(fs.existsSync(path.join(root, 'skills', name)), false, `${name} must stay removed`);
+    assert.equal(listCanonicalSkillNames().includes(name), false, `${name} must not be canonical`);
+  }
+  for (const file of RUN_OWNED_REFS) {
     assert.ok(fs.existsSync(path.join(root, 'skills', 'bouncer-run', 'references', file)), `run ${file} must exist`);
-    assert.equal(fs.existsSync(path.join(root, 'skills', 'bouncer-execute', 'references', file)), false, `old execute ${file} must be removed`);
   }
 });
 
@@ -362,13 +356,12 @@ function splitAcq(md) {
 }
 
 // ACQ 색인의 형태만 본다: 질문 본문(AskUserQuestion·Options)은 번호 단계에 두고 색인은
-// 단계 번호를 가리킨다. 색인이 비어야 하는 execute는 PATH_CONTRACTS(acqIndex)가 검사한다.
+// 단계 번호를 가리킨다.
 test('workflow ACQ section → is a step index; AskUserQuestion detail stays in numbered steps', () => {
   for (const name of WORKFLOW) {
     const { index } = splitAcq(readWorkflow(name));
     assert.doesNotMatch(index, /\*\*AskUserQuestion/, `${name}: ACQ index must not embed AskUserQuestion blocks`);
     assert.doesNotMatch(index, /\*\*Options\*\*:/, `${name}: ACQ index must not embed Options lists`);
-    if (name === 'bouncer-execute') continue;
     assert.match(index, /[Ss]tep\s+\d+/, `${name}: ACQ index must cite step numbers`);
   }
 });
@@ -450,7 +443,6 @@ test('canonical skill descriptions → stay within the locked YAML-scalar budget
 test('intent bundle paragraphs → name --no-symbols and the excluded symbol sources', () => {
   const docs = {
     'references/coordinator-cards/dispatch.md': fs.readFileSync(path.join(root, 'references/coordinator-cards/dispatch.md'), 'utf8'),
-    'skills/bouncer-execute/SKILL.md': readWorkflow('bouncer-execute'),
   };
   for (const [name, body] of Object.entries(docs)) {
     const flat = body.replace(/\s+/g, ' ');

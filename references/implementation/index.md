@@ -1,6 +1,6 @@
 ---
 name: implementation
-description: "Use from /bouncer-execute, or when named, to implement an approved task brief inside affected_paths only."
+description: "Use from /bouncer-run, or when named, to implement an approved task brief inside affected_paths only."
 ---
 
 # Implementation
@@ -14,11 +14,11 @@ does.
 
 When implementing from an approved tasks brief. Makes focused changes inside
 allowed paths, documents non-obvious intent with detailed Korean comments, keeps
-tests green, and reports any deviations from the plan. Used from `/bouncer-execute`.
+tests green, and reports any deviations from the plan. Used from `/bouncer-run`.
 
 ## Steps
 
-The caller (`/bouncer-execute` via `bouncer-implementer`) owns the dispatch;
+The caller (`/bouncer-run` via `bouncer-implementer`) owns the dispatch;
 this section is the call contract, not the implementation rubric.
 
 1. **Approved tasks** — Treat the task brief (`tasks/<NNN>/tasks.md`: Goal & intent, Current behavior, Target behavior, Interface, Touch, Do not touch, Constraints,

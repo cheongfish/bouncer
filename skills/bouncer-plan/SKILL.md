@@ -140,7 +140,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    with `bouncer scaffold task --blueprint <dir> --id <NNN>` (tasks and
    verification only). When `review_scope` is absent, keep `tasks/<NNN>/{tasks,verification,review}.md`. Root `tasks.md` /
    `tasks-<NNN>.md` are input only to `bouncer migrate task-layout`. Do **not**
-   create BP `explain.md` here — `/bouncer-commit` scaffolds it with
+   create BP `explain.md` here — `/bouncer-finalize` scaffolds it with
    `bouncer scaffold explain`.
 
 3. **Author.** Use the `spec-authoring` skill (`${BOUNCER_ROOT}/references/spec-authoring/index.md`) to write the epic, blueprint, and
@@ -148,7 +148,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `tasks/<NNN>/tasks.md` under the blueprint, fill every implementation-ready
    section before approval — Goal & intent, Current behavior, Target behavior,
    Interface, Touch, Do not touch, Constraints, Checklist.    Those sections are
-   the sole brief for `/bouncer-execute`. When collecting task evidence for a
+   the sole brief for `/bouncer-run`. When collecting task evidence for a
    `scale: full` blueprint, after the task bundle is scaffolded and before
    writing Current behavior and Touch, read
    [evidence-dispatch.md](./references/evidence-dispatch.md). Author each named
@@ -166,7 +166,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    Also replace scaffold default frontmatter `title` values (and set
    `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent` /
    `bouncer.commit_summary`, when needed): write those two task fields as YAML
-   lists (`- ` items), not a single scalar. `/bouncer-commit` turns each task
+   lists (`- ` items), not a single scalar. The internal `bouncer commit` turns each task
    `title` into that task's commit subject (falls back to blueprint `title`),
    uses that task's `commit_intent` then `commit_summary` (each 1–2 Korean
    terminal sentences; no verification-title fallback), following
@@ -260,10 +260,9 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    fix it in this loop: return to step 5 and follow the reference's stale
    recovery, then re-run steps 7 and 8 after the step 6 re-approval.
    Then point the user at `/bouncer-run` — it
-   drives execute→commit until the blueprint's tasks run out, and
+   drives implement, verify, review, and task commit until the blueprint's tasks run out, and
    `config.autonomy` (`auto` | `interactive`) already decides how often they are
-   asked. Do not offer `/bouncer-execute` as the normal next step; mention it
-   only for a single task or to recover a stopped drive.
+   asked. Task commits are handled by the internal `bouncer commit` CLI inside the drive.
 
 ## ACQ (AskUserQuestion) gates
 

@@ -10,7 +10,7 @@ labels: friction
 
 ## 어떤 명령/단계에서 막혔나요
 
-<!-- /bouncer-plan, /bouncer-execute, bouncer validate ... -->
+<!-- /bouncer-plan, /bouncer-run, bouncer validate ... -->
 
 ## 실제로 나온 출력
 

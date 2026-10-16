@@ -1,6 +1,6 @@
 ---
 name: bouncer-run
-description: "Use only when the user explicitly asks /bouncer-run; it repeats /bouncer-execute then /bouncer-commit until no open tasks remain."
+description: "Use only when the user explicitly asks /bouncer-run; it drives each open task through implement, verify, review, and task commit until none remain."
 ---
 # /bouncer-run
 
@@ -33,9 +33,9 @@ bootstraps the integration worktree, dispatches one `bouncer-coordinator` at a
 time, and on `continue` re-dispatches. It does not read and fix code directly,
 does not run `implementation`, `review`, or `debugging` inline, and does not
 reconstruct a worker's judgment from the diff — the coordinator already judged
-it. On a full drive, do not use execute's inline branch.
+it.
 
-Task-by-task execute and commit, scope revision, worker dispatch, and
+Task-by-task implement, verify, review, and commit, scope revision, worker dispatch, and
 coordinator output fields belong to `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
 For every commit task on a full drive, the coordinator must require its
 implementer to read `${BOUNCER_ROOT}/references/coding-standards/index.md`
@@ -66,7 +66,7 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 When `review_scope` is `blueprint`, the coordinator owns the one final review
 after that verification node (and every commit task) is `integrated`; this
 root session does not open it. When `review_scope` is absent, per-task reviews
-stay on the execute round.
+stay on the task's review round.
 
 1. **Preflight.** Load runtime state from the CLI only:
    ```bash

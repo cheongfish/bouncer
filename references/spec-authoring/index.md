@@ -53,7 +53,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
      Those sections are the sole brief for execution. Current behavior and
      Target behavior are optional on the template; when absent, execution
      passes only the sections that exist. Set `title` as the
-     **task commit subject** (`/bouncer-commit` copies it). Set
+     **task commit subject** (the internal `bouncer commit` copies it). Set
      `bouncer.commit_intent` to 1–2 Korean terminal sentences (배경·의도) drawn
      from Goal & intent, and optionally `bouncer.commit_summary` to 1–2 Korean
      terminal sentences (변경 요약) — not the subject noun phrase. For a flow change, show only
@@ -289,7 +289,7 @@ flowchart LR
 
 ## Commit-message titles (`.gitmessage`)
 
-`/bouncer-commit` builds each **task** commit message from document
+The internal `bouncer commit` builds each **task** commit message from document
 frontmatter, not from free-form prose. `/bouncer-finalize` builds any
 **remainder** commit from the blueprint `title` /
 `commit_type` and its `## Intent` section. Follow the
@@ -362,7 +362,7 @@ does **not** ban backticks in Markdown 본문 — those are 금지하지 않는�
 - **Do** rewrite scaffold default `title` values (and optional
   `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent` /
   `bouncer.commit_summary`).
-  They are authored content, not harness ids — `/bouncer-commit` copies task
+  They are authored content, not harness ids — `bouncer commit` copies task
   fields into the task message, while `/bouncer-finalize` copies the blueprint
   `## Intent` section into the remainder message.
 - The other exception is content the calling command explicitly tells you to

@@ -817,49 +817,6 @@ const PATH_CONTRACTS = {
   'references/context-review/index.md': {
     frontmatter: { required: ['name', 'description'], nonEmpty: ['description'], values: { name: 'context-review' } },
   },
-  // commit 워크플로: 다섯 번호 단계, 마지막 포인터 ACQ만 색인.
-  'skills/bouncer-commit/SKILL.md': {
-    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-commit' } },
-    headings: { required: ['ACQ (AskUserQuestion) gates'] },
-    steps: { required: [1, 2, 3, 4, 5], order: true, acq: [5], acqOptions: [5] },
-    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [5], only: true },
-  },
-  // execute 워크플로: 여섯 번호 단계, ACQ 없음(색인은 비어 있어야 한다). 단계 3·4·5가 각
-  // reference를 조건부로 적재한다.
-  'skills/bouncer-execute/SKILL.md': {
-    frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-execute' } },
-    links: [
-      {
-        href: '../bouncer-run/references/agent-dispatch.md',
-        resolve: true,
-        referencePreamble: true,
-        conditionalLoad: { triggers: ['dispatch', 'fallback'] },
-      },
-      {
-        href: '../bouncer-run/references/verification-recovery.md',
-        resolve: true,
-        referencePreamble: true,
-        conditionalLoad: { triggers: ['verify', 'recover'] },
-      },
-      {
-        href: '../bouncer-run/references/review-round.md',
-        resolve: true,
-        referencePreamble: true,
-        conditionalLoad: { triggers: ['review', 'round'] },
-      },
-    ],
-    steps: {
-      required: [1, 2, 3, 4, 5, 6],
-      order: true,
-      noAcq: true,
-      links: {
-        3: ['../bouncer-run/references/agent-dispatch.md'],
-        4: ['../bouncer-run/references/verification-recovery.md'],
-        5: ['../bouncer-run/references/review-round.md'],
-      },
-    },
-    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },
-  },
   // plan 워크플로: 여덟 번호 단계, ACQ는 1·2·3·4·6단계에만 둔다.
   'skills/bouncer-plan/SKILL.md': {
     frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-plan' } },
