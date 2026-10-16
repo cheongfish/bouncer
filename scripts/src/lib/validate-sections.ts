@@ -2,6 +2,11 @@
 import guards = require('./guards');
 const { isRecord } = guards;
 import paths = require('./paths');
+import reviewPolicy = require('./review-policy');
+// pathsOverlap 정본은 path-overlap.ts다. scope 등 하위 모듈이 검증 계층 없이 쓸 수
+// 있도록 옮겼고, 기존 소비자는 이 모듈의 export로 같은 이름을 계속 받는다.
+import pathOverlapMod = require('./path-overlap');
+const { pathsOverlap } = pathOverlapMod;
 const { toPosix } = paths;
 
 // 본문 파싱 층. 게이트(G)와 구조(S)가 같은 heading/경로 규칙을 보게 여기만 둔다.
@@ -56,13 +61,8 @@ const CONTEXT_REPORT_STATUS = ['requested', 'addressed', 'accepted'];
 const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
 // adaptive Execute는 combined를 추가하고, legacy 네 이름은 기존 round를 계속
 // 통과시킨다. security는 위험 flag가 있을 때만 별도 call로 붙는다.
-const REVIEW_PERSPECTIVE = [
-  'combined',
-  'spec_scope',
-  'correctness_tests',
-  'minimality_maintainability',
-  'security',
-];
+// 목록 본체는 review-policy 정본이며 코디네이터의 worker-model 검사도 같은 값을 쓴다.
+const { REVIEW_PERSPECTIVE } = reviewPolicy;
 // adaptive Plan은 combined·local·global을 쓰되, legacy 네 관점 round도 읽는다.
 // execute 관점과 이름을 섞지 않아야 G18이 diff 리뷰 원장을 계획 원장으로 오인하지 않는다.
 const CONTEXT_REVIEW_PERSPECTIVE = [
@@ -240,12 +240,6 @@ function parseTouchRows(touchText: unknown): TouchRow[] {
     rows.push({ change: change as TouchRow['change'], path: rowPath, renameTo });
   }
   return rows;
-}
-
-// 디렉터리 prefix도 교차로 본다. `scripts/` 금지가 `scripts/lib/x.js`를
-// 통과시키면 G12가 파일 단위 affected_paths를 놓친다.
-function pathsOverlap(a: string, b: string): boolean {
-  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
 function pathJustifiedByTouch(ap: string, touchText: string): boolean {

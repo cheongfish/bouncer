@@ -8,6 +8,7 @@ const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 
 const { runCli } = require('../scripts/lib/cli');
+const { FEATURE_AREAS, loadedAreas, assertAreaKnown } = require('./helpers/feature-areas');
 const repoRoot = path.join(__dirname, '..');
 
 /**
@@ -29,9 +30,11 @@ function probeIntentCache(source) {
   return JSON.parse(result.stdout);
 }
 
+// 자식 프로세스가 적재한 `scripts/lib` 모듈의 basename 전부를 모은다. 어떤 모듈이 기능 영역에
+// 속하는지는 여기서 고르지 않고 `feature-areas` 표가 판정한다 — 파일 이름이 바뀌어도 표 한 곳만 고친다.
 const INTENT_CACHE_FILTER = `
   var keys = Object.keys(require.cache)
-    .filter((p) => /\\/(symbol-index|intent-provenance|intent-bundle|cli-intent-command)\\.js$/.test(p))
+    .filter((p) => p.includes(require('path').join('scripts', 'lib') + require('path').sep))
     .map((p) => require('path').basename(p))
     .sort();
 `;
@@ -345,13 +348,28 @@ test('CLI require, help, and a non-intent command → leave intent modules out o
       afterRequire, afterHelp, afterGeneral: keys, code: null, out: '', err: '',
     }));
   `);
+  assertAreaKnown('intent');
   for (const label of ['afterRequire', 'afterHelp', 'afterGeneral']) {
-    assert.deepStrictEqual(
-      cold[label].filter((name) => INTENT_RESOLVER_MODULES.includes(name)),
-      [],
-      label,
-    );
+    assert.ok(cold[label].includes('cli.js'), label);
+    assert.ok(!loadedAreas(cold[label]).includes('intent'), `${label}: ${cold[label].join(',')}`);
   }
+});
+
+test('child process that requires intent-bundle first → loadedAreas reports the intent area', () => {
+  // 영역 판정 유효성: 의도 모듈이 실제로 적재되면 위 지연 로딩 단언이 실패해야 한다.
+  const loaded = probeIntentCache(`
+    'use strict';
+    require('./scripts/lib/intent-bundle');
+    require('./scripts/lib/cli');
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({ keys, code: null, out: '', err: '' }));
+  `);
+  assert.deepStrictEqual(loadedAreas(loaded.keys), ['intent']);
+  assert.ok(FEATURE_AREAS.intent.includes('intent-bundle'));
+});
+
+test('unknown feature area name → assertAreaKnown throws', () => {
+  assert.throws(() => assertAreaKnown('nope'), /unknown feature area: nope/);
 });
 
 test('valid intent dispatch → loads dedicated command and provenance modules once', () => {

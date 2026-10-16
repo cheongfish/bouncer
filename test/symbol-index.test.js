@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { spawnSync } = require('node:child_process');
 
 const { resolveSymbol } = require('../scripts/lib/symbol-index');
 
@@ -234,10 +235,44 @@ test('a parse error in one file → does not fabricate candidates from other fil
   assert.equal(result.symbol_ref.path, 'src/ok.ts');
 });
 
-test('shipped symbol-index → requires no typescript package', () => {
-  const shipped = fs.readFileSync(path.join(__dirname, '../scripts/lib/symbol-index.js'), 'utf8');
-  assert.equal(/require\(\s*['"]typescript['"]\s*\)/.test(shipped), false);
-  assert.equal(/from\s+['"]typescript['"]/.test(shipped), false);
+const TYPESCRIPT_BLOCKER = path.join(__dirname, 'helpers', 'typescript-blocker.js');
+const SHIPPED_LIB = path.join(__dirname, '..', 'scripts', 'lib');
+
+/**
+ * 주어진 `lib` 디렉터리의 `symbol-index.js`를 `typescript` 해석이 막힌 자식 프로세스에서
+ * 실행해 `.ts` 픽스처의 심볼을 해석한다. 같은 프로세스에서 하면 이미 적재된 모듈 때문에
+ * 의존을 관측할 수 없어 자식 프로세스로 격리한다.
+ *
+ * @param {string} libDir - `symbol-index.js`가 있는 디렉터리 절대 경로
+ * @returns {{ status: string }} 자식 프로세스의 resolveSymbol 결과 status
+ * @throws {AssertionError} 자식 프로세스가 비정상 종료하면 stderr를 메시지에 담아 실패한다
+ */
+function probeResolve(libDir) {
+  const repo = tmpRepo();
+  writeFile(repo, 'src/ok.ts', 'export function keep(): number { return 1; }\n');
+  const source = `
+    const { resolveSymbol } = require(require('path').join(process.argv[1], 'symbol-index.js'));
+    const result = resolveSymbol({ repoRoot: process.argv[2], symbol: 'keep' });
+    process.stdout.write(JSON.stringify({ status: result.status }));
+  `;
+  const run = spawnSync(process.execPath, ['--require', TYPESCRIPT_BLOCKER, '-e', source, libDir, repo], {
+    encoding: 'utf8',
+  });
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  return JSON.parse(run.stdout);
+}
+
+test('shipped symbol-index with typescript resolution blocked → still resolves a .ts symbol', () => {
+  assert.deepEqual(probeResolve(SHIPPED_LIB), { status: 'resolved' });
+});
+
+test('lib copy whose symbol-index requires typescript → probe fails with the blocked module', () => {
+  // probe 유효성: typescript를 요구하는 사본에서 실패하지 않으면 위 검사는 아무것도 막지 못한다.
+  const copy = tmpRepo();
+  fs.cpSync(SHIPPED_LIB, copy, { recursive: true });
+  const target = path.join(copy, 'symbol-index.js');
+  fs.writeFileSync(target, `require('typescript');\n${fs.readFileSync(target, 'utf8')}`);
+  assert.throws(() => probeResolve(copy), /typescript is blocked by test stub/);
 });
 
 test('typescript annotations, comments, and templates → do not invent or hide definitions', () => {

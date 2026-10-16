@@ -15,8 +15,8 @@ import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
-import coordinatorCore = require('./coordinator');
-const { readyWave } = coordinatorCore;
+import executionDag = require('./execution-dag');
+const { readyWave } = executionDag;
 import configMod = require('./config');
 const { readCoordinatorPolicy } = configMod;
 

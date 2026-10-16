@@ -61,3 +61,4 @@ bouncer_schema: '0.1'
 * [103 drive-repair-integrity](epics/103-drive-repair-integrity/index.md) - drive의 다중 attempt fan-in 누락, 리뷰 라운드 순서와 repair wave 상한 불일치, repair brief의 finding 누락을 고친다.
 * [104 drive-retro-103-followups](epics/104-drive-retro-103-followups/index.md) - RETRO-103-001 follow-ups: reject duplicate fingerprints at context-review record and record subagent token usage
 * [105 drive-retro-104-followups](epics/105-drive-retro-104-followups/index.md) - RETRO-104 follow-ups: verify failure output tail, ASCII epic description guard, and plan discovery and review guides
+* [106 source-restructuring](epics/106-source-restructuring/index.md) - Remove the verification-current-coordinator cycle and give DAG, path and policy rules a single source, preserving CLI contracts.

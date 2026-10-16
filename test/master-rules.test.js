@@ -4,7 +4,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { after } = require('node:test');
+const { execFileSync } = require('node:child_process');
 const { checkDocShape } = require('../scripts/check-doc-shape');
+const { init } = require('../scripts/lib/init');
+const { createGitTemplate } = require('./helpers/git-fixture');
 
 const root = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -433,9 +437,44 @@ test('plugin contents → do not ship CLAUDE.md', () => {
   assert.equal(fs.existsSync(path.join(root, 'CLAUDE.md')), false);
 });
 
-test('init → does not install master rules into the project', () => {
-  const init = read('scripts/lib/init.js');
-  assert.doesNotMatch(init, /CLAUDE\.md|AGENTS\.md/);
+// init 소스 문자열이 아니라 실제 init 실행 결과를 본다. 주석·상수 이동에는 흔들리지 않고,
+// init이 플러그인 마스터 규칙을 프로젝트 루트에 쓰는 실패 모드에서만 깨진다.
+const initTemplate = createGitTemplate((dir) => {
+  // 상위 GIT_DIR·GIT_WORK_TREE가 남아 있으면 git init이 fixture가 아니라 호출 저장소를 가리킨다.
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  delete env.GIT_INDEX_FILE;
+  execFileSync('git', ['init', '--quiet'], { cwd: dir, stdio: 'ignore', env });
+});
+after(() => initTemplate.dispose());
+
+/**
+ * 주어진 저장소에서 init을 실행한다.
+ * 기본은 생성본 `scripts/lib/init.js`의 실제 `init`이며, 단언이 마스터 규칙 설치를
+ * 실제로 잡는지 확인할 때만 가짜 `initFn`을 넘겨 실패 모드를 되살린다.
+ *
+ * @param {string} repoDir - init을 실행할 임시 git 저장소 절대 경로
+ * @param {(repoDir: string) => unknown} [initFn] - 생략하면 실제 init을 고정 timestamp로 호출한다
+ * @returns {unknown} initFn의 반환값
+ */
+function runInitIn(repoDir, initFn = (dir) => init({ repoRoot: dir, timestamp: '2026-07-01T00:00:00.000Z' })) {
+  return initFn(repoDir);
+}
+
+test('init on a fresh repo → creates neither AGENTS.md nor CLAUDE.md at the project root', () => {
+  const repo = initTemplate.copy();
+  runInitIn(repo);
+  assert.equal(fs.existsSync(path.join(repo, 'AGENTS.md')), false, 'init must not install AGENTS.md');
+  assert.equal(fs.existsSync(path.join(repo, 'CLAUDE.md')), false, 'init must not install CLAUDE.md');
+});
+
+test('init with an existing project AGENTS.md → leaves it byte-identical', () => {
+  const repo = initTemplate.copy();
+  const original = Buffer.from('# Project rules\n\n프로젝트 소유 규칙.\n', 'utf8');
+  fs.writeFileSync(path.join(repo, 'AGENTS.md'), original);
+  runInitIn(repo);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, 'AGENTS.md')), original);
 });
 
 // migrate-ids 스킬·CLI는 제거됐다 — 카탈로그에 남지 않아야 한다.

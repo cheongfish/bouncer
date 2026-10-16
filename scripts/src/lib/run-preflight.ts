@@ -19,7 +19,9 @@ const {
   DEFAULT_EXCLUSIVE_RESOURCES, executionKindOf,
 } = schema;
 import coordinator = require('./coordinator');
-const { readyWave, loadLedger } = coordinator;
+const { loadLedger } = coordinator;
+import executionDag = require('./execution-dag');
+const { readyWave } = executionDag;
 import runtimeState = require('./runtime-state');
 const { coordinatorPathsFor } = runtimeState;
 import configMod = require('./config');

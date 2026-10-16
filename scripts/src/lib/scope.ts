@@ -13,10 +13,11 @@ import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import render = require('./render');
 const { renderDoc } = render;
-import validateSections = require('./validate-sections');
-const { pathsOverlap } = validateSections;
+import pathOverlapMod = require('./path-overlap');
+const { pathsOverlap } = pathOverlapMod;
 import leaseMod = require('./lease');
 const { revokeLease, isValidLease, isValidLeaseSeq } = leaseMod;
+import type { Task as CanonicalTask, Ledger as CanonicalLedger } from './execution-contracts';
 
 function isUnder(file: unknown, entry: unknown): boolean {
   const f = toPosix(file);
@@ -110,23 +111,18 @@ function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }: {
 // (scope revision) 단일 경로다. 일반 execute는 ledger가 없어 `active: false`로
 // 떨어지고 예전 판정을 그대로 쓴다.
 
-type LedgerScope = { revision: string; paths: string[] };
 // 디스크에 있는 ledger task 한 벌의 전체 뷰다. DAG 필드까지 여기 두는 이유:
 // `CoordinatorContext.tasks`가 그대로 coordinator.readyWave로 넘어가고 그
 // 함수가 depends_on·parallel_safe·dependency_gate를 실제로 읽기 때문이다.
-// 쓰기 쪽 타입(coordinator.ts의 `Task`)까지 이 선언 하나로 합치려면
-// coordinator.ts를 고쳐야 하는데 이 task의 범위 밖이라, 지금은 읽기 쪽이
-// 런타임이 의존하는 필드를 빠짐없이 선언하는 데까지만 맞춘다.
-type LedgerTask = {
-  id: string; status?: string; workerPath?: string; sha?: string;
-  depends_on?: string[]; parallel_safe?: boolean; dependency_gate?: string;
-  scope?: LedgerScope; actualPaths?: string[]; decisions?: unknown[];
-  affected_paths?: string[];
-  lease?: { id: string; generation: number; seq: number; status: 'active' | 'revoked' };
-};
-type Ledger = {
-  version?: number; blueprint?: string; base?: string; integrationHead?: string;
-  revision?: string; leaseSeq?: number; tasks?: LedgerTask[]; decisions?: unknown[];
+type LedgerTask = Pick<
+  CanonicalTask,
+  'id' | 'status' | 'workerPath' | 'sha' | 'depends_on' | 'parallel_safe' | 'dependency_gate'
+  | 'scope' | 'actualPaths' | 'decisions' | 'affected_paths' | 'lease'
+>;
+// 디스크 파일은 어떤 필드든 빠져 있을 수 있어 정본을 전부 선택 필드로 읽는다.
+// `version`은 정본이 리터럴 1이지만 읽기에서는 다른 버전도 받아야 하므로 number로 넓힌다.
+type Ledger = Omit<Partial<CanonicalLedger>, 'tasks' | 'version'> & {
+  version?: number; tasks?: LedgerTask[];
 };
 
 type CoordinatorContext = {

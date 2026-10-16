@@ -7,6 +7,7 @@ const path = require('node:path');
 const {
   listTasksDocs, expectedTasksId, expectedTaskDocIds, isNumberedTasksBasename,
 } = require('../scripts/lib/tasks-docs');
+const { loadModuleGraph, reachable } = require('./helpers/module-graph');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -118,10 +119,38 @@ test('expectedTaskDocIds → returns the three task-unit ids', () => {
   });
 });
 
-test('tasks-docs 단독 로드 → paths 모듈을 끌어오지 않는다', () => {
-  // 같은 파일의 다른 테스트와 모듈 인스턴스가 섞이지 않게 마지막의 별도 test()에 둔다.
-  const repo = mkBp(['index.md']);
-  for (const key of Object.keys(require.cache)) if (key.includes('/scripts/lib/')) delete require.cache[key];
-  require('../scripts/lib/tasks-docs').listTasksDocs({ repoRoot: repo, blueprintDir: BP });
-  assert.ok(!Object.keys(require.cache).some((k) => k.endsWith('/scripts/lib/paths.js')));
+// tasks-docs는 문서 목록만 다루는 하위 계층이라 CLI·coordinator·gate 같은 상위 계층을
+// 끌어오면 안 된다. 예전에는 공유 require.cache를 지워 관측했지만, 지금은 소스 의존 그래프의
+// 전이 도달 집합으로 같은 실패 모드를 본다(같은 워커의 다른 테스트를 건드리지 않는다).
+const UPPER_LAYERS = ['cli*', 'coordinator', 'current', 'verification', 'finalize*', 'validate*'];
+
+/**
+ * `from`에서 전이적으로 도달하는 모듈 중 금지 목록에 걸리는 것을 고른다.
+ *
+ * @param {Map<string, Set<string>>} graph - 모듈 이름(확장자 없는 basename) → 직접 require 대상
+ * @param {string} from - 시작 모듈 이름
+ * @param {string[]} forbidden - 정확한 모듈 이름, 또는 끝이 `*`이면 접두 일치 패턴
+ * @returns {string[]} 도달한 금지 모듈 이름(정렬). 없으면 빈 배열
+ */
+function forbiddenReach(graph, from, forbidden) {
+  const hits = (name) => forbidden.some((rule) => (rule.endsWith('*')
+    ? name.startsWith(rule.slice(0, -1))
+    : name === rule));
+  return [...reachable(graph, from)].filter(hits).sort();
+}
+
+test('tasks-docs transitive reach over the source graph → contains no upper-layer module', () => {
+  const graph = loadModuleGraph(path.join(__dirname, '..', 'scripts', 'src', 'lib'));
+  assert.deepEqual(forbiddenReach(graph, 'tasks-docs', UPPER_LAYERS), []);
+});
+
+test('fake graph where tasks-docs reaches coordinator and cli-x → forbiddenReach reports both', () => {
+  const graph = new Map([
+    ['tasks-docs', new Set(['schema'])],
+    ['schema', new Set(['coordinator'])],
+    ['coordinator', new Set(['cli-x', 'paths'])],
+    ['cli-x', new Set()],
+    ['paths', new Set()],
+  ]);
+  assert.deepEqual(forbiddenReach(graph, 'tasks-docs', UPPER_LAYERS), ['cli-x', 'coordinator']);
 });

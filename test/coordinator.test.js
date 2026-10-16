@@ -8,6 +8,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { readyWave, transition } = require('../scripts/lib/coordinator');
 const { createGitTemplate } = require('./helpers/git-fixture');
+const { loadModuleGraph, reachable } = require('./helpers/module-graph');
 
 const __coordinatorMod = require('../scripts/lib/coordinator');
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
@@ -117,10 +118,71 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   return dispatched;
 }
 
+const COORDINATOR_SRC_DIR = path.join(__dirname, '..', 'scripts', 'src', 'lib');
+
+/**
+ * reason 완전성 검사가 훑을 소스 파일 집합. `coordinator.ts`와 그 파일이 정적으로 도달하는
+ * `coordinator-*` 모듈이다. 코드를 하위 모듈로 옮겨도 집합이 함께 늘어나므로, 단일 파일만
+ * 읽어 검사 범위가 조용히 줄어드는 문제를 막는다.
+ *
+ * @returns {string[]} 절대 경로 목록(첫 항목은 coordinator.ts)
+ */
+function coordinatorReasonFiles() {
+  const graph = loadModuleGraph(COORDINATOR_SRC_DIR);
+  const modules = ['coordinator', ...[...reachable(graph, 'coordinator')]
+    .filter((name) => name.startsWith('coordinator-')).sort()];
+  return modules.map((name) => path.join(COORDINATOR_SRC_DIR, `${name}.ts`));
+}
+
+/**
+ * 파일 목록에서 `reason: '...'` 리터럴을 모은다.
+ *
+ * @param {string[]} files - 읽을 소스 파일 절대 경로
+ * @returns {string[]} 중복 없는 reason 문자열(정렬)
+ */
+function reasonLiteralsOf(files) {
+  const reasons = new Set();
+  for (const file of files) {
+    for (const match of fs.readFileSync(file, 'utf8').matchAll(/reason: '([a-z-]+)'/g)) reasons.add(match[1]);
+  }
+  return [...reasons].sort();
+}
+
+/**
+ * 힌트 표에 키가 없는 reason을 고른다. 힌트가 없으면 공개 응답이 일반 폴백 힌트로 떨어진다.
+ *
+ * @param {string[]} reasons - 검사할 reason 목록
+ * @param {Record<string, unknown>} hints - COORDINATE_FAILURE_HINTS
+ * @returns {string[]} 힌트가 없는 reason 목록(입력 순서). 모두 있으면 빈 배열
+ */
+function missingHints(reasons, hints) {
+  return reasons.filter((reason) => !Object.hasOwn(hints, reason));
+}
+
+/**
+ * 실제 거절 응답이 전용 힌트를 받았는지 단언한다. 폴백이면 `cause`가 `reason` 문자열과
+ * 같아지므로 `cause !== reason`으로 폴백을 구분한다.
+ *
+ * @param {{ reason: string, cause: string }} result - coordinate 실패 응답
+ * @returns {void}
+ */
+function assertHinted(result) {
+  assert.ok(Object.hasOwn(COORDINATE_FAILURE_HINTS, result.reason), JSON.stringify(result));
+  assert.notStrictEqual(result.cause, result.reason, JSON.stringify(result));
+}
+
+test('coordinator reason file set → includes coordinator.ts first', () => {
+  assert.strictEqual(coordinatorReasonFiles()[0], path.join(COORDINATOR_SRC_DIR, 'coordinator.ts'));
+});
+
 test('every coordinator reason literal exists → COORDINATE_FAILURE_HINTS covers each of them', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../scripts/src/lib/coordinator.ts'), 'utf8');
-  const reasons = new Set([...source.matchAll(/reason: '([a-z-]+)'/g)].map((m) => m[1]));
-  for (const reason of reasons) assert.ok(COORDINATE_FAILURE_HINTS[reason], reason);
+  const reasons = reasonLiteralsOf(coordinatorReasonFiles());
+  assert.ok(reasons.length > 0);
+  assert.deepStrictEqual(missingHints(reasons, COORDINATE_FAILURE_HINTS), []);
+});
+
+test('an injected reason with no hint → missingHints reports it', () => {
+  assert.deepStrictEqual(missingHints(['fake-x'], COORDINATE_FAILURE_HINTS), ['fake-x']);
 });
 
 test('readyWave with pending, blocked and done tasks → returns only pending tasks with completed dependencies', () => {
@@ -333,8 +395,10 @@ test('critical recovery with a prepared task and a repeated call → records one
   });
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const beforeRepeat = fs.readFileSync(ledgerFile, 'utf8');
-  assert.strictEqual(coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
-    cwd: boot.integrationPath, task: '001', findings: ['R-3'], reason: 'again' }).reason, 'critical-recovery-exhausted');
+  const exhausted = coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', findings: ['R-3'], reason: 'again' });
+  assert.strictEqual(exhausted.reason, 'critical-recovery-exhausted');
+  assertHinted(exhausted);
   assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), beforeRepeat);
   assert.strictEqual(coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
     cwd: boot.integrationPath, task: '001', outcome: 'blocked', reason: 'unresolved' }).task.criticalRecovery.outcome, 'blocked');
@@ -349,8 +413,10 @@ test('critical recovery with a prepared task and a repeated call → records one
   assert.strictEqual(noStart.reason, 'critical-recovery-not-started');
   withoutStart.tasks[0].status = 'recorded';
   fs.writeFileSync(ledgerFile, `${JSON.stringify(withoutStart, null, 2)}\n`);
-  assert.strictEqual(coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
-    cwd: boot.integrationPath, task: '001', findings: ['R-1'], reason: 'x' }).reason, 'illegal-transition');
+  const illegal = coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', findings: ['R-1'], reason: 'x' });
+  assert.strictEqual(illegal.reason, 'illegal-transition');
+  assertHinted(illegal);
   const malformed = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   malformed.status = 'active'; malformed.tasks[0].status = 'prepared';
   malformed.tasks[0].criticalRecovery = { used: 2, findings: ['R-1'], reason: 'x', outcome: null };
@@ -683,6 +749,7 @@ test('bootstrap with a symlink substituted for its registered integration checko
     cause: COORDINATE_FAILURE_HINTS['unassigned-integration-worktree'].cause,
     next: COORDINATE_FAILURE_HINTS['unassigned-integration-worktree'].next,
   });
+  assertHinted(result);
   assert.strictEqual(fs.existsSync(path.join(outside, '.bouncer', 'runtime', 'coordinator.json')), false);
 });
 
@@ -781,6 +848,7 @@ test('prepare with a missing integration blueprint → rejects before creating a
     cause: COORDINATE_FAILURE_HINTS['missing-blueprint'].cause,
     next: COORDINATE_FAILURE_HINTS['missing-blueprint'].next,
   });
+  assertHinted(result);
   const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8' });
   assert.doesNotMatch(listed, /workers/);
   assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
@@ -1112,6 +1180,7 @@ test('prepare calls overlapping the same fence → the nested call wins and the 
   });
   assert.strictEqual(nested.ok, true, JSON.stringify(nested));
   assert.strictEqual(first.reason, 'stale-ledger-checkpoint', JSON.stringify(first));
+  assertHinted(first);
   const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   assert.ok(fs.existsSync(after.tasks[0].workerPath));
 });
