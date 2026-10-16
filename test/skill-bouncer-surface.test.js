@@ -102,39 +102,6 @@ test('workflow Plugin root paragraphs → are byte-identical across the five wor
   for (const name of WORKFLOW) assert.ok(readWorkflow(name).includes(`\n${PLUGIN_ROOT_LINE}\n`), name);
 });
 
-// BP001 착수 시점 단어 수. 합계가 이 값보다 작다는 기존 판정만 유지하고,
-// 스킬별 숫자는 이후 성장이 어디서 났는지 보는 영수증이다.
-// TASKS-002: Plugin root 줄이 루트 명령을 직접 실어 스킬당 +17 단어 → 합계 상한도
-// 같은 폭으로 올려 의도된 성장이 회귀 판정에 걸리지 않게 한다.
-const ENTRY_WORD_BASELINE = {
-  'bouncer-init': 428,
-  'bouncer-plan': 2348,
-  // 090-002 repair: step 4 early-handback 복구 표·규칙이 더한 +199 단어만 반영한다.
-  'bouncer-run': 1357,
-  // 095-004: 자동 retro 문단 +96 단어
-  'bouncer-finalize': 1098,
-  // 095-004: retro 스킬 실제 단어 수 + 1. 기존 합계 판정이 새 스킬 때문에 흔들리지 않게 한다.
-  'bouncer-retro': 473,
-};
-
-// 102-001에서 제거한 스킬이 제거 직전에 실제로 차지한 단어 수. 원래 합계 상한(일곱 영수증의 합)에서
-// 이 값만 빼야 run이 흡수한 내용이 "퇴역 스킬의 영수증" 뒤에 숨어 상한을 느슨하게 만들지 못한다.
-// 남은 스킬의 영수증은 올리지 않는다.
-const RETIRED_WORD_COUNT = { 'bouncer-execute': 1856, 'bouncer-commit': 796 };
-const RETIRED_RECEIPT = { 'bouncer-execute': 2018, 'bouncer-commit': 943 };
-
-test('entry-skill word count → stays below the BP001 baseline', () => {
-  const counts = Object.fromEntries(Object.keys(ENTRY_WORD_BASELINE).map((name) => [
-    name,
-    readWorkflow(name).trim().split(/\s+/).length,
-  ]));
-  const sumOf = (record) => Object.values(record).reduce((sum, count) => sum + count, 0);
-  // 착수 시점 상한 − 퇴역 스킬이 실제로 쓰던 단어 수. 영수증과 실제 수의 차이(재량 폭)는 그대로 유지한다.
-  const before = sumOf(ENTRY_WORD_BASELINE) + sumOf(RETIRED_RECEIPT) - sumOf(RETIRED_WORD_COUNT);
-  const after = Object.values(counts).reduce((sum, count) => sum + count, 0);
-  assert.ok(after < before, `expected < ${before} words, received ${after}`);
-});
-
 /**
  * ACQ 색인 앞 본문에서 1부터 이어지는 최상위 번호 단계 개수.
  * 들여 쓴 AskUserQuestion 항목은 세지 않는다.

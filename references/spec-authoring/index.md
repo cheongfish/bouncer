@@ -164,6 +164,12 @@ body content only; never edits harness-owned frontmatter fields. Used from
        *constructs or asserts* that shape, with `Modify` — even if the owning
        production module is under Do not touch. Import absence is not absence
        of blast radius.
+     - **Touch** (size or shape contract): before planning an addition to a Touch
+       path, check whether a test or `scripts/check-doc-shape.js` pins that file's
+       size, headings, or step shape (`rg` the path in `test/` and `scripts/`). If
+       one does, plan a replacement or a different location in the task; an
+       addition that the contract rejects only surfaces during execute and
+       departs from the approved brief.
      - **Judgable prose**: ban undecidable verbs such as `개선한다` or
        `적절히 처리한다`. Replace them with observable outcomes a gate or
        test can accept or reject.
@@ -365,6 +371,9 @@ does **not** ban backticks in Markdown 본문 — those are 금지하지 않는�
   They are authored content, not harness ids — `bouncer commit` copies task
   fields into the task message, while `/bouncer-finalize` copies the blueprint
   `## Intent` section into the remainder message.
+- **Rewriting** a scaffolded document with a whole-file write drops its
+  harness fields. Read the frontmatter first and copy `timestamp` and the
+  other harness-owned fields back unchanged, or edit only the body.
 - The other exception is content the calling command explicitly tells you to
   write into the protocol block (for example graph suggestions or confirmed
   `affected_paths`). Otherwise, bodies only.
