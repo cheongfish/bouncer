@@ -139,6 +139,8 @@ readable, but it cannot be reused as input for a new record.
 
 The only complete mode sequences are `discovery`, `discovery → delta`, and the
 drive-only recovery sequence `discovery → delta → critical_recovery → delta`.
+The blueprint final review (`review_scope: blueprint`) additionally allows
+`discovery → delta → delta`, one delta per repair wave; task reviews do not.
 An `advisory` is recorded once as `accepted` or `deferred` with a note; it never
 opens another implementer dispatch. Do not classify a current-task accuracy
 finding as `deferred` or `advisory`. An unresolved finding is never recorded as

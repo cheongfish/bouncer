@@ -13,6 +13,7 @@ const { toPosix } = paths;
 import validateSections = require('./validate-sections');
 const {
   findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,
+  BLUEPRINT_ROUND_CONTRACT,
 } = validateSections;
 import reviewSnapshot = require('./review-snapshot');
 const { loadReviewSnapshot, checkReviewSnapshotCurrent } = reviewSnapshot;
@@ -81,16 +82,18 @@ function isBlueprintReviewScopeAt(repoRoot: string, blueprintDirRel: string): bo
  * 여기만 접두를 허용한다 — 검사 규칙 복제가 아니라 예외 판정이다.
  *
  * @param {unknown[]} rounds - 병합 뒤 rounds
+ * @param {boolean} blueprintScope - blueprint 범위면 BLUEPRINT_ROUND_CONTRACT의 sequences로 판정
  * @returns {boolean} 허용 sequences 원소를 `,`로 나눈 배열의 길이 n 접두면 true
  */
-function isAllowedSequencePrefix(rounds: unknown[]): boolean {
+function isAllowedSequencePrefix(rounds: unknown[], blueprintScope: boolean): boolean {
   const modes: string[] = [];
   for (const entry of rounds) {
     if (isRecord(entry) && typeof entry.mode === 'string') modes.push(entry.mode);
   }
   const joined = modes.join(',');
   if (joined === '') return false;
-  for (const sequence of EXECUTE_ROUND_CONTRACT.sequences) {
+  const contract = blueprintScope ? BLUEPRINT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT;
+  for (const sequence of contract.sequences) {
     const parts = sequence.split(',');
     for (let n = 1; n <= parts.length; n += 1) {
       if (parts.slice(0, n).join(',') === joined) return true;
@@ -352,10 +355,12 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     findingLabel: 'review',
     allowedStatuses: EXECUTE_REVIEW_STATUS,
     reviewStatus: bouncer.status,
+    // G21과 같은 계약으로 판정해야 기록과 마감 게이트가 서로 다른 답을 내지 않는다.
+    roundScope: blueprintScope ? 'blueprint' : undefined,
   });
   const sequenceOnly = messages.length === 1 && messages[0] === 'review rounds sequence invalid';
   const inProgressOk = sequenceOnly
-    && isAllowedSequencePrefix(mergedRounds)
+    && isAllowedSequencePrefix(mergedRounds, blueprintScope)
     && bouncer.status !== 'accepted';
   if (messages.length > 0 && !inProgressOk) {
     return fail(

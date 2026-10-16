@@ -2810,6 +2810,51 @@ test('finalize G21 with accepted review and valid rounds → has no G21', () => 
   assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
 });
 
+function g21ModeRounds(modes) {
+  return modes.map((mode, i) => roundEntry({
+    round: i + 1,
+    mode,
+    previous_finding_ids: [],
+    target: { base: 'base-sha', head: 'deadbeef' },
+    perspectives: [{ name: 'combined', target_head: 'deadbeef' }],
+  }));
+}
+
+function g21SequenceFailures(modes) {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ModeRounds(modes), findings: [] }),
+  });
+  return failures.filter((f) => f.code === 'G21' && /rounds sequence invalid/.test(f.message));
+}
+
+test('finalize G21 with rounds discovery,delta,delta → has no sequence failure', () => {
+  assert.deepEqual(g21SequenceFailures(['discovery', 'delta', 'delta']), []);
+});
+
+test('finalize G21 with four rounds discovery,delta,delta,delta → is rounds sequence invalid', () => {
+  assert.equal(g21SequenceFailures(['discovery', 'delta', 'delta', 'delta']).length, 1);
+});
+
+test('finalize G21 with rounds discovery,delta,critical_recovery,delta → has no sequence failure', () => {
+  assert.deepEqual(g21SequenceFailures(['discovery', 'delta', 'critical_recovery', 'delta']), []);
+});
+
+test('finalize G21 with rounds discovery,delta,delta,critical_recovery,delta → is rounds sequence invalid', () => {
+  assert.equal(
+    g21SequenceFailures(['discovery', 'delta', 'delta', 'critical_recovery', 'delta']).length, 1,
+  );
+});
+
+test('execute gate G14 with task rounds discovery,delta,delta → is rounds sequence invalid', () => {
+  const failures = executeReviewFailures({
+    findings: [],
+    rounds: g21ModeRounds(['discovery', 'delta', 'delta']).map((r) => ({
+      ...r, perspectives: [{ name: 'correctness_tests', target_head: 'deadbeef' }],
+    })),
+  });
+  assert.ok(failures.some((f) => /rounds sequence invalid/.test(f.message)), JSON.stringify(failures));
+});
+
 test('finalize G21 stale: no ledger → skips git and G21', () => {
   let execCalls = 0;
   const failures = finalizeG21({

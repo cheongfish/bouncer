@@ -292,6 +292,34 @@ test('in-progress ledger with --status accepted → is review-ledger-invalid', (
   assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
 });
 
+test('blueprint round contract → max delta count equals REPAIR_WAVE_LIMIT', () => {
+  const { BLUEPRINT_ROUND_CONTRACT, REPAIR_WAVE_LIMIT } = require('../scripts/lib/validate-sections');
+  const maxDelta = Math.max(...BLUEPRINT_ROUND_CONTRACT.sequences.map(
+    (s) => s.split(',').filter((m) => m === 'delta').length,
+  ));
+  assert.strictEqual(maxDelta, REPAIR_WAVE_LIMIT);
+});
+
+test('blueprint scope discovery,delta,delta with --status accepted → is ok and a fourth round is review-ledger-invalid', () => {
+  const fx = makeFixture();
+  const modes = ['discovery', 'delta', 'delta'];
+  const roundFor = (i, mode) => fx.payload({
+    round: i + 1,
+    mode,
+    previous_finding_ids: i === 0 ? [] : ['F1'],
+    new: i === 0 ? 1 : 0,
+  }, [{ ...EXAMPLE_FINDING, last_seen_round: i + 1 }]);
+  for (let i = 0; i < 2; i += 1) {
+    const r = fx.record(roundFor(i, modes[i]));
+    assert.equal(r.ok, true, r.reason);
+  }
+  const accepted = fx.record(roundFor(2, 'delta'), { status: 'accepted' });
+  assert.equal(accepted.ok, true, JSON.stringify(accepted));
+  const before = fs.readFileSync(fx.reviewPath);
+  const fourth = fx.record(roundFor(3, 'delta'));
+  assertRejectedUntouched(fx, before, fourth, 'review-ledger-invalid');
+});
+
 test('CLI review record on success → writes JSON', () => {
   const fx = makeFixture();
   const r = recordCli(fx, { round: fx.write('round.json', fx.payload()), status: 'addressed' });

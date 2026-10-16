@@ -124,6 +124,8 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
   blocker·major가 해결되고 verify가 통과했으며 신규 actionable finding이
   Goal, Interface, Constraints, `affected_paths` 안에 있을 때만 허용합니다.
   세 번째 뒤 잔존·재발·새 설계가 필요하면 네 번째 round는 없습니다.
+  blueprint 최종 리뷰만 예외로, repair wave마다 delta 한 번씩
+  `discovery → delta → delta`까지 기록할 수 있습니다.
   직접 실행 run 중이면 `/bouncer-plan`으로 가고, 위임 주행
   중이면 coordinator가 rework·scope revision·terminal blocked 중 하나로
   판정합니다. `/bouncer-run`은 이 상한을 복제하지 않고 review-round
