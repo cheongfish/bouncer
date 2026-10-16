@@ -2684,6 +2684,9 @@ function reportPathsWarning(
 
 /**
  * commit wave fan-in: candidate에서 cherry-pick·검증 후 CAS ff만 canonical에 쓴다.
+ * task마다 `<baseHead>..<item.sha>` 범위의 worker 커밋을 모두 적용하고 통합 커밋 1개로
+ * 합친다(rework로 쌓인 앞 attempt 커밋이 빠지지 않게). 범위 안 내용 충돌은 `fanin-conflict`
+ * (그 task만 revoke), 그 밖의 git 실패는 `cherry-pick-failed`, 빈 범위는 `nothing-to-integrate`.
  * light 원장은 cherry-pick 없이 `integrateLightCommitWave`로 보낸다.
  */
 function integrateCommitWave({
@@ -2888,6 +2891,18 @@ function integrateCommitWave({
     });
   }
 
+  // 충돌이 아닌 fan-in 실패: candidate를 지우고 fanin 표식을 풀되 task는 revoke하지 않는다.
+  const stopFaninFailed = (id: string) => {
+    removeFaninWorktree(exec, repoRoot, faninPath);
+    return withLedgerLock(integration.ledgerFile, (owns) => {
+      const loaded = loadLedgerBytes(integration.ledgerFile);
+      if (!loaded) return { ok: false, reason: 'missing-ledger' };
+      loaded.ledger.fanin = null;
+      if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+      writeLedger(integration.ledgerFile, loaded.ledger);
+      return { ok: false, reason: 'cherry-pick-failed', task: id };
+    });
+  };
   const liveForSha = loadLedger(integration.ledgerFile);
   for (const id of waveTasks) {
     const item = liveForSha?.tasks.find((x) => x.id === id);
@@ -2896,8 +2911,30 @@ function integrateCommitWave({
       removeFaninWorktree(exec, repoRoot, faninPath);
       return { ok: false, reason: 'nothing-to-integrate' };
     }
+    // 1. 범위 계산: rework로 worker 브랜치에 attempt별 커밋이 쌓이면 item.sha 하나만 pick할 때
+    //    앞 커밋의 변경이 통합에서 빠진다. baseHead(phase 1이 고정한 값) 위의 전체 범위를 구한다.
+    let range: string[];
     try {
-      git(exec, faninPath, ['cherry-pick', pickSha]);
+      range = git(exec, faninPath, ['rev-list', '--reverse', `${baseHead}..${pickSha}`])
+        .split('\n').filter(Boolean);
+    } catch (_rangeError) {
+      // rev-list 실패(bad object 등)는 충돌이 아니므로 revoke 없이 cherry-pick-failed로 멈춘다.
+      return stopFaninFailed(id);
+    }
+    // 빈 범위: item.sha가 이미 baseHead의 조상이라 통합할 변경이 없다.
+    if (range.length === 0) {
+      removeFaninWorktree(exec, repoRoot, faninPath);
+      return { ok: false, reason: 'nothing-to-integrate' };
+    }
+    // squash 시 되돌아갈 지점. 단일 커밋 경로는 git 호출 순서를 보존하려고 읽지 않는다.
+    let preHead: string | null = null;
+    try {
+      if (range.length > 1) preHead = git(exec, faninPath, ['rev-parse', 'HEAD']);
+    } catch (_headError) {
+      return stopFaninFailed(id);
+    }
+    try {
+      for (const commit of range) git(exec, faninPath, ['cherry-pick', commit]);
     } catch (error) {
       // abort 전에 충돌 여부를 본다 — abort가 unmerged를 지우면 분류가 무너진다.
       const conflict = isCherryPickConflict(error, exec, faninPath);
@@ -2936,23 +2973,21 @@ function integrateCommitWave({
     // fanin.candidate_head가 amend 뒤 SHA를 가리킨다. hook이 fan-in worktree에서 lint를
     // 다시 돌리지 않도록 --no-verify, author/date는 cherry-pick 결과를 그대로 둔다.
     try {
+      // 범위가 둘 이상이면 pick 결과를 한 커밋으로 합친다. -C item.sha가 마지막 worker
+      // 커밋의 메시지·author·date를 그대로 가져와 아래 log/amend가 trailer만 덧붙이게 한다.
+      if (preHead !== null) {
+        git(exec, faninPath, ['reset', '--soft', preHead]);
+        git(exec, faninPath, ['commit', '--no-verify', '-C', pickSha]);
+      }
       const picked = git(exec, faninPath, ['log', '-1', '--format=%B']);
       git(exec, faninPath, [
         'commit', '--amend', '--no-verify', '-m', appendWorkerCommitTrailer(picked, pickSha),
       ]);
     } catch (_amendError) {
       // cherry-pick은 이미 끝나 진행 중 상태가 없으므로 --abort를 부르지 않는다.
-      // 어떤 git 실패든 candidate를 지우고 cherry-pick 실패와 같은 reason으로 멈춘다 —
-      // trailer 없는 integration 커밋이 verified fanin으로 남으면 출처 연결이 끊긴다.
-      removeFaninWorktree(exec, repoRoot, faninPath);
-      return withLedgerLock(integration.ledgerFile, (owns) => {
-        const loaded = loadLedgerBytes(integration.ledgerFile);
-        if (!loaded) return { ok: false, reason: 'missing-ledger' };
-        loaded.ledger.fanin = null;
-        if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
-        writeLedger(integration.ledgerFile, loaded.ledger);
-        return { ok: false, reason: 'cherry-pick-failed', task: id };
-      });
+      // 합치기·amend 어느 git 실패든 candidate를 지우고 cherry-pick 실패와 같은 reason으로
+      // 멈춘다 — trailer 없는 integration 커밋이 verified fanin으로 남으면 출처 연결이 끊긴다.
+      return stopFaninFailed(id);
     }
   }
 

@@ -1503,6 +1503,31 @@ test('the worker-trailer amend fails after a clean cherry-pick → stops as cher
   assert.strictEqual(fs.existsSync(faninPath), false);
 });
 
+test('a single-commit worker range → fan-in keeps cherry-pick, log, amend order without a squash', () => {
+  const blueprint = '.bouncer/context/epics/054-x/blueprints/058-z';
+  const drive = recordedDrive('bouncer-coordinator-single-order-', blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  const calls = [];
+  const recording = (file, args, options) => {
+    calls.push(args[0]);
+    return execFileSync(file, args, options);
+  };
+  const done = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    deps: {
+      execFileSync: recording,
+      runVerification: () => ({ ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) }),
+    },
+  });
+  assert.strictEqual(done.ok, true, JSON.stringify(done));
+  const pick = calls.indexOf('cherry-pick');
+  const log = calls.indexOf('log', pick);
+  const amend = calls.indexOf('commit', log);
+  assert.ok(pick >= 0 && log === pick + 1 && amend === log + 1, calls.join(','));
+  assert.strictEqual(calls.filter((c) => c === 'cherry-pick').length, 1);
+  assert.strictEqual(calls.includes('reset'), false);
+});
+
 test('record with a SHA that is not the assigned worker HEAD → refuses it', () => {
   const repo = repoTemplate.copy();
   const blueprint = '.bouncer/context/epics/004-x/blueprints/005-y';
