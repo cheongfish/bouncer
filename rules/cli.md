@@ -67,7 +67,8 @@ an empty close, config errors, and gate or scope refusals never install. An
 install failure exits 1 with `code: DEPENDENCY_INSTALL_FAILED`, `cause`, and
 `next` before verify, staging, commit, or pointer clearing — repair the
 install in that checkout as `next` says, then rerun the same finalize command.
-`VERIFY_FAILED` still means only that verify failed after dependencies were ready.
+`VERIFY_FAILED` still means only that verify failed after dependencies were ready;
+its payload carries `output_tail`, the last 100 lines or fewer of the verify output.
 Worktree dependency preparation (`seed-worktree`, `execute prepare`, finalize)
 also runs the optional `worktree.setup` command from the main checkout config
 once after the install step. It is one argv (no shell operators) and must pass
@@ -94,6 +95,7 @@ IDs are zero-padded three digits. A verification task is terminal: it creates
 only `tasks.md` and `verification.md`, runs its declared command in the
 integration checkout, and creates neither a source commit nor `review.md`.
 Do not scaffold tasks into a closed blueprint.
+`scaffold epic` accepts only printable ASCII (0x20-0x7E) in the new epic's description and rejects anything else with exit 2.
 
 ## Pointer, worktree, and coordinator commands
 

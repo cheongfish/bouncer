@@ -19,4 +19,5 @@ commit message, then return to the numbered Remainder ACQ before `--yes`.
 
 `--yes` runs verification commands before staging. Per the shared contract,
 clear the pointer. A `reason: 'verify'` failure has no bypass other than
-fixing the cause and rerunning.
+fixing the cause and rerunning; read the cause in the response's `output_tail`
+(last 100 lines of the verify output) first.

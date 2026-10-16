@@ -329,6 +329,29 @@ test('--yes with a verify failure → lock, staging and commit are skipped', () 
   assert.ok(!('staged' in res));
 });
 
+test('--yes with a verify failure → output_tail carries the injected output', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repoRoot);
+  const res = finalize({
+    repoRoot, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+    verifyExec: () => ({ ok: false, exitCode: 1, output: 'boom' }),
+  });
+  assert.strictEqual(res.code, 'VERIFY_FAILED');
+  assert.strictEqual(res.output_tail, 'boom');
+});
+
+test('--yes with a 150-line verify failure output → output_tail keeps the last 100 lines', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repoRoot);
+  const lines = Array.from({ length: 150 }, (_v, i) => `line ${i + 1}`);
+  const res = finalize({
+    repoRoot, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+    verifyExec: () => ({ ok: false, exitCode: 1, output: lines.join('\n') }),
+  });
+  assert.strictEqual(res.code, 'VERIFY_FAILED');
+  assert.strictEqual(res.output_tail, lines.slice(50).join('\n'));
+});
+
 test('no Distill files → finalize completes the remainder', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
@@ -703,6 +726,7 @@ test('missing config.json → yields VERIFY_CONFIG_MISSING without throwing', ()
   assert.strictEqual(res.code, 'VERIFY_CONFIG_MISSING');
   assert.strictEqual(res.command, null);
   assert.strictEqual(res.exitCode, null);
+  assert.ok(!('output_tail' in res));
 });
 
 function writeContextReview(repo, blueprintDir = BP_REL) {
@@ -1989,6 +2013,7 @@ test('dependency install failure → returns DEPENDENCY_INSTALL_FAILED and prese
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'dependency-install-failed');
   assert.strictEqual(res.code, 'DEPENDENCY_INSTALL_FAILED');
+  assert.ok(!('output_tail' in res));
   assert.strictEqual(typeof res.cause, 'string');
   assert.match(res.cause, /npm ci exploded: ERESOLVE/);
   assert.strictEqual(typeof res.next, 'string');
