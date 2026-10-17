@@ -486,6 +486,26 @@ test('Codex slug dispatch → item 1 requires fork_turns "none" with the model',
   assert.match(item1, /slug/);
 });
 
+test('dispatch history rule → item 1 isolates history independent of inherit', () => {
+  const contract = fs.readFileSync(
+    path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',
+  );
+  const agentDispatch = fs.readFileSync(
+    path.join(__dirname, '..', 'skills/bouncer-run/references/agent-dispatch.md'), 'utf8',
+  );
+  const item1 = (contract.match(/\n1\. Resolve[\s\S]*?(?=\n2\. )/)?.[0] || '')
+    .replace(/\s+/g, ' ');
+  const item3 = (contract.match(/\n3\. [\s\S]*?(?=\n4\. )/)?.[0] || '')
+    .replace(/\s+/g, ' ');
+  assert.ok(item1.includes('Every new dispatch starts without conversation history, whether the resolved model is a slug or `inherit`; this covers `bouncer-coordinator`, `bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`, `bouncer-context-reviewer`, and plan evidence agents.'));
+  assert.ok(item1.includes('Host methods: Codex sets `fork_turns: "none"`; Claude Code uses a named subagent call and never a fork; Cursor print runs a separate process per dispatch.'));
+  assert.ok(item1.includes('The only exception is an implementer continuing its own session for the first in-scope verify fix defined in `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`.'));
+  assert.doesNotMatch(item1, /stays whatever the calling workflow specifies/);
+  assert.doesNotMatch(item1, /parent-session inheritance/);
+  assert.ok(item3.includes('The retry also starts without conversation history.'));
+  assert.ok(agentDispatch.includes('Every new worker dispatch starts without conversation history (item 1 of that rule).'));
+});
+
 // fallback payload는 dispatcher 지시문이 소유한다. 역할 문서 안에 "fallback으로
 // 온전히 전달된다"고 적어 봐야 dispatcher가 그 문서를 보내지 않으면 읽히지
 // 않는다. 그래서 실제로 실행되는 다섯 fallback 문단이 역할 문서 본문 전체와
