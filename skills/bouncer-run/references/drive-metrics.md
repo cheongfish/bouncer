@@ -63,6 +63,21 @@ bootstrap and close it with `metrics end` when the drive hands off to the coordi
 
 ## Closing report
 
-Before the terminal report, run `bouncer metrics summary --blueprint <dir>` and include its
-per-kind totals (sessions, tokens and missing count, wall time, cost and missing count, tasks
-completed). Report missing counts as missing, not as zero.
+Before the terminal report, run `bouncer metrics summary --blueprint <dir>` and report one table
+that puts the coordinator and each worker role side by side:
+
+| Row | Source | Tokens | Missing |
+| --- | --- | --- | --- |
+| coordinator | `kinds.*.tokens_total` (also `input_tokens_total`, `output_tokens_total`) | known sum | `*_missing` |
+| implementer / reviewer / debugger | `worker_tokens.by_role.<role>` | known sum | `missing` |
+
+- A total of `null` means no session reported that value; print it as unreported, never as 0. An
+  explicit `0` is a real observation. When `*_missing` is above 0 the total is only the known part,
+  so do not call it the complete total.
+- Never add the coordinator and worker totals together: whether a worker's tokens are already inside
+  the coordinator's own usage is unknown, so the two stay separate rows. Cache read and write are
+  independent columns and are not added to tokens.
+- Show real wall time (`wall_ms_total`, measured by Bouncer) apart from host-reported duration
+  (`host_duration_ms_total`); neither stands in for the other, and a value the host did not give is
+  not invented. Cost keeps its existing fields and is not expanded here.
+- Open sessions are not completed totals; report them only as the `open` count.

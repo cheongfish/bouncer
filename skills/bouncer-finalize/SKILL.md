@@ -55,7 +55,11 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    `reason: 'coordinator-ledger'` stop, not a non-drive close; do not invent a
    new reject reason. `complete: false` (see `openTasks`; `headVerified` is
    `false` when a verification task is not integrated) is unfinished — stop and
-   hand it to the coordinator instead of recording it as done. Read
+   hand it to the coordinator instead of recording it as done. When
+   `integration.outsideScope` is present, the terminal failure was proven to be
+   outside every approved scope: `complete` is `true` but `headVerified` stays
+   `false`; keep the failure and its evidence id visible in the report and PR
+   instead of calling the head verified. Read
    `${BOUNCER_ROOT}/rules/commit-scope.md` for the integration worktree boundary and how
    remainder staging differs from a task commit. When running
    the finalize gate, showing the dry-run, or handling scope or `reason:

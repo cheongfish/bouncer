@@ -14,6 +14,7 @@ import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths } = runtime;
 import configMod = require('./config');
 import driveMetrics = require('./drive-metrics');
+import { validOutsideScope } from './execution-contracts';
 import type {
   Lease as CanonicalLease, DispatchState as CanonicalDispatchState, Task as CanonicalTask,
   Ledger as CanonicalLedger, LedgerRef as CanonicalLedgerRef,
@@ -620,7 +621,10 @@ function blueprintNext(ctx: {
   const failedId = ledger.terminalFailure && ledger.terminalFailure.task;
   if (failedId) {
     const failed = ledger.tasks.find((item) => item.id === failedId);
-    if (failed && failed.execution_kind === 'verification' && failed.status === 'verifying') {
+    // 입증된 범위 밖 분류가 있으면 terminal 실패는 blocked가 아니라 아래 완료 판정으로 넘어간다.
+    // 분류가 없거나 stale이면(소스 변경·identity 불일치·미완성) 기존 blocked를 그대로 유지한다.
+    if (failed && failed.execution_kind === 'verification' && failed.status === 'verifying'
+      && validOutsideScope(ledger, failed.id) === null) {
       return ok({
         scope: 'blueprint', action: 'blocked', reason: 'terminal-verification-failed',
         cwd: integrationCwd,
@@ -676,8 +680,17 @@ function blueprintNext(ctx: {
       argv: coordinateArgv('prepare', blueprint, ledgerRef),
     });
   }
+  // 완료는 전부 integrated이거나, 남은 하나가 입증된 범위 밖 terminal 실패일 때다. 후자는 성공으로
+  // 바꾸지 않고 payload.outside_scope로 실패 사실을 흘려 보낸다(passed·integrated로 취급하지 않는다).
+  const outsideScope = ledger.tasks
+    .map((item) => (item.status === 'integrated' ? null : validOutsideScope(ledger, item.id)))
+    .find((entry) => entry !== null) ?? null;
   const allIntegrated = ledger.tasks.length > 0
-    && ledger.tasks.every((item) => item.status === 'integrated');
+    && ledger.tasks.every((item) => item.status === 'integrated'
+      || (outsideScope !== null && validOutsideScope(ledger, item.id) !== null));
+  const completionPayload = outsideScope !== null
+    ? { payload: { outside_scope: outsideScope, failed_task: ledger.terminalFailure?.task } }
+    : {};
   if (allIntegrated && isBlueprintReviewModeAt(integrationCwd, blueprint)) {
     const rootReview = bouncerStatus(integrationCwd, `${blueprint.replaceAll('\\', '/')}/review.md`);
     if (rootReview !== 'accepted') {
@@ -711,11 +724,12 @@ function blueprintNext(ctx: {
           '--base', base, '--head', head,
         ],
         judge: { kind: 'review-round', fields: [] },
+        ...completionPayload,
       });
     }
   }
   if (allIntegrated) {
-    return ok({ scope: 'blueprint', action: 'done', cwd: integrationCwd });
+    return ok({ scope: 'blueprint', action: 'done', cwd: integrationCwd, ...completionPayload });
   }
   return ok({
     scope: 'blueprint', action: 'blocked', reason: 'no-ready-task', cwd: integrationCwd,

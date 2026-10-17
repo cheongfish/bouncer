@@ -212,6 +212,8 @@ test('scaffoldBlueprint → writes five plan docs (no explain) with numeric chil
   ]);
   assert.ok(!fs.existsSync(path.join(repo, `${base}/explain.md`)));
   assert.ok(!fs.existsSync(path.join(repo, `${base}/tasks/001/review.md`)));
+  // 새 blueprint index는 Documents 목록을 만들지 않는다.
+  assert.ok(!readDoc(path.join(repo, created[0])).body.includes('## Documents'));
   const ctxReview = readDoc(path.join(repo, `${base}/context-review.md`)).data;
   assert.strictEqual(ctxReview.type, 'bouncer.context_review');
   assert.strictEqual(ctxReview.bouncer.id, 'CTXREVIEW-001');
@@ -454,11 +456,11 @@ test('scaffoldExplain for finalize → creates explain.md once with empty compre
   assert.strictEqual(data.bouncer.id, 'EXPLAIN-001');
   // G16은 BP 단일 엔트리 배열을 본다. 빈 배열은 hash 불일치가 아니라 기록 없음.
   assert.deepStrictEqual(data.bouncer.comprehension, []);
-  for (const heading of [
-    '## Background', '## Intuition', '## Code', '## Quiz', '## Tasks',
-  ]) {
+  for (const heading of ['## Background', '## Code', '## Quiz', '## Tasks']) {
     assert.ok(body.includes(heading), `explain.md missing ${heading}`);
   }
+  // 새 Explain은 Intuition 절을 만들지 않는다(기존 문서 파싱만 호환).
+  assert.ok(!body.includes('## Intuition'));
   assert.ok(!body.includes('## 이해 상태'));
   assert.deepStrictEqual(
     scaffoldExplain({ repoRoot: repo, blueprintDir: bp, timestamp: TS }),
@@ -959,4 +961,67 @@ test('scaffoldTask with incomplete verification metadata → rejects it before c
     }), /executionKind|dependsOn|verify/);
     assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/002`)), false);
   }
+});
+
+test('new full and light blueprints → record verification_policy scoped_terminal', () => {
+  for (const scale of [undefined, 'light']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    scaffoldWith(repo, scale);
+    const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+    const bp = readDoc(path.join(repo, base, 'index.md')).data;
+    assert.strictEqual(bp.bouncer.verification_policy, 'scoped_terminal', `scale ${scale}`);
+  }
+});
+
+test('new light blueprint plus a terminal verification task → plan gate sees no verification topology failure', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, 'light');
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  // 구현 task에 task 전용 명령을 직접 적는다 — scaffold는 명령을 지어내지 않는다.
+  const tasksPath = path.join(repo, base, 'tasks/001/tasks.md');
+  fs.writeFileSync(tasksPath, fs.readFileSync(tasksPath, 'utf8')
+    .replace(/(\n {2}affected_paths:)/, '\n  verify: node --test test/a.test.js$1'));
+  const noTerminal = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.ok(
+    noTerminal.failures.some((f) => f.code === 'G20' && /terminal/.test(f.message)),
+    JSON.stringify(noTerminal.failures),
+  );
+  scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+    executionKind: 'verification', dependsOn: ['TASKS-001'], verify: 'npm test',
+    verifyAllowlist: ['npm', 'node'],
+  });
+  const withTerminal = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.deepStrictEqual(withTerminal.failures.filter((f) => f.code === 'G20'), [],
+    JSON.stringify(withTerminal.failures));
+});
+
+test('new blueprint whose implementation task has no verify command → plan gate rejects it with G20', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, undefined);
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+    executionKind: 'verification', dependsOn: ['TASKS-001'], verify: 'npm test',
+    verifyAllowlist: ['npm'],
+  });
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.ok(
+    result.failures.some((f) => f.code === 'G20' && /verify/.test(f.message) && /tasks\/001\/tasks\.md$/.test(f.file)),
+    JSON.stringify(result.failures),
+  );
+});
+
+test('legacy blueprint without verification_policy → plan gate raises no G20 for a command-less task', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, undefined);
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const idx = path.join(repo, base, 'index.md');
+  fs.writeFileSync(idx, fs.readFileSync(idx, 'utf8').replace(/\n {2}verification_policy: scoped_terminal/, ''));
+  assert.strictEqual(readDoc(idx).data.bouncer.verification_policy, undefined);
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G20'), []);
 });

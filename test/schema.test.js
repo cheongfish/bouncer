@@ -92,3 +92,15 @@ test('execution_kind → accepts commit and verification while absence means com
   assert.strictEqual(schema.executionKindOf({ execution_kind: 'verification' }), 'verification');
   assert.strictEqual(schema.executionKindOf({ execution_kind: 'other' }), null);
 });
+
+test('verification_policy → scoped_terminal is accepted, absence is legacy, anything else is rejected', () => {
+  assert.deepStrictEqual(schema.VERIFICATION_POLICY_ENUM, ['scoped_terminal']);
+  assert.strictEqual(schema.verificationPolicyOf({ verification_policy: 'scoped_terminal' }), 'scoped_terminal');
+  // 표식이 없는 기존 계획은 소급하지 않고 legacy로 읽는다.
+  assert.strictEqual(schema.verificationPolicyOf({}), 'legacy');
+  assert.strictEqual(schema.verificationPolicyOf(undefined), 'legacy');
+  // 잘못된 값과 null은 legacy로 접히지 않고 호출자가 거절할 수 있게 null이다.
+  assert.strictEqual(schema.verificationPolicyOf({ verification_policy: 'legacy' }), null);
+  assert.strictEqual(schema.verificationPolicyOf({ verification_policy: null }), null);
+  assert.strictEqual(schema.verificationPolicyOf({ verification_policy: 'scoped' }), null);
+});

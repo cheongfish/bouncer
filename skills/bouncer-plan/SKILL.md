@@ -120,7 +120,12 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    **Light scaffold.** When this step received a light declaration, add
    `--scale light` to the blueprint command. That creates only four documents:
    blueprint `index.md`, `tasks/001/{tasks,verification}.md`, and root
-   `review.md` — no `context-review.md` (100 lines or fewer total). Omit the
+   `review.md` — no `context-review.md` (100 lines or fewer total). The new
+   blueprint also records `bouncer.verification_policy: scoped_terminal`, so a
+   light plan is complete only with one terminal verification task: run
+   `bouncer scaffold task --blueprint <dir> --id 002 --execution-kind
+   verification --depends-on TASKS-001 --verify "<full command>"` after the
+   implementation task (two more documents outside the 100-line budget). Omit the
    flag or use `--scale full` and all five documents are created as described
    below. Values
    outside `light`/`full` create no documents and exit with code 2. Do not attach
@@ -190,7 +195,18 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    an error contract, or state changes across multiple modules signals a return to
    full: set `scale` back, run `bouncer scaffold context-review --blueprint <dir>`,
    fill Interface and Do not touch, and rejoin the normal path.
-   **Verify command (optional).** Once the draft bodies make this blueprint's
+   **Verify command (required per commit task on a `scoped_terminal` blueprint).**
+   Every new blueprint carries `bouncer.verification_policy: scoped_terminal`.
+   Each commit task needs its own task-only `bouncer.verify` (a single argv that
+   runs just that task's tests — the tests its Checklist adds or changes), and
+   the last task is exactly one terminal verification task, created with
+   `bouncer scaffold task --execution-kind verification --depends-on ...
+   --verify "<full-suite command>"`, that waits for every commit task. Never
+   assign the full-suite command to a commit task; the plan gate (G20) rejects
+   a missing or empty command, a full-suite command on a commit task, a missing
+   or second terminal, and a terminal that skips a commit task. A blueprint
+   without the key is legacy and keeps the optional behavior below.
+   Once the draft bodies make this blueprint's
    character clear, use `verifySignals` from `bouncer plan inspect`. The
    command reports **repository root only** presence of `docker-compose.yml`,
    `docker-compose.yaml`, `compose.yml`, `compose.yaml`, `Makefile`, or
@@ -199,10 +215,11 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    least one signal, run
    **ACQ — Verify command (`plan.verify_command`):** ask whether to set `tasks.bouncer.verify` for this
    blueprint. When `Project rules` names one command the project runs before
-   merge (for example the script its CI runs), recommend that command. On accept, write a **single** executable argv string into each
+   merge (for example the script its CI runs), recommend that command for the
+   terminal verification task. On accept, write a **single** executable argv string into each
    `tasks/<NNN>/tasks.md` frontmatter `bouncer.verify` (e.g. `npm run test:e2e`,
-   `make test`); with no signal or on refusal leave it unset so execute keeps
-   the global `config.verify`. Never write `bouncer.verify` from detection
+   `make test`); on a legacy blueprint with no signal or on refusal leave it
+   unset so execute keeps the global `config.verify`. Never write `bouncer.verify` from detection
    alone, and never edit `config.verify` / `.bouncer/config.json` here. Do not
    propose values mixing `&&`, `;`, pipes, redirection, or a `cd` prefix —
    verify is a single argv so the evidence command stays reproducible from the

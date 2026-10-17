@@ -38,8 +38,3 @@ Epic: [077](../../index.md)
 
 ## One-commit justification
 - config 기본값·실행기·테스트가 한 계약(`timeout_ms`)을 가리키므로 한 리뷰 단위로 묶인다.
-
-## Documents
-* [Tasks](tasks/001/tasks.md) - 구현 브리프
-* [Verification](tasks/001/verification.md) - 검증 명령과 증적
-* [Review](review.md) - 리뷰 발견사항

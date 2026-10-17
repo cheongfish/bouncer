@@ -4,6 +4,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 import frontmatter = require('./frontmatter');
+import { validOutsideScope } from './execution-contracts';
+import type { OutsideScopeDisposition } from './execution-contracts';
 const { readDoc } = frontmatter;
 import paths = require('./paths');
 const { toPosix } = paths;
@@ -68,6 +70,8 @@ type TaskDigest = {
     exit_code: number | null;
     evidence_id: string | null;
     reused: boolean | null;
+    // terminal 실패가 입증된 범위 밖 분류를 받았을 때만 붙는다. status는 그대로 failed다.
+    outside_scope?: OutsideScopeDisposition;
   } | null;
   review: { required: boolean; findings: Finding[] } | null;
   constraints: string | null;
@@ -590,8 +594,10 @@ function summarizeDrive(ledger: unknown): DriveSummary | null {
       sha: typeof raw.sha === 'string' ? raw.sha : null,
     });
   }
+  // 입증된 범위 밖 terminal 실패는 성공이 아니라 별도 충족 사유다. ready만 열고 status는 원장 값
+  // (verifying) 그대로 보여 줘 호출자가 integrated로 오해하지 않게 한다.
   const ready = !dropped && tasks.length > 0
-    && tasks.every((task) => task.status === 'integrated');
+    && tasks.every((task) => task.status === 'integrated' || validOutsideScope(ledger, task.id) !== null);
   return { ready, tasks };
 }
 
@@ -921,10 +927,29 @@ function prepareFinalizeDigest({
   const unverified: Unverified[] = [];
   if (!diffSummary) unverified.push({ kind: 'diff-summary-unavailable' });
   let terminalOk = false;
+  let outsideScopeTerminal: { stableId: string; accepted: OutsideScopeDisposition } | null = null;
   for (const item of built) {
     const task = item.digest;
     if (item.kind === 'verification') {
-      if (task.verification && task.verification.status === 'passed') terminalOk = true;
+      if (task.verification && task.verification.status === 'passed') {
+        terminalOk = true;
+        continue;
+      }
+      // 실패한 terminal이 입증된 범위 밖 분류를 가지면 passed로 바꾸지 않고 실패 증거에 분류와
+      // 원본 evidence/source identity를 붙인다. 분류가 없거나 stale이면 아래 terminal-missing이 남는다.
+      const accepted = validOutsideScope(ledger, task.id);
+      if (accepted) {
+        const failure = asRecord(asRecord(ledger).terminalFailure);
+        task.verification = {
+          status: task.verification ? task.verification.status : 'failed',
+          command: task.verification?.command ?? (typeof failure.command === 'string' ? failure.command : null),
+          exit_code: task.verification?.exit_code ?? (typeof failure.exitCode === 'number' ? failure.exitCode : null),
+          evidence_id: task.verification?.evidence_id ?? accepted.evidence_id,
+          reused: task.verification ? task.verification.reused : null,
+          outside_scope: accepted,
+        };
+        outsideScopeTerminal = { stableId: task.stable_id, accepted };
+      }
       continue;
     }
     if (item.kind === 'commit') {
@@ -974,7 +999,14 @@ function prepareFinalizeDigest({
       }
     }
   }
-  if (!terminalOk) {
+  if (!terminalOk && outsideScopeTerminal) {
+    // 별도 경고 항목: 원본 증거 id를 detail에 싣는다(경로가 아니라 id만 — 공유 PR에 로컬 경로가 새지 않게).
+    unverified.push({
+      kind: 'terminal-outside-scope',
+      task: outsideScopeTerminal.stableId,
+      detail: `${outsideScopeTerminal.accepted.reason} (evidence ${outsideScopeTerminal.accepted.evidence_id})`,
+    });
+  } else if (!terminalOk) {
     unverified.push({ kind: 'terminal-missing' });
   }
 

@@ -40,7 +40,7 @@ import reviewPolicy = require('./review-policy');
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 import type {
   ReportOutcome, PromoteStopReason, PromotionRecord, DispatchState, Task, Ledger,
-  FailureEvidence, RepairDecision, LedgerRef,
+  FailureEvidence, RepairDecision, LedgerRef, OutsideScopeDisposition,
 } from './execution-contracts';
 import driveMetrics = require('./drive-metrics');
 const { issueLease, revokeLease, checkLease } = leaseMod;
@@ -523,7 +523,7 @@ function projectCheckpoint(
     ? ledgerBytesHash(ledgerBytes)
     : ledgerBytesHash(fs.readFileSync(ledgerFile));
   return {
-    ready: readyWave(ledger.tasks, {
+    ready: readyWaveGated(ledger.tasks, {
       maxParallel: maxParallelForRead(integrationRootFromLedger(ledgerFile)),
     }),
     active_tasks,
@@ -941,6 +941,215 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
       decision, evidence_ids: evidenceIds,
     }, ledger, ledgerFile);
   });
+}
+
+/**
+ * `readyWave`에 "재배정된 task가 재통합되기 전에는 terminal을 열지 않는다"는 규칙을 더한다.
+ * `repair --resume-task`는 DAG를 바꾸지 않으므로 terminal의 직접 선행(통합 완료)만 보면 terminal이
+ * 재작업과 동시에(또는 id 순서상 먼저) 열릴 수 있다. resumed 표지가 붙은 task가 integrated가 되기
+ * 전까지 pending terminal을 후보에서 뺀다. resumed 표지가 없는 원장은 입력 그대로 `readyWave`에 간다.
+ *
+ * @param {Task[]} tasks - 원장 task 목록(읽기만 한다)
+ * @param {{ maxParallel?: number }} [options] - `readyWave`와 같은 동시 실행 상한
+ * @returns {string[]} 다음에 열 수 있는 task id
+ */
+function readyWaveGated(tasks: Task[], options?: { maxParallel?: number }): string[] {
+  const reopened = tasks.some((entry) => entry.resumed === true && entry.status !== 'integrated');
+  if (!reopened) return readyWave(tasks, options);
+  return readyWave(tasks.map((entry) => (
+    entry.execution_kind === 'verification' && (entry.status || 'pending') === 'pending'
+      ? { ...entry, status: 'waiting-for-resumed' }
+      : entry
+  )), options);
+}
+
+type TerminalResolution =
+  | { ok: false; reason: string; [key: string]: unknown }
+  | {
+    ok: true; kind: 'disposition'; terminal: Task; failure: FailureEvidence;
+    record: { kind: 'disposition'; task: string; summary: string; disposition: OutsideScopeDisposition };
+  }
+  | {
+    ok: true; kind: 'resume'; terminal: Task; target: Task; failure: FailureEvidence;
+    repairDecision: RepairDecision; revision: string; previousHead: string | null;
+  };
+
+/**
+ * terminal 검증 실패를 "기존 task 재배정(resume)" 또는 "범위 밖 분류(disposition)"로 해소하기 위한
+ * 모든 판정을 한 곳에서 한다. 이 함수는 원장·문서·Git을 바꾸지 않는다 — 호출자가 ok일 때만
+ * 변경을 적용하므로, 어떤 거절도 실패 상태(terminalFailure·verifying)를 건드리지 않는다.
+ *
+ * 공통 거절: terminal이 아닌 task(`terminal-failure-required`), 증거 누락(`failure-evidence-required`),
+ * 결정 근거 누락(`decision-reason-required`), 소스 경로가 아닌 `--paths`(`repair-scope-out-of-bounds`),
+ * 기록된 실패와 다른 task·command(`failure-evidence-mismatch`).
+ * resume 거절: 형식 오류·terminal 자신·미통합 task(`resume-task-invalid`), 이 blueprint에 없는
+ * task(`task-outside-blueprint`), 지정 task의 승인 범위 밖 경로(`repair-scope-out-of-bounds`),
+ * wave 한도(`repair-wave-limit`).
+ * disposition 거절: 알 수 없는 종류(`disposition-invalid`), 비활성 원장(`ledger-not-active`),
+ * 원본 evidence/source identity 없음(`disposition-evidence-required`), 소스가 실패 뒤 바뀜
+ * (`disposition-stale-source`), 어느 task 범위와 겹치는 경로(`disposition-scope-mixed`).
+ *
+ * @param {object} opts - 판정 입력
+ * @param {Ledger} opts.ledger - 읽기 전용으로 쓰는 현재 원장
+ * @param {Exec} opts.exec - git 실행기(integration HEAD 조회)
+ * @param {string} opts.integrationPath - integration worktree 경로
+ * @param {string | undefined} opts.task - 실패한 terminal task id
+ * @param {string | undefined} opts.failureCommand - 호출자가 주장하는 실패 command
+ * @param {string | undefined} opts.summary - 원인·실패 테스트·필요 변경의 범위 판단
+ * @param {unknown} opts.decision - 결정 근거
+ * @param {unknown} opts.repairPaths - `--paths`
+ * @param {string | undefined} opts.resumeTask - 재배정할 기존 task id
+ * @param {string | undefined} opts.disposition - 분류 종류(`outside_scope`만 허용)
+ * @returns {TerminalResolution} 거절 사유 또는 적용할 변경 계획
+ */
+function resolveTerminalFailure({
+  ledger, exec, integrationPath, task, failureCommand, summary, decision, repairPaths, resumeTask, disposition,
+}: {
+  ledger: Ledger; exec: Exec; integrationPath: string; task: string | undefined;
+  failureCommand: string | undefined; summary: string | undefined; decision: unknown; repairPaths: unknown;
+  resumeTask: string | undefined; disposition: string | undefined;
+}): TerminalResolution {
+  if (disposition !== undefined && disposition !== 'outside_scope') {
+    return { ok: false, reason: 'disposition-invalid' };
+  }
+  if (!task || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
+  const terminal = ledger.tasks.find((entry) => entry.id === task);
+  if (!terminal) return { ok: false, reason: 'task-outside-blueprint' };
+  if (terminal.execution_kind !== 'verification' || terminal.status !== 'verifying') {
+    return { ok: false, reason: 'terminal-failure-required' };
+  }
+  if (disposition !== undefined && ledger.status !== undefined
+    && ledger.status !== 'active' && ledger.status !== 'awaiting_confirmation') {
+    return { ok: false, reason: 'ledger-not-active' };
+  }
+  if (typeof failureCommand !== 'string' || failureCommand === ''
+    || typeof summary !== 'string' || summary.trim() === '') {
+    return { ok: false, reason: 'failure-evidence-required' };
+  }
+  if (typeof decision !== 'string' || decision.trim() === '') {
+    return { ok: false, reason: 'decision-reason-required' };
+  }
+  if (!sourceRepairPaths(repairPaths)) return { ok: false, reason: 'repair-scope-out-of-bounds' };
+  // 지금 기록된 실패와 같은 task·command일 때만 해소한다. 다른 실패에 대한 근거를 끌어다 쓰면
+  // 방금 터진 새 실패가 이전 판단으로 덮인다.
+  const recorded = ledger.terminalFailure;
+  if (!recorded || recorded.task !== task || recorded.command !== failureCommand) {
+    return { ok: false, reason: 'failure-evidence-mismatch' };
+  }
+  const paths = repairPaths.map((entry) => normalizeSupplementPath(entry));
+
+  if (disposition === 'outside_scope') {
+    if (typeof recorded.evidence_id !== 'string' || recorded.evidence_id === ''
+      || typeof recorded.source_digest !== 'string' || recorded.source_digest === '') {
+      return { ok: false, reason: 'disposition-evidence-required' };
+    }
+    // 소스가 실패 뒤 바뀌었으면 원본 증거가 지금 코드를 설명하지 못한다. 원장 head와 실제 HEAD를
+    // 모두 대조해 어느 한쪽만 움직인 경우도 stale로 막는다.
+    const ledgerHead = typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null;
+    const actualHead = git(exec, integrationPath, ['rev-parse', 'HEAD']);
+    if ((ledgerHead !== null && ledgerHead !== recorded.source_digest)
+      || actualHead !== recorded.source_digest) {
+      return { ok: false, reason: 'disposition-stale-source' };
+    }
+    // 범위 밖이려면 어떤 task의 승인 범위(조상·후손 포함)와도 겹치지 않아야 한다. 일부라도 겹치면
+    // 범위 안 원인이 섞인 것이라 분류하지 않고 기존 blocked를 유지한다.
+    const owned = ledger.tasks.flatMap((entry) => currentScopePaths(entry).map(normalizeSupplementPath));
+    const overlaps = (candidate: string) => coveredByPaths(candidate, owned)
+      || owned.some((entry) => entry.startsWith(`${candidate}/`));
+    if (paths.some(overlaps)) return { ok: false, reason: 'disposition-scope-mixed' };
+    return {
+      ok: true, kind: 'disposition', terminal, failure: recorded,
+      record: {
+        kind: 'disposition', task, summary: summary.trim(),
+        disposition: {
+          kind: 'outside_scope', reason: decision.trim(), evidence_id: recorded.evidence_id,
+          source_digest: recorded.source_digest, paths,
+        },
+      },
+    };
+  }
+
+  if (typeof resumeTask !== 'string' || !/^\d{3}$/.test(resumeTask)) {
+    return { ok: false, reason: 'resume-task-invalid' };
+  }
+  const target = ledger.tasks.find((entry) => entry.id === resumeTask);
+  if (!target) return { ok: false, reason: 'task-outside-blueprint' };
+  if (target.id === terminal.id || target.execution_kind === 'verification' || target.status !== 'integrated') {
+    return { ok: false, reason: 'resume-task-invalid' };
+  }
+  // 재작업 경로는 지정 task가 이미 승인받은 범위 안이어야 한다. 새 범위를 넓히는 통로가 아니다.
+  const approved = currentScopePaths(target);
+  if (approved.length === 0 || !paths.every((entry) => coveredByPaths(entry, approved))) {
+    return { ok: false, reason: 'repair-scope-out-of-bounds' };
+  }
+  const waves = ledger.repairWaves || [];
+  if (waves.length >= REPAIR_WAVE_LIMIT) {
+    return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
+  }
+  const dag = dagSnapshot(ledger.tasks);
+  const revision = nextLedgerRevision(ledger.revision);
+  const failure: FailureEvidence = {
+    ...recorded, summary, paths: [...paths], repairWave: waves.length,
+  };
+  delete failure.disposition;
+  const repairDecision: RepairDecision = {
+    task: target.id, kind: 'repair', wave: waves.length + 1, reason: decision.trim(), failure,
+    previousDag: dag, nextDag: dagSnapshot(ledger.tasks), previousScope: approved, nextScope: [...paths],
+    necessity: 'terminal CI failure is owned by an already approved integrated task', revision,
+  };
+  return {
+    ok: true, kind: 'resume', terminal, target, failure, repairDecision, revision,
+    previousHead: typeof target.sha === 'string' ? target.sha : null,
+  };
+}
+
+/**
+ * 재배정되는 기존 task와 terminal의 증적 문서를 재작업 시작 상태로 되돌린다.
+ * 새 문서를 만들지 않고 이미 있는 tasks.md·verification.md·review.md의 status만 바꾼다
+ * (verification의 harness metadata와 이전 commit_sha도 지운다). 이전 통합 때의 `verified`/`passed`
+ * 증적이 남아 있으면 worker가 새 작업 없이도 integrate 증적 검사를 통과시킬 수 있기 때문이다.
+ * terminal은 depends_on을 건드리지 않고 `ready`로만 돌린다. 반환한 함수는 쓰기 전 바이트로 되돌린다.
+ *
+ * @param {object} opts - integrationPath·blueprint·재배정 대상 task·terminal task
+ * @returns {() => void} 원장 쓰기 실패 시 호출할 문서 롤백
+ */
+function writeResumeDocuments({ integrationPath, blueprint, target, terminal }: {
+  integrationPath: string; blueprint: string; target: Task; terminal: Task;
+}): () => void {
+  const dir = (id: string) => path.join(integrationPath, blueprint, 'tasks', id);
+  const reset = (file: string, mutate: (bouncer: Record<string, unknown>) => void) => {
+    if (!fs.existsSync(file)) return null;
+    const before = fs.readFileSync(file);
+    const doc = readDoc(file);
+    const bouncer = (doc.data as Record<string, unknown>).bouncer as Record<string, unknown> | undefined;
+    if (!bouncer || typeof bouncer !== 'object') return null;
+    mutate(bouncer);
+    fs.writeFileSync(file, renderDoc(doc.data, doc.body));
+    return { file, before };
+  };
+  const written: Array<{ file: string; before: Buffer }> = [];
+  const rollback = () => { for (const entry of written) fs.writeFileSync(entry.file, entry.before); };
+  const apply = (file: string, mutate: (bouncer: Record<string, unknown>) => void) => {
+    const entry = reset(file, mutate);
+    if (entry) written.push(entry);
+  };
+  try {
+    apply(path.join(dir(target.id), 'tasks.md'), (bouncer) => {
+      bouncer.status = 'ready';
+      delete bouncer.commit_sha;
+    });
+    apply(path.join(dir(target.id), 'verification.md'), (bouncer) => {
+      bouncer.status = 'pending';
+      delete bouncer.verification;
+    });
+    apply(path.join(dir(target.id), 'review.md'), (bouncer) => { bouncer.status = 'pending'; });
+    apply(path.join(dir(terminal.id), 'tasks.md'), (bouncer) => { bouncer.status = 'ready'; });
+  } catch (error) {
+    // 일부만 쓴 문서는 되돌린 뒤 원 예외를 그대로 올린다 — 흡수하지 않는다.
+    rollback();
+    throw error;
+  }
+  return rollback;
 }
 
 function dagSnapshot(tasks: Task[]): Array<{ id: string; depends_on: string[] }> {
@@ -1377,18 +1586,56 @@ function blueprintScaleAt(root: string, blueprint: string): string | undefined {
 }
 
 /**
- * light 원장 자격: commit task 정확히 1개이고 depends_on이 비어 있어야 한다.
- * verification·두 번째 task·비어 있지 않은 depends_on은 모두 자격 없음이다.
+ * blueprint index의 `bouncer.verification_policy`를 해석한다. 읽을 수 없는 문서나
+ * 허용 밖 값은 legacy로 접지 않고 null로 돌려 호출자가 거절하게 한다. index 부재
+ * (ENOENT)는 readBouncerBlock이 null로 접으므로 정책 이전 계획과 같은 legacy다.
+ *
+ * @param {string} root - 문서를 읽을 checkout (대개 integration)
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {'scoped_terminal' | 'legacy' | null} 정책. 허용 밖 값이면 null
+ */
+function verificationPolicyAt(root: string, blueprint: string): 'scoped_terminal' | 'legacy' | null {
+  const bouncer = readBouncerBlock(path.join(root, blueprint, 'index.md'));
+  return schema.verificationPolicyOf(bouncer);
+}
+
+/**
+ * task의 현재 승인 scope. scope_revision으로 갱신된 ledger scope가 있으면 그것이 정본이고,
+ * 없으면 계획의 affected_paths다. 의존성 공유 여부를 가르는 seed가 이 값을 받는다.
+ *
+ * @param {Task} task - ledger task
+ * @returns {string[]} 현재 승인 경로
+ */
+function currentScopePaths(task: Task): string[] {
+  return task.scope && Array.isArray(task.scope.paths) ? [...task.scope.paths] : [...(task.affected_paths || [])];
+}
+
+/**
+ * light 원장 자격. legacy는 현행 의미 그대로 commit task 정확히 1개이고 depends_on이
+ * 비어 있어야 하며 verification·두 번째 task는 자격 없음이다. scoped_terminal은
+ * 독립 commit task 하나와 그 하나에만 의존하는 verification 하나, 정확히 두 node다.
+ * 구현 하나가 끝난 뒤 종단 verification이 한 번 전체 검증을 맡는 최소 계약이다.
  *
  * @param {Task[]} tasks - 원장에 올릴 task 목록
+ * @param {boolean} [scoped] - blueprint가 scoped_terminal이면 true. 생략은 legacy
  * @returns {boolean} light 자격이 있으면 true
  */
-function isLightEligible(tasks: Task[]): boolean {
-  if (tasks.length !== 1) return false;
-  const only = tasks[0];
-  if ((only.execution_kind || 'commit') === 'verification') return false;
-  if (Array.isArray(only.depends_on) && only.depends_on.length > 0) return false;
-  return true;
+function isLightEligible(tasks: Task[], scoped = false): boolean {
+  const independent = (item: Task) => !Array.isArray(item.depends_on) || item.depends_on.length === 0;
+  if (!scoped) {
+    if (tasks.length !== 1) return false;
+    const only = tasks[0];
+    if ((only.execution_kind || 'commit') === 'verification') return false;
+    return independent(only);
+  }
+  if (tasks.length !== 2) return false;
+  const commits = tasks.filter((item) => (item.execution_kind || 'commit') !== 'verification');
+  const terminals = tasks.filter((item) => item.execution_kind === 'verification');
+  if (commits.length !== 1 || terminals.length !== 1) return false;
+  return independent(commits[0])
+    && Array.isArray(terminals[0].depends_on)
+    && terminals[0].depends_on.length === 1
+    && terminals[0].depends_on[0] === commits[0].id;
 }
 
 /**
@@ -1554,7 +1801,7 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
       return withCheckpoint({
         ok: true as const, command: 'bootstrap', integrationPath: integration,
         mode: 'full' as const, promoted_from: fullLedger.promoted_from,
-        ready: readyWave(fullLedger.tasks, { maxParallel: maxParallelForRead(integration) }),
+        ready: readyWaveGated(fullLedger.tasks, { maxParallel: maxParallelForRead(integration) }),
         tasks: fullLedger.tasks, decisions: fullLedger.decisions, integrationBranch,
       }, fullLedger, ledgerFile);
     } catch (_error) {
@@ -1649,6 +1896,98 @@ function lightReviewAccepted(integrationPath: string, blueprint: string): boolea
   if (!review || typeof review !== 'object' || Array.isArray(review)) return false;
   const rounds = (review as Record<string, unknown>).rounds;
   return Array.isArray(rounds) && rounds.length > 0;
+}
+
+/**
+ * 보고의 `## Tests` 절이 task에 지정된 명령과 통과 결과를 담았는지 판정한다.
+ * 사람이 쓴 보고라 형식이 정확히 고정되어 있지 않으므로 의도적으로 관대한 휴리스틱이다:
+ * (1) Tests 절이 있어야 하고, (2) 지정 명령이 인수 확장 없이 경계에 맞춰 등장해야
+ * 하며(`cmd extra.test.js`는 다른 명령), (3) 통과 표지(pass·ok·exit 0·통과 등)가
+ * 있어야 하고, (4) `0 fail`·`fail 0` 같은 무결과를 지운 뒤에도 실패 표지(fail·error·
+ * 실패·exit 비0)가 남지 않아야 한다. 실제 실행 여부는 증명하지 못한다 — 그 증거는
+ * execute gate가 쓴다. 이 검사는 worker가 엉뚱한 명령(전체 suite 포함)을 돌렸거나
+ * 결과를 빠뜨린 보고를 fan-in 전에 걸러내는 용도다.
+ *
+ * @param {string} body - 보고 파일 원문
+ * @param {string} command - task가 지정한 `bouncer.verify` 명령
+ * @returns {string | null} 통과면 null, 아니면 사유
+ *   (`tests-section-missing`·`command-missing`·`result-missing`·`result-failed`)
+ */
+function testsReportProblem(body: string, command: string): string | null {
+  const sections = parseSections(body, [
+    { key: 'tests', re: /^##\s+Tests\s*$/i },
+    { key: 'other', re: /^##\s+(?!Tests\s*$)\S/i },
+  ] as Parameters<typeof parseSections>[1]);
+  if (sections.tests === null) return 'tests-section-missing';
+  const collapse = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const text = collapse(sections.tests);
+  const wanted = collapse(command);
+  const escaped = wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // 명령 앞은 문장 시작·공백·열기 문자, 뒤는 끝·닫기/구두점·공백이어야 한다.
+  const boundary = new RegExp(`(?:^|[\\s\`'"(])${escaped}(?=$|[\\s\`'")\\].,;:])`, 'g');
+  let matched = false;
+  for (const hit of text.matchAll(boundary)) {
+    const rest = text.slice((hit.index as number) + hit[0].length)
+      .replace(/^[`'")\].,;:]+/, '');
+    // 공백 뒤에 옵션·경로·테스트 파일이 이어지면 인수가 더 붙은 다른 명령이다.
+    const extended = /^\s+(?:--?[A-Za-z]|\S*\/\S*|\S+\.(?:js|ts|mjs|cjs|json)\b)/.test(rest);
+    if (!extended) { matched = true; break; }
+  }
+  if (!matched) return 'command-missing';
+  const passMark = /\b(?:pass(?:ed|es)?|ok|success(?:ful(?:ly)?)?)\b|통과|성공|exit(?:\s+code)?\s*[:=]?\s*0\b/i;
+  if (!passMark.test(text)) return 'result-missing';
+  const noZero = text
+    .replace(/\b0\s+(?:fail\w*|errors?)\b/gi, ' ')
+    .replace(/\b(?:fail\w*|errors?)\s*[:=]?\s*0\b/gi, ' ')
+    .replace(/\bno\s+(?:fail\w*|errors?)\b/gi, ' ')
+    .replace(/(?:실패|오류)\s*0|0\s*(?:실패|오류)/g, ' ');
+  if (/\b(?:fail\w*|errors?)\b|실패|오류|exit(?:\s+code)?\s*[:=]?\s*[1-9]/i.test(noZero)) {
+    return 'result-failed';
+  }
+  return null;
+}
+
+/**
+ * scoped_terminal fan-in 전에 각 task의 worker 보고가 지정 명령·통과 결과를 담았는지
+ * 확인한다. 명령은 integration의 tasks.md `bouncer.verify`가 정본이다(worker 사본은
+ * worker가 바꿀 수 있어 믿지 않는다). 보고 파일이 없으면 full은 거절한다. light는
+ * 세션이 같은 cwd에서 inline 보고를 하므로 파일이 없을 때만(ENOENT) 이 검사를 건너뛴다.
+ * 그 밖의 읽기 오류는 삼키지 않고 던진다.
+ *
+ * @param {object} args - 검사 입력
+ * @param {string} args.integrationPath - 계획 정본을 읽을 integration checkout
+ * @param {string} args.blueprint - blueprint 상대 경로
+ * @param {Task[]} args.items - fan-in 대상 task
+ * @param {boolean} args.light - light 원장이면 true (보고 파일 부재 허용)
+ * @returns {{ task: string; expected_command: string; problem: string } | null} 첫 위반. 없으면 null
+ */
+function scopedTestReportFailure({ integrationPath, blueprint, items, light }: {
+  integrationPath: string; blueprint: string; items: Task[]; light: boolean;
+}): { task: string; expected_command: string; problem: string } | null {
+  for (const item of items) {
+    const declared = readBouncerBlock(path.join(integrationPath, blueprint, 'tasks', item.id, 'tasks.md'));
+    const expected = declared && typeof declared.verify === 'string' ? declared.verify.trim() : '';
+    if (expected === '') {
+      return { task: item.id, expected_command: '', problem: 'task-command-missing' };
+    }
+    if (!item.dispatch || typeof item.workerPath !== 'string') {
+      if (light) continue;
+      return { task: item.id, expected_command: expected, problem: 'report-missing' };
+    }
+    let body: string;
+    try {
+      body = fs.readFileSync(reportPathFor(item.workerPath, item.id, item.dispatch.attempt), 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        if (light) continue;
+        return { task: item.id, expected_command: expected, problem: 'report-missing' };
+      }
+      throw error;
+    }
+    const problem = testsReportProblem(body, expected);
+    if (problem !== null) return { task: item.id, expected_command: expected, problem };
+  }
+  return null;
 }
 
 // frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
@@ -1910,7 +2249,9 @@ function shouldRemoveRevokedWorker(item: Task): boolean {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
     const decision = entry as { kind?: string; previous_status?: string };
     if (decision.kind !== 'revoke') continue;
-    return decision.previous_status === 'prepared' || decision.previous_status === 'recorded';
+    // integrated는 `repair --resume-task`가 재배정한 task다. 이전 통합 시점의 worker도 같은 규칙으로 지운다.
+    return decision.previous_status === 'prepared' || decision.previous_status === 'recorded'
+      || decision.previous_status === 'integrated';
   }
   return false;
 }
@@ -2067,7 +2408,7 @@ function prepareCoordinator({
     if (!readWavesPerSession(integration.integrationPath).ok) {
       return { ok: false as const, reason: 'coordinator-config-invalid' };
     }
-    const ready = readyWave(ledger.tasks, { maxParallel: policy.maxParallel });
+    const ready = readyWaveGated(ledger.tasks, { maxParallel: policy.maxParallel });
     // 판정 단계의 사전 검사. worker seed 출처는 integration의 blueprint 트리뿐이므로,
     // 그것이 없으면 worktree를 하나도 만들기 전에 멈춰야 ledger와 Git 등록이 갈라지지 않는다.
     const integrationBlueprint = path.join(integration.integrationPath, blueprint);
@@ -2199,6 +2540,7 @@ function prepareCoordinator({
         const seeded = seedCoordinatorWorker({
           repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
           deps: { execFileSync: withInstallStdioToStderr(exec) },
+          affectedPaths: currentScopePaths(item),
         });
         if (!seeded.ok) {
           cleanupCreatedWorkersUnderNewLock(
@@ -2446,6 +2788,11 @@ function integrateVerificationTask({
         task, command: result.command, summary: `exit code ${result.exitCode}`,
         paths: lastRepair ? [...lastRepair.nextScope] : [...(ledger.terminalFailure?.paths || [])],
         exitCode: result.exitCode, repairWave: (ledger.repairWaves || []).length,
+        // 범위 밖 분류가 묶일 원본 identity. 증거 id는 러너가 줄 때만, 소스 identity는 이 검증이
+        // 실행된 integration HEAD다. 둘 중 하나라도 없으면 분류를 받을 수 없어 blocked 의미가 유지된다.
+        ...(typeof result.evidenceId === 'string' && result.evidenceId !== ''
+          ? { evidence_id: result.evidenceId } : {}),
+        source_digest: headForKey,
       };
       ledger.terminalFailure = evidence;
       const exhausted = (ledger.repairWaves || []).length >= 2;
@@ -2474,7 +2821,7 @@ function integrateVerificationTask({
     void generation;
     void exec;
     return withCheckpoint({ ok: true as const, command: 'integrate', task: item, verification: result,
-      ready: readyWave(ledger.tasks, {
+      ready: readyWaveGated(ledger.tasks, {
         maxParallel: maxParallelForRead(integration.integrationPath),
       }), decisions: ledger.decisions },
     ledger, integration.ledgerFile);
@@ -2668,6 +3015,15 @@ function integrateLightCommitWave({
       if (!evidence.ok) return evidence;
     }
 
+    // light inline 보고는 파일이 없을 수 있어 부재만 허용하고, 파일이 있으면 full과 같은 검사를 한다.
+    if (verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal') {
+      const mismatch = scopedTestReportFailure({
+        integrationPath: integration.integrationPath, blueprint, light: true,
+        items: ordered.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
+      });
+      if (mismatch) return { ok: false, reason: 'worker-test-report-mismatch', ...mismatch };
+    }
+
     // fanin verified를 남긴 뒤 바로 비운다. candidate worktree·ff는 없다 —
     // HEAD가 이미 기록된 커밋이다. copyEvidenceBundle는 동일 경로라 건너뛴다.
     ledger.fanin = {
@@ -2699,7 +3055,7 @@ function integrateLightCommitWave({
       integrated: [...ordered],
       integrationHead: head,
       verification: { ok: true, command: '', exitCode: 0 },
-      ready: readyWave(ledger.tasks, {
+      ready: readyWaveGated(ledger.tasks, {
         maxParallel: maxParallelForRead(integration.integrationPath),
       }),
     }, ledger, integration.ledgerFile);
@@ -2846,6 +3202,10 @@ function integrateCommitWave({
   const faninPath = integration.faninPath;
   const runner = deps.runVerification
     || (require('./verification').runVerification as VerificationRunner);
+  // scoped_terminal이면 구현 wave fan-in은 전체 검증을 돌리지 않는다. 검증은 task별
+  // 지정 명령(worker, 보고로 확인)과 마지막 terminal node가 나눠 맡는다. 정책은
+  // integration 사본에서 읽는다 — worker 사본은 worker가 바꿀 수 있다.
+  const scopedTerminal = verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal';
 
   // --- 재시작 복구: 이전 fanin 상태가 있으면 먼저 처리 ---
   const recovery = withLedgerLock(integration.ledgerFile, (owns) => {
@@ -2910,6 +3270,7 @@ function integrateCommitWave({
   // --- phase 1: 잠금 안에서 대상 확정·fanin building 기록 ---
   let phase1CheckpointHash: string | null = null;
   let waveTasks: string[] = [];
+  let waveScopePaths: string[] = [];
   let waveWarnings: IntegrateWarning[] = [];
   let baseHead = '';
   const phase1 = withLedgerLock(integration.ledgerFile, (owns) => {
@@ -2966,6 +3327,16 @@ function integrateCommitWave({
       if (!evidence.ok) return evidence;
     }
 
+    // scoped_terminal은 worker가 자기 지정 명령만 돌렸다는 보고가 있어야 통합한다.
+    // wave 전체 검증을 fan-in에서 다시 돌리지 않는 대신 거는 입구 검사다.
+    if (scopedTerminal) {
+      const mismatch = scopedTestReportFailure({
+        integrationPath: integration.integrationPath, blueprint, light: false,
+        items: ordered.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
+      });
+      if (mismatch) return { ok: false, reason: 'worker-test-report-mismatch', ...mismatch };
+    }
+
     // coordinator가 integration checkout을 직접 고치면 worker 보고 없이 통합된다.
     // fanin 기록 전에 끝내 거절 시 ledger 바이트가 호출 전과 같다.
     const mutated = disallowedDirtyPaths(exec, integration.integrationPath, blueprint, ledger);
@@ -2990,6 +3361,7 @@ function integrateCommitWave({
     if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(integration.ledgerFile, ledger);
     phase1CheckpointHash = ledgerBytesHash(fs.readFileSync(integration.ledgerFile));
+    waveScopePaths = ordered.flatMap((id) => currentScopePaths(ledger.tasks.find((x) => x.id === id) as Task));
     return { ok: true as const, tasks: ordered, baseHead };
   });
 
@@ -3012,6 +3384,8 @@ function integrateCommitWave({
     repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: faninPath,
     // fan-in seed도 같은 stdio 고정 wrapper를 받아야 npm 출력이 CLI stdout을 오염시키지 않는다.
     deps: { execFileSync: withInstallStdioToStderr(exec) },
+    // candidate는 wave 전체를 합치므로 어느 task든 manifest/lock을 바꿀 수 있으면 공유하지 않는다.
+    affectedPaths: waveScopePaths,
   });
   if (!seeded.ok) {
     removeFaninWorktree(exec, repoRoot, faninPath);
@@ -3143,7 +3517,9 @@ function integrateCommitWave({
   const candidateHead = git(exec, faninPath, ['rev-parse', 'HEAD']);
   const { epicId, blueprintId } = parsePathIds(blueprint);
   const lastTask = waveTasks[waveTasks.length - 1];
-  const verification = runner({
+  // scoped_terminal은 wave 전체 검증을 생략한다(null). 실패 복구 재검증과 finalize
+  // remainder는 각자 별도 경로라 이 생략의 영향을 받지 않는다.
+  const verification = scopedTerminal ? null : runner({
     repoRoot: faninPath,
     blueprintDir: blueprint,
     taskId: lastTask,
@@ -3153,7 +3529,7 @@ function integrateCommitWave({
     },
   });
 
-  if (!verification.ok) {
+  if (verification && !verification.ok) {
     removeFaninWorktree(exec, repoRoot, faninPath);
     return withLedgerLock(integration.ledgerFile, (owns) => {
       const loaded = loadLedgerBytes(integration.ledgerFile);
@@ -3186,10 +3562,11 @@ function integrateCommitWave({
     tasks: waveTasks,
     baseHead,
     candidateHead,
-    evidenceId: typeof verification.evidenceId === 'string' ? verification.evidenceId : null,
+    evidenceId: verification && typeof verification.evidenceId === 'string'
+      ? verification.evidenceId : null,
     alreadyFastForwarded: false,
     phase1CheckpointHash,
-    verification,
+    ...(verification ? { verification } : {}),
   });
   // 경고가 없으면 키를 생략한다(다른 명령의 warnings 규칙과 같다).
   if (waveWarnings.length > 0 && (finished as { ok?: boolean }).ok === true) {
@@ -3304,7 +3681,7 @@ function finishFaninAfterFf({
       integrated: [...tasks],
       integrationHead: candidateHead,
       verification: verification || { ok: true, command: '', exitCode: 0 },
-      ready: readyWave(ledger.tasks, {
+      ready: readyWaveGated(ledger.tasks, {
         maxParallel: maxParallelForRead(integration.integrationPath),
       }),
     }, ledger, integration.ledgerFile);
@@ -3353,6 +3730,7 @@ function finishFaninAfterFf({
  */
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
   failureCommand, summary, paths: repairPaths, findings, reviewFindings, kind, done, outcome, reason, attempt,
+  resumeTask, disposition,
   taskBriefHash, model, role, perspective, tokens,
   leaseId, generation,
   ledgerPath, ledgerHash,
@@ -3360,6 +3738,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; reviewFindings?: string[]; kind?: string; done?: boolean; outcome?: string; reason?: string;
+  resumeTask?: string; disposition?: string;
   attempt?: number; taskBriefHash?: string; promoteLight?: boolean;
   model?: string | true; role?: string; perspective?: string; tokens?: number | string;
   leaseId?: string; generation?: number;
@@ -3432,7 +3811,11 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       // 거부해 full worktree 경로로 조용히 떨어지지 않게 한다. scale이 light가 아니면
       // 기존처럼 mode 없는 full 원장이다.
       const scale = blueprintScaleAt(paths.integrationPath, blueprint);
-      if (scale === 'light' && !isLightEligible(tasks)) {
+      const policy = verificationPolicyAt(paths.integrationPath, blueprint);
+      // 허용 밖 정책 값은 plan gate가 거절했어야 하지만 손으로 고친 문서가 실행까지
+      // 오면 legacy로 읽지 않고 여기서 끊는다. light 자격 판정이 갈라지지 않게 하기 위함.
+      if (policy === null) return { ok: false, reason: 'verification-policy-invalid' };
+      if (scale === 'light' && !isLightEligible(tasks, policy === 'scoped_terminal')) {
         return { ok: false, reason: 'light-requires-single-task' };
       }
       ledger = {
@@ -3460,7 +3843,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     return withCheckpoint({
       ok: true as const, command, integrationPath: paths.integrationPath,
       mode: ledgerModeOf(ledger),
-      ready: readyWave(ledger.tasks, { maxParallel: maxParallelForRead(paths.integrationPath) }),
+      ready: readyWaveGated(ledger.tasks, { maxParallel: maxParallelForRead(paths.integrationPath) }),
       tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,
     }, ledger, paths.ledgerFile);
   }
@@ -3742,6 +4125,59 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         { const lost = commitWrite(); if (lost) return lost; }
         return withCheckpoint({
           ok: true as const, command, kind: 'supplement', paths: intake.paths,
+        }, ledger, integration.ledgerFile);
+      }
+      // terminal CI 실패의 두 새 해소 경로. 둘은 상호배타이고 리뷰 원인과도 섞을 수 없다.
+      // 어느 쪽이든 새 task를 만들지 않는다 — 기존 task의 승인 범위 안 재작업이거나, 증거에 묶인
+      // 범위 밖 분류 기록일 뿐이다.
+      if (resumeTask !== undefined || disposition !== undefined) {
+        if (resumeTask !== undefined && disposition !== undefined) {
+          return { ok: false, reason: 'repair-resolution-ambiguous' };
+        }
+        if (Array.isArray(reviewFindings)) return { ok: false, reason: 'repair-cause-ambiguous' };
+        const resolved = resolveTerminalFailure({
+          ledger, exec, integrationPath: integration.integrationPath, task,
+          failureCommand, summary, decision, repairPaths, resumeTask, disposition,
+        });
+        if (!resolved.ok) return resolved;
+        if (resolved.kind === 'disposition') {
+          const { terminal, failure, record } = resolved;
+          failure.disposition = record.disposition;
+          ledger.decisions.push(record);
+          // 한도 소진으로 멈춘 drive도 범위 밖 분류로는 이어 갈 수 있다. 분류는 wave를 쓰지 않는다.
+          if (ledger.status === 'awaiting_confirmation') ledger.status = 'active';
+          { const lost = commitWrite(); if (lost) return lost; }
+          return withCheckpoint({
+            ok: true as const, command, kind: 'outside_scope', task: terminal, disposition: record.disposition,
+          }, ledger, integration.ledgerFile);
+        }
+        const { terminal, target, repairDecision, failure, revision } = resolved;
+        const waves = ledger.repairWaves || [];
+        const rollbackDocuments = writeResumeDocuments({
+          integrationPath: integration.integrationPath, blueprint, target, terminal,
+        });
+        revokeLease(ledger, target, { reason: String(decision).trim(), previousHead: resolved.previousHead });
+        target.resumed = true;
+        target.decisions = [...(target.decisions || []), repairDecision];
+        terminal.status = 'pending';
+        ledger.decisions.push(repairDecision);
+        ledger.repairWaves = [...waves, repairDecision];
+        ledger.revision = revision;
+        ledger.terminalFailure = failure;
+        ledger.status = 'active';
+        try {
+          const lost = commitWrite();
+          if (lost) {
+            rollbackDocuments();
+            return lost;
+          }
+        } catch (error) {
+          rollbackDocuments();
+          throw error;
+        }
+        return withCheckpoint({
+          ok: true as const, command, kind: 'resume', wave: repairDecision.wave, resumedTask: target,
+          terminalTask: terminal, decision: repairDecision,
         }, ledger, integration.ledgerFile);
       }
       const waves = ledger.repairWaves || [];
@@ -4285,8 +4721,20 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Report the ledger status to the user; do not retry `bouncer coordinate session-open` on this blueprint.',
   },
   'light-requires-single-task': {
-    cause: 'Scale light requires exactly one commit task with an empty depends_on and no verification task.',
-    next: 'Fix the blueprint to a single independent commit task, or set scale to full and bootstrap again.',
+    cause: 'Scale light requires one independent commit task; a blueprint with verification_policy scoped_terminal '
+      + 'also requires exactly one terminal verification task that depends only on it. A legacy light blueprint '
+      + 'allows no verification task.',
+    next: 'Fix the blueprint to that shape, or set scale to full and bootstrap again.',
+  },
+  'verification-policy-invalid': {
+    cause: 'The blueprint index declares a verification_policy value other than scoped_terminal.',
+    next: 'Set verification_policy to scoped_terminal or remove the key (legacy), then bootstrap again.',
+  },
+  'worker-test-report-mismatch': {
+    cause: 'A scoped_terminal worker report does not show the task-assigned command with a passing result '
+      + 'in its Tests section (problem names which check failed).',
+    next: 'Reject the fan-in: send the worker back to run exactly the assigned bouncer.verify command and '
+      + 'report its command and result under Tests; never hand the worker the full-suite command.',
   },
   'light-review-required': {
     cause: 'Light-mode accepted report requires blueprint-root review.md rounds and status accepted.',
@@ -4393,6 +4841,35 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'repair-cause-ambiguous': {
     cause: 'Repair cannot take both a review finding and a verification failure command.',
     next: 'Retry `bouncer coordinate repair` with either `--review-finding` or `--failure-command`, not both.',
+  },
+  'repair-resolution-ambiguous': {
+    cause: 'Repair cannot take both `--resume-task` and `--disposition`.',
+    next: 'Retry `bouncer coordinate repair` with exactly one of `--resume-task <ddd>` or '
+      + '`--disposition outside_scope`.',
+  },
+  'resume-task-invalid': {
+    cause: 'The resume task must be a different, already integrated implementation task of this blueprint.',
+    next: 'Pick the integrated implementation task that owns the failing code from `bouncer coordinate status`.',
+  },
+  'failure-evidence-mismatch': {
+    cause: 'The given task or failure command is not the terminal failure currently recorded in the ledger.',
+    next: 'Copy `--task` and `--failure-command` from the ledger `recent_failure` and retry.',
+  },
+  'disposition-invalid': {
+    cause: 'The only supported failure disposition is `outside_scope`.',
+    next: 'Retry with `--disposition outside_scope`, or use `--resume-task` to rework an approved task.',
+  },
+  'disposition-evidence-required': {
+    cause: 'The recorded terminal failure carries no evidence id or source identity to classify against.',
+    next: 'Rerun the terminal verification so the failure stores its evidence, or keep the failure blocked.',
+  },
+  'disposition-stale-source': {
+    cause: 'The integration source changed after the terminal failure was recorded.',
+    next: 'Rerun the terminal verification on the current source, then classify the new failure.',
+  },
+  'disposition-scope-mixed': {
+    cause: 'A given path belongs to a task scope, so the failure cannot be classified as outside every approved scope.',
+    next: 'Use `--resume-task` for the owning task, or pass only paths no task owns.',
   },
   'repair-scope-out-of-bounds': {
     cause: 'Repair paths are outside the blueprint-scoped source bound.',

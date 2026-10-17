@@ -78,6 +78,13 @@ display and default sort order — not execution authority.
   task status closes as `ready → verifying → integrated`; it has no review
   document or commit SHA.
 
+- Blueprint `bouncer.verification_policy` is optional; `scoped_terminal` is the
+  only value and absence means legacy. Under `scoped_terminal` the existing
+  fields carry the contract: each `commit` task needs its own non-empty
+  `bouncer.verify`, and exactly one `verification` task (the mandatory terminal
+  node) must depend, directly or transitively, on every commit task. An unknown
+  value is rejected by the plan gate (G20).
+
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
   validation (S28) checks shape; the plan gate (G19) checks missing ids,

@@ -63,6 +63,23 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+terminal 실패는 새 repair task를 만들기 전에 원인을 먼저 가른다. 원인이 이미 통합된 task의
+코드이면 `coordinate repair --task <terminal> --resume-task <ddd>`로 그 기존 task를 승인
+scope 안에서 재배정한다(task 수·ID·DAG·scope 불변, lease generation 갱신, 현재 integration
+HEAD에서 재작업·재통합 뒤 terminal 재검증, 이전 lease의 report·commit 거부, repair wave 1회
+소모). 원인·실패 테스트·필요 변경이 모든 승인 task scope 밖임이 입증되면
+`--disposition outside_scope`로 원본 evidence/source identity에 묶어 기록한다. 이 분류는
+실패를 passed나 integrated로 바꾸지 않고 terminal을 `verifying`에 둔 채 `next`가 최종 리뷰와
+완료로 진행하게 하며, 최종 보고·finalize·PR에 별도 경고로 남긴다. 원인 불명, scope 안팎 혼합,
+소스 변경(stale)은 계속 `blocked`다. 두 옵션은 상호배타다.
+
+`verification_policy: scoped_terminal` blueprint(새 계획)는 책임을 나눈다. 구현
+worker는 자기 task 전용 `bouncer.verify`만 실행하고 보고 `## Tests`에 그 명령과
+결과를 적는다. 다른 명령·누락·실패 결과면 fan-in이 `worker-test-report-mismatch`로
+거절한다. 정상 경로의 첫 전체 검증은 모든 구현이 통합된 뒤 종단 verification node에서
+한 번이며, 실패 복구 재검증과 finalize remainder 검증은 따로 돈다. 표식이 없는
+legacy 계획은 현행 동작을 유지한다.
+
 When `review_scope` is `blueprint`, the coordinator owns the one final review
 after that verification node (and every commit task) is `integrated`; this
 root session does not open it. A blueprint without `review_scope` is blocked at
@@ -201,7 +218,9 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
-   not as your own re-judgment, plus the `metrics summary` totals. This skill does not enter finalize.
+   not as your own re-judgment, plus the `metrics summary` token and time table: coordinator and each worker role
+   side by side (never summed together), real wall time apart from host duration, a `null` total
+   shown as unreported and every missing count shown, never as 0. This skill does not enter finalize.
    `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.

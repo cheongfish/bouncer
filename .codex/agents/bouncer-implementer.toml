@@ -103,7 +103,12 @@ read code/tests/repo context needed to implement.
    running it is the only way to find that out. Then implement and re-run.
    Keep the project's verify command runnable; do not weaken assertions to
    force a pass. Assertion and naming rules are in the coding standards' `Tests`
-   and `Test trust` sections.
+   and `Test trust` sections. Run only the task-assigned command (the brief's
+   frontmatter `verify` or the task-only command the Checklist names) plus the
+   focused red/green runs it covers. Never run the full suite or any broader
+   command (`npm test`, `npm run ci`): the terminal verification node owns the
+   one full run after every implementation task is integrated. If the task has
+   no assigned command, stop and report it under **Needs planning**.
 6. **Report** — Fill the Output contract below, then hand control back as its
    **Hand-back** subsection says. When the dispatch payload carries
    `report_path`, write the Output contract body to that path (creating parent
@@ -168,7 +173,7 @@ report file and rejects a missing or malformed `## Brief revision`,
 - <Checklist item> — done / not done, where it landed (`file:line` or path)
 
 ## Tests
-- <tests added or updated, and the result of the last run>
+- `<the task-assigned command, verbatim>` — <result, for example 12 pass, 0 fail (exit 0)>
 
 ## Red run
 - <command run> — <failing assertion or failure point observed>
@@ -191,7 +196,11 @@ task_brief_hash: <64 hex you received>
   backticks. All paths must be inside Touch / `affected_paths`.
 - **Checklist coverage** — each Checklist item mapped to `done` / `not done`
   plus where it landed.
-- **Tests** — tests added or updated, and the result of the last run.
+- **Tests** — the exact task-assigned command and its result of the last run,
+  each in a line like ``- `<command>` — <result>``, plus the tests added or
+  updated. The controller rejects the fan-in when this section lacks the
+  assigned command, shows a different command, omits the result, or shows a
+  failing result.
 - **Red run** — the red you observed before implementing, in one of two forms:
   `<command run> — <failing assertion or failure point observed>` when the
   Checklist has a red step, or `해당 없음: <reason>` when the task only changes

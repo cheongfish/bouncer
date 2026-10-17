@@ -23,7 +23,8 @@ const USAGE_BLOCK = `  metrics start --kind <${KINDS}> --blueprint <dir> [--labe
   + '             [--cache-read-tokens <n>] [--cache-write-tokens <n>] [--model <slug>] [--host-duration-ms <n>]\n'
   + '             Record host-reported tokens and time; missing values are stored as null with a reason.\n'
   + '  metrics summary --blueprint <dir>\n'
-  + '             Sum sessions per kind (null tokens and costs are counted as missing, never as 0).\n';
+  + '             Sum sessions per kind (null tokens, durations, and costs are counted as missing,\n'
+  + '             never as 0; a total with no observed value is null).\n';
 
 const USAGE = `usage: bouncer metrics start --kind <${KINDS}> --blueprint <dir> `
   + '[--label <text>] [--target-digest <64hex>]\n'

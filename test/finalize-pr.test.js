@@ -860,3 +860,44 @@ test('no blueprint_review → buildPrDraft unresolved_must_fix is empty', () => 
   }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
   assert.deepStrictEqual(draft.sections.unresolved_must_fix, []);
 });
+
+test('outside_scope terminal failure in the digest → PR keeps the failed line with its evidence id and a separate warning, never passed', () => {
+  const evidence = 'e'.repeat(64);
+  const draft = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [
+      { id: 'TASKS-001', verification: { status: 'passed', command: 'node --test test/a.test.js' } },
+      {
+        id: 'TASKS-002',
+        verification: {
+          status: 'failed', command: 'npm test',
+          outside_scope: { kind: 'outside_scope', reason: 'vendor drift', evidence_id: evidence },
+        },
+      },
+    ],
+    out_of_scope: [],
+    unverified: [{ kind: 'terminal-outside-scope', task: 'EPIC-1/BP-1/TASK-2', detail: `vendor drift (evidence ${evidence})` }],
+  }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.verification, [
+    'node --test test/a.test.js — passed',
+    `npm test — failed (outside_scope, evidence ${evidence})`,
+  ]);
+  assert.ok(draft.sections.review_points.includes(`terminal-outside-scope: vendor drift (evidence ${evidence})`));
+  assert.ok(!draft.sections.verification.some((line) => line === 'npm test — passed'));
+});
+
+test('failed verification without a classification → PR line carries no outside_scope suffix', () => {
+  const draft = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [{ id: 'TASKS-002', verification: { status: 'failed', command: 'npm test' } }],
+    out_of_scope: [],
+    unverified: [{ kind: 'terminal-missing' }],
+  }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.verification, ['npm test — failed']);
+});

@@ -972,3 +972,34 @@ test('close가 쓴 context-review.md → plan 게이트 G18 실패 없음', () =
   const plan = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
   assert.deepEqual(plan.failures.filter((f) => f.code === 'G18'), []);
 });
+
+test('validate --gate plan on a freshly scaffolded blueprint → reports G20 for the missing task command and terminal node', () => {
+  const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const ts = '2026-07-01T00:00:00+09:00';
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: ts, description: 'Auth epic description' });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth', blueprintId: '001', name: 'login', timestamp: ts,
+  });
+  const { io, buf } = capture();
+  const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'plan'], io);
+  assert.strictEqual(code, 1);
+  const g20 = JSON.parse(buf.out).failures.filter((f) => f.code === 'G20').map((f) => f.message);
+  assert.ok(g20.some((m) => /own non-empty bouncer\.verify/.test(m)), JSON.stringify(g20));
+  assert.ok(g20.some((m) => /terminal verification task/.test(m)), JSON.stringify(g20));
+});
+
+test('validate --gate plan on a blueprint without verification_policy → raises no G20 for the same shape', () => {
+  const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const ts = '2026-07-01T00:00:00+09:00';
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: ts, description: 'Auth epic description' });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth', blueprintId: '001', name: 'login', timestamp: ts,
+  });
+  const idx = path.join(repo, BP_REL, 'index.md');
+  fs.writeFileSync(idx, fs.readFileSync(idx, 'utf8').replace(/\n {2}verification_policy: scoped_terminal/, ''));
+  const { io, buf } = capture();
+  runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'plan'], io);
+  assert.deepStrictEqual(JSON.parse(buf.out).failures.filter((f) => f.code === 'G20'), []);
+});

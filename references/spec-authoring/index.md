@@ -196,8 +196,13 @@ body content only; never edits harness-owned frontmatter fields. Used from
        commit, push, and branch remain forbidden.
      - **Checklist** (focused vs verify): focused tests and `check:emit` are
        mid-implementation checks; the final completion command is
-       `bouncer.verify` (or `config.verify` when absent), and the
-       `execute gate` records the evidence.
+       `bouncer.verify` (or `config.verify` when absent on a legacy blueprint),
+       and the `execute gate` records the evidence. On a blueprint with
+       `verification_policy: scoped_terminal` every commit task must declare
+       its own task-only `bouncer.verify` (the plan gate rejects a missing or
+       empty one, and a full-suite command copied from the terminal node), and
+       the Checklist's last item names that command so the worker report can
+       echo it under `## Tests`.
      - **Checklist** (verify vs paths): if the verify command is the full
        suite (e.g. `npm test`), the set of files that must change for green
        must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
@@ -216,8 +221,15 @@ body content only; never edits harness-owned frontmatter fields. Used from
        is the signal to set `scale` back to `full` rather than to smuggle those
        rules into Goal & intent — a path you must protect has nowhere to live in a
        light task, and G12 can only judge a Do not touch section that exists.
-       The whole light plan set is budgeted at 100 lines
-       (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`).
+       The scaffolded light plan set is budgeted at 100 lines
+       (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`). A
+       `scoped_terminal` light plan adds one terminal verification task
+       (verification only, no source Touch) that depends on the one
+       implementation task; that pair of documents sits outside the budget.
+   - **terminal verification**: on a `scoped_terminal` blueprint author exactly
+     one verification task, last in the DAG, that depends on every commit task
+     and holds the full-suite `bouncer.verify`; its Touch declares no source
+     paths. Full and light plans both need it.
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.

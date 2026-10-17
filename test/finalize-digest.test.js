@@ -1089,3 +1089,99 @@ test('top-level and nested declarations → prepareFinalizeDigest symbols keep o
   assert.ok(entry, JSON.stringify(d.symbols));
   assert.deepStrictEqual(entry.names, ['topLevel', 'asyncTop', 'LIMIT']);
 });
+
+/**
+ * 001·002가 integrated이고 terminal 003의 검증이 실패(문서 verifying·verification failed)한 drive의 digest를 읽는다.
+ * mutate로 원장의 분류를 바꿔 어떤 조합이 범위 밖 실패로 인정되는지 본다.
+ */
+function prepareWithFailedTerminal(mutate = () => {}) {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  writeDoc(repoRoot, `${blueprintDir}/tasks/003/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Terminal verify', description: 'd',
+    resource: `${blueprintDir}/tasks/003/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-003', epic_id: '001', blueprint_id: '001', status: 'verifying',
+      execution_kind: 'verification', affected_paths: ['src/'],
+    },
+  }, taskBody());
+  writeDoc(repoRoot, `${blueprintDir}/tasks/003/verification.md`, {
+    type: 'bouncer.verification', title: 'Failed', description: 'd',
+    resource: `${blueprintDir}/tasks/003/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'VERIFY-003', epic_id: '001', blueprint_id: '001', status: 'failed',
+      verification: { command: 'npm test', exit_code: 1, evidence_id: 'e'.repeat(64), reused: false },
+    },
+  });
+  // drive digest는 integration checkout의 문서를 읽는다 — 터미널 문서를 커밋한 뒤 worktree를 만든다.
+  git(repoRoot, ['add', '-A']);
+  git(repoRoot, ['commit', '-m', 'terminal docs']);
+  const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
+  git(repoRoot, ['branch', 'feat/integ']);
+  git(repoRoot, ['worktree', 'add', paths.integrationPath, 'feat/integ']);
+  const head = git(paths.integrationPath, ['rev-parse', 'HEAD']);
+  const ledger = {
+    version: 1, blueprint: blueprintDir, base: git(repoRoot, ['rev-parse', 'HEAD~2']),
+    integrationHead: head, integrationBranch: 'feat/integ', revision: 'r1',
+    tasks: [
+      { id: '001', status: 'integrated', sha: 'a'.repeat(40) },
+      { id: '002', status: 'integrated', sha: 'b'.repeat(40) },
+      { id: '003', execution_kind: 'verification', status: 'verifying' },
+    ],
+    decisions: [],
+    terminalFailure: {
+      task: '003', command: 'npm test', summary: 'exit code 1', paths: [], exitCode: 1, repairWave: 0,
+      evidence_id: 'e'.repeat(64), source_digest: head,
+      disposition: {
+        kind: 'outside_scope', reason: 'vendored lock drift is outside every task scope',
+        evidence_id: 'e'.repeat(64), source_digest: head, paths: ['vendor/lock.json'],
+      },
+    },
+  };
+  mutate(ledger);
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const before = fs.readFileSync(paths.ledgerFile);
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.deepStrictEqual(fs.readFileSync(paths.ledgerFile), before);
+  git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  return d;
+}
+
+test('failed terminal with a proven outside_scope classification → digest keeps the failure and links the original evidence', () => {
+  const d = prepareWithFailedTerminal();
+  const terminal = d.tasks.find((t) => t.execution_kind === 'verification');
+  // 실패 사실은 그대로 — passed로 바뀌지 않는다.
+  assert.strictEqual(terminal.verification.status, 'failed');
+  assert.strictEqual(terminal.verification.exit_code, 1);
+  assert.strictEqual(terminal.verification.outside_scope.evidence_id, 'e'.repeat(64));
+  assert.strictEqual(terminal.verification.outside_scope.reason, 'vendored lock drift is outside every task scope');
+  assert.ok(!d.unverified.some((u) => u.kind === 'terminal-missing'));
+  const outside = d.unverified.filter((u) => u.kind === 'terminal-outside-scope');
+  assert.strictEqual(outside.length, 1);
+  assert.match(outside[0].detail, new RegExp('e'.repeat(64)));
+  assert.strictEqual(d.drive.ready, true);
+  // PR은 실패와 근거를 남기고 전체 통과로 보이게 하지 않는다.
+  assert.ok(d.pr.sections.verification.some((line) => /npm test — failed/.test(line) && /outside_scope/.test(line)));
+  assert.ok(!d.pr.sections.verification.some((line) => /npm test — passed/.test(line)));
+  assert.ok(d.pr.sections.review_points.some((p) => p.startsWith('terminal-outside-scope:')));
+});
+
+test('failed terminal without a valid classification → digest keeps terminal-missing and drive not ready', () => {
+  const cases = [
+    ['legacy failure without classification', (l) => { delete l.terminalFailure.disposition; }],
+    ['source moved after the classification', (l) => { l.integrationHead = 'a'.repeat(40); }],
+    ['classification of another evidence', (l) => { l.terminalFailure.disposition.evidence_id = 'd'.repeat(64); }],
+    ['classification without paths', (l) => { l.terminalFailure.disposition.paths = []; }],
+  ];
+  for (const [label, mutate] of cases) {
+    const d = prepareWithFailedTerminal(mutate);
+    assert.ok(d.unverified.some((u) => u.kind === 'terminal-missing'), label);
+    assert.ok(!d.unverified.some((u) => u.kind === 'terminal-outside-scope'), label);
+    assert.strictEqual(d.drive.ready, false, label);
+    const terminal = d.tasks.find((t) => t.execution_kind === 'verification');
+    assert.strictEqual('outside_scope' in terminal.verification, false, label);
+  }
+});

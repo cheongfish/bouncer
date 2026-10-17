@@ -987,3 +987,160 @@ test('prepareDependencies when the main checkout has no config file → makes no
   assert.deepStrictEqual(res, { ok: true });
   assert.deepStrictEqual(calls, []);
 });
+
+// --- main node_modules 공유 안전성 -------------------------------------------------
+
+const NPM_ARGS = ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'];
+
+// main에 직접 의존성 하나(`left-pad`)까지 설치된 상태를 만든다. worktree의 lock·package.json은
+// 같은 bytes로 둔다.
+function sharedFixture({ lock = '{"v":1}\n' } = {}) {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
+  for (const root of [repo, wt]) {
+    write(root, 'package.json', '{"devDependencies":{"left-pad":"1.0.0"}}\n');
+    write(root, 'package-lock.json', lock);
+  }
+  writeInstalled(repo);
+  write(repo, 'node_modules/left-pad/package.json', '{}\n');
+  const calls = [];
+  const deps = { mainCheckout: repo, execFileSync(command, args, options) { calls.push({ command, args, options }); } };
+  return { repo, wt, deps, calls };
+}
+
+function isLink(root) {
+  return fs.lstatSync(path.join(root, 'node_modules')).isSymbolicLink();
+}
+
+test('seedCoordinatorWorker when lock bytes match and main is prepared → shares main node_modules without npm', () => {
+  const { repo, wt, deps, calls } = sharedFixture();
+
+  const res = seedCoordinatorWorker({
+    repoRoot: repo, blueprintDir: BP_REL, worktreePath: wt, deps, affectedPaths: ['src/'],
+  });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(isLink(wt), true);
+  assert.strictEqual(fs.realpathSync(path.join(wt, 'node_modules')), fs.realpathSync(path.join(repo, 'node_modules')));
+  assert.deepStrictEqual(calls, []);
+});
+
+test('seedCoordinatorWorker when lock bytes differ from main → installs independently', () => {
+  const { repo, wt, deps, calls } = sharedFixture();
+  write(wt, 'package-lock.json', '{"v":2}\n');
+
+  const res = seedCoordinatorWorker({
+    repoRoot: repo, blueprintDir: BP_REL, worktreePath: wt, deps, affectedPaths: ['src/'],
+  });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(fs.existsSync(path.join(wt, 'node_modules')) && isLink(wt), false);
+  assert.deepStrictEqual(calls.map((c) => [c.command, c.args]), [['npm', NPM_ARGS]]);
+});
+
+test('seedCoordinatorWorker when main has no stamp or lacks a direct package → installs independently', () => {
+  const noStamp = sharedFixture();
+  fs.rmSync(path.join(noStamp.repo, STAMP));
+  const missingPkg = sharedFixture();
+  fs.rmSync(path.join(missingPkg.repo, 'node_modules/left-pad'), { recursive: true });
+
+  for (const f of [noStamp, missingPkg]) {
+    const res = seedCoordinatorWorker({
+      repoRoot: f.repo, blueprintDir: BP_REL, worktreePath: f.wt, deps: f.deps, affectedPaths: ['src/'],
+    });
+    assert.strictEqual(res.ok, true, JSON.stringify(res));
+    assert.strictEqual(fs.existsSync(path.join(f.wt, 'node_modules')) && isLink(f.wt), false);
+    assert.strictEqual(f.calls.length, 1);
+  }
+});
+
+test('seedCoordinatorWorker when the approved scope changes package.json or the lock → installs independently from the start', () => {
+  for (const changed of ['package.json', 'package-lock.json']) {
+    const { repo, wt, deps, calls } = sharedFixture();
+
+    const res = seedCoordinatorWorker({
+      repoRoot: repo, blueprintDir: BP_REL, worktreePath: wt, deps, affectedPaths: ['src/', changed],
+    });
+
+    assert.strictEqual(res.ok, true, JSON.stringify(res));
+    assert.strictEqual(fs.existsSync(path.join(wt, 'node_modules')) && isLink(wt), false);
+    assert.strictEqual(calls.length, 1, changed);
+  }
+});
+
+test('seedCoordinatorWorker when the scope is unknown → never shares', () => {
+  const { repo, wt, deps, calls } = sharedFixture();
+
+  const res = seedCoordinatorWorker({ repoRoot: repo, blueprintDir: BP_REL, worktreePath: wt, deps });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(fs.existsSync(path.join(wt, 'node_modules')) && isLink(wt), false);
+  assert.strictEqual(calls.length, 1);
+});
+
+test('seedCoordinatorWorker when a real node_modules directory exists → does not replace it with a link', () => {
+  const { repo, wt, deps, calls } = sharedFixture();
+  writeInstalled(wt);
+
+  const res = seedCoordinatorWorker({
+    repoRoot: repo, blueprintDir: BP_REL, worktreePath: wt, deps, affectedPaths: ['src/'],
+  });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(isLink(wt), false);
+  assert.deepStrictEqual(calls, []);
+});
+
+test('prepareDependencies when a shared lock changed → unlinks only the link and installs without touching main', () => {
+  const { repo, wt, deps, calls } = sharedFixture();
+  assert.strictEqual(prepareDependencies(wt, deps, { affectedPaths: ['src/'] }).ok, true);
+  assert.strictEqual(isLink(wt), true);
+  const mainStamp = read(repo, STAMP);
+  const mainMarker = read(repo, 'node_modules/.package-lock.json');
+  write(wt, 'package-lock.json', '{"v":3}\n');
+  // npm이 링크 너머로 쓰는지 관찰하려고 호출 시점의 링크 여부를 기록한다.
+  const seen = [];
+  const spy = {
+    mainCheckout: repo,
+    execFileSync(command, args, options) {
+      seen.push(fs.lstatSync(path.join(options.cwd, 'node_modules'), { throwIfNoEntry: false })?.isSymbolicLink() ?? null);
+    },
+  };
+
+  const res = prepareDependencies(wt, spy, { affectedPaths: ['src/'] });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.deepStrictEqual(seen, [null]);
+  assert.strictEqual(calls.length, 0);
+  assert.strictEqual(read(repo, STAMP), mainStamp);
+  assert.strictEqual(read(repo, 'node_modules/.package-lock.json'), mainMarker);
+  assert.strictEqual(fs.existsSync(path.join(repo, 'node_modules/left-pad/package.json')), true);
+});
+
+test('prepareDependencies when the shared link is broken → unlinks it and installs in the worktree', () => {
+  const { repo, wt, deps } = sharedFixture();
+  assert.strictEqual(prepareDependencies(wt, deps, { affectedPaths: ['src/'] }).ok, true);
+  fs.rmSync(path.join(repo, 'node_modules'), { recursive: true });
+  const calls = [];
+
+  const res = prepareDependencies(wt, { mainCheckout: repo, execFileSync(...a) { calls.push(a); } }, { affectedPaths: ['src/'] });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(calls.length, 1);
+  // 설치 stamp가 worktree 안에 새 실제 디렉터리를 만들며, 사라진 main target은 다시 생기지 않는다.
+  assert.strictEqual(isLink(wt), false);
+  assert.strictEqual(fs.existsSync(path.join(repo, 'node_modules')), false);
+});
+
+test('prepareDependencies from the main checkout itself → never links and keeps its node_modules bytes', () => {
+  const { repo, deps, calls } = sharedFixture();
+  const stampBefore = read(repo, STAMP);
+
+  const res = prepareDependencies(repo, deps, { affectedPaths: ['src/'] });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(isLink(repo), false);
+  assert.strictEqual(read(repo, STAMP), stampBefore);
+  assert.deepStrictEqual(calls, []);
+});

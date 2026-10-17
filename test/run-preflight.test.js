@@ -773,3 +773,31 @@ test('run preflight when pointer targets another blueprint on a legacy tree → 
 
   assert.strictEqual(parsePayload(result).reason, 'pointer-mismatch');
 });
+
+test('run preflight on a scoped_terminal light plan → delegable with the policy, legacy when the marker is absent', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, {
+    task001: { verify: 'node --test test/a.test.js' },
+    task002: {
+      execution_kind: 'verification', affected_paths: [], verify: 'npm test', depends_on: ['TASKS-001'],
+      parallel_safe: false, dependency_gate: 'integrated',
+    },
+  });
+  // blueprint index에 새 계획의 표식과 light scale을 쓴다.
+  const idx = path.join(repo, BP_REL, 'index.md');
+  const raw = fs.readFileSync(idx, 'utf8');
+  fs.writeFileSync(idx, raw.replace('scale: full', 'scale: light\n  verification_policy: scoped_terminal'));
+  setPointer(repo);
+  const scoped = parsePayload(preflight(repo));
+  assert.strictEqual(scoped.ok, true, JSON.stringify(scoped));
+  assert.strictEqual(scoped.blueprint.scale, 'light');
+  assert.strictEqual(scoped.blueprint.verification_policy, 'scoped_terminal');
+  assert.strictEqual(scoped.delegable, true);
+  // 종단 node는 구현 task가 통합되기 전에는 ready wave에 들어오지 않는다.
+  assert.deepStrictEqual(scoped.readyWave, ['001']);
+
+  fs.writeFileSync(idx, raw.replace('scale: full', 'scale: light'));
+  const legacy = parsePayload(preflight(repo));
+  assert.strictEqual(legacy.blueprint.verification_policy, 'legacy');
+  assert.strictEqual(legacy.delegable, true);
+});

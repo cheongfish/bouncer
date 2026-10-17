@@ -415,6 +415,33 @@ test('blueprint next에서 ready verification task → verification_node', () =>
   assert.strictEqual(r.cwd, boot.integrationPath);
 });
 
+test('light ledger with a terminal verification node → integrate first, prepare then verification_node only after the implementation is integrated', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/010-light-terminal';
+  const drive = preparedCommitDrive('bouncer-next-light-terminal-', blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.mode = 'light';
+  ledger.tasks.push({
+    id: '002', depends_on: ['001'], execution_kind: 'verification', dependency_gate: 'integrated',
+    parallel_safe: false, affected_paths: [], exclusive_resources: [], status: 'pending',
+  });
+  // 1. 구현이 recorded인 동안은 종단이 선행 조건 때문에 열릴 수 없고 integrate가 먼저다.
+  ledger.tasks[0].status = 'recorded';
+  ledger.tasks[0].sha = 'a'.repeat(40);
+  writeLedger(drive.ledgerFile, ledger);
+  assert.strictEqual(assertNoWrite(drive, () => nextOf(drive)).action, 'integrate');
+  // 2. 구현이 integrated가 되면 종단 node를 ready로 올리는 prepare가 다음이다.
+  ledger.tasks[0].status = 'integrated';
+  writeLedger(drive.ledgerFile, ledger);
+  const afterImpl = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(afterImpl.action, 'prepare');
+  // 3. prepare가 종단을 ready로 올린 뒤에야 verification_node가 선택된다.
+  ledger.tasks[1].status = 'ready';
+  writeLedger(drive.ledgerFile, ledger);
+  const node = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(node.action, 'verification_node');
+  assert.strictEqual(node.task, '002');
+});
+
 test('blueprint next에서 review mode의 all integrated이고 accepted root review 없음 → final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/009-fr';
   const drive = preparedCommitDrive('bouncer-next-fr-', blueprint);
@@ -1745,4 +1772,77 @@ test('an invalid waves_per_session → next caps at 1 and prepare rejects with c
   });
   assert.strictEqual(prepared.ok, false);
   assert.strictEqual(prepared.reason, 'coordinator-config-invalid');
+});
+
+/**
+ * 001이 integrated이고 terminal 002가 `verifying`인 상태에 terminalFailure를 시드한다.
+ * `mutate`로 분류·identity를 바꿔 next가 어떤 조합에서 진행하는지 관찰한다.
+ */
+function classifiedTerminalDrive(prefix, mutate = () => {}, { review = false } = {}) {
+  const blueprint = '.bouncer/context/epics/108-n/blueprints/001-outside';
+  const repo = uncommittedPlanRepo(prefix, blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: false\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  verify: "/bin/true"\n'],
+  ]);
+  if (review) writeReviewScope(repo, blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = loadLedger(ledgerFile);
+  const head = git(boot.integrationPath, ['rev-parse', 'HEAD']);
+  ledger.integrationHead = head;
+  ledger.tasks[0].status = 'integrated';
+  ledger.tasks[1].status = 'verifying';
+  ledger.terminalFailure = {
+    task: '002', command: '/bin/true', summary: 'exit code 1', paths: [], exitCode: 1, repairWave: 0,
+    evidence_id: 'e'.repeat(64), source_digest: head,
+    disposition: {
+      kind: 'outside_scope', reason: 'cause is outside every task scope', evidence_id: 'e'.repeat(64),
+      source_digest: head, paths: ['vendor/lock.json'],
+    },
+  };
+  mutate(ledger);
+  writeLedger(ledgerFile, ledger);
+  return { repo, blueprint, integrationPath: boot.integrationPath, ledgerFile, head };
+}
+
+test('blueprint next with a proven outside_scope terminal failure → done carrying the failure, not blocked', () => {
+  const drive = classifiedTerminalDrive('bouncer-next-outside-done-');
+  const before = loadLedger(drive.ledgerFile);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'done');
+  assert.strictEqual(r.payload.outside_scope.kind, 'outside_scope');
+  assert.strictEqual(r.payload.failed_task, '002');
+  // 성공으로 바꾸지 않는다 — terminal은 verifying, 실패 사실은 그대로다.
+  assert.strictEqual(before.tasks[1].status, 'verifying');
+  assert.strictEqual(before.terminalFailure.exitCode, 1);
+});
+
+test('blueprint next with a proven outside_scope failure in blueprint review mode → final_review before done', () => {
+  const drive = classifiedTerminalDrive('bouncer-next-outside-review-', () => {}, { review: true });
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'final_review');
+  assert.strictEqual(r.payload.outside_scope.reason, 'cause is outside every task scope');
+});
+
+test('blueprint next with an unclassified, stale, mismatched or incomplete outside_scope failure → stays blocked', () => {
+  const cases = [
+    ['no classification (legacy failure)', (l) => { delete l.terminalFailure.disposition; }],
+    ['source moved after the classification', (l) => { l.integrationHead = 'a'.repeat(40); }],
+    ['classification bound to another evidence', (l) => { l.terminalFailure.disposition.evidence_id = 'd'.repeat(64); }],
+    ['classification bound to another source', (l) => { l.terminalFailure.disposition.source_digest = 'b'.repeat(40); }],
+    ['failure without recorded identity', (l) => {
+      delete l.terminalFailure.evidence_id; delete l.terminalFailure.disposition.evidence_id;
+    }],
+    ['classification without paths', (l) => { l.terminalFailure.disposition.paths = []; }],
+    ['classification without a reason', (l) => { l.terminalFailure.disposition.reason = ' '; }],
+    // 다른 task의 실패 기록이면 002에는 실패 기록이 없는 verifying이라 검증 재실행이 맞다. 어느 쪽이든 완료가 아니다.
+    ['failure of another task', (l) => { l.terminalFailure.task = '001'; }, 'verification_node'],
+  ];
+  for (const [label, mutate, expected = 'blocked'] of cases) {
+    const drive = classifiedTerminalDrive('bouncer-next-outside-bad-', mutate);
+    const r = assertNoWrite(drive, () => nextOf(drive));
+    assert.strictEqual(r.action, expected, label);
+    assert.notStrictEqual(r.action, 'done', label);
+  }
 });

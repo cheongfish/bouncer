@@ -37,6 +37,7 @@ const { buildStableProvenance } = commitSha;
 import schema = require('./schema');
 const { executionKindOf } = schema;
 import scope = require('./scope');
+import seedWorktree = require('./seed-worktree');
 const { isUnder, RUNTIME_ARTIFACTS } = scope;
 
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
@@ -166,6 +167,39 @@ function entriesForVerify(repoRoot: string, blueprintDir: string, taskId?: strin
 }
 
 /**
+ * blueprint가 `verification_policy: scoped_terminal`을 선언했는지 읽는다.
+ * index.md가 없으면(ENOENT) 정책 이전 계획과 같은 legacy로 본다 — 문서 없는
+ * fixture·옛 저장소에서 기존 config.verify 경로가 바뀌지 않게 하기 위함이다.
+ * 그 밖의 읽기·파싱 오류는 정책을 알 수 없다는 뜻이므로 삼키지 않고 던진다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} blueprintDir - blueprint 상대 경로
+ * @returns {boolean} scoped_terminal이면 true, 부재·legacy·허용 밖 값이면 false
+ */
+function isScopedTerminal(repoRoot: string, blueprintDir: string): boolean {
+  try {
+    const { data } = readDoc(path.join(repoRoot, blueprintDir, 'index.md'));
+    const bouncer = data ? (data as Record<string, unknown>).bouncer : undefined;
+    return schema.verificationPolicyOf(bouncer) === 'scoped_terminal';
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/** task 문서가 verification node인지. 문서가 사라졌으면 구현 task로 취급한다(ENOENT만 흡수). */
+function isVerificationKindDoc(repoRoot: string, rel: string): boolean {
+  try {
+    const { data } = readDoc(path.join(repoRoot, rel));
+    const bouncer = data ? (data as Record<string, unknown>).bouncer : undefined;
+    return schema.executionKindOf(bouncer) === 'verification';
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/**
  * 활성 task 선언 또는 `config.verify`에서 검증 명령을 고른다. task 필드는
  * 저장소 정책 allowlist로 검사한다. 파손된 config는 기본 목록으로 넘어가지
  * 않고 `VERIFY_CONFIG_INVALID`다. 셸 연산자·미종료 인용은 그보다 먼저
@@ -181,8 +215,17 @@ function readVerifyCommand(repoRoot: string, blueprintDir?: string, taskId?: str
   // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
   // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
   // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
+  const scoped = Boolean(blueprintDir) && isScopedTerminal(repoRoot, blueprintDir as string);
   if (blueprintDir) {
-    for (const entry of entriesForVerify(repoRoot, blueprintDir, taskId)) {
+    let entries = entriesForVerify(repoRoot, blueprintDir, taskId);
+    // scoped_terminal에서 task를 특정하지 못한 listing 폴백(finalize remainder 등)은
+    // earliest 구현 task의 좁은 명령이 아니라 종단 verification의 전체 명령을 골라야
+    // 한다. sort는 안정 정렬이라 같은 종류끼리는 기존 번호 순서를 유지한다.
+    if (scoped && entries.length > 1) {
+      const rank = (entry: { rel: string }) => (isVerificationKindDoc(repoRoot, entry.rel) ? 0 : 1);
+      entries = [...entries].sort((a, b) => rank(a) - rank(b));
+    }
+    for (const entry of entries) {
       try {
         const { data } = readDoc(path.join(repoRoot, entry.rel));
         // `data && data.bouncer && data.bouncer.verify`와 같다. bouncer가 null이면
@@ -222,6 +265,15 @@ function readVerifyCommand(repoRoot: string, blueprintDir?: string, taskId?: str
         if (errorCode(error) !== 'ENOENT') throw error;
       }
     }
+  }
+  // scoped_terminal은 명령 누락을 config.verify(전체 명령)로 메우지 않는다. 구현
+  // task가 전체 suite를 몰래 돌리면 책임 분리가 무너지기 때문이다. 문서가 사라졌거나
+  // 선언이 없는 경우 모두 여기서 끊는다.
+  if (scoped) {
+    throw verificationError(
+      'VERIFY_COMMAND_INVALID',
+      'scoped_terminal requires a task-owned bouncer.verify; config.verify fallback is not allowed',
+    );
   }
   // 파일 없음과 깨진 JSON을 한 오류로 합치면 VERIFY_CONFIG_MISSING이
   // 권한·구문 문제를 가린다. 메시지 문자열은 호출자가 경로를 그대로 보게 유지.
@@ -1162,6 +1214,20 @@ function runVerification({
   const { identity, evidenceId } = computeEvidenceIdentity({
     repoRoot, command, scope, deps,
   });
+
+  // 2b. npm terminal 검증은 직접 의존성 metadata가 빠진 integration에서 실행·재사용·증적
+  // 쓰기 전에 거절한다. 일반 테스트 실패(failed 기록)와 구분되는 VERIFY_DEPENDENCIES_MISSING이며,
+  // 기존 verification.md·원장 bytes를 건드리지 않는다. 비npm 명령과 검사 불가(workspaces 등)는
+  // 현행 경로를 유지하고, 출력 문자열이나 비0 종료로 의존성 부족을 추측하지 않는다.
+  if (scope.kind === 'terminal' && parseVerifyArgv(command)?.[0] === 'npm') {
+    const missing = seedWorktree.missingDirectDependencies(repoRoot);
+    if (missing !== null && missing.length > 0) {
+      throw verificationError(
+        'VERIFY_DEPENDENCIES_MISSING',
+        `direct dependencies are not installed in ${repoRoot}: ${missing.join(', ')}`,
+      );
+    }
+  }
 
   // 3. 성공 v2 원장 hit면 exec를 건너뛰고 원본 ran_at·output을 재기록한다.
   const ledgerPaths = verifyLedgerPathFor({
