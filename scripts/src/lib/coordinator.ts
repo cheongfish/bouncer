@@ -3125,6 +3125,21 @@ function integrateCommitWave({
     }
   }
 
+  // gitignore 대상 빌드 산출물은 cherry-pick한 소스로 만들어야 한다. seed 시점의 setup은
+  // baseHead 소스를 빌드하므로, 검증 직전에 한 번 더 돌려 wave 변경이 산출물에 반영되게 한다.
+  const rebuilt = prepareDependencies(faninPath, { execFileSync: withInstallStdioToStderr(exec) });
+  if (!rebuilt.ok) {
+    removeFaninWorktree(exec, repoRoot, faninPath);
+    return withLedgerLock(integration.ledgerFile, (owns) => {
+      const loaded = loadLedgerBytes(integration.ledgerFile);
+      if (!loaded) return { ok: false, reason: 'missing-ledger' };
+      loaded.ledger.fanin = null;
+      if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+      writeLedger(integration.ledgerFile, loaded.ledger);
+      return rebuilt;
+    });
+  }
+
   const candidateHead = git(exec, faninPath, ['rev-parse', 'HEAD']);
   const { epicId, blueprintId } = parsePathIds(blueprint);
   const lastTask = waveTasks[waveTasks.length - 1];
