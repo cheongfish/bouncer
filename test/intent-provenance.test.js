@@ -191,6 +191,9 @@ test('commit with a trailer → wins and returns a 40-char commit with the stabl
   assert.equal(result.candidates[0].freshness, 'current');
   assert.equal(result.candidates[0].relation, 'blame');
   assert.ok(result.candidates[0].sections.includes('Background'));
+  // 기존 Intuition 절은 계속 읽혀 provenance body에 보존된다.
+  assert.ok(result.candidates[0].sections.includes('Intuition'));
+  assert.match(result.candidates[0].body, /stable task id is the join key/);
   assert.match(result.candidates[0].body, /approved function intent/);
   assert.equal(result.candidates[0].body.includes('secret quiz prompt'), false);
   assert.equal(result.candidates[0].body.includes('hidden checklist item'), false);

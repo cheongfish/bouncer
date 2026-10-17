@@ -140,6 +140,8 @@ const CONTEXT_ROUND_CONTRACT: RoundContract = {
 // EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
 const EXPLAIN_SECTION_HEADINGS: SectionDef[] = [
   { key: 'background', re: /^##\s+Background\s*$/i },
+  // 선택적 legacy 절: 새 Explain은 만들지 않고 G16도 요구하지 않는다. 정규식을 지우면
+  // 기존 문서의 Intuition 본문이 앞 절(background)에 흡수되어 provenance body가 바뀐다.
   { key: 'intuition', re: /^##\s+Intuition\s*$/i },
   { key: 'code', re: /^##\s+Code\s*$/i },
   { key: 'quiz', re: /^##\s+Quiz\s*$/i },

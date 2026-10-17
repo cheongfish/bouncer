@@ -9,6 +9,12 @@
 
 ### Added
 
+- **검증 경계 분리와 생성 문서 정리 (EPIC 108 BP 001)** — 구현 task는 명시적인 task 전용 검증 명령을 갖고,
+  light·full 모두 구현 통합 뒤 종단 task에서 전체 검증을 실행한다. 공유 의존성 설치는 main을 바꾸지 않고,
+  integration의 필수 의존성 누락이 기존 성공 증거를 덮어쓰지 않는다. 최종 검증의 범위 내 실패는 기존 task로
+  복구하고, 입증된 범위 밖 실패는 실패 사실을 보존한 채 최종 리뷰·finalize·PR까지 인계한다. 메트릭은 토큰과
+  소요시간의 누락 개수와 역할별 worker 합계를 명시한다. 새 Explain은 Intuition 절을 만들지 않고 G16도 요구하지
+  않으며(기존 Intuition 문서는 그대로 읽힌다), 새 blueprint는 Documents 목록을 만들지 않는다.
 - **레거시 blueprint 리뷰 범위 명시적 전환 (EPIC 107 BP 002)** — `bouncer migrate review-scope --blueprint <dir>`가
   `review_scope: blueprint`와 root `review.md`를 만든다. `run preflight`는 review_scope 없는 레거시 blueprint를
   reason `legacy-review-scope`로 막고 이 명령을 next로 안내하며, 실행 중 자동 전환은 하지 않는다. 기존 task 리뷰·

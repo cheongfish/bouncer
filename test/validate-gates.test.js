@@ -1568,6 +1568,35 @@ test('finalize gate G16 when explain sections are unwritten → fails', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
+test('finalize gate G16 when explain has no Intuition but other sections are written → passes', () => {
+  const failures = [];
+  const body = EXPLAIN_BODY_OK.replace('## Intuition\nValidate at the edge.\n\n', '');
+  assert.ok(!body.includes('Intuition'));
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()], body),
+  }, rels, failures, G16_CTX);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('finalize gate G16 when a remaining required section is missing → fails naming it', () => {
+  const failures = [];
+  const body = EXPLAIN_BODY_OK.replace('## Quiz\nQ1: where is validation?\n\n', '');
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()], body),
+  }, rels, failures, G16_CTX);
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G16']);
+  assert.match(failures[0].message, /quiz/);
+});
+
+test('legacy explain with Intuition → still parsed as its own section without leaking into neighbors', () => {
+  const sections = parseExplainSections(EXPLAIN_BODY_OK);
+  assert.ok(/Validate at the edge/.test(sections.intuition));
+  assert.ok(!/Validate at the edge/.test(sections.background));
+  assert.ok(!/Validate at the edge/.test(sections.code));
+});
+
 test('finalize gate G16 when comprehension record is missing for a task → fails', () => {
   const failures = [];
   checkGate('finalize', {

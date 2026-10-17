@@ -212,6 +212,8 @@ test('scaffoldBlueprint → writes five plan docs (no explain) with numeric chil
   ]);
   assert.ok(!fs.existsSync(path.join(repo, `${base}/explain.md`)));
   assert.ok(!fs.existsSync(path.join(repo, `${base}/tasks/001/review.md`)));
+  // 새 blueprint index는 Documents 목록을 만들지 않는다.
+  assert.ok(!readDoc(path.join(repo, created[0])).body.includes('## Documents'));
   const ctxReview = readDoc(path.join(repo, `${base}/context-review.md`)).data;
   assert.strictEqual(ctxReview.type, 'bouncer.context_review');
   assert.strictEqual(ctxReview.bouncer.id, 'CTXREVIEW-001');
@@ -454,11 +456,11 @@ test('scaffoldExplain for finalize → creates explain.md once with empty compre
   assert.strictEqual(data.bouncer.id, 'EXPLAIN-001');
   // G16은 BP 단일 엔트리 배열을 본다. 빈 배열은 hash 불일치가 아니라 기록 없음.
   assert.deepStrictEqual(data.bouncer.comprehension, []);
-  for (const heading of [
-    '## Background', '## Intuition', '## Code', '## Quiz', '## Tasks',
-  ]) {
+  for (const heading of ['## Background', '## Code', '## Quiz', '## Tasks']) {
     assert.ok(body.includes(heading), `explain.md missing ${heading}`);
   }
+  // 새 Explain은 Intuition 절을 만들지 않는다(기존 문서 파싱만 호환).
+  assert.ok(!body.includes('## Intuition'));
   assert.ok(!body.includes('## 이해 상태'));
   assert.deepStrictEqual(
     scaffoldExplain({ repoRoot: repo, blueprintDir: bp, timestamp: TS }),

@@ -58,7 +58,7 @@ function okEntry(overrides = {}) {
 
 test('module constants are read → DIFF_EXCLUDED_PREFIXES and EXPLAIN_SECTION_DEFS are exported as named constants', () => {
   assert.deepStrictEqual(DIFF_EXCLUDED_PREFIXES, ['.bouncer/context/']);
-  assert.deepStrictEqual(EXPLAIN_SECTION_DEFS, ['background', 'intuition', 'code', 'quiz']);
+  assert.deepStrictEqual(EXPLAIN_SECTION_DEFS, ['background', 'code', 'quiz']);
 });
 
 test('paths under .bouncer/context/ are in the diff → computeDiffSha ignores them when hashing', () => {

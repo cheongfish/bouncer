@@ -96,12 +96,6 @@ Epic: [<EPIC-id>](../../index.md)
 
 ## One-commit justification
 - <TODO: 한 커밋에 들어가는 이유>
-
-## Documents
-* [Tasks](tasks/001/tasks.md) - 구현 브리프
-* [Verification](tasks/001/verification.md) - 검증 명령과 증적
-* [Review](review.md) - 리뷰 발견사항
-* [Context review](context-review.md) - 계획 문서 정합성 판정
 `,
   'tasks.md': `# Tasks
 
@@ -173,13 +167,13 @@ Source 변경 경로 없음.
 ## Findings
 - <finding>
 `,
-  // G16는 필수 네 절이 비어 있으면 거절한다. 주석을 지워도 제목만 있는
-  // 본문은 손대지 않은 tasks 템플릿이 G10에 걸리듯 통과할 수 없다.
+  // G16는 필수 세 절(Background·Code·Quiz)이 비어 있으면 거절한다. 주석을 지워도
+  // 제목만 있는 본문은 손대지 않은 tasks 템플릿이 G10에 걸리듯 통과할 수 없다.
+  // Intuition은 새 문서에 만들지 않는다 — 기존 Explain의 Intuition은 파서가
+  // 선택적 legacy 절로 계속 읽는다.
   'explain.md': `# Explain
 
 ## Background
-
-## Intuition
 
 ## Code
 

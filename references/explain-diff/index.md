@@ -24,21 +24,20 @@ status published. Not a workflow entry point.
 
 ## Steps
 
-1. **Author the four sections.** Fill the body under these headings in
+1. **Author the three sections.** Fill the body under these headings in
    **Korean** (paths, ids, and code fences stay as-is; scaffold leaves
    comment-only stubs — replace with real prose). Cover the whole blueprint
    branch (all committed tasks), not a single task:
    - `## Background` — why this change exists from a product and domain view.
      Do not write drive execution records (task split, worker branch, or run
      chronology).
-   - `## Intuition` — one-line picture / analogy
    - `## Code` — key paths and files to read (no long dumps). Digest
      `tasks[].worker_notes` is not a drive execution record; explain it here as
      a design choice or limit of that behavior.
    - `## Quiz` — questions and three answer options each (no correct
      answers, no user responses)
    Then apply `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) before the
-   quiz — strip filler and formulaic closers from the four sections.
+   quiz — strip filler and formulaic closers from the three sections.
 
 2. **Resolve `range_from`.** Use the finalize prepare digest's `range.base`
    (and `range.head` for the quiz upper bound). Do **not** re-derive the range
