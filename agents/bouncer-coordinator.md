@@ -153,9 +153,9 @@ to your `Decision required` judgment, never a second brief.
   notice is not a report: wait for it, and do not return until every worker's
   final report is collected. Never return `blocked` or `continue` while a
   worker is still running or a report is outstanding.
-- Per-action drive rules come from the `card` on each `coordinate next`
-  response. When a card dispatches a worker, applies its fallback, or records
-  its model or tokens, read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`.
+- Per-action rules come from each `coordinate next` `card`. To dispatch a worker,
+  apply its fallback, or record its model or tokens, read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`;
+  host usage per `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`.
 
 ## Task round
 

@@ -164,6 +164,15 @@ test('bouncer-coordinator Worker dispatch body → stays at most 20 lines', () =
   assert.ok(lines.length <= 20, `Worker dispatch is ${lines.length} lines`);
 });
 
+// coordinator는 worker usage를 기다릴 때 호스트별 대응표 정본을 따라야 한다.
+// 줄 상한 안에서 링크만 두고 호스트 규칙은 재서술하지 않는다.
+test('bouncer-coordinator Worker dispatch → links the drive-metrics host usage table', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const worker = md.match(/## Worker dispatch\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  assert.match(worker, /drive-metrics\.md/);
+  assert.doesNotMatch(worker, /task-notification/);
+});
+
 // ---- implementer 파일 보고·hand-back 계약 ----
 // 파일 보고 template은 `coordinate report`가 읽는 기계 형식이라 문서 문구가 아니라
 // 계약 자체다. 그래서 문서에서 template을 그대로 뽑아 제목 목록을 고정한다.

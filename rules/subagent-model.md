@@ -74,9 +74,10 @@ limits.
    A `completed` or waiting notification that carries no result body is not an
    outcome either; keep waiting for the hand-back report (the subagent's final
    result body). Defer `metrics end` and the next step until that report
-   arrives. When you record usage after it, read
+   arrives. Missing usage is not an unfinished report. When you record usage
+   after it, read the host usage table in
    `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`, which owns
-   which host notification carries `subagent_tokens`.
+   where each host puts the final usage and when to close without it.
 7. On Cursor, `subagents.dispatch: "print"` in `.bouncer/config.json` is an
    explicit opt-in. Only when `subagents.provider` is `cursor` and that value is
    exactly `print`, read `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` before the first

@@ -59,12 +59,74 @@ test('run skill → runs the coordinator model check before the named dispatch',
   assert.ok(!/same coordinator brief/.test(paragraph), 'fallback must not use the same-brief label');
 });
 
-// 루트가 drive-metrics.md를 열지 않아도 metrics end 시점을 알아야 한다.
-// 시점 문구 자체가 이 지침의 계약이라 같은 문단 안의 문구를 직접 확인한다.
-test('run skill → metrics end waits for the task-notification usage, not the hand-back', () => {
-  const paragraph = paragraphContaining(readRunSkill(), 'metrics end');
-  assert.ok(paragraph, 'metrics end 문단 없음');
-  for (const phrase of ['task-notification', 'subagent_tokens', 'not right after the hand-back']) {
-    assert.ok(paragraph.includes(phrase), `metrics end 문단에 ${phrase} 없음`);
+// 호스트마다 usage가 실리는 곳이 다르다. Claude Code 전용 task-notification 대기를
+// 모든 호스트에 걸면 usage 이벤트가 없는 호스트에서 session이 영영 닫히지 않는다.
+// 그래서 대응표 하나(drive-metrics.md)가 호스트별 출처와 종료 시점을 소유하고,
+// 표의 행 구성 자체가 이 지침의 계약이므로 행 단위로 확인한다.
+
+/**
+ * drive-metrics.md의 호스트 usage 대응표 행을 셀 배열로 돌려준다.
+ * 첫 열 머리가 `Host`인 표만 읽고, 구분선(`---`)은 버린다. 표가 목록 항목 안에
+ * 들여쓰여 있으므로 줄 앞 공백은 무시한다.
+ *
+ * @returns {string[][]} 본문 행마다 trim한 셀 배열. 표가 없으면 빈 배열
+ */
+function hostUsageRows() {
+  const md = fs.readFileSync(
+    path.join(__dirname, '..', 'skills/bouncer-run/references/drive-metrics.md'), 'utf8',
+  );
+  const lines = md.split('\n').map((line) => line.trimStart());
+  const head = lines.findIndex((line) => /^\|\s*Host\s*\|/.test(line));
+  if (head === -1) return [];
+  const rows = [];
+  for (const line of lines.slice(head + 2)) {
+    if (!line.startsWith('|')) break;
+    rows.push(line.split('|').slice(1, -1).map((cell) => cell.trim()));
+  }
+  return rows;
+}
+
+test('drive-metrics host table → names each host usage source and its close timing', () => {
+  const rows = hostUsageRows();
+  const row = (host) => rows.find((cells) => cells[0].includes(host));
+  const claude = row('Claude Code');
+  assert.ok(claude, 'Claude Code 행 없음');
+  assert.match(claude.join(' '), /<task-notification>/);
+  assert.match(claude.join(' '), /subagent_tokens/);
+  const codex = row('Codex');
+  assert.ok(codex, 'Codex 행 없음');
+  assert.match(codex.join(' '), /result JSON/);
+  assert.match(codex.join(' '), /`usage`/);
+  const cursor = row('Cursor print');
+  assert.ok(cursor, 'Cursor print 행 없음');
+  // 최종 usage는 raw stdout artifact의 마지막 result 이벤트에 있고 wrapper JSON에는 없다.
+  assert.match(cursor.join(' '), /stdout/);
+  assert.match(cursor.join(' '), /type: "result"/);
+  assert.match(cursor.join(' '), /wrapper JSON[^|]*no usage/);
+});
+
+test('host without a usage event → closes the session at once with no token flags', () => {
+  const none = hostUsageRows().find((cells) => /no usage event/i.test(cells[0]));
+  assert.ok(none, 'usage 이벤트 없는 호스트 행 없음');
+  const action = none.join(' ');
+  assert.match(action, /immediately/i);
+  assert.match(action, /no token flags/);
+  assert.match(action, /missing/);
+});
+
+// 대응표를 정본 하나에만 두어야 호스트 규칙이 진입점마다 갈라지지 않는다.
+// 네 진입점과 agent-dispatch는 표를 가리키기만 하고 Claude 전용 이벤트 이름을 다시 쓰지 않는다.
+test('four entry points and agent-dispatch → link the drive-metrics table without restating task-notification', () => {
+  const sites = [
+    'skills/bouncer-run/SKILL.md',
+    'rules/subagent-model.md',
+    'agents/bouncer-coordinator.md',
+    'rules/cursor-print-dispatch.md',
+    'skills/bouncer-run/references/agent-dispatch.md',
+  ];
+  for (const rel of sites) {
+    const text = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+    assert.match(text, /drive-metrics\.md/, `${rel}: drive-metrics 표 링크 없음`);
+    assert.doesNotMatch(text, /task-notification/, `${rel}: 호스트 이벤트를 재서술함`);
   }
 });

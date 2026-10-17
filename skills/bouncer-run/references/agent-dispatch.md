@@ -252,7 +252,7 @@ dispatch, and the dispatch receives that same value.
   first passed, and you state the `inherit` retry in your own report to the
   user. The implementer's worker record is `bouncer coordinate worker-model
   --blueprint <dir> --role implementer --model <value> --task <NNN> --tokens
-  <n>`, written when its completion notice reports `subagent_tokens`.
+  <n>`, written when the host reports the worker's tokens.
 - **Debugger.** Immediately before each debugger dispatch, record `bouncer
   coordinate worker-model --blueprint <dir> --role debugger --model <value>
   --task <NNN>`. If a slug rejection forces the `inherit` retry, record the
@@ -265,10 +265,9 @@ dispatch, and the dispatch receives that same value.
   review spans the blueprint): `--role reviewer --model <value> [--perspective
   <name>]`, and the retried value again after an `inherit` retry.
 
-Which host event carries `subagent_tokens` (the agent's `<task-notification>`
-usage, never the hand-back or an intermediate notice) is owned by
-[drive-metrics](./drive-metrics.md); read it when you wait for a worker's
-usage. If that value is not here when you record the model, record without
+Where each host puts a worker's final usage, and when it has none, is owned by
+the host usage table in [drive-metrics](./drive-metrics.md); read it when you
+wait for a worker's usage. If that value is not here when you record the model, record without
 `--tokens`; once it arrives, append it with `bouncer coordinate worker-tokens
 --blueprint <dir> --role <role> [--task <NNN>] [--perspective <name>] --tokens
 <n>` using the same task and perspective. If the host gives no value, leave it

@@ -675,6 +675,11 @@ test('dispatch rule → item 6 defines completed notices and metrics end timing,
   const item6 = contract.match(/\n6\. [\s\S]*?(?=\n7\. )/)?.[0] || '';
   assert.match(item6, /`completed`/);
   assert.match(item6, /metrics end/);
+  // 보고 완료 판정은 item 6이, 호스트별 usage 출처는 drive-metrics 표가 소유한다.
+  // usage가 없다는 사실은 보고 미완료가 아니다 — 두 판정을 섞으면 대기가 끝나지 않는다.
+  assert.match(item6, /drive-metrics\.md/);
+  assert.match(item6, /host usage table/);
+  assert.match(item6, /missing usage[\s\S]{0,80}not an unfinished report/i);
   const item8 = contract.match(/\n8\. [\s\S]*?(?=\n\n|$)/)?.[0] || '';
   assert.match(item8, /ToolSearch/);
 });

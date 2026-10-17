@@ -159,7 +159,7 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
      per task boundary, `auto` batches), so no per-task ACQ under either value
 
    Take `completed_tasks.length` immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
-   Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); `metrics end` not right after the hand-back but after the agent's `<task-notification>` usage (`subagent_tokens`).
+   Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); when to call `metrics end` and which usage to pass are fixed per host by its host usage table.
    Wait in the foreground per `${BOUNCER_ROOT}/rules/subagent-model.md` item 6 until the
    coordinator returns its outcome; never end the turn or render step 5 while the coordinator still runs.
    On `continue`, do not go to step 5. `interactive` emits the
