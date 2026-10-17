@@ -1299,6 +1299,13 @@ test('execute gate G14 → enforces the mode convergence contract', () => {
   assert.ok(openMustFix.some((f) => /accepted with open must_fix F1/.test(f.message)));
 });
 
+test('execute gate G14 task review with deferred must_fix and note in accepted → is accepted with open must_fix', () => {
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ status: 'deferred', note: 'carry forward' })], rounds: [convergenceRound()],
+  });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
 test('execute gate G14 → leaves mode-less legacy rounds unchanged', () => {
   assert.deepStrictEqual(executeReviewFailures({
     findings: [{ id: 'F3', severity: 'nit', status: 'deferred', note: 'independent follow-up' }],
@@ -2843,6 +2850,27 @@ test('finalize G21 with rounds discovery,delta,delta,critical_recovery,delta →
   assert.equal(
     g21SequenceFailures(['discovery', 'delta', 'delta', 'critical_recovery', 'delta']).length, 1,
   );
+});
+
+function g21FindingFailures(finding) {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ModeRounds(['discovery']), findings: [finding] }),
+  });
+  return failures.filter((f) => f.code === 'G21');
+}
+
+test('finalize G21 with deferred must_fix and note in accepted review → has no G21', () => {
+  assert.deepEqual(g21FindingFailures(convergenceFinding({ status: 'deferred', note: 'carry forward' })), []);
+});
+
+test('finalize G21 with deferred must_fix without note in accepted review → is deferred without note', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'deferred' }));
+  assert.ok(failures.some((f) => /finding F1 deferred without note/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with open must_fix in accepted review → is accepted with open must_fix', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'open' }));
+  assert.ok(failures.some((f) => /accepted with open must_fix F1|open in accepted review/.test(f.message)), JSON.stringify(failures));
 });
 
 test('execute gate G14 with task rounds discovery,delta,delta → is rounds sequence invalid', () => {

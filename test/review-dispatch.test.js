@@ -1004,6 +1004,22 @@ test('parallel diff와 review_risk에 --mode delta → strategy single, perspect
   assert.strictEqual(json.reasons.length, d.reasons.length + 1);
 });
 
+test('task 없는 execute에 --mode delta → usage exit 2이고 stdout JSON이 없음', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  writeCommitTask(repo, '001', {});
+  const base = commitBaseline(repo);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const run = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--base', base, '--head', head,
+    '--repo', repo, '--mode', 'delta',
+  ]);
+  assert.strictEqual(run.code, 2);
+  assert.strictEqual(run.out, '');
+  assert.match(run.err, /--task/);
+});
+
 test('--mode discovery → --mode 생략과 같은 JSON', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });

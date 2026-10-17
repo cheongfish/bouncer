@@ -4239,6 +4239,58 @@ test('supplement repair rejections → name the reason and leave the ledger unto
   assert.strictEqual(reasonOf({}), 'review-repair-requires-integrated');
 });
 
+// 최종 리뷰는 discovery 한 라운드로 끝난다. 아래는 리뷰 모드 blueprint에 discovery가 저장된 뒤의
+// 리뷰 원인 쓰기가 모두 사전에 거절되고 원장·task·review 파일이 변하지 않는지 본다.
+function finalReviewStoredDrive(prefix, blueprint) {
+  const drive = supplementDrive(prefix, blueprint);
+  const indexFile = path.join(drive.integrationPath, blueprint, 'index.md');
+  fs.writeFileSync(indexFile, fs.readFileSync(indexFile, 'utf8').replace('bouncer:\n', 'bouncer:\n  review_scope: blueprint\n'));
+  writeRootReview(drive, ['discovery']);
+  return drive;
+}
+
+function snapshotOf(drive) {
+  const reviewFile = path.join(drive.integrationPath, drive.blueprint, 'review.md');
+  const tasksDir = path.join(drive.integrationPath, drive.blueprint, 'tasks');
+  return {
+    ledger: fs.readFileSync(drive.ledgerFile, 'utf8'),
+    review: fs.readFileSync(reviewFile, 'utf8'),
+    tasks: fs.readdirSync(tasksDir).sort(),
+  };
+}
+
+test('final discovery stored then supplement intake or review-caused repair → final-review-single-round and nothing changes', () => {
+  const drive = finalReviewStoredDrive('bouncer-final-single-', '.bouncer/context/epics/090-x/blueprints/010-y');
+  const before = snapshotOf(drive);
+  assert.strictEqual(coordinate(supplementOpts(drive)).reason, 'final-review-single-round');
+  const repair = coordinate(supplementOpts(drive, {
+    kind: undefined, paths: ['src/a.js'],
+  }));
+  assert.strictEqual(repair.reason, 'final-review-single-round');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('final discovery stored then supplement --done with a pending decision → final-review-single-round and the decision stays pending', () => {
+  const drive = supplementDrive('bouncer-final-done-', '.bouncer/context/epics/090-x/blueprints/011-y');
+  assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
+  const indexFile = path.join(drive.integrationPath, drive.blueprint, 'index.md');
+  fs.writeFileSync(indexFile, fs.readFileSync(indexFile, 'utf8').replace('bouncer:\n', 'bouncer:\n  review_scope: blueprint\n'));
+  writeRootReview(drive, ['discovery']);
+  const before = snapshotOf(drive);
+  const out = coordinate(supplementOpts(drive, { done: true, reviewFindings: undefined, summary: 'tests added' }));
+  assert.strictEqual(out.reason, 'final-review-single-round');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+  assert.strictEqual(readLedger(drive).decisions.at(-1).outcome, 'pending');
+});
+
+test('final discovery stored then CI failure-command repair → is not rejected as a review-caused repair', () => {
+  const drive = finalReviewStoredDrive('bouncer-final-ci-', '.bouncer/context/epics/090-x/blueprints/012-y');
+  const out = coordinate(supplementOpts(drive, {
+    kind: undefined, reviewFindings: undefined, failureCommand: 'npm test', task: undefined,
+  }));
+  assert.notStrictEqual(out.reason, 'final-review-single-round');
+});
+
 test('supplement --done with several verify commands → verifies once per distinct command and marks the decision verified', () => {
   const drive = supplementDrive('bouncer-supp-done-', '.bouncer/context/epics/090-x/blueprints/004-y');
   assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);

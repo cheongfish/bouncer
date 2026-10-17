@@ -206,13 +206,39 @@ test('findings object → is review-input-invalid and leaves bytes unchanged', (
   assertRejectedUntouched(fx, before, result, 'review-input-invalid');
 });
 
-test('open must_fix with --status accepted → is review-ledger-invalid', () => {
+test('blueprint scope deferred must_fix with note and --status accepted → records accepted', () => {
   const fx = makeFixture();
+  const finding = { ...EXAMPLE_FINDING, status: 'deferred', note: 'later', actionability: 'must_fix' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'accepted');
+  assert.equal(data.bouncer.review.findings[0].status, 'deferred');
+});
+
+test('blueprint scope deferred must_fix without note and --status accepted → is review-ledger-invalid', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const finding = { ...EXAMPLE_FINDING, status: 'deferred', actionability: 'must_fix' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(result.cause.some((m) => String(m).includes('deferred without note')));
+});
+
+test('blueprint scope open must_fix and --status accepted → is review-ledger-invalid', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const finding = { ...EXAMPLE_FINDING, status: 'open', actionability: 'must_fix' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+});
+
+test('task scope deferred must_fix with note and --status accepted → is review-ledger-invalid', () => {
+  const fx = makeFixture({ taskMode: true });
   const before = fs.readFileSync(fx.reviewPath);
   const finding = { ...EXAMPLE_FINDING, status: 'deferred', note: 'later', actionability: 'must_fix' };
   const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
   assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
-  assert.ok(Array.isArray(result.cause));
   assert.ok(result.cause.some((m) => String(m).includes('review accepted with open must_fix')));
 });
 
@@ -250,7 +276,7 @@ test('missing review.md → is review-target-missing', () => {
 });
 
 test('discovery then delta then critical_recovery without --status → is ok', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const modes = ['discovery', 'delta', 'critical_recovery'];
   for (let i = 0; i < modes.length; i += 1) {
     const round = i + 1;
@@ -270,7 +296,7 @@ test('discovery then delta then critical_recovery without --status → is ok', (
 });
 
 test('in-progress ledger with --status accepted → is review-ledger-invalid', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const prefixes = ['discovery', 'delta'];
   for (let i = 0; i < prefixes.length; i += 1) {
     const round = i + 1;
@@ -300,24 +326,45 @@ test('blueprint round contract → max delta count equals REPAIR_WAVE_LIMIT', ()
   assert.strictEqual(maxDelta, REPAIR_WAVE_LIMIT);
 });
 
-test('blueprint scope discovery,delta,delta with --status accepted → is ok and a fourth round is review-ledger-invalid', () => {
+test('blueprint scope new delta round → is final-review-single-round and leaves bytes unchanged', () => {
   const fx = makeFixture();
-  const modes = ['discovery', 'delta', 'delta'];
-  const roundFor = (i, mode) => fx.payload({
-    round: i + 1,
-    mode,
-    previous_finding_ids: i === 0 ? [] : ['F1'],
-    new: i === 0 ? 1 : 0,
-  }, [{ ...EXAMPLE_FINDING, last_seen_round: i + 1 }]);
-  for (let i = 0; i < 2; i += 1) {
-    const r = fx.record(roundFor(i, modes[i]));
-    assert.equal(r.ok, true, r.reason);
-  }
-  const accepted = fx.record(roundFor(2, 'delta'), { status: 'accepted' });
-  assert.equal(accepted.ok, true, JSON.stringify(accepted));
+  const discovery = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' });
+  assert.equal(discovery.ok, true, discovery.reason);
   const before = fs.readFileSync(fx.reviewPath);
-  const fourth = fx.record(roundFor(3, 'delta'));
-  assertRejectedUntouched(fx, before, fourth, 'review-ledger-invalid');
+  const delta = fx.payload({
+    round: 2, mode: 'delta', previous_finding_ids: ['F1'], new: 0, resolved: 1,
+  }, [{ ...EXAMPLE_FINDING, status: 'resolved', last_seen_round: 2 }]);
+  const result = fx.record(delta, { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'final-review-single-round');
+});
+
+test('blueprint scope stored discovery,delta,delta history → G21 still reads it', () => {
+  const fx = makeFixture();
+  const parsed = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  const stored = (round, mode) => ({
+    round,
+    mode,
+    target: { base: 'aaa', head: 'bbb' },
+    perspectives: [{ name: 'combined', target_head: 'bbb' }],
+    previous_finding_ids: round === 1 ? [] : ['F1'],
+    new: round === 1 ? 1 : 0,
+    resolved: 0,
+    regressed: 0,
+  });
+  parsed.data.bouncer.status = 'accepted';
+  parsed.data.bouncer.review = {
+    rounds: [stored(1, 'discovery'), stored(2, 'delta'), stored(3, 'delta')],
+    findings: [{
+      ...EXAMPLE_FINDING,
+      status: 'resolved',
+      last_seen_round: 3,
+      fingerprint: 'correctness:tasks/001 interface:scripts/lib/x.js#f',
+    }],
+  };
+  fs.writeFileSync(fx.reviewPath, renderDoc(parsed.data, parsed.body));
+  const g21 = (validateBlueprint({ repoRoot: fx.repo, blueprintDir: BP_REL, gate: 'finalize' }).failures || [])
+    .filter((f) => f.code === 'G21' && String(f.message).startsWith('review '));
+  assert.deepEqual(g21, []);
 });
 
 test('CLI review record on success → writes JSON', () => {
@@ -380,7 +427,7 @@ test('review record --help example round on a fresh blueprint → records it', (
 
 const CARD_DIR = path.join(__dirname, '..', 'references', 'coordinator-cards');
 
-for (const [cardName, taskMode] of [['review.md', true], ['final_review.md', false]]) {
+for (const [cardName, taskMode] of [['review.md', true]]) {
   test(`${cardName} card repair wave fences bound to a real snapshot → record discovery then delta`, () => {
     const card = fs.readFileSync(path.join(CARD_DIR, cardName), 'utf8');
     const fences = [...card.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
@@ -430,6 +477,19 @@ test('review record --help → lists open and shows an open example', () => {
   assert.equal(example.findings[0].status, 'open');
 });
 
+test('final_review.md card fence bound to a real snapshot → records the discovery round accepted with a deferred must_fix', () => {
+  const card = fs.readFileSync(path.join(CARD_DIR, 'final_review.md'), 'utf8');
+  const fences = [...card.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
+  assert.equal(fences.length, 1);
+  assert.equal(fences[0].round.mode, 'discovery');
+  const fx = makeFixture();
+  const result = recordCli(fx, { round: fx.write('r1.json', bindExample(fx, fences[0])), status: 'accepted' });
+  assert.equal(result.code, 0, result.err + result.out);
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'accepted');
+  assert.equal(data.bouncer.review.findings[0].status, 'deferred');
+});
+
 // ---- execute delta round: reviewer 하나 규칙 (perspective 수) ----
 
 /** round 1 discovery를 기록한 뒤 round 2 delta payload 파일을 돌려준다. */
@@ -449,7 +509,7 @@ function recordDiscoveryThenDeltaFile(fx, deltaPerspectives) {
 }
 
 test('관점 2개인 delta round 기록 → review-ledger-invalid', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const roundFile = recordDiscoveryThenDeltaFile(fx, [
     { name: 'spec_scope', target_head: fx.head },
     { name: 'security', target_head: fx.head },
@@ -460,7 +520,7 @@ test('관점 2개인 delta round 기록 → review-ledger-invalid', () => {
 });
 
 test('관점 1개인 delta round 기록 → ok', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const roundFile = recordDiscoveryThenDeltaFile(fx, [{ name: 'combined', target_head: fx.head }]);
   const result = fx.record(roundFile);
   assert.equal(result.ok, true, result.reason);
@@ -575,7 +635,7 @@ for (const status of ['requested', 'addressed']) {
 }
 
 test('inherited accepted status with a stale new round → is review-snapshot-stale', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   assert.equal(fx.record(fx.payload(), { status: 'accepted' }).ok, true);
   fs.writeFileSync(path.join(fx.repo, 'src', 'app.js'), 'two\n');
   const before = fs.readFileSync(fx.reviewPath);
@@ -586,7 +646,7 @@ test('inherited accepted status with a stale new round → is review-snapshot-st
 });
 
 test('delta acceptance on a fresh snapshot after a stale discovery snapshot → records accepted', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const discovery = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' });
   assert.equal(discovery.ok, true, discovery.reason);
   // 수정 후 새로 동결한 snapshot으로 delta를 닫는다. 앞 discovery snapshot은 이제 stale이다.
@@ -605,7 +665,7 @@ test('delta acceptance on a fresh snapshot after a stale discovery snapshot → 
 // ---- 기존 저장 기록 호환 ----
 
 test('legacy stored round without snapshot_id → stays valid and accepts a bound new round', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const parsed = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
   const legacy = {
     round: 1,

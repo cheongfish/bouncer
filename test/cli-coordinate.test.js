@@ -719,6 +719,32 @@ test('CLI coordinate repair with repeated --review-finding → collects them int
   assert.deepStrictEqual(ledger.repairWaves[0].failure.findings, ['F1', 'F2']);
 });
 
+test('CLI coordinate repair --review-finding after the final discovery round → final-review-single-round and exit 1', () => {
+  const drive = preparedDrive();
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  const indexFile = path.join(drive.integration, BP_REL, 'index.md');
+  fs.writeFileSync(indexFile, fs.readFileSync(indexFile, 'utf8').replace('bouncer:\n', 'bouncer:\n  review_scope: blueprint\n'));
+  fs.writeFileSync(
+    path.join(drive.integration, BP_REL, 'review.md'),
+    '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const before = fs.readFileSync(ledgerFile, 'utf8');
+  const { code, buf } = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo,
+    '--review-finding', 'F1',
+    '--summary', 'must_fix', '--paths', 'src/auth/', '--decision', 'repair findings',
+  ]);
+  assert.strictEqual(code, 1, buf.err + buf.out);
+  const body = JSON.parse(buf.out);
+  assert.strictEqual(body.reason, 'final-review-single-round');
+  assert.ok(body.cause && body.next);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), before);
+});
+
 test('CLI coordinate repair with an empty --review-finding → rejects', () => {
   const drive = preparedDrive();
   const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');

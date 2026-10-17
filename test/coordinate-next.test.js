@@ -241,7 +241,7 @@ test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons�
   const keys = [
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
-    'verification-task-uses-blueprint-next', 'coordinator-card-missing',
+    'verification-task-uses-blueprint-next', 'coordinator-card-missing', 'final-review-blocked',
   ];
   assert.deepStrictEqual(Object.keys(NEXT_FAILURE_HINTS).sort(), [...keys].sort());
   for (const key of keys) {
@@ -452,15 +452,15 @@ test('blueprint next에서 pending supplement decision → supplement action', (
   assertCardFor(r);
 });
 
-test('blueprint next에서 verified supplement → delta mode의 final_review', () => {
+test('blueprint next에서 discovery 없는 verified supplement → mode 없는 final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/021-supp';
   const drive = supplementReviewDrive('bouncer-next-supp-v-', blueprint, [
     { kind: 'supplement', outcome: 'verified', paths: ['test/a.test.js'], findings: ['F1'] },
   ]);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'final_review');
-  assert.strictEqual(r.payload.mode, 'delta');
-  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
+  assert.strictEqual(r.payload, undefined);
+  assert.ok(!r.argv.includes('--mode'));
   assertCardFor(r);
 });
 
@@ -473,7 +473,7 @@ test('blueprint next에서 supplement decision 없음 → final_review에 mode�
   assert.ok(!r.argv.includes('--mode'));
 });
 
-test('root review에 discovery round → final_review argv 끝이 --mode delta이고 payload.mode delta', () => {
+test('root review에 discovery round가 있고 accepted가 아님 → final-review-blocked이며 delta를 내지 않음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/023-disc';
   const drive = supplementReviewDrive('bouncer-next-disc-', blueprint, []);
   fs.writeFileSync(
@@ -481,10 +481,35 @@ test('root review에 discovery round → final_review argv 끝이 --mode delta�
     '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
   );
   const r = assertNoWrite(drive, () => nextOf(drive));
-  assert.strictEqual(r.action, 'final_review');
-  assert.strictEqual(r.payload.mode, 'delta');
-  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
-  assertCardFor(r);
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+  assert.ok(r.cause && r.next);
+  assert.strictEqual(r.argv, undefined);
+});
+
+test('root review에 discovery round가 있고 pending supplement → final-review-blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/025-disc-supp';
+  const drive = supplementReviewDrive('bouncer-next-disc-supp-', blueprint, [
+    { kind: 'supplement', outcome: 'pending', paths: ['test/a.test.js'], findings: ['F1'] },
+  ]);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+});
+
+test('root review가 discovery 뒤 accepted → done', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/026-disc-ok';
+  const drive = supplementReviewDrive('bouncer-next-disc-ok-', blueprint, []);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: accepted\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'done');
 });
 
 test('root review.md YAML이 깨짐 → final_review argv에 --mode 없음, 예외 없음', () => {

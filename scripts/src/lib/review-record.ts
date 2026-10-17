@@ -297,6 +297,16 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     );
   }
 
+  // 최종 리뷰는 discovery 한 라운드로 끝난다. 새 root delta는 파일을 읽기 전에 거절해
+  // 저장 문서가 바뀌지 않게 한다. 이미 저장된 discovery,delta,delta 이력은 G21이 계속 읽는다.
+  if (blueprintScope && parsedInput.round.mode === 'delta') {
+    return fail(
+      'final-review-single-round',
+      'blueprint final review is a single discovery round; a new delta round is not accepted',
+      'record the discovery round only; defer must_fix findings with a note or report them as blocked',
+    );
+  }
+
   const rel = blueprintScope
     ? `${blueprintDir}/review.md`
     : `${blueprintDir}/tasks/${task}/review.md`;

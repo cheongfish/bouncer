@@ -269,6 +269,10 @@ function parseExecuteArgs(rest: string[]): ParsedExecute {
       return fail('--mode must be discovery or delta');
     }
   }
+  // blueprint 최종 리뷰는 discovery 한 번이다. task 없는 delta는 사용법 오류로 분류기 전에 거절한다.
+  if (f.mode === 'delta' && !Object.prototype.hasOwnProperty.call(f, 'task')) {
+    return fail('--mode delta requires --task <ddd> (the blueprint final review has no delta round)');
+  }
   return {
     mode: 'execute',
     blueprint: f.blueprint,

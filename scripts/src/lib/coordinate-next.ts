@@ -94,6 +94,11 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
     cause: 'No prepared, recorded, ready, or integrable work remains, and the blueprint is not done.',
     next: 'Run `bouncer coordinate status` and report the unexpected ledger combination; do not invent an action.',
   },
+  'final-review-blocked': {
+    cause: 'The blueprint final review already recorded its one discovery round and the root review is not accepted.',
+    next: 'Show the open findings to the user and wait for their decision (note + deferred, or '
+      + 'accepted-risk consent); do not run a delta round or repair.',
+  },
   'critical-recovery-open': {
     cause: 'This prepared task has an open critical-recovery record with no outcome yet.',
     next: 'Close it with `bouncer coordinate critical-recovery` outcome resolved or blocked before driving the task.',
@@ -680,8 +685,17 @@ function blueprintNext(ctx: {
         ? ledger.integrationHead
         : git(exec, integrationCwd, ['rev-parse', 'HEAD']);
       const base = typeof ledger.base === 'string' ? ledger.base : head;
-      // 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가 테스트를
-      // 보완해야 하고, verified면 보완 뒤의 한 번뿐인 delta 라운드로 간다.
+      // 최종 리뷰는 discovery 한 라운드로 끝난다. discovery가 저장됐는데 accepted가 아니면
+      // delta·repair·supplement로 되돌리지 않고 사용자 결정까지 멈춘다. 새 review status를
+      // 만들지 않으려고 기존 신호(문서 status requested, open finding)를 그대로 blocked로
+      // 읽는다. 저장된 과거 delta 이력은 읽기만 하고 여기서 새 delta를 만들지 않는다.
+      if (rootReviewHasDiscoveryRound(integrationCwd, blueprint)) {
+        return ok({
+          scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
+        });
+      }
+      // discovery 전 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가
+      // 테스트를 보완해야 하고, verified면 보완 뒤 한 번뿐인 discovery 라운드로 간다.
       const supplement = [...(ledger.decisions || [])].reverse()
         .find((entry) => entry && entry.kind === 'supplement');
       if (supplement && supplement.outcome === 'pending') {
@@ -690,17 +704,11 @@ function blueprintNext(ctx: {
           payload: { paths: supplement.paths || [], findings: supplement.findings || [] },
         });
       }
-      // discovery round가 이미 있거나 verified supplement면 repair/재개 뒤다.
-      // argv에 --mode delta를 붙여 한 combined reviewer만 연다.
-      const deltaReview = rootReviewHasDiscoveryRound(integrationCwd, blueprint)
-        || Boolean(supplement && supplement.outcome === 'verified');
       return ok({
         scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
-        ...(deltaReview ? { payload: { mode: 'delta' } } : {}),
         argv: [
           'bouncer', 'review-dispatch', 'execute', '--blueprint', blueprint,
           '--base', base, '--head', head,
-          ...(deltaReview ? ['--mode', 'delta'] : []),
         ],
         judge: { kind: 'review-round', fields: [] },
       });
