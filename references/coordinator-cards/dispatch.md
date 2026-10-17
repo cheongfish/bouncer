@@ -17,8 +17,13 @@ from the coordinator Task round and Worker dispatch.
   `bouncer intent sections --task <path> --role <role>` as that role's
   `intent_sections` projection. Every later payload must carry the same
   `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`. The
-  bundle is advisory only. If bundle creation fails, do not start role
-  dispatch.
+  bundle is advisory only. Handle its result as follows:
+
+  | Result | Dispatch action |
+  | --- | --- |
+  | `created` or `reused` (exit 0) | Continue with the pinned bundle. |
+  | `ambiguous` (exit 0, no `bundle_id`) | Reselect once from evidence; if still ambiguous, rerun with `--no-symbols` and continue. |
+  | exit 1 or exit 2 | Stop role dispatch and report the failure. |
 - The `intent-symbols` judge is filled by naming the related functions as
   `--symbol <name>...` on that single `bouncer intent bundle` resolve, or by
   `--no-symbols` when there are none.
@@ -27,8 +32,9 @@ from the coordinator Task round and Worker dispatch.
   revised brief hash and the function set re-picked from the revised brief
   (`--no-symbols` when it is empty). When function blob and section
   hashes match, keep the existing `intent_bundle_revision`; when either
-  differs, pin the new revision for every later role. If that revalidation
-  fails, do not start role dispatch.
+  differs, pin the new revision for every later role. If revalidation exits 1
+  or 2, stop role dispatch and report the failure. An `ambiguous` result
+  follows the one-time evidence reselection rule above.
 - Immediately before every `bouncer-implementer` call, run `bouncer coordinate
   dispatch` from that task's worktree. Immediately before
   `bouncer-implementer`, `coordinate dispatch` `argv` already includes

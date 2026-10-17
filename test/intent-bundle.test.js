@@ -488,6 +488,43 @@ test('current task brief bytes → task_brief_hash is their sha256', () => {
   assert.equal(result.task_brief_hash, expected);
 });
 
+test('brief changed with the same functions → bundle refreshes the hash and sections succeeds', () => {
+  const { repo, taskFile } = seedResolvedRepo(1, { taskSections: durableTaskSections() });
+  const deps = { execFileSync };
+  const first = resolveTaskIntentBundle({
+    repoRoot: repo, taskFile, functions: [{ symbol: 'targetFn' }], deps,
+  });
+  const briefPath = path.join(repo, taskFile);
+  fs.writeFileSync(briefPath, `${fs.readFileSync(briefPath, 'utf8')}\nBrief revision detail.\n`);
+  const second = resolveTaskIntentBundle({
+    repoRoot: repo, taskFile, functions: [{ symbol: 'targetFn' }], deps,
+  });
+  const sections = projectRoleIntentSections({
+    repoRoot: repo, taskFile, role: 'implementer', deps,
+  });
+
+  assert.equal(second.revision, 2);
+  assert.equal(second.task_brief_hash, taskBriefHash(fs.readFileSync(briefPath, 'utf8')));
+  assert.equal(second.task_brief_hash === first.task_brief_hash, false);
+  assert.equal(sections.ok, true);
+});
+
+test('--no-symbols bundle with a changed brief → sections next names --no-symbols', () => {
+  const { repo, taskFile } = seedResolvedRepo();
+  resolveTaskIntentBundle({
+    repoRoot: repo, taskFile, functions: [], allowEmpty: true, deps: { execFileSync },
+  });
+  const briefPath = path.join(repo, taskFile);
+  fs.writeFileSync(briefPath, `${fs.readFileSync(briefPath, 'utf8')}\nChanged brief.\n`);
+  assert.throws(() => projectRoleIntentSections({
+    repoRoot: repo, taskFile, role: 'implementer', deps: { execFileSync },
+  }), (error) => {
+    assert.equal(error.reason, 'intent-bundle-stale');
+    assert.match(error.next, /--no-symbols/);
+    return true;
+  });
+});
+
 test('non-historical projection failure → rejects partial success and leaves no write', () => {
   const { repo, taskFile } = seedResolvedRepo();
   const located = intentBundlePathFor({
