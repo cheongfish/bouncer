@@ -11,7 +11,6 @@ const { runCli } = require('../scripts/lib/cli');
 const {
   classifyPlanReview,
   classifyExecuteReview,
-  PLAN_SMALL_MAX_TASKS,
   EXECUTE_SMALL_MAX_FILES,
   EXECUTE_SMALL_MAX_LINES,
 } = require('../scripts/lib/review-dispatch');
@@ -315,7 +314,6 @@ function expectedDigest(repo) {
 }
 
 test('size constants → are exported from one module', () => {
-  assert.strictEqual(PLAN_SMALL_MAX_TASKS, 3);
   assert.strictEqual(EXECUTE_SMALL_MAX_FILES, 3);
   assert.strictEqual(EXECUTE_SMALL_MAX_LINES, 200);
 });
@@ -644,20 +642,19 @@ test('plan with three commit tasks → returns single combined', () => {
   assert.strictEqual(result.strategy, 'single');
   assert.strictEqual(result.task_count, 3);
   assert.deepStrictEqual(result.perspectives, ['combined']);
-  assert.ok(result.reasons[0].includes('<= 3'));
   assert.strictEqual(result.clusters.length, 1);
   assert.deepStrictEqual(result.clusters[0].tasks, ['TASKS-001', 'TASKS-002', 'TASKS-003']);
   assert.deepStrictEqual(result.clusters[0].touch_paths, ['src/a.ts', 'src/b.ts', 'src/shared.ts']);
 });
 
-test('plan with four commit tasks → returns clustered local+global', () => {
+test('plan with four commit tasks → returns single combined', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001', '002', '003', '004'] });
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.strategy, 'clustered');
+  assert.strictEqual(result.strategy, 'single');
   assert.strictEqual(result.task_count, 4);
-  assert.strictEqual(result.perspectives[result.perspectives.length - 1], 'global');
+  assert.deepStrictEqual(result.perspectives, ['combined']);
 });
 
 test('context-review template → guides new categories combined local global', () => {
@@ -668,21 +665,21 @@ test('context-review template → guides new categories combined local global', 
   assert.ok(!guide.includes('category: cross_document | scope | korean_quality'));
 });
 
-test('plan with two overlapping tasks → returns clustered local+global', () => {
+test('plan with two overlapping tasks → returns one combined cluster holding every task', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001', '002', '003', '004'] });
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.strategy, 'clustered');
+  assert.strictEqual(result.strategy, 'single');
   assert.strictEqual(result.task_count, 4);
   assert.strictEqual(result.clusters.length, 1);
   assert.deepStrictEqual(result.clusters[0].tasks, ['TASKS-001', 'TASKS-002', 'TASKS-003', 'TASKS-004']);
   assert.ok(result.clusters[0].interface_keys.includes('sharedFn'));
   assert.ok(result.clusters[0].touch_paths.some((p) => p.includes('shared')));
-  assert.deepStrictEqual(result.perspectives, ['local', 'global']);
+  assert.deepStrictEqual(result.perspectives, ['combined']);
 });
 
-test('plan with two non-overlapping task pairs → still gets local clusters plus global', () => {
+test('plan with two non-overlapping task pairs → still gets one single combined review', () => {
   const repo = makeRepo();
   writeBundleIndex(repo);
   writeDoc(repo, `${EPIC_REL}/index.md`, {
@@ -718,9 +715,10 @@ test('plan with two non-overlapping task pairs → still gets local clusters plu
   });
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.strategy, 'clustered');
-  assert.strictEqual(result.clusters.length, 2);
-  assert.deepStrictEqual(result.perspectives, ['local', 'local', 'global']);
+  assert.strictEqual(result.strategy, 'single');
+  assert.strictEqual(result.clusters.length, 1);
+  assert.deepStrictEqual(result.clusters[0].tasks, ['TASKS-001', 'TASKS-002', 'TASKS-003', 'TASKS-004']);
+  assert.deepStrictEqual(result.perspectives, ['combined']);
 });
 
 test('plan with an empty Interface → rejects without perspectives', () => {
@@ -1905,7 +1903,7 @@ function writeSharedKeyPair(repo) {
   writeCommitTask(repo, '001', { interfaceText: '- `sharedKey`\n', touchText: '- `src/one.ts`\n' });
   writeCommitTask(repo, '002', { interfaceText: '- `sharedKey`\n', touchText: '- `src/two.ts`\n' });
   writeSoloTask(repo, '003');
-  // 3개 이하는 single이라 cluster 분담을 보려면 commit task가 4개여야 한다.
+  // cluster 이웃 계산을 보려면 commit task가 여러 개여야 한다(payload strategy는 항상 single).
   writeSoloTask(repo, '004');
 }
 
@@ -1913,7 +1911,10 @@ test('plan with a task that leaves its cluster → still relates the previous cl
   const repo = makeRepo();
   writeSharedKeyPair(repo);
   const before = planOf(repo);
-  assert.strictEqual(before.clusters.length, 3);
+  // 신규 payload는 항상 single이라 cluster는 하나다. 관련 문서 계산은 payload가 아니라 내용의
+  // Interface 키 공유로 만든 cluster 이웃을 따로 쓴다.
+  assert.strictEqual(before.strategy, 'single');
+  assert.strictEqual(before.clusters.length, 1);
   writeCommitTask(repo, '002', { interfaceText: '- `loneKey`\n', touchText: '- `src/two.ts`\n' });
   const after = planOf(repo, before);
   assert.strictEqual(after.follow_up, 'partial');

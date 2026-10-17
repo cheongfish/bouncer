@@ -24,7 +24,7 @@ function bouncer(cwd, args) {
   return JSON.parse(result.stdout);
 }
 
-test('plan-review fixture → small dispatches single and both plans fail G25 with review-risk-missing', () => {
+test('plan-review fixture → both plans dispatch single and fail G25 with review-risk-missing', () => {
   const dir = tempDir();
   try {
     const { blueprints, defects } = setupPlanReview(dir);
@@ -33,7 +33,7 @@ test('plan-review fixture → small dispatches single and both plans fail G25 wi
     const small = bouncer(dir, ['review-dispatch', 'plan', '--blueprint', blueprints.small]);
     const large = bouncer(dir, ['review-dispatch', 'plan', '--blueprint', blueprints.large]);
     assert.equal(small.strategy, 'single');
-    assert.equal(large.strategy, 'clustered');
+    assert.equal(large.strategy, 'single');
 
     for (const blueprint of [blueprints.small, blueprints.large]) {
       const gate = bouncer(dir, ['validate', '--gate', 'plan', '--blueprint', blueprint]);

@@ -851,6 +851,45 @@ test('plan gate G18 with a non-string last round digest when an earlier round ha
   assert.strictEqual(stale[0].file, rels.contextReview);
 });
 
+const HEX_A = 'a'.repeat(64);
+const HEX_B = 'b'.repeat(64);
+
+test('plan gate G18 when the closure digest matches though the last round digest is old → passes', () => {
+  const run = freshnessRun({
+    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_B },
+    current: { ok: true, digest: HEX_B, documents: [] },
+  });
+  assert.strictEqual(run.calls, 1);
+  assert.deepStrictEqual(run.g18, []);
+});
+
+test('plan gate G18 when the body changed after the closure digest → reports stale against the closure', () => {
+  const run = freshnessRun({
+    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_A },
+    current: { ok: true, digest: HEX_B, documents: [] },
+  });
+  assert.strictEqual(run.g18.length, 1);
+  assert.match(run.g18[0].message, /^context review is stale: closure digest a{64} != current b{64}/);
+});
+
+test('plan gate G18 when the closure digest is absent → falls back to the last round digest', () => {
+  const stale = freshnessRun({ current: { ok: true, digest: 'digest-2', documents: [] } });
+  assert.match(stale.g18[0].message, /last round digest digest-1 != current digest-2/);
+  assert.deepStrictEqual(freshnessRun().g18, []);
+});
+
+test('plan gate G18 when the closure digest is malformed → rejects without certifying the current content', () => {
+  for (const bad of ['A'.repeat(64), 'abc', 42, '']) {
+    const run = freshnessRun({
+      contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: bad },
+      current: { ok: true, digest: 'digest-1', documents: [] },
+    });
+    assert.strictEqual(run.g18.length, 1, JSON.stringify(bad));
+    assert.match(run.g18[0].message, /closure_target_digest must be 64 lowercase hex/);
+    assert.strictEqual(run.calls, 0);
+  }
+});
+
 test('plan gate G18 when the snapshot fails → reports unavailable freshness', () => {
   const { g18 } = freshnessRun({ current: { ok: false, error: 'boom' } });
   assert.strictEqual(g18.length, 1);

@@ -134,6 +134,45 @@ function changeDocs(repo) {
   fs.appendFileSync(path.join(repo, BP, 'index.md'), '\nchanged plan text\n');
 }
 
+// scope_parts는 task의 Interface·Touch를 담으므로 계약 변경 fixture에는 task 문서가 필요하다.
+function writeTask(repo, interfaceText = '- `fnA`\n') {
+  const yaml = require('js-yaml');
+  const rel = `${BP}/tasks/001/tasks.md`;
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  const data = {
+    type: 'bouncer.tasks',
+    title: 'Task 001',
+    description: 'd',
+    resource: rel,
+    tags: ['bouncer'],
+    timestamp: TS,
+    bouncer: {
+      id: 'TASKS-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'ready',
+      execution_kind: 'commit',
+      affected_paths: ['src/a.ts'],
+      depends_on: [],
+      parallel_safe: false,
+      dependency_gate: 'integrated',
+    },
+  };
+  fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n## Interface\n${interfaceText}\n## Touch\n- \`src/a.ts\`\n`);
+}
+
+// 구조 변경: blueprint index의 review_scope를 지워 structure_parts를 바꾼다.
+function changeStructure(repo) {
+  const abs = path.join(repo, BP, 'index.md');
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('  review_scope: blueprint\n', ''));
+}
+
+const HEX64 = /^[0-9a-f]{64}$/;
+const readClosureState = (repo) => JSON.parse(fs.readFileSync(findState(repo), 'utf8')).closure;
+const readFrontDigest = (repo) => readDoc(path.join(repo, BP, 'context-review.md'))
+  .data.bouncer.context_review.closure_target_digest;
+
 test('정상 fixture에서 start → exit 0과 cycle id를 반환하고 같은 start 재호출은 id와 횟수를 유지한다', () => {
   const repo = makeRepo();
   const d = dispatchFile(repo);
@@ -362,21 +401,89 @@ test('close 뒤 restart → projection 기준으로 통과하고 history에 clos
   assert.ok(archived.closure, 'history contains closure');
   assert.deepEqual(archived.closure.accept_risk, ['CR-1']);
   assert.ok(typeof archived.closure.dispositions.sha256 === 'string');
+  assert.match(archived.closure.closure_target_digest, HEX64);
+  // 새 cycle은 closure 없이 시작한다: 이전 인증이 새 cycle로 새지 않는다.
+  assert.equal(readClosureState(repo), undefined);
 });
 
-test('문서 변경 뒤 close → close 성공 후 route는 restart를 가리킨다', () => {
+test('구조·계약이 같은 본문 수정 뒤 close → 현재 digest를 runtime closure와 frontmatter에 인증하고 route는 reuse를 가리킨다', () => {
+  const repo = makeRepo();
+  cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
+  changeDocs(repo); // 마지막 round 뒤 본문만 바뀜
+  const d2 = dispatchFile(repo, 'd2.json');
+  const current = JSON.parse(fs.readFileSync(d2, 'utf8')).target.digest;
+  assert.equal(route(repo, d2, 'partial').next_action, 'close');
+  const closed = close(repo, writeJson(repo, 'disp.json', []));
+  assert.equal(closed.code, 0, closed.out + closed.err);
+  assert.equal(readClosureState(repo).closure_target_digest, current);
+  assert.equal(readFrontDigest(repo), current);
+  assert.equal(route(repo, d2, 'partial').next_action, 'reuse');
+});
+
+test('close 뒤 본문을 또 고치면 → route는 close이고 재close가 새 digest로 갱신하며 같은 입력의 재실행은 no-op이다', () => {
   const repo = makeRepo();
   cycleAfterDelta(repo, [MUST_FIX]);
-  changeDocs(repo); // 마지막 round 뒤 문서가 바뀜
   const disp = writeJson(repo, 'disp.json', [
-    { id: 'CR-1', status: 'accepted', note: 'approved after doc change' },
+    { id: 'CR-1', status: 'accepted', note: 'user agreed' },
   ]);
-  const closed = close(repo, disp, ['--accept-risk', 'CR-1']);
-  assert.equal(closed.code, 0);
+  assert.equal(close(repo, disp, ['--accept-risk', 'CR-1']).code, 0);
+  const first = readFrontDigest(repo);
+  // 같은 digest에서 같은 처분을 다시 닫으면 이미 반영된 전이라 no-op이다.
+  assert.equal(close(repo, disp, ['--accept-risk', 'CR-1']).json.noop, true);
+  // 다른 처분이라면 이미 닫힌 cycle이다.
+  const other = writeJson(repo, 'other.json', [{ id: 'CR-1', status: 'accepted', note: 'different note' }]);
+  const denied = close(repo, other, ['--accept-risk', 'CR-1']);
+  assert.equal(denied.code, 1);
+  assert.equal(denied.json.reason, 'context-review-state-conflict');
 
+  changeDocs(repo);
   const d2 = dispatchFile(repo, 'd2.json');
-  const routed = route(repo, d2, 'full');
-  assert.equal(routed.next_action, 'restart');
+  assert.equal(route(repo, d2, 'partial').next_action, 'close');
+  const again = close(repo, disp, ['--accept-risk', 'CR-1']);
+  assert.equal(again.code, 0, again.out + again.err);
+  assert.equal(again.json.noop, false);
+  const second = readFrontDigest(repo);
+  assert.notEqual(second, first);
+  assert.equal(second, JSON.parse(fs.readFileSync(d2, 'utf8')).target.digest);
+  assert.equal(readClosureState(repo).closure_target_digest, second);
+});
+
+test('accepted record → runtime closure와 frontmatter에 같은 closure_target_digest를 기록한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const rf = roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]);
+  const ok = record(repo, d, rf, ['--status', 'accepted']);
+  assert.equal(ok.code, 0, ok.out + ok.err);
+  const digest = JSON.parse(fs.readFileSync(d, 'utf8')).target.digest;
+  assert.equal(readClosureState(repo).closure_target_digest, digest);
+  assert.equal(readFrontDigest(repo), digest);
+});
+
+test('Interface·Touch를 바꾼 뒤 close → 계약이 baseline과 달라 거절하고 state는 그대로다', () => {
+  const repo = makeRepo();
+  writeTask(repo);
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  writeTask(repo, '- `fnB`\n');
+  const before = fs.readFileSync(findState(repo));
+  const disp = writeJson(repo, 'disp.json', []);
+  const denied = close(repo, disp);
+  assert.equal(denied.code, 1);
+  assert.equal(denied.json.reason, 'context-review-state-conflict');
+  assert.deepEqual(fs.readFileSync(findState(repo)), before);
+});
+
+test('구조를 바꾼 뒤 close → baseline과 달라 거절한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
+  changeStructure(repo);
+  const denied = close(repo, writeJson(repo, 'disp.json', []));
+  assert.equal(denied.code, 1);
+  assert.equal(denied.json.reason, 'context-review-state-conflict');
 });
 
 test('close CLI에 필수 --dispositions 누락 또는 허용 밖 플래그 → exit 2 사용법 오류이다', () => {
@@ -901,7 +1008,7 @@ function cycleAfterDelta(repo, findings = [ADVISORY]) {
 test('delta 완료 뒤 새 partial target → 세 번째 delta 대신 restart를 가리키고 state는 그대로다', () => {
   const repo = makeRepo();
   cycleAfterDelta(repo, [{ ...MUST_FIX, status: 'resolved' }]);
-  changeDocs(repo);
+  changeStructure(repo);
   const out = route(repo, dispatchFile(repo, 'd2.json'), 'partial');
   assert.equal(out.ok, true);
   assert.equal(out.next_action, 'restart');
@@ -909,15 +1016,18 @@ test('delta 완료 뒤 새 partial target → 세 번째 delta 대신 restart를
   assert.equal(typeof out.next, 'string');
 });
 
-test('discovery만 끝난 cycle의 새 partial target → delta, structural full → restart를 가리킨다', () => {
+test('discovery만 끝난 cycle의 새 target → 본문만 close, Interface·Touch 변경 delta, 구조 변경 restart를 가리킨다', () => {
   const repo = makeRepo();
+  writeTask(repo);
   const d = dispatchFile(repo);
   start(repo, d);
   record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
   changeDocs(repo);
-  const d2 = dispatchFile(repo, 'd2.json');
-  assert.equal(route(repo, d2, 'partial').next_action, 'delta');
-  assert.equal(route(repo, d2, 'full').next_action, 'restart');
+  assert.equal(route(repo, dispatchFile(repo, 'd2.json'), 'partial').next_action, 'close');
+  writeTask(repo, '- `fnB`\n');
+  assert.equal(route(repo, dispatchFile(repo, 'd3.json'), 'partial').next_action, 'delta');
+  changeStructure(repo);
+  assert.equal(route(repo, dispatchFile(repo, 'd4.json'), 'full').next_action, 'restart');
 });
 
 test('마지막 reviewed target과 같은 target → reuse이고 round 개수는 늘지 않는다', () => {
@@ -937,7 +1047,7 @@ test('restart를 이미 쓴 cycle의 새 stale target → user로 멈추고 caus
   changeDocs(repo);
   assert.equal(restart(repo, dispatchFile(repo, 'd2.json')).code, 0);
   record(repo, dispatchFile(repo, 'd2b.json'), roundFile(repo, 'r1b.json', 1, 'discovery', []));
-  changeDocs(repo);
+  changeStructure(repo);
   const out = route(repo, dispatchFile(repo, 'd3.json'), 'full');
   assert.equal(out.next_action, 'user');
   assert.equal(typeof out.cause, 'string');
@@ -993,10 +1103,11 @@ test('payload에 follow_up이 없음 → input-invalid로 거절된다', () => {
 
 test('route 동사에 discovery 뒤 partial payload → exit 0과 delta를 출력하고 state는 그대로다', () => {
   const repo = makeRepo();
+  writeTask(repo);
   const d = dispatchFile(repo);
   start(repo, d);
   record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [{ ...MUST_FIX, status: 'resolved' }]));
-  changeDocs(repo);
+  writeTask(repo, '- `fnB`\n');
   const d2 = withFollowUp(dispatchFile(repo, 'd2.json'), 'partial');
   const before = fs.readFileSync(findState(repo));
   const r = capture(['context-review', 'route', ...base(repo), '--dispatch', d2]);

@@ -258,9 +258,9 @@ prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
 
-`review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
-clustered`) or Execute (`single | parallel`, with `security` when
-`review_risk` is non-empty). Plan `single` / `clustered` also include
+`review-dispatch` is read-only. It returns JSON for Plan (`skip | single`;
+older stored `clustered` payloads are still read) or Execute (`single | parallel`, with `security` when
+`review_risk` is non-empty). Plan `single` also includes
 `snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
 (per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
 `structure_parts` (per-document structure sha256; the `follow_up` input),

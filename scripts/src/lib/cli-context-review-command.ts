@@ -141,8 +141,13 @@ ids, at any --status and before writing anything; merge them into one finding an
 
 route is read-only: it reads follow_up from the --dispatch payload (a
 review-dispatch plan run with --previous) and prints { ok, next_action, reason,
-cause, next, cycle } with next_action reuse | delta | restart | user. It never
+cause, next, cycle } with next_action reuse | close | delta | restart | user. It never
 writes state; a payload without follow_up is context-review-input-invalid.
+close means the structure and the Interface/Touch contract equal the reviewed baseline and only
+the body changed: run close to certify the current snapshot (no new round). delta is a contract-only
+change after discovery; restart is a structure change. close and an accepted record write
+closure_target_digest (64 lowercase hex) to the runtime closure and the context-review.md frontmatter;
+a closed cycle may be closed again after a body-only edit, and close refuses a changed structure or contract.
 `;
 
 /**
