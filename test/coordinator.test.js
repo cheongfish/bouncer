@@ -1720,25 +1720,31 @@ function briefHash(worker, blueprint, task) {
 // drive false acceptance 방지: CLI 전략 실패·frozen target 불일치에서는
 // review round를 열거나 accepted로 기록하지 않는다. coordinator.ts 전이가 아니라
 // Worker dispatch 계약이 막는다 — ledger에 새 상태를 추가하지 않는다.
+// 중단 조건은 review·final_review 카드가 단계 입력으로 갖고, CLI 결과를 덮어쓰지 않는
+// fan-out 규칙은 agent-dispatch 정본 하나가 갖는다. 둘을 이어 붙이면 어느 쪽이 빠져도
+// 다른 쪽이 통과시키므로 문서별로 따로 본다.
 test('coordinator agent with a strategy failure or target mismatch → refuses review recording', () => {
   const root = path.join(__dirname, '..');
   const cardsDir = path.join(root, 'references/coordinator-cards');
-  const md = [
-    fs.readFileSync(path.join(cardsDir, 'review.md'), 'utf8'),
-    fs.readFileSync(path.join(cardsDir, 'final_review.md'), 'utf8'),
-  ].join('\n');
-  assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
-  assert.match(md, /ok:\s*false|`ok`:\s*`false`/);
-  assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i);
-  assert.match(
-    md,
-    /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
-  );
+  for (const card of ['review.md', 'final_review.md']) {
+    const md = fs.readFileSync(path.join(cardsDir, card), 'utf8');
+    assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/, card);
+    assert.match(md, /ok:\s*false|`ok`:\s*`false`/, card);
+    assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i, card);
+    assert.match(
+      md,
+      /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
+      card,
+    );
+    assert.match(md, /risk_flags/, card);
+    assert.ok(md.includes('](../../skills/bouncer-run/references/agent-dispatch.md)'), `${card} must link agent-dispatch`);
+  }
   // risk_flags·perspectives는 CLI 그대로; file/line 재계산으로 전략을 바꾸지 않는다.
-  assert.match(md, /risk_flags|perspectives/);
+  const canon = fs.readFileSync(path.join(root, 'skills/bouncer-run/references/agent-dispatch.md'), 'utf8');
+  assert.match(canon, /`ok: false`[\s\S]{0,200}stop/);
   assert.match(
-    md,
-    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
+    canon,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
   );
 });
 
@@ -1924,6 +1930,62 @@ test('full report with a valid file → stores open_choices and known_weaknesses
   assert.strictEqual(reported.ok, true, JSON.stringify(reported));
   assert.deepStrictEqual(reported.decision.open_choices, ['환경변수 값의 앞뒤 공백을 제거한다.']);
   assert.deepStrictEqual(reported.decision.known_weaknesses, []);
+});
+
+/**
+ * implementer 역할 문서의 파일 보고 template을 실제 attempt·hash로 채운 본문을 만든다.
+ * 문서 template을 그대로 쓰므로, 문서가 선택 절(Deviations·Scope impact·Needs planning)을
+ * 빼도 parser가 받아 준다는 계약이 문서와 parser 사이에서 함께 고정된다.
+ *
+ * @param {number} attempt - dispatch가 준 attempt
+ * @param {string} hash - dispatch가 준 task_brief_hash
+ * @returns {string} 빈 Open choices를 `- none`으로 채운 보고 본문
+ */
+function filledImplementerReport(attempt, hash) {
+  const md = fs.readFileSync(path.join(__dirname, '..', 'agents', 'bouncer-implementer.md'), 'utf8');
+  const block = md.match(/## Output contract[\s\S]*?```markdown\n([\s\S]*?)\n```/);
+  assert.ok(block, 'implementer Output contract must carry a markdown template');
+  return block[1]
+    .replace('<attempt you received>', String(attempt))
+    .replace('<64 hex you received>', hash)
+    .replace('- <interpretation of the spec you had to pick yourself>', '- none');
+}
+
+/**
+ * 보고 본문에서 한 H2 절을 통째로 뺀다. 필수 절 거절 경로 fixture용이다.
+ *
+ * @param {string} body - 보고 본문
+ * @param {string} heading - 뺄 절 제목
+ * @returns {string} 절이 빠진 본문
+ */
+function dropSection(body, heading) {
+  return body.replace(new RegExp(`## ${heading}\\n[\\s\\S]*?(?=\\n## |$)`), '').replace(/\n{3,}/g, '\n\n');
+}
+
+test('implementer report without the three optional sections → accepted with empty stored lists, required gaps still refused', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-optional-', '.bouncer/context/epics/098-x/blueprints/006-y',
+  );
+  const filled = filledImplementerReport(attempt, hash);
+  // 전제: 문서 template 자체가 선택 세 절을 담지 않아야 이 회귀가 의미를 가진다.
+  for (const optional of ['Deviations', 'Scope impact', 'Needs planning']) {
+    assert.ok(!filled.includes(`## ${optional}\n`), `${optional} must be omitted`);
+  }
+  const reportFile = path.join(drive.worker, '.bouncer/runtime/reports', `001-${attempt}.md`);
+  fs.mkdirSync(path.dirname(reportFile), { recursive: true });
+  const write = (body) => fs.writeFileSync(reportFile, `${body}\n`);
+
+  // 필수 revision·heading 누락은 parser 완화 없이 기존 reason으로, ledger를 쓰지 않고 거절된다.
+  write(dropSection(filled, 'Brief revision'));
+  assertRefusedWithoutWrite(drive, report, 'report-revision-missing');
+  write(dropSection(filled, 'Open choices'));
+  assert.deepStrictEqual(assertRefusedWithoutWrite(drive, report, 'report-section-missing').missing, ['Open choices']);
+
+  write(filled);
+  const accepted = report();
+  assert.strictEqual(accepted.ok, true, JSON.stringify(accepted));
+  assert.deepStrictEqual(accepted.decision.open_choices, []);
+  assert.deepStrictEqual(accepted.decision.known_weaknesses, []);
 });
 
 test('record after brief bytes change following an accepted report → rejects', () => {
@@ -4237,6 +4299,58 @@ test('supplement repair rejections → name the reason and leave the ledger unto
   ledger.tasks[1].status = 'prepared';
   fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
   assert.strictEqual(reasonOf({}), 'review-repair-requires-integrated');
+});
+
+// 최종 리뷰는 discovery 한 라운드로 끝난다. 아래는 리뷰 모드 blueprint에 discovery가 저장된 뒤의
+// 리뷰 원인 쓰기가 모두 사전에 거절되고 원장·task·review 파일이 변하지 않는지 본다.
+function finalReviewStoredDrive(prefix, blueprint) {
+  const drive = supplementDrive(prefix, blueprint);
+  const indexFile = path.join(drive.integrationPath, blueprint, 'index.md');
+  fs.writeFileSync(indexFile, fs.readFileSync(indexFile, 'utf8').replace('bouncer:\n', 'bouncer:\n  review_scope: blueprint\n'));
+  writeRootReview(drive, ['discovery']);
+  return drive;
+}
+
+function snapshotOf(drive) {
+  const reviewFile = path.join(drive.integrationPath, drive.blueprint, 'review.md');
+  const tasksDir = path.join(drive.integrationPath, drive.blueprint, 'tasks');
+  return {
+    ledger: fs.readFileSync(drive.ledgerFile, 'utf8'),
+    review: fs.readFileSync(reviewFile, 'utf8'),
+    tasks: fs.readdirSync(tasksDir).sort(),
+  };
+}
+
+test('final discovery stored then supplement intake or review-caused repair → final-review-single-round and nothing changes', () => {
+  const drive = finalReviewStoredDrive('bouncer-final-single-', '.bouncer/context/epics/090-x/blueprints/010-y');
+  const before = snapshotOf(drive);
+  assert.strictEqual(coordinate(supplementOpts(drive)).reason, 'final-review-single-round');
+  const repair = coordinate(supplementOpts(drive, {
+    kind: undefined, paths: ['src/a.js'],
+  }));
+  assert.strictEqual(repair.reason, 'final-review-single-round');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('final discovery stored then supplement --done with a pending decision → final-review-single-round and the decision stays pending', () => {
+  const drive = supplementDrive('bouncer-final-done-', '.bouncer/context/epics/090-x/blueprints/011-y');
+  assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);
+  const indexFile = path.join(drive.integrationPath, drive.blueprint, 'index.md');
+  fs.writeFileSync(indexFile, fs.readFileSync(indexFile, 'utf8').replace('bouncer:\n', 'bouncer:\n  review_scope: blueprint\n'));
+  writeRootReview(drive, ['discovery']);
+  const before = snapshotOf(drive);
+  const out = coordinate(supplementOpts(drive, { done: true, reviewFindings: undefined, summary: 'tests added' }));
+  assert.strictEqual(out.reason, 'final-review-single-round');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+  assert.strictEqual(readLedger(drive).decisions.at(-1).outcome, 'pending');
+});
+
+test('final discovery stored then CI failure-command repair → is not rejected as a review-caused repair', () => {
+  const drive = finalReviewStoredDrive('bouncer-final-ci-', '.bouncer/context/epics/090-x/blueprints/012-y');
+  const out = coordinate(supplementOpts(drive, {
+    kind: undefined, reviewFindings: undefined, failureCommand: 'npm test', task: undefined,
+  }));
+  assert.notStrictEqual(out.reason, 'final-review-single-round');
 });
 
 test('supplement --done with several verify commands → verifies once per distinct command and marks the decision verified', () => {

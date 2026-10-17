@@ -146,7 +146,13 @@ and sha256. `restart_count` is also anchored in the blueprint-root
 `restart`, so deleting the runtime state cannot reset it: with a marker of 1 and no
 `state.json`, `start` and `restart` refuse, and a state count below the marker is
 corrupt. Only an accepted record or close returns the canonical `rounds`/`findings`
-projection (`resolved` or `accepted` with a note; accepted must_fix findings carry `accepted_risk: true`). A recorded disposition is not a
+projection (`resolved` or `accepted` with a note; accepted must_fix findings carry `accepted_risk: true`). `close` and an accepted record also certify the current snapshot: the runtime
+`closure.closure_target_digest` and `bouncer.context_review.closure_target_digest`
+hold the same 64 lowercase hex value, G18 compares it before the last round
+digest, and a document without it falls back to the round digest. A malformed
+value is a structural error and is never replaced by the current content. A
+`restart` archives the earlier closure and starts the new cycle without one.
+A recorded disposition is not a
 plan gate pass. A follow-up `review-dispatch plan` needs the stored `latest_dispatch`
 payload as `--previous`.
 

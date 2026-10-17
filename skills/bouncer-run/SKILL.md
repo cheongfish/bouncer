@@ -65,8 +65,8 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 
 When `review_scope` is `blueprint`, the coordinator owns the one final review
 after that verification node (and every commit task) is `integrated`; this
-root session does not open it. When `review_scope` is absent, per-task reviews
-stay on the task's review round.
+root session does not open it. A blueprint without `review_scope` is blocked at
+preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts it.
 
 1. **Preflight.** Load runtime state from the CLI only:
    ```bash
@@ -76,7 +76,10 @@ stay on the task's review round.
    holds the pointer, remaining-task fields (including `affected_paths`), DAG,
    reporting cadence, and `direct_eligible`. Follow its status and `delegable` result; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
-   pointer return values. When nothing to delegate,
+   pointer return values. When preflight returns `ok: false` with `reason:
+   legacy-review-scope`, the blueprint has no `review_scope`: show its `next`
+   command to the user and stop. Run it only when the user explicitly asks, then
+   rerun preflight; never convert the scope yourself. When nothing to delegate,
    tell the user to run `/bouncer-finalize` themselves and stop. Finalize
    consent stays with the user; this session and the coordinator never run
    `/bouncer-finalize` or any part of it.
@@ -130,8 +133,10 @@ stay on the task's review round.
    `bouncer subagent-model --agent bouncer-coordinator` and report its output
    to the user (`inherit` omits the model argument). Dispatch named `bouncer-coordinator` singly
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
-   one generic subagent with the same coordinator brief and the same worktree
-   guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
+   one generic subagent per item 5 of that rule: its payload carries the entire
+   body of `${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — every section from
+   Authority through Output contract, verbatim, with its worktree write
+   boundary — plus the step 4 payload below. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
    "print"`), the coordinator is a `bouncer dispatch print --role coordinator`
    process per `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` instead; never without the
    step 2 approval.
@@ -154,7 +159,7 @@ stay on the task's review round.
      per task boundary, `auto` batches), so no per-task ACQ under either value
 
    Take `completed_tasks.length` immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
-   Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); `metrics end` not right after the hand-back but after the agent's `<task-notification>` usage (`subagent_tokens`).
+   Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); when to call `metrics end` and which usage to pass are fixed per host by its host usage table.
    Wait in the foreground per `${BOUNCER_ROOT}/rules/subagent-model.md` item 6 until the
    coordinator returns its outcome; never end the turn or render step 5 while the coordinator still runs.
    On `continue`, do not go to step 5. `interactive` emits the

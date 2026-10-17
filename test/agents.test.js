@@ -163,3 +163,147 @@ test('bouncer-coordinator Worker dispatch body → stays at most 20 lines', () =
   const lines = worker.split('\n');
   assert.ok(lines.length <= 20, `Worker dispatch is ${lines.length} lines`);
 });
+
+// coordinator는 worker usage를 기다릴 때 호스트별 대응표 정본을 따라야 한다.
+// 줄 상한 안에서 링크만 두고 호스트 규칙은 재서술하지 않는다.
+test('bouncer-coordinator Worker dispatch → links the drive-metrics host usage table', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const worker = md.match(/## Worker dispatch\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  assert.match(worker, /drive-metrics\.md/);
+  assert.doesNotMatch(worker, /task-notification/);
+});
+
+// ---- implementer 파일 보고·hand-back 계약 ----
+// 파일 보고 template은 `coordinate report`가 읽는 기계 형식이라 문서 문구가 아니라
+// 계약 자체다. 그래서 문서에서 template을 그대로 뽑아 제목 목록을 고정한다.
+// 이 파일은 unit 계층(프로세스 spawn 금지)이라, 실제 `coordinate report` parser에
+// 넣는 회귀는 git fixture가 있는 integration 계층 테스트가 맡아야 한다.
+
+/**
+ * 역할 문서에서 지정한 H2 절의 본문을 돌려준다. 다음 H2(코드 블록 밖) 직전까지다.
+ *
+ * @param {string} md - 역할 문서 원문
+ * @param {string} heading - `## ` 뒤 제목
+ * @returns {string} 절 본문. 절이 없으면 빈 문자열
+ */
+function roleSection(md, heading) {
+  const lines = md.split('\n');
+  const start = lines.indexOf(`## ${heading}`);
+  if (start === -1) return '';
+  const out = [];
+  let fenced = false;
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith('```')) fenced = !fenced;
+    if (!fenced && line.startsWith('## ')) break;
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+/**
+ * implementer Output contract의 파일 보고 template(첫 ```markdown 블록)을 돌려준다.
+ *
+ * @returns {string} template 본문(울타리 제외)
+ */
+function implementerFileTemplate() {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const block = roleSection(md, 'Output contract').match(/```markdown\n([\s\S]*?)\n```/);
+  assert.ok(block, 'Output contract must carry a markdown template');
+  return block[1];
+}
+
+/**
+ * template의 `## ` 제목을 순서대로 돌려준다.
+ *
+ * @param {string} body - 보고 본문
+ * @returns {string[]} 제목 목록
+ */
+function h2Headings(body) {
+  return [...body.matchAll(/^## (.+)$/gm)].map((m) => m[1].trim());
+}
+
+test('implementer file report template → keeps required sections and omits empty optional ones', () => {
+  // 요구사항: 빈 Deviations·Scope impact·Needs planning만 파일 보고에서 생략하고,
+  // Changed files·검증·Red run·필수 절은 남긴다.
+  assert.deepStrictEqual(h2Headings(implementerFileTemplate()), [
+    'Changed files', 'Checklist coverage', 'Tests', 'Red run',
+    'Open choices', 'Known weaknesses', 'Verify recovery', 'Brief revision',
+  ]);
+});
+
+test('implementer hand-back contract → separates the report_path short form from the inline full report', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const handBack = roleSection(md, 'Output contract').split('\n### Hand-back\n')[1] || '';
+  // report_path가 있으면 짧은 hand-back, 없으면 전체 inline 보고라는 두 분기가 모두 있어야 한다.
+  assert.ok(handBack.includes('With `report_path`'), 'Hand-back must cover the report_path case');
+  assert.ok(handBack.includes('Without `report_path`'), 'Hand-back must keep the inline full-report case');
+  // 역할 문서는 Output contract로 끝나야 하므로(doc-shape) hand-back은 그 안의 하위 절이고,
+  // 파일 보고 template 뒤에 와야 reviewer가 읽는 파일 보고와 섞이지 않는다.
+  assert.ok(md.indexOf('### Hand-back') > md.indexOf('```markdown'));
+});
+
+// ---- reviewer 입력 allowlist·출력 rubric 계약 ----
+// reviewer가 읽는 brief 절 목록과 새 출력 severity는 dispatch 문서들이 같은 값을
+// 가져야 named·fallback·inline·print 경로가 같은 판단 근거를 받는다. 절 목록은
+// 문서 문구가 아니라 payload에 넣을 절 이름 계약이라 정확한 나열을 고정한다.
+// Explain intent_sections 4섹션 projection(intent-bundle.ts)과는 별개 계약이다.
+const REVIEW_BRIEF_SECTIONS = 'Goal & intent, Current behavior, Target behavior, Interface, Touch, Do not touch, Constraints, Checklist';
+const REVIEW_BRIEF_DOCS = [
+  'agents/bouncer-reviewer.md',
+  'references/review/index.md',
+  'references/review/assets/reviewer-prompt.md',
+  'references/coordinator-cards/review.md',
+  'references/coordinator-cards/final_review.md',
+];
+
+/**
+ * 저장소 상대 경로의 문서를 읽어 연속 공백을 한 칸으로 접은 문자열을 돌려준다.
+ * 줄바꿈 위치가 바뀌어도 절 목록 비교가 흔들리지 않게 하려는 정규화다.
+ *
+ * @param {string} rel - 저장소 상대 경로
+ * @returns {string} 공백 정규화된 문서 본문
+ */
+function flatDoc(rel) {
+  return fs.readFileSync(path.join(root, rel), 'utf8').replace(/\s+/g, ' ');
+}
+
+/**
+ * 본문에서 `severity`: `a | b | c` 형태의 첫 enum 선언을 값 배열로 돌려준다.
+ *
+ * @param {string} body - 검사할 절 본문
+ * @returns {string[]} severity 값 목록. 선언이 없으면 빈 배열
+ */
+function severityEnum(body) {
+  const m = body.match(/`severity`: (?:one of )?`([^`]+)`/);
+  return m ? m[1].split('|').map((s) => s.trim()) : [];
+}
+
+test('reviewer dispatch documents → list the eight-section brief allowlist', () => {
+  for (const rel of REVIEW_BRIEF_DOCS) {
+    assert.ok(flatDoc(rel).includes(REVIEW_BRIEF_SECTIONS), `${rel} must list the eight brief sections`);
+  }
+});
+
+test('reviewer output contracts → emit only blocker major minor while the record enum keeps legacy nit', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  assert.deepStrictEqual(severityEnum(roleSection(md, 'Output contract')), ['blocker', 'major', 'minor']);
+  const prompt = fs.readFileSync(path.join(root, 'references/review/assets/reviewer-prompt.md'), 'utf8');
+  assert.deepStrictEqual(severityEnum(prompt.split('\n### Output\n')[1] || ''), ['blocker', 'major', 'minor']);
+  // 저장 기록은 과거 nit finding을 계속 읽어야 하므로 record enum은 줄이지 않는다.
+  const index = fs.readFileSync(path.join(root, 'references/review/index.md'), 'utf8');
+  assert.deepStrictEqual(severityEnum(index), ['blocker', 'major', 'minor', 'nit']);
+});
+
+test('reviewer role and prompt → carry no docstring format check', () => {
+  for (const rel of ['agents/bouncer-reviewer.md', 'references/review/assets/reviewer-prompt.md']) {
+    assert.ok(!/docstring/i.test(fs.readFileSync(path.join(root, rel), 'utf8')), `${rel} must not judge docstrings`);
+  }
+});
+
+test('reviewer gate-checked items → list each npm run ci command as its own argv item', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  const items = [...roleSection(md, 'Gate-checked items').matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]);
+  // 기대값은 package.json의 ci 정의 자체에서 뽑는다 — 문서가 게이트 구성과 어긋나면 실패한다.
+  const ci = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).scripts.ci;
+  assert.deepStrictEqual(items, ci.split(' && '));
+});

@@ -138,11 +138,22 @@ of that round share a file and symbol under different categories; the key is omi
 (and on a noop rerun). A warning never blocks the record; the controller decides whether to merge them.
 record rejects (context-review-input-invalid) a round whose merged findings share a fingerprint under different
 ids, at any --status and before writing anything; merge them into one finding and record the same round again.
+record overwrites each finding's fingerprint with the context formula and, when the id key is omitted,
+assigns CR-<first 8 hex of sha256(fingerprint)> (stable across rounds; dispose it by that id in close).
+An explicit id must be a non-empty string; null, "", blank or non-string ids and a generated id taken by a
+different fingerprint are context-review-input-invalid. record success (and its noop rerun) carries
+finding_ids: this round's normalized ids in input order without duplicates. Stored report bytes stay as
+given; fold, close and noop projections apply the formula, so an earlier wrong fingerprint is repaired.
 
 route is read-only: it reads follow_up from the --dispatch payload (a
 review-dispatch plan run with --previous) and prints { ok, next_action, reason,
-cause, next, cycle } with next_action reuse | delta | restart | user. It never
+cause, next, cycle } with next_action reuse | close | delta | restart | user. It never
 writes state; a payload without follow_up is context-review-input-invalid.
+close means the structure and the Interface/Touch contract equal the reviewed baseline and only
+the body changed: run close to certify the current snapshot (no new round). delta is a contract-only
+change after discovery; restart is a structure change. close and an accepted record write
+closure_target_digest (64 lowercase hex) to the runtime closure and the context-review.md frontmatter;
+a closed cycle may be closed again after a body-only edit, and close refuses a changed structure or contract.
 `;
 
 /**

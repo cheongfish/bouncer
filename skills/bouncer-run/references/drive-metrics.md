@@ -23,7 +23,19 @@ reason, and totals never count it as 0.
 
    Keep the `id` from the JSON result. `ok: false` is reported but never blocks the drive.
 
-3. Once the coordinator's hand-back report has arrived (item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md`; a `completed` notification without a result body does not count), do not call `metrics end` yet. The hand-back message carries no `subagent_tokens`. Wait for the same agent's `<task-notification>`, read its `usage` (`subagent_tokens`, `duration_ms`), and only then pass those values, never an intermediate notification's. A session already closed is not corrected afterward:
+3. First receive the coordinator's hand-back report (item 6 of
+   `${BOUNCER_ROOT}/rules/subagent-model.md`; a `completed` notification without a result body
+   does not count, so keep waiting). Only then read the final usage the host provides, from the
+   host usage table below, and close the session once. Missing usage is not an unfinished
+   report: it never extends the wait for the report, and the report never waits on usage that
+   the host does not emit.
+
+   | Host | Final usage source | When to call `metrics end` |
+   | --- | --- | --- |
+   | Claude Code | `usage` of the same agent's `<task-notification>` (`subagent_tokens`, `duration_ms`). The hand-back message and intermediate notifications carry none. | When that notification arrives; pass `--tokens <subagent_tokens> --host-duration-ms <duration_ms>`. |
+   | Codex | `usage` object of the agent's final result JSON. | Right after the hand-back; pass only token values that object actually carries, each to the flag of the same meaning, and never guess a key. A result JSON with no `usage` closes with no token flags (missing). |
+   | Cursor print | `usage` of the last `type: "result"` event in the raw stream-json stdout artifact (the `stdout` path that `bouncer dispatch print` returns). The wrapper JSON itself (`report`, `stdout`, ...) carries no usage. | Right after `dispatch print` returns; a result event with no `usage` closes with no token flags (missing). |
+   | Host with no usage event (for example a Cursor Task subagent or an inline pass) | none | Immediately after the hand-back, `metrics end --id <id>` with no token flags; the session is recorded as missing. |
 
    ```bash
    bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>
@@ -33,8 +45,10 @@ reason, and totals never count it as 0.
    separately; they let the CLI compute cost from `metrics.pricing` in `.bouncer/config.json`.
    Add `--cache-read-tokens` and `--cache-write-tokens` only when the host reports them; they are
    stored apart from the totals, and `metrics summary` sums them under `cache`.
-   Omit any flag the host did not give. If the coordinator ended without a notification, still
-   call `metrics end` with no token flags so the session closes.
+   Omit any flag the host did not give, and never estimate one. A session already closed stays
+   closed: a later event never closes or corrects it again. The same table tells a controller
+   which value to pass as `--tokens` for a worker record
+   ([agent-dispatch](./agent-dispatch.md)).
 
 4. The `status` checkpoint exposes the same blueprint's sessions as `sessions[]`. It is an
    observation only: it is not evidence of worker liveness or progress.

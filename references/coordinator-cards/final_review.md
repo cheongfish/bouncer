@@ -1,25 +1,17 @@
 # final_review
 
 Contract card for the `coordinate next` action `final_review` (blueprint
-review mode). Rules are copied from the coordinator Worker dispatch final
-review and Procedure step 6 (Close).
+review mode). When dispatching a final reviewer, applying its fallback, or
+recording its model and tokens, read
+[agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md): it owns
+the CLI `perspectives` fan-out, the whole-role fallback, and the final-review
+model and token records (no `--task`). This card keeps the final-review inputs
+and Procedure step 6 (Close).
 
 - When `next` returns `final_review`, run that `argv` (`review-dispatch
   execute`) once through this final-review procedure, record the round from
   `judge` `review-round`, then call `next` again. Do not Close while that root
   `review.md` is not `accepted`.
-- Immediately before each reviewer dispatch, run `bouncer subagent-model
-  --agent bouncer-reviewer`, then record it with `bouncer coordinate
-  worker-model --blueprint <dir> --role reviewer --model <value> [--perspective
-  <name>] --ledger-path <p> --ledger-hash <h>` from the integration cwd (no
-  `--task`: the final review spans the blueprint), and pass the same value to
-  the dispatch. If a slug rejection forces the `inherit` retry, record the
-  retried value again.
-  The host's completion notice reports `subagent_tokens`. If the notice is not
-  here yet, record without `--tokens`; once it arrives, append it with
-  `bouncer coordinate worker-tokens --blueprint <dir> --role reviewer [--perspective <name>] --tokens <n>
-  --ledger-path <p> --ledger-hash <h>` (same task and perspective). If the host
-  gives no value, leave it out: it is counted as missing, never estimated.
 - Blueprint review mode is `bouncer.review_scope: blueprint` on blueprint
   `index.md`. In that mode do **not** dispatch a per-task execute reviewer.
   Open one final review after every commit task is integrated and the terminal
@@ -43,15 +35,13 @@ review and Procedure step 6 (Close).
   `review record` rejection (`review-snapshot-stale`, `-mismatch`, `-invalid`,
   `-required`), follow `next`: dispatch a new snapshot, reclassify, and
   re-review; never edit status or rounds by hand to bypass it.
-- In discovery, walk the CLI `perspectives` array in order as the only
-  discovery fan-out — do not also branch on `strategy` to invent calls, and do
-  not append `security` from `risk_flags` separately (the CLI list already
-  includes it when required; for example small risk → `combined` then
-  `security`). Named and fallback review paths walk the same `perspectives`
-  sequence. Delta does not walk that discovery list — see the must_fix
-  repair and supplement bullets below.
-- Give each reviewer every commit task brief (Goal & intent, Interface, Touch,
-  Do not touch, Constraints, Checklist) and the blueprint Contract.
+- In discovery, walk `perspectives` in CLI order per agent-dispatch. The final
+  review is this one discovery round: there is no delta round for it (`review-dispatch execute --mode delta` without `--task` exits
+  2, and `review record` rejects a new root delta as
+  `final-review-single-round`).
+- Give each reviewer every commit task brief (Goal & intent, Current behavior,
+  Target behavior, Interface, Touch, Do not touch, Constraints, Checklist; an
+  absent optional behavior section is omitted) and the blueprint Contract.
 - Record `bouncer.review.findings[]` and `rounds[]` on the blueprint-root
   `review.md` with `bouncer review record --blueprint <dir> --round
   <json-file>` (omit `--task`; add `--status` only when changing document
@@ -61,44 +51,24 @@ review and Procedure step 6 (Close).
   `head`), `task_brief_hashes` (commit task id → brief hash),
   `intent_bundles` (commit task id → `{ id, revision }`), and each
   perspective's `target_head`.
-- Classify every open finding into one of three before acting, in this order:
-  `blocked` (needs a new product decision, dependency, or public interface),
-  `supplement` (an in-scope gap in test evidence that current product behavior
-  already satisfies, fixable by changing test paths only), or a `must_fix`
-  repair (everything else that changes product behavior). The CLI does not
-  classify; you declare it, and it only checks the path conditions.
-- When a `must_fix` repair remains, open one repair with `bouncer coordinate
-  repair … --review-finding <id>` (repeat the flag per finding) so one repair
-  task fixes every must_fix. The CLI writes the repair task document from the
-  finding fields in the root `review.md`; do not rewrite that brief yourself.
-  Re-run the terminal verification, then freeze the
-  same `base` and the post-repair integration HEAD and run the `final_review`
-  argv from `coordinate next` as returned (it ends with `--mode delta`) — for
-  example `bouncer review-dispatch execute --blueprint <dir> --base <sha>
-  --head <sha> --mode delta`. That result carries a new `snapshot_id`; record the delta round
-  against it (not the discovery snapshot, which is stale after the repair) so
-  the latest delta binds the latest snapshot. Its `perspectives` is one
-  `combined`; dispatch that single reviewer with every previous finding and the
-  revision diff as comparison evidence. Do not reopen discovery or walk the discovery perspective list again.
-  Record the round with `mode: delta`; if you list perspectives, list only
-  `combined` (two or more and `review record` rejects the round). Fail-closed
-  compares against that round's frozen target.
-- When every open finding is a `supplement`, run `bouncer coordinate repair
-  --kind supplement --review-finding <id> … --summary <text> --paths
-  <test-path>` instead: no new task, no repair wave, no `terminalFailure`.
-  `next` then returns `supplement` (follow that card) and, once verified,
-  `final_review` with `payload.mode: delta`; run that one delta round the same
-  way as the must_fix repair bullet (argv ends with `--mode delta`, one
-  `combined` reviewer, do not reopen discovery). If
-  `supplement-paths-not-tests`, `repair-scope-out-of-bounds`, or
-  `supplement-delta-used` refuses it, take the repair path above or `blocked`.
-  Mixed findings take the repair path for all of them.
-- If repair returns `repair-wave-limit`, put the open must_fix findings in the
-  Blocked report, end `blocked`, and do not record the review `accepted`. A
-  finding that needs a new product decision, dependency, or public interface
-  is `blocked`, not a repair. Delta certification still runs once with one
-  `combined` reviewer instead of walking the discovery perspective list;
-  critical recovery stays the drive-only one-fix ceiling.
+- Classify every finding after the discovery round, in this order:
+  `blocked` (needs a new product decision, dependency, or public interface)
+  or any other finding. The CLI does not classify; you declare it.
+  - A finding that is not `blocked` and is a `must_fix` is recorded
+    `status: deferred` with a non-empty `note` (why it is carried forward),
+    and the document is recorded `--status accepted`. Report each deferred
+    `must_fix` as a warning in the final report; it does not stop the drive.
+  - A `blocked` finding stays `status: open` and the document stays
+    `--status requested`. `next` then returns `blocked` with reason
+    `final-review-blocked`: show the open findings to the user and wait for
+    their decision. Do not accept the review, run a delta round, open a
+    review-caused `coordinate repair --review-finding`, or open
+    `coordinate repair --kind supplement` — after the discovery round is
+    stored those are refused with `final-review-single-round`.
+- A terminal-verification (CI) failure still goes through `coordinate repair
+  --failure-command` and its wave ceiling: `repair-wave-limit` ends `blocked`
+  with the open findings in the Blocked report. That path is not review-caused
+  and is unchanged. Critical recovery stays the drive-only one-fix ceiling.
 
 ## Print dispatch input
 
@@ -110,13 +80,13 @@ Do not read `${BOUNCER_ROOT}/agents/*.md`, `reviewer-prompt.md`, or `review-roun
 `--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
 Target (including `snapshot_id` and `snapshot_path`), Brief (every commit
 task brief plus the blueprint Contract),
-Intent sections, Constraints, Red run, then delta inputs when mode is delta.
+Intent sections, Constraints, Red run.
 
 `## Red run` holds one `TASKS-NNN: <value>` line for every commit task in the
 review scope, in task-number order. Copy each task's `Red run` line from its
 latest-attempt report file (`.bouncer/runtime/reports/<task>-<attempt>.md`)
 verbatim, or write `TASKS-NNN: 미제공` when no report is found. A fix or repair
-attempt's latest report replaces that task's earlier line on a delta pass.
+attempt's latest report replaces that task's earlier line.
 
 ## Finding status
 
@@ -132,20 +102,17 @@ document `--status` (`review record --status`).
 
 | document `--status` | meaning |
 | --- | --- |
-| `requested` | the review is open |
-| `addressed` | fixes applied, waiting for re-confirmation |
-| `accepted` | everything resolved; closes the review |
+| `requested` | the review is open; a `blocked` finding keeps it here until the user decides |
+| `accepted` | the discovery round is done and no finding is `open`; closes the review |
 
-Repair wave order:
+Final review order:
 
-1. Discovery round: record a must_fix not yet fixed as `open` and the document
-   `--status requested`.
-2. Fix: on the blueprint path open `coordinate repair --review-finding <id>`,
-   or `coordinate repair --kind supplement` for a test-evidence-only gap.
-3. Delta round: send that finding again with every field, `status: resolved`,
-   `last_seen_round` of the new round, and `--status accepted`.
+1. Discovery round: record a `blocked` finding as `open` with `--status
+   requested`; record every other `must_fix` as `deferred` with a `note` and
+   `--status accepted`.
+2. A stored discovery round ends the review's rounds: no delta round follows.
 
-Discovery round (`--status requested`):
+Discovery round (`--status accepted`, one `must_fix` carried forward as `deferred`):
 
 ```json
 {
@@ -181,7 +148,8 @@ Discovery round (`--status requested`):
     {
       "id": "F1",
       "severity": "major",
-      "status": "open",
+      "status": "deferred",
+      "note": "follow-up outside this blueprint scope",
       "category": "correctness",
       "brief_clause": "tasks/001 Interface",
       "file": "scripts/lib/x.js",
@@ -191,53 +159,6 @@ Discovery round (`--status requested`):
       "origin": "discovery",
       "first_seen_round": 1,
       "last_seen_round": 1
-    }
-  ]
-}
-```
-
-Delta round (`--status accepted`):
-
-```json
-{
-  "round": {
-    "round": 2,
-    "mode": "delta",
-    "target": {
-      "base": "aaa",
-      "head": "ccc",
-      "snapshot_id": "<snapshot_id>"
-    },
-    "task_brief_hashes": {
-      "TASKS-001": "<hash>"
-    },
-    "intent_bundles": {
-      "TASKS-001": {
-        "id": "<id>",
-        "revision": 1
-      }
-    },
-    "previous_finding_ids": [
-      "F1"
-    ],
-    "new": 0,
-    "resolved": 1,
-    "regressed": 0
-  },
-  "findings": [
-    {
-      "id": "F1",
-      "severity": "major",
-      "status": "resolved",
-      "category": "correctness",
-      "brief_clause": "tasks/001 Interface",
-      "file": "scripts/lib/x.js",
-      "symbol": "f",
-      "fingerprint": "correctness:tasks/001 interface:scripts/lib/x.js#f",
-      "actionability": "must_fix",
-      "origin": "discovery",
-      "first_seen_round": 1,
-      "last_seen_round": 2
     }
   ]
 }

@@ -965,6 +965,51 @@ function prepareFinalizeDependencies(
   return { ok: false, cause };
 }
 
+type MustFixWarning = { kind: 'must-fix-deferred'; id: string; note: string };
+
+/**
+ * 고치지 않고 deferred로 넘긴 must_fix finding인지 판정한다.
+ * actionability가 원문에 없는 legacy finding은 severity로 추정하지 않는다 — 옛 문서의
+ * blocker/major가 모두 미해결 경고로 승격되면 이미 합의된 이월까지 경고가 된다.
+ *
+ * @param {unknown} raw - review findings[]의 원소
+ * @returns {boolean} `actionability: must_fix`이고 `status: deferred`이며 id가 있으면 true
+ */
+function isDeferredMustFix(raw: unknown): boolean {
+  const finding = asRecord(raw);
+  return finding.actionability === 'must_fix'
+    && finding.status === 'deferred'
+    && typeof finding.id === 'string' && finding.id !== '';
+}
+
+/**
+ * blueprint 루트 리뷰 findings에서 미해결 must_fix 경고를 만든다.
+ * finalize dry-run·prepare digest·PR 초안이 모두 이 함수를 써야 세 경로가 같은
+ * id/note를 낸다. 호출자는 blueprint review_scope일 때만 루트 findings를 넘긴다 —
+ * task 범위 리뷰는 경고를 만들지 않는 것이 계약이다. 순수 함수이며 throw하지 않는다.
+ *
+ * @param {unknown} rawFindings - 루트 review.md `bouncer.review.findings`. 배열이 아니면 빈 결과
+ * @returns {MustFixWarning[]} 첫 등장 순서의 고유 id 목록. note가 없으면 빈 문자열
+ */
+function collectMustFixWarnings(rawFindings: unknown): MustFixWarning[] {
+  const warnings: MustFixWarning[] = [];
+  const seen = new Set<string>();
+  for (const raw of Array.isArray(rawFindings) ? rawFindings : []) {
+    if (!isDeferredMustFix(raw)) continue;
+    const finding = asRecord(raw);
+    const id = finding.id as string;
+    // 같은 finding이 재기록돼도 미해결 항목은 하나다 — counter도 고유 id 수를 센다.
+    if (seen.has(id)) continue;
+    seen.add(id);
+    warnings.push({
+      kind: 'must-fix-deferred',
+      id,
+      note: typeof finding.note === 'string' ? finding.note : '',
+    });
+  }
+  return warnings;
+}
+
 /**
  * blueprint를 닫는다. dry-run은 계획만 보고, `--yes`는 검증·잠금·커밋까지 간다.
  * drive면 원장에서 읽은 정리 목록을 top-level `worktrees`에 싣고 cleanup이
@@ -1125,6 +1170,16 @@ function finalize({
     : staged;
 
   if (!yes) {
+    // blueprint 루트 리뷰가 deferred로 넘긴 must_fix를 --yes 전에 보이게 한다.
+    // 이미 읽은 docs만 쓰고(파일을 다시 읽지 않음), 실제 finalize cwd의 문서를 본다 —
+    // prepare는 integration checkout을 보지만 drive의 finalize cwd도 그 checkout이라 같다.
+    // task 범위(review_scope 부재)는 경고를 만들지 않는다.
+    const bpBouncer = asRecord(asRecord(docs.blueprintIndex && docs.blueprintIndex.data).bouncer);
+    const warnings = bpBouncer.review_scope === 'blueprint'
+      ? collectMustFixWarnings(
+        asRecord(asRecord(asRecord(docs.review && docs.review.data).bouncer).review).findings,
+      )
+      : [];
     // 읽기 전용 보고가 config.verify 전체를 끌고 오면 안 되므로 검증도 생략.
     return {
       ok: true,
@@ -1136,6 +1191,7 @@ function finalize({
       branch,
       worktrees,
       integration,
+      warnings,
     };
   }
 
@@ -1323,4 +1379,6 @@ export = {
   buildCoordinatorProvenance, collectCoordinatorProvenance,
   // digest가 finalize와 같은 branch 판정을 쓰도록 공개한다.
   resolveCheckoutBranch,
+  // dry-run·prepare digest·PR 초안이 같은 미해결 must_fix 판정을 쓰도록 공개한다.
+  collectMustFixWarnings, isDeferredMustFix,
 };

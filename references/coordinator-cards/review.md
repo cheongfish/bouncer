@@ -1,37 +1,23 @@
 # review
 
 Contract card for the `coordinate next` action `review` (per-task review,
-when `review_scope` is absent). Rules are copied from the coordinator Worker
-dispatch. When dispatching a reviewer or applying its fallback, read
-[agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md); when a review round may
-start or stop, read [review-round](../../skills/bouncer-run/references/review-round.md).
+when `review_scope` is absent). When dispatching a reviewer, applying its
+fallback, or recording its model and tokens, read
+[agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md): it owns
+the frozen review target, the CLI `perspectives` fan-out, each discovery
+payload, the whole-role fallback, and the per-perspective model and token
+records. When a review round may start or stop, read
+[review-round](../../skills/bouncer-run/references/review-round.md).
 
 - Dispatch named `bouncer-reviewer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   `bouncer-reviewer` stays read-only. Never play that role yourself and never
   let one worker judge another's report.
-- Immediately before each reviewer dispatch (one per perspective), run
-  `bouncer subagent-model --agent bouncer-reviewer`, then record it with
-  `bouncer coordinate worker-model --blueprint <dir> --role reviewer --model
-  <value> --task <NNN> --perspective <name> --ledger-path <p> --ledger-hash <h>`
-  from the integration cwd, and pass the same value to the dispatch. If a slug
-  rejection forces the `inherit` retry, record the retried value again.
-  The host's completion notice reports `subagent_tokens`. If the notice is not
-  here yet, record without `--tokens`; once it arrives, append it with
-  `bouncer coordinate worker-tokens --blueprint <dir> --role reviewer [--task <NNN>] [--perspective <name>] --tokens <n>
-  --ledger-path <p> --ledger-hash <h>` (same task and perspective). If the host
-  gives no value, leave it out: it is counted as missing, never estimated.
 - When `review_scope` is absent, keep the existing per-task procedure: freeze
   base/head first, then run `bouncer review-dispatch execute --blueprint <dir>
   --task <NNN> --base <sha> --head <sha>`. On `ok: false`, a frozen
   base/head/task mismatch, or `risk_flags` disagreeing with that task's
   `review_risk`, stop — do not open a review round and do not record
   `accepted`. Walk `perspectives` in CLI order.
-- For review, freeze the target first (base, HEAD, task-brief revision,
-  `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and latest
-  verify). Use that CLI JSON's `strategy`, `perspectives` order, and
-  `risk_flags` as the only discovery dispatch choice — do not recompute
-  file/line stats, guess risk from path names or diff bodies, or override the
-  returned list.
 - The returned `target.snapshot_id` and `target.snapshot_path` go into the
   existing Target slot (and the print `--input` Target) of every reviewer
   call, including the generic and print paths, and into the recorded round's
@@ -42,28 +28,10 @@ start or stop, read [review-round](../../skills/bouncer-run/references/review-ro
   `review record` rejection (`review-snapshot-stale`, `-mismatch`, `-invalid`,
   `-required`), follow `next`: dispatch a new snapshot, reclassify, and
   re-review; never edit status or rounds by hand to bypass it.
-- Dispatch discovery reviewers by walking the CLI `perspectives` array in order
-  — that list is the only fan-out. Do not also branch on `strategy` to invent
-  calls, and do not append `security` from `risk_flags` separately; the CLI
-  already placed those choices in `perspectives` (for example `single` without
-  risk → `combined`; small risk → `combined` then `security`; `parallel`
-  without risk → the three non-security perspectives; large risk → those three
-  then `security`). Named, generic fallback, and inline paths all walk that
-  same `perspectives` sequence — never a different fan-out per host. Each
-  discovery prompt contains only its assigned perspective, the six brief
-  sections, the reviewer's `intent_sections` projection from `bouncer intent
-  sections --task <current.task.path> --role reviewer`, the frozen target
-  (including the shared bundle identifiers), `strategy`, and `risk_flags`, and
-  never another reviewer's findings or the full Explain body. The slot also
-  carries the `Red run` line after Constraints (see Print dispatch input).
-- If named agents are unavailable, dispatch fresh generic subagents in the
-  same `perspectives` order, each carrying the entire body of
-  `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` — every section from Authority through Output
-  contract, verbatim — plus its filled reviewer-prompt: frozen base and HEAD,
-  task brief revision, `task_brief_hash`, `intent_bundle_id`,
-  `intent_bundle_revision`, `intent_sections`, mode, perspective, strategy,
-  risk_flags, latest verify, and for delta the previous findings and revision
-  diff, with the read-only cwd.
+- Each discovery prompt carries the eight brief sections (Goal & intent,
+  Current behavior, Target behavior, Interface, Touch, Do not touch,
+  Constraints, Checklist; an absent optional behavior section is omitted) and
+  the `Red run` line after Constraints (see Print dispatch input).
 
 ## Print dispatch input
 

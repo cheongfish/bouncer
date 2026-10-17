@@ -748,6 +748,32 @@ function rootReviewHasDelta(integrationPath: string, blueprint: string): boolean
 }
 
 /**
+ * blueprint 최종 리뷰가 이미 discovery 한 라운드를 저장했는지 본다. 최종 리뷰는 그 한
+ * 라운드로 끝나므로, 저장된 뒤에는 리뷰 원인 repair·supplement가 원장과 task를 쓰기
+ * 전에 거절돼야 한다. 리뷰 모드 blueprint의 root `review.md`만 대상으로 하며, 문서 부재
+ * (ENOENT)만 "라운드 없음"으로 흡수한다. YAML 파손을 없음으로 접으면 이미 끝난 리뷰에
+ * repair가 다시 열리므로 다른 오류는 올린다.
+ *
+ * @param {string} integrationPath - integration worktree
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {boolean} 리뷰 모드이고 `bouncer.review.rounds[].mode`에 discovery가 있으면 true
+ */
+function finalReviewDiscoveryStored(integrationPath: string, blueprint: string): boolean {
+  if (!isBlueprintReviewModeAt(integrationPath, blueprint)) return false;
+  let data: unknown;
+  try {
+    data = readDoc(path.join(integrationPath, blueprint, 'review.md')).data;
+  } catch (error) {
+    if ((error as { code?: string }).code === 'ENOENT') return false;
+    throw error;
+  }
+  const rounds = (data as { bouncer?: { review?: { rounds?: unknown } } } | undefined)
+    ?.bouncer?.review?.rounds;
+  return Array.isArray(rounds)
+    && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'discovery');
+}
+
+/**
  * integration worktree에서 커밋되지 않은 변경 경로를 모은다(추적·미추적 모두).
  * `.bouncer/` 아래는 원장·증적이라 보완 범위 판정에서 뺀다. rename은 양쪽 경로를 낸다.
  *
@@ -850,6 +876,10 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
     if (!fenced.ok) return fenced;
     if (ledger.status === 'promotion_stopped') return { ok: false, reason: 'promotion-stopped' };
     const pending = latestSupplementDecision(ledger);
+    // 거절은 검증 실행과 원장 쓰기보다 앞선다. 최종 discovery 뒤에는 보완 완료도 받지 않는다.
+    if (finalReviewDiscoveryStored(integrationPath, blueprint)) {
+      return { ok: false, reason: 'final-review-single-round' };
+    }
     if (!pending || pending.outcome !== 'pending') return { ok: false, reason: 'supplement-not-pending' };
     // 검증이 만드는 증적 파일이 변경 목록에 섞이지 않게 검증 전에 잰다.
     const changed = integrationChangedPaths(exec, integrationPath);
@@ -3675,6 +3705,13 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     }
     if (command === 'repair') {
       ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      // 최종 리뷰 discovery가 저장된 뒤의 리뷰 원인 repair·supplement는 wave 한도나 증거
+      // 검사보다 먼저 거절한다. 원장·task 문서를 쓰기 전이라 거절은 아무 파일도 바꾸지 않는다.
+      // CI 원인 repair(`--failure-command`)는 리뷰 원인이 아니므로 이 거절을 받지 않는다.
+      if ((kind === 'supplement' || Array.isArray(reviewFindings))
+        && finalReviewDiscoveryStored(integration.integrationPath, blueprint)) {
+        return { ok: false, reason: 'final-review-single-round' };
+      }
       // supplement는 wave 한도 검사보다 앞에서 처리한다. 새 task·wave를 쓰지 않으므로
       // 두 wave를 쓴 뒤에도 접수되어야 한다.
       if (kind === 'supplement') {
@@ -4345,6 +4382,12 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'repair-scope-out-of-bounds': {
     cause: 'Repair paths are outside the blueprint-scoped source bound.',
     next: 'Retry `bouncer coordinate repair` with paths inside the blueprint source scope.',
+  },
+  'final-review-single-round': {
+    cause: 'The blueprint final review already recorded its one discovery round, so no review-caused '
+      + 'repair, supplement, or delta round may open.',
+    next: 'Defer the remaining must_fix findings with a note and accept the review, or stop with '
+      + '`final-review-blocked` for the user decision.',
   },
   'supplement-delta-used': {
     cause: 'The blueprint root review already recorded its one delta round, so no in-place supplement may open.',

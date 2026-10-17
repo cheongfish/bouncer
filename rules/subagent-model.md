@@ -51,7 +51,11 @@ limits.
    fallback only; a named dispatch already loads its role file and does not
    carry the body. This unsupported-host fallback follows the named dispatch
    attempt; it does not replace it merely because a host supports a different
-   agent mechanism.
+   agent mechanism. When `/bouncer-run` dispatches `bouncer-implementer`,
+   `bouncer-debugger`, or `bouncer-reviewer`, read
+   `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md` for that
+   role's controller input, dispatch metadata, fallback payload, and worker
+   model and token records; this rule does not restate them.
 5. `/bouncer-run` resolves `bouncer-coordinator` through steps 1-4 like any
    other named agent, and its `subagents.<provider>` slot carries the same
    `inherit` meaning. The unsupported-host fallback for that dispatch is one
@@ -70,10 +74,10 @@ limits.
    A `completed` or waiting notification that carries no result body is not an
    outcome either; keep waiting for the hand-back report (the subagent's final
    result body). Defer `metrics end` and the next step until that report
-   arrives. The hand-back message carries no `subagent_tokens`; wait for the
-   same agent's `<task-notification>`, read its `usage` (`subagent_tokens`,
-   `duration_ms`), and only then call `metrics end` with those values, never an
-   intermediate notification's. A session already closed is not corrected.
+   arrives. Missing usage is not an unfinished report. When you record usage
+   after it, read the host usage table in
+   `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`, which owns
+   where each host puts the final usage and when to close without it.
 7. On Cursor, `subagents.dispatch: "print"` in `.bouncer/config.json` is an
    explicit opt-in. Only when `subagents.provider` is `cursor` and that value is
    exactly `print`, read `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` before the first

@@ -73,3 +73,16 @@ test('bouncer-finalize → does not ship the retired distill promotion reference
     false,
   );
 });
+
+// Retro 생략 한 줄은 사용자에게 그대로 출력되는 계약 문자열이다. 조건은 prepare가
+// 낸 drive_issues 필드명이 기계 판독 계약이므로 그 이름으로 고정한다.
+test('bouncer-finalize SKILL → gates retro on preserved drive_issues and prints the skip line when all are 0', () => {
+  const skill = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
+  assert.ok(skill.includes('drive_issues'));
+  assert.ok(skill.includes('retro 생략 — 수정 문제 없음'));
+});
+
+test('draft-pr reference → renders the digest unresolved_must_fix section', () => {
+  const { draftPr } = loadDocs();
+  assert.ok(draftPr.includes('pr.sections.unresolved_must_fix'));
+});

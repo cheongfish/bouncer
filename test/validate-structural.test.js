@@ -629,6 +629,33 @@ test('context-review.md with matching type → passes structural checks', () => 
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
+function contextReviewWithDigest(digest) {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  const doc = contextReviewDoc();
+  doc.bouncer.context_review.closure_target_digest = digest;
+  writeDoc(repo, `${BP_REL}/context-review.md`, doc);
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  return validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+}
+
+test('context-review closure_target_digest with 64 lowercase hex → passes structural checks', () => {
+  assert.deepStrictEqual(contextReviewWithDigest('0123456789abcdef'.repeat(4)), { ok: true, failures: [] });
+});
+
+test('context-review closure_target_digest malformed → reports a structural error on the document', () => {
+  for (const bad of ['ABCDEF'.repeat(11).slice(0, 64), 'abc123', 12345, '']) {
+    const res = contextReviewWithDigest(bad);
+    assert.strictEqual(res.ok, false, JSON.stringify(bad));
+    assert.ok(
+      res.failures.some((f) => f.code === 'S0' && f.file === `${BP_REL}/context-review.md`),
+      JSON.stringify(bad),
+    );
+  }
+});
+
 test('S19: context-review.md with bouncer.review type → reports expected and actual', () => {
   const repo = mkRepo();
   const doc = contextReviewDoc();

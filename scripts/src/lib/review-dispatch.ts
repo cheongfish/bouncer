@@ -31,9 +31,8 @@ const { executionKindOf } = schema;
 import reviewSnapshot = require('./review-snapshot');
 const { captureReviewSnapshot } = reviewSnapshot;
 
-// Plan·Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
-// 복제하면 single/clustered·parallel 판정이 갈라진다.
-const PLAN_SMALL_MAX_TASKS = 3;
+// Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
+// 복제하면 single/parallel 판정이 갈라진다. Plan은 항상 single이라 경계값이 없다.
 const EXECUTE_SMALL_MAX_FILES = 3;
 const EXECUTE_SMALL_MAX_LINES = 200;
 
@@ -629,47 +628,30 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
   if (!commitTasks.ok) return commitTasks;
 
   const taskCount = commitTasks.tasks.length;
-  if (taskCount <= PLAN_SMALL_MAX_TASKS) {
-    // single은 task가 최대 PLAN_SMALL_MAX_TASKS개라 combined 리뷰어 한 명이 전부 읽는다.
-    // cluster를 첫 task만으로 만들면 나머지 task의 Interface·Touch가 reviewer 입력에서
-    // 빠지므로, 모든 commit task를 한 cluster에 담는다. task가 0개면 cluster도 없다.
-    const sortedUnique = (values: string[]): string[] => [...new Set(values)].sort();
-    const clusters: PlanCluster[] = taskCount > 0
-      ? [{
-        id: 'c1',
-        tasks: commitTasks.tasks.map((task) => task.id).sort(),
-        interface_keys: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.interfaceKeys])),
-        touch_paths: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.touchPaths])),
-      }]
-      : [];
-    return {
-      ok: true,
-      phase: 'plan',
-      target: { digest: snapshot.digest, documents: snapshot.documents },
-      strategy: 'single',
-      task_count: taskCount,
-      clusters,
-      perspectives: ['combined'],
-      reasons: [
-        `commit task count ${taskCount} <= ${PLAN_SMALL_MAX_TASKS} — single combined reviewer`,
-        ...migrationReasons,
-      ],
-      ...reviewFields,
-    };
-  }
-
-  const clusters = buildClusters(commitTasks.tasks);
+  // 모든 full 최초 계획 리뷰는 task 수와 무관하게 single combined reviewer 한 명이 읽는다.
+  // clustered(local+global) 다중 호출은 비용 대비 효과가 낮아 신규 dispatch에서 제거했다 —
+  // 과거 clustered payload는 checkPreviousShape·loadDispatch가 읽기 호환으로 계속 받는다.
+  // cluster를 첫 task만으로 만들면 나머지 task의 Interface·Touch가 reviewer 입력에서
+  // 빠지므로, 모든 commit task를 한 cluster에 담는다. task가 0개면 cluster도 없다.
+  const sortedUnique = (values: string[]): string[] => [...new Set(values)].sort();
+  const clusters: PlanCluster[] = taskCount > 0
+    ? [{
+      id: 'c1',
+      tasks: commitTasks.tasks.map((task) => task.id).sort(),
+      interface_keys: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.interfaceKeys])),
+      touch_paths: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.touchPaths])),
+    }]
+    : [];
   return {
     ok: true,
     phase: 'plan',
     target: { digest: snapshot.digest, documents: snapshot.documents },
-    strategy: 'clustered',
+    strategy: 'single',
     task_count: taskCount,
     clusters,
-    perspectives: [...clusters.map(() => 'local'), 'global'],
+    perspectives: ['combined'],
     reasons: [
-      `commit task count ${taskCount} > ${PLAN_SMALL_MAX_TASKS} — clustered local+global review`,
-      `formed ${clusters.length} cluster(s) from Interface backtick keys and Touch path overlap`,
+      `commit task count ${taskCount} — single combined reviewer (every full plan review is single)`,
       ...migrationReasons,
     ],
     ...reviewFields,
@@ -1136,7 +1118,6 @@ function gitRevParse(exec: ExecFileSyncFn, repoRoot: string, ref: string): strin
 }
 
 export = {
-  PLAN_SMALL_MAX_TASKS,
   EXECUTE_SMALL_MAX_FILES,
   EXECUTE_SMALL_MAX_LINES,
   REVIEW_RISK_ENUM,

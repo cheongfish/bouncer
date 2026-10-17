@@ -851,6 +851,45 @@ test('plan gate G18 with a non-string last round digest when an earlier round ha
   assert.strictEqual(stale[0].file, rels.contextReview);
 });
 
+const HEX_A = 'a'.repeat(64);
+const HEX_B = 'b'.repeat(64);
+
+test('plan gate G18 when the closure digest matches though the last round digest is old → passes', () => {
+  const run = freshnessRun({
+    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_B },
+    current: { ok: true, digest: HEX_B, documents: [] },
+  });
+  assert.strictEqual(run.calls, 1);
+  assert.deepStrictEqual(run.g18, []);
+});
+
+test('plan gate G18 when the body changed after the closure digest → reports stale against the closure', () => {
+  const run = freshnessRun({
+    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_A },
+    current: { ok: true, digest: HEX_B, documents: [] },
+  });
+  assert.strictEqual(run.g18.length, 1);
+  assert.match(run.g18[0].message, /^context review is stale: closure digest a{64} != current b{64}/);
+});
+
+test('plan gate G18 when the closure digest is absent → falls back to the last round digest', () => {
+  const stale = freshnessRun({ current: { ok: true, digest: 'digest-2', documents: [] } });
+  assert.match(stale.g18[0].message, /last round digest digest-1 != current digest-2/);
+  assert.deepStrictEqual(freshnessRun().g18, []);
+});
+
+test('plan gate G18 when the closure digest is malformed → rejects without certifying the current content', () => {
+  for (const bad of ['A'.repeat(64), 'abc', 42, '']) {
+    const run = freshnessRun({
+      contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: bad },
+      current: { ok: true, digest: 'digest-1', documents: [] },
+    });
+    assert.strictEqual(run.g18.length, 1, JSON.stringify(bad));
+    assert.match(run.g18[0].message, /closure_target_digest must be 64 lowercase hex/);
+    assert.strictEqual(run.calls, 0);
+  }
+});
+
 test('plan gate G18 when the snapshot fails → reports unavailable freshness', () => {
   const { g18 } = freshnessRun({ current: { ok: false, error: 'boom' } });
   assert.strictEqual(g18.length, 1);
@@ -1226,6 +1265,30 @@ test('execute gate G14 stored target.snapshot_id → absent passes and malformed
   }
 });
 
+// 입력 보정은 record/close 경계에만 있다. 자동 id 형식이어도 수기로 틀린 fingerprint는 게이트가 거절한다.
+test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14·G18이 계속 mismatch로 거절한다', () => {
+  const { normalizeFinding } = require('../scripts/lib/validate-sections');
+  const withoutId = (f) => {
+    const copy = { ...f };
+    delete copy.id;
+    return copy;
+  };
+  const autoExecute = normalizeFinding(withoutId(convergenceFinding()));
+  assert.match(autoExecute.id, /^F-[0-9a-f]{8}$/);
+  assert.deepStrictEqual(executeReviewFailures({ findings: [autoExecute], rounds: [convergenceRound()] }), []);
+  const tamperedExecute = executeReviewFailures({
+    findings: [{ ...autoExecute, fingerprint: 'correctness:interface:src/a.ts#other' }], rounds: [convergenceRound()],
+  });
+  assert.ok(tamperedExecute.some((f) => f.message === `review finding ${autoExecute.id} fingerprint mismatch`));
+
+  const autoContext = normalizeFinding(withoutId(contextFinding()), 'context');
+  assert.match(autoContext.id, /^CR-[0-9a-f]{8}$/);
+  const tamperedContext = contextReviewFailures({
+    findings: [{ ...autoContext, fingerprint: 'context:scope:other#x' }], rounds: [contextRound()],
+  });
+  assert.ok(tamperedContext.some((f) => f.message === `context-review finding ${autoContext.id} fingerprint mismatch`));
+});
+
 test('findingFingerprint identity components → are normalized', () => {
   assert.strictEqual(
     findingFingerprint({ category: ' Spec ', brief_clause: 'Interface.거부', file: './a/b.ts', symbol: 'f' }),
@@ -1297,6 +1360,13 @@ test('execute gate G14 → enforces the mode convergence contract', () => {
     findings: [convergenceFinding({ status: 'accepted', note: 'not fixed' })], rounds: [convergenceRound()],
   });
   assert.ok(openMustFix.some((f) => /accepted with open must_fix F1/.test(f.message)));
+});
+
+test('execute gate G14 task review with deferred must_fix and note in accepted → is accepted with open must_fix', () => {
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ status: 'deferred', note: 'carry forward' })], rounds: [convergenceRound()],
+  });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
 });
 
 test('execute gate G14 → leaves mode-less legacy rounds unchanged', () => {
@@ -2843,6 +2913,27 @@ test('finalize G21 with rounds discovery,delta,delta,critical_recovery,delta →
   assert.equal(
     g21SequenceFailures(['discovery', 'delta', 'delta', 'critical_recovery', 'delta']).length, 1,
   );
+});
+
+function g21FindingFailures(finding) {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ModeRounds(['discovery']), findings: [finding] }),
+  });
+  return failures.filter((f) => f.code === 'G21');
+}
+
+test('finalize G21 with deferred must_fix and note in accepted review → has no G21', () => {
+  assert.deepEqual(g21FindingFailures(convergenceFinding({ status: 'deferred', note: 'carry forward' })), []);
+});
+
+test('finalize G21 with deferred must_fix without note in accepted review → is deferred without note', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'deferred' }));
+  assert.ok(failures.some((f) => /finding F1 deferred without note/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with open must_fix in accepted review → is accepted with open must_fix', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'open' }));
+  assert.ok(failures.some((f) => /accepted with open must_fix F1|open in accepted review/.test(f.message)), JSON.stringify(failures));
 });
 
 test('execute gate G14 with task rounds discovery,delta,delta → is rounds sequence invalid', () => {

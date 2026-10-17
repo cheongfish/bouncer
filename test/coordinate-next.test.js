@@ -241,7 +241,7 @@ test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons�
   const keys = [
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
-    'verification-task-uses-blueprint-next', 'coordinator-card-missing',
+    'verification-task-uses-blueprint-next', 'coordinator-card-missing', 'final-review-blocked',
   ];
   assert.deepStrictEqual(Object.keys(NEXT_FAILURE_HINTS).sort(), [...keys].sort());
   for (const key of keys) {
@@ -452,15 +452,15 @@ test('blueprint next에서 pending supplement decision → supplement action', (
   assertCardFor(r);
 });
 
-test('blueprint next에서 verified supplement → delta mode의 final_review', () => {
+test('blueprint next에서 discovery 없는 verified supplement → mode 없는 final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/021-supp';
   const drive = supplementReviewDrive('bouncer-next-supp-v-', blueprint, [
     { kind: 'supplement', outcome: 'verified', paths: ['test/a.test.js'], findings: ['F1'] },
   ]);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'final_review');
-  assert.strictEqual(r.payload.mode, 'delta');
-  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
+  assert.strictEqual(r.payload, undefined);
+  assert.ok(!r.argv.includes('--mode'));
   assertCardFor(r);
 });
 
@@ -473,7 +473,7 @@ test('blueprint next에서 supplement decision 없음 → final_review에 mode�
   assert.ok(!r.argv.includes('--mode'));
 });
 
-test('root review에 discovery round → final_review argv 끝이 --mode delta이고 payload.mode delta', () => {
+test('root review에 discovery round가 있고 accepted가 아님 → final-review-blocked이며 delta를 내지 않음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/023-disc';
   const drive = supplementReviewDrive('bouncer-next-disc-', blueprint, []);
   fs.writeFileSync(
@@ -481,10 +481,35 @@ test('root review에 discovery round → final_review argv 끝이 --mode delta�
     '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
   );
   const r = assertNoWrite(drive, () => nextOf(drive));
-  assert.strictEqual(r.action, 'final_review');
-  assert.strictEqual(r.payload.mode, 'delta');
-  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
-  assertCardFor(r);
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+  assert.ok(r.cause && r.next);
+  assert.strictEqual(r.argv, undefined);
+});
+
+test('root review에 discovery round가 있고 pending supplement → final-review-blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/025-disc-supp';
+  const drive = supplementReviewDrive('bouncer-next-disc-supp-', blueprint, [
+    { kind: 'supplement', outcome: 'pending', paths: ['test/a.test.js'], findings: ['F1'] },
+  ]);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+});
+
+test('root review가 discovery 뒤 accepted → done', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/026-disc-ok';
+  const drive = supplementReviewDrive('bouncer-next-disc-ok-', blueprint, []);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: accepted\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'done');
 });
 
 test('root review.md YAML이 깨짐 → final_review argv에 --mode 없음, 예외 없음', () => {
@@ -1285,8 +1310,8 @@ test('card에서 directory 확인 → 정확히 card 아홉 개이고 index.md �
   assert.deepStrictEqual(files, CARD_ACTIONS.map((id) => `${id}.md`).sort());
 });
 
-// 공통 규칙은 카드와 run-owned reference(skills/bouncer-run/references)가 같은 정규식으로 맞아야 한다. 한쪽만
-// 바뀌면 coordinator drive와 run reference가 서로 어긋나게 된다.
+// dispatch 밖의 phase 규칙(review 상한·debugger 1회)은 카드가 실행 입력이라 카드와
+// run-owned reference(skills/bouncer-run/references)가 같은 정규식으로 맞아야 한다.
 const RUN_REF = (name) => fs.readFileSync(
   path.join(__dirname, '..', 'skills', 'bouncer-run', 'references', `${name}.md`), 'utf8',
 );
@@ -1302,22 +1327,72 @@ const SHARED_RULES = [
     re: /re-verify\s+fails\s+again,\s+the\s+cycle\s+is\s+over[\s\S]{0,120}do\s+not\s+start\s+a\s+third\s+round/,
     cards: ['verify'], refs: ['verification-recovery'],
   },
-  {
-    label: 'stale Brief revision reports but never records',
-    re: /stale[\s\S]{0,40}call\s+`coordinate report`\s+with\s+the\s+received[\s\S]{0,120}`stale-report`[\s\S]{0,40}(?:do not|never)[\s\S]{0,60}`coordinate record`/,
-    cards: ['report', 'implement'], refs: ['agent-dispatch'],
-  },
-  {
-    label: 'CLI perspectives order is the only fan-out',
-    re: /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array\s+in\s+order/i,
-    cards: ['review', 'final_review'], refs: ['agent-dispatch', 'review-round'],
-  },
 ];
 
 test('card에서 shared rules 대조 → card와 run reference 둘 다와 일치함', () => {
   for (const rule of SHARED_RULES) {
     for (const id of rule.cards) assert.match(cardOf(id), rule.re, `${rule.label} card ${id}`);
     for (const ref of rule.refs) assert.match(RUN_REF(ref), rule.re, `${rule.label} ref ${ref}`);
+  }
+});
+
+// payload·metadata·fallback·모델·토큰 기록은 agent-dispatch 한 곳만 소유한다. 카드에 같은
+// 본문이 다시 생기면 두 정본이 어긋나도 테스트가 모르므로, 정본 본문과 카드 링크·부재를
+// 따로 본다(카드와 정본을 이어 붙여 존재만 보면 어느 쪽이 소유하는지 잃는다).
+const DISPATCH_CANON = [
+  {
+    label: 'stale Brief revision reports but never records',
+    re: /stale[\s\S]{0,200}call\s+`coordinate report`\s+with\s+the\s+received[\s\S]{0,120}`stale-report`[\s\S]{0,40}(?:do not|never)[\s\S]{0,60}`coordinate record`/,
+  },
+  {
+    label: 'CLI perspectives order is the only fan-out',
+    re: /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array\s+in\s+order/i,
+  },
+  {
+    label: 'implementer inherit retry does not reopen the attempt',
+    re: /retry\s+only\s+the\s+host\s+dispatch[\s\S]{0,120}`dispatch-already-active`[\s\S]{0,200}do\s+not\s+record\s+the\s+dispatch\s+model\s+a\s+second\s+time/,
+  },
+  {
+    label: 'report_path stays outside metadata',
+    re: /`report_path`[\s\S]{0,260}not\s+one\s+of\s+the\s+`metadata`\s+keys/,
+  },
+  {
+    label: 'brief frozen while the attempt is active',
+    re: /attempt\s+is\s+active\s+the\s+brief\s+stays\s+frozen/,
+  },
+  {
+    label: 'missing worker tokens are never estimated',
+    re: /worker-tokens[\s\S]{0,300}counted\s+as\s+missing,\s+never\s+estimated/,
+  },
+  {
+    label: 'records run from the integration cwd, worker keeps task or light cwd',
+    re: /from\s+the\s+integration\s+cwd[\s\S]{0,200}task\s+worktree\s+on\s+a\s+full\s+ledger,\s+the\s+integration\s+path\s+on\s+a\s+light\s+ledger/,
+  },
+];
+// 카드 본문에 다시 들어오면 안 되는 정본 고유 문장. 정본 정규식 일부를 재사용한다.
+const DISPATCH_CANON_ONLY = [
+  /`coordinate dispatch` also returns a top-level `report_path`/,
+  /worker-tokens --blueprint/,
+  /entire\s+body\s+of/,
+  /counted\s+as\s+missing/,
+  /call\s+`coordinate report`\s+with\s+the\s+received/,
+  /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array/,
+  /intent bundle --task <path> --symbol/,
+];
+const DISPATCH_LINK = '../../skills/bouncer-run/references/agent-dispatch.md';
+const DISPATCH_CARDS = ['dispatch', 'implement', 'verify', 'review', 'final_review', 'report', 'record'];
+
+test('agent-dispatch 정본 → payload·metadata·fallback·모델·토큰 규칙 본문을 모두 가짐', () => {
+  const canon = RUN_REF('agent-dispatch');
+  for (const rule of DISPATCH_CANON) assert.match(canon, rule.re, rule.label);
+});
+
+test('dispatch 공통 규칙을 쓰는 카드 → 실재하는 agent-dispatch 링크만 두고 정본 본문을 복제하지 않음', () => {
+  for (const id of DISPATCH_CARDS) {
+    const md = cardOf(id);
+    assert.ok(md.includes(`](${DISPATCH_LINK})`), `${id} card must link agent-dispatch`);
+    assert.ok(fs.existsSync(path.resolve(CARD_DIR, DISPATCH_LINK)), `${id} link target must exist`);
+    for (const re of DISPATCH_CANON_ONLY) assert.doesNotMatch(md, re, `${id} card restates canon ${re}`);
   }
 });
 
@@ -1375,15 +1450,9 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
   // test/agents.test.js — review-dispatch execute result
   assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
   assert.match(md, /perspectives/);
-  assert.match(md, /`combined`|combined/);
-  assert.match(md, /`security`|security/);
-  assert.match(
-    md,
-    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
-  );
+  assert.match(md, /review_scope/);
   assert.match(md, /ok:\s*false|`ok`:\s*`false`|target[\s\S]{0,80}mismatch/i);
   assert.match(md, /--review-finding/);
-  assert.match(md, /review_scope/);
   assert.match(md, /repair-wave-limit/);
   assert.match(md, /task_brief_hashes/);
   assert.match(md, /intent_bundles/);
@@ -1392,34 +1461,18 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
   // test/agents.test.js — provenance inside the recorded decision
   assert.match(md, /provenance[\s\S]{0,120}inside[\s\S]{0,20}the decision/i);
   assert.doesNotMatch(md, /`bouncer coordinate record` its result SHA, actual paths/);
-  // test/agents.test.js — attempt metadata and stale Brief revision
+  // 단계 입력: dispatch·report 단계가 넘기고 판단하는 값
   assert.match(md, /coordinate dispatch/);
   assert.match(md, /\battempt\b/);
   assert.match(md, /task_brief_hash/);
   assert.match(md, /base_head/);
   assert.match(md, /initial_worktree_state/);
   assert.match(md, /previous_outcome/);
-  assert.match(md, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
   assert.match(md, /payload\.report/);
   assert.match(md, /payload\.evidence/);
-  assert.match(
-    md,
-    /(?:before|immediately before)[\s\S]{0,120}(?:implementer|bouncer-implementer)|(?:implementer|bouncer-implementer)[\s\S]{0,80}(?:before|after)[\s\S]{0,40}dispatch|dispatch[\s\S]{0,120}(?:before|then)[\s\S]{0,80}(?:implementer|bouncer-implementer)/i,
-  );
-  assert.match(
-    md,
-    /(?:do not|never|freeze|frozen)[\s\S]{0,120}(?:revise|brief)|(?:revise|brief)[\s\S]{0,120}(?:after|until)[\s\S]{0,80}(?:report|outcome)/i,
-  );
+  assert.match(md, /report_path/);
   assert.match(md, /coordinate report/);
   assert.match(md, /Brief revision/);
-  assert.match(
-    md,
-    /(?:stale|mismatch)[\s\S]{0,240}coordinate report[\s\S]{0,160}(?:received|attempt|task_brief_hash)|coordinate report[\s\S]{0,160}(?:received|stale|mismatch)[\s\S]{0,120}(?:attempt|task_brief_hash|stale-report)/i,
-  );
-  assert.match(
-    md,
-    /(?:stale|mismatch)[\s\S]{0,200}(?:accepted|coordinate record)|(?:do not|never)[\s\S]{0,80}(?:accepted|coordinate record)[\s\S]{0,120}(?:stale|mismatch|Brief revision)/i,
-  );
   assert.match(
     md,
     /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|payload\.report|redispatch|re-?dispatch)/i,
@@ -1427,11 +1480,8 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
   // test/agents.test.js — Task round (heading assertion excluded)
   assert.doesNotMatch(md, /skills\/bouncer-execute\/SKILL\.md/);
   assert.match(md, /bouncer intent bundle/);
-  assert.match(md, /bouncer intent sections/);
-  assert.match(md, /intent_bundle_revision/);
   assert.match(md, /--gate execute/);
   assert.match(md, /never hand-write|do not write `## Command`/i);
-  assert.match(md, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
   // test/coordinator.test.js — refuse review recording on strategy failure or target mismatch
   assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i);
   assert.match(
@@ -1439,6 +1489,33 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
     /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
   );
   assert.match(md, /risk_flags|perspectives/);
+});
+
+// 카드에서 빠진 attempt metadata·stale·intent bundle 규칙은 agent-dispatch 정본에서 본다.
+test('agent-dispatch 정본 → attempt metadata·stale Brief revision·intent bundle 규칙을 만족함', () => {
+  const md = RUN_REF('agent-dispatch');
+  assert.match(md, /`combined`|combined/);
+  assert.match(md, /`security`|security/);
+  assert.match(
+    md,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
+  );
+  assert.match(md, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  assert.match(md, /initial_worktree_state/);
+  assert.match(md, /base_head/);
+  assert.match(
+    md,
+    /(?:before|immediately before)[\s\S]{0,120}(?:implementer|bouncer-implementer)/i,
+  );
+  assert.match(
+    md,
+    /(?:stale|mismatch)[\s\S]{0,240}coordinate report[\s\S]{0,160}(?:received|attempt|task_brief_hash)/i,
+  );
+  assert.match(md, /(?:stale|mismatch)[\s\S]{0,200}(?:accepted|coordinate record)/i);
+  assert.match(md, /bouncer intent bundle/);
+  assert.match(md, /bouncer intent sections/);
+  assert.match(md, /intent_bundle_revision/);
+  assert.match(md, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
 });
 
 test('light ledger의 implement → payload.inline을 싣고 cwd는 integration', () => {

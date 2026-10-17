@@ -9,6 +9,15 @@
 
 ### Added
 
+- **레거시 blueprint 리뷰 범위 명시적 전환 (EPIC 107 BP 002)** — `bouncer migrate review-scope --blueprint <dir>`가
+  `review_scope: blueprint`와 root `review.md`를 만든다. `run preflight`는 review_scope 없는 레거시 blueprint를
+  reason `legacy-review-scope`로 막고 이 명령을 next로 안내하며, 실행 중 자동 전환은 하지 않는다. 기존 task 리뷰·
+  verification과 저장된 delta 기록은 계속 읽힌다.
+- **finalize 미해결 경고와 Retro 판단 digest (EPIC 107 BP 002)** — prepare digest가 PR 초안 밖 판단 필드
+  `drive_issues`(rework 보고·debugger 호출·repair wave·fan-in 검증 실패·blocked·deferred must_fix 개수)를 보존한다.
+  하나라도 양수면 Retro를 실행하고 모두 0이면 `retro 생략 — 수정 문제 없음` 한 줄을 출력한다. blueprint 범위에서만
+  digest와 dry-run에 `warnings: [{ kind: 'must-fix-deferred', id, note }]`를 넣고, PR 초안은 같은 항목을
+  `unresolved_must_fix` 절에 실으며 `review_points`에서는 뺀다. task 범위 경고 계약은 그대로다.
 - **light 승격 후 full 원장 전환 (EPIC 107 BP 003)** — `coordinate bootstrap --promote-light`가 중단된 light 작업을 보존한 채 같은 blueprint를 full 원장으로 전환한다.
 
 ### Fixed
@@ -32,6 +41,37 @@
 
 ### Changed
 
+- **blueprint 최종 리뷰 단일 라운드화 (EPIC 107 BP 002)** — `review_scope: blueprint` 최종 리뷰만 note가 있는
+  `deferred must_fix`를 허용하고, G21과 root `review.md` record가 같은 정책을 쓴다(task G14는 그대로). 새 drive는
+  최종 discovery 리뷰 한 라운드 뒤 수정 batch와 delta를 만들지 않으며, 그 뒤의 `repair --review-finding`·
+  `repair --kind supplement`는 `final-review-single-round`로 거절한다. CI 실패 `repair --failure-command`와 repair
+  wave 상한은 유지한다. 새 제품 결정·공개 인터페이스 변경을 요구하는 `blocked` finding은 accepted로 닫지 않고
+  `coordinate next`가 reason `final-review-blocked`로 `blocked`를 낸다. task 없는 `review-dispatch execute --mode delta`는
+  사용법 오류(exit 2)다. 기존 `discovery,delta,delta` 저장본과 task·light 리뷰 delta는 그대로 읽힌다.
+- **계획 single 리뷰와 본문 수정 close 경로 (EPIC 107 BP 002)** — 최초 계획 리뷰는 task 수와 관계없이 `single`이다.
+  `structure_parts`와 `scope_parts`(Interface·Touch·affected_paths·depends_on)가 같으면 본문 수정 뒤 route는 `close`이고,
+  close는 현재 digest를 `closure_target_digest`로 기록해 G18이 이 값과 비교한다. 계약 변경은 delta, 구조 변경은 restart다.
+- **finding fingerprint·id 자동 정규화 (EPIC 107 BP 002)** — execute·context review record가 저장 전 공식 fingerprint를
+  계산해 입력값을 덮어쓴다. id를 생략하면 fingerprint 해시로 execute `F-<8hex>`, context `CR-<8hex>`를 만들고, 같은
+  fingerprint는 round가 달라도 같은 id를 쓴다. record 출력은 id 목록을 포함한다. context close도 저장본을 같은 방식으로
+  정규화해 잘못 저장된 기존 fingerprint 때문에 닫히지 않던 문제를 없앤다.
+- **reviewer 입력과 rubric 축소 (EPIC 107 BP 002)** — reviewer brief 문서 allowlist를 implementer의 8개 섹션 계약으로
+  넓히고 debugger와 공유하는 intent sections 투영은 유지한다. reviewer는 `nit`을 출력하지 않고(기존 기록 enum은 유지)
+  docstring 형식을 검사하지 않는다. 게이트가 검사하는 항목에는 `npm run ci` 구성 명령을 나열한다.
+- **implementer 파일 보고와 hand-back 축소 (EPIC 107 BP 002)** — implementer 보고의 Open choices·Known weaknesses·
+  Brief revision은 필수이고 빈 목록은 `- none`이며, Brief revision은 실제 attempt·task_brief_hash를 담는다. Deviations·
+  Scope impact·Needs planning만 값이 없을 때 생략한다. hand-back은 요약과 보고 경로, 값이 있을 때의 Needs planning·
+  Scope impact만 담고 CLI 파서의 필수 heading 계약은 그대로다.
+- **dispatch 공통 규칙 정본 통합 (EPIC 107 BP 002)** — payload·metadata·fallback·모델과 토큰 기록 규칙의 정본을
+  `skills/bouncer-run/references/agent-dispatch.md` 하나로 모으고, coordinator 카드에는 단계 입력과 정본 링크만 남긴다.
+  `docs/architecture/rule-ownership.md`에 소유 행을 추가했다.
+- **호스트별 usage 완료 규칙 단일화 (EPIC 107 BP 002)** — 호스트 완료·usage 이벤트 대응표는
+  `skills/bouncer-run/references/drive-metrics.md`만 소유한다. Claude Code는 `<task-notification>`, Codex·Cursor print는
+  결과 JSON을 쓰고, usage 이벤트가 없는 호스트는 hand-back 직후 토큰 없이 `metrics end`를 호출해 missing으로 닫는다.
+- **사용자 대상 한국어 하드룰 (EPIC 107 BP 002)** — `AGENTS.md` hard rule 5가 사용자에게 보이는 모델 작성 메시지(채팅·
+  ACQ 표시·진행·결과 보고)를 한국어로 쓰게 한다. 코드·경로·명령·식별자·CLI 출력 원문은 그대로 두고 프로젝트·사용자
+  지시가 우선한다. `rules/acq.md`는 Recommend-why의 영어 허용 예외를 없애고 골격 예시를 한국어로 바꿨으며 gate ID·acq
+  JSON·`- X)` 선택지·`(Recommended)` 표시는 그대로다.
 - **조사 영역 단위 plan evidence (EPIC 107 BP 003)** — plan evidence 조사를 파일 단위가 아닌 조사 영역 단위로 수행하고 discovery 근거를 재사용한다.
 - **intent bundle 결과별 dispatch (EPIC 107 BP 003)** — intent bundle 결과에 따라 dispatch 동작을 나누고, 새 worker dispatch의 대화 이력 차단을 모델 선택과 분리한다.
 - **범위 내 검증 실패의 implementer 우선 수정 (EPIC 107 BP 003)** — 검증 실패가 task 범위 안에 있으면 debugger에 넘기기 전에 기존 implementer가 먼저 수정한다.

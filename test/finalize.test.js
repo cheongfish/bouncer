@@ -1813,6 +1813,59 @@ test('no review_scope → the root review.md survives the closed transition', ()
   assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/review.md`)), true);
 });
 
+// prepare digest 테스트(test/finalize-digest.test.js)와 같은 root finding 집합 — 두 경로가
+// 같은 id/note 경고를 내는지 같은 기대값으로 고정한다.
+const ROOT_MUST_FIX_FINDINGS = [
+  { id: 'F-MF', severity: 'major', actionability: 'must_fix', status: 'deferred', note: 'must fix later' },
+  { id: 'F-ADV', severity: 'minor', actionability: 'advisory', status: 'deferred', note: 'advisory later' },
+  { id: 'F-LEGACY', severity: 'blocker', status: 'deferred', note: 'legacy deferred' },
+];
+
+function writeRootReviewFindings(repo, findings, blueprintDir = BP_REL) {
+  writeDoc(repo, `${blueprintDir}/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: `${blueprintDir}/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: {
+        required: true,
+        findings,
+        rounds: [{
+          round: 1, previous_finding_ids: [], new: 0, resolved: 0, regressed: 0, target: { head: 'deadbeef' },
+        }],
+      },
+    },
+  }, '# Review\n\n## Findings\n(none)\n');
+}
+
+test('blueprint review mode with a deferred must_fix → dry-run warnings carry its id and note', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  setBlueprintReviewScope(repo);
+  writeRootReviewFindings(repo, ROOT_MUST_FIX_FINDINGS);
+  const reviewAbs = path.join(repo, `${BP_REL}/review.md`);
+  const before = fs.readFileSync(reviewAbs);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(res.dryRun, true);
+  assert.deepStrictEqual(res.warnings, [
+    { kind: 'must-fix-deferred', id: 'F-MF', note: 'must fix later' },
+  ]);
+  assert.deepStrictEqual(fs.readFileSync(reviewAbs), before);
+});
+
+test('task review scope with the same root findings → dry-run warnings stay empty', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeRootReviewFindings(repo, ROOT_MUST_FIX_FINDINGS);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.deepStrictEqual(res.warnings, []);
+});
+
 // ---- 마감 검증 의존성 준비 (090/003) ----
 // finalize --yes는 integration checkout에서 검증하므로, git worktree가 가져오지 않는
 // node_modules를 검증 직전에 채워야 한다. 아래 fixture는 실제 package-lock 파일과

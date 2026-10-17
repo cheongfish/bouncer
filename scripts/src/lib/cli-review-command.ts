@@ -86,12 +86,17 @@ Enums:
   perspective name: combined|spec_scope|correctness_tests|minimality_maintainability|security
   --status: requested|addressed|accepted
 
-Success is { ok: true, path, round, status, findings } (exit 0). When findings recorded in this round
+Success is { ok: true, path, round, status, findings, finding_ids } (exit 0). finding_ids lists this
+round's normalized finding ids in input order without duplicates. When findings recorded in this round
 share a file and symbol under different categories it also carries warnings: [{ code:
 'finding-merge-candidate', file, symbol, ids }] (ids in input order); the key is omitted when there is
 none. A warning never blocks the record; the controller decides whether to merge those findings.
 
 fingerprint formula: lower(category):lower(brief_clause):posix(file)#symbol
+The recorder always overwrites a supplied fingerprint with this formula. Omit the id key to get
+F-<first 8 hex of sha256(fingerprint)>; the same fingerprint gets the same id in every round. An
+explicit id must be a non-empty string (null, "", blank or non-string is review-input-invalid), and an
+omitted id whose generated id is taken by a different fingerprint is rejected as review-input-invalid.
 
 Repair wave example (open in discovery, resolved in delta): see the review and
 final_review coordinator cards, section "Finding status".

@@ -120,7 +120,11 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
   재개합니다.
 - **리뷰는 기본 두 번, 조건부 세 번째 round 한 번입니다.** `review_scope`가
   `blueprint`이면 그 라운드는 blueprint 마지막 검증 시점의 최종 리뷰 한 번에
-  열립니다. `review_scope`가 없으면 task마다 같은 상한을 씁니다. 세 번째는 기존
+  열립니다. `review_scope`가 없는 legacy blueprint는 `/bouncer-run` preflight가
+  `legacy-review-scope`로 막고, 사용자가 `bouncer migrate review-scope --blueprint
+  <dir>`로 명시 전환해야 합니다(root pending `review.md`를 만들며, 재실행은 noop이고
+  root `review.md`가 이미 있으면 충돌로 거절합니다. flat layout은 `migrate
+  task-layout`을 먼저 합니다). 세 번째는 기존
   blocker·major가 해결되고 verify가 통과했으며 신규 actionable finding이
   Goal, Interface, Constraints, `affected_paths` 안에 있을 때만 허용합니다.
   세 번째 뒤 잔존·재발·새 설계가 필요하면 네 번째 round는 없습니다.

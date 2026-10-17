@@ -206,13 +206,39 @@ test('findings object → is review-input-invalid and leaves bytes unchanged', (
   assertRejectedUntouched(fx, before, result, 'review-input-invalid');
 });
 
-test('open must_fix with --status accepted → is review-ledger-invalid', () => {
+test('blueprint scope deferred must_fix with note and --status accepted → records accepted', () => {
   const fx = makeFixture();
+  const finding = { ...EXAMPLE_FINDING, status: 'deferred', note: 'later', actionability: 'must_fix' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'accepted');
+  assert.equal(data.bouncer.review.findings[0].status, 'deferred');
+});
+
+test('blueprint scope deferred must_fix without note and --status accepted → is review-ledger-invalid', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const finding = { ...EXAMPLE_FINDING, status: 'deferred', actionability: 'must_fix' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(result.cause.some((m) => String(m).includes('deferred without note')));
+});
+
+test('blueprint scope open must_fix and --status accepted → is review-ledger-invalid', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const finding = { ...EXAMPLE_FINDING, status: 'open', actionability: 'must_fix' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+});
+
+test('task scope deferred must_fix with note and --status accepted → is review-ledger-invalid', () => {
+  const fx = makeFixture({ taskMode: true });
   const before = fs.readFileSync(fx.reviewPath);
   const finding = { ...EXAMPLE_FINDING, status: 'deferred', note: 'later', actionability: 'must_fix' };
   const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
   assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
-  assert.ok(Array.isArray(result.cause));
   assert.ok(result.cause.some((m) => String(m).includes('review accepted with open must_fix')));
 });
 
@@ -250,7 +276,7 @@ test('missing review.md → is review-target-missing', () => {
 });
 
 test('discovery then delta then critical_recovery without --status → is ok', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const modes = ['discovery', 'delta', 'critical_recovery'];
   for (let i = 0; i < modes.length; i += 1) {
     const round = i + 1;
@@ -270,7 +296,7 @@ test('discovery then delta then critical_recovery without --status → is ok', (
 });
 
 test('in-progress ledger with --status accepted → is review-ledger-invalid', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const prefixes = ['discovery', 'delta'];
   for (let i = 0; i < prefixes.length; i += 1) {
     const round = i + 1;
@@ -300,24 +326,45 @@ test('blueprint round contract → max delta count equals REPAIR_WAVE_LIMIT', ()
   assert.strictEqual(maxDelta, REPAIR_WAVE_LIMIT);
 });
 
-test('blueprint scope discovery,delta,delta with --status accepted → is ok and a fourth round is review-ledger-invalid', () => {
+test('blueprint scope new delta round → is final-review-single-round and leaves bytes unchanged', () => {
   const fx = makeFixture();
-  const modes = ['discovery', 'delta', 'delta'];
-  const roundFor = (i, mode) => fx.payload({
-    round: i + 1,
-    mode,
-    previous_finding_ids: i === 0 ? [] : ['F1'],
-    new: i === 0 ? 1 : 0,
-  }, [{ ...EXAMPLE_FINDING, last_seen_round: i + 1 }]);
-  for (let i = 0; i < 2; i += 1) {
-    const r = fx.record(roundFor(i, modes[i]));
-    assert.equal(r.ok, true, r.reason);
-  }
-  const accepted = fx.record(roundFor(2, 'delta'), { status: 'accepted' });
-  assert.equal(accepted.ok, true, JSON.stringify(accepted));
+  const discovery = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' });
+  assert.equal(discovery.ok, true, discovery.reason);
   const before = fs.readFileSync(fx.reviewPath);
-  const fourth = fx.record(roundFor(3, 'delta'));
-  assertRejectedUntouched(fx, before, fourth, 'review-ledger-invalid');
+  const delta = fx.payload({
+    round: 2, mode: 'delta', previous_finding_ids: ['F1'], new: 0, resolved: 1,
+  }, [{ ...EXAMPLE_FINDING, status: 'resolved', last_seen_round: 2 }]);
+  const result = fx.record(delta, { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'final-review-single-round');
+});
+
+test('blueprint scope stored discovery,delta,delta history → G21 still reads it', () => {
+  const fx = makeFixture();
+  const parsed = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  const stored = (round, mode) => ({
+    round,
+    mode,
+    target: { base: 'aaa', head: 'bbb' },
+    perspectives: [{ name: 'combined', target_head: 'bbb' }],
+    previous_finding_ids: round === 1 ? [] : ['F1'],
+    new: round === 1 ? 1 : 0,
+    resolved: 0,
+    regressed: 0,
+  });
+  parsed.data.bouncer.status = 'accepted';
+  parsed.data.bouncer.review = {
+    rounds: [stored(1, 'discovery'), stored(2, 'delta'), stored(3, 'delta')],
+    findings: [{
+      ...EXAMPLE_FINDING,
+      status: 'resolved',
+      last_seen_round: 3,
+      fingerprint: 'correctness:tasks/001 interface:scripts/lib/x.js#f',
+    }],
+  };
+  fs.writeFileSync(fx.reviewPath, renderDoc(parsed.data, parsed.body));
+  const g21 = (validateBlueprint({ repoRoot: fx.repo, blueprintDir: BP_REL, gate: 'finalize' }).failures || [])
+    .filter((f) => f.code === 'G21' && String(f.message).startsWith('review '));
+  assert.deepEqual(g21, []);
 });
 
 test('CLI review record on success → writes JSON', () => {
@@ -380,7 +427,7 @@ test('review record --help example round on a fresh blueprint → records it', (
 
 const CARD_DIR = path.join(__dirname, '..', 'references', 'coordinator-cards');
 
-for (const [cardName, taskMode] of [['review.md', true], ['final_review.md', false]]) {
+for (const [cardName, taskMode] of [['review.md', true]]) {
   test(`${cardName} card repair wave fences bound to a real snapshot → record discovery then delta`, () => {
     const card = fs.readFileSync(path.join(CARD_DIR, cardName), 'utf8');
     const fences = [...card.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
@@ -430,6 +477,19 @@ test('review record --help → lists open and shows an open example', () => {
   assert.equal(example.findings[0].status, 'open');
 });
 
+test('final_review.md card fence bound to a real snapshot → records the discovery round accepted with a deferred must_fix', () => {
+  const card = fs.readFileSync(path.join(CARD_DIR, 'final_review.md'), 'utf8');
+  const fences = [...card.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
+  assert.equal(fences.length, 1);
+  assert.equal(fences[0].round.mode, 'discovery');
+  const fx = makeFixture();
+  const result = recordCli(fx, { round: fx.write('r1.json', bindExample(fx, fences[0])), status: 'accepted' });
+  assert.equal(result.code, 0, result.err + result.out);
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'accepted');
+  assert.equal(data.bouncer.review.findings[0].status, 'deferred');
+});
+
 // ---- execute delta round: reviewer 하나 규칙 (perspective 수) ----
 
 /** round 1 discovery를 기록한 뒤 round 2 delta payload 파일을 돌려준다. */
@@ -449,7 +509,7 @@ function recordDiscoveryThenDeltaFile(fx, deltaPerspectives) {
 }
 
 test('관점 2개인 delta round 기록 → review-ledger-invalid', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const roundFile = recordDiscoveryThenDeltaFile(fx, [
     { name: 'spec_scope', target_head: fx.head },
     { name: 'security', target_head: fx.head },
@@ -460,7 +520,7 @@ test('관점 2개인 delta round 기록 → review-ledger-invalid', () => {
 });
 
 test('관점 1개인 delta round 기록 → ok', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const roundFile = recordDiscoveryThenDeltaFile(fx, [{ name: 'combined', target_head: fx.head }]);
   const result = fx.record(roundFile);
   assert.equal(result.ok, true, result.reason);
@@ -575,7 +635,7 @@ for (const status of ['requested', 'addressed']) {
 }
 
 test('inherited accepted status with a stale new round → is review-snapshot-stale', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   assert.equal(fx.record(fx.payload(), { status: 'accepted' }).ok, true);
   fs.writeFileSync(path.join(fx.repo, 'src', 'app.js'), 'two\n');
   const before = fs.readFileSync(fx.reviewPath);
@@ -586,7 +646,7 @@ test('inherited accepted status with a stale new round → is review-snapshot-st
 });
 
 test('delta acceptance on a fresh snapshot after a stale discovery snapshot → records accepted', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const discovery = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' });
   assert.equal(discovery.ok, true, discovery.reason);
   // 수정 후 새로 동결한 snapshot으로 delta를 닫는다. 앞 discovery snapshot은 이제 stale이다.
@@ -605,7 +665,7 @@ test('delta acceptance on a fresh snapshot after a stale discovery snapshot → 
 // ---- 기존 저장 기록 호환 ----
 
 test('legacy stored round without snapshot_id → stays valid and accepts a bound new round', () => {
-  const fx = makeFixture();
+  const fx = makeFixture({ taskMode: true });
   const parsed = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
   const legacy = {
     round: 1,
@@ -661,4 +721,79 @@ test('symbol이 비었거나 모양이 틀린 항목 → findingMergeCandidates�
   assert.deepStrictEqual(findingMergeCandidates('not-array'), []);
   const dotted = [SS_FINDING, { ...CT_FINDING, file: './scripts/src/lib/a.ts' }];
   assert.deepStrictEqual(findingMergeCandidates(dotted).map((c) => c.ids), [['SS-1', 'CT-5']]);
+});
+
+// finding id·fingerprint 자동 정규화. 기대 id는 정규 fingerprint 문자열의 sha256 앞 8hex로
+// 요구사항에서 직접 계산한다(구현 반환값을 복사하지 않는다).
+const { createHash } = require('node:crypto');
+const CANONICAL_FP = 'correctness:tasks/001 interface:scripts/lib/x.js#f';
+const AUTO_ID = `F-${createHash('sha256').update(CANONICAL_FP).digest('hex').slice(0, 8)}`;
+const NO_ID_FINDING = (() => {
+  const copy = { ...EXAMPLE_FINDING, fingerprint: 'wrong' };
+  delete copy.id;
+  return copy;
+})();
+
+test('id 없고 fingerprint가 틀린 finding 기록 → 성공하고 F-<8hex> 자동 id와 정규 fingerprint를 저장한다', () => {
+  const fx = makeFixture();
+  const result = fx.record(fx.payload({}, [NO_ID_FINDING]), { status: 'addressed' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.finding_ids, [AUTO_ID]);
+  const stored = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8')).data.bouncer.review.findings;
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].id, AUTO_ID);
+  assert.equal(stored[0].fingerprint, CANONICAL_FP);
+});
+
+test('표기만 다른 id 없는 finding을 다음 round에 기록 → round를 넘어 같은 자동 id로 교체된다', () => {
+  const fx = makeFixture({ taskMode: true });
+  assert.equal(fx.record(fx.payload({}, [{ ...NO_ID_FINDING, status: 'open' }]), { status: 'requested' }).ok, true);
+  const variant = {
+    ...NO_ID_FINDING, category: ' Correctness ', brief_clause: 'Tasks/001 Interface', file: './scripts/lib/x.js',
+    last_seen_round: 2,
+  };
+  const result = fx.record(fx.payload({
+    round: 2, mode: 'delta', previous_finding_ids: [AUTO_ID], new: 0, resolved: 1,
+  }, [variant]), { status: 'addressed' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.finding_ids, [AUTO_ID]);
+  assert.equal(result.findings, 1);
+});
+
+test('명시 id finding의 틀린 fingerprint → id는 보존하고 fingerprint만 덮어쓰며 finding_ids는 순서 유지·중복 제거된다', () => {
+  const fx = makeFixture();
+  const g = { ...EXAMPLE_FINDING, id: 'F2', symbol: 'g', fingerprint: 'wrong' };
+  const result = fx.record(fx.payload({ new: 2 }, [g, { ...EXAMPLE_FINDING, fingerprint: 'wrong' }, g]), { status: 'addressed' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.finding_ids, ['F2', 'F1']);
+  const stored = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8')).data.bouncer.review.findings;
+  assert.deepStrictEqual(stored.map((f) => [f.id, f.fingerprint]), [
+    ['F2', 'correctness:tasks/001 interface:scripts/lib/x.js#g'],
+    ['F1', CANONICAL_FP],
+  ]);
+});
+
+for (const [label, id] of [['null', null], ['빈 문자열', ''], ['공백', '  '], ['숫자', 3]]) {
+  test(`명시 id가 ${label}인 finding 기록 → review-input-invalid로 거부하고 파일을 바꾸지 않는다`, () => {
+    const fx = makeFixture();
+    const before = fs.readFileSync(fx.reviewPath);
+    const result = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, id }]), { status: 'addressed' });
+    assertRejectedUntouched(fx, before, result, 'review-input-invalid');
+  });
+}
+
+test('다른 fingerprint의 명시 id가 자동 id와 충돌 → merge하지 않고 review-input-invalid로 거부한다', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const squatter = { ...EXAMPLE_FINDING, id: AUTO_ID, symbol: 'g' };
+  const result = fx.record(fx.payload({ new: 2 }, [squatter, NO_ID_FINDING]), { status: 'addressed' });
+  assertRejectedUntouched(fx, before, result, 'review-input-invalid');
+});
+
+test('명시 id가 다른 같은 fingerprint 두 건 기록 → 기존 duplicate fingerprint 거절을 유지한다', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const result = fx.record(fx.payload({ new: 2 }, [EXAMPLE_FINDING, { ...EXAMPLE_FINDING, id: 'F9' }]), { status: 'addressed' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(result.cause.includes(`review duplicate fingerprint ${CANONICAL_FP}`));
 });

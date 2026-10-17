@@ -1052,6 +1052,7 @@ function runCheckGate(
             crMeta && crMeta.rounds,
             planTasksOf(docs),
             { repoRoot, blueprintDir, deps },
+            crMeta && crMeta.closure_target_digest,
           );
           if (stale) add('G18', stale, 'contextReview');
         }
@@ -1478,6 +1479,23 @@ function planTasksOf(docs: BlueprintDocs): DocLeaf[] {
 const FRESHNESS_TASK_STATUSES: readonly unknown[] = ['draft', 'ready'];
 
 /**
+ * G18이 대조할 현재 계획 snapshot. 주입 함수는 테스트가 ctx 경로 없이 분기를 고정하도록 항상 부르고,
+ * 기본 구현은 경로가 둘 다 있을 때만 파일을 읽는다 — 직접 checkGate 호출 보존.
+ *
+ * @param {{ repoRoot?: string, blueprintDir?: string, deps?: GateDeps }} ctx - gate 경로와 주입 의존성
+ * @returns {PlanSnapshotResult | null} 계산 결과, 대조할 경로가 없으면 null
+ */
+function currentPlanSnapshot(
+  { repoRoot, blueprintDir, deps }: { repoRoot?: string; blueprintDir?: string; deps?: GateDeps },
+): PlanSnapshotResult | null {
+  if (deps && deps.planSnapshot) return deps.planSnapshot({ repoRoot, blueprintDir });
+  if (typeof repoRoot === 'string' && typeof blueprintDir === 'string') {
+    return computePlanSnapshot({ repoRoot, blueprintDir });
+  }
+  return null;
+}
+
+/**
  * accepted context-review의 마지막 round `target.digest`를 현재 계획 snapshot digest와
  * 대조해 G18 신선도 실패 메시지를 만든다. digest 자동 갱신이나 round 추가는 하지 않는다.
  * 대조 생략(null 반환): rounds가 배열이 아니거나 비었을 때, task 하나라도 status가
@@ -1489,13 +1507,31 @@ const FRESHNESS_TASK_STATUSES: readonly unknown[] = ['draft', 'ready'];
  * @param {unknown} rounds - context_review.rounds 원본 값
  * @param {DocLeaf[]} tasksList - blueprint의 plan 대상 tasks 문서 목록
  * @param {{ repoRoot?: string, blueprintDir?: string, deps?: GateDeps }} ctx - gate 경로와 주입 의존성
+ * @param {unknown} [closureDigest] - `context_review.closure_target_digest`. 있으면 round digest보다
+ *   먼저 대조한다(본문 수정 뒤 재close한 문서는 마지막 round digest가 낡아도 신선하다).
+ *   64 lowercase hex가 아니면 현재 내용으로 대체 인증하지 않고 거절한다. 부재면 round 폴백.
  * @returns {string | null} stale·계산 실패 메시지, 통과하거나 대조를 생략하면 null
  */
 function contextReviewFreshnessFailure(
   rounds: unknown,
   tasksList: DocLeaf[],
   { repoRoot, blueprintDir, deps }: { repoRoot?: string; blueprintDir?: string; deps?: GateDeps },
+  closureDigest?: unknown,
 ): string | null {
+  // 0. closure digest가 round 기록보다 우선한다. rounds가 비어도 대조하지만, 실행이 시작된
+  //    blueprint는 round 경로와 똑같이 대조하지 않는다.
+  if (closureDigest !== undefined) {
+    if (!tasksList.every((t) => FRESHNESS_TASK_STATUSES.includes(statusOf(t)))) return null;
+    if (typeof closureDigest !== 'string' || !/^[0-9a-f]{64}$/.test(closureDigest)) {
+      return 'context review closure_target_digest must be 64 lowercase hex; rerun context review close';
+    }
+    const currentClosure = currentPlanSnapshot({ repoRoot, blueprintDir, deps });
+    if (currentClosure === null) return null;
+    if (!currentClosure.ok) return `context review freshness unavailable: ${currentClosure.error}`;
+    if (currentClosure.digest === closureDigest) return null;
+    return `context review is stale: closure digest ${closureDigest} != current ${currentClosure.digest}; `
+      + 'rerun context review (close if only the body changed)';
+  }
   // 1. 문서 쪽 조건: rounds 없는 구문서와 실행이 시작된 blueprint는 대조하지 않는다.
   if (!Array.isArray(rounds) || rounds.length === 0) return null;
   if (!tasksList.every((t) => FRESHNESS_TASK_STATUSES.includes(statusOf(t)))) return null;
@@ -1525,14 +1561,8 @@ function contextReviewFreshnessFailure(
 
   // 3. 현재 digest. 주입 함수는 테스트가 ctx 경로 없이 분기를 고정하도록 항상 부른다.
   //    기본 구현은 경로가 둘 다 있을 때만 파일을 읽는다 — 직접 checkGate 호출 보존.
-  let current: PlanSnapshotResult;
-  if (deps && deps.planSnapshot) {
-    current = deps.planSnapshot({ repoRoot, blueprintDir });
-  } else if (typeof repoRoot === 'string' && typeof blueprintDir === 'string') {
-    current = computePlanSnapshot({ repoRoot, blueprintDir });
-  } else {
-    return null;
-  }
+  const current = currentPlanSnapshot({ repoRoot, blueprintDir, deps });
+  if (current === null) return null;
   if (!current.ok) return `context review freshness unavailable: ${current.error}`;
   if (current.digest === recorded) return null;
   return `context review is stale: last round digest ${recorded} != current ${current.digest}; rerun context review`;
