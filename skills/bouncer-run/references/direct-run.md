@@ -17,19 +17,21 @@ are always subagents. After the one start ACQ, open no per-task ACQ.
    | stop | root action |
    | --- | --- |
    | `worker` (implement) | dispatch the named `bouncer-implementer` per `${BOUNCER_ROOT}/rules/subagent-model.md` (Cursor print: `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md`); require it to read `${BOUNCER_ROOT}/references/coding-standards/index.md` before editing; then `advance` again |
-   | `worker` (review) | dispatch the named `bouncer-reviewer` the same way; then `advance` again |
-   | `judge` | judge by the returned card; run the card's argv only when the result is accepted (normal dispatch, review passed, report accepted, record) |
+   | `judge` dispatch or record | follow the returned card, including its dispatch or record action, then `advance` again |
+   | `judge` report-outcome | read the current attempt from the report argv's `--attempt`; process `accepted`, and process `rework` only at attempt 1; hand off other outcomes and later rework |
+   | `judge` review-round (including `final_review`) | follow the review-round card and record the round; if that round has no `must_fix`, `advance` again; otherwise hand off |
    | `yield` | run `coordinate session-open` (`drive-metrics.md` step 1), then `advance` again |
    | `done` | `metrics end`, then `SKILL.md` step 5 |
    | anything else | hand off (below) — record no judgment |
 
-3. "Anything else" is every result outside the four rows above that continue
-   or finish the drive. It includes a judgment that is not accepted (rework,
-   scope_revision, task_change, blocked), a `must_fix` from `revise`,
-   `critical-recovery`, `supplement`, or `final_review`, the `blocked`, `none`,
-   and `max-steps` stops, a `worker` stop that is not implement or review, and
-   every `ok: false` result (`repeated-failure`, `unclear-result`,
-   `advance-argv-invalid`, or an automatic action's failure).
+3. Hand off without returning to direct mode for a `must_fix` review round,
+   attempt 2 or later `rework`, report outcomes `scope_revision`,
+   `task_change`, or `blocked`, `critical-recovery`, `supplement`, stop reasons
+   `blocked`, `none`, or `max-steps`, any other stop kind, and every `ok: false`
+   result (including verify failure from `coordinate advance`).
+
+   A `rework` report at attempt 1 continues in direct mode; read the attempt from the `--attempt` value in the report argv.
+   Hand off a `rework` report at attempt 2 or later and any review round that records a `must_fix`.
 
 ## Handoff
 
@@ -42,5 +44,5 @@ coordinator drives to the end; never resume direct mode.
 ## Prohibitions
 
 - No code reading, fixing, or direct implementation, review, or debugging.
-- No recording of a non-accepted judgment, and no self-recovery from a stop
-  outside the table.
+- No handling of out-of-scope judgments or self-recovery from a stop outside
+  the table; those decisions belong to the coordinator.
