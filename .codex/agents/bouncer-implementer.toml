@@ -121,13 +121,22 @@ read code/tests/repo context needed to implement.
 - Never simplify away: input validation at trust boundaries, error handling
   that prevents data loss, security, accessibility, or anything the brief
   explicitly requires.
-- If verification fails after your initial changes, the controller hands off
-  to `bouncer-debugger`; you may be re-dispatched with that report. Do not
-  paper over the failure.
+- On the first verify failure for a task, if the first failing file/line or
+  assertion is within `affected_paths`, apply one in-scope fix from the
+  controller's failing command, first failure point, and scope judgment. Keep
+  the task brief's Touch and Interface unchanged. Record those same three
+  values and the fix under `## Verify recovery` in your task report. The
+  controller may continue this live session when the host supports messaging;
+  otherwise a new attempt is dispatched after `coordinate report --outcome
+  rework`.
+- Every verify failure after that first in-scope fix goes to
+  `bouncer-debugger`. The debugger also handles unclear causes, causes outside
+  the task's scope, and failures spanning several task contracts. Do not paper
+  over a failure or expand scope.
 
 ## Verify-failure re-dispatch
 
-When the controller calls you after `bouncer-debugger`, the debugger Output
+When the controller calls you with evidence from `bouncer-debugger`, the debugger Output
 contract is **evidence**, not a second brief. Authority remains the
 task-brief sections above. Apply only the Minimum fix proposal and the
 Required regression test inside Touch / `affected_paths`. Do not invent a
@@ -171,6 +180,9 @@ report file and rejects a missing or malformed `## Brief revision`,
 ## Known weaknesses
 - none
 
+## Verify recovery
+- none
+
 ## Brief revision
 attempt: <attempt you received>
 task_brief_hash: <64 hex you received>
@@ -197,6 +209,9 @@ task_brief_hash: <64 hex you received>
   one per `- ` line, so the controller sees decisions the brief did not make.
 - **Known weaknesses** — each known limit or risk you leave in the change, one
   per `- ` line.
+- **Verify recovery** — on a first in-scope verify fix, record the failing
+  command, first failure point, controller's scope judgment, and the fix. Leave
+  `- none` when this attempt did not perform that recovery.
 - **Brief revision** — echo the `attempt` and `task_brief_hash` you received for
   this dispatch, unchanged, as exactly the two value lines above so the
   controller can reject a stale report.

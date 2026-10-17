@@ -1,6 +1,15 @@
 On verify failure, when recovering through debugger then implementer, read this reference.
 Apply [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
 
+One first in-scope fix is allowed per task; after it, every verify failure goes to `bouncer-debugger`.
+Find the first-fix record in the `## Verify recovery` section of this task's report files.
+
+If this is the task's first verify failure and the first failing file/line or assertion is inside its `affected_paths`, the controller sends the failing command, first failure point, and scope judgment to the implementer. Continue the same implementer session when the host can message that live session; otherwise start a new session. The implementer fixes only within the task brief and writes those same three values plus the fix to `## Verify recovery` in its task report. For a new session, first record `coordinate report --outcome rework` with the failing command and first failure point, then dispatch the next attempt. For the same session, dispatch and report are unnecessary: run `coordinate next` to obtain `verify` and re-verify.
+
+The first-fix record is the task report section, not the ledger's `rework` summary. If any task report already has that section, the first fix has been used.
+
+Use the debugger path when the first fix was already used, the cause is unclear or outside the task's scope, or several task contracts are involved. Scope decisions remain with the controller; coordinator workers do not edit directly.
+
 Dispatch named `bouncer-debugger` (plugin `${BOUNCER_ROOT}/agents/bouncer-debugger.md`) with
 the failing verify evidence, only the pointer task brief's Goal & intent,
 Interface, Touch, Do not touch, Constraints, and Checklist, the shared
