@@ -3946,6 +3946,8 @@ test('promotion_stopped light ledger with full scale and --promote-light → arc
   const blueprint = '.bouncer/context/epics/107-workflow-cost-reduction/blueprints/003-plan-run-call-reduction-replacement';
   const drive = lightPreparedDrive('bouncer-promote-light-success-', blueprint);
   fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  const lightPlanPath = path.join(drive.integrationPath, blueprint, 'index.md');
+  fs.writeFileSync(lightPlanPath, `${fs.readFileSync(lightPlanPath, 'utf8')}\nlight-only note\n`);
   fs.writeFileSync(path.join(drive.integrationPath, 'src/new.bin'), Buffer.from([0, 255, 1, 2]));
   const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
     cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
@@ -3961,6 +3963,8 @@ test('promotion_stopped light ledger with full scale and --promote-light → arc
   execFileSync('git', ['apply', '--check', patch], { cwd: drive.integrationPath });
   assert.match(fs.readFileSync(patch, 'utf8'), /GIT binary patch/);
   assert.match(fs.readFileSync(patch, 'utf8'), /src\/new\.bin/);
+  assert.doesNotMatch(fs.readFileSync(patch, 'utf8'), /light-only note|blueprints\/003-plan-run-call-reduction-replacement\/index\.md/);
+  assert.strictEqual(fs.readFileSync(lightPlanPath, 'utf8'), fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8'));
   assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, 'src/new.bin')), false);
   assert.strictEqual(fs.readFileSync(path.join(drive.integrationPath, 'src/a.js'), 'utf8'),
     execFileSync('git', ['show', 'HEAD:src/a.js'], { cwd: drive.integrationPath, encoding: 'utf8' }));
@@ -4023,12 +4027,19 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   const blueprint = '.bouncer/context/epics/107-promote-rollback/blueprints/001-plan';
   const drive = lightPreparedDrive('bouncer-promote-light-rollback-', blueprint);
   fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: drive.integrationPath });
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'partially staged work\n');
+  const dirtyPlanPath = path.join(drive.integrationPath, blueprint, 'index.md');
+  fs.writeFileSync(dirtyPlanPath, `${fs.readFileSync(dirtyPlanPath, 'utf8')}\nlight-only note\n`);
   const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
     cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
   assert.strictEqual(stopped.ok, true);
   const index = path.join(drive.repo, blueprint, 'index.md');
   fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('scale: light', 'scale: full'));
   const bytes = fs.readFileSync(drive.ledgerFile);
+  const originalStaged = execFileSync('git', ['diff', '--cached', '--binary'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
   const originalDocs = [
     `${blueprint}/index.md`, `${blueprint}/tasks/001/tasks.md`, `${blueprint}/verification.md`,
     '.bouncer/context/index.md',
@@ -4056,6 +4067,9 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
     assert.deepStrictEqual(fs.existsSync(abs) ? fs.readFileSync(abs) : null, original);
   }
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), bytes);
+  assert.strictEqual(execFileSync('git', ['diff', '--cached', '--binary'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  }), originalStaged);
   assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/coordinator.light-promoted.json')), false);
   assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/light-promoted.patch')), false);
   const afterStatus = execFileSync('git', ['status', '--porcelain'], {
@@ -4069,6 +4083,34 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   assert.strictEqual(afterDiffSha, originalDiffSha);
   assert.strictEqual(beforeDiff, stopped.promotion.diff_sha);
   assert.match(beforeDiff, /^[a-f0-9]{64}$/);
+});
+
+test('promotion seed destination symlink outside integration → rolls back without changing target bytes', () => {
+  const blueprint = '.bouncer/context/epics/107-promote-symlink/blueprints/001-plan';
+  const drive = lightPreparedDrive('bouncer-promote-symlink-', blueprint);
+  const external = path.join(os.tmpdir(), `bouncer-promotion-outside-${process.pid}`);
+  fs.writeFileSync(external, 'protected external bytes\n');
+  const integrationPlan = path.join(drive.integrationPath, blueprint, 'index.md');
+  fs.rmSync(integrationPlan);
+  fs.symlinkSync(external, integrationPlan);
+  execFileSync('git', ['add', path.relative(drive.integrationPath, integrationPlan)], { cwd: drive.integrationPath });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'tracked plan symlink'], { cwd: drive.integrationPath });
+  const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
+  assert.strictEqual(stopped.ok, true);
+  fs.writeFileSync(path.join(drive.repo, blueprint, 'index.md'),
+    fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8').replace('scale: light', 'scale: full'));
+  const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+  assert.strictEqual(out.reason, 'promote-light-incomplete');
+  assert.strictEqual(out.restored, true);
+  assert.strictEqual(fs.readFileSync(external, 'utf8'), 'protected external bytes\n');
+  assert.strictEqual(fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8').includes('scale: full'), true);
+  fs.rmSync(external, { force: true });
+  const dangling = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+  assert.strictEqual(dangling.reason, 'promote-light-incomplete');
+  assert.strictEqual(dangling.restored, true);
+  assert.strictEqual(fs.existsSync(external), false);
 });
 
 // --- coordinate repair --kind supplement -----------------------------------

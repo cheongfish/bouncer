@@ -506,6 +506,19 @@ test('dispatch history rule → item 1 isolates history independent of inherit',
   assert.ok(agentDispatch.includes('Every new worker dispatch starts without conversation history (item 1 of that rule).'));
 });
 
+test('verify recovery heading → only a complete populated record consumes first fix', () => {
+  for (const rel of [
+    'references/coordinator-cards/verify.md',
+    'skills/bouncer-run/references/verification-recovery.md',
+  ]) {
+    const contract = readRepo(rel);
+    assert.match(contract, /populated/);
+    assert.match(contract, /`## Verify recovery`/);
+    assert.match(contract, /failing command, first failure point, scope judgment, and fix/);
+    assert.match(contract, /empty section or `- none` does not consume/);
+  }
+});
+
 // fallback payload는 dispatcher 지시문이 소유한다. 역할 문서 안에 "fallback으로
 // 온전히 전달된다"고 적어 봐야 dispatcher가 그 문서를 보내지 않으면 읽히지
 // 않는다. 그래서 실제로 실행되는 다섯 fallback 문단이 역할 문서 본문 전체와

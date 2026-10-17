@@ -1426,24 +1426,6 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
     // 임계 구역의 소유권을 잃으므로 승격 patch와 reset 대상에서 제외한다.
     const untracked = status.split('\n').filter((line) => line && line.startsWith('?? '))
       .map((line) => line.slice(3)).filter((rel) => rel !== `${LEDGER_REL}.lock` && rel !== LEDGER_REL);
-    const tracked = String(exec('git', ['diff', '--name-only', '-z', 'HEAD'], {
-      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-    })).split('\0').filter(Boolean);
-    let patch = String(exec('git', ['diff', '--binary', 'HEAD'], {
-      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-    }));
-    for (const rel of untracked) {
-      try {
-        patch += String(exec('git', ['diff', '--no-index', '--binary', '--', '/dev/null', rel], {
-          cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-        }));
-      } catch (error) {
-        const failure = error as { status?: number; stdout?: string | Buffer };
-        if (failure.status !== 1) throw error;
-        patch += String(failure.stdout || '');
-      }
-    }
-    const patchPath = patch.length ? patchFile : null;
     const planPaths: string[] = [];
     const collectPlanFiles = (dir: string, rel: string) => {
       for (const name of fs.readdirSync(dir).sort()) {
@@ -1457,11 +1439,47 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
     for (const rel of [path.posix.dirname(blueprint) + '/index.md', '.bouncer/context/index.md']) {
       if (fs.existsSync(path.join(repoRoot, rel))) planPaths.push(rel);
     }
-    const originalDocs = new Map<string, Buffer | null>();
-    for (const rel of planPaths) {
-      const abs = path.join(integration, rel);
-      originalDocs.set(rel, fs.existsSync(abs) ? fs.readFileSync(abs) : null);
+    const planSet = new Set(planPaths);
+    const tracked = String(exec('git', ['diff', '--name-only', '-z', 'HEAD'], {
+      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    })).split('\0').filter(Boolean);
+    // 1. 계획 문서는 promotion patch와 독립적으로 보존한다. 승인본으로 seed되므로
+    // patch에 섞으면 재적용이 충돌하고, light 원문은 별도 byte snapshot으로 복구한다.
+    let patch = String(exec('git', ['diff', '--binary', 'HEAD', '--', '.',
+      ...[...planSet].map((rel) => `:(exclude)${rel}`)], {
+      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    }));
+    for (const rel of untracked) {
+      if (planSet.has(rel)) continue;
+      try {
+        patch += String(exec('git', ['diff', '--no-index', '--binary', '--', '/dev/null', rel], {
+          cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+        }));
+      } catch (error) {
+        const failure = error as { status?: number; stdout?: string | Buffer };
+        if (failure.status !== 1) throw error;
+        patch += String(failure.stdout || '');
+      }
     }
+    const patchPath = patch.length ? patchFile : null;
+    // 2. snapshot every dirty path and seed target, plus the raw index. Byte restoration
+    // preserves staged/unstaged separation that `git apply` cannot reconstruct safely.
+    const originalFiles = new Map<string, { bytes: Buffer } | { symlink: string } | null>();
+    for (const rel of new Set([...tracked, ...untracked, ...planPaths, '.bouncer/config.json'])) {
+      const abs = path.join(integration, rel);
+      if (!fs.existsSync(abs) && !fs.lstatSync(abs, { throwIfNoEntry: false })) {
+        originalFiles.set(rel, null);
+      } else if (fs.lstatSync(abs).isSymbolicLink()) {
+        originalFiles.set(rel, { symlink: fs.readlinkSync(abs) });
+      } else {
+        originalFiles.set(rel, { bytes: fs.readFileSync(abs) });
+      }
+    }
+    const gitDir = String(exec('git', ['rev-parse', '--absolute-git-dir'], {
+      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    })).trim();
+    const indexFile = path.join(gitDir, 'index');
+    const originalIndex = fs.readFileSync(indexFile);
     let archived = false;
     let patchWritten = false;
     const written: string[] = [];
@@ -1475,7 +1493,7 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
       fs.renameSync(ledgerFile, archive);
       archived = true;
       written.push(archive);
-      // dirty source만 HEAD로 되돌린 뒤 계획 문서는 승인된 main 원본으로 seed한다.
+      // 3. dirty source만 HEAD로 되돌린 뒤 계획 문서는 승인된 main 원본으로 seed한다.
       if (tracked.length) {
         git(exec, integration, ['restore', '--source=HEAD', '--staged', '--worktree', '--', ...tracked]);
       }
@@ -1485,7 +1503,10 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
       });
       if (!seeded.ok) throw Object.assign(new Error(seeded.reason), { code: seeded.reason });
       written.push(...(seeded.seeded || []).map((rel) => path.join(integration, rel)));
-      if (patchPath) git(exec, integration, ['apply', '--check', patchFile]);
+      if (patchPath) {
+        git(exec, integration, ['apply', '--check', patchFile]);
+        // 승인된 patch의 내용이 대상 파일에 정확히 적용 가능한지 먼저 확인한다.
+      }
       const fullLedger: Ledger = {
         version: 1, blueprint, base: ledger.base,
         integrationHead: git(exec, integration, ['rev-parse', 'HEAD']),
@@ -1509,18 +1530,25 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
     } catch (_error) {
       let restored = true;
       try {
-        for (const [rel, bytes] of originalDocs) {
+        for (const [rel, bytes] of originalFiles) {
           const abs = path.join(integration, rel);
           if (bytes === null) fs.rmSync(abs, { force: true, recursive: true });
-          else { fs.mkdirSync(path.dirname(abs), { recursive: true }); fs.writeFileSync(abs, bytes); }
+          else {
+            fs.mkdirSync(path.dirname(abs), { recursive: true });
+            fs.rmSync(abs, { force: true, recursive: true });
+            if ('symlink' in bytes) fs.symlinkSync(bytes.symlink, abs);
+            else fs.writeFileSync(abs, bytes.bytes);
+          }
         }
-        if (patchWritten) git(exec, integration, ['apply', '--check', patchFile]);
-        if (patchWritten) git(exec, integration, ['apply', patchFile]);
+        fs.writeFileSync(indexFile, originalIndex);
         if (archived) {
           fs.rmSync(ledgerFile, { force: true });
           fs.renameSync(archive, ledgerFile);
         }
         if (patchWritten) fs.rmSync(patchFile, { force: true });
+        if (worktreeDiffSha(exec, integration) !== ledger.promotion.diff_sha) {
+          throw new Error('promotion rollback fingerprint mismatch', { cause: _error });
+        }
       } catch (_restoreError) {
         restored = false;
       }

@@ -499,13 +499,12 @@ test('brief changed with the same functions → bundle refreshes the hash and se
   const second = resolveTaskIntentBundle({
     repoRoot: repo, taskFile, functions: [{ symbol: 'targetFn' }], deps,
   });
-  const sections = projectRoleIntentSections({
-    repoRoot: repo, taskFile, role: 'implementer', deps,
-  });
-
   assert.equal(second.revision, 2);
   assert.equal(second.task_brief_hash, taskBriefHash(fs.readFileSync(briefPath, 'utf8')));
   assert.equal(second.task_brief_hash === first.task_brief_hash, false);
+  const sections = projectRoleIntentSections({
+    repoRoot: repo, taskFile, role: 'implementer', deps,
+  });
   assert.equal(sections.ok, true);
 });
 
