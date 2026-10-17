@@ -51,7 +51,14 @@ are done, so the light ledger already exists.
    implementation is `integrated`, follow `coordinate next` (`prepare`, then
    `verification_node`) and run the terminal node: its one full verification
    is the first full run. A recovery re-verification after a failure and the
-   finalize remainder verification are separate runs.
+   finalize remainder verification are separate runs. A terminal failure owned
+   by the integrated implementation task is recovered with `coordinate repair
+   --task <terminal> --resume-task <ddd>` (the same task is reassigned inside
+   its approved scope, no new task). A failure proven outside every approved
+   scope is recorded with `--disposition outside_scope`: the failure stays
+   failed, `next` moves on, and the final report, finalize, and PR carry it as a
+   separate warning. The two options are mutually exclusive; an unclear, mixed,
+   or stale cause stays `blocked`.
 
 ## Prohibitions
 

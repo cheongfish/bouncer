@@ -1301,3 +1301,85 @@ test('coordinate CLI bootstrap on a scoped_terminal light plan → light ledger,
   assert.strictEqual(preparedCli.code, 0, preparedCli.buf.err + preparedCli.buf.out);
   assert.deepStrictEqual(JSON.parse(preparedCli.buf.out).opened.map((t) => t.id), ['001']);
 });
+
+/**
+ * 001이 integrated이고 terminal 002가 evidence와 source identity를 가진 채 실패한 drive.
+ * prepare된 fixture의 원장을 그 상태로 시드한다(terminal 문서는 repair가 있을 때만 쓴다).
+ */
+function terminalFailedCliDrive() {
+  const drive = preparedDrive();
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: drive.integration, encoding: 'utf8' }).trim();
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  ledger.tasks.push({
+    id: '002', depends_on: ['001'], dependency_gate: 'integrated', parallel_safe: false,
+    execution_kind: 'verification', status: 'verifying', affected_paths: [], exclusive_resources: [],
+  });
+  ledger.integrationHead = head;
+  ledger.terminalFailure = {
+    task: '002', command: 'npm test', summary: 'exit code 1', paths: [], exitCode: 1, repairWave: 0,
+    evidence_id: 'e'.repeat(64), source_digest: head,
+  };
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  return { ...drive, ledgerFile, head };
+}
+
+const terminalRepairArgs = (drive, extra) => [
+  '--repo', drive.repo, '--task', '002', '--failure-command', 'npm test',
+  '--summary', 'cause judged', '--decision', 'owned by the login task', ...extra,
+];
+
+test('CLI coordinate repair --resume-task → reassigns the existing task through the public path with no new task', () => {
+  const drive = terminalFailedCliDrive();
+  const { code, buf } = coordinateCli(drive.integration, 'repair',
+    terminalRepairArgs(drive, ['--paths', 'src/auth/login.js', '--resume-task', '001']));
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.tasks.map((t) => [t.id, t.status]), [['001', 'pending'], ['002', 'pending']]);
+  assert.strictEqual(ledger.repairWaves[0].task, '001');
+});
+
+test('CLI coordinate repair --disposition outside_scope → records the classification and keeps the failure', () => {
+  const drive = terminalFailedCliDrive();
+  const { code, buf } = coordinateCli(drive.integration, 'repair',
+    terminalRepairArgs(drive, ['--paths', 'vendor/lock.json', '--disposition', 'outside_scope']));
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks[1].status, 'verifying');
+  assert.strictEqual(ledger.terminalFailure.exitCode, 1);
+  assert.strictEqual(ledger.terminalFailure.disposition.kind, 'outside_scope');
+  assert.strictEqual(ledger.terminalFailure.disposition.evidence_id, 'e'.repeat(64));
+  assert.strictEqual(ledger.terminalFailure.disposition.source_digest, drive.head);
+});
+
+test('CLI coordinate repair with both --resume-task and --disposition or a valueless one → exits 2 and writes nothing', () => {
+  const drive = terminalFailedCliDrive();
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const both = coordinateCli(drive.integration, 'repair', terminalRepairArgs(drive,
+    ['--paths', 'vendor/x.js', '--resume-task', '001', '--disposition', 'outside_scope']));
+  assert.strictEqual(both.code, 2, both.buf.err + both.buf.out);
+  const noValue = coordinateCli(drive.integration, 'repair', terminalRepairArgs(drive,
+    ['--paths', 'src/auth/login.js', '--resume-task']));
+  assert.strictEqual(noValue.code, 2, noValue.buf.err + noValue.buf.out);
+  const noDisposition = coordinateCli(drive.integration, 'repair', terminalRepairArgs(drive,
+    ['--paths', 'vendor/x.js', '--disposition']));
+  assert.strictEqual(noDisposition.code, 2, noDisposition.buf.err + noDisposition.buf.out);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+});
+
+test('CLI coordinate repair resolution with a stale ledger hash or an out-of-scope path → exits 1 and keeps the failure', () => {
+  const drive = terminalFailedCliDrive();
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const stale = coordinateCli(drive.integration, 'repair', [
+    ...terminalRepairArgs(drive, ['--paths', 'vendor/lock.json', '--disposition', 'outside_scope']),
+    '--ledger-path', '.bouncer/runtime/coordinator.json', '--ledger-hash', 'b'.repeat(64),
+  ]);
+  assert.strictEqual(stale.code, 1, stale.buf.err + stale.buf.out);
+  const escaped = coordinateCli(drive.integration, 'repair',
+    terminalRepairArgs(drive, ['--paths', 'lib/outside.js', '--resume-task', '001']));
+  assert.strictEqual(escaped.code, 1, escaped.buf.err + escaped.buf.out);
+  assert.strictEqual(JSON.parse(escaped.buf.out).reason, 'repair-scope-out-of-bounds');
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+});

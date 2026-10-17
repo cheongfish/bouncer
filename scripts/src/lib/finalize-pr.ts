@@ -203,7 +203,12 @@ function buildVerificationLines(tasks: unknown[]): string[] {
       continue;
     }
     const passed = verification.status === 'passed';
-    const line = `${verification.command} — ${passed ? 'passed' : 'failed'}`;
+    // 범위 밖으로 분류된 terminal 실패는 failed 그대로 두고 원본 증거 id만 덧붙인다 — 분류가
+    // 통과처럼 읽히지 않게 하고, 로컬 경로 대신 id로만 참조한다.
+    const outside = asRecord(verification.outside_scope);
+    const suffix = !passed && typeof outside.evidence_id === 'string' && outside.evidence_id
+      ? ` (outside_scope, evidence ${outside.evidence_id})` : '';
+    const line = `${verification.command} — ${passed ? 'passed' : 'failed'}${suffix}`;
     if (seen.has(line)) continue;
     seen.add(line);
     lines.push(line);

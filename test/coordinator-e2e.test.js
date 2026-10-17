@@ -1489,3 +1489,133 @@ test('light single-task drive → worker worktree 없이 integration에서 prepa
   assert.deepStrictEqual(trackedSourceSnapshot(repo), before);
   assert.strictEqual(sourceStatus(repo), '');
 });
+
+/**
+ * 001(src/alpha.js)이 integrate된 뒤 terminal 002의 CI가 실패한 실제 git drive를 만든다.
+ * 실패 결과에 evidenceId를 실어 범위 밖 분류가 묶일 원본 identity를 갖게 한다.
+ */
+function terminalFailedE2eDrive(epicNo) {
+  const epic = `.bouncer/context/epics/${epicNo}-resume`;
+  const blueprint = `${epic}/blueprints/001-drive`;
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'source']);
+  const ids = { epic_id: epicNo, blueprint_id: '001' };
+  writePlanDoc(repo, `${epic}/index.md`, 'bouncer.epic', { id: epicNo, epic_id: epicNo, status: 'approved' }, '# Epic\n');
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: epicNo, name: 'resume', description: 'd' });
+  writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint',
+    { id: '001', ...ids, status: 'approved', commit_type: 'feat' },
+    '# Blueprint\n\n## Intent\n- 기존 task로 복구한다\n');
+  const body = '# Tasks\n\n## Goal & intent\nalpha를 바꾼다.\n\n## Interface\n- 제공: alpha\n\n'
+    + '## Touch\n- Modify `src/alpha.js`\n\n## Do not touch\n- `README.md`\n\n'
+    + '## Constraints\n- 없음\n\n## Checklist\n- [ ] alpha를 바꾼다\n';
+  writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-001', ...ids, status: 'ready', depends_on: [], parallel_safe: false,
+    dependency_gate: 'integrated', affected_paths: ['src/alpha.js'],
+  }, body);
+  writePlanDoc(repo, `${blueprint}/tasks/002/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-002', ...ids, status: 'ready', execution_kind: 'verification', depends_on: ['TASKS-001'],
+    parallel_safe: false, dependency_gate: 'integrated', affected_paths: [], verify: 'node --test',
+  }, body);
+  for (const id of ['001', '002']) {
+    writePlanDoc(repo, `${blueprint}/tasks/${id}/verification.md`, 'bouncer.verification',
+      { id: `VERIFY-${id}`, ...ids, status: 'pending' }, '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n');
+    writePlanDoc(repo, `${blueprint}/tasks/${id}/review.md`, 'bouncer.review',
+      { id: `REVIEW-${id}`, ...ids, status: 'pending', review: { required: true } }, '# Review\n\n## Findings\n- <finding>\n');
+  }
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integrationPath = boot.integrationPath;
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', sha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, '001').ok, true);
+  const verifyOk = () => ({ ok: true, command: 'node --test', exitCode: 0, evidenceId: 'e'.repeat(64) });
+  const integrate = (task, runVerification) => coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task, deps: { runVerification },
+  });
+  assert.strictEqual(integrate('001', verifyOk).ok, true);
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  const failed = integrate('002', () => ({
+    ok: false, command: 'node --test', exitCode: 1, evidenceId: 'f'.repeat(64),
+  }));
+  assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
+  return { repo, blueprint, integrationPath, integrate, verifyOk };
+}
+
+test('terminal CI failure resumed on the existing task → rework, reintegration and terminal re-verification finish without any new task', () => {
+  const drive = terminalFailedE2eDrive('016');
+  const { repo, blueprint, integrationPath } = drive;
+  const ledgerFile = path.join(integrationPath, '.bouncer/runtime/coordinator.json');
+  const before = loadLedger(ledgerFile);
+  const resumed = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: integrationPath, task: '002', resumeTask: '001',
+    failureCommand: 'node --test', summary: 'alpha regression', paths: ['src/alpha.js'],
+    decision: 'task 001 owns the failing alpha code',
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  assert.deepStrictEqual(loadLedger(ledgerFile).tasks.map((t) => t.id), ['001', '002']);
+
+  // 재배정된 worker는 현재 integration HEAD에서 시작하고 이전 통합 내용을 그대로 가진다.
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.ready, ['001']);
+  const task = prepared.tasks.find((t) => t.id === '001');
+  assert.strictEqual(task.lease.generation, before.tasks[0].lease.generation + 1);
+  assert.strictEqual(git(task.workerPath, ['rev-parse', 'HEAD']), git(integrationPath, ['rev-parse', 'HEAD']));
+  assert.strictEqual(fs.readFileSync(path.join(task.workerPath, 'src/alpha.js'), 'utf8'), 'changed by 001\n');
+
+  // 이전 attempt의 증적 상태는 재작업 시작 때 되돌려져 있어, 새 작업 없이는 integrate할 수 없다.
+  const staleEvidence = readDoc(path.join(task.workerPath, blueprint, 'tasks/001/tasks.md')).data.bouncer.status;
+  assert.strictEqual(staleEvidence, 'ready');
+
+  const fixSha = commitInWorker(task.workerPath, 'src/alpha.js', 'repaired by 001\n', 'fix: rework 001');
+  writeTerminalEvidence(task.workerPath, blueprint, '001', fixSha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, task.workerPath, '001').ok, true);
+  assert.strictEqual(drive.integrate('001', drive.verifyOk).ok, true);
+  assert.strictEqual(fs.readFileSync(path.join(integrationPath, 'src/alpha.js'), 'utf8'), 'repaired by 001\n');
+
+  // terminal은 재통합 뒤 다시 검증되고, 관계없는 task는 다시 돌지 않는다.
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  const terminal = drive.integrate('002', drive.verifyOk);
+  assert.strictEqual(terminal.ok, true, JSON.stringify(terminal));
+  const after = loadLedger(ledgerFile);
+  assert.deepStrictEqual(after.tasks.map((t) => [t.id, t.status]), [['001', 'integrated'], ['002', 'integrated']]);
+  assert.strictEqual(after.repairWaves.length, 1);
+  const noGit = { changedFiles: () => [], untrackedFiles: () => [], stage: () => {}, commit: () => {} };
+  const dry = finalize({ repoRoot: integrationPath, blueprintDir: blueprint, git: noGit });
+  assert.notStrictEqual(dry.reason, 'coordinator-evidence-mismatch', JSON.stringify(dry));
+});
+
+test('terminal CI failure classified outside_scope → next proceeds to done and finalize reports the failure without calling it verified', () => {
+  const drive = terminalFailedE2eDrive('017');
+  const { repo, blueprint, integrationPath } = drive;
+  const { coordinateNext } = require('../scripts/lib/coordinate-next');
+  const nextOf = () => coordinateNext({ repoRoot: repo, blueprint, cwd: integrationPath });
+  // 분류 전에는 막힌다.
+  assert.strictEqual(nextOf().reason, 'terminal-verification-failed');
+  const classified = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: integrationPath, task: '002',
+    disposition: 'outside_scope', failureCommand: 'node --test',
+    summary: 'cause: vendored lock drift; failing test: test/vendor.test.js; needs vendor/ change outside every scope',
+    paths: ['vendor/lock.json'], decision: 'no approved task owns vendor/',
+  });
+  assert.strictEqual(classified.ok, true, JSON.stringify(classified));
+  const next = nextOf();
+  assert.strictEqual(next.action, 'done', JSON.stringify(next));
+  assert.strictEqual(next.payload.outside_scope.evidence_id, 'f'.repeat(64));
+  const ledger = loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json'));
+  assert.strictEqual(ledger.tasks[1].status, 'verifying');
+  assert.strictEqual(ledger.terminalFailure.exitCode, 1);
+
+  // 소스가 바뀌면 분류는 더 이상 유효하지 않다.
+  fs.writeFileSync(path.join(integrationPath, 'src/alpha.js'), 'drifted\n');
+  git(integrationPath, ['add', 'src/alpha.js']);
+  git(integrationPath, ['commit', '-m', 'drift']);
+  const stale = loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json'));
+  stale.integrationHead = git(integrationPath, ['rev-parse', 'HEAD']);
+  fs.writeFileSync(path.join(integrationPath, '.bouncer/runtime/coordinator.json'), `${JSON.stringify(stale, null, 2)}\n`);
+  assert.strictEqual(nextOf().reason, 'terminal-verification-failed');
+});

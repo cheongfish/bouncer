@@ -110,6 +110,10 @@ bouncer coordinate promote-stop --blueprint <dir> \
   --summary <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason>
+bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
+  --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
+bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
+  --summary <text> --paths <p> --decision <reason> --disposition outside_scope
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
   [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> --kind supplement --review-finding <id> \
@@ -335,6 +339,28 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it, and the next final review is the one delta round.
 `--kind` accepts only `product` (default) or `supplement`.
+
+Terminal CI failures add two mutually exclusive forms of `coordinate repair`
+(both need `--task <terminal>`, the recorded `--failure-command`, `--summary`,
+`--paths`, `--decision`, and the ledger path/hash fence; both without a value, or
+together, exit 2). `--resume-task <ddd>` reassigns an already integrated
+implementation task of the same blueprint: no task is added, IDs, DAG, and
+approved scope stay unchanged, `--paths` must lie inside that task's scope, the
+lease is revoked so `prepare` hands it to a worker cut from the current
+integration HEAD with a new generation, and the terminal re-verifies after
+reintegration (one repair wave). `--disposition outside_scope` records that the
+cause, the failing test, and the needed change are outside every approved task
+scope. It binds the original evidence id and source digest recorded at the
+failure; the failure and the `verifying` status stay, and `next`, `validate
+--gate finalize`, the finalize digest, and the PR treat it as a separate
+warning, never as passed or integrated. Refused before any write: both options,
+a command or task other than the recorded failure
+(`failure-evidence-mismatch`), missing evidence or source identity
+(`disposition-evidence-required`), a changed source (`disposition-stale-source`),
+a path owned by any task scope (`disposition-scope-mixed`), a non-integrated or
+foreign resume task (`resume-task-invalid`), a path outside the chosen task's
+scope (`repair-scope-out-of-bounds`). Review-caused repair and supplement are
+unchanged.
 
 ## Controlled migrations
 

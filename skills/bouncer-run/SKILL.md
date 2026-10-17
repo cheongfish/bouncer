@@ -63,6 +63,16 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+terminal 실패는 새 repair task를 만들기 전에 원인을 먼저 가른다. 원인이 이미 통합된 task의
+코드이면 `coordinate repair --task <terminal> --resume-task <ddd>`로 그 기존 task를 승인
+scope 안에서 재배정한다(task 수·ID·DAG·scope 불변, lease generation 갱신, 현재 integration
+HEAD에서 재작업·재통합 뒤 terminal 재검증, 이전 lease의 report·commit 거부, repair wave 1회
+소모). 원인·실패 테스트·필요 변경이 모든 승인 task scope 밖임이 입증되면
+`--disposition outside_scope`로 원본 evidence/source identity에 묶어 기록한다. 이 분류는
+실패를 passed나 integrated로 바꾸지 않고 terminal을 `verifying`에 둔 채 `next`가 최종 리뷰와
+완료로 진행하게 하며, 최종 보고·finalize·PR에 별도 경고로 남긴다. 원인 불명, scope 안팎 혼합,
+소스 변경(stale)은 계속 `blocked`다. 두 옵션은 상호배타다.
+
 `verification_policy: scoped_terminal` blueprint(새 계획)는 책임을 나눈다. 구현
 worker는 자기 task 전용 `bouncer.verify`만 실행하고 보고 `## Tests`에 그 명령과
 결과를 적는다. 다른 명령·누락·실패 결과면 fan-in이 `worker-test-report-mismatch`로

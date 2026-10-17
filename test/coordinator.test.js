@@ -4890,3 +4890,220 @@ test('verification integrate when the runner rejects missing dependencies → re
   assert.strictEqual(after.terminalFailure, undefined);
   assert.strictEqual((after.repairWaves || []).length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// 기존 task 재배정(--resume-task)과 범위 밖 실패 분류(--disposition outside_scope)
+// ---------------------------------------------------------------------------
+
+const RESUME_EVIDENCE = 'f'.repeat(64);
+
+/**
+ * 001이 integrate된 뒤 terminal 002의 CI가 실패한 drive를 만든다.
+ * 001의 통합 내용(src/a.js)은 integration worktree에 실제 커밋으로 남겨, 재배정된
+ * worker가 그 이력을 이어받는지 git으로 관찰할 수 있게 한다.
+ *
+ * @param {string} prefix - 임시 저장소 접두
+ * @param {{ failure?: object }} [opts] - terminal 실패 결과 덮어쓰기(기본은 evidenceId 포함 exit 1)
+ * @returns {object} repo·blueprint·integration·ledgerFile·integrationHead
+ */
+function terminalFailedDrive(prefix, opts = {}) {
+  const blueprint = '.bouncer/context/epics/108-resume/blueprints/001-y';
+  const repo = uncommittedPlanRepo(prefix, blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: false\n  dependency_gate: integrated\n  affected_paths:\n    - src/\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n'
+      + '  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integration = boot.integrationPath;
+  fs.mkdirSync(path.join(integration, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(integration, 'src/a.js'), 'integrated by 001\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: integration });
+  execFileSync('git', ['commit', '-m', 'feat: integrated 001'], { cwd: integration });
+  const integrationHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: integration, encoding: 'utf8' }).trim();
+  const ledgerFile = path.join(integration, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  ledger.tasks[0].lease = { id: 'lease-a', generation: 1, seq: 1, status: 'active' };
+  ledger.leaseSeq = 1;
+  ledger.integrationHead = integrationHead;
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integration }).ok, true);
+  const failed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integration, task: '002',
+    deps: {
+      runVerification: () => ({
+        ok: false, command: 'node --test', exitCode: 1, evidenceId: RESUME_EVIDENCE, ...(opts.failure || {}),
+      }),
+    },
+  });
+  assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
+  return { repo, blueprint, integration, ledgerFile, integrationHead };
+}
+
+const readLedgerFile = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
+
+test('terminal failure with --resume-task of an integrated task → reassigns it without adding a task or changing scope and DAG', () => {
+  const drive = terminalFailedDrive('bouncer-resume-task-');
+  const before = readLedgerFile(drive.ledgerFile);
+  const resumed = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'src/a.js regression',
+    paths: ['src/a.js'], decision: 'the failing test is owned by task 001',
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.deepStrictEqual(after.tasks.map((t) => t.id), ['001', '002']);
+  assert.deepStrictEqual(after.tasks.map((t) => t.depends_on), before.tasks.map((t) => t.depends_on));
+  assert.deepStrictEqual(after.tasks[0].affected_paths, before.tasks[0].affected_paths);
+  assert.strictEqual(after.tasks[0].dynamic, undefined);
+  assert.strictEqual(after.tasks[0].status, 'pending');
+  assert.strictEqual(after.tasks[0].sha, undefined);
+  assert.strictEqual(after.tasks[0].lease.status, 'revoked');
+  assert.strictEqual(after.tasks[1].status, 'pending');
+  assert.strictEqual(after.repairWaves.length, 1);
+  assert.strictEqual(after.repairWaves[0].task, '001');
+  assert.deepStrictEqual(after.repairWaves[0].nextScope, ['src/a.js']);
+  assert.strictEqual(after.terminalFailure.task, '002');
+  assert.strictEqual(fs.existsSync(path.join(drive.integration, drive.blueprint, 'tasks/003')), false);
+});
+
+test('resumed task is prepared → new lease generation on a worker cut from the current integration HEAD, terminal waits, old lease is stale', () => {
+  const drive = terminalFailedDrive('bouncer-resume-prepare-');
+  const resumed = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'src/a.js regression',
+    paths: ['src/a.js'], decision: 'the failing test is owned by task 001',
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+    deps: { makeLeaseId: () => 'lease-b' },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  // terminal은 재작업이 끝나기 전에 열리지 않는다 — 001만 배정된다.
+  assert.deepStrictEqual(prepared.ready, ['001']);
+  const task = prepared.tasks.find((t) => t.id === '001');
+  assert.deepStrictEqual(task.lease, { id: 'lease-b', generation: 2, seq: 2, status: 'active' });
+  assert.strictEqual(prepared.tasks.find((t) => t.id === '002').status, 'pending');
+  const workerHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: task.workerPath, encoding: 'utf8' }).trim();
+  assert.strictEqual(workerHead, drive.integrationHead);
+  assert.strictEqual(fs.readFileSync(path.join(task.workerPath, 'src/a.js'), 'utf8'), 'integrated by 001\n');
+
+  const late = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: task.workerPath, task: '001',
+    leaseId: 'lease-a', generation: 1,
+  });
+  assert.strictEqual(late.reason, 'stale-lease');
+});
+
+test('--resume-task with an unsafe selection → rejects before any mutation and keeps the failure state', () => {
+  const drive = terminalFailedDrive('bouncer-resume-reject-');
+  const base = {
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    failureCommand: 'node --test', summary: 'regression', paths: ['src/a.js'], decision: 'owned by 001',
+  };
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  const cases = [
+    ['path outside the approved scope of the chosen task', { resumeTask: '001', paths: ['lib/other.js'] }, 'repair-scope-out-of-bounds'],
+    ['task id that is not in this blueprint', { resumeTask: '009' }, 'task-outside-blueprint'],
+    ['terminal task as its own resume target', { resumeTask: '002' }, 'resume-task-invalid'],
+    ['malformed task id', { resumeTask: '1' }, 'resume-task-invalid'],
+    ['failure command that differs from the recorded failure', { resumeTask: '001', failureCommand: 'node --test other' }, 'failure-evidence-mismatch'],
+    ['both resume-task and disposition', { resumeTask: '001', disposition: 'outside_scope' }, 'repair-resolution-ambiguous'],
+    ['missing decision reason', { resumeTask: '001', decision: '' }, 'decision-reason-required'],
+  ];
+  for (const [label, override, reason] of cases) {
+    const rejected = coordinate({ ...base, ...override });
+    assert.strictEqual(rejected.reason, reason, label);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore, label);
+  }
+});
+
+test('--resume-task of a task that is not integrated yet → rejects as resume-task-invalid', () => {
+  const drive = terminalFailedDrive('bouncer-resume-open-');
+  const ledger = readLedgerFile(drive.ledgerFile);
+  ledger.tasks[0].status = 'prepared';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const rejected = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'regression', paths: ['src/a.js'], decision: 'owned by 001',
+  });
+  assert.strictEqual(rejected.reason, 'resume-task-invalid');
+});
+
+test('resume ledger write fails → task documents and ledger keep their previous bytes', () => {
+  const drive = terminalFailedDrive('bouncer-resume-rollback-');
+  const taskDoc = path.join(drive.integration, drive.blueprint, 'tasks/001/tasks.md');
+  const terminalDoc = path.join(drive.integration, drive.blueprint, 'tasks/002/tasks.md');
+  const docsBefore = [fs.readFileSync(taskDoc), fs.readFileSync(terminalDoc)];
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  assert.throws(() => coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'regression', paths: ['src/a.js'],
+    decision: 'owned by 001', deps: { writeLedger: () => { throw new Error('ledger write failed'); } },
+  }), /ledger write failed/);
+  assert.deepStrictEqual(fs.readFileSync(taskDoc), docsBefore[0]);
+  assert.deepStrictEqual(fs.readFileSync(terminalDoc), docsBefore[1]);
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+});
+
+test('terminal failure records its evidence and source identity → disposition can bind to them', () => {
+  const drive = terminalFailedDrive('bouncer-failure-identity-');
+  const failure = readLedgerFile(drive.ledgerFile).terminalFailure;
+  assert.strictEqual(failure.evidence_id, RESUME_EVIDENCE);
+  assert.strictEqual(failure.source_digest, drive.integrationHead);
+});
+
+const outsideInput = (drive, override = {}) => ({
+  command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+  disposition: 'outside_scope', failureCommand: 'node --test',
+  summary: 'cause: vendored lockfile drift; failing test: test/vendor.test.js; fix needs vendor/ outside every task scope',
+  paths: ['vendor/lock.json'], decision: 'the cause and required change are outside every approved task scope',
+  ...override,
+});
+
+test('--disposition outside_scope with the original evidence and an unowned path → records it and keeps failure and verifying', () => {
+  const drive = terminalFailedDrive('bouncer-outside-ok-');
+  const result = coordinate(outsideInput(drive));
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.strictEqual(after.tasks[1].status, 'verifying');
+  assert.strictEqual(after.tasks.length, 2);
+  assert.strictEqual((after.repairWaves || []).length, 0);
+  assert.strictEqual(after.terminalFailure.exitCode, 1);
+  assert.strictEqual(after.terminalFailure.command, 'node --test');
+  assert.deepStrictEqual(after.terminalFailure.disposition, {
+    kind: 'outside_scope',
+    reason: 'the cause and required change are outside every approved task scope',
+    evidence_id: RESUME_EVIDENCE,
+    source_digest: drive.integrationHead,
+    paths: ['vendor/lock.json'],
+  });
+});
+
+test('--disposition outside_scope with weak or mismatched grounds → rejects and leaves the ledger untouched', () => {
+  const noEvidence = terminalFailedDrive('bouncer-outside-noev-', { failure: { evidenceId: undefined } });
+  const moved = terminalFailedDrive('bouncer-outside-moved-');
+  const movedLedger = readLedgerFile(moved.ledgerFile);
+  movedLedger.integrationHead = 'a'.repeat(40);
+  fs.writeFileSync(moved.ledgerFile, `${JSON.stringify(movedLedger, null, 2)}\n`);
+  const plain = terminalFailedDrive('bouncer-outside-bad-');
+  const cases = [
+    ['failure without evidence id', noEvidence, {}, 'disposition-evidence-required'],
+    ['source changed since the failure', moved, {}, 'disposition-stale-source'],
+    ['path owned by a task scope (mixed)', plain, { paths: ['vendor/lock.json', 'src/a.js'] }, 'disposition-scope-mixed'],
+    ['different failure command', plain, { failureCommand: 'node --test other' }, 'failure-evidence-mismatch'],
+    ['missing cause summary', plain, { summary: '' }, 'failure-evidence-required'],
+    ['missing decision reason', plain, { decision: '  ' }, 'decision-reason-required'],
+    ['non-source path', plain, { paths: ['.bouncer/context/'] }, 'repair-scope-out-of-bounds'],
+    ['unknown disposition kind', plain, { disposition: 'flaky' }, 'disposition-invalid'],
+    ['non-terminal task', plain, { task: '001' }, 'terminal-failure-required'],
+  ];
+  for (const [label, drive, override, reason] of cases) {
+    const before = fs.readFileSync(drive.ledgerFile);
+    const rejected = coordinate(outsideInput(drive, override));
+    assert.strictEqual(rejected.reason, reason, label);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, label);
+  }
+});

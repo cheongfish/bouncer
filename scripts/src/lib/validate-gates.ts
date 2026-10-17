@@ -31,6 +31,7 @@ const {
 } = validateSections;
 import schema = require('./schema');
 import commandArgv = require('./command-argv');
+import { validOutsideScope } from './execution-contracts';
 const { executionKindOf } = schema;
 // plan-snapshot은 validate·validate-gates를 require하지 않으므로 순환이 없다.
 import planSnapshotLib = require('./plan-snapshot');
@@ -1302,30 +1303,46 @@ function runCheckGate(
       ? docs.tasksDocs
       : (docs.tasks ? [docs.tasks] : []);
     const openIds: string[] = [];
-    for (const tasksDoc of tasksList) {
+    // 입증된 범위 밖 terminal 실패는 integrated가 아니어도 닫힌 것으로 본다. 판정은 next·digest·
+    // finalize와 같은 validOutsideScope 하나를 쓰고, 문서가 verifying일 때만 적용해 pending/ready 같은
+    // 재작업 대기 문서가 분류 하나로 닫히지 않게 한다. 원장이 없거나(비-drive) 분류가 stale이면 null이라
+    // 기존 open-task 실패가 그대로 나온다. 통과 시 실패 사실이 사라지지 않도록 경고를 남긴다.
+    const ledgerFn = (deps && deps.coordinatorLedgerFor) || defaultCoordinatorLedgerFor;
+    let ledgerCache: object | null | undefined;
+    const taskIsOpen = (tasksDoc: DocLeaf): boolean => {
       const data = asData(tasksDoc);
       const taskBouncer = data && data.bouncer as Record<string, unknown> | undefined;
-      const expectedStatus = executionKindOf(taskBouncer) === 'verification'
-        ? 'integrated'
-        : 'verified';
-      if (statusOf(tasksDoc) !== expectedStatus) {
-        const id = data && data.bouncer
-          ? (data.bouncer as Record<string, unknown>).id
-          : undefined;
-        openIds.push(typeof id === 'string' && id ? id : '(unknown)');
+      const isTerminal = executionKindOf(taskBouncer) === 'verification';
+      const status = statusOf(tasksDoc);
+      if (status === (isTerminal ? 'integrated' : 'verified')) return false;
+      if (!isTerminal || status !== 'verifying' || typeof repoRoot !== 'string'
+        || typeof blueprintDir !== 'string' || typeof taskBouncer?.id !== 'string') return true;
+      if (ledgerCache === undefined) ledgerCache = ledgerFn({ repoRoot, blueprint: blueprintDir });
+      const accepted = validOutsideScope(ledgerCache, taskBouncer.id);
+      if (!accepted) return true;
+      if (ctx && Array.isArray(ctx.warnings)) {
+        ctx.warnings.push({
+          code: 'G16',
+          message: `terminal verification ${taskBouncer.id} failed and is classified outside_scope: ${accepted.reason}`,
+          file: tasksDoc.rel || rels.tasks,
+        });
       }
+      return false;
+    };
+    const openDocs: DocLeaf[] = [];
+    for (const tasksDoc of tasksList) {
+      if (!taskIsOpen(tasksDoc)) continue;
+      openDocs.push(tasksDoc);
+      const data = asData(tasksDoc);
+      const id = data && data.bouncer
+        ? (data.bouncer as Record<string, unknown>).id
+        : undefined;
+      openIds.push(typeof id === 'string' && id ? id : '(unknown)');
     }
     if (openIds.length) {
       // 열린 task id를 메시지에 담아 어느 묶음이 남았는지 바로 보이게 한다.
       // 경고가 아니라 hard fail — 사용자가 넘길 수 없다.
-      const openDoc = tasksList.find((taskDoc) => {
-        const data = asData(taskDoc);
-        const taskBouncer = data && data.bouncer as Record<string, unknown> | undefined;
-        const expectedStatus = executionKindOf(taskBouncer) === 'verification'
-          ? 'integrated'
-          : 'verified';
-        return statusOf(taskDoc) !== expectedStatus;
-      });
+      const openDoc = openDocs[0];
       failures.push({
         code: 'G16',
         message: `open tasks remain (not verified): ${openIds.join(', ')}`,

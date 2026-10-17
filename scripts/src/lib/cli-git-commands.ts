@@ -441,6 +441,14 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
       + '             --summary <text> --paths <p> --decision <reason>\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Add one audited repair task and move the terminal CI dependency.\n'
+      + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>\n'
+      + '             --paths <p> --decision <reason> --resume-task <ddd>\n'
+      + '             --ledger-path <path> --ledger-hash <sha256>\n'
+      + '             Rework an existing integrated task inside its approved scope (no new task).\n'
+      + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>\n'
+      + '             --paths <p> --decision <reason> --disposition outside_scope\n'
+      + '             --ledger-path <path> --ledger-hash <sha256>\n'
+      + '             Record a proven outside-scope terminal failure; the failure itself stays failed.\n'
       + '  coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>\n'
       + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
@@ -457,6 +465,13 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
   --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Add one audited repair task and move the terminal CI dependency.
+  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
+  --paths <p> --decision <reason> --resume-task <ddd> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Rework an existing integrated task inside its approved scope: no new task, DAG unchanged.
+  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
+  --paths <p> --decision <reason> --disposition outside_scope ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Record a proven outside-scope terminal failure (cause, failing test and needed change judged outside
+  every task scope). The failure stays failed; --resume-task and --disposition are mutually exclusive.
   --blueprint <dir> [--task <ddd>] --review-finding <id> [--review-finding <id>]...
   --summary <text> --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Open a repair task from final-review must_fix findings (omit --task
@@ -801,6 +816,20 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       }
       repairDone = true;
     }
+    // --resume-task/--disposition은 값이 필요하다. 값 없는 플래그(true)나 둘의 동시 입력이 조용히
+    // 기존 dynamic repair 경로로 접히면 새 task가 생기므로 core에 보내기 전에 usage(2)로 끝낸다.
+    for (const name of ['resume-task', 'disposition']) {
+      if (Object.prototype.hasOwnProperty.call(f, name)
+        && (typeof f[name] !== 'string' || f[name] === '')) {
+        return failCoordinateUsage(io, `coordinate repair: --${name} requires a value\n`, command);
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(f, 'resume-task')
+      && Object.prototype.hasOwnProperty.call(f, 'disposition')) {
+      return failCoordinateUsage(
+        io, 'coordinate repair: --resume-task and --disposition are mutually exclusive\n', command,
+      );
+    }
   }
   if (command === 'worker-model' || command === 'worker-tokens') {
     // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
@@ -975,6 +1004,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       reviewFindings: collectReviewFindingValues(rest.slice(1)),
       kind: repairKind,
       done: repairDone,
+      resumeTask: typeof f['resume-task'] === 'string' ? f['resume-task'] : undefined,
+      disposition: typeof f.disposition === 'string' ? f.disposition : undefined,
       outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
       reason: typeof f.reason === 'string' ? f.reason : undefined,
       attempt: attemptNum,

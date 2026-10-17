@@ -1610,6 +1610,72 @@ test('finalize → treats integrated verification nodes as closed while commit t
   assert.deepStrictEqual(failures, []);
 });
 
+/** 범위 밖 분류가 유효한 terminal 실패 원장. mutate로 identity·분류를 깨 거절 경로를 만든다. */
+function outsideScopeLedger(mutate = () => {}) {
+  const ledger = {
+    integrationHead: 'h'.repeat(40),
+    tasks: [
+      { id: '001', status: 'integrated' },
+      { id: '002', execution_kind: 'verification', status: 'verifying' },
+    ],
+    terminalFailure: {
+      task: '002', command: 'npm test', summary: 'exit code 1', paths: [], exitCode: 1, repairWave: 0,
+      evidence_id: 'e'.repeat(64), source_digest: 'h'.repeat(40),
+      disposition: {
+        kind: 'outside_scope', reason: 'outside every task scope', evidence_id: 'e'.repeat(64),
+        source_digest: 'h'.repeat(40), paths: ['vendor/lock.json'],
+      },
+    },
+  };
+  mutate(ledger);
+  return ledger;
+}
+
+function g16WithTerminal(docStatus, ledger) {
+  const failures = [];
+  const warnings = [];
+  checkGate('finalize', {
+    tasksDocs: [
+      doc('verified', { id: 'TASKS-001' }),
+      doc(docStatus, { id: 'TASKS-002', execution_kind: 'verification' }),
+    ],
+    explain: explainDoc([compEntry()]),
+  }, rels, failures, {
+    ...G16_CTX, warnings,
+    deps: { ...G16_CTX.deps, coordinatorLedgerFor: () => ledger },
+  });
+  return { failures, warnings };
+}
+
+test('finalize gate G16 with a verifying terminal and a proven outside_scope classification → passes with a warning', () => {
+  const { failures, warnings } = g16WithTerminal('verifying', outsideScopeLedger());
+  assert.deepStrictEqual(failures, []);
+  assert.deepStrictEqual(warnings.map((w) => w.code), ['G16']);
+});
+
+test('finalize gate G16 with a verifying terminal and no valid classification → keeps the open-task failure', () => {
+  const cases = [
+    ['no ledger', null],
+    ['no classification', outsideScopeLedger((l) => { delete l.terminalFailure.disposition; })],
+    ['source moved', outsideScopeLedger((l) => { l.integrationHead = 'x'.repeat(40); })],
+    ['evidence mismatch', outsideScopeLedger((l) => { l.terminalFailure.disposition.evidence_id = 'd'.repeat(64); })],
+    ['empty reason', outsideScopeLedger((l) => { l.terminalFailure.disposition.reason = ''; })],
+    ['failure of another task', outsideScopeLedger((l) => { l.terminalFailure.task = '001'; })],
+  ];
+  for (const [label, ledger] of cases) {
+    const { failures } = g16WithTerminal('verifying', ledger);
+    assert.deepStrictEqual(failures.map((f) => f.code), ['G16'], label);
+    assert.match(failures[0].message, /open tasks remain.*TASKS-002/, label);
+  }
+});
+
+test('finalize gate G16 with a classified failure but a terminal document that is not verifying → keeps failing', () => {
+  for (const status of ['pending', 'ready', 'draft']) {
+    const { failures } = g16WithTerminal(status, outsideScopeLedger());
+    assert.deepStrictEqual(failures.map((f) => f.code), ['G16'], status);
+  }
+});
+
 test('finalize gate G16 when explain.md is absent → fails', () => {
   const failures = [];
   checkGate('finalize', {

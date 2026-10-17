@@ -31,6 +31,13 @@ from the coordinator Procedure step 5 (Judge) and Hard guards.
   Its refusal is final; never start another wave by hand. Terminal CI failure
   may add at most two dynamic repair tasks. After a second repair still fails,
   automatic execution stops.
+- Before adding a task, classify the cause. Code owned by an integrated task is
+  reworked on that task: `coordinate repair --task <terminal> --resume-task
+  <ddd>` (no new task, DAG and scope unchanged, new lease generation). A cause,
+  failing test, and needed change proven outside every approved scope is
+  recorded with `--disposition outside_scope` against the original evidence;
+  the failure stays failed and `next` moves on. The options are mutually
+  exclusive, and an unclear, mixed, or stale cause stays `blocked`.
 - When the CLI refuses another repair wave (after a second repair still
   fails), preserve the integration and worker worktrees and the last failure,
   create untracked integration-root `NEXT_PLAN.md`, and stop for user

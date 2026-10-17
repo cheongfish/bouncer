@@ -105,6 +105,27 @@ to your `Decision required` judgment, never a second brief.
   scope, and Blueprint necessity; the repair depends on the then-integrated
   leaves and the terminal verification node moves its dependency to that repair.
   After a second repair still fails, automatic execution stops.
+- A terminal failure whose cause is code an already integrated task owns is
+  resumed on that task, not on a new one: `coordinate repair --task <terminal>
+  --resume-task <ddd>` with the same failure command, summary, `--paths` inside
+  that task's approved scope, and a decision. It adds no task and leaves the DAG,
+  IDs, and scope unchanged; it revokes the old lease, so `prepare` hands the task
+  to a worker cut from the current integration HEAD (new lease generation, prior
+  integrated content kept) and the terminal re-verifies after reintegration.
+  Late reports or commits from the previous lease are refused. Unrelated tasks do
+  not run again. Count it as one repair wave.
+- A terminal failure proven to be outside every approved task scope is recorded
+  with `coordinate repair --task <terminal> --disposition outside_scope` (with
+  the failure command, a summary naming the cause, the failing test, and why the
+  needed change is outside scope, `--paths`, and a decision). It binds to the
+  original evidence and source identity, so a changed source or another
+  failure makes it stale. The failure stays failed and the terminal stays
+  `verifying`; `next`, the gates, the digest, and the PR carry it as a separate
+  warning, never as passed or integrated. Unclear cause, mixed in-scope and
+  outside-scope causes, or a source change stay `blocked`. `--resume-task` and
+  `--disposition` are mutually exclusive. When the finalize remainder
+  verification fails for the same command and exit code, finalize links the new
+  run to that evidence; a different failure still stops it.
 - A failing CI, lint, or word-count check never lets you edit files yourself.
   Inside a task's scope it is `rework`; a terminal failure goes through
   `coordinate repair` so a worker fixes it. `coordinate integrate` refuses
