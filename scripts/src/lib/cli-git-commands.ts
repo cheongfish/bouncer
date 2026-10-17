@@ -344,8 +344,9 @@ const COORDINATE_FENCE_NOTE = `${COORDINATE_FENCE} (from coordinate status check
 const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> = {
   bootstrap: {
     help: `usage: bouncer coordinate bootstrap
-  --blueprint <dir> [--repo <dir>]
+  --blueprint <dir> [--repo <dir>] [--promote-light]
   Seed the integration worktree and ledger. Not ledger-fenced.
+  --promote-light archives a promotion_stopped light ledger and starts a full ledger.
 `,
   },
   prepare: {
@@ -990,6 +991,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       ledgerPath,
       ledgerHash,
       userConfirmed: f['user-confirmed'] === true,
+      promoteLight: f['promote-light'] === true,
     }) as { ok: boolean };
     const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
     if (result.ok && hasWriteInput) {

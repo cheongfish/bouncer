@@ -3942,6 +3942,135 @@ test('promotion_stopped ledger → refuses prepare dispatch report record integr
   }
 });
 
+test('promotion_stopped light ledger with full scale and --promote-light → archives, writes the patch, and seeds a full ledger', () => {
+  const blueprint = '.bouncer/context/epics/107-workflow-cost-reduction/blueprints/003-plan-run-call-reduction-replacement';
+  const drive = lightPreparedDrive('bouncer-promote-light-success-', blueprint);
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/new.bin'), Buffer.from([0, 255, 1, 2]));
+  const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
+  assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
+  const mainIndex = path.join(drive.repo, blueprint, 'index.md');
+  fs.writeFileSync(mainIndex, fs.readFileSync(mainIndex, 'utf8').replace('scale: light', 'scale: full'));
+  const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  const archive = path.join(drive.integrationPath, '.bouncer/runtime/coordinator.light-promoted.json');
+  const patch = path.join(drive.integrationPath, '.bouncer/runtime/light-promoted.patch');
+  assert.ok(fs.existsSync(archive));
+  assert.ok(fs.existsSync(patch));
+  execFileSync('git', ['apply', '--check', patch], { cwd: drive.integrationPath });
+  assert.match(fs.readFileSync(patch, 'utf8'), /GIT binary patch/);
+  assert.match(fs.readFileSync(patch, 'utf8'), /src\/new\.bin/);
+  assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, 'src/new.bin')), false);
+  assert.strictEqual(fs.readFileSync(path.join(drive.integrationPath, 'src/a.js'), 'utf8'),
+    execFileSync('git', ['show', 'HEAD:src/a.js'], { cwd: drive.integrationPath, encoding: 'utf8' }));
+  const archived = JSON.parse(fs.readFileSync(archive, 'utf8'));
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.mode, undefined);
+  assert.strictEqual(ledger.base, archived.base);
+  assert.strictEqual(ledger.promoted_from.diff_sha, archived.promotion.diff_sha);
+  assert.strictEqual(out.mode, 'full');
+});
+
+for (const [condition, mutate, expected] of [
+  ['missing ledger', 'missing', 'promote-light-requires-stopped'],
+  ['full ledger', 'full', 'promote-light-requires-stopped'],
+  ['not stopped', 'active', 'promote-light-requires-stopped'],
+  ['light scale', 'stopped', 'promote-light-scale-light'],
+  ['archive exists', 'archive', 'promote-light-archive-exists'],
+  ['diff drift', 'drift', 'promotion-diff-drift'],
+]) {
+  test(`--promote-light with ${condition} → rejects with ${expected}`, () => {
+    const slug = condition.replaceAll(' ', '-');
+    const blueprint = `.bouncer/context/epics/107-promote-reject/blueprints/007-${slug}`;
+    const drive = lightPreparedDrive('bouncer-promote-light-reject-', blueprint);
+    const ledgerBytes = fs.readFileSync(drive.ledgerFile);
+    if (['stopped', 'archive', 'drift'].includes(mutate)) {
+      const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
+        cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
+      assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
+    }
+    if (mutate === 'missing') {
+      fs.rmSync(drive.ledgerFile);
+    } else if (mutate === 'full') {
+      const ledger = JSON.parse(ledgerBytes); delete ledger.mode;
+      fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+    } else if (mutate === 'active') {
+      const ledger = JSON.parse(ledgerBytes); ledger.status = 'active'; delete ledger.promotion;
+      fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+    } else if (mutate === 'stopped') {
+      // stopped 상태는 유지하되 main scale을 light로 둬 scale 검사에 도달한다.
+    } else if (mutate === 'archive') {
+      const index = path.join(drive.repo, blueprint, 'index.md');
+      fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('scale: light', 'scale: full'));
+      fs.writeFileSync(path.join(drive.integrationPath, '.bouncer/runtime/coordinator.light-promoted.json'), 'occupied');
+    } else if (mutate === 'drift') {
+      const index = path.join(drive.repo, blueprint, 'index.md');
+      fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('scale: light', 'scale: full'));
+      fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'changed after stop\n');
+    }
+    const beforeBytes = fs.existsSync(drive.ledgerFile) ? fs.readFileSync(drive.ledgerFile) : null;
+    const status = execFileSync('git', ['status', '--porcelain'], { cwd: drive.integrationPath, encoding: 'utf8' });
+    const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+    assert.strictEqual(out.ok, false);
+    assert.strictEqual(out.reason, expected);
+    assert.deepStrictEqual(fs.existsSync(drive.ledgerFile) ? fs.readFileSync(drive.ledgerFile) : null, beforeBytes);
+    assert.strictEqual(execFileSync('git', ['status', '--porcelain'], { cwd: drive.integrationPath, encoding: 'utf8' }), status);
+  });
+}
+
+test('promote-light with writeLedger failing on the new ledger → rolls back and returns restored true', () => {
+  const blueprint = '.bouncer/context/epics/107-promote-rollback/blueprints/001-plan';
+  const drive = lightPreparedDrive('bouncer-promote-light-rollback-', blueprint);
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
+  assert.strictEqual(stopped.ok, true);
+  const index = path.join(drive.repo, blueprint, 'index.md');
+  fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('scale: light', 'scale: full'));
+  const bytes = fs.readFileSync(drive.ledgerFile);
+  const originalDocs = [
+    `${blueprint}/index.md`, `${blueprint}/tasks/001/tasks.md`, `${blueprint}/verification.md`,
+    '.bouncer/context/index.md',
+  ].map((rel) => [rel, fs.existsSync(path.join(drive.integrationPath, rel))
+    ? fs.readFileSync(path.join(drive.integrationPath, rel)) : null]);
+  const originalStatus = execFileSync('git', ['status', '--porcelain'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  const originalDiff = execFileSync('git', ['diff', 'HEAD'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  const originalDiffSha = crypto.createHash('sha256')
+    .update(originalStatus, 'utf8').update('\0').update(originalDiff, 'utf8').digest('hex');
+  const beforeDiff = stopped.promotion.diff_sha;
+  const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true,
+    deps: { writeLedger: (file, ledger) => {
+      if (file === drive.ledgerFile && ledger.promoted_from) throw new Error('injected full ledger write failure');
+      __coordinatorMod.atomicWrite ? __coordinatorMod.atomicWrite(file, ledger) : fs.writeFileSync(file, `${JSON.stringify(ledger, null, 2)}\n`);
+    } },
+  });
+  assert.strictEqual(out.reason, 'promote-light-incomplete');
+  assert.strictEqual(out.restored, true);
+  for (const [rel, original] of originalDocs) {
+    const abs = path.join(drive.integrationPath, rel);
+    assert.deepStrictEqual(fs.existsSync(abs) ? fs.readFileSync(abs) : null, original);
+  }
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), bytes);
+  assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/coordinator.light-promoted.json')), false);
+  assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/light-promoted.patch')), false);
+  const afterStatus = execFileSync('git', ['status', '--porcelain'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  const afterDiff = execFileSync('git', ['diff', 'HEAD'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  const afterDiffSha = crypto.createHash('sha256')
+    .update(afterStatus, 'utf8').update('\0').update(afterDiff, 'utf8').digest('hex');
+  assert.strictEqual(afterDiffSha, originalDiffSha);
+  assert.strictEqual(beforeDiff, stopped.promotion.diff_sha);
+  assert.match(beforeDiff, /^[a-f0-9]{64}$/);
+});
+
 // --- coordinate repair --kind supplement -----------------------------------
 // 범위 내 테스트 보완은 새 task·repair wave 없이 제자리에서 닫는다. 아래 fixture는
 // 모든 task가 integrated이고 테스트 경로가 affected_paths 안에 있는 integration이다.

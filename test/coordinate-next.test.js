@@ -1501,6 +1501,32 @@ test('full ledger의 implement → payload.inline을 생략함', () => {
   assert.strictEqual('inline' in (r.payload || {}), false);
 });
 
+test('implement payload with promoted_from.patch → carries promoted_patch', () => {
+  const blueprint = '.bouncer/context/epics/107-promoted/blueprints/001-patch';
+  const drive = preparedCommitDrive('bouncer-next-promoted-patch-', blueprint);
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.promoted_from = { archive: '/archive', patch: '/saved.patch', diff_sha: 'a'.repeat(64), reason: 'task-split', task: '001' };
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'implement');
+  assert.strictEqual(r.payload.promoted_patch, '/saved.patch');
+});
+
+test('implement payload with promoted_from.patch null → omits promoted_patch', () => {
+  const blueprint = '.bouncer/context/epics/107-promoted/blueprints/002-no-patch';
+  const drive = preparedCommitDrive('bouncer-next-promoted-no-patch-', blueprint);
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.promoted_from = { archive: '/archive', patch: null, diff_sha: 'a'.repeat(64), reason: 'task-split', task: '001' };
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'implement');
+  assert.strictEqual('promoted_patch' in r.payload, false);
+});
+
 // ---- 세션 yield 판정 (BP 098/002) ----------------------------------------------------
 
 const YIELD_BP = '.bouncer/context/epics/098-n/blueprints/002-yield';

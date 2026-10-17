@@ -35,6 +35,8 @@ its fallback, read [agent-dispatch](../../skills/bouncer-run/references/agent-di
 
 ## Payload
 
+When `payload.promoted_patch` is present, it points to the saved dirty-work patch from a stopped light run. Inspect it as task input and reuse only changes covered by the current task's `affected_paths`; the patch is evidence of prior work, not expanded authority.
+
 - Every named and fallback payload for implementer, debugger, and reviewer
   carries the same `task_brief_hash`, `intent_bundle_id`, and
   `intent_bundle_revision` from the controller's single preflight
