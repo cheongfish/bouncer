@@ -163,3 +163,72 @@ test('bouncer-coordinator Worker dispatch body → stays at most 20 lines', () =
   const lines = worker.split('\n');
   assert.ok(lines.length <= 20, `Worker dispatch is ${lines.length} lines`);
 });
+
+// ---- implementer 파일 보고·hand-back 계약 ----
+// 파일 보고 template은 `coordinate report`가 읽는 기계 형식이라 문서 문구가 아니라
+// 계약 자체다. 그래서 문서에서 template을 그대로 뽑아 제목 목록을 고정한다.
+// 이 파일은 unit 계층(프로세스 spawn 금지)이라, 실제 `coordinate report` parser에
+// 넣는 회귀는 git fixture가 있는 integration 계층 테스트가 맡아야 한다.
+
+/**
+ * 역할 문서에서 지정한 H2 절의 본문을 돌려준다. 다음 H2(코드 블록 밖) 직전까지다.
+ *
+ * @param {string} md - 역할 문서 원문
+ * @param {string} heading - `## ` 뒤 제목
+ * @returns {string} 절 본문. 절이 없으면 빈 문자열
+ */
+function roleSection(md, heading) {
+  const lines = md.split('\n');
+  const start = lines.indexOf(`## ${heading}`);
+  if (start === -1) return '';
+  const out = [];
+  let fenced = false;
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith('```')) fenced = !fenced;
+    if (!fenced && line.startsWith('## ')) break;
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+/**
+ * implementer Output contract의 파일 보고 template(첫 ```markdown 블록)을 돌려준다.
+ *
+ * @returns {string} template 본문(울타리 제외)
+ */
+function implementerFileTemplate() {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const block = roleSection(md, 'Output contract').match(/```markdown\n([\s\S]*?)\n```/);
+  assert.ok(block, 'Output contract must carry a markdown template');
+  return block[1];
+}
+
+/**
+ * template의 `## ` 제목을 순서대로 돌려준다.
+ *
+ * @param {string} body - 보고 본문
+ * @returns {string[]} 제목 목록
+ */
+function h2Headings(body) {
+  return [...body.matchAll(/^## (.+)$/gm)].map((m) => m[1].trim());
+}
+
+test('implementer file report template → keeps required sections and omits empty optional ones', () => {
+  // 요구사항: 빈 Deviations·Scope impact·Needs planning만 파일 보고에서 생략하고,
+  // Changed files·검증·Red run·필수 절은 남긴다.
+  assert.deepStrictEqual(h2Headings(implementerFileTemplate()), [
+    'Changed files', 'Checklist coverage', 'Tests', 'Red run',
+    'Open choices', 'Known weaknesses', 'Verify recovery', 'Brief revision',
+  ]);
+});
+
+test('implementer hand-back contract → separates the report_path short form from the inline full report', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const handBack = roleSection(md, 'Output contract').split('\n### Hand-back\n')[1] || '';
+  // report_path가 있으면 짧은 hand-back, 없으면 전체 inline 보고라는 두 분기가 모두 있어야 한다.
+  assert.ok(handBack.includes('With `report_path`'), 'Hand-back must cover the report_path case');
+  assert.ok(handBack.includes('Without `report_path`'), 'Hand-back must keep the inline full-report case');
+  // 역할 문서는 Output contract로 끝나야 하므로(doc-shape) hand-back은 그 안의 하위 절이고,
+  // 파일 보고 template 뒤에 와야 reviewer가 읽는 파일 보고와 섞이지 않는다.
+  assert.ok(md.indexOf('### Hand-back') > md.indexOf('```markdown'));
+});

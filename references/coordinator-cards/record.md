@@ -11,6 +11,9 @@ the coordinator Procedure step 3 (Drive).
 - Confirm `payload.report` and read only `payload.evidence` pointers whose
   hashes still match before filling `judge.fields`; do not widen scope from
   those paths.
+- Name the changed paths from the report file's `## Changed files`, not from
+  the short hand-back; the file keeps that evidence and the `Red run` the
+  reviewer reads, even when it omits empty optional sections.
 - A mismatched Brief revision is stale: do not call `accepted` or
   `coordinate record`, and keep the attempt open. A missing one is refused by
   `coordinate report` as `report-revision-missing`; fix the report file first.

@@ -104,11 +104,12 @@ read code/tests/repo context needed to implement.
    Keep the project's verify command runnable; do not weaken assertions to
    force a pass. Assertion and naming rules are in the coding standards' `Tests`
    and `Test trust` sections.
-6. **Report** — Fill the Output contract below, then hand control back. When
-   the dispatch payload carries `report_path`, write the same Output contract
-   body to that path (creating parent directories) immediately before you
-   return, so the root can observe the final report even if the coordinator
-   returns early. Without `report_path`, do not write any report file.
+6. **Report** — Fill the Output contract below, then hand control back as its
+   **Hand-back** subsection says. When the dispatch payload carries
+   `report_path`, write the Output contract body to that path (creating parent
+   directories) immediately before you return, so the root can observe the
+   final report even if the coordinator returns early. Without `report_path`,
+   do not write any report file.
 
 ## Guardrails
 
@@ -146,11 +147,18 @@ report it under **Scope impact**.
 ## Output contract
 
 The controller routes the next step from this report alone — it does not re-read
-your diff to reconstruct what you did. Write each field under its own `## <Name>`
-heading, in the order of the template below, and nothing else actionable. A
-field with no value gets a single `- none` line. `coordinate report` reads the
+your diff to reconstruct what you did, and the reviewer reads its `Red run`.
+Write each field under its own `## <Name>` heading, in the order of the
+template below, and nothing else actionable. `coordinate report` reads the
 report file and rejects a missing or malformed `## Brief revision`,
 `## Open choices`, or `## Known weaknesses`.
+
+- Every template section is required. An empty Open choices, Known
+  weaknesses, or Verify recovery gets a single `- none` line. Brief revision
+  always carries its two value lines and is never replaced by `none`.
+- Deviations, Scope impact, and Needs planning are optional in the report
+  file: write each one only when it has a value, in that order between
+  `## Red run` and `## Open choices`, and omit an empty one.
 
 ```markdown
 ## Changed files
@@ -164,15 +172,6 @@ report file and rejects a missing or malformed `## Brief revision`,
 
 ## Red run
 - <command run> — <failing assertion or failure point observed>
-
-## Deviations
-- none
-
-## Scope impact
-- none
-
-## Needs planning
-- none
 
 ## Open choices
 - <interpretation of the spec you had to pick yourself>
@@ -200,10 +199,10 @@ task_brief_hash: <64 hex you received>
   regression test's red run here too. This is the reviewer's test-trust input,
   never verification evidence — the execute gate remains the only recorder of
   success.
-- **Deviations** — where the diff differs from the brief, and why.
-- **Scope impact** — `none`, or the paths the work needed outside the current
+- **Deviations** (optional) — where the diff differs from the brief, and why.
+- **Scope impact** (optional) — the paths the work needed outside the current
   `affected_paths` and why, plus any other task the change touches.
-- **Needs planning** — `none`, or one sentence naming the ambiguity /
+- **Needs planning** (optional) — one sentence naming the ambiguity /
   contradiction and why it cannot be settled inside the approved scope.
 - **Open choices** — each interpretation of the spec you had to pick yourself,
   one per `- ` line, so the controller sees decisions the brief did not make.
@@ -219,4 +218,19 @@ task_brief_hash: <64 hex you received>
 `Needs planning` is how you stop: report it instead of guessing. The controller
 turns it into one recorded decision — during a coordinator drive a `Decision
 required` judgment, outside one a `/bouncer-plan` escalation.
+
+### Hand-back
+
+With `report_path`, the report file is the full report; hand back only:
+
+- a short summary of the outcome and the overall verify result;
+- the `report_path` you wrote;
+- `Needs planning` and `Scope impact`, each only when it has a value.
+
+Do not repeat the other report sections in the hand-back — the controller reads
+them from the file (`payload.report`), and the reviewer reads its `Red run`.
+
+Without `report_path` (an independent call), there is no file: return the full
+Output contract inline as the hand-back, including Deviations, Scope impact,
+and Needs planning, each with a single `- none` line when empty.
 """

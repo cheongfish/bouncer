@@ -1926,6 +1926,62 @@ test('full report with a valid file → stores open_choices and known_weaknesses
   assert.deepStrictEqual(reported.decision.known_weaknesses, []);
 });
 
+/**
+ * implementer 역할 문서의 파일 보고 template을 실제 attempt·hash로 채운 본문을 만든다.
+ * 문서 template을 그대로 쓰므로, 문서가 선택 절(Deviations·Scope impact·Needs planning)을
+ * 빼도 parser가 받아 준다는 계약이 문서와 parser 사이에서 함께 고정된다.
+ *
+ * @param {number} attempt - dispatch가 준 attempt
+ * @param {string} hash - dispatch가 준 task_brief_hash
+ * @returns {string} 빈 Open choices를 `- none`으로 채운 보고 본문
+ */
+function filledImplementerReport(attempt, hash) {
+  const md = fs.readFileSync(path.join(__dirname, '..', 'agents', 'bouncer-implementer.md'), 'utf8');
+  const block = md.match(/## Output contract[\s\S]*?```markdown\n([\s\S]*?)\n```/);
+  assert.ok(block, 'implementer Output contract must carry a markdown template');
+  return block[1]
+    .replace('<attempt you received>', String(attempt))
+    .replace('<64 hex you received>', hash)
+    .replace('- <interpretation of the spec you had to pick yourself>', '- none');
+}
+
+/**
+ * 보고 본문에서 한 H2 절을 통째로 뺀다. 필수 절 거절 경로 fixture용이다.
+ *
+ * @param {string} body - 보고 본문
+ * @param {string} heading - 뺄 절 제목
+ * @returns {string} 절이 빠진 본문
+ */
+function dropSection(body, heading) {
+  return body.replace(new RegExp(`## ${heading}\\n[\\s\\S]*?(?=\\n## |$)`), '').replace(/\n{3,}/g, '\n\n');
+}
+
+test('implementer report without the three optional sections → accepted with empty stored lists, required gaps still refused', () => {
+  const { drive, attempt, hash, report } = openReportAttempt(
+    'bouncer-report-optional-', '.bouncer/context/epics/098-x/blueprints/006-y',
+  );
+  const filled = filledImplementerReport(attempt, hash);
+  // 전제: 문서 template 자체가 선택 세 절을 담지 않아야 이 회귀가 의미를 가진다.
+  for (const optional of ['Deviations', 'Scope impact', 'Needs planning']) {
+    assert.ok(!filled.includes(`## ${optional}\n`), `${optional} must be omitted`);
+  }
+  const reportFile = path.join(drive.worker, '.bouncer/runtime/reports', `001-${attempt}.md`);
+  fs.mkdirSync(path.dirname(reportFile), { recursive: true });
+  const write = (body) => fs.writeFileSync(reportFile, `${body}\n`);
+
+  // 필수 revision·heading 누락은 parser 완화 없이 기존 reason으로, ledger를 쓰지 않고 거절된다.
+  write(dropSection(filled, 'Brief revision'));
+  assertRefusedWithoutWrite(drive, report, 'report-revision-missing');
+  write(dropSection(filled, 'Open choices'));
+  assert.deepStrictEqual(assertRefusedWithoutWrite(drive, report, 'report-section-missing').missing, ['Open choices']);
+
+  write(filled);
+  const accepted = report();
+  assert.strictEqual(accepted.ok, true, JSON.stringify(accepted));
+  assert.deepStrictEqual(accepted.decision.open_choices, []);
+  assert.deepStrictEqual(accepted.decision.known_weaknesses, []);
+});
+
 test('record after brief bytes change following an accepted report → rejects', () => {
   const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
   const drive = preparedCommitDrive('bouncer-dispatch-stale-record-', blueprint);

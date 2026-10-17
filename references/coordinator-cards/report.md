@@ -16,6 +16,11 @@ the coordinator Procedure step 3 (Drive) and step 5 (Judge).
   writing the ledger. Redispatch the same attempt or ask the worker to fix the
   file at `report_path`, then retry. `report-revision-conflict` (file differs
   from the arguments) is handled the same way.
+- Judge from the report file, not the implementer's hand-back: with
+  `report_path` the hand-back carries only a summary, the path, and any
+  Needs planning / Scope impact. The file may omit empty Deviations, Scope
+  impact, and Needs planning headings — an absent one reads as `none`, not a
+  missing section. Changed files, Red run, and the required sections stay.
 - Before `accepted`, compare the Contract's storage location, state ownership,
   and interface wording in the task brief with the report's changed files and
   deviations. A mismatch is `rework` or `scope_revision`, never `accepted`.
