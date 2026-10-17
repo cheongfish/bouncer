@@ -308,6 +308,10 @@ your diffs, so return these fields and nothing else actionable:
   ledger `branch` and worker commit SHA, the integration task SHA linked to it
   by its `Bouncer-Worker-Commit` trailer (label each SHA as worker or
   integration), and any task or edge added during the drive.
+- **Metrics** — your `bouncer metrics summary` token and time figures, with your
+  own session and each worker role (implementer, reviewer, debugger) as separate
+  rows and every `missing` count. A `null` total is unreported, not 0; never sum
+  your tokens with the workers', and never fill in a value the host did not give.
 - **Partial close** — both repair-wave decisions, the last CI command and paths,
   post-wave-two nonzero failure evidence, `NEXT_PLAN.md`, preserved ledger and
   worktrees, and the user confirmation result.

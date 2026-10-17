@@ -462,7 +462,8 @@ test('summarize worker_tokens → worker-model 둘(토큰 하나)과 늦은 work
       debugger: { total: 0, missing: 0 },
     },
   });
-  assert.strictEqual(summary.kinds['coordinator-session'].tokens_total, 0);
+  // coordinator 세션이 없으면 관측값이 없으므로 0이 아니라 null이다(worker 합계와 섞지 않는다).
+  assert.strictEqual(summary.kinds['coordinator-session'].tokens_total, null);
 });
 
 test('summarize worker_tokens → 토큰 없는 worker-model만 있으면 그 수가 missing이고 초과 보고는 음수가 되지 않는다', () => {
@@ -514,4 +515,135 @@ test('metrics CLI summary → 원장의 worker-tokens를 worker_tokens로 낸다
   const io = { out: (s) => { buf.out += s; }, err: (s) => { buf.err += s; } };
   assert.strictEqual(runCli(['metrics', 'summary', '--blueprint', BLUEPRINT, '--repo', repo], io), 0, buf.err);
   assert.strictEqual(JSON.parse(buf.out).worker_tokens.by_role.implementer.total, 11);
+});
+
+// 끝난 세션 기록을 직접 만든다. 필드를 생략하면 legacy 기록(필드 부재)이 된다.
+function endedSession(id, extra, kind = 'coordinator-session') {
+  return {
+    id, kind, blueprint: BLUEPRINT, label: null,
+    started_at: '2026-01-01T00:00:00.000Z', ended_at: '2026-01-01T00:00:01.000Z', ...extra,
+  };
+}
+
+test('summary → 토큰·시간이 전부 누락이면 total은 null이고 missing이 세션 수다', () => {
+  const f = fixture();
+  fs.writeFileSync(f.file, JSON.stringify({
+    version: 1,
+    sessions: [endedSession('m-1', {}), endedSession('m-2', { tokens: null, wall_ms: null })],
+  }));
+  const cs = metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).kinds['coordinator-session'];
+  assert.deepStrictEqual(
+    [cs.tokens_total, cs.input_tokens_total, cs.output_tokens_total, cs.host_duration_ms_total, cs.wall_ms_total],
+    [null, null, null, null, null],
+  );
+  assert.deepStrictEqual(
+    [cs.tokens_missing, cs.input_tokens_missing, cs.output_tokens_missing, cs.host_duration_ms_missing, cs.wall_ms_missing],
+    [2, 2, 2, 2, 2],
+  );
+});
+
+test('summary → 명시적 0은 유효한 관측값이라 total 0이고 missing이 아니다', () => {
+  const f = fixture();
+  fs.writeFileSync(f.file, JSON.stringify({
+    version: 1,
+    sessions: [endedSession('m-1', {
+      tokens: 0, input_tokens: 0, output_tokens: 0, host_duration_ms: 0, wall_ms: 0,
+    })],
+  }));
+  const cs = metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).kinds['coordinator-session'];
+  assert.deepStrictEqual(
+    [cs.tokens_total, cs.input_tokens_total, cs.output_tokens_total, cs.host_duration_ms_total, cs.wall_ms_total],
+    [0, 0, 0, 0, 0],
+  );
+  assert.strictEqual(cs.tokens_missing + cs.input_tokens_missing + cs.wall_ms_missing, 0);
+});
+
+test('summary → input만 준 세션과 output만 준 세션은 알려진 합과 missing을 함께 낸다', () => {
+  const f = fixture();
+  const s1 = metrics.startSession({
+    file: f.file, ledgerFile: f.ledgerFile, kind: 'coordinator-session', blueprint: BLUEPRINT,
+    now: clock('2026-01-01T00:00:00Z'), randomId: () => 'd1d1d1d1d1d1d1d1',
+  });
+  metrics.endSession({
+    file: f.file, resolveLedger: () => f.ledgerFile, id: s1.id, pricing: {}, inputTokens: 30,
+    now: clock('2026-01-01T00:00:01Z'),
+  });
+  const s2 = metrics.startSession({
+    file: f.file, ledgerFile: f.ledgerFile, kind: 'coordinator-session', blueprint: BLUEPRINT,
+    now: clock('2026-01-01T00:00:00Z'), randomId: () => 'd2d2d2d2d2d2d2d2',
+  });
+  metrics.endSession({
+    file: f.file, resolveLedger: () => f.ledgerFile, id: s2.id, pricing: {}, outputTokens: 5,
+    now: clock('2026-01-01T00:00:01Z'),
+  });
+  const cs = metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).kinds['coordinator-session'];
+  assert.deepStrictEqual(
+    [cs.input_tokens_total, cs.input_tokens_missing, cs.output_tokens_total, cs.output_tokens_missing],
+    [30, 1, 5, 1],
+  );
+  // 한쪽 split만 있는 세션은 총합을 추정하지 않으므로 tokens는 전부 누락이다.
+  assert.deepStrictEqual([cs.tokens_total, cs.tokens_missing], [null, 2]);
+});
+
+test('summary → host_duration_ms 없이 wall_ms만 있으면 wall만 합산하고 host는 누락이다', () => {
+  const f = fixture();
+  fs.writeFileSync(f.file, JSON.stringify({
+    version: 1,
+    sessions: [
+      endedSession('m-1', { wall_ms: 4000 }),
+      endedSession('m-2', { wall_ms: 1000, host_duration_ms: 9000 }),
+    ],
+  }));
+  const cs = metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).kinds['coordinator-session'];
+  assert.deepStrictEqual([cs.wall_ms_total, cs.wall_ms_missing], [5000, 0]);
+  assert.deepStrictEqual([cs.host_duration_ms_total, cs.host_duration_ms_missing], [9000, 1]);
+});
+
+test('summary → wall_ms 필드가 없는 legacy 세션은 0으로 접지 않고 wall_ms_missing으로 센다', () => {
+  const f = fixture();
+  fs.writeFileSync(f.file, JSON.stringify({
+    version: 1,
+    sessions: [endedSession('m-1', { tokens: 10 }), endedSession('m-2', { wall_ms: 2000 })],
+  }));
+  const cs = metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).kinds['coordinator-session'];
+  assert.deepStrictEqual([cs.wall_ms_total, cs.wall_ms_missing], [2000, 1]);
+});
+
+test('summary → 열린 세션은 완료 합계와 missing에 넣지 않는다', () => {
+  const f = fixture();
+  fs.writeFileSync(f.file, JSON.stringify({
+    version: 1,
+    sessions: [endedSession('m-1', { ended_at: null }), endedSession('m-2', { tokens: 5, wall_ms: 10 })],
+  }));
+  const cs = metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).kinds['coordinator-session'];
+  assert.deepStrictEqual([cs.sessions, cs.open], [2, 1]);
+  assert.deepStrictEqual([cs.tokens_total, cs.tokens_missing, cs.wall_ms_missing], [5, 0, 0]);
+});
+
+test('summary → coordinator 토큰과 역할별 worker 토큰은 이중 합산 없이 따로 나오고 cache는 총합에 안 더한다', () => {
+  const f = fixture();
+  fs.writeFileSync(f.file, JSON.stringify({
+    version: 1,
+    sessions: [endedSession('m-1', { tokens: 1000, cache_read_tokens: 500, cache_write_tokens: 200, wall_ms: 1 })],
+  }));
+  writeLedger(f.ledgerFile, {
+    integrated: [],
+    decisions: [
+      { kind: 'worker-model', role: 'implementer', model: 'inherit', task: '001', tokens: 100 },
+      { kind: 'worker-model', role: 'reviewer', model: 'inherit', task: '001', perspective: 'security' },
+      { kind: 'worker-tokens', role: 'reviewer', tokens: 40, task: '001', perspective: 'security' },
+      { kind: 'worker-model', role: 'debugger', model: 'inherit', task: '001' },
+    ],
+  });
+  const summary = metrics.summarize({ file: f.file, blueprint: BLUEPRINT, resolveLedger: () => f.ledgerFile });
+  assert.strictEqual(summary.kinds['coordinator-session'].tokens_total, 1000);
+  assert.deepStrictEqual(summary.worker_tokens, {
+    total: 140, missing: 1,
+    by_role: {
+      implementer: { total: 100, missing: 0 },
+      reviewer: { total: 40, missing: 0 },
+      debugger: { total: 0, missing: 1 },
+    },
+  });
+  assert.deepStrictEqual(summary.cache, { read: { total: 500, missing: 0 }, write: { total: 200, missing: 0 } });
 });

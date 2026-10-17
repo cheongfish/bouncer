@@ -315,10 +315,37 @@ type WorkerTokensTotal = { total: number; missing: number };
 type WorkerTokensSummary = WorkerTokensTotal & {
   by_role: Record<'implementer' | 'reviewer' | 'debugger', WorkerTokensTotal>;
 };
+// *_total은 관측값이 하나도 없으면 null이다(명시적 0은 관측값). 일부만 관측되면 알려진 합이며
+// 완전한 총량이 아니므로 *_missing을 함께 읽어야 한다.
 type KindSummary = {
-  sessions: number; open: number; tokens_total: number; tokens_missing: number;
-  wall_ms_total: number; cost_total: number; cost_missing: number; tasks_completed?: number;
+  sessions: number; open: number;
+  tokens_total: number | null; tokens_missing: number;
+  input_tokens_total: number | null; input_tokens_missing: number;
+  output_tokens_total: number | null; output_tokens_missing: number;
+  host_duration_ms_total: number | null; host_duration_ms_missing: number;
+  wall_ms_total: number | null; wall_ms_missing: number;
+  cost_total: number; cost_missing: number; tasks_completed?: number;
 };
+type TotalKey = 'tokens_total' | 'input_tokens_total' | 'output_tokens_total'
+  | 'host_duration_ms_total' | 'wall_ms_total';
+type MissingKey = 'tokens_missing' | 'input_tokens_missing' | 'output_tokens_missing'
+  | 'host_duration_ms_missing' | 'wall_ms_missing';
+
+/**
+ * 관측값 하나를 kind 합계에 반영한다. 숫자(명시적 0 포함)만 더하고, `null`·필드 부재(legacy 기록)는
+ * 합에 넣지 않고 missing으로 센다. 누락을 0으로 접으면 측정 못 한 세션이 값 0처럼 읽히기 때문이다.
+ * 첫 관측값이 들어올 때 total이 null에서 숫자로 바뀐다.
+ *
+ * @param {KindSummary} sum - 갱신할 kind 합계
+ * @param {TotalKey} totalKey - 합계 필드
+ * @param {MissingKey} missingKey - 누락 수 필드
+ * @param {unknown} value - 세션에 기록된 값
+ * @returns {void}
+ */
+function observe(sum: KindSummary, totalKey: TotalKey, missingKey: MissingKey, value: unknown): void {
+  if (typeof value === 'number') sum[totalKey] = (sum[totalKey] ?? 0) + value;
+  else sum[missingKey] += 1;
+}
 
 /**
  * blueprint의 kind별 합계. 끝난 세션만 토큰·시간·비용에 합산하고, `null`은 합에서 빼
@@ -326,6 +353,8 @@ type KindSummary = {
  *
  * @param {{file: string, blueprint: string, resolveLedger?: Function}} opts - 기록 파일, blueprint,
  *   원장 경로 해석기 `(blueprint) => string | null`(주입)
+ * 토큰(total·input·output)·host 소요 시간·wall 시간은 관측값이 하나도 없으면 total이 `null`이고,
+ * 일부만 있으면 알려진 합과 `*_missing`을 함께 낸다. cost_total은 기존 입력 호환으로 0 시작을 유지한다.
  * worker_tokens는 원장의 `worker-model`·`worker-tokens` decision에서 따로 합산한다. coordinator
  * 총량에 이미 포함됐는지 알 수 없으므로 `kinds`에 더하지 않는다. 원장이 없거나 resolveLedger가
  * 없으면 0이고, 깨진 원장은 `metrics-ledger-invalid`로 거절한다.
@@ -346,8 +375,11 @@ function summarize(opts: {
   const kinds: Record<string, KindSummary> = {};
   for (const kind of SESSION_KINDS) {
     kinds[kind] = {
-      sessions: 0, open: 0, tokens_total: 0, tokens_missing: 0,
-      wall_ms_total: 0, cost_total: 0, cost_missing: 0,
+      sessions: 0, open: 0, tokens_total: null, tokens_missing: 0,
+      input_tokens_total: null, input_tokens_missing: 0,
+      output_tokens_total: null, output_tokens_missing: 0,
+      host_duration_ms_total: null, host_duration_ms_missing: 0,
+      wall_ms_total: null, wall_ms_missing: 0, cost_total: 0, cost_missing: 0,
     };
     if (kind === 'coordinator-session') kinds[kind].tasks_completed = 0;
   }
@@ -360,13 +392,17 @@ function summarize(opts: {
       sum.open += 1;
       continue;
     }
-    if (typeof s.tokens === 'number') sum.tokens_total += s.tokens; else sum.tokens_missing += 1;
+    observe(sum, 'tokens_total', 'tokens_missing', s.tokens);
+    observe(sum, 'input_tokens_total', 'input_tokens_missing', s.input_tokens);
+    observe(sum, 'output_tokens_total', 'output_tokens_missing', s.output_tokens);
+    // 호스트가 준 소요 시간과 직접 잰 wall time은 출처가 달라 서로 대신 채우지 않는다.
+    observe(sum, 'host_duration_ms_total', 'host_duration_ms_missing', s.host_duration_ms);
+    observe(sum, 'wall_ms_total', 'wall_ms_missing', s.wall_ms);
     if (typeof s.cache_read_tokens === 'number') cache.read.total += s.cache_read_tokens;
     else cache.read.missing += 1;
     if (typeof s.cache_write_tokens === 'number') cache.write.total += s.cache_write_tokens;
     else cache.write.missing += 1;
     if (typeof s.cost === 'number') sum.cost_total += s.cost; else sum.cost_missing += 1;
-    sum.wall_ms_total += s.wall_ms ?? 0;
     if (sum.tasks_completed !== undefined && Array.isArray(s.tasks_completed)) {
       sum.tasks_completed += s.tasks_completed.length;
     }

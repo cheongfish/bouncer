@@ -218,7 +218,9 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
-   not as your own re-judgment, plus the `metrics summary` totals. This skill does not enter finalize.
+   not as your own re-judgment, plus the `metrics summary` token and time table: coordinator and each worker role
+   side by side (never summed together), real wall time apart from host duration, a `null` total
+   shown as unreported and every missing count shown, never as 0. This skill does not enter finalize.
    `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.
