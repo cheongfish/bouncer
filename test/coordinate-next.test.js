@@ -415,6 +415,33 @@ test('blueprint next에서 ready verification task → verification_node', () =>
   assert.strictEqual(r.cwd, boot.integrationPath);
 });
 
+test('light ledger with a terminal verification node → integrate first, prepare then verification_node only after the implementation is integrated', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/010-light-terminal';
+  const drive = preparedCommitDrive('bouncer-next-light-terminal-', blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.mode = 'light';
+  ledger.tasks.push({
+    id: '002', depends_on: ['001'], execution_kind: 'verification', dependency_gate: 'integrated',
+    parallel_safe: false, affected_paths: [], exclusive_resources: [], status: 'pending',
+  });
+  // 1. 구현이 recorded인 동안은 종단이 선행 조건 때문에 열릴 수 없고 integrate가 먼저다.
+  ledger.tasks[0].status = 'recorded';
+  ledger.tasks[0].sha = 'a'.repeat(40);
+  writeLedger(drive.ledgerFile, ledger);
+  assert.strictEqual(assertNoWrite(drive, () => nextOf(drive)).action, 'integrate');
+  // 2. 구현이 integrated가 되면 종단 node를 ready로 올리는 prepare가 다음이다.
+  ledger.tasks[0].status = 'integrated';
+  writeLedger(drive.ledgerFile, ledger);
+  const afterImpl = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(afterImpl.action, 'prepare');
+  // 3. prepare가 종단을 ready로 올린 뒤에야 verification_node가 선택된다.
+  ledger.tasks[1].status = 'ready';
+  writeLedger(drive.ledgerFile, ledger);
+  const node = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(node.action, 'verification_node');
+  assert.strictEqual(node.task, '002');
+});
+
 test('blueprint next에서 review mode의 all integrated이고 accepted root review 없음 → final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/009-fr';
   const drive = preparedCommitDrive('bouncer-next-fr-', blueprint);

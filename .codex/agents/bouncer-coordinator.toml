@@ -234,7 +234,14 @@ same mutation argv right away.
    `wave-verification-failed`, or scope-conflict `revoked` stop, follow the
    returned `card` and execute only non-auto `argv` such as `coordinate revoke`,
    then requeue. A rejected fan-in is a decision to record and resolve, not a
-   retry to repeat blindly. After every task this session prepared is
+   retry to repeat blindly. On a `verification_policy: scoped_terminal`
+   blueprint the first full verification runs once, in the terminal
+   verification node after every implementation task is integrated; fan-in
+   itself rejects (`worker-test-report-mismatch`) any worker report whose
+   `## Tests` section lacks the task-assigned command or shows a missing or
+   failing result. Treat that rejection as a rework of that worker, never hand
+   a worker the full-suite command, and keep recovery re-verification and the
+   finalize remainder verification separate from that first terminal run. After every task this session prepared is
    `integrated`, call `bouncer coordinate advance --blueprint <dir>` again (the
    `checkpoint` matches `coordinate status`). If only part of this session's
    prepared wave is integrated, do not return `continue` and do not Close; stay in Drive/Judge

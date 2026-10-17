@@ -2018,3 +2018,82 @@ test('runVerification reuse hit with markTaskVerified still → promotes a ready
   assert.strictEqual(second.ok, true);
   assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'verified');
 });
+
+// scoped_terminal 정책 fixture: blueprint index에 표식을 쓰고 task 문서를 만든다.
+function writeBlueprintIndex(repo, policyYaml) {
+  const abs = path.join(repo, BP_REL, 'index.md');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---
+type: bouncer.blueprint
+title: Login
+description: d
+resource: ${BP_REL}/index.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: '001'
+  epic_id: '001'
+  blueprint_id: '001'
+  status: approved
+${policyYaml}---
+# Login
+`);
+}
+
+function writeTaskDoc(repo, nnn, { verify, kind } = {}) {
+  const abs = path.join(repo, BP_REL, `tasks/${nnn}/tasks.md`);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---
+type: bouncer.tasks
+title: t${nnn}
+description: d
+resource: ${BP_REL}/tasks/${nnn}/tasks.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-${nnn}
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ready
+${kind === 'verification' ? '  execution_kind: verification\n  depends_on:\n    - TASKS-001\n  affected_paths: []\n' : '  affected_paths:\n    - src/auth/\n'}${verify === undefined ? '' : `  verify: ${JSON.stringify(verify)}\n`}---
+# Tasks
+`);
+}
+
+test('readVerifyCommand scoped_terminal → refuses to fall back to config.verify when the task has no command', () => {
+  const repo = setupRepo('npm test');
+  writeBlueprintIndex(repo, '  verification_policy: scoped_terminal\n');
+  writeTaskDoc(repo, '001');
+  assert.throws(
+    () => readVerifyCommand(repo, BP_REL, '001'),
+    (error) => error.code === 'VERIFY_COMMAND_INVALID',
+  );
+  // 문서 자체가 사라져도 config 전체 명령으로 접히지 않는다.
+  const noDocs = setupRepo('npm test');
+  writeBlueprintIndex(noDocs, '  verification_policy: scoped_terminal\n');
+  assert.throws(
+    () => readVerifyCommand(noDocs, BP_REL),
+    (error) => error.code === 'VERIFY_COMMAND_INVALID',
+  );
+});
+
+test('readVerifyCommand scoped_terminal → returns the task-owned command per task and the terminal command without a task id', () => {
+  const repo = setupRepo('npm run full');
+  writeBlueprintIndex(repo, '  verification_policy: scoped_terminal\n');
+  writeTaskDoc(repo, '001', { verify: 'node --test test/a.test.js' });
+  writeTaskDoc(repo, '002', { verify: 'npm test', kind: 'verification' });
+  assert.strictEqual(readVerifyCommand(repo, BP_REL, '001'), 'node --test test/a.test.js');
+  assert.strictEqual(readVerifyCommand(repo, BP_REL, '002'), 'npm test');
+  // taskId 없는 listing 폴백(finalize remainder)은 earliest 구현 명령이 아니라 종단 전체 명령이다.
+  assert.strictEqual(readVerifyCommand(repo, BP_REL), 'npm test');
+});
+
+test('readVerifyCommand without a verification_policy marker → keeps the config.verify fallback', () => {
+  const repo = setupRepo('npm test');
+  writeBlueprintIndex(repo, '');
+  writeTaskDoc(repo, '001');
+  assert.strictEqual(readVerifyCommand(repo, BP_REL, '001'), 'npm test');
+  assert.strictEqual(readVerifyCommand(repo, BP_REL), 'npm test');
+});

@@ -2711,6 +2711,124 @@ test('plan gate → accepts terminal verification fan-in and rejects source scop
   assert.ok(invalid.some((f) => f.code === 'G20' && f.message.endsWith(': npm run ci')));
 });
 
+// scoped_terminal 정책: 구현 task 전용 명령 + 단일 마지막 verification.
+function scopedPlanDocs(taskDocs, { scale, policy = 'scoped_terminal', noPolicy = false } = {}) {
+  return {
+    ...planDocsWithTasks(taskDocs),
+    blueprintIndex: doc('approved', {
+      ...(noPolicy ? {} : { verification_policy: policy }),
+      ...(scale === undefined ? {} : { scale }),
+    }),
+  };
+}
+
+function scopedCommit(nnn, extra = {}) {
+  return planTaskDoc(nnn, { verify: 'node --test test/a.test.js', ...extra });
+}
+
+function scopedTerminal(nnn, dependsOn, extra = {}) {
+  return planTaskDoc(nnn, {
+    execution_kind: 'verification', affected_paths: [], scope_evidence: undefined,
+    graph: undefined, depends_on: dependsOn, parallel_safe: false,
+    dependency_gate: 'integrated', verify: 'npm test', ...extra,
+  }, READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\nSource 변경 경로 없음.\n\n## Do not touch',
+  ));
+}
+
+function g20Messages(docs) {
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  return failures.filter((f) => f.code === 'G20').map((f) => f.message);
+}
+
+test('plan gate scoped_terminal → accepts per-task commands with one terminal that waits for every commit', () => {
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    scopedCommit('001'),
+    scopedCommit('002', { verify: 'node --test test/b.test.js' }),
+    scopedTerminal('003', ['TASKS-001', 'TASKS-002']),
+  ])), []);
+  // 간접 선행도 기다리는 것으로 본다.
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    scopedCommit('001'),
+    scopedCommit('002', { depends_on: ['TASKS-001'] }),
+    scopedTerminal('003', ['TASKS-002']),
+  ])), []);
+});
+
+test('plan gate scoped_terminal → rejects missing, empty, shell-operator and full-suite commands on commit tasks', () => {
+  const missing = g20Messages(scopedPlanDocs([
+    planTaskDoc('001'), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(missing.some((m) => /requires its own non-empty bouncer\.verify/.test(m)), JSON.stringify(missing));
+  const empty = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { verify: '   ' }), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(empty.some((m) => /non-empty/.test(m)), JSON.stringify(empty));
+  const shell = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { verify: 'node --test a && node --test b' }), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(shell.some((m) => /single executable command/.test(m)), JSON.stringify(shell));
+  const fullSuite = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { verify: 'npm   test' }), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(fullSuite.some((m) => /terminal full-suite command/.test(m)), JSON.stringify(fullSuite));
+});
+
+test('plan gate scoped_terminal → rejects no terminal, two terminals and a terminal that skips a commit task', () => {
+  const none = g20Messages(scopedPlanDocs([scopedCommit('001')]));
+  assert.ok(none.some((m) => /exactly one terminal verification task, found none/.test(m)), JSON.stringify(none));
+  const two = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedTerminal('002', ['TASKS-001']), scopedTerminal('003', ['TASKS-001']),
+  ]));
+  assert.ok(two.some((m) => /found 2/.test(m)), JSON.stringify(two));
+  const skip = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedCommit('002'), scopedTerminal('003', ['TASKS-001']),
+  ]));
+  assert.ok(skip.some((m) => /must wait for commit task: TASKS-002/.test(m)), JSON.stringify(skip));
+  // 검증 뒤 구현 node는 기존 topology 거절이 그대로 맡는다.
+  const after = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedTerminal('002', ['TASKS-001']), scopedCommit('003', { depends_on: ['TASKS-002'] }),
+  ]));
+  assert.ok(after.some((m) => /cannot precede commit task/.test(m)), JSON.stringify(after));
+});
+
+test('plan gate scoped_terminal light → needs one independent commit task plus the terminal', () => {
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedTerminal('002', ['TASKS-001']),
+  ], { scale: 'light' })), []);
+  const two = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedCommit('002'), scopedTerminal('003', ['TASKS-001', 'TASKS-002']),
+  ], { scale: 'light' }));
+  assert.ok(two.some((m) => /one independent commit task/.test(m)), JSON.stringify(two));
+  const dependent = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { depends_on: ['TASKS-002'] }), scopedCommit('002'),
+    scopedTerminal('003', ['TASKS-001']),
+  ], { scale: 'light' }));
+  assert.ok(dependent.some((m) => /one independent commit task/.test(m)), JSON.stringify(dependent));
+});
+
+test('plan gate verification_policy → absent stays legacy and an unknown value is rejected', () => {
+  // 표식 없는 기존 계획: 명령 없는 단일 task도 topology 변경 없이 통과한다.
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([planTaskDoc('001')], { noPolicy: true })), []);
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    planTaskDoc('001'), planTaskDoc('002'),
+  ], { noPolicy: true, scale: 'light' })), []);
+  for (const policy of ['legacy', 'scoped', null]) {
+    const messages = g20Messages(scopedPlanDocs([scopedCommit('001'), scopedTerminal('002', ['TASKS-001'])], { policy }));
+    assert.ok(messages.some((m) => /verification_policy must be/.test(m)), `${policy}: ${JSON.stringify(messages)}`);
+  }
+});
+
+test('checkPlanDraft with scoped_terminal → reports the same G20 as the plan gate', () => {
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const failures = [];
+  checkPlanDraft(scopedPlanDocs([planTaskDoc('001', { status: 'draft' })]), rels, failures, {});
+  assert.ok(failures.some((f) => f.code === 'G20' && /bouncer\.verify/.test(f.message)), JSON.stringify(failures));
+  assert.ok(failures.some((f) => f.code === 'G20' && /terminal verification/.test(f.message)));
+});
+
 // --- plan draft 검사: context review 전 status 무관 task 검사 ---
 function draftPlanDocs(taskDocs, blueprintExtra = {}) {
   return {

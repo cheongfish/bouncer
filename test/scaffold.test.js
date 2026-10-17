@@ -960,3 +960,66 @@ test('scaffoldTask with incomplete verification metadata → rejects it before c
     assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/002`)), false);
   }
 });
+
+test('new full and light blueprints → record verification_policy scoped_terminal', () => {
+  for (const scale of [undefined, 'light']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    scaffoldWith(repo, scale);
+    const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+    const bp = readDoc(path.join(repo, base, 'index.md')).data;
+    assert.strictEqual(bp.bouncer.verification_policy, 'scoped_terminal', `scale ${scale}`);
+  }
+});
+
+test('new light blueprint plus a terminal verification task → plan gate sees no verification topology failure', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, 'light');
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  // 구현 task에 task 전용 명령을 직접 적는다 — scaffold는 명령을 지어내지 않는다.
+  const tasksPath = path.join(repo, base, 'tasks/001/tasks.md');
+  fs.writeFileSync(tasksPath, fs.readFileSync(tasksPath, 'utf8')
+    .replace(/(\n {2}affected_paths:)/, '\n  verify: node --test test/a.test.js$1'));
+  const noTerminal = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.ok(
+    noTerminal.failures.some((f) => f.code === 'G20' && /terminal/.test(f.message)),
+    JSON.stringify(noTerminal.failures),
+  );
+  scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+    executionKind: 'verification', dependsOn: ['TASKS-001'], verify: 'npm test',
+    verifyAllowlist: ['npm', 'node'],
+  });
+  const withTerminal = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.deepStrictEqual(withTerminal.failures.filter((f) => f.code === 'G20'), [],
+    JSON.stringify(withTerminal.failures));
+});
+
+test('new blueprint whose implementation task has no verify command → plan gate rejects it with G20', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, undefined);
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+    executionKind: 'verification', dependsOn: ['TASKS-001'], verify: 'npm test',
+    verifyAllowlist: ['npm'],
+  });
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.ok(
+    result.failures.some((f) => f.code === 'G20' && /verify/.test(f.message) && /tasks\/001\/tasks\.md$/.test(f.file)),
+    JSON.stringify(result.failures),
+  );
+});
+
+test('legacy blueprint without verification_policy → plan gate raises no G20 for a command-less task', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, undefined);
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const idx = path.join(repo, base, 'index.md');
+  fs.writeFileSync(idx, fs.readFileSync(idx, 'utf8').replace(/\n {2}verification_policy: scoped_terminal/, ''));
+  assert.strictEqual(readDoc(idx).data.bouncer.verification_policy, undefined);
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G20'), []);
+});

@@ -20,6 +20,18 @@ record. This card keeps only the implement-phase inputs.
   `coordinate next` put in the `implement` payload), and the shared bundle
   identifiers with the implementer's `intent_sections`.
 
+## Test command and report check
+
+On a `verification_policy: scoped_terminal` blueprint the worker runs only the
+task's own `bouncer.verify` command; never pass it the full-suite command or ask
+it to run `npm test` / `npm run ci`. The worker's report must carry that exact
+command and a passing result under `## Tests`. A different command, a missing
+result, or a failing result is rejected at fan-in (`worker-test-report-mismatch`),
+so judge such a report as rework instead of integrating it. The instruction text
+alone does not show which command an agent actually ran; the report check
+(and the execute gate) is the evidence. The first full verification is the
+terminal verification node's single run after all implementation is integrated.
+
 ## Payload
 
 When `payload.promoted_patch` is present, it points to the saved dirty-work patch from a stopped light run. Inspect it as task input and reuse only changes covered by the current task's `affected_paths`; the patch is evidence of prior work, not expanded authority.

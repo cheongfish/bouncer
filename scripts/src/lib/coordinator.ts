@@ -1377,18 +1377,45 @@ function blueprintScaleAt(root: string, blueprint: string): string | undefined {
 }
 
 /**
- * light 원장 자격: commit task 정확히 1개이고 depends_on이 비어 있어야 한다.
- * verification·두 번째 task·비어 있지 않은 depends_on은 모두 자격 없음이다.
+ * blueprint index의 `bouncer.verification_policy`를 해석한다. 읽을 수 없는 문서나
+ * 허용 밖 값은 legacy로 접지 않고 null로 돌려 호출자가 거절하게 한다. index 부재
+ * (ENOENT)는 readBouncerBlock이 null로 접으므로 정책 이전 계획과 같은 legacy다.
+ *
+ * @param {string} root - 문서를 읽을 checkout (대개 integration)
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {'scoped_terminal' | 'legacy' | null} 정책. 허용 밖 값이면 null
+ */
+function verificationPolicyAt(root: string, blueprint: string): 'scoped_terminal' | 'legacy' | null {
+  const bouncer = readBouncerBlock(path.join(root, blueprint, 'index.md'));
+  return schema.verificationPolicyOf(bouncer);
+}
+
+/**
+ * light 원장 자격. legacy는 현행 의미 그대로 commit task 정확히 1개이고 depends_on이
+ * 비어 있어야 하며 verification·두 번째 task는 자격 없음이다. scoped_terminal은
+ * 독립 commit task 하나와 그 하나에만 의존하는 verification 하나, 정확히 두 node다.
+ * 구현 하나가 끝난 뒤 종단 verification이 한 번 전체 검증을 맡는 최소 계약이다.
  *
  * @param {Task[]} tasks - 원장에 올릴 task 목록
+ * @param {boolean} [scoped] - blueprint가 scoped_terminal이면 true. 생략은 legacy
  * @returns {boolean} light 자격이 있으면 true
  */
-function isLightEligible(tasks: Task[]): boolean {
-  if (tasks.length !== 1) return false;
-  const only = tasks[0];
-  if ((only.execution_kind || 'commit') === 'verification') return false;
-  if (Array.isArray(only.depends_on) && only.depends_on.length > 0) return false;
-  return true;
+function isLightEligible(tasks: Task[], scoped = false): boolean {
+  const independent = (item: Task) => !Array.isArray(item.depends_on) || item.depends_on.length === 0;
+  if (!scoped) {
+    if (tasks.length !== 1) return false;
+    const only = tasks[0];
+    if ((only.execution_kind || 'commit') === 'verification') return false;
+    return independent(only);
+  }
+  if (tasks.length !== 2) return false;
+  const commits = tasks.filter((item) => (item.execution_kind || 'commit') !== 'verification');
+  const terminals = tasks.filter((item) => item.execution_kind === 'verification');
+  if (commits.length !== 1 || terminals.length !== 1) return false;
+  return independent(commits[0])
+    && Array.isArray(terminals[0].depends_on)
+    && terminals[0].depends_on.length === 1
+    && terminals[0].depends_on[0] === commits[0].id;
 }
 
 /**
@@ -1649,6 +1676,98 @@ function lightReviewAccepted(integrationPath: string, blueprint: string): boolea
   if (!review || typeof review !== 'object' || Array.isArray(review)) return false;
   const rounds = (review as Record<string, unknown>).rounds;
   return Array.isArray(rounds) && rounds.length > 0;
+}
+
+/**
+ * 보고의 `## Tests` 절이 task에 지정된 명령과 통과 결과를 담았는지 판정한다.
+ * 사람이 쓴 보고라 형식이 정확히 고정되어 있지 않으므로 의도적으로 관대한 휴리스틱이다:
+ * (1) Tests 절이 있어야 하고, (2) 지정 명령이 인수 확장 없이 경계에 맞춰 등장해야
+ * 하며(`cmd extra.test.js`는 다른 명령), (3) 통과 표지(pass·ok·exit 0·통과 등)가
+ * 있어야 하고, (4) `0 fail`·`fail 0` 같은 무결과를 지운 뒤에도 실패 표지(fail·error·
+ * 실패·exit 비0)가 남지 않아야 한다. 실제 실행 여부는 증명하지 못한다 — 그 증거는
+ * execute gate가 쓴다. 이 검사는 worker가 엉뚱한 명령(전체 suite 포함)을 돌렸거나
+ * 결과를 빠뜨린 보고를 fan-in 전에 걸러내는 용도다.
+ *
+ * @param {string} body - 보고 파일 원문
+ * @param {string} command - task가 지정한 `bouncer.verify` 명령
+ * @returns {string | null} 통과면 null, 아니면 사유
+ *   (`tests-section-missing`·`command-missing`·`result-missing`·`result-failed`)
+ */
+function testsReportProblem(body: string, command: string): string | null {
+  const sections = parseSections(body, [
+    { key: 'tests', re: /^##\s+Tests\s*$/i },
+    { key: 'other', re: /^##\s+(?!Tests\s*$)\S/i },
+  ] as Parameters<typeof parseSections>[1]);
+  if (sections.tests === null) return 'tests-section-missing';
+  const collapse = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const text = collapse(sections.tests);
+  const wanted = collapse(command);
+  const escaped = wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // 명령 앞은 문장 시작·공백·열기 문자, 뒤는 끝·닫기/구두점·공백이어야 한다.
+  const boundary = new RegExp(`(?:^|[\\s\`'"(])${escaped}(?=$|[\\s\`'")\\].,;:])`, 'g');
+  let matched = false;
+  for (const hit of text.matchAll(boundary)) {
+    const rest = text.slice((hit.index as number) + hit[0].length)
+      .replace(/^[`'")\].,;:]+/, '');
+    // 공백 뒤에 옵션·경로·테스트 파일이 이어지면 인수가 더 붙은 다른 명령이다.
+    const extended = /^\s+(?:--?[A-Za-z]|\S*\/\S*|\S+\.(?:js|ts|mjs|cjs|json)\b)/.test(rest);
+    if (!extended) { matched = true; break; }
+  }
+  if (!matched) return 'command-missing';
+  const passMark = /\b(?:pass(?:ed|es)?|ok|success(?:ful(?:ly)?)?)\b|통과|성공|exit(?:\s+code)?\s*[:=]?\s*0\b/i;
+  if (!passMark.test(text)) return 'result-missing';
+  const noZero = text
+    .replace(/\b0\s+(?:fail\w*|errors?)\b/gi, ' ')
+    .replace(/\b(?:fail\w*|errors?)\s*[:=]?\s*0\b/gi, ' ')
+    .replace(/\bno\s+(?:fail\w*|errors?)\b/gi, ' ')
+    .replace(/(?:실패|오류)\s*0|0\s*(?:실패|오류)/g, ' ');
+  if (/\b(?:fail\w*|errors?)\b|실패|오류|exit(?:\s+code)?\s*[:=]?\s*[1-9]/i.test(noZero)) {
+    return 'result-failed';
+  }
+  return null;
+}
+
+/**
+ * scoped_terminal fan-in 전에 각 task의 worker 보고가 지정 명령·통과 결과를 담았는지
+ * 확인한다. 명령은 integration의 tasks.md `bouncer.verify`가 정본이다(worker 사본은
+ * worker가 바꿀 수 있어 믿지 않는다). 보고 파일이 없으면 full은 거절한다. light는
+ * 세션이 같은 cwd에서 inline 보고를 하므로 파일이 없을 때만(ENOENT) 이 검사를 건너뛴다.
+ * 그 밖의 읽기 오류는 삼키지 않고 던진다.
+ *
+ * @param {object} args - 검사 입력
+ * @param {string} args.integrationPath - 계획 정본을 읽을 integration checkout
+ * @param {string} args.blueprint - blueprint 상대 경로
+ * @param {Task[]} args.items - fan-in 대상 task
+ * @param {boolean} args.light - light 원장이면 true (보고 파일 부재 허용)
+ * @returns {{ task: string; expected_command: string; problem: string } | null} 첫 위반. 없으면 null
+ */
+function scopedTestReportFailure({ integrationPath, blueprint, items, light }: {
+  integrationPath: string; blueprint: string; items: Task[]; light: boolean;
+}): { task: string; expected_command: string; problem: string } | null {
+  for (const item of items) {
+    const declared = readBouncerBlock(path.join(integrationPath, blueprint, 'tasks', item.id, 'tasks.md'));
+    const expected = declared && typeof declared.verify === 'string' ? declared.verify.trim() : '';
+    if (expected === '') {
+      return { task: item.id, expected_command: '', problem: 'task-command-missing' };
+    }
+    if (!item.dispatch || typeof item.workerPath !== 'string') {
+      if (light) continue;
+      return { task: item.id, expected_command: expected, problem: 'report-missing' };
+    }
+    let body: string;
+    try {
+      body = fs.readFileSync(reportPathFor(item.workerPath, item.id, item.dispatch.attempt), 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        if (light) continue;
+        return { task: item.id, expected_command: expected, problem: 'report-missing' };
+      }
+      throw error;
+    }
+    const problem = testsReportProblem(body, expected);
+    if (problem !== null) return { task: item.id, expected_command: expected, problem };
+  }
+  return null;
 }
 
 // frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
@@ -2668,6 +2787,15 @@ function integrateLightCommitWave({
       if (!evidence.ok) return evidence;
     }
 
+    // light inline 보고는 파일이 없을 수 있어 부재만 허용하고, 파일이 있으면 full과 같은 검사를 한다.
+    if (verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal') {
+      const mismatch = scopedTestReportFailure({
+        integrationPath: integration.integrationPath, blueprint, light: true,
+        items: ordered.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
+      });
+      if (mismatch) return { ok: false, reason: 'worker-test-report-mismatch', ...mismatch };
+    }
+
     // fanin verified를 남긴 뒤 바로 비운다. candidate worktree·ff는 없다 —
     // HEAD가 이미 기록된 커밋이다. copyEvidenceBundle는 동일 경로라 건너뛴다.
     ledger.fanin = {
@@ -2846,6 +2974,10 @@ function integrateCommitWave({
   const faninPath = integration.faninPath;
   const runner = deps.runVerification
     || (require('./verification').runVerification as VerificationRunner);
+  // scoped_terminal이면 구현 wave fan-in은 전체 검증을 돌리지 않는다. 검증은 task별
+  // 지정 명령(worker, 보고로 확인)과 마지막 terminal node가 나눠 맡는다. 정책은
+  // integration 사본에서 읽는다 — worker 사본은 worker가 바꿀 수 있다.
+  const scopedTerminal = verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal';
 
   // --- 재시작 복구: 이전 fanin 상태가 있으면 먼저 처리 ---
   const recovery = withLedgerLock(integration.ledgerFile, (owns) => {
@@ -2964,6 +3096,16 @@ function integrateCommitWave({
         worker, integration.integrationPath, blueprint, id, item.sha as string,
       );
       if (!evidence.ok) return evidence;
+    }
+
+    // scoped_terminal은 worker가 자기 지정 명령만 돌렸다는 보고가 있어야 통합한다.
+    // wave 전체 검증을 fan-in에서 다시 돌리지 않는 대신 거는 입구 검사다.
+    if (scopedTerminal) {
+      const mismatch = scopedTestReportFailure({
+        integrationPath: integration.integrationPath, blueprint, light: false,
+        items: ordered.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
+      });
+      if (mismatch) return { ok: false, reason: 'worker-test-report-mismatch', ...mismatch };
     }
 
     // coordinator가 integration checkout을 직접 고치면 worker 보고 없이 통합된다.
@@ -3128,7 +3270,9 @@ function integrateCommitWave({
   const candidateHead = git(exec, faninPath, ['rev-parse', 'HEAD']);
   const { epicId, blueprintId } = parsePathIds(blueprint);
   const lastTask = waveTasks[waveTasks.length - 1];
-  const verification = runner({
+  // scoped_terminal은 wave 전체 검증을 생략한다(null). 실패 복구 재검증과 finalize
+  // remainder는 각자 별도 경로라 이 생략의 영향을 받지 않는다.
+  const verification = scopedTerminal ? null : runner({
     repoRoot: faninPath,
     blueprintDir: blueprint,
     taskId: lastTask,
@@ -3138,7 +3282,7 @@ function integrateCommitWave({
     },
   });
 
-  if (!verification.ok) {
+  if (verification && !verification.ok) {
     removeFaninWorktree(exec, repoRoot, faninPath);
     return withLedgerLock(integration.ledgerFile, (owns) => {
       const loaded = loadLedgerBytes(integration.ledgerFile);
@@ -3171,10 +3315,11 @@ function integrateCommitWave({
     tasks: waveTasks,
     baseHead,
     candidateHead,
-    evidenceId: typeof verification.evidenceId === 'string' ? verification.evidenceId : null,
+    evidenceId: verification && typeof verification.evidenceId === 'string'
+      ? verification.evidenceId : null,
     alreadyFastForwarded: false,
     phase1CheckpointHash,
-    verification,
+    ...(verification ? { verification } : {}),
   });
   // 경고가 없으면 키를 생략한다(다른 명령의 warnings 규칙과 같다).
   if (waveWarnings.length > 0 && (finished as { ok?: boolean }).ok === true) {
@@ -3417,7 +3562,11 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       // 거부해 full worktree 경로로 조용히 떨어지지 않게 한다. scale이 light가 아니면
       // 기존처럼 mode 없는 full 원장이다.
       const scale = blueprintScaleAt(paths.integrationPath, blueprint);
-      if (scale === 'light' && !isLightEligible(tasks)) {
+      const policy = verificationPolicyAt(paths.integrationPath, blueprint);
+      // 허용 밖 정책 값은 plan gate가 거절했어야 하지만 손으로 고친 문서가 실행까지
+      // 오면 legacy로 읽지 않고 여기서 끊는다. light 자격 판정이 갈라지지 않게 하기 위함.
+      if (policy === null) return { ok: false, reason: 'verification-policy-invalid' };
+      if (scale === 'light' && !isLightEligible(tasks, policy === 'scoped_terminal')) {
         return { ok: false, reason: 'light-requires-single-task' };
       }
       ledger = {
@@ -4270,8 +4419,20 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Report the ledger status to the user; do not retry `bouncer coordinate session-open` on this blueprint.',
   },
   'light-requires-single-task': {
-    cause: 'Scale light requires exactly one commit task with an empty depends_on and no verification task.',
-    next: 'Fix the blueprint to a single independent commit task, or set scale to full and bootstrap again.',
+    cause: 'Scale light requires one independent commit task; a blueprint with verification_policy scoped_terminal '
+      + 'also requires exactly one terminal verification task that depends only on it. A legacy light blueprint '
+      + 'allows no verification task.',
+    next: 'Fix the blueprint to that shape, or set scale to full and bootstrap again.',
+  },
+  'verification-policy-invalid': {
+    cause: 'The blueprint index declares a verification_policy value other than scoped_terminal.',
+    next: 'Set verification_policy to scoped_terminal or remove the key (legacy), then bootstrap again.',
+  },
+  'worker-test-report-mismatch': {
+    cause: 'A scoped_terminal worker report does not show the task-assigned command with a passing result '
+      + 'in its Tests section (problem names which check failed).',
+    next: 'Reject the fan-in: send the worker back to run exactly the assigned bouncer.verify command and '
+      + 'report its command and result under Tests; never hand the worker the full-suite command.',
   },
   'light-review-required': {
     cause: 'Light-mode accepted report requires blueprint-root review.md rounds and status accepted.',

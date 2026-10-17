@@ -1267,3 +1267,37 @@ test('coordinate usage → lists worker-model', () => {
   assert.match(buf.out, /coordinate worker-model --blueprint <dir>/);
   assert.match(buf.out, /coordinate worker-tokens --blueprint <dir>/);
 });
+
+test('coordinate CLI bootstrap on a scoped_terminal light plan → light ledger, then prepare opens only the implementation', () => {
+  const repo = planCommittedRepo();
+  const touch = (rel, mutate) => {
+    const abs = path.join(repo, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, mutate(fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : ''));
+  };
+  touch(`${BP_REL}/index.md`, (raw) => raw.replace(
+    'status: approved', 'status: approved\n  scale: light\n  review_scope: blueprint\n  verification_policy: scoped_terminal',
+  ));
+  touch(`${BP_REL}/review.md`, () => '---\nbouncer:\n  id: REVIEW-BP\n  status: pending\n  review:\n    required: true\n---\n# Review\n');
+  touch(`${BP_REL}/tasks/001/tasks.md`, (raw) => raw.replace('affected_paths:', 'verify: node --test test/a.test.js\n  affected_paths:'));
+  writeDoc(repo, `${BP_REL}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Terminal', description: 'd', resource: `${BP_REL}/tasks/002/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'ready', execution_kind: 'verification',
+      depends_on: ['TASKS-001'], parallel_safe: false, dependency_gate: 'integrated',
+      affected_paths: [], verify: 'npm test',
+    },
+  });
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'scoped light plan'], { cwd: repo });
+
+  const bootCli = coordinateCli(repo, 'bootstrap', ['--repo', repo]);
+  assert.strictEqual(bootCli.code, 0, bootCli.buf.err + bootCli.buf.out);
+  const boot = JSON.parse(bootCli.buf.out);
+  assert.strictEqual(boot.mode, 'light');
+  assert.deepStrictEqual(boot.ready, ['001']);
+  const preparedCli = coordinateCli(boot.integrationPath, 'prepare', ['--repo', repo]);
+  assert.strictEqual(preparedCli.code, 0, preparedCli.buf.err + preparedCli.buf.out);
+  assert.deepStrictEqual(JSON.parse(preparedCli.buf.out).opened.map((t) => t.id), ['001']);
+});

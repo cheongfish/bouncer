@@ -147,7 +147,7 @@ Blueprint: [<BP-id>](../../index.md)
 <TODO: 이 검증이 증명하는 종단 조건>
 
 ## Interface
-- 제공: 선행 task가 모두 통합된 상태에서 verify 명령이 남기는 종단 검증 증적.
+- 제공: 구현 task가 모두 통합된 뒤 전체 검증 명령을 한 번 실행해 남기는 종단 검증 증적. 구현 task는 각자 task 전용 명령만 갖는다.
 - 거부: source 변경, review 문서, commit.
 
 ## Touch
@@ -188,8 +188,10 @@ Source 변경 경로 없음.
 ## Tasks
 `,
   // --- scale: light 전용 본문 ---
-  // light는 plan 단계 네 문서(index + 루트 review + tasks/001 두 문서) 전체 줄 수를
-  // 100줄 이하로 묶는 계약이다(rules/planning.md). 그래서 full 템플릿의 작성
+  // light scaffold는 네 문서(index + 루트 review + tasks/001 두 문서) 전체 줄 수를
+  // 100줄 이하로 묶는 계약이다(rules/planning.md). scoped_terminal light의 종단
+  // verification task(`scaffold task --execution-kind verification`, 두 문서)는
+  // 이 예산 밖에서 따로 붙는다. 그래서 full 템플릿의 작성
   // 가이드 주석을 옮겨오지 않는다 — 가이드는 skills/spec-authoring이 갖고,
   // 본문에는 게이트가 요구하는 제목과 <TODO:> 자리만 남긴다.
   // full 본문은 바이트 단위로 그대로 두고 여기서만 갈라진다.

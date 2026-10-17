@@ -30,6 +30,7 @@ const {
   CONTEXT_REVIEW_STATUS, EXECUTE_REVIEW_STATUS,
 } = validateSections;
 import schema = require('./schema');
+import commandArgv = require('./command-argv');
 const { executionKindOf } = schema;
 // plan-snapshot은 validate·validate-gates를 require하지 않으므로 순환이 없다.
 import planSnapshotLib = require('./plan-snapshot');
@@ -625,6 +626,142 @@ function checkVerificationTaskGraph(tasksList: DocLeaf[], failures: FailureEntry
 }
 
 /**
+ * `verification_policy: scoped_terminal` blueprint의 검증 책임 분리를 판정한다(G20).
+ * 구현 task는 task 전용 `bouncer.verify`를 가져야 하고, 전체 검증은 구현 task를
+ * 모두 기다리는 단 하나의 마지막 verification node가 맡는다. 표식이 없는 legacy
+ * blueprint는 소급하지 않고 그대로 통과시킨다. 허용 밖의 값은 legacy로 접지 않고
+ * 거절한다 — 오타가 조용히 옛 계약으로 읽히면 새 계획의 보호가 풀리기 때문이다.
+ * 거절 사유: 정책 값 오류, 구현 task 명령 누락·단일 argv 위반, 구현 task에 terminal과
+ * 같은 전체 명령 배정, terminal 개수가 1이 아님, terminal이 구현 task를 (간접 포함)
+ * 기다리지 않음, 새 light에서 구현이 하나가 아니거나 독립이 아님. 검증 뒤 구현
+ * node는 checkVerificationTaskGraph가 이미 거절하므로 중복 보고하지 않는다.
+ *
+ * @param {DocLeaf | undefined} blueprintIndex - blueprint index.md 문서
+ * @param {DocLeaf[]} tasksList - blueprint의 모든 tasks.md
+ * @param {boolean} isLight - blueprint scale이 light인지
+ * @param {FailureEntry[]} failures - G20 결과 누적 배열
+ * @returns {void} 결과는 failures에 push로만 남긴다
+ */
+function checkScopedTerminalPolicy(
+  blueprintIndex: DocLeaf | undefined,
+  tasksList: DocLeaf[],
+  isLight: boolean,
+  failures: FailureEntry[],
+): void {
+  const bpData = asData(blueprintIndex);
+  const policy = schema.verificationPolicyOf(bpData ? bpData.bouncer : undefined);
+  const bpFile = blueprintIndex ? blueprintIndex.rel : '';
+  if (policy === null) {
+    failures.push({
+      code: 'G20',
+      message: `verification_policy must be one of ${schema.VERIFICATION_POLICY_ENUM.join(' | ')} or absent`,
+      file: bpFile,
+    });
+    return;
+  }
+  if (policy === 'legacy') return;
+
+  const bouncerOf = (doc: DocLeaf) => {
+    const data = asData(doc);
+    return (data && data.bouncer ? data.bouncer : {}) as Record<string, unknown>;
+  };
+  const commits: DocLeaf[] = [];
+  const terminals: DocLeaf[] = [];
+  for (const doc of tasksList) {
+    const kind = executionKindOf(bouncerOf(doc));
+    if (kind === 'verification') terminals.push(doc);
+    else if (kind === 'commit') commits.push(doc);
+  }
+  const normalize = (value: unknown) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '');
+  const terminalCommands = new Set(terminals.map((doc) => normalize(bouncerOf(doc).verify)));
+
+  for (const doc of commits) {
+    const verify = bouncerOf(doc).verify;
+    if (typeof verify !== 'string' || verify.trim() === '') {
+      failures.push({
+        code: 'G20',
+        message: 'scoped_terminal commit task requires its own non-empty bouncer.verify',
+        file: doc.rel,
+      });
+    } else if (commandArgv.parseVerifyArgv(verify) === null) {
+      // 셸 연산자·미종료 인용은 실행 시점의 VERIFY_COMMAND_INVALID와 같은 파서로 미리 막는다.
+      failures.push({
+        code: 'G20',
+        message: 'scoped_terminal commit task verify must be a single executable command',
+        file: doc.rel,
+      });
+    } else if (terminalCommands.has(normalize(verify))) {
+      failures.push({
+        code: 'G20',
+        message: `scoped_terminal commit task must not run the terminal full-suite command: ${normalize(verify)}`,
+        file: doc.rel,
+      });
+    }
+  }
+
+  if (terminals.length !== 1) {
+    failures.push({
+      code: 'G20',
+      message: terminals.length === 0
+        ? 'scoped_terminal requires exactly one terminal verification task, found none'
+        : `scoped_terminal requires exactly one terminal verification task, found ${terminals.length}`,
+      file: bpFile,
+    });
+    return;
+  }
+  if (commits.length === 0) {
+    failures.push({
+      code: 'G20',
+      message: 'scoped_terminal requires at least one commit task before the terminal verification',
+      file: terminals[0].rel,
+    });
+    return;
+  }
+
+  // terminal이 모든 구현 task를 (간접 포함) 기다려야 "구현 통합 뒤 한 번"이 성립한다.
+  // 선행 id를 거슬러 올라가며 도달 집합을 만든다. 순환은 G19가 이미 거절했으므로
+  // visited 집합으로 한 번씩만 방문해 끝나게 한다.
+  const dependsById = new Map<string, string[]>();
+  for (const doc of tasksList) {
+    const b = bouncerOf(doc);
+    if (typeof b.id === 'string') {
+      const declared = Array.isArray(b.depends_on) ? b.depends_on : [];
+      dependsById.set(b.id, declared.filter((x): x is string => typeof x === 'string'));
+    }
+  }
+  const reached = new Set<string>();
+  const queue = [...(dependsById.get(String(bouncerOf(terminals[0]).id)) || [])];
+  while (queue.length > 0) {
+    const id = queue.pop() as string;
+    if (reached.has(id)) continue;
+    reached.add(id);
+    queue.push(...(dependsById.get(id) || []));
+  }
+  for (const doc of commits) {
+    const id = String(bouncerOf(doc).id);
+    if (!reached.has(id)) {
+      failures.push({
+        code: 'G20',
+        message: `terminal verification must wait for commit task: ${id}`,
+        file: terminals[0].rel,
+      });
+    }
+  }
+
+  if (isLight) {
+    const only = commits[0];
+    const dependsOn = bouncerOf(only).depends_on;
+    if (commits.length !== 1 || (Array.isArray(dependsOn) && dependsOn.length > 0)) {
+      failures.push({
+        code: 'G20',
+        message: 'scoped_terminal light requires one independent commit task plus the terminal verification',
+        file: bpFile,
+      });
+    }
+  }
+}
+
+/**
  * Git common dir의 verify 원장을 읽는다. evidenceId가 있으면 v2 경로를 쓰고,
  * 없으면 legacy(rel-only) 경로를 연다 — 구 원장 miss와 v2 hit 경계를 같게 유지한다.
  *
@@ -1091,6 +1228,7 @@ function runCheckGate(
       }
     }
     checkVerificationTaskGraph(tasksList, failures);
+    checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
     return;
   }
   if (gate === 'execute') {
@@ -1704,7 +1842,7 @@ function checkPlanDraft(
   failures: FailureEntry[],
   ctx: GateContext = {},
 ): void {
-  const { sectionKeys } = planScaleOf(docs);
+  const { isLight, sectionKeys } = planScaleOf(docs);
   const tasksList = planTasksOf(docs);
   if (tasksList.length === 0) {
     // plan gate의 빈 목록 분기에서 status 코드(G3)만 뺀 것이다.
@@ -1724,6 +1862,7 @@ function checkPlanDraft(
   // plan gate와 같은 조건: G19가 실패하면 모양 경고를 건너뛴다.
   if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   checkVerificationTaskGraph(tasksList, failures);
+  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
 }
 
 export = { checkGate, checkPartialCloseEvidence, checkPlanDraft, SECURITY_PATH_TOKENS };

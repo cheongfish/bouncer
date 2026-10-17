@@ -59,7 +59,9 @@ type OpenTask = {
 
 type PreflightOk = {
   ok: true;
-  blueprint: { dir: string; status: string; scale: string };
+  // verification_policy는 실행 세션이 구현 worker에게 줄 명령(task 전용)과 종단 전체 검증을
+  // 구분하는 입력이다. 표식이 없으면 legacy, 허용 밖 값은 'invalid'로 드러낸다.
+  blueprint: { dir: string; status: string; scale: string; verification_policy: string };
   base: string;
   openTasks: OpenTask[];
   readyWave: string[];
@@ -187,6 +189,7 @@ function readAutonomy(repoRoot: string): Autonomy {
 function readBlueprintMeta(repoRoot: string, blueprintDir: string): {
   status: string;
   scale: string;
+  verificationPolicy: string;
   legacyReviewScope: boolean;
 } {
   try {
@@ -197,11 +200,14 @@ function readBlueprintMeta(repoRoot: string, blueprintDir: string): {
     // bouncer 블록이 있는 읽힌 index만 legacy 판정 대상이다. 읽지 못한 문서는
     // status ''로 접혀 blueprint-status-unknown이 되므로 여기서 이중 판정하지 않는다.
     const legacyReviewScope = bouncer !== null && bouncer.review_scope !== 'blueprint';
-    return { status, scale, legacyReviewScope };
+    return {
+      status, scale, legacyReviewScope,
+      verificationPolicy: schema.verificationPolicyOf(bouncer) ?? 'invalid',
+    };
   } catch (_error) {
     // index 부재·파싱 실패는 status를 ''로 접는다. 호출부(docStatusReason)가 ''를
     // blueprint-status-unknown으로 거절하므로 읽지 못한 blueprint는 위임되지 않는다.
-    return { status: '', scale: DEFAULT_SCALE, legacyReviewScope: false };
+    return { status: '', scale: DEFAULT_SCALE, verificationPolicy: 'legacy', legacyReviewScope: false };
   }
 }
 
@@ -447,7 +453,10 @@ function runPreflight({ repoRoot, blueprintDir }: {
 
   return {
     ok: true,
-    blueprint: { dir: blueprint, status: meta.status, scale: meta.scale },
+    blueprint: {
+      dir: blueprint, status: meta.status, scale: meta.scale,
+      verification_policy: meta.verificationPolicy,
+    },
     base: pointer.base,
     openTasks,
     readyWave: readyWave(waveTasks, { maxParallel }),

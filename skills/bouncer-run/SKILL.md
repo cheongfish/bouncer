@@ -63,6 +63,13 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+`verification_policy: scoped_terminal` blueprint(새 계획)는 책임을 나눈다. 구현
+worker는 자기 task 전용 `bouncer.verify`만 실행하고 보고 `## Tests`에 그 명령과
+결과를 적는다. 다른 명령·누락·실패 결과면 fan-in이 `worker-test-report-mismatch`로
+거절한다. 정상 경로의 첫 전체 검증은 모든 구현이 통합된 뒤 종단 verification node에서
+한 번이며, 실패 복구 재검증과 finalize remainder 검증은 따로 돈다. 표식이 없는
+legacy 계획은 현행 동작을 유지한다.
+
 When `review_scope` is `blueprint`, the coordinator owns the one final review
 after that verification node (and every commit task) is `integrated`; this
 root session does not open it. A blueprint without `review_scope` is blocked at

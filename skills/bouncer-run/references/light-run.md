@@ -1,9 +1,10 @@
 # Light run
 
 When the ledger is light (`mode: light` from a blueprint whose `bouncer.scale`
-is `light` and that has exactly one independent commit task), `/bouncer-run`
-follows this procedure instead of dispatching `bouncer-coordinator`. Do not
-apply it to a full ledger.
+is `light`), `/bouncer-run` follows this procedure instead of dispatching
+`bouncer-coordinator`. The blueprint has one independent commit task; a
+`verification_policy: scoped_terminal` blueprint additionally has exactly one
+terminal verification task that depends on it. Do not apply it to a full ledger.
 
 It starts only after the `SKILL.md` step 2 approval (A) and step 3 bootstrap
 are done, so the light ledger already exists.
@@ -17,7 +18,9 @@ are done, so the light ledger already exists.
    `${BOUNCER_ROOT}/references/coding-standards/index.md` before
    editing. Do not dispatch named `bouncer-implementer`.
 
-2. **Verify.** Run the task verify command. On failure, dispatch named
+2. **Verify.** Run only the task-assigned verify command (on a
+   `scoped_terminal` blueprint never the full-suite command; that belongs to
+   the terminal node). On failure, dispatch named
    `bouncer-debugger` (still named — never inline), then re-implement inside
    Touch / `affected_paths` as needed. Review ceilings stay discovery · fix ·
    delta at most once each.
@@ -41,7 +44,14 @@ are done, so the light ledger already exists.
 5. **Close.** Call `report` / `record` / `commit` / `integrate` per the CLI.
    This run session must not be the approver of `report --outcome accepted` —
    base that outcome only on recorded reviewer rounds (the independent
-   reviewer session, e.g. named `bouncer-reviewer`).
+   reviewer session, e.g. named `bouncer-reviewer`). Integrating the
+   implementation runs no full verification.
+
+6. **Terminal verification.** On a `scoped_terminal` blueprint, once the
+   implementation is `integrated`, follow `coordinate next` (`prepare`, then
+   `verification_node`) and run the terminal node: its one full verification
+   is the first full run. A recovery re-verification after a failure and the
+   finalize remainder verification are separate runs.
 
 ## Prohibitions
 

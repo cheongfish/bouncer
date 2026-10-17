@@ -188,11 +188,13 @@ function writeTerminalEvidence(worker, blueprint, id, sha) {
  */
 function writeWorkerReport(worker, task, attempt, hash, {
   revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
-  open = '- none', weak = '- none',
+  open = '- none', weak = '- none', tests = null,
 } = {}) {
   const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
   fs.mkdirSync(dir, { recursive: true });
   const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  // scoped_terminal fan-in은 지정 명령·결과가 적힌 Tests 절을 요구한다. null이면 절 자체를 뺀다.
+  if (tests !== null) parts.push(`## Tests\n${tests}`);
   if (open !== null) parts.push(`## Open choices\n${open}`);
   if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
   fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
@@ -202,12 +204,14 @@ function writeWorkerReport(worker, task, attempt, hash, {
  * dispatch → accepted report → record. TASKS-001 이후 record는 활성 attempt의
  * accepted 보고와 brief hash 일치가 있어야만 worker HEAD를 올린다.
  */
-function acceptDispatchAndRecord(repo, blueprint, worker, task) {
+function acceptDispatchAndRecord(repo, blueprint, worker, task, reportOptions = {}) {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
-  writeWorkerReport(worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
+  writeWorkerReport(
+    worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash, reportOptions,
+  );
   const reported = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
     attempt: dispatched.metadata.attempt,
@@ -1117,6 +1121,243 @@ test('parallel drive에서 ledger 없는 standalone checkout → pointer effecti
   const eff = resolveEffectiveTask({ repoRoot: repo });
   assert.strictEqual(eff.source, 'pointer');
   assert.strictEqual(eff.id, 'TASKS-002');
+});
+
+/**
+ * scoped_terminal 계획을 만든다: 구현 001·002(직렬, 각자 전용 명령)와 종단 verification 003.
+ * 새 scaffold가 쓰는 표식과 같은 `verification_policy`를 blueprint index에 둔다.
+ */
+function makeScopedRepo(epicNo, { light = false } = {}) {
+  const epic = `.bouncer/context/epics/${epicNo}-scoped`;
+  const blueprint = `${epic}/blueprints/001-drive`;
+  const repo = makeRepo({
+    'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n', 'src/beta.js': 'beta base\n',
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'source']);
+  const ids = { epic_id: epicNo, blueprint_id: '001' };
+  writePlanDoc(repo, `${epic}/index.md`, 'bouncer.epic', { id: epicNo, epic_id: epicNo, status: 'approved' }, '# Epic\n');
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: epicNo, name: 'scoped', description: 'd' });
+  writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
+    id: '001', ...ids, status: 'approved', commit_type: 'feat', review_scope: 'blueprint',
+    verification_policy: 'scoped_terminal', ...(light ? { scale: 'light' } : {}),
+  }, '# Blueprint\n\n## Intent\n- 구현은 전용 명령, 전체 검증은 종단에서 한 번\n');
+  if (light) {
+    writePlanDoc(repo, `${blueprint}/review.md`, 'bouncer.review', {
+      id: 'REVIEW-001', ...ids, status: 'pending', review: { required: true },
+    }, '# Review\n\n## Findings\n- <finding>\n');
+  }
+  const body = '# Tasks\n\n## Goal & intent\n바꾼다.\n\n## Touch\n- Modify `src/alpha.js`\n\n## Checklist\n- [ ] 바꾼다\n';
+  const commits = light ? [['001', 'src/alpha.js', []]]
+    : [['001', 'src/alpha.js', []], ['002', 'src/beta.js', ['TASKS-001']]];
+  for (const [id, file, dependsOn] of commits) {
+    writePlanDoc(repo, `${blueprint}/tasks/${id}/tasks.md`, 'bouncer.tasks', {
+      id: `TASKS-${id}`, ...ids, status: 'ready', depends_on: dependsOn, parallel_safe: false,
+      dependency_gate: 'integrated', affected_paths: [file], verify: `node --test test/${id}.test.js`,
+    }, body);
+  }
+  const terminalId = light ? '002' : '003';
+  writePlanDoc(repo, `${blueprint}/tasks/${terminalId}/tasks.md`, 'bouncer.tasks', {
+    id: `TASKS-${terminalId}`, ...ids, status: 'ready', execution_kind: 'verification',
+    depends_on: [`TASKS-${light ? '001' : '002'}`], parallel_safe: false, dependency_gate: 'integrated',
+    affected_paths: [], verify: 'npm test',
+  }, body);
+  for (const id of [...commits.map((c) => c[0]), terminalId]) {
+    writePlanDoc(repo, `${blueprint}/tasks/${id}/verification.md`, 'bouncer.verification',
+      { id: `VERIFY-${id}`, ...ids, status: 'pending' }, '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n');
+  }
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  return { repo, blueprint, terminalId };
+}
+
+test('scoped_terminal drive → 보고 Tests가 지정 명령·통과 결과가 아니면 fan-in 거부, 통과 뒤에도 runner는 종단에서만 1회', () => {
+  const { repo, blueprint, terminalId } = makeScopedRepo('091');
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integrationPath = boot.integrationPath;
+  const calls = [];
+  const runVerification = (opts) => {
+    calls.push({ taskId: opts.taskId, kind: opts.scope && opts.scope.kind });
+    return { ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) };
+  };
+  const integrate = (task) => coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task, deps: { runVerification },
+  });
+  const ledgerOf = () => loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json'));
+
+  for (const [id, file] of [['001', 'src/alpha.js'], ['002', 'src/beta.js']]) {
+    const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+    assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+    const worker = prepared.tasks.find((t) => t.id === id).workerPath;
+    const sha = commitInWorker(worker, file, `changed by ${id}\n`, `feat: task ${id}`);
+    writeTerminalEvidence(worker, blueprint, id, sha);
+    const command = `node --test test/${id}.test.js`;
+    // 결과가 빠진 Tests, 다른 명령, 실패 결과, Tests 절 부재는 모두 거부된다.
+    const bad = {
+      noSection: null,
+      otherCommand: '- `npm test` — 12 pass, 0 fail',
+      noResult: `- \`${command}\``,
+      failed: `- \`${command}\` — 11 pass, 1 fail (exit 1)`,
+    };
+    const head = git(integrationPath, ['rev-parse', 'HEAD']);
+    const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: id });
+    assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+    const accept = (tests) => {
+      writeWorkerReport(worker, id, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash, { tests });
+    };
+    accept(bad.noSection);
+    assert.strictEqual(coordinate({
+      command: 'report', repoRoot: repo, blueprint, cwd: worker, task: id,
+      attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+      outcome: 'accepted', summary: `accepted ${id}`,
+    }).ok, true);
+    assert.strictEqual(coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: id }).ok, true);
+    for (const [label, tests] of Object.entries(bad)) {
+      accept(tests);
+      const rejected = integrate(id);
+      assert.strictEqual(rejected.ok, false, `${label}: ${JSON.stringify(rejected)}`);
+      assert.strictEqual(rejected.reason, 'worker-test-report-mismatch', `${label}: ${JSON.stringify(rejected)}`);
+      assert.strictEqual(rejected.task, id);
+      assert.strictEqual(git(integrationPath, ['rev-parse', 'HEAD']), head, label);
+      assert.strictEqual(ledgerOf().tasks.find((t) => t.id === id).status, 'recorded', label);
+    }
+    accept(`- \`${command}\` — 12 pass, 0 fail (exit 0)`);
+    const integrated = integrate(id);
+    assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  }
+  // 모든 구현 통합 뒤에도 wave fan-in은 전체 명령을 한 번도 돌리지 않았다.
+  assert.deepStrictEqual(calls, []);
+
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const terminal = integrate(terminalId);
+  assert.strictEqual(terminal.ok, true, JSON.stringify(terminal));
+  assert.deepStrictEqual(calls, [{ taskId: terminalId, kind: 'terminal' }]);
+});
+
+test('legacy blueprint without the marker → fan-in still runs the wave verification and needs no Tests section', () => {
+  const blueprint = '.bouncer/context/epics/092-legacy/blueprints/001-drive';
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n' });
+  writeTask(repo, blueprint, '001', { depends_on: [], parallel_safe: false, affected_paths: ['src/alpha.js'] });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  const worker = prepared.tasks[0].workerPath;
+  const sha = commitInWorker(worker, 'src/alpha.js', 'changed\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', sha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, '001').ok, true);
+  let calls = 0;
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: { runVerification: () => { calls += 1; return { ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) }; } },
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  assert.strictEqual(calls, 1);
+});
+
+test('scoped_terminal light drive → 구현 하나 통합까지 runner 0회, 종단 node에서 1회 뒤 done', () => {
+  const { recordReview } = require('../scripts/lib/review-record');
+  const { captureReviewSnapshot } = require('../scripts/lib/review-snapshot');
+  const { coordinateNext } = require('../scripts/lib/coordinate-next');
+  const { repo, blueprint, terminalId } = makeScopedRepo('093', { light: true });
+  const calls = [];
+  const runVerification = (opts) => {
+    calls.push({ taskId: opts.taskId, kind: opts.scope && opts.scope.kind });
+    return { ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) };
+  };
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(boot.mode, 'light');
+  const integrationPath = boot.integrationPath;
+  // 종단 node는 구현 통합 전에는 열리지 않는다.
+  assert.deepStrictEqual(boot.ready, ['001']);
+
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const sha = commitInWorker(integrationPath, 'src/alpha.js', 'changed by light\n', 'feat: light 001');
+  writeTerminalEvidence(integrationPath, blueprint, '001', sha);
+  // light inline 보고는 파일을 남기지 않을 수 있다 — 그래도 부재는 fan-in을 막지 않는다.
+  const baseSha = git(integrationPath, ['rev-parse', `${sha}~1`]);
+  const frozen = captureReviewSnapshot({
+    repoRoot: integrationPath, blueprintDir: blueprint, taskId: null, base: baseSha, head: sha,
+  });
+  assert.strictEqual(frozen.ok, true, JSON.stringify(frozen));
+  const roundFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-e2e-round-')), 'round.json');
+  fs.writeFileSync(roundFile, `${JSON.stringify({
+    round: {
+      round: 1, mode: 'discovery',
+      target: { base: baseSha, head: sha, snapshot_id: frozen.snapshot_id },
+      perspectives: [{ name: 'combined', target_head: sha }],
+      previous_finding_ids: [], new: 0, resolved: 0, regressed: 0,
+    },
+    findings: [],
+  })}\n`);
+  assert.strictEqual(recordReview({
+    repoRoot: integrationPath, blueprintDir: blueprint, roundFile, status: 'accepted',
+  }).ok, true);
+  assert.strictEqual(coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'light accepted',
+  }).ok, true);
+  assert.strictEqual(coordinate({
+    command: 'record', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+  }).ok, true);
+
+  // 파일이 있는 보고가 지정 명령을 담지 않으면 light에서도 거부한다.
+  writeWorkerReport(
+    integrationPath, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash,
+    { tests: '- `npm test` — 12 pass' },
+  );
+  const rejected = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    deps: { runVerification },
+  });
+  assert.strictEqual(rejected.reason, 'worker-test-report-mismatch', JSON.stringify(rejected));
+  fs.rmSync(path.join(integrationPath, '.bouncer/runtime/reports'), { recursive: true, force: true });
+
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    deps: { runVerification },
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  assert.deepStrictEqual(calls, []);
+  assert.deepStrictEqual(integrated.ready, [terminalId]);
+
+  // 구현이 통합된 뒤에야 next가 종단 node를 연다.
+  const afterImpl = coordinateNext({ repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(afterImpl.action, 'prepare', JSON.stringify(afterImpl));
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  const nodeStep = coordinateNext({ repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(nodeStep.action, 'verification_node', JSON.stringify(nodeStep));
+  assert.strictEqual(nodeStep.task, terminalId);
+
+  const terminal = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: terminalId,
+    deps: { runVerification },
+  });
+  assert.strictEqual(terminal.ok, true, JSON.stringify(terminal));
+  assert.deepStrictEqual(calls, [{ taskId: terminalId, kind: 'terminal' }]);
+  const done = coordinateNext({ repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(done.action, 'done', JSON.stringify(done));
+});
+
+test('scoped_terminal light bootstrap → 구현 둘이거나 종단이 없으면 light-requires-single-task로 거절', () => {
+  const { repo, blueprint } = makeScopedRepo('094', { light: true });
+  // 종단 node를 지우면 구현 하나뿐인 scoped light가 되어 자격이 없다.
+  fs.rmSync(path.join(repo, blueprint, 'tasks/002'), { recursive: true });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'drop terminal']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, false, JSON.stringify(boot));
+  assert.strictEqual(boot.reason, 'light-requires-single-task');
 });
 
 test('light single-task drive → worker worktree 없이 integration에서 prepare부터 done까지 진행됨', () => {

@@ -3541,9 +3541,10 @@ function lightScaleRepo(prefix, blueprint, opts = {}) {
   fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
   const scopeLine = reviewScope ? `  review_scope: ${reviewScope}\n` : '';
   const scaleLine = scale ? `  scale: ${scale}\n` : '';
+  const policyLine = opts.policy ? `  verification_policy: ${opts.policy}\n` : '';
   fs.writeFileSync(
     path.join(repo, blueprint, 'index.md'),
-    `---\nbouncer:\n  status: approved\n${scaleLine}${scopeLine}---\n# Blueprint\n`,
+    `---\nbouncer:\n  status: approved\n${scaleLine}${scopeLine}${policyLine}---\n# Blueprint\n`,
   );
   if (reviewScope === 'blueprint') {
     fs.writeFileSync(
@@ -3701,6 +3702,62 @@ test('light ledger with scale full, eligibility misshape or verification → rej
   const verBoot = coordinate({ command: 'bootstrap', repoRoot: ver.repo, blueprint: verBp });
   assert.strictEqual(verBoot.ok, false, JSON.stringify(verBoot));
   assert.strictEqual(verBoot.reason, 'light-requires-single-task');
+});
+
+test('scoped_terminal light bootstrap → accepts one independent commit plus its terminal only', () => {
+  const ok = lightScaleRepo('bouncer-light-scoped-ok-', '.bouncer/context/epics/089-light/blueprints/007-scoped', {
+    policy: 'scoped_terminal',
+    tasks: [
+      { id: '001', depends_on: [] },
+      { id: '002', depends_on: ['TASKS-001'], execution_kind: 'verification' },
+    ],
+  });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: ok.repo, blueprint: ok.blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(boot.mode, 'light');
+  assert.deepStrictEqual(boot.ready, ['001']);
+
+  // 같은 두 node라도 표식이 없으면(legacy light) 현행 의미대로 거절한다.
+  const legacy = lightScaleRepo('bouncer-light-scoped-legacy-', '.bouncer/context/epics/089-light/blueprints/008-legacy', {
+    tasks: [
+      { id: '001', depends_on: [] },
+      { id: '002', depends_on: ['TASKS-001'], execution_kind: 'verification' },
+    ],
+  });
+  const legacyBoot = coordinate({ command: 'bootstrap', repoRoot: legacy.repo, blueprint: legacy.blueprint });
+  assert.strictEqual(legacyBoot.reason, 'light-requires-single-task');
+
+  const shapes = {
+    'two commits plus terminal': [
+      { id: '001', depends_on: [] }, { id: '002', depends_on: [] },
+      { id: '003', depends_on: ['TASKS-001', 'TASKS-002'], execution_kind: 'verification' },
+    ],
+    'commit only': [{ id: '001', depends_on: [] }],
+    'dependent commit': [
+      { id: '001', depends_on: ['TASKS-002'] },
+      { id: '002', depends_on: ['TASKS-001'], execution_kind: 'verification' },
+    ],
+    'terminal not waiting for the commit': [
+      { id: '001', depends_on: [] },
+      { id: '002', depends_on: ['TASKS-009'], execution_kind: 'verification' },
+    ],
+  };
+  let n = 20;
+  for (const [label, tasks] of Object.entries(shapes)) {
+    n += 1;
+    const bp = `.bouncer/context/epics/089-light/blueprints/0${n}-shape`;
+    const r = lightScaleRepo(`bouncer-light-scoped-${n}-`, bp, { policy: 'scoped_terminal', tasks });
+    const rejected = coordinate({ command: 'bootstrap', repoRoot: r.repo, blueprint: bp });
+    assert.strictEqual(rejected.reason, 'light-requires-single-task', `${label}: ${JSON.stringify(rejected)}`);
+  }
+});
+
+test('bootstrap with an unknown verification_policy value → rejects with verification-policy-invalid', () => {
+  const bp = '.bouncer/context/epics/089-light/blueprints/009-badpolicy';
+  const r = lightScaleRepo('bouncer-light-badpolicy-', bp, { scale: 'full', policy: 'strict' });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: r.repo, blueprint: bp });
+  assert.strictEqual(boot.ok, false, JSON.stringify(boot));
+  assert.strictEqual(boot.reason, 'verification-policy-invalid');
 });
 
 test('opposite-mode bootstrap resume → rejects with ledger-mode-mismatch', () => {
