@@ -1464,7 +1464,7 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
     const patchPath = patch.length ? patchFile : null;
     // 2. snapshot every dirty path and seed target, plus the raw index. Byte restoration
     // preserves staged/unstaged separation that `git apply` cannot reconstruct safely.
-    const originalFiles = new Map<string, { bytes: Buffer } | { symlink: string } | null>();
+    const originalFiles = new Map<string, { bytes: Buffer; mode: number } | { symlink: string } | null>();
     for (const rel of new Set([...tracked, ...untracked, ...planPaths, '.bouncer/config.json'])) {
       const abs = path.join(integration, rel);
       if (!fs.existsSync(abs) && !fs.lstatSync(abs, { throwIfNoEntry: false })) {
@@ -1472,7 +1472,7 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
       } else if (fs.lstatSync(abs).isSymbolicLink()) {
         originalFiles.set(rel, { symlink: fs.readlinkSync(abs) });
       } else {
-        originalFiles.set(rel, { bytes: fs.readFileSync(abs) });
+        originalFiles.set(rel, { bytes: fs.readFileSync(abs), mode: fs.statSync(abs).mode });
       }
     }
     const gitDir = String(exec('git', ['rev-parse', '--absolute-git-dir'], {
@@ -1537,24 +1537,32 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
             fs.mkdirSync(path.dirname(abs), { recursive: true });
             fs.rmSync(abs, { force: true, recursive: true });
             if ('symlink' in bytes) fs.symlinkSync(bytes.symlink, abs);
-            else fs.writeFileSync(abs, bytes.bytes);
+            else {
+              fs.writeFileSync(abs, bytes.bytes);
+              fs.chmodSync(abs, bytes.mode);
+            }
           }
         }
         fs.writeFileSync(indexFile, originalIndex);
+        if (worktreeDiffSha(exec, integration) !== ledger.promotion.diff_sha) {
+          throw new Error('promotion rollback fingerprint mismatch', { cause: _error });
+        }
+        // 복구가 fingerprint로 인증된 뒤에만 수동 복구용 사본을 치운다.
         if (archived) {
           fs.rmSync(ledgerFile, { force: true });
           fs.renameSync(archive, ledgerFile);
+          archived = false;
         }
-        if (patchWritten) fs.rmSync(patchFile, { force: true });
-        if (worktreeDiffSha(exec, integration) !== ledger.promotion.diff_sha) {
-          throw new Error('promotion rollback fingerprint mismatch', { cause: _error });
+        if (patchWritten) {
+          fs.rmSync(patchFile, { force: true });
+          patchWritten = false;
         }
       } catch (_restoreError) {
         restored = false;
       }
       // 승격은 여러 파일과 원장을 함께 바꾸므로 예외를 반환하기 전에 역순 복구를 시도한다.
       const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
-      const manual = patchWritten
+      const manual = archived && patchWritten
         ? `cp ${quote(archive)} ${quote(ledgerFile)} && git -C ${quote(integration)} apply --check `
           + `${quote(patchFile)} && git -C ${quote(integration)} apply ${quote(patchFile)}`
         : `cp ${quote(archive)} ${quote(ledgerFile)}`;

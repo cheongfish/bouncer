@@ -4027,6 +4027,7 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   const blueprint = '.bouncer/context/epics/107-promote-rollback/blueprints/001-plan';
   const drive = lightPreparedDrive('bouncer-promote-light-rollback-', blueprint);
   fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  fs.chmodSync(path.join(drive.integrationPath, 'src/a.js'), 0o755);
   execFileSync('git', ['add', 'src/a.js'], { cwd: drive.integrationPath });
   fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'partially staged work\n');
   const dirtyPlanPath = path.join(drive.integrationPath, blueprint, 'index.md');
@@ -4040,6 +4041,7 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   const originalStaged = execFileSync('git', ['diff', '--cached', '--binary'], {
     cwd: drive.integrationPath, encoding: 'utf8',
   });
+  const originalMode = fs.statSync(path.join(drive.integrationPath, 'src/a.js')).mode & 0o777;
   const originalDocs = [
     `${blueprint}/index.md`, `${blueprint}/tasks/001/tasks.md`, `${blueprint}/verification.md`,
     '.bouncer/context/index.md',
@@ -4062,6 +4064,7 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   });
   assert.strictEqual(out.reason, 'promote-light-incomplete');
   assert.strictEqual(out.restored, true);
+  assert.strictEqual(fs.statSync(path.join(drive.integrationPath, 'src/a.js')).mode & 0o777, originalMode);
   for (const [rel, original] of originalDocs) {
     const abs = path.join(drive.integrationPath, rel);
     assert.deepStrictEqual(fs.existsSync(abs) ? fs.readFileSync(abs) : null, original);
@@ -4083,6 +4086,37 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   assert.strictEqual(afterDiffSha, originalDiffSha);
   assert.strictEqual(beforeDiff, stopped.promotion.diff_sha);
   assert.match(beforeDiff, /^[a-f0-9]{64}$/);
+});
+
+test('promotion rollback fingerprint mismatch → preserves manual recovery artifacts', () => {
+  const blueprint = '.bouncer/context/epics/107-promote-rollback-mismatch/blueprints/001-plan';
+  const drive = lightPreparedDrive('bouncer-promote-light-mismatch-', blueprint);
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
+  assert.strictEqual(stopped.ok, true);
+  fs.writeFileSync(path.join(drive.repo, blueprint, 'index.md'),
+    fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8').replace('scale: light', 'scale: full'));
+  let worktreeDiffCalls = 0;
+  const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true,
+    deps: {
+      execFileSync: (file, args, options) => {
+        const result = execFileSync(file, args, options);
+        if (file === 'git' && args.join(' ') === 'diff HEAD' && ++worktreeDiffCalls === 2) {
+          return `${result}injected mismatch`;
+        }
+        return result;
+      },
+      writeLedger: (_file, ledger) => {
+        if (ledger.promoted_from) throw new Error('injected full ledger write failure');
+        fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+      },
+    },
+  });
+  assert.strictEqual(out.reason, 'promote-light-incomplete');
+  assert.strictEqual(out.restored, false);
+  assert.ok(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/coordinator.light-promoted.json')));
+  assert.ok(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/light-promoted.patch')));
 });
 
 test('promotion seed destination symlink outside integration → rolls back without changing target bytes', () => {
