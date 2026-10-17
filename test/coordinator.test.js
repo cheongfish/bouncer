@@ -971,6 +971,48 @@ function gitBranchList(repo, branch) {
   return execFileSync('git', ['branch', '--list', branch], { cwd: repo, encoding: 'utf8' }).trim();
 }
 
+test('prepare with an approved scope → shares main node_modules only for tasks that leave package files alone', () => {
+  const blueprint = '.bouncer/context/epics/108-share/blueprints/001-scope';
+  const repo = uncommittedPlanRepo('bouncer-prepare-share-scope-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n  affected_paths:\n    - src/\n'],
+    ['002', '  depends_on: []\n  parallel_safe: true\n  affected_paths:\n    - package.json\n'],
+  ]);
+  // main이 이 lock으로 설치를 끝낸 상태: lock, marker, 같은 hash의 stamp, 직접 패키지 metadata.
+  const lock = '{"v":1}\n';
+  fs.writeFileSync(path.join(repo, 'package-lock.json'), lock);
+  fs.writeFileSync(path.join(repo, 'package.json'), '{"devDependencies":{"left-pad":"1.0.0"}}\n');
+  execFileSync('git', ['add', 'package-lock.json', 'package.json'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'lock'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  fs.mkdirSync(path.join(repo, 'node_modules/left-pad'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'node_modules/left-pad/package.json'), '{}\n');
+  fs.writeFileSync(path.join(repo, 'node_modules/.package-lock.json'), '{}\n');
+  fs.writeFileSync(
+    path.join(repo, 'node_modules/.bouncer-lock-sha256'),
+    `${crypto.createHash('sha256').update(lock).digest('hex')}\n`,
+  );
+  const npmCwds = [];
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') {
+          npmCwds.push(options.cwd);
+          return Buffer.from('');
+        }
+        return execFileSync(command, args, options);
+      },
+    },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const workerOf = (id) => prepared.tasks.find((t) => t.id === id || t.task === id).workerPath;
+  const isLink = (worker) => fs.lstatSync(path.join(worker, 'node_modules'), { throwIfNoEntry: false })?.isSymbolicLink() === true;
+  assert.strictEqual(isLink(workerOf('001')), true);
+  assert.strictEqual(isLink(workerOf('002')), false);
+  assert.deepStrictEqual(npmCwds, [workerOf('002')]);
+});
+
 test('prepare during worktree add and npm → holds no ledger lock', () => {
   const blueprint = '.bouncer/context/epics/087-lock/blueprints/001-absent';
   const repo = uncommittedPlanRepo('bouncer-prepare-lock-absent-', blueprint, [
@@ -4813,4 +4855,38 @@ test('worker-model on a promotion_stopped ledger → refuses with promotion-stop
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.reason, 'promotion-stopped');
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('verification integrate when the runner rejects missing dependencies → records no failure and keeps evidence', () => {
+  const blueprint = '.bouncer/context/epics/091-prepare/blueprints/003-precondition';
+  const repo = uncommittedPlanRepo('bouncer-verify-precondition-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  const evidenceDoc = path.join(boot.integrationPath, blueprint, 'tasks/002/verification.md');
+  fs.mkdirSync(path.dirname(evidenceDoc), { recursive: true });
+  fs.writeFileSync(evidenceDoc, 'passed evidence\n');
+  const evidenceBefore = fs.readFileSync(evidenceDoc);
+
+  assert.throws(() => coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      runVerification: () => {
+        const error = new Error('direct dependencies are not installed');
+        error.code = 'VERIFY_DEPENDENCIES_MISSING';
+        throw error;
+      },
+    },
+  }), { code: 'VERIFY_DEPENDENCIES_MISSING' });
+
+  assert.ok(fs.readFileSync(evidenceDoc).equals(evidenceBefore));
+  const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  assert.strictEqual(after.terminalFailure, undefined);
+  assert.strictEqual((after.repairWaves || []).length, 0);
 });

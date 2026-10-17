@@ -28,6 +28,9 @@ type PendingWrite = { rel: string; write: true; dst: string; content: Buffer; ab
 type PendingSkip = { rel: string; write: false; absent?: boolean };
 type Pending = PendingWrite | PendingSkip;
 type SeedDeps = { execFileSync?: typeof execFileSync; mainCheckout?: string };
+// 공유 설치 판단 입력. affectedPaths는 승인된 task의 affected_paths이며, 이 값이 없으면
+// 해당 호출은 공유를 시도하지 않고 독립 설치 경로만 탄다.
+type DependencyShare = { affectedPaths: readonly string[] };
 type ConfigSeedStatus = 'copied' | 'preserved' | 'missing';
 
 // plan target이 아니라 별도 복사 단계의 경로. makeIsTarget에 넣으면
@@ -106,6 +109,87 @@ function linkLocalEnv(worktreePath: string): string[] {
 }
 
 /**
+ * root package.json의 직접 패키지(dependencies·devDependencies) 중 설치 metadata
+ * (`node_modules/<name>/package.json`)가 없는 이름을 돌려준다. optionalDependencies는
+ * 플랫폼에 따라 정상적으로 빠질 수 있어 요구하지 않는다. transitive 완전성은 보장하지 않는다.
+ * package.json이 없거나 읽을 수 없거나 JSON이 아니거나 workspaces를 선언하면 이 검사를
+ * 적용할 수 없으므로 null을 돌려준다 — 호출자는 현행 경로를 유지한다(추측으로 막지 않는다).
+ *
+ * @param {string} root - package.json과 node_modules가 있는 디렉터리
+ * @returns {string[] | null} 누락 패키지 이름들(없으면 []). 적용 불가는 null
+ */
+function missingDirectDependencies(root: string): string[] | null {
+  let manifest: { dependencies?: unknown; devDependencies?: unknown; workspaces?: unknown };
+  try {
+    manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  } catch {
+    // 파일 없음·읽기 실패·깨진 JSON은 모두 "검사 불가"다. 여기서 막으면 npm을 쓰지
+    // 않거나 manifest가 없는 저장소의 검증까지 멈추므로 적용 대상에서 뺀다.
+    return null;
+  }
+  if (typeof manifest !== 'object' || manifest === null || manifest.workspaces !== undefined) return null;
+  const names = new Set<string>();
+  for (const table of [manifest.dependencies, manifest.devDependencies]) {
+    if (typeof table === 'object' && table !== null) for (const name of Object.keys(table)) names.add(name);
+  }
+  return [...names].filter((name) => !fs.existsSync(path.join(root, 'node_modules', name, 'package.json')));
+}
+
+/** root package-lock.json bytes의 sha256. 읽을 수 없으면 null이다. */
+function lockHashOf(root: string): string | null {
+  try {
+    return createHash('sha256').update(fs.readFileSync(path.join(root, 'package-lock.json'))).digest('hex');
+  } catch {
+    // lockfile 없음·읽기 실패는 "비교 불가"이며 공유 불가로 이어질 뿐 오류가 아니다.
+    return null;
+  }
+}
+
+/** 승인 scope가 의존성 manifest/lock을 바꿀 수 있으면 true. 루트 전체를 가리키는 경로도 포함한다. */
+function scopeChangesDependencies(affectedPaths: readonly string[]): boolean {
+  return affectedPaths.some((entry) => {
+    const rel = toPosix(entry).replace(/^\.\//, '').replace(/\/+$/, '');
+    if (rel === '' || rel === '.') return true;
+    return ['package.json', 'package-lock.json', 'npm-shrinkwrap.json'].includes(path.posix.basename(rel));
+  });
+}
+
+/**
+ * main checkout의 node_modules를 이 worktree가 안전하게 공유할 수 있는지 판단한다.
+ * 모두 만족해야 true다: worktree가 main 자신이 아님, 승인 scope가 manifest/lock을 바꾸지
+ * 않음, root lockfile bytes hash가 main과 같음, main에 npm marker와 같은 hash의 stamp가
+ * 있음, main에 직접 패키지 metadata가 모두 있음. 하나라도 어긋나면 false이며 그 경우
+ * 호출자는 worktree에 독립 설치한다. 읽기만 하고 아무것도 쓰지 않는다.
+ *
+ * @param {string} worktreePath - 공유 대상 worktree
+ * @param {string} mainRoot - main checkout
+ * @param {DependencyShare} share - 승인 task scope
+ * @returns {boolean} 공유 가능 여부
+ */
+function canShareMainDependencies(worktreePath: string, mainRoot: string, share: DependencyShare): boolean {
+  if (scopeChangesDependencies(share.affectedPaths)) return false;
+  try {
+    if (fs.realpathSync(mainRoot) === fs.realpathSync(worktreePath)) return false;
+  } catch {
+    // 경로를 해석할 수 없으면 main과의 관계를 알 수 없으므로 공유하지 않는다.
+    return false;
+  }
+  const lockHash = lockHashOf(worktreePath);
+  if (lockHash === null || lockHash !== lockHashOf(mainRoot)) return false;
+  if (!fs.existsSync(path.join(mainRoot, 'node_modules', '.package-lock.json'))) return false;
+  let mainStamp: string;
+  try {
+    mainStamp = fs.readFileSync(path.join(mainRoot, LOCK_STAMP_REL), 'utf8').trim();
+  } catch {
+    // stamp를 읽을 수 없으면 main이 이 lock으로 설치됐다는 증거가 없으므로 공유하지 않는다.
+    return false;
+  }
+  if (mainStamp !== lockHash) return false;
+  const missing = missingDirectDependencies(mainRoot);
+  return missing !== null && missing.length === 0;
+}
+
+/**
  * lockfile이 있고 npm marker와 현재 lockfile에 맞는 stamp가 모두 있을 때만 설치를 건너뛰고,
  * 그 밖에는 `npm ci --include=dev`로 의존성을 채운 뒤 lockfile sha256 stamp를 남긴다.
  * stamp를 읽을 수 없으면(errno 무관) stamp 없음으로 보고 재설치한다.
@@ -118,6 +202,7 @@ function linkLocalEnv(worktreePath: string): string[] {
  *
  * @param {string} worktreePath - 설치 cwd. package-lock.json을 이 경로에서 본다
  * @param {SeedDeps} deps - execFileSync·mainCheckout 주입. 테스트가 호출을 가로채는 용도
+ * @param {DependencyShare} [share] - 생략하면 main node_modules 공유를 만들지 않는다
  * @returns {{ ok: true } | { ok: false, reason: string, message: unknown }}
  *   설치 경로와 setup 모두 성공이면 ok:true. npm ci 실패(stamp 미기록)와 setup 거절·실패는
  *   ok:false와 dependency-install-failed이며 setup 실패 message는 `worktree.setup`으로 시작한다
@@ -125,8 +210,9 @@ function linkLocalEnv(worktreePath: string): string[] {
 function prepareDependencies(
   worktreePath: string,
   deps: SeedDeps,
+  share?: DependencyShare,
 ): { ok: true } | { ok: false; reason: string; message: unknown } {
-  const installed = installDependencies(worktreePath, deps);
+  const installed = installDependencies(worktreePath, deps, share);
   if (!installed.ok) return installed;
   // 설치 실패는 위에서 먼저 반환한다. 설치·건너뜀·lockfile 없음 어느 경로든
   // gitignore 대상 빌드 산출물은 따로 만들어야 하므로 setup은 항상 마지막에 돈다.
@@ -187,17 +273,64 @@ function runWorktreeSetup(
  * 설치 부분과 같다.
  *
  * @param {string} worktreePath - 설치 cwd
- * @param {SeedDeps} deps - execFileSync 주입
+ * 공유 계약: `share`가 있고 canShareMainDependencies가 참일 때만 node_modules가 없는 worktree에
+ * main의 node_modules symlink를 만든다(실제 node_modules 디렉터리는 덮어쓰지 않는다).
+ * node_modules가 symlink이면 npm이 링크 너머 main을 쓰지 못하도록 링크가 여전히 공유
+ * 조건을 만족하고 main의 node_modules를 가리킬 때만 그대로 두고, lock 변경·깨진 링크·
+ * 알 수 없는 target이면 링크 자체만 unlink한 뒤 worktree에 독립 설치한다(target은 건드리지
+ * 않는다). 링크를 풀지 못하면 npm을 실행하지 않고 dependency-install-failed를 돌려준다.
+ *
+ * @param {string} worktreePath - 설치 cwd
+ * @param {SeedDeps} deps - execFileSync·mainCheckout 주입
+ * @param {DependencyShare} [share] - 승인 task scope. 없으면 공유를 만들지 않는다
  * @returns {{ ok: true } | { ok: false, reason: string, message: unknown }}
- *   lockfile 없음·stamp 일치·설치 성공은 ok:true, npm ci 실패는 ok:false
+ *   lockfile 없음·공유 유지/생성·stamp 일치·설치 성공은 ok:true, 링크 해제·npm ci 실패는 ok:false
  */
 function installDependencies(
   worktreePath: string,
   deps: SeedDeps,
+  share?: DependencyShare,
 ): { ok: true } | { ok: false; reason: string; message: unknown } {
   linkLocalEnv(worktreePath);
   const lockFile = path.join(worktreePath, 'package-lock.json');
   if (!fs.existsSync(lockFile)) return { ok: true };
+  const modulesDir = path.join(worktreePath, 'node_modules');
+  let modulesStat: ReturnType<typeof fs.lstatSync> | null = null;
+  try {
+    modulesStat = fs.lstatSync(modulesDir);
+  } catch (error) {
+    // 없는 경로(ENOENT)만 "아직 없음"으로 흡수한다. 권한 같은 다른 오류는 숨기지 않는다.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  if (modulesStat?.isSymbolicLink() || (modulesStat === null && share)) {
+    const mainRoot = deps.mainCheckout ?? mainCheckoutOf(worktreePath);
+    const shareable = Boolean(share && mainRoot && canShareMainDependencies(worktreePath, mainRoot, share));
+    if (modulesStat === null) {
+      if (shareable) {
+        try {
+          fs.symlinkSync(path.join(mainRoot as string, 'node_modules'), modulesDir, 'dir');
+          return { ok: true };
+        } catch {
+          // 링크를 못 만들면 공유를 포기하고 독립 설치로 간다. 링크는 최적화일 뿐이다.
+        }
+      }
+    } else {
+      let intact = false;
+      try {
+        intact = shareable
+          && fs.realpathSync(modulesDir) === fs.realpathSync(path.join(mainRoot as string, 'node_modules'));
+      } catch {
+        // 깨진 링크(ENOENT/ELOOP)는 intact=false로 흡수해 아래에서 링크를 푼다.
+      }
+      if (intact) return { ok: true };
+      try {
+        // symlink 자체만 지운다. unlink는 target을 따라가지 않아 main bytes가 보존된다.
+        fs.unlinkSync(modulesDir);
+      } catch (error) {
+        return { ok: false, reason: 'dependency-install-failed', message: (error as { message: unknown }).message };
+      }
+    }
+  }
   const lockHash = createHash('sha256').update(fs.readFileSync(lockFile)).digest('hex');
   const stampFile = path.join(worktreePath, LOCK_STAMP_REL);
   if (fs.existsSync(path.join(worktreePath, 'node_modules', '.package-lock.json'))) {
@@ -454,13 +587,16 @@ function seedWorktree({
  * @param {unknown} opts.blueprintDir - 저장소 상대 blueprint 디렉터리
  * @param {string} opts.worktreePath - worker·fan-in worktree 절대 경로
  * @param {SeedDeps} [opts.deps] - execFileSync 주입. 테스트가 npm 호출을 가로채는 용도
+ * @param {readonly string[]} [opts.affectedPaths] - 승인 task의 affected_paths. 있을 때만
+ *   main node_modules 공유를 시도하고, manifest/lock 경로를 포함하면 처음부터 독립 설치한다
  * @returns {{ ok: true, config: ConfigSeedStatus, seeded: string[] }
  *   | { ok: false, reason: string, [k: string]: unknown }}
  *   성공 시 seeded는 [blueprintDir, 복사한 index 경로들] 순서. 없는 index는 넣지 않는다.
  *   복사 예외는 copy-failed.
  */
-function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps }: {
+function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps, affectedPaths }: {
   repoRoot: string; blueprintDir: unknown; worktreePath: string; deps?: SeedDeps;
+  affectedPaths?: readonly string[];
 }) {
   if (!fs.existsSync(worktreePath) || !fs.statSync(worktreePath).isDirectory()) {
     return { ok: false, reason: 'missing-worktree', worktreePath };
@@ -470,7 +606,8 @@ function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps }: {
   if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
     return { ok: false, reason: 'missing-blueprint', blueprintDir };
   }
-  const prepared = prepareDependencies(worktreePath, deps || {});
+  // affectedPaths가 없으면 승인 scope를 알 수 없으므로 공유하지 않고 독립 설치한다.
+  const prepared = prepareDependencies(worktreePath, deps || {}, affectedPaths ? { affectedPaths } : undefined);
   if (!prepared.ok) return prepared;
   try {
     const config = seedConfig(repoRoot, worktreePath, realGit(repoRoot));
@@ -682,5 +819,5 @@ function releaseSeedManifest({ repoRoot, blueprintDir, manifest, git }: {
 
 export = {
   makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker, seedIntegration,
-  releaseSeedManifest, prepareDependencies, linkLocalEnv,
+  releaseSeedManifest, prepareDependencies, linkLocalEnv, missingDirectDependencies,
 };

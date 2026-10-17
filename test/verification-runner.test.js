@@ -2097,3 +2097,90 @@ test('readVerifyCommand without a verification_policy marker → keeps the confi
   assert.strictEqual(readVerifyCommand(repo, BP_REL, '001'), 'npm test');
   assert.strictEqual(readVerifyCommand(repo, BP_REL), 'npm test');
 });
+
+// --- npm terminal 사전조건 -----------------------------------------------------------
+
+const TERMINAL_SCOPE = { kind: 'terminal', key: 'EPIC-001/BP-001:abc123head' };
+
+// 직접 의존성 하나를 선언한 repo. installed=true면 그 metadata까지 설치된 상태다.
+function setupNpmRepo({ installed }) {
+  const repo = setupRepo();
+  fs.writeFileSync(path.join(repo, 'package.json'), '{"devDependencies":{"left-pad":"1.0.0"}}\n');
+  if (installed) {
+    fs.mkdirSync(path.join(repo, 'node_modules/left-pad'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'node_modules/left-pad/package.json'), '{}\n');
+  }
+  return repo;
+}
+
+function runTerminal(repo, exec) {
+  return runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    scope: TERMINAL_SCOPE,
+    deps: fixedDeps(),
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec,
+  });
+}
+
+function evidenceBytes(repo, evidenceId) {
+  const rel = `${BP_REL}/tasks/001/verification.md`;
+  const { ledgerFile } = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel, evidenceId });
+  return {
+    doc: fs.readFileSync(path.join(repo, rel)),
+    ledger: fs.readFileSync(ledgerFile),
+  };
+}
+
+test('terminal npm verification when a direct dependency is missing → rejects before running or reusing and keeps evidence bytes', () => {
+  const repo = setupNpmRepo({ installed: true });
+  const first = runTerminal(repo, () => ({ status: 0, stdout: 'ok\n', stderr: '' }));
+  assert.strictEqual(first.ok, true);
+  const before = evidenceBytes(repo, first.evidenceId);
+  const idBefore = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md')).data.bouncer.verification;
+  fs.rmSync(path.join(repo, 'node_modules/left-pad'), { recursive: true });
+
+  // 같은 identity라 의존성이 있었다면 재사용 hit였을 호출이다. 실행도 재사용도 없어야 한다.
+  let executed = false;
+  assert.throws(
+    () => runTerminal(repo, () => { executed = true; return { status: 0, stdout: '', stderr: '' }; }),
+    { code: 'VERIFY_DEPENDENCIES_MISSING' },
+  );
+
+  assert.strictEqual(executed, false);
+  const after = evidenceBytes(repo, first.evidenceId);
+  assert.ok(before.doc.equals(after.doc));
+  assert.ok(before.ledger.equals(after.ledger));
+  const idAfter = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md')).data.bouncer.verification;
+  assert.strictEqual(idAfter.ran_at, idBefore.ran_at);
+  assert.strictEqual(idAfter.evidence_id, idBefore.evidence_id);
+});
+
+test('terminal npm verification with all direct dependencies installed and a failing test → records failed evidence', () => {
+  const repo = setupNpmRepo({ installed: true });
+  const failure = new Error('assertion failed');
+  failure.status = 1;
+  failure.stdout = 'not ok 1 - expected 1 to equal 2\n';
+
+  const result = runTerminal(repo, () => { throw failure; });
+
+  assertRunOk(result, { command: 'npm test', exitCode: 1 });
+  const doc = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
+  assert.strictEqual(doc.data.bouncer.status, 'failed');
+  assert.strictEqual(doc.data.bouncer.verification.evidence_id, result.evidenceId);
+  assert.match(doc.data.bouncer.verification.output_tail, /expected 1 to equal 2/);
+});
+
+test('npm verification outside terminal scope or without package.json metadata rules → keeps the current path', () => {
+  const repo = setupNpmRepo({ installed: false });
+  const taskScoped = runVerification({
+    repoRoot: repo, blueprintDir: BP_REL, deps: fixedDeps(),
+    scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(taskScoped.ok, true);
+
+  fs.writeFileSync(path.join(repo, 'package.json'), '{"workspaces":["a"],"devDependencies":{"left-pad":"1"}}\n');
+  assert.strictEqual(runTerminal(repo, () => ({ status: 0, stdout: 'ok\n', stderr: '' })).ok, true);
+});

@@ -1391,6 +1391,17 @@ function verificationPolicyAt(root: string, blueprint: string): 'scoped_terminal
 }
 
 /**
+ * task의 현재 승인 scope. scope_revision으로 갱신된 ledger scope가 있으면 그것이 정본이고,
+ * 없으면 계획의 affected_paths다. 의존성 공유 여부를 가르는 seed가 이 값을 받는다.
+ *
+ * @param {Task} task - ledger task
+ * @returns {string[]} 현재 승인 경로
+ */
+function currentScopePaths(task: Task): string[] {
+  return task.scope && Array.isArray(task.scope.paths) ? [...task.scope.paths] : [...(task.affected_paths || [])];
+}
+
+/**
  * light 원장 자격. legacy는 현행 의미 그대로 commit task 정확히 1개이고 depends_on이
  * 비어 있어야 하며 verification·두 번째 task는 자격 없음이다. scoped_terminal은
  * 독립 commit task 하나와 그 하나에만 의존하는 verification 하나, 정확히 두 node다.
@@ -2318,6 +2329,7 @@ function prepareCoordinator({
         const seeded = seedCoordinatorWorker({
           repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
           deps: { execFileSync: withInstallStdioToStderr(exec) },
+          affectedPaths: currentScopePaths(item),
         });
         if (!seeded.ok) {
           cleanupCreatedWorkersUnderNewLock(
@@ -3042,6 +3054,7 @@ function integrateCommitWave({
   // --- phase 1: 잠금 안에서 대상 확정·fanin building 기록 ---
   let phase1CheckpointHash: string | null = null;
   let waveTasks: string[] = [];
+  let waveScopePaths: string[] = [];
   let waveWarnings: IntegrateWarning[] = [];
   let baseHead = '';
   const phase1 = withLedgerLock(integration.ledgerFile, (owns) => {
@@ -3132,6 +3145,7 @@ function integrateCommitWave({
     if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(integration.ledgerFile, ledger);
     phase1CheckpointHash = ledgerBytesHash(fs.readFileSync(integration.ledgerFile));
+    waveScopePaths = ordered.flatMap((id) => currentScopePaths(ledger.tasks.find((x) => x.id === id) as Task));
     return { ok: true as const, tasks: ordered, baseHead };
   });
 
@@ -3154,6 +3168,8 @@ function integrateCommitWave({
     repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: faninPath,
     // fan-in seed도 같은 stdio 고정 wrapper를 받아야 npm 출력이 CLI stdout을 오염시키지 않는다.
     deps: { execFileSync: withInstallStdioToStderr(exec) },
+    // candidate는 wave 전체를 합치므로 어느 task든 manifest/lock을 바꿀 수 있으면 공유하지 않는다.
+    affectedPaths: waveScopePaths,
   });
   if (!seeded.ok) {
     removeFaninWorktree(exec, repoRoot, faninPath);

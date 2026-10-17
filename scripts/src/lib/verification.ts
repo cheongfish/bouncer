@@ -37,6 +37,7 @@ const { buildStableProvenance } = commitSha;
 import schema = require('./schema');
 const { executionKindOf } = schema;
 import scope = require('./scope');
+import seedWorktree = require('./seed-worktree');
 const { isUnder, RUNTIME_ARTIFACTS } = scope;
 
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
@@ -1213,6 +1214,20 @@ function runVerification({
   const { identity, evidenceId } = computeEvidenceIdentity({
     repoRoot, command, scope, deps,
   });
+
+  // 2b. npm terminal 검증은 직접 의존성 metadata가 빠진 integration에서 실행·재사용·증적
+  // 쓰기 전에 거절한다. 일반 테스트 실패(failed 기록)와 구분되는 VERIFY_DEPENDENCIES_MISSING이며,
+  // 기존 verification.md·원장 bytes를 건드리지 않는다. 비npm 명령과 검사 불가(workspaces 등)는
+  // 현행 경로를 유지하고, 출력 문자열이나 비0 종료로 의존성 부족을 추측하지 않는다.
+  if (scope.kind === 'terminal' && parseVerifyArgv(command)?.[0] === 'npm') {
+    const missing = seedWorktree.missingDirectDependencies(repoRoot);
+    if (missing !== null && missing.length > 0) {
+      throw verificationError(
+        'VERIFY_DEPENDENCIES_MISSING',
+        `direct dependencies are not installed in ${repoRoot}: ${missing.join(', ')}`,
+      );
+    }
+  }
 
   // 3. 성공 v2 원장 hit면 exec를 건너뛰고 원본 ran_at·output을 재기록한다.
   const ledgerPaths = verifyLedgerPathFor({
