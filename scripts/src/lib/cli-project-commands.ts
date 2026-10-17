@@ -14,6 +14,8 @@ import graphify = require('./graphify');
 const { resolveGraphifyBin } = graphify;
 import migrateTaskLayoutMod = require('./migrate-task-layout');
 const { migrateTaskLayout } = migrateTaskLayoutMod;
+import migrateReviewScopeMod = require('./migrate-review-scope');
+const { migrateReviewScope } = migrateReviewScopeMod;
 import retentionMigration = require('./retention-migration');
 const { auditRetention, migrateRetention } = retentionMigration;
 import runtimeState = require('./runtime-state');
@@ -311,6 +313,47 @@ function parseRetentionMigrateArgs(flagArgs: string[]): {
   return { apply, blueprint, repo };
 }
 
+/**
+ * migrate review-scope 전용 argv. parseFlags는 알 수 없는 option을 조용히 삼키므로
+ * 여기서 엄격히 닫는다. 쓰기 명령이라 --blueprint 누락은 사용법 오류(exit 2)다.
+ *
+ * @param {string[]} flagArgs - `migrate review-scope` 뒤 argv
+ * @returns {{ error?: string, blueprint: string | null, repo?: string }}
+ */
+function parseReviewScopeMigrateArgs(flagArgs: string[]): {
+  error?: string;
+  blueprint: string | null;
+  repo?: string;
+} {
+  let blueprint: string | null = null;
+  let repo: string | undefined;
+  const fail = (message: string) => ({
+    error: `migrate review-scope: ${message}\n`,
+    blueprint,
+    repo,
+  });
+  for (let i = 0; i < flagArgs.length; i += 1) {
+    const token = flagArgs[i];
+    if (token === '--blueprint' || token === '--repo') {
+      const isBlueprint = token === '--blueprint';
+      if (isBlueprint ? blueprint !== null : repo !== undefined) {
+        return fail(`duplicate option: ${token}`);
+      }
+      const value = flagArgs[++i];
+      if (value === undefined || value.startsWith('--') || value.trim() === '') {
+        return fail(`${token} requires a directory`);
+      }
+      if (isBlueprint) blueprint = value.trim();
+      else repo = value;
+      continue;
+    }
+    if (token.startsWith('--')) return fail(`unknown option: ${token}`);
+    return fail(`unexpected argument: ${token}`);
+  }
+  if (blueprint === null) return fail('--blueprint <dir> is required');
+  return { blueprint, repo };
+}
+
 function cmdMigrate(rest: string[], io: CliIo) {
   const [kind, ...flagArgs] = rest;
   // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
@@ -331,6 +374,19 @@ function cmdMigrate(rest: string[], io: CliIo) {
       return result.ok ? 0 : 1;
     }
     const result = auditRetention({ repoRoot });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  }
+  if (kind === 'review-scope') {
+    const parsed = parseReviewScopeMigrateArgs(flagArgs);
+    if (parsed.error) {
+      io.err(parsed.error);
+      return 2;
+    }
+    const result = migrateReviewScope({
+      repoRoot: (parsed.repo || process.cwd()) as string,
+      blueprintDir: parsed.blueprint as string,
+    });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
   }
@@ -398,6 +454,8 @@ export = {
     run: cmdMigrate,
     usage: `  migrate    task-layout [--dry-run]
              Move legacy task files into tasks/<NNN>/ units.
+  migrate    review-scope --blueprint <dir>
+             Set review_scope: blueprint and create the root pending review.md (idempotent).
   migrate    retention
              Audit closed blueprints for retention (dry-run, JSON, no writes).
   migrate    retention --apply --blueprint <dir>

@@ -35,6 +35,8 @@ function writeDoc(repo, rel, data, body = '# x\n') {
 
 function writePlanTree(repo, {
   bpStatus = 'approved',
+  // 성공 fixture는 신규 계약(blueprint 단일 리뷰)을 명시한다. null이면 legacy 문서다.
+  reviewScope = 'blueprint',
   task001 = {},
   task002 = {},
 } = {}) {
@@ -48,6 +50,7 @@ function writePlanTree(repo, {
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: '001', epic_id: '001', blueprint_id: '001', status: bpStatus, scale: 'full',
+      ...(reviewScope ? { review_scope: reviewScope } : {}),
     },
   }, '# Login\n');
   writeDoc(repo, TASK_001, {
@@ -720,4 +723,53 @@ test('run preflight with a corrupt ledger file → falls back to the document st
   assert.strictEqual(draft.reason, 'blueprint-draft');
   assert.strictEqual(approved.delegable, true);
   assert.strictEqual(approved.reason, null);
+});
+
+test('run preflight when review_scope is absent → ok:false legacy-review-scope with runnable migrate next', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { reviewScope: null });
+  setPointer(repo);
+
+  const result = preflight(repo);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 1);
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'legacy-review-scope');
+  assert.strictEqual(payload.next, `bouncer migrate review-scope --blueprint ${BP_REL}`);
+});
+
+test('run preflight when legacy blueprint is draft → legacy-review-scope wins over blueprint-draft', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { reviewScope: null, bpStatus: 'draft' });
+  setPointer(repo);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.reason, 'legacy-review-scope');
+});
+
+test('run preflight when legacy blueprint uses flat task layout → next guides task-layout migration first', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { reviewScope: null });
+  fs.renameSync(path.join(repo, TASK_001), path.join(repo, `${BP_REL}/tasks-001.md`));
+  setPointer(repo, { task: `${BP_REL}/tasks-001.md` });
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.reason, 'legacy-review-scope');
+  assert.strictEqual(payload.next, 'bouncer migrate task-layout');
+});
+
+test('run preflight when pointer targets another blueprint on a legacy tree → pointer-mismatch is kept', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { reviewScope: null });
+  setPointer(repo);
+
+  const result = capture([
+    'run', 'preflight', '--blueprint', `${EPIC_REL}/blueprints/002-other`, '--repo', repo,
+  ]);
+
+  assert.strictEqual(parsePayload(result).reason, 'pointer-mismatch');
 });

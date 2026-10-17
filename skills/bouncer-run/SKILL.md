@@ -65,8 +65,8 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 
 When `review_scope` is `blueprint`, the coordinator owns the one final review
 after that verification node (and every commit task) is `integrated`; this
-root session does not open it. When `review_scope` is absent, per-task reviews
-stay on the task's review round.
+root session does not open it. A blueprint without `review_scope` is blocked at
+preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts it.
 
 1. **Preflight.** Load runtime state from the CLI only:
    ```bash
@@ -76,7 +76,10 @@ stay on the task's review round.
    holds the pointer, remaining-task fields (including `affected_paths`), DAG,
    reporting cadence, and `direct_eligible`. Follow its status and `delegable` result; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
-   pointer return values. When nothing to delegate,
+   pointer return values. When preflight returns `ok: false` with `reason:
+   legacy-review-scope`, the blueprint has no `review_scope`: show its `next`
+   command to the user and stop. Run it only when the user explicitly asks, then
+   rerun preflight; never convert the scope yourself. When nothing to delegate,
    tell the user to run `/bouncer-finalize` themselves and stop. Finalize
    consent stays with the user; this session and the coordinator never run
    `/bouncer-finalize` or any part of it.
