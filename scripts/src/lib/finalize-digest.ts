@@ -22,7 +22,7 @@ const { readConfig } = configMod;
 import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
 import finalizeMod = require('./finalize');
-const { buildCoordinatorProvenance, resolveCheckoutBranch } = finalizeMod;
+const { buildCoordinatorProvenance, resolveCheckoutBranch, collectMustFixWarnings } = finalizeMod;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import currentMod = require('./current');
@@ -47,7 +47,8 @@ type DigestFail = {
 
 type WorkerNotes = { open_choices: string[]; known_weaknesses: string[] };
 
-type Finding = { id: string; severity: string; status: string; note?: string };
+// actionability는 원문에 문자열로 있을 때만 싣는다. legacy finding에는 키가 없다.
+type Finding = { id: string; severity: string; status: string; note?: string; actionability?: string };
 
 type TaskDigest = {
   stable_id: string;
@@ -88,6 +89,16 @@ type DriveSummary = {
   tasks: Array<{ id: string; status: string | null; sha: string | null }>;
 };
 
+// Retro 실행 여부를 가르는 drive 실행 통계. 모든 값은 0 이상 정수다.
+type DriveIssues = {
+  rework_reports: number;
+  debugger_calls: number;
+  repair_waves: number;
+  fanin_verification_failures: number;
+  blocked: number;
+  deferred_must_fix: number;
+};
+
 type FinalizeDigest = {
   ok: true;
   version: 2;
@@ -115,6 +126,8 @@ type FinalizeDigest = {
   blueprint_review: { findings: Finding[] } | null;
   pr: ReturnType<typeof buildPrDraft>;
   drive: DriveSummary | null;
+  warnings: ReturnType<typeof collectMustFixWarnings>;
+  drive_issues: DriveIssues;
 };
 
 const OUT_OF_SCOPE_DEFS = [
@@ -466,6 +479,11 @@ function readReview(absPath: string | null): TaskDigest['review'] {
         status: typeof row.status === 'string' ? row.status : 'resolved',
       };
       if (typeof row.note === 'string' && row.note) finding.note = row.note;
+      // 미해결 must_fix 경고는 이 값으로만 판정한다. 없을 때 severity로 채우면 legacy
+      // 리뷰의 blocker/major가 경고로 둔갑하므로 원문에 있을 때만 옮긴다.
+      if (typeof row.actionability === 'string' && row.actionability) {
+        finding.actionability = row.actionability;
+      }
       findings.push(finding);
     }
     // 키 부재는 required=true로 본다. 명시 false만 review-skipped를 만든다.
@@ -578,6 +596,43 @@ function summarizeDrive(ledger: unknown): DriveSummary | null {
 }
 
 /**
+ * 원장 decisions에서 Retro 판단용 drive 실행 통계를 센다. 원장 event만 세고 CLI 거절이나
+ * 대화 기록은 추정하지 않는다. 순수 함수이며 입력을 바꾸지 않고 throw하지 않는다.
+ * - rework_reports·blocked: `report` outcome rework/blocked. blocked는 `critical-recovery`
+ *   outcome blocked도 더한다.
+ * - debugger_calls: role debugger인 `worker-model`만. `worker-tokens`는 같은 호출의 늦은
+ *   토큰 기록이라 세면 한 호출이 두 번 잡힌다.
+ * - repair_waves: 같은 repair가 decisions와 `repairWaves`에 함께 남으므로 둘을 더하지 않는다.
+ *   `repairWaves`의 고유 wave가 정본이고, 비어 있거나 없을 때만 decisions repair로 대신한다.
+ * - fanin_verification_failures: `fanin-verification-failed` decision 수.
+ *
+ * @param {unknown} ledger - 읽힌 원장 객체. 원장이 없으면 null(모든 원장 counter 0)
+ * @param {number} deferredMustFix - 루트 리뷰 deferred must_fix 고유 id 수(원장 밖 값)
+ * @returns {DriveIssues} 여섯 counter
+ */
+function summarizeDriveIssues(ledger: unknown, deferredMustFix: number): DriveIssues {
+  const root = asRecord(ledger);
+  const decisions = (Array.isArray(root.decisions) ? root.decisions : []).map(asRecord);
+  const count = (pred: (d: Record<string, unknown>) => boolean) => decisions.filter(pred).length;
+  // wave가 정수인 행만 고유 집합에 넣는다 — 깨진 행이 별도 wave로 세지지 않게.
+  const uniqueWaves = (rows: unknown[]) => new Set(
+    rows.map(asRecord).map((r) => r.wave).filter((w) => Number.isInteger(w)),
+  ).size;
+  const fromRepairWaves = Array.isArray(root.repairWaves) ? uniqueWaves(root.repairWaves) : 0;
+  return {
+    rework_reports: count((d) => d.kind === 'report' && d.outcome === 'rework'),
+    debugger_calls: count((d) => d.kind === 'worker-model' && d.role === 'debugger'),
+    repair_waves: fromRepairWaves > 0
+      ? fromRepairWaves
+      : uniqueWaves(decisions.filter((d) => d.kind === 'repair')),
+    fanin_verification_failures: count((d) => d.kind === 'fanin-verification-failed'),
+    blocked: count((d) => (d.kind === 'report' || d.kind === 'critical-recovery')
+      && d.outcome === 'blocked'),
+    deferred_must_fix: deferredMustFix,
+  };
+}
+
+/**
  * Explain·Quiz·PR에 필요한 finalize 입력을 한 JSON으로 모은다.
  * 문서·Git·원장을 쓰지 않는다. drive면 integration worktree에서 git을 읽고,
  * 깨진 원장은 기존 finalize와 같은 coordinator-ledger로 거절한다.
@@ -589,6 +644,10 @@ function summarizeDrive(ledger: unknown): DriveSummary | null {
  * buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로 조립하지 않게
  * 하기 위함이다. `review_scope: blueprint`이면 루트 리뷰 finding을
  * `blueprint_review`로 싣고, 아니면 그 필드는 null이다.
+ * 루트 리뷰의 deferred must_fix는 최상위 `warnings`(blueprint 모드가 아니면 [])로,
+ * 원장 event 통계는 최상위 `drive_issues`로 싣는다. 둘 다 buildPrDraft 뒤에 붙여
+ * 실행 통계가 PR 입력에 섞이지 않게 한다 — PR의 미해결 절은 같은 판정 함수로
+ * `blueprint_review`에서 직접 만든다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 호출 checkout(보통 main). 원장 경로 해석 기준
@@ -972,6 +1031,8 @@ function prepareFinalizeDigest({
     blueprint_review: blueprintReview,
   };
 
+  // task 범위는 경고를 만들지 않는다 — blueprintReview는 blueprint 모드에서만 non-null.
+  const warnings = blueprintReview ? collectMustFixWarnings(blueprintReview.findings) : [];
   const config = readConfig(checkoutRoot) ?? {};
   return {
     ...body,
@@ -981,7 +1042,9 @@ function prepareFinalizeDigest({
     }),
     // PR draft 입력(body)에 섞이지 않도록 buildPrDraft 호출 뒤 반환 객체에만 붙인다.
     drive: summarizeDrive(ledger),
+    warnings,
+    drive_issues: summarizeDriveIssues(ledger, warnings.length),
   };
 }
 
-export = { prepareFinalizeDigest, summarizeDrive };
+export = { prepareFinalizeDigest, summarizeDrive, summarizeDriveIssues };

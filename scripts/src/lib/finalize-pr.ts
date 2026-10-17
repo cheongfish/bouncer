@@ -8,7 +8,7 @@ const { toPosix } = paths;
 import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
 import finalizeMod = require('./finalize');
-const { resolveCheckoutBranch } = finalizeMod;
+const { resolveCheckoutBranch, collectMustFixWarnings, isDeferredMustFix } = finalizeMod;
 
 type GitExecResult = { status: number; stdout: string };
 type GitExec = (args: string[]) => GitExecResult;
@@ -26,6 +26,8 @@ type PrDraft = {
     flow: null;
     review_points: string[];
     verification: string[];
+    // blueprint 루트 리뷰의 deferred must_fix. 없으면 빈 배열이다.
+    unresolved_must_fix: string[];
   };
 };
 
@@ -214,21 +216,26 @@ function buildVerificationLines(tasks: unknown[]): string[] {
  * task.review와 blueprint_review가 같은 규칙을 쓰게 한 헬퍼 —
  * 한쪽만 note 폴백을 바꾸면 PR 본문이 갈라진다.
  * `seen`에 이미 있는 문자열은 건너뛴다 — finding 메모끼리만 첫 등장을 남기기 위함.
+ * `exclude`가 참인 finding은 다른 절이 이미 싣는 항목이라 건너뛰고 `seen`에도
+ * 넣지 않는다 — 같은 메모를 가진 다른 finding이 그 때문에 사라지지 않게 한다.
  *
  * @param {string[]} points - 누적 배열
  * @param {Set<string>} seen - finding 메모 중복 집합(out_of_scope와 공유하지 않음)
  * @param {unknown} rawFindings - findings 원본
+ * @param {(raw: unknown) => boolean} [exclude] - 이 절에서 뺄 finding 판정. 없으면 모두 대상
  * @returns {void}
  */
 function pushFindingPoints(
   points: string[],
   seen: Set<string>,
   rawFindings: unknown,
+  exclude?: (raw: unknown) => boolean,
 ): void {
   const findings = Array.isArray(rawFindings) ? rawFindings : [];
   for (const raw of findings) {
     const finding = asRecord(raw);
     if (finding.status !== 'accepted' && finding.status !== 'deferred') continue;
+    if (exclude && exclude(raw)) continue;
     let text: string | null = null;
     if (typeof finding.note === 'string' && finding.note) {
       text = finding.note;
@@ -251,6 +258,8 @@ function pushFindingPoints(
  * finding 메모는 서로만 첫 등장 순서로 한 번 — out_of_scope와 같은 문자열이어도
  * 둘 다 남긴다. digest가 같은 finding을 unverified `finding-*`로도 내므로 그 행은
  * 재게시하지 않는다(path-outside-scope 등 다른 kind는 유지).
+ * blueprint 루트의 deferred must_fix는 `unresolved_must_fix` 절이 싣으므로 여기서
+ * 뺀다. task 범위 finding은 같은 id·메모여도 경고 대상이 아니라 그대로 남긴다.
  *
  * @param {object} digest
  * @param {string[]} digest.out_of_scope
@@ -278,7 +287,9 @@ function buildReviewPoints(digest: {
     const review = asRecord(asRecord(entry).review);
     pushFindingPoints(points, seenFindings, review.findings);
   }
-  pushFindingPoints(points, seenFindings, asRecord(digest.blueprint_review).findings);
+  pushFindingPoints(
+    points, seenFindings, asRecord(digest.blueprint_review).findings, isDeferredMustFix,
+  );
 
   // worker가 보고한 사양 해석·약점은 finding 뒤, unverified 앞에 둔다. 값은 digest
   // task 항목(worker_notes)으로만 들어온다 — 원장을 직접 읽지 않는다.
@@ -368,6 +379,10 @@ function buildPrDraft(digest: unknown, opts: { now: Date; config: unknown }): Pr
         blueprint_review: d.blueprint_review,
       }),
       verification: buildVerificationLines(Array.isArray(d.tasks) ? d.tasks : []),
+      // digest warnings와 같은 함수로 만든다 — PR이 별도 입력 필드에 기대지 않고
+      // blueprint_review(blueprint 모드에서만 non-null)에서 같은 id/note를 얻는다.
+      unresolved_must_fix: collectMustFixWarnings(asRecord(d.blueprint_review).findings)
+        .map((w) => (w.note ? `${w.id}: ${w.note}` : w.id)),
     },
   };
 }

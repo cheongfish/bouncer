@@ -805,3 +805,58 @@ test('tasks with worker_notes → review_points lists them after findings and be
     'finding note', '구현 선택(TASKS-001): a', '알려진 약점(TASKS-001): weak', 'terminal-missing',
   ]);
 });
+
+test('blueprint root deferred must_fix → buildPrDraft lists it under unresolved_must_fix and drops only that finding from review_points', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [{
+      id: 'TASKS-001',
+      // task 범위 must_fix deferred는 경고 대상이 아니다 — 기존 리뷰 포인트로 남는다.
+      review: { required: true, findings: [
+        { id: 'F-MF', actionability: 'must_fix', status: 'deferred', note: 'task deferred' },
+      ] },
+      worker_notes: { open_choices: ['a'], known_weaknesses: [] },
+    }],
+    out_of_scope: ['payments'],
+    unverified: [
+      { kind: 'finding-deferred', task: null, detail: 'root must fix' },
+      { kind: 'terminal-missing' },
+    ],
+    blueprint_review: {
+      findings: [
+        { id: 'F-ROOT', actionability: 'must_fix', status: 'deferred', note: 'root must fix' },
+        { id: 'F-ADV', actionability: 'advisory', status: 'deferred', note: 'root advisory' },
+        { id: 'F-RISK', actionability: 'must_fix', status: 'accepted', note: 'root accepted' },
+        { id: 'F-LEGACY', severity: 'blocker', status: 'deferred', note: 'root legacy' },
+      ],
+    },
+  };
+  const draft = buildPrDraft(digest, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.unresolved_must_fix, ['F-ROOT: root must fix']);
+  assert.deepStrictEqual(draft.sections.review_points, [
+    'payments',
+    'task deferred',
+    'root advisory',
+    'root accepted',
+    'root legacy',
+    '구현 선택(TASKS-001): a',
+    'terminal-missing',
+  ]);
+});
+
+test('no blueprint_review → buildPrDraft unresolved_must_fix is empty', () => {
+  const draft = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [],
+    out_of_scope: [],
+    unverified: [],
+    blueprint_review: null,
+  }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.unresolved_must_fix, []);
+});

@@ -281,7 +281,7 @@ test('drive fixture with a trailer integration SHA and a worker commit_sha → p
 });
 
 // drive 원장을 쓰고 digest를 읽는다. extra로 mode·decisions를 바꿔 worker_notes 경로를 가른다.
-function prepareWithLedger(extra) {
+function prepareWithLedger(extra, now) {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
   git(repoRoot, ['branch', 'feat/integ']);
@@ -301,7 +301,10 @@ function prepareWithLedger(extra) {
     decisions: [],
     ...extra,
   }, null, 2)}\n`);
-  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  // drive_issues 집계는 원장을 읽기만 한다 — 모든 원장 fixture에서 바이트 보존을 본다.
+  const ledgerBefore = fs.readFileSync(paths.ledgerFile);
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir, ...(now ? { now } : {}) });
+  assert.deepStrictEqual(fs.readFileSync(paths.ledgerFile), ledgerBefore);
   git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
   assert.strictEqual(d.ok, true, JSON.stringify(d));
   return d;
@@ -335,6 +338,136 @@ test('no ledger, light ledger or no report → tasks omit worker_notes', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const standalone = prepareFinalizeDigest({ repoRoot, blueprintDir });
   assert.strictEqual('worker_notes' in standalone.tasks[0], false);
+});
+
+const ZERO_DRIVE_ISSUES = {
+  rework_reports: 0,
+  debugger_calls: 0,
+  repair_waves: 0,
+  fanin_verification_failures: 0,
+  blocked: 0,
+  deferred_must_fix: 0,
+};
+const FIXED_NOW = new Date('2026-10-17T01:00:00Z');
+
+test('no ledger or an event-free ledger → drive_issues counters are all 0 and warnings empty', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const standalone = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.deepStrictEqual(standalone.drive_issues, ZERO_DRIVE_ISSUES);
+  assert.deepStrictEqual(standalone.warnings, []);
+  const empty = prepareWithLedger({});
+  assert.deepStrictEqual(empty.drive_issues, ZERO_DRIVE_ISSUES);
+  assert.deepStrictEqual(empty.warnings, []);
+});
+
+test('ledger rework, debugger, repair, fan-in failure and blocked events → drive_issues counts each and the PR draft stays the same', () => {
+  const quiet = prepareWithLedger({}, FIXED_NOW);
+  const noisy = prepareWithLedger({
+    decisions: [
+      report('001', { outcome: 'rework' }),
+      { kind: 'worker-model', role: 'debugger', model: 'm', task: '001' },
+      // 같은 debugger 호출의 늦은 토큰 기록 — 0증가.
+      { kind: 'worker-tokens', role: 'debugger', tokens: 5, task: '001' },
+      { task: 'R1', kind: 'repair', wave: 1, reason: 'r', failure: {} },
+      { kind: 'fanin-verification-failed', tasks: ['001'], command: 'c', exitCode: 1, evidence_id: null },
+      report('002', { outcome: 'blocked' }),
+      { task: '002', kind: 'critical-recovery', used: 1, findings: [], reason: 'r', outcome: 'blocked' },
+    ],
+    // decisions와 같은 repair의 중복 기록 — 0증가.
+    repairWaves: [{ task: 'R1', kind: 'repair', wave: 1, reason: 'r', failure: {} }],
+  }, FIXED_NOW);
+  assert.deepStrictEqual(noisy.drive_issues, {
+    rework_reports: 1,
+    debugger_calls: 1,
+    repair_waves: 1,
+    fanin_verification_failures: 1,
+    blocked: 2,
+    deferred_must_fix: 0,
+  });
+  // 실행 통계는 PR 입력이 아니다 — 원장 event가 달라도 초안은 같아야 한다.
+  assert.deepStrictEqual(noisy.pr, quiet.pr);
+  assert.strictEqual('drive_issues' in noisy.pr, false);
+});
+
+// 루트 리뷰를 blueprint 모드로 쓴다. findings는 테스트마다 다르게 넣는다.
+function writeRootReview(repoRoot, blueprintDir, findings, { blueprintScope = true } = {}) {
+  if (blueprintScope) {
+    const indexAbs = path.join(repoRoot, `${blueprintDir}/index.md`);
+    const parts = fs.readFileSync(indexAbs, 'utf8').split(/^---\n/);
+    const rest = parts.slice(1).join('---\n');
+    const end = rest.indexOf('\n---');
+    const data = yaml.load(rest.slice(0, end));
+    data.bouncer.review_scope = 'blueprint';
+    fs.writeFileSync(indexAbs, `---\n${yaml.dump(data)}---${rest.slice(end + '\n---'.length)}`);
+  }
+  writeDoc(repoRoot, `${blueprintDir}/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: `${blueprintDir}/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: { required: true, findings },
+    },
+  });
+}
+
+const ROOT_FINDINGS = [
+  { id: 'F-MF', severity: 'major', actionability: 'must_fix', status: 'deferred', note: 'must fix later' },
+  // 같은 id 재기록 — 고유 id 하나로 센다.
+  { id: 'F-MF', severity: 'major', actionability: 'must_fix', status: 'deferred', note: 'must fix later' },
+  { id: 'F-ADV', severity: 'minor', actionability: 'advisory', status: 'deferred', note: 'advisory later' },
+  { id: 'F-RISK', severity: 'major', actionability: 'must_fix', status: 'accepted', note: 'accepted risk' },
+  // legacy: actionability가 없으면 severity로 must_fix를 추정하지 않는다.
+  { id: 'F-LEGACY', severity: 'blocker', status: 'deferred', note: 'legacy deferred' },
+];
+
+test('blueprint root deferred must_fix → warnings, unresolved PR section and counter carry it once', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  writeRootReview(repoRoot, blueprintDir, ROOT_FINDINGS);
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.deepStrictEqual(d.warnings, [
+    { kind: 'must-fix-deferred', id: 'F-MF', note: 'must fix later' },
+  ]);
+  assert.strictEqual(d.drive_issues.deferred_must_fix, 1);
+  assert.deepStrictEqual(d.pr.sections.unresolved_must_fix, ['F-MF: must fix later']);
+  // 경고로 옮긴 finding만 review_points에서 빠진다. 나머지 root·task finding과 out_of_scope는 남는다.
+  const points = d.pr.sections.review_points;
+  assert.strictEqual(points.filter((p) => p.includes('must fix later')).length, 0);
+  for (const kept of ['payments', 'follow-up later', 'advisory later', 'accepted risk', 'legacy deferred']) {
+    assert.ok(points.includes(kept), kept);
+  }
+  // readReview는 원문 actionability를 보존하고, 없는 legacy 행에는 키를 만들지 않는다.
+  assert.strictEqual(d.blueprint_review.findings[0].actionability, 'must_fix');
+  assert.strictEqual('actionability' in d.blueprint_review.findings[4], false);
+});
+
+test('task-scope must_fix deferred or a root review without blueprint scope → no warning', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  writeRootReview(repoRoot, blueprintDir, ROOT_FINDINGS, { blueprintScope: false });
+  const taskReviewAbs = path.join(repoRoot, `${blueprintDir}/tasks/002/review.md`);
+  writeDoc(repoRoot, `${blueprintDir}/tasks/002/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: `${blueprintDir}/tasks/002/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-002', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: {
+        required: true,
+        findings: [{
+          id: 'F-1', severity: 'major', actionability: 'must_fix', status: 'deferred', note: 'task must fix',
+        }],
+      },
+    },
+  });
+  assert.ok(fs.existsSync(taskReviewAbs));
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.deepStrictEqual(d.warnings, []);
+  assert.strictEqual(d.drive_issues.deferred_must_fix, 0);
+  assert.deepStrictEqual(d.pr.sections.unresolved_must_fix, []);
+  assert.ok(d.pr.sections.review_points.includes('task must fix'));
+  assert.strictEqual(d.tasks[1].review.findings[0].actionability, 'must_fix');
 });
 
 test('a base that cannot be resolved → prepareFinalizeDigest returns no-base', () => {
