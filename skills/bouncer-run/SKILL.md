@@ -86,18 +86,33 @@ stay on the task's review round.
    to delegate the drive. Option order: recommended proceed → revise → cancel.
    This is the only gate.
 
+   When preflight reports `direct_eligible: true`:
    **AskUserQuestion — run.start_drive**
-   <!-- acq {"gate":"run.start_drive","options":["A","B","C","D"],"recommended":"A"} -->
+   <!-- acq {"gate":"run.start_drive","options":["D","A","B","C"],"recommended":"D"} -->
    1. **Re-ground**: Start the drive for the remaining tasks?
-   2. **Recommend-why**: Delegating now covers each ready wave until
-      the blueprint is done. This
-      approval covers the whole drive: neither autonomy value asks again per
-      task; `interactive` only reports progress at each task boundary.
+   2. **Recommend-why**: This short, serial commit-task chain qualifies for
+      direct execution. Root can carry the normal finish and one first
+      rework; workers still implement and review. This approval covers the
+      whole drive: neither autonomy value asks again per task; `interactive`
+      only reports progress at each task boundary.
    3. **Options**:
-      - A) Start drive (Recommended)
+      - D) 직접 실행(coordinator 없음) (Recommended)
+      - A) Start delegated drive
       - B) Revise list/scope and reconfirm
       - C) Cancel
-      - D) 직접 실행(coordinator 없음) — only when `direct_eligible`
+
+   When preflight reports `direct_eligible: false`:
+   **AskUserQuestion — run.start_drive**
+   <!-- acq {"gate":"run.start_drive","options":["A","B","C"],"recommended":"A"} -->
+   1. **Re-ground**: Start the drive for the remaining tasks?
+   2. **Recommend-why**: This drive needs coordinator handling. Delegating
+      covers each ready wave until the blueprint is done. This approval
+      covers the whole drive: neither autonomy value asks again per task;
+      `interactive` only reports progress at each task boundary.
+   3. **Options**:
+      - A) Start delegated drive (Recommended)
+      - B) Revise list/scope and reconfirm
+      - C) Cancel
 
    Stop unless A or D.
 

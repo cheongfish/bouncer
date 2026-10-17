@@ -185,6 +185,7 @@ evidence ids). Reasons are `security-risk`, `out-of-scope`, `task-split`,
 idempotent; afterward `prepare`/`dispatch`/`report`/`record`/`integrate` and
 `run preflight` delegation fail with `promotion-stopped`. There is no resume —
 full replan needs a new `bootstrap` and `current --set`.
+After the main checkout has an approved full blueprint, `coordinate bootstrap --promote-light` archives a promotion-stopped light ledger and saves integration dirty changes to `.bouncer/runtime/light-promoted.patch`. It resets those changes, seeds the full plan, and creates a full ledger on the same integration branch. The response and ledger include `promoted_from`; `coordinate next` passes its patch path as `promoted_patch` in the implement payload. Rejections are `promote-light-requires-stopped`, `promote-light-scale-light`, `promote-light-archive-exists`, and `promotion-diff-drift`. A failed partial promotion reports `promote-light-incomplete` and whether rollback completed.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure

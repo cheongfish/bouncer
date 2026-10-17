@@ -1389,6 +1389,191 @@ function worktreeDiffSha(exec: Exec, cwd: string): string {
 }
 
 /**
+ * promotion_stopped light 원장과 integration의 미커밋 작업을 원자적으로 full seed로 바꾼다.
+ * 중간 쓰기가 실패하면 원문 계획 파일, 원장, 작업 트리를 되돌려 재시도 가능한 상태를 만든다.
+ *
+ * @param {object} opts - 승격에 필요한 저장소와 injected dependency
+ * @returns {object} 성공한 full bootstrap 또는 정해진 promotion 거절
+ */
+function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, exec, writeLedger }: {
+  repoRoot: string; blueprint: string; paths: ReturnType<typeof coordinatorPathsFor>;
+  integrationBranch: string; exec: Exec; writeLedger: (file: string, data: unknown) => void;
+}) {
+  const integration = paths.integrationPath;
+  const ledgerFile = paths.ledgerFile;
+  const archive = path.join(integration, '.bouncer/runtime/coordinator.light-promoted.json');
+  const patchFile = path.join(integration, '.bouncer/runtime/light-promoted.patch');
+  return withLedgerLock(ledgerFile, (owns) => {
+    const ledger = loadLedger(ledgerFile);
+    if (!ledger || ledgerModeOf(ledger) !== 'light' || ledger.status !== 'promotion_stopped') {
+      return { ok: false as const, reason: 'promote-light-requires-stopped' };
+    }
+    if (blueprintScaleAt(repoRoot, blueprint) === 'light') {
+      return { ok: false as const, reason: 'promote-light-scale-light' };
+    }
+    if (fs.existsSync(archive) || fs.existsSync(patchFile)) {
+      return { ok: false as const, reason: 'promote-light-archive-exists' };
+    }
+    if (!ledger.promotion || worktreeDiffSha(exec, integration) !== ledger.promotion.diff_sha) {
+      return { ok: false as const, reason: 'promotion-diff-drift' };
+    }
+    if (!owns()) return { ok: false as const, reason: 'ledger-lock-lost' };
+
+    const status = String(exec('git', ['status', '--porcelain', '--untracked-files=all'], {
+      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    }));
+    // 잠금 파일도 .gitignore 없는 테스트 저장소에서는 untracked로 보인다. 삭제하면
+    // 임계 구역의 소유권을 잃으므로 승격 patch와 reset 대상에서 제외한다.
+    const untracked = status.split('\n').filter((line) => line && line.startsWith('?? '))
+      .map((line) => line.slice(3)).filter((rel) => rel !== `${LEDGER_REL}.lock` && rel !== LEDGER_REL);
+    const planPaths: string[] = [];
+    const collectPlanFiles = (dir: string, rel: string) => {
+      for (const name of fs.readdirSync(dir).sort()) {
+        const child = path.join(dir, name);
+        const childRel = `${rel}/${name}`;
+        if (fs.statSync(child).isDirectory()) collectPlanFiles(child, childRel);
+        else planPaths.push(childRel);
+      }
+    };
+    collectPlanFiles(path.join(repoRoot, blueprint), blueprint);
+    for (const rel of [path.posix.dirname(blueprint) + '/index.md', '.bouncer/context/index.md']) {
+      if (fs.existsSync(path.join(repoRoot, rel))) planPaths.push(rel);
+    }
+    const planSet = new Set(planPaths);
+    const tracked = String(exec('git', ['diff', '--name-only', '-z', 'HEAD'], {
+      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    })).split('\0').filter(Boolean);
+    // 1. 계획 문서는 promotion patch와 독립적으로 보존한다. 승인본으로 seed되므로
+    // patch에 섞으면 재적용이 충돌하고, light 원문은 별도 byte snapshot으로 복구한다.
+    let patch = String(exec('git', ['diff', '--binary', 'HEAD', '--', '.',
+      ...[...planSet].map((rel) => `:(exclude)${rel}`)], {
+      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    }));
+    for (const rel of untracked) {
+      if (planSet.has(rel)) continue;
+      try {
+        patch += String(exec('git', ['diff', '--no-index', '--binary', '--', '/dev/null', rel], {
+          cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+        }));
+      } catch (error) {
+        const failure = error as { status?: number; stdout?: string | Buffer };
+        if (failure.status !== 1) throw error;
+        patch += String(failure.stdout || '');
+      }
+    }
+    const patchPath = patch.length ? patchFile : null;
+    // 2. snapshot every dirty path and seed target, plus the raw index. Byte restoration
+    // preserves staged/unstaged separation that `git apply` cannot reconstruct safely.
+    const originalFiles = new Map<string, { bytes: Buffer; mode: number } | { symlink: string } | null>();
+    for (const rel of new Set([...tracked, ...untracked, ...planPaths, '.bouncer/config.json'])) {
+      const abs = path.join(integration, rel);
+      if (!fs.existsSync(abs) && !fs.lstatSync(abs, { throwIfNoEntry: false })) {
+        originalFiles.set(rel, null);
+      } else if (fs.lstatSync(abs).isSymbolicLink()) {
+        originalFiles.set(rel, { symlink: fs.readlinkSync(abs) });
+      } else {
+        originalFiles.set(rel, { bytes: fs.readFileSync(abs), mode: fs.statSync(abs).mode });
+      }
+    }
+    const gitDir = String(exec('git', ['rev-parse', '--absolute-git-dir'], {
+      cwd: integration, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    })).trim();
+    const indexFile = path.join(gitDir, 'index');
+    const originalIndex = fs.readFileSync(indexFile);
+    let archived = false;
+    let patchWritten = false;
+    const written: string[] = [];
+    try {
+      if (patchPath) {
+        fs.mkdirSync(path.dirname(patchFile), { recursive: true });
+        fs.writeFileSync(patchFile, patch);
+        patchWritten = true;
+        written.push(patchFile);
+      }
+      fs.renameSync(ledgerFile, archive);
+      archived = true;
+      written.push(archive);
+      // 3. dirty source만 HEAD로 되돌린 뒤 계획 문서는 승인된 main 원본으로 seed한다.
+      if (tracked.length) {
+        git(exec, integration, ['restore', '--source=HEAD', '--staged', '--worktree', '--', ...tracked]);
+      }
+      for (const rel of untracked) fs.rmSync(path.join(integration, rel), { force: true, recursive: true });
+      const seeded = seedIntegration({
+        repoRoot, blueprintDir: blueprint, integrationPath: integration, allowOverwrite: true,
+      });
+      if (!seeded.ok) throw Object.assign(new Error(seeded.reason), { code: seeded.reason });
+      written.push(...(seeded.seeded || []).map((rel) => path.join(integration, rel)));
+      if (patchPath) {
+        git(exec, integration, ['apply', '--check', patchFile]);
+        // 승인된 patch의 내용이 대상 파일에 정확히 적용 가능한지 먼저 확인한다.
+      }
+      const fullLedger: Ledger = {
+        version: 1, blueprint, base: ledger.base,
+        integrationHead: git(exec, integration, ['rev-parse', 'HEAD']),
+        integrationBranch,
+        tasks: taskList(integration, blueprint), decisions: [], status: 'active', repairWaves: [],
+        seedManifest: seeded.manifest,
+        promoted_from: {
+          archive, patch: patchPath, diff_sha: ledger.promotion.diff_sha,
+          reason: ledger.promotion.reason, task: ledger.promotion.task,
+        },
+      };
+      if (!owns()) throw Object.assign(new Error('ledger-lock-lost'), { code: 'ledger-lock-lost' });
+      written.push(ledgerFile);
+      writeLedger(ledgerFile, fullLedger);
+      return withCheckpoint({
+        ok: true as const, command: 'bootstrap', integrationPath: integration,
+        mode: 'full' as const, promoted_from: fullLedger.promoted_from,
+        ready: readyWave(fullLedger.tasks, { maxParallel: maxParallelForRead(integration) }),
+        tasks: fullLedger.tasks, decisions: fullLedger.decisions, integrationBranch,
+      }, fullLedger, ledgerFile);
+    } catch (_error) {
+      let restored = true;
+      try {
+        for (const [rel, bytes] of originalFiles) {
+          const abs = path.join(integration, rel);
+          if (bytes === null) fs.rmSync(abs, { force: true, recursive: true });
+          else {
+            fs.mkdirSync(path.dirname(abs), { recursive: true });
+            fs.rmSync(abs, { force: true, recursive: true });
+            if ('symlink' in bytes) fs.symlinkSync(bytes.symlink, abs);
+            else {
+              fs.writeFileSync(abs, bytes.bytes);
+              fs.chmodSync(abs, bytes.mode);
+            }
+          }
+        }
+        fs.writeFileSync(indexFile, originalIndex);
+        if (worktreeDiffSha(exec, integration) !== ledger.promotion.diff_sha) {
+          throw new Error('promotion rollback fingerprint mismatch', { cause: _error });
+        }
+        // 복구가 fingerprint로 인증된 뒤에만 수동 복구용 사본을 치운다.
+        if (archived) {
+          fs.rmSync(ledgerFile, { force: true });
+          fs.renameSync(archive, ledgerFile);
+          archived = false;
+        }
+        if (patchWritten) {
+          fs.rmSync(patchFile, { force: true });
+          patchWritten = false;
+        }
+      } catch (_restoreError) {
+        restored = false;
+      }
+      // 승격은 여러 파일과 원장을 함께 바꾸므로 예외를 반환하기 전에 역순 복구를 시도한다.
+      const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
+      const manual = archived && patchWritten
+        ? `cp ${quote(archive)} ${quote(ledgerFile)} && git -C ${quote(integration)} apply --check `
+          + `${quote(patchFile)} && git -C ${quote(integration)} apply ${quote(patchFile)}`
+        : `cp ${quote(archive)} ${quote(ledgerFile)}`;
+      return { ok: false as const, reason: 'promote-light-incomplete', restored,
+        written, next: restored ? 'Promotion rolled back; retry `bouncer coordinate bootstrap --promote-light`.'
+          : `Manual recovery: ${manual}. Then inspect written paths: ${written.join(', ')}` };
+    }
+  });
+}
+
+/**
  * light 원장에서 promote-stop 스냅샷에 쓸 열린 commit task를 고른다.
  * integrated가 아닌 첫 commit task를 쓰고, 없으면 단일 commit task로 폴백한다.
  *
@@ -3115,6 +3300,7 @@ function finishFaninAfterFf({
  * @param {string} [opts.ledgerPath] - fence 원장 상대 경로
  * @param {string} [opts.ledgerHash] - fence sha256
  * @param {boolean} [opts.userConfirmed] - partial-close 사용자 확인
+ * @param {boolean} [opts.promoteLight] - promotion_stopped light 원장을 full로 전환
  * @param {object} [opts.deps] - exec·verify·원장 쓰기 주입
  * @returns {object} 성공 시 ok:true와 명령별 필드, 실패 시 ok:false와 reason
  *   prepare는 worktree 생성·seed를 원장 잠금 밖에서 돌리고, 실패하면 이번 호출이
@@ -3125,11 +3311,11 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   taskBriefHash, model, role, perspective, tokens,
   leaseId, generation,
   ledgerPath, ledgerHash,
-  userConfirmed = false, deps = {} }: {
+  userConfirmed = false, promoteLight = false, deps = {} }: {
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; reviewFindings?: string[]; kind?: string; done?: boolean; outcome?: string; reason?: string;
-  attempt?: number; taskBriefHash?: string;
+  attempt?: number; taskBriefHash?: string; promoteLight?: boolean;
   model?: string | true; role?: string; perspective?: string; tokens?: number | string;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
@@ -3152,6 +3338,14 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     const before = sourceStatus(exec, repoRoot);
     if (fs.existsSync(paths.integrationPath) && !registeredIntegration(exec, repoRoot, paths.integrationPath)) {
       return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: paths.integrationPath };
+    }
+    if (promoteLight) {
+      if (!fs.existsSync(paths.integrationPath) || !registeredIntegration(exec, repoRoot, paths.integrationPath)) {
+        return { ok: false, reason: 'promote-light-requires-stopped' };
+      }
+      const names = branchNamesFor({ repoRoot, blueprint });
+      return promoteLightBootstrap({ repoRoot, blueprint, paths,
+        integrationBranch: names.integration, exec, writeLedger });
     }
     // 원장이 없는 신규 seed만 검사한다. 재개 bootstrap은 integration 사본이 정본이라
     // 메인에 남은 옛 주석으로 worktree를 만들지 못한 채 멈추면 안 된다.
@@ -4111,6 +4305,26 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'promote-stop applies only to a light ledger (mode: light).',
     next: 'Do not call promote-stop on a full ledger; continue with the full coordinate path.',
   },
+  'promote-light-requires-stopped': {
+    cause: 'The existing coordinator ledger is not a promotion_stopped light ledger.',
+    next: 'Stop the light drive with `bouncer coordinate promote-stop`, then rerun bootstrap with `--promote-light`.',
+  },
+  'promote-light-scale-light': {
+    cause: 'The main checkout blueprint still has light scale.',
+    next: 'Approve the full replan in the main checkout, then rerun `coordinate bootstrap --promote-light`.',
+  },
+  'promote-light-archive-exists': {
+    cause: 'A light promotion archive or patch already exists for this integration worktree.',
+    next: 'Inspect the existing promotion artifacts and recover them before retrying.',
+  },
+  'promotion-diff-drift': {
+    cause: 'The integration worktree no longer matches the diff recorded by promote-stop.',
+    next: 'Restore the stopped worktree to its recorded state or inspect it before retrying promotion.',
+  },
+  'promote-light-incomplete': {
+    cause: 'Promotion failed partway through; the response reports whether rollback restored the original state.',
+    next: 'Follow the returned recovery instructions before retrying bootstrap.',
+  },
   'promotion-already-stopped': {
     cause: 'This light ledger is already promotion_stopped with a different reason or summary.',
     next: 'Keep the recorded promotion snapshot; replan as full with a new bootstrap and '
@@ -4118,8 +4332,7 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'promotion-stopped': {
     cause: 'This light ledger was stopped for promotion; light mutations are refused.',
-    next: 'Report the promotion snapshot to the user; after full replan, run a new '
-      + '`bouncer coordinate bootstrap` and `bouncer current --set` — there is no resume command.',
+    next: 'After the full replan is approved in the main checkout, run `bouncer coordinate bootstrap --promote-light`.',
   },
   'reason-required': {
     cause: 'Critical recovery requires a non-empty reason string.',

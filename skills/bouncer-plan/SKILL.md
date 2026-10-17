@@ -92,16 +92,17 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    are not scratch work: they become the numbered `## Success criteria` list
    in the epic body in step 3.
 
-2. **Scaffold.** Recommended ids come from the preflight `bouncer plan inspect`
+2. **Scaffold.** IDs are auto-allocated from `plan inspect`; to change one, the user replies with the new id and you use it. Recommended ids come from the preflight `bouncer plan inspect`
    payload — `nextEpicId`, and when `--epic-dir` was passed,
    `epic.nextBlueprintId`. These are suggestions only; the user may override
    them. If adding to an existing epic and preflight omitted `--epic-dir`,
    re-run `bouncer plan inspect --epic-dir <dir>` for `nextBlueprintId`.
-   **ACQ — ID allocation (`plan.id_allocation`):** show the suggested
-   epic/blueprint id and let the user override it.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
-   **Light path.** **ACQ — Light scope (`plan.light_scope`):** ask whether the work is narrow-scope —
-   do not auto-judge. On a light declaration, create no new epic; allocate only a
+   **Light path.** **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
+   ID in the Re-ground and say it can be changed by replying with a new id.
+   Recommend light only when one commit task is expected and no public interface, protected path, or cross-module state change is involved; otherwise recommend full.
+   Base that recommendation only on the discovery handoff; the user still declares light or full.
+   On a light declaration, create no new epic; allocate only a
    blueprint id under the epic whose slug is `maintenance` (`maintenanceEpic`
    from inspect), creating that epic once with the next free `\d{3}` id if
    `maintenanceEpic` is `null` (never assume a number such as
@@ -271,7 +272,7 @@ Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback.
 **Index:**
 - Before step 1 — `plan.request` Request (when invocation had no description)
 - Step 1 — `plan.discovery` Discover confirm
-- Step 2 — `plan.id_allocation` ID allocation · `plan.light_scope` Light scope
+- Step 2 — `plan.light_scope` Light scope
 - Step 3 — `plan.verify_command` Verify command
 - Step 4 — `plan.affected_paths` affected_paths
 - Step 6 — `plan.approval` Approval

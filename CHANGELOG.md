@@ -7,8 +7,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **light 승격 후 full 원장 전환 (EPIC 107 BP 003)** — `coordinate bootstrap --promote-light`가 중단된 light 작업을 보존한 채 같은 blueprint를 full 원장으로 전환한다.
+
 ### Fixed
 
+- **brief 변경 뒤 intent bundle 재사용 갱신 (EPIC 107 BP 003)** — brief가 바뀌면 기존 bundle의 brief 해시를 갱신해 오래된 내용으로 bundle을 재사용하지 않는다.
+- **light 승격 뒤 같은 blueprint bootstrap (EPIC 107 BP 003)** — light 원장을 full로 승격한 뒤 같은 blueprint에서 bootstrap을 다시 실행할 수 있다.
 - **다중 commit fan-in·blueprint 리뷰 라운드·리뷰 repair brief (EPIC 103 BP 001)** — worker가 여러
   commit을 만든 task도 fan-in이 base부터 HEAD까지 전 범위를 가져온다. blueprint 최종 리뷰 라운드
   순서는 `discovery,delta,delta`이고 repair wave 상한은 공용 `REPAIR_WAVE_LIMIT`로 판정한다.
@@ -26,6 +32,12 @@
 
 ### Changed
 
+- **조사 영역 단위 plan evidence (EPIC 107 BP 003)** — plan evidence 조사를 파일 단위가 아닌 조사 영역 단위로 수행하고 discovery 근거를 재사용한다.
+- **intent bundle 결과별 dispatch (EPIC 107 BP 003)** — intent bundle 결과에 따라 dispatch 동작을 나누고, 새 worker dispatch의 대화 이력 차단을 모델 선택과 분리한다.
+- **범위 내 검증 실패의 implementer 우선 수정 (EPIC 107 BP 003)** — 검증 실패가 task 범위 안에 있으면 debugger에 넘기기 전에 기존 implementer가 먼저 수정한다.
+- **direct 실행 종결 범위 확대 (EPIC 107 BP 003)** — direct 실행이 정상 최종 리뷰와 재작업 1회를 거쳐 task를 종결한다.
+- **plan ID 질문 제거와 light 추천 근거 표시 (EPIC 107 BP 003)** — plan ID를 자동 배정으로 표시하고 light 추천 근거를 보여준다.
+- **light 승격 정지 뒤 full 전환 (EPIC 107 BP 003)** — 승격이 정지되어도 작업 상태를 보존하고 full 원장으로 전환할 수 있다.
 - **repair 경로 통합과 preflight 포인터 비교 정리 (EPIC 099 BP 003)** — integrate 단계가 동적으로
   추가된 repair task의 증적도 인정한다. `run preflight`는 요청 경로와 포인터를 같은 규칙으로 정규화한
   문자열로 비교해 `<bp>/../<다른 bp>`를 거절하고, 요청 경로가 실재하면 realpath로 repo 경계를

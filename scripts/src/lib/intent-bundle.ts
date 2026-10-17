@@ -245,7 +245,8 @@ function resolveTaskIntentBundle(input: {
     expectedTask: stableTask,
     fs: io,
   });
-  if (previous && isCacheHit(previous, liveCoords, repoReal, io)) {
+  if (previous && previous.task_brief_hash === taskBriefHash
+    && isCacheHit(previous, liveCoords, repoReal, io)) {
     return {
       status: 'reused',
       bundle_id: previous.bundle_id,
@@ -954,13 +955,17 @@ function failIntentSections(
 
 /**
  * 실패 JSON의 next는 호출자가 같은 task에 bundle을 다시 만들게 한다.
- * sections CLI는 --symbol을 받지 않으므로 placeholder를 남긴다.
+ * 저장된 함수 집합이 비었으면 --no-symbols를 안내해 같은 계약으로 복구하게 한다.
  *
  * @param {string} taskFile - repo-relative canonical tasks.md
+ * @param {boolean} hasFunctions - bundle에 기록된 함수가 하나 이상인지
  * @returns {string} `bouncer intent bundle` 복구 명령
  */
-function intentBundleNext(taskFile: string): string {
-  return `bouncer intent bundle --task ${taskFile} --symbol <name>...`;
+function intentBundleNext(taskFile: string, hasFunctions: boolean): string {
+  // 빈 함수 bundle은 재시도에서 임의 symbol을 요구하면 계약과 어긋난다.
+  return hasFunctions
+    ? `bouncer intent bundle --task ${taskFile} --symbol <name>...`
+    : `bouncer intent bundle --task ${taskFile} --no-symbols`;
 }
 
 function isIntentRole(value: string): value is IntentRole {
@@ -986,7 +991,7 @@ function projectRoleIntentSections(input: {
   role: IntentRole;
   deps?: BundleDeps | null;
 }): RoleIntentSectionsResult {
-  const next = intentBundleNext(input.taskFile);
+  let next = intentBundleNext(input.taskFile, true);
   if (!isIntentRole(input.role)) {
     throw new Error('role must be implementer, reviewer, or debugger');
   }
@@ -1046,6 +1051,7 @@ function projectRoleIntentSections(input: {
       next,
     );
   }
+  next = intentBundleNext(input.taskFile, record.functions.length > 0);
   if (record.task_brief_hash !== loaded.taskBriefHash) {
     failIntentSections(
       'intent-bundle-stale',

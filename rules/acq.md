@@ -55,4 +55,5 @@ workflow's own consequence needs it:
 ```
 
 Do not combine an ACQ a workflow may skip under `auto` with consent that must
-still be obtained. The workflow's gate catalog says which rule applies.
+still be obtained. Each workflow document says which ACQ it may skip under
+`auto`.

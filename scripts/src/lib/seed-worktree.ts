@@ -495,11 +495,18 @@ function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps }: {
 }
 
 /**
- * integration checkout은 base의 계획 문서를 소비해도 base를 정리하지 않는다.
- * 이미 있는 destination은 main 또는 HEAD와 같은 경우에만 안전하게 갱신한다.
+ * integration checkout에 main의 계획 문서를 seed하고 manifest를 반환한다.
+ * 기본 동작은 충돌을 막고, light 승격 호출만 이미 있는 계획 파일을 승인본으로 교체한다.
+ *
+ * @param {object} opts - source·destination과 승격 전용 overwrite 선택
+ * @param {string} opts.repoRoot - 승인된 계획 문서가 있는 main checkout
+ * @param {unknown} opts.blueprintDir - blueprint 상대 경로
+ * @param {string} opts.integrationPath - 계획 문서를 받을 integration checkout
+ * @param {boolean} [opts.allowOverwrite] - true이면 기존 차이를 full 승격 seed가 덮어씀
+ * @returns {object} 성공 시 seeded 경로·manifest·config, 실패 시 reason과 대상
  */
-function seedIntegration({ repoRoot, blueprintDir, integrationPath }: {
-  repoRoot: string; blueprintDir: unknown; integrationPath: string;
+function seedIntegration({ repoRoot, blueprintDir, integrationPath, allowOverwrite = false }: {
+  repoRoot: string; blueprintDir: unknown; integrationPath: string; allowOverwrite?: boolean;
 }) {
   const bp = toPosix(blueprintDir);
   const source = path.join(repoRoot, bp);
@@ -522,18 +529,58 @@ function seedIntegration({ repoRoot, blueprintDir, integrationPath }: {
   targets.sort();
   const gitApi = realGit(repoRoot);
   const conflicts: string[] = [];
+  const realIntegration = fs.realpathSync(integrationPath);
+  const contained = (candidate: string) => {
+    const rel = path.relative(realIntegration, candidate);
+    return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+  };
+  // 승격은 충돌 검사를 우회하므로, 쓰기 전에 실제 대상 경로도 integration 안인지 확인한다.
+  // symlink가 main이나 외부 파일을 가리키면 승인 문서 복사가 그 파일을 덮어쓸 수 있다.
+  for (const rel of targets) {
+    const dst = path.resolve(integrationPath, rel);
+    if (!contained(dst)) return { ok: false, reason: 'seed-path-escape', targets: [rel] };
+    let probe = dst;
+    const suffix: string[] = [];
+    while (true) {
+      try {
+        fs.lstatSync(probe);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        const parent = path.dirname(probe);
+        if (parent === probe) return { ok: false, reason: 'seed-path-escape', targets: [rel] };
+        suffix.unshift(path.basename(probe));
+        probe = parent;
+      }
+    }
+    let resolved: string;
+    try {
+      resolved = fs.realpathSync(probe);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      // 경로 해석 중 dangling·순환 symlink 또는 비디렉터리 상위 경로는 안전하게 거절한다.
+      if (code === 'ENOENT' || code === 'ELOOP' || code === 'ENOTDIR') {
+        return { ok: false, reason: 'seed-path-escape', targets: [rel] };
+      }
+      throw error;
+    }
+    if (!contained(path.resolve(resolved, ...suffix))) {
+      return { ok: false, reason: 'seed-path-escape', targets: [rel] };
+    }
+  }
   for (const rel of targets) {
     const dst = path.join(integrationPath, rel);
     if (!fs.existsSync(dst)) continue;
     const current = fs.readFileSync(dst);
     const main = fs.readFileSync(path.join(repoRoot, rel));
     const head = gitApi.readHead(rel);
-    if (!current.equals(main) && !(head && current.equals(head))) conflicts.push(rel);
+    // full 재승격은 이미 멈춘 light 문서 상태를 승인된 main 계획으로 바꾸는 경로다.
+    if (!allowOverwrite && !current.equals(main) && !(head && current.equals(head))) conflicts.push(rel);
   }
   if (conflicts.length) return { ok: false, reason: 'seed-conflict', conflicts, targets };
   try {
     for (const rel of targets) {
-      const dst = path.join(integrationPath, rel);
+      const dst = path.resolve(integrationPath, rel);
       fs.mkdirSync(path.dirname(dst), { recursive: true });
       fs.copyFileSync(path.join(repoRoot, rel), dst);
     }
@@ -542,6 +589,10 @@ function seedIntegration({ repoRoot, blueprintDir, integrationPath }: {
       sha256: createHash('sha256').update(fs.readFileSync(path.join(integrationPath, rel))).digest('hex') }));
     return { ok: true, seeded: targets, manifest, config };
   } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'ELOOP' || code === 'ENOTDIR') {
+      return { ok: false, reason: 'seed-path-escape', targets };
+    }
     return { ok: false, reason: 'seed-failed', message: (error as { message: unknown }).message, targets };
   }
 }

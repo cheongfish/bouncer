@@ -1,5 +1,6 @@
 When dispatching a named agent or applying its fallback, read this reference.
 Apply [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
+Every new worker dispatch starts without conversation history (item 1 of that rule).
 
 Every named and fallback payload for implementer, debugger, and reviewer carries
 the same `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`

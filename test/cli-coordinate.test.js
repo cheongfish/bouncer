@@ -803,6 +803,15 @@ test('coordinate CLI stdout → is one-line JSON without ledger copies', () => {
   assert.strictEqual(refused.buf.out.trimEnd().includes('\n'), false);
 });
 
+test('coordinate bootstrap --promote-light on a full ledger → exit 1 promote-light-requires-stopped', () => {
+  const repo = planCommittedRepo();
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const { code, buf } = coordinateCli(repo, 'bootstrap', ['--repo', repo, '--promote-light']);
+  assert.strictEqual(code, 1, buf.err + buf.out);
+  assert.strictEqual(JSON.parse(buf.out).reason, 'promote-light-requires-stopped');
+});
+
 test('coordinate revise stdout on success and fence refusals → is one-line JSON', () => {
   const drive = preparedDrive();
   const success = revise(drive.worker, [

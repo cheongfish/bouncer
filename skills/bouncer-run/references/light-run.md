@@ -65,5 +65,10 @@ bouncer coordinate promote-stop --blueprint <dir> \
 
 That records `status: promotion_stopped` and a `promotion` snapshot (task,
 diff_sha, evidence ids). Further light mutations and `run preflight` delegation
-are refused. There is no resume command — after a full replan, start a new
-drive with `bouncer coordinate bootstrap` and `bouncer current --set`.
+are refused. After the main checkout contains the approved full replan, run
+`bouncer coordinate bootstrap --blueprint <dir> --promote-light` from the main
+checkout. This archives the stopped light ledger, saves integration dirty work
+to a patch, resets those files, seeds the approved full plan, and keeps the
+same integration branch. The full drive's `implement` payload includes
+`promoted_patch`; its worker can inspect and apply that patch within its
+assigned paths. A new pointer selection is not needed.

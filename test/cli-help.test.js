@@ -274,6 +274,12 @@ test('coordinate <sub> --help와 -h → 그 subcommand usage를 stdout에 출력
   }
 });
 
+test('coordinate bootstrap --help → documents light promotion flag', () => {
+  const r = capture(['coordinate', 'bootstrap', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /--promote-light/);
+});
+
 test('coordinate next --help → 플래그, action, 응답 필드를 나열한다', () => {
   const r = capture(['coordinate', 'next', '--help']);
   assert.strictEqual(r.code, 0);

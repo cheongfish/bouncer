@@ -67,7 +67,7 @@ function readPolicy(name) {
 test('the benchmark evaluator policies → answer only catalogued gate IDs', () => {
   const known = new Set(Object.values(CATALOG).flat());
   // 제품이 정의하지 않은 포인터 활성화 질문은 과거 run 호환용으로만 남는다.
-  const legacy = new Set(['plan.activate_pointer', 'finalize.quiz']);
+  const legacy = new Set(['plan.activate_pointer', 'plan.id_allocation', 'finalize.quiz']);
   for (const name of POLICY_NAMES) {
     const policy = readPolicy(name);
     for (const decision of policy.bouncer_decisions) {

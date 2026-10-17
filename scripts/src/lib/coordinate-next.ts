@@ -52,7 +52,7 @@ type JudgeContext = {
 };
 // status·base는 문자열로만 비교하고, revision은 부재를 null로 읽으므로 넓게 재선언한다.
 type Ledger = Omit<
-  Partial<Pick<CanonicalLedger, 'status' | 'base' | 'integrationHead' | 'fanin' | 'mode'>>,
+  Partial<Pick<CanonicalLedger, 'status' | 'base' | 'integrationHead' | 'fanin' | 'mode' | 'promoted_from'>>,
   'status' | 'base'
 > & {
   status?: string; base?: string;
@@ -845,6 +845,8 @@ function taskNext(ctx: {
       ),
     };
     if (ledger.mode === 'light') payload.inline = true;
+    // patch는 실행 권한을 넓히지 않는다. implementer는 현재 brief의 affected_paths 안에서만 재사용한다.
+    if (ledger.promoted_from?.patch) payload.promoted_patch = ledger.promoted_from.patch;
     return ok({ scope: 'task', action: 'implement', cwd, payload });
   }
 
