@@ -16,3 +16,5 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
    explicitly approves it; a workflow may not infer approval from silence or a prior unrelated choice.
 4. **Actual write cwd** — Mutate files only in the controller-assigned actual write cwd. Never infer
    a write location from the plugin root, project root, pointer, or another worktree.
+5. **User-facing Korean** — 사용자에게 보이는 모델 작성 메시지(채팅·ACQ 표시·진행·결과 보고)는 한국어로 쓴다.
+   코드·경로·명령·식별자·CLI 출력 원문은 그대로 둔다. 프로젝트·사용자 지시가 다르면 그 지시를 따른다.

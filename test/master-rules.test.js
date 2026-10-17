@@ -433,6 +433,20 @@ test('AGENTS.md size → stays within the session-load byte budget', () => {
   );
 });
 
+// hard rule 5의 원문은 blueprint Contract 결정 14가 확정한 사용자 대상 언어 계약이다.
+// 문구 자체가 계약이므로 원문 일치를 단언한다. 줄바꿈 위치는 계약이 아니라서 공백을
+// 하나로 접은 뒤 비교하고, 번호가 1–5로 이어져 5번이 기존 4개 뒤에 붙었는지도 본다.
+const KOREAN_RULE_TEXT = '사용자에게 보이는 모델 작성 메시지(채팅·ACQ 표시·진행·결과 보고)는 한국어로 쓴다. '
+  + '코드·경로·명령·식별자·CLI 출력 원문은 그대로 둔다. 프로젝트·사용자 지시가 다르면 그 지시를 따른다.';
+
+test('AGENTS.md hard rules → number 1–5 and rule 5 carries the confirmed Korean user-facing text', () => {
+  const section = read('AGENTS.md').split('## Hard rules')[1].split(/\n## /)[0];
+  const numbers = [...section.matchAll(/^(\d+)\. /gm)].map((m) => Number(m[1]));
+  assert.deepStrictEqual(numbers, [1, 2, 3, 4, 5]);
+  const rule5 = section.slice(section.search(/^5\. /m)).replace(/\s+/g, ' ').trim();
+  assert.ok(rule5.endsWith(KOREAN_RULE_TEXT), `rule 5 must end with the confirmed text (got: ${rule5})`);
+});
+
 test('plugin contents → do not ship CLAUDE.md', () => {
   assert.equal(fs.existsSync(path.join(root, 'CLAUDE.md')), false);
 });

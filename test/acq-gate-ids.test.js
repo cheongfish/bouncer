@@ -153,6 +153,32 @@ test('rules/acq.md 골격의 acq 블록 → JSON 파싱되고 options가 골격 
   assert.equal(skeleton.block.recommended, skeleton.recommended);
 });
 
+// AGENTS.md hard rule 5(사용자 대상 한국어)에 맞춰 Recommend-why는 gate 종류와 무관하게
+// 한국어다. 영어 허용 예외가 남으면 모델이 영어 근거를 다시 쓰므로 그 부재를 본다.
+// 골격 예시의 설명·선택지는 한국어로 바뀌어도 `- X)`·(Recommended)·JSON 블록은
+// 기계 계약이므로 위 parser 테스트가 계속 같은 형식을 읽어야 한다.
+const HANGUL = /[가-힣]/;
+
+test('rules/acq.md → Recommend-why 영어 허용 예외가 없음', () => {
+  assert.doesNotMatch(read('rules/acq.md'), /plain English/i);
+});
+
+test('rules/acq.md 골격 → Re-ground·Recommend-why 설명과 선택지 label이 한국어이고 추천 마커는 그대로임', () => {
+  const text = read('rules/acq.md');
+  const start = text.indexOf('**AskUserQuestion — <gate-id>**');
+  const skeleton = text.slice(start, text.indexOf('```', start));
+  const reground = skeleton.match(/^1\. \*\*Re-ground\*\*: (.*)$/m);
+  const why = skeleton.match(/^2\. \*\*Recommend-why\*\*: (.*)$/m);
+  assert.ok(reground && HANGUL.test(reground[1]), 'Re-ground 설명은 한국어');
+  assert.ok(why && HANGUL.test(why[1]), 'Recommend-why 설명은 한국어');
+  const options = [...skeleton.matchAll(/^\s*- ([A-Z])\) (.*)$/gm)];
+  assert.deepEqual(options.map((m) => m[1]), ['A', 'B', 'C']);
+  for (const [, letter, label] of options) {
+    assert.match(label.replace('(Recommended)', ''), HANGUL, `${letter}) label은 한국어`);
+  }
+  assert.equal(options.filter((m) => m[2].endsWith(' (Recommended)')).map((m) => m[1]).join(), 'A');
+});
+
 test('rules/acq.md의 자유 입력 블록 예시 → JSON 파싱되고 options가 [], recommended가 null', () => {
   const lines = read('rules/acq.md').split('\n').map((l) => l.match(BLOCK)).filter(Boolean).map((m) => JSON.parse(m[1]));
   const free = lines.find((b) => b.gate === 'plan.request');

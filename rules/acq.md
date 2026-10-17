@@ -37,8 +37,12 @@ The catalog of gate IDs lives in `rules/acq-gates.json`.
 
 Put the recommended proceed option first, then revise, then any alternative,
 and cancel/stop last. Mark one clear recommendation with `(Recommended)` and
-give a one- or two-sentence `Recommend-why` ending in `~함` or `~임` when the
-gate concerns Korean commit-intent style (otherwise plain English is fine).
+give a one- or two-sentence `Recommend-why` in Korean (AGENTS.md hard rule 5),
+ending in `~함` or `~임` when the gate concerns Korean commit-intent style.
+Write the descriptions and option labels in Korean; the gate ID, the acq JSON
+keys and letters, the `- X)` lines, the `Re-ground` / `Recommend-why` /
+`Options` labels, and the `(Recommended)` marker stay verbatim because
+responders parse them.
 Use this display skeleton, extending the lettered options only when the
 workflow's own consequence needs it:
 
@@ -46,12 +50,12 @@ workflow's own consequence needs it:
 **AskUserQuestion — <gate-id>**
 <!-- acq {"gate":"<gate-id>","options":["A","B","C"],"recommended":"A"} -->
 
-1. **Re-ground**: {one line — what is being decided}
-2. **Recommend-why**: {why option 1 is recommended}
+1. **Re-ground**: {무엇을 결정하는지 한 줄}
+2. **Recommend-why**: {1번 선택지를 추천하는 이유}
 3. **Options** (recommended-first):
-   - A) {Proceed} (Recommended)
-   - B) {Revise / alternative}
-   - C) {Cancel}
+   - A) {진행} (Recommended)
+   - B) {수정 / 대안}
+   - C) {취소}
 ```
 
 Do not combine an ACQ a workflow may skip under `auto` with consent that must

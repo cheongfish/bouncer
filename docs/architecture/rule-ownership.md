@@ -8,7 +8,7 @@ BP4 구현 설명 이전 이후 기준선이다. BP2 규범의 현재 소유자�
 
 소유권 표의 열은 `id`, `source`, `current owner`, `target owner`, `consumers`, `migration BP`이다. `source`는 현재 정본의 heading과, 그 heading 안에서 한 단위만 가리키는 구절이다. `current owner`는 그 구절이 들어 있는 경로이다. 구절은 파일을 열어 그대로 찾는다.
 
-`target owner`는 `AGENTS.md`, `shared rule`, `agent`, `skill`, `docs/code` 중 하나이다. 둘 이상의 소비자가 같은 판단을 하면 `shared rule`이다. 한 역할만 수행하는 절차는 `agent`이다. 한 workflow의 절차는 `skill`이다. lock, fencing, scale을 읽는 코드 위치처럼 에이전트가 실행 중 다시 추론하지 않는 설명은 `docs/code`이다. 이 파일의 단위 가운데 다섯 workflow가 모두 같은 불변조건으로 읽는 항목은 없다. 모든 세션이 읽는 네 경계는 이미 `AGENTS.md`에 있다.
+`target owner`는 `AGENTS.md`, `shared rule`, `agent`, `skill`, `docs/code` 중 하나이다. 둘 이상의 소비자가 같은 판단을 하면 `shared rule`이다. 한 역할만 수행하는 절차는 `agent`이다. 한 workflow의 절차는 `skill`이다. lock, fencing, scale을 읽는 코드 위치처럼 에이전트가 실행 중 다시 추론하지 않는 설명은 `docs/code`이다. 이 파일의 단위 가운데 다섯 workflow가 모두 같은 불변조건으로 읽는 항목은 없다. 모든 세션이 읽는 다섯 경계(trust boundary, gate 판정, 명시적 사용자 승인, 실제 write cwd, 사용자 대상 한국어)는 이미 `AGENTS.md` hard rule 1–5에 있다.
 
 `migration BP`는 `BP2`, `BP3`, `BP4` 중 하나이다. BP2는 plan, init, spec-authoring, template, scaffold가 읽는 계획 계약이다. BP3는 run, finalize, coordinator가 읽는 실행 계약이다. BP4는 구현 함수 주석과, 정본 파일을 삭제한 뒤 남는 배포 및 공개 문서 참조이다.
 
@@ -104,8 +104,6 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | `references/spec-authoring/index.md:26` | plan | step 3. spec-authoring step 1이 제품 규칙 위치를 `rules/planning.md`로 가리킨다 |
 | `references/spec-authoring/index.md:190` | plan | step 3. light task 분기에서 `rules/planning.md` `## Lightweight cycle`을 가리킨다 |
 | `docs/workflow.md:133` | plan | 없음. 사용자 문서가 `rules/planning.md` `## Lightweight cycle`을 가리킨다. GOV-LIGHT-DOC-SET, GOV-LIGHT-G10, GOV-LIGHT-RETURN-FULL의 소비자이다 |
-| `AGENTS.md:23` | 없음 | 없음. runtime index의 planning 링크이다. startup에서 이 링크를 따라 열지 않는다 |
-| `AGENTS.md:24` | 없음 | 없음. runtime index의 commit-scope 링크이다. startup에서 이 링크를 따라 열지 않는다 |
 | `test/lightweight-cycle.test.js:15` | 없음 | 없음. GOV-LIGHT-* planning locator를 읽는 characterization이다 |
 | `test/lightweight-cycle.test.js:29` | 없음 | 없음. GOV-LIGHT-INLINE-DISPATCH와 `scripts/src/lib/scaffold.ts`의 scale read-site locator |
 | `test/lightweight-cycle.test.js:46` | 없음 | 없음. GOV-LIGHT-DECLARATION, GOV-LIGHT-RETURN-FULL |
