@@ -242,7 +242,12 @@ Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
 `intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. `intent sections` is
-read-only: it projects role-specific section bodies from that cache. On
+read-only: it projects role-specific section bodies from that cache. Successful
+implementer responses also include `symbol_locations`, copied in bundle order
+from resolved (including historical) and unlinked entries; unresolved and
+unselected ambiguous entries have no location. Reviewer and debugger responses
+retain their existing shape without this field. The projection preserves the
+bundle ID, revision, brief hash, and existing `functions` data. On
 `{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`,
 `intent-sections-drift`, or `intent-task-invalid` (exit 1). For the first three,
 follow `next` and run `bouncer intent bundle --task <path> --symbol <name>...`
