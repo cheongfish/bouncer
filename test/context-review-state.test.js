@@ -1483,3 +1483,130 @@ test('이전 round와 fingerprint가 같고 id가 다른 finding을 다음 round
   assert.equal(r2.code, 1);
   assert.match(JSON.stringify(r2.json.cause), /duplicate fingerprint/);
 });
+
+// finding id·fingerprint 자동 정규화: record·fold·close·noop projection이 같은 공식을 쓴다.
+// 기대 id는 요구사항(정규 fingerprint 문자열의 sha256 앞 8hex)에서 직접 계산한다.
+const { createHash } = require('node:crypto');
+const canonicalOf = (f) => findingFingerprint(f, 'context');
+const autoIdOf = (f) => `CR-${createHash('sha256').update(canonicalOf(f)).digest('hex').slice(0, 8)}`;
+// id 없이 틀린 fingerprint를 실은 입력. 리뷰어가 공식을 몰라도 기록돼야 한다.
+const NO_ID = (() => {
+  const copy = { ...MUST_FIX, fingerprint: 'context:wrong#x' };
+  delete copy.id;
+  return copy;
+})();
+
+test('id 없고 fingerprint가 틀린 finding을 record → 성공하고 finding_ids에 CR-<8hex> 자동 id를 돌려준다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const rf = roundFile(repo, 'auto1.json', 1, 'discovery', [NO_ID]);
+  const r = record(repo, d, rf);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.deepStrictEqual(r.json.finding_ids, [autoIdOf(MUST_FIX)]);
+  // 같은 입력 재실행(noop)도 같은 finding_ids를 돌려준다.
+  const again = record(repo, d, rf);
+  assert.equal(again.json.noop, true);
+  assert.deepStrictEqual(again.json.finding_ids, [autoIdOf(MUST_FIX)]);
+});
+
+test('표기만 다른 id 없는 finding을 다음 round에 record → 같은 자동 id로 합쳐져 중복으로 거부되지 않는다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  assert.equal(record(repo, d, roundFile(repo, 'v1.json', 1, 'discovery', [NO_ID])).code, 0);
+  const variant = {
+    ...NO_ID, category: ' Combined ', brief_clause: 'Tasks/001 interface', file: './scripts/lib/x.js',
+    last_seen_round: 2, status: 'resolved',
+  };
+  const r2 = record(repo, d, roundFile(repo, 'v2.json', 2, 'delta', [variant]));
+  assert.equal(r2.code, 0, r2.out + r2.err);
+  assert.deepStrictEqual(r2.json.finding_ids, [autoIdOf(MUST_FIX)]);
+});
+
+test('명시 id finding 기록 → id를 보존하고 finding_ids는 입력 순서로 중복을 제거한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const r = record(repo, d, roundFile(repo, 'ex.json', 1, 'discovery', [
+    { ...ADVISORY, fingerprint: 'context:wrong#y' }, MUST_FIX, { ...ADVISORY, note: 'again' },
+  ]));
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.deepStrictEqual(r.json.finding_ids, ['CR-2', 'CR-1']);
+});
+
+for (const [label, id] of [['null', null], ['빈 문자열', ''], ['공백', '  '], ['숫자', 7]]) {
+  test(`명시 id가 ${label}인 finding을 record → context-review-input-invalid로 거부한다`, () => {
+    const repo = makeRepo();
+    const d = dispatchFile(repo);
+    start(repo, d);
+    const before = runtimeSnapshot(repo);
+    const r = record(repo, d, roundFile(repo, 'bad-id.json', 1, 'discovery', [{ ...MUST_FIX, id }]));
+    assert.equal(r.code, 1);
+    assert.equal(r.json.reason, 'context-review-input-invalid');
+    assert.deepStrictEqual(runtimeSnapshot(repo), before);
+  });
+}
+
+test('다른 fingerprint가 같은 자동 id를 노리면 → merge하지 않고 input-invalid로 거부한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  // 이전 round에 다른 fingerprint(ADVISORY)로 MUST_FIX의 자동 id를 선점한다.
+  const squatter = { ...ADVISORY, id: autoIdOf(MUST_FIX) };
+  assert.equal(record(repo, d, roundFile(repo, 'c1.json', 1, 'discovery', [squatter])).code, 0);
+  const before = runtimeSnapshot(repo);
+  const r2 = record(repo, d, roundFile(repo, 'c2.json', 2, 'delta', [{ ...NO_ID, origin: 'introduced_by_revision' }]));
+  assert.equal(r2.code, 1);
+  assert.equal(r2.json.reason, 'context-review-input-invalid');
+  assert.deepStrictEqual(runtimeSnapshot(repo), before);
+});
+
+test('과거 raw 보고의 틀린 fingerprint → close projection에서 복구되고 immutable 보고 sha는 그대로다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const r1 = record(repo, d, roundFile(repo, 'raw.json', 1, 'discovery', [{ ...MUST_FIX, fingerprint: 'context:wrong#x' }]));
+  assert.equal(r1.code, 0, r1.out + r1.err);
+  const ref = r1.json.cycle.active_reports[0];
+  const rawBytes = fs.readFileSync(path.join(repo, ref.path), 'utf8');
+  const disp = writeJson(repo, 'disp.json', [{ id: 'CR-1', status: 'resolved' }]);
+  const c = close(repo, disp);
+  assert.equal(c.code, 0, c.out + c.err);
+  assert.equal(c.json.projection.findings[0].fingerprint, canonicalOf(MUST_FIX));
+  assert.equal(fs.readFileSync(path.join(repo, ref.path), 'utf8'), rawBytes);
+  assert.equal(createHash('sha256').update(rawBytes).digest('hex'), ref.sha256);
+  assert.equal(JSON.parse(rawBytes).findings[0].fingerprint, 'context:wrong#x');
+});
+
+test('id 없이 기록한 finding → close 처분이 정규화된 자동 id에 적용된다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  assert.equal(record(repo, d, roundFile(repo, 'n1.json', 1, 'discovery', [NO_ID])).code, 0);
+  const disp = writeJson(repo, 'disp.json', [{ id: autoIdOf(MUST_FIX), status: 'resolved' }]);
+  const c = close(repo, disp);
+  assert.equal(c.code, 0, c.out + c.err);
+  assert.equal(c.json.projection.findings[0].id, autoIdOf(MUST_FIX));
+  assert.equal(c.json.projection.findings[0].status, 'resolved');
+});
+
+test('state projection에 남은 틀린 fingerprint → close noop 재실행이 projection과 문서를 복구한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  assert.equal(record(repo, d, roundFile(repo, 'p.json', 1, 'discovery', [MUST_FIX])).code, 0);
+  const disp = writeJson(repo, 'disp.json', [{ id: 'CR-1', status: 'resolved' }]);
+  assert.equal(close(repo, disp).code, 0);
+  // 정규화 도입 전에 저장된 projection을 흉내 낸다.
+  const statePath = findState(repo);
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  state.projection.findings[0].fingerprint = 'context:wrong#x';
+  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  const again = close(repo, disp);
+  assert.equal(again.code, 0, again.out + again.err);
+  assert.equal(again.json.noop, true);
+  assert.equal(again.json.projection.findings[0].fingerprint, canonicalOf(MUST_FIX));
+  const written = readDoc(path.join(repo, BP, 'context-review.md')).data.bouncer.context_review.findings[0];
+  assert.equal(written.fingerprint, canonicalOf(MUST_FIX));
+});

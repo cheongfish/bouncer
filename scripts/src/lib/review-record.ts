@@ -12,7 +12,7 @@ import paths = require('./paths');
 const { toPosix } = paths;
 import validateSections = require('./validate-sections');
 const {
-  findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,
+  normalizeRoundFindings, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,
   BLUEPRINT_ROUND_CONTRACT,
 } = validateSections;
 import reviewSnapshot = require('./review-snapshot');
@@ -32,6 +32,8 @@ type RecordReviewOk = {
   round: number;
   status: unknown;
   findings: number;
+  // 이번 입력 finding의 정규화 id(자동 id 포함). 입력 순서 유지·중복 제거.
+  finding_ids: string[];
   // 같은 file·symbol을 다른 category가 가리키는 병합 후보. 없으면 키를 생략한다.
   warnings?: ReturnType<typeof validateSections.findingMergeCandidates>;
 };
@@ -180,37 +182,36 @@ function checkSnapshotBinding(args: {
   return fail('review-snapshot-invalid', `${current.reason}: ${current.cause}`, current.next);
 }
 
-function fingerprintMissing(finding: Record<string, unknown>): boolean {
-  const value = finding.fingerprint;
-  return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
-}
-
 /**
- * 같은 id는 통째로 교체하고 새 id는 끝에 붙인다. fingerprint가 비면 게이트와
- * 같은 findingFingerprint로 채워, 작성자가 validator 소스를 읽지 않게 한다.
+ * 입력 finding을 정규화한 뒤 같은 id는 통째로 교체하고 새 id는 끝에 붙인다. fingerprint는
+ * 입력값과 무관하게 게이트와 같은 findingFingerprint로 덮어쓰고, `id` 키가 없으면
+ * `F-<8hex>` 자동 id를 채운다 — 작성자가 validator 공식을 몰라도 기록되게 한다.
+ * 기존 원장 finding은 고치지 않는다: 수기로 틀린 저장 기록은 G14/G21이 계속 거절해야 한다.
  *
  * @param {unknown[]} existing - 기존 findings
  * @param {unknown[]} incoming - 입력 JSON findings
- * @returns {unknown[]} 병합 결과
+ * @returns {{ok: true, merged: unknown[], incoming: unknown[], ids: string[]} | RecordReviewFail}
+ *   병합 결과, 정규화한 이번 입력, 이번 입력의 정규화 id(순서 유지·중복 제거), 또는 id 오류·충돌 거절
  */
-function mergeFindings(existing: unknown[], incoming: unknown[]): unknown[] {
+function mergeFindings(
+  existing: unknown[], incoming: unknown[],
+): { ok: true; merged: unknown[]; incoming: unknown[]; ids: string[] } | RecordReviewFail {
+  const normalized = normalizeRoundFindings(incoming, existing);
+  if (!normalized.ok) {
+    return fail(
+      'review-input-invalid',
+      normalized.messages,
+      'give each finding a non-empty string id or omit the id key; resolve id collisions, then retry',
+    );
+  }
   const merged = existing.map((item) => cloneJson(item));
-  for (const raw of incoming) {
-    const finding = isRecord(raw) ? { ...raw } : raw;
-    if (isRecord(finding) && fingerprintMissing(finding)) {
-      finding.fingerprint = findingFingerprint({
-        category: finding.category,
-        brief_clause: finding.brief_clause,
-        file: finding.file,
-        symbol: finding.symbol,
-      });
-    }
+  for (const finding of normalized.findings) {
     const id = isRecord(finding) ? finding.id : undefined;
     const index = merged.findIndex((item) => isRecord(item) && item.id === id);
     if (index >= 0) merged[index] = finding;
     else merged.push(finding);
   }
-  return merged;
+  return { ok: true, merged, incoming: normalized.findings, ids: normalized.ids };
 }
 
 function readRoundInput(roundFile: string): RecordReviewFail | { round: Record<string, unknown>; findings: unknown[] } {
@@ -339,7 +340,9 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   // 2. 라운드는 끝에만 붙인다. 중간 삽입은 번호 계약을 깨 G21과 어긋난다.
   const mergedRounds = [...existingRounds, cloneJson(parsedInput.round)];
   const existingFindings = Array.isArray(review.findings) ? review.findings : [];
-  const mergedFindings = mergeFindings(existingFindings, parsedInput.findings);
+  const mergeResult = mergeFindings(existingFindings, parsedInput.findings);
+  if (!mergeResult.ok) return mergeResult;
+  const mergedFindings = mergeResult.merged;
   review.rounds = mergedRounds;
   review.findings = mergedFindings;
   if (status) bouncer.status = status;
@@ -398,13 +401,15 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   }
 
   // 경고는 이번 round 입력만 대상으로 하고(기존 원장은 제외) 기록에는 영향을 주지 않는다.
-  const warnings = validateSections.findingMergeCandidates(parsedInput.findings);
+  // 자동 id가 경고 ids에도 보이도록 정규화 뒤 입력을 쓴다.
+  const warnings = validateSections.findingMergeCandidates(mergeResult.incoming);
   return {
     ok: true,
     path: rel,
     round: expectedRound,
     status: bouncer.status,
     findings: mergedFindings.length,
+    finding_ids: mergeResult.ids,
     ...(warnings.length > 0 ? { warnings } : {}),
   };
 }

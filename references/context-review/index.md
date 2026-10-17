@@ -45,6 +45,13 @@ On a light plan, approved scope rests on the user's confirmation of
    Normalize each part with trim; lowercase category and brief_clause; use `/`
    as the file separator; strip a leading `./`. Example:
    `fingerprint: context:scope:tasks/001 touch:.bouncer/context/epics/014-auth/blueprints/001-signup/tasks/001/tasks.md#touch`.
+   `bouncer context-review record` overwrites any supplied fingerprint with
+   this formula and, when the `id` key is omitted, assigns
+   `CR-<first 8 hex of sha256(fingerprint)>` (stable across rounds; close
+   dispositions use that id). An explicit `id` must be a non-empty string and
+   is kept as given. The record result's `finding_ids` lists that round's
+   normalized ids, and close and noop projections repair earlier wrong
+   fingerprints without changing the stored report bytes.
    A complete `bouncer.context_review` record that passes G18 is printed by
    `bouncer review-dispatch --help`; copy the digest from the `target.digest` of
    `review-dispatch plan` instead of computing it.

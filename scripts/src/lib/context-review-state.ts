@@ -23,7 +23,7 @@ import validateSections = require('./validate-sections');
 const {
   REVIEW_SEVERITY, CONTEXT_REVIEW_STATUS, FINDING_ACTIONABILITY,
   REPORT_FINDING_STATUS: FINDING_STATUS, CONTEXT_ROUND_MODES: ROUND_MODES,
-  CONTEXT_REPORT_STATUS: REPORT_STATUS, collectFindingFailures,
+  CONTEXT_REPORT_STATUS: REPORT_STATUS, collectFindingFailures, normalizeFinding, normalizeRoundFindings,
 } = validateSections;
 
 // 계획 리뷰 cycle의 단일 writer. 전체 재시작을 누적 1회로 제한하고, 재시작이
@@ -480,6 +480,9 @@ function readRef(ctx: Ctx, repoRoot: string, ref: Ref): string | Fail {
 /**
  * active 보고들을 읽어 round 객체와 ID별 최신 finding을 합친다. 같은 id는 뒤 보고가
  * 통째로 대체한다(처분 갱신). 입력 객체는 변형하지 않아 archive가 원본을 보존한다.
+ * 각 finding은 합치기 전에 정규화한다(fingerprint 공식 덮어쓰기, 생략 id는 `CR-<8hex>`).
+ * immutable 보고 원문·sha는 그대로 두고 파생 결과에서만 고쳐, 과거에 틀린 fingerprint로
+ * 기록된 보고도 close·projection에서 복구된다.
  *
  * @param {Ctx} ctx - namespace 경로
  * @param {string} repoRoot - 저장소 루트
@@ -496,7 +499,8 @@ function foldReports(
     if (isFail(text)) return text;
     const body = JSON.parse(text) as { round: unknown; findings: Finding[] };
     rounds.push(body.round);
-    for (const f of body.findings) {
+    for (const raw of body.findings) {
+      const f = normalizeFinding(raw, 'context') as Finding;
       const at = findings.findIndex((x) => x.id === f.id);
       if (at >= 0) findings[at] = f;
       else findings.push(f);
@@ -729,6 +733,36 @@ function duplicateFingerprints(findings: Array<{ fingerprint?: unknown }>): stri
 }
 
 /**
+ * 이번 입력 finding의 정규화 id를 입력 순서로 중복 없이 돌려준다. noop 응답도 첫 적용과
+ * 같은 값을 내야 하므로 fold 없이 finding 하나씩 정규화해 계산한다(id는 결정적이다).
+ *
+ * @param {Finding[]} findings - 이번 round 입력 findings(readReportInput 통과분)
+ * @returns {string[]} 정규화 id 목록
+ */
+function inputFindingIds(findings: Finding[]): string[] {
+  const ids: string[] = [];
+  for (const f of findings) {
+    const id = (normalizeFinding(f, 'context') as Finding).id as string;
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * 저장된 projection의 finding을 정규화한 사본을 만든다. 정규화 도입 전에 닫힌 state는
+ * 틀린 fingerprint를 projection에 담고 있을 수 있어, noop 재실행이 문서를 다시 쓸 때
+ * 그대로 쓰면 형식 검증에서 막힌다. state.json 자체는 고치지 않는다(파생 값만 복구).
+ *
+ * @param {{ findings: Finding[]; rounds: unknown[] }} projection - state에 저장된 projection
+ * @returns {{ findings: Finding[]; rounds: unknown[] }} findings만 정규화한 사본
+ */
+function normalizeProjection(
+  projection: { findings: Finding[]; rounds: unknown[] },
+): { findings: Finding[]; rounds: unknown[] } {
+  return { ...projection, findings: projection.findings.map((f) => normalizeFinding(f, 'context') as Finding) };
+}
+
+/**
  * 표식과 state를 대조한다(잠금 안에서 호출). 표식이 state보다 크면 state가 지워졌거나 낮춰진
  * 것이라 거절하고, state가 표식보다 크면 직전 restart가 표식 쓰기 전에 죽은 것이므로 여기서
  * 표식을 채운다. 표식을 낮추는 경로는 없다.
@@ -825,6 +859,8 @@ function startCycle(input: { repoRoot: string; blueprintDir: string; dispatchFil
 /**
  * 보고 입력(`{round,findings}`)을 읽고 finding 모양을 검사한다. 미해결 처분(open)은
  * 진행 중 보고에만 허용되며 canonical 처분 enum은 여기서 늘리지 않는다.
+ * `id` 키 생략은 자동 id 대상이라 통과하지만, 명시한 id는 비어 있지 않은 문자열이어야 한다
+ * (null·빈 문자열·공백·비문자열은 작성 실수로 보고 거절한다).
  */
 function readReportInput(roundFile: string): ReportInput | Fail {
   const next = 'fix --round JSON: object with round and findings array';
@@ -845,7 +881,8 @@ function readReportInput(roundFile: string): ReportInput | Fail {
     return fail('context-review-input-invalid', 'expected { round: object, findings: array }', next);
   }
   for (const f of parsed.findings) {
-    const ok = isRecord(f) && typeof f.id === 'string' && f.id !== ''
+    const ok = isRecord(f)
+      && (!Object.prototype.hasOwnProperty.call(f, 'id') || (typeof f.id === 'string' && f.id.trim() !== ''))
       && REVIEW_SEVERITY.includes(f.severity as string)
       && FINDING_STATUS.includes(f.status as string)
       && FINDING_ACTIONABILITY.includes(f.actionability as string);
@@ -950,8 +987,9 @@ function recordReport(input: {
       // 닫는 전이의 재실행은 문서를 투영 상태로 되돌려 쓴다: 첫 성공 뒤 문서가 바뀌었거나
       // state 저장 뒤 문서 쓰기가 실패했어도 같은 입력의 재실행이 복구한다.
       let written: string | undefined;
-      if (status === 'accepted' && state.projection) {
-        const doc = prepareClosureDoc(repoRoot, ctx.bp, state.projection, state.closure?.closure_target_digest);
+      const projection = state.projection ? normalizeProjection(state.projection) : null;
+      if (status === 'accepted' && projection) {
+        const doc = prepareClosureDoc(repoRoot, ctx.bp, projection, state.closure?.closure_target_digest);
         if (isFail(doc)) return doc;
         const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
         if (isFail(wrote)) return wrote;
@@ -959,7 +997,8 @@ function recordReport(input: {
       }
       return {
         ok: true, noop: true, cycle, status, closed: state.closed,
-        ...(state.projection ? { projection: state.projection } : {}),
+        finding_ids: inputFindingIds(report.findings),
+        ...(projection ? { projection } : {}),
         ...(written ? { written } : {}),
       };
     }
@@ -992,8 +1031,17 @@ function recordReport(input: {
     // 3. 이전 보고와 합쳐 ID별 최신 처분을 만든다. closure면 projection 검사까지.
     const folded = foldReports(ctx, repoRoot, cycle.active_reports);
     if (isFail(folded)) return folded;
+    // 3-1. 입력도 같은 공식으로 정규화한다(fingerprint 덮어쓰기·생략 id 생성). 명시 id 오류와
+    //      자동 id 충돌은 merge 전에 거절해 다른 finding을 덮어쓰지 않게 한다. 보고 원문(report.text)과
+    //      그 sha·전이 키는 입력 바이트 그대로 두고, 정규화는 fold가 읽을 때마다 다시 적용된다.
+    const normalized = normalizeRoundFindings(report.findings, folded.findings, 'context');
+    if (!normalized.ok) {
+      return fail('context-review-input-invalid', normalized.messages,
+        'give each finding a non-empty string id or omit the id key; resolve id collisions, then retry');
+    }
+    const incoming = normalized.findings as Finding[];
     const merged = [...folded.findings];
-    for (const f of report.findings) {
+    for (const f of incoming) {
       const at = merged.findIndex((x) => x.id === f.id);
       if (at >= 0) merged[at] = f;
       else merged.push(f);
@@ -1053,9 +1101,9 @@ function recordReport(input: {
       if (isFail(wrote)) return wrote;
     }
     // 병합 후보 경고는 noop이 아닌 이번 기록의 round 입력만 대상으로 한다(추가 I/O 없음).
-    const warnings = validateSections.findingMergeCandidates(report.findings);
+    const warnings = validateSections.findingMergeCandidates(incoming);
     return {
-      ok: true, noop: false, cycle: next.cycle, status, closed: next.closed,
+      ok: true, noop: false, cycle: next.cycle, status, closed: next.closed, finding_ids: normalized.ids,
       ...(warnings.length > 0 ? { warnings } : {}),
       ...(projection ? { projection } : {}),
       ...(closureDoc && !isFail(closureDoc) ? { written: closureDoc.rel } : {}),
@@ -1137,9 +1185,11 @@ function closeCycle(input: {
     if (state.transitions.includes(key)) {
       // 이미 반영된 close 전이이므로 closure 결과(status: 'accepted')를 돌려주되, 문서는
       // 투영 상태로 다시 쓴다(첫 성공 뒤 변경·쓰기 실패 복구).
+      // 저장 projection은 정규화 전 기록일 수 있어 파생 사본을 정규화해 쓴다.
       let written: string | undefined;
-      if (state.projection) {
-        const doc = prepareClosureDoc(repoRoot, ctx.bp, state.projection, snap.digest);
+      const projection = state.projection ? normalizeProjection(state.projection) : null;
+      if (projection) {
+        const doc = prepareClosureDoc(repoRoot, ctx.bp, projection, snap.digest);
         if (isFail(doc)) return doc;
         const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
         if (isFail(wrote)) return wrote;
@@ -1147,7 +1197,7 @@ function closeCycle(input: {
       }
       return {
         ok: true, noop: true, cycle, status: 'accepted', closed: state.closed,
-        ...(state.projection ? { projection: state.projection } : {}),
+        ...(projection ? { projection } : {}),
         ...(written ? { written } : {}),
       };
     }
@@ -1183,7 +1233,8 @@ function closeCycle(input: {
     const folded = foldReports(ctx, repoRoot, cycle.active_reports);
     if (isFail(folded)) return folded;
 
-    // 4. dispositions 항목 유효성 검사 및 합성
+    // 4. dispositions 항목 유효성 검사 및 합성. folded는 이미 정규화돼 있어 처분은 정규화 후 id에
+    //    적용된다(생략 id로 기록한 finding도 `CR-<8hex>`로 지정한다).
     const seenIds = new Set<string>();
     const merged = folded.findings.map((f) => ({ ...f }));
     for (const item of parsed) {

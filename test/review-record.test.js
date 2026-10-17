@@ -722,3 +722,78 @@ test('symbol이 비었거나 모양이 틀린 항목 → findingMergeCandidates�
   const dotted = [SS_FINDING, { ...CT_FINDING, file: './scripts/src/lib/a.ts' }];
   assert.deepStrictEqual(findingMergeCandidates(dotted).map((c) => c.ids), [['SS-1', 'CT-5']]);
 });
+
+// finding id·fingerprint 자동 정규화. 기대 id는 정규 fingerprint 문자열의 sha256 앞 8hex로
+// 요구사항에서 직접 계산한다(구현 반환값을 복사하지 않는다).
+const { createHash } = require('node:crypto');
+const CANONICAL_FP = 'correctness:tasks/001 interface:scripts/lib/x.js#f';
+const AUTO_ID = `F-${createHash('sha256').update(CANONICAL_FP).digest('hex').slice(0, 8)}`;
+const NO_ID_FINDING = (() => {
+  const copy = { ...EXAMPLE_FINDING, fingerprint: 'wrong' };
+  delete copy.id;
+  return copy;
+})();
+
+test('id 없고 fingerprint가 틀린 finding 기록 → 성공하고 F-<8hex> 자동 id와 정규 fingerprint를 저장한다', () => {
+  const fx = makeFixture();
+  const result = fx.record(fx.payload({}, [NO_ID_FINDING]), { status: 'addressed' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.finding_ids, [AUTO_ID]);
+  const stored = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8')).data.bouncer.review.findings;
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].id, AUTO_ID);
+  assert.equal(stored[0].fingerprint, CANONICAL_FP);
+});
+
+test('표기만 다른 id 없는 finding을 다음 round에 기록 → round를 넘어 같은 자동 id로 교체된다', () => {
+  const fx = makeFixture({ taskMode: true });
+  assert.equal(fx.record(fx.payload({}, [{ ...NO_ID_FINDING, status: 'open' }]), { status: 'requested' }).ok, true);
+  const variant = {
+    ...NO_ID_FINDING, category: ' Correctness ', brief_clause: 'Tasks/001 Interface', file: './scripts/lib/x.js',
+    last_seen_round: 2,
+  };
+  const result = fx.record(fx.payload({
+    round: 2, mode: 'delta', previous_finding_ids: [AUTO_ID], new: 0, resolved: 1,
+  }, [variant]), { status: 'addressed' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.finding_ids, [AUTO_ID]);
+  assert.equal(result.findings, 1);
+});
+
+test('명시 id finding의 틀린 fingerprint → id는 보존하고 fingerprint만 덮어쓰며 finding_ids는 순서 유지·중복 제거된다', () => {
+  const fx = makeFixture();
+  const g = { ...EXAMPLE_FINDING, id: 'F2', symbol: 'g', fingerprint: 'wrong' };
+  const result = fx.record(fx.payload({ new: 2 }, [g, { ...EXAMPLE_FINDING, fingerprint: 'wrong' }, g]), { status: 'addressed' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.finding_ids, ['F2', 'F1']);
+  const stored = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8')).data.bouncer.review.findings;
+  assert.deepStrictEqual(stored.map((f) => [f.id, f.fingerprint]), [
+    ['F2', 'correctness:tasks/001 interface:scripts/lib/x.js#g'],
+    ['F1', CANONICAL_FP],
+  ]);
+});
+
+for (const [label, id] of [['null', null], ['빈 문자열', ''], ['공백', '  '], ['숫자', 3]]) {
+  test(`명시 id가 ${label}인 finding 기록 → review-input-invalid로 거부하고 파일을 바꾸지 않는다`, () => {
+    const fx = makeFixture();
+    const before = fs.readFileSync(fx.reviewPath);
+    const result = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, id }]), { status: 'addressed' });
+    assertRejectedUntouched(fx, before, result, 'review-input-invalid');
+  });
+}
+
+test('다른 fingerprint의 명시 id가 자동 id와 충돌 → merge하지 않고 review-input-invalid로 거부한다', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const squatter = { ...EXAMPLE_FINDING, id: AUTO_ID, symbol: 'g' };
+  const result = fx.record(fx.payload({ new: 2 }, [squatter, NO_ID_FINDING]), { status: 'addressed' });
+  assertRejectedUntouched(fx, before, result, 'review-input-invalid');
+});
+
+test('명시 id가 다른 같은 fingerprint 두 건 기록 → 기존 duplicate fingerprint 거절을 유지한다', () => {
+  const fx = makeFixture();
+  const before = fs.readFileSync(fx.reviewPath);
+  const result = fx.record(fx.payload({ new: 2 }, [EXAMPLE_FINDING, { ...EXAMPLE_FINDING, id: 'F9' }]), { status: 'addressed' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(result.cause.includes(`review duplicate fingerprint ${CANONICAL_FP}`));
+});

@@ -1265,6 +1265,30 @@ test('execute gate G14 stored target.snapshot_id → absent passes and malformed
   }
 });
 
+// 입력 보정은 record/close 경계에만 있다. 자동 id 형식이어도 수기로 틀린 fingerprint는 게이트가 거절한다.
+test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14·G18이 계속 mismatch로 거절한다', () => {
+  const { normalizeFinding } = require('../scripts/lib/validate-sections');
+  const withoutId = (f) => {
+    const copy = { ...f };
+    delete copy.id;
+    return copy;
+  };
+  const autoExecute = normalizeFinding(withoutId(convergenceFinding()));
+  assert.match(autoExecute.id, /^F-[0-9a-f]{8}$/);
+  assert.deepStrictEqual(executeReviewFailures({ findings: [autoExecute], rounds: [convergenceRound()] }), []);
+  const tamperedExecute = executeReviewFailures({
+    findings: [{ ...autoExecute, fingerprint: 'correctness:interface:src/a.ts#other' }], rounds: [convergenceRound()],
+  });
+  assert.ok(tamperedExecute.some((f) => f.message === `review finding ${autoExecute.id} fingerprint mismatch`));
+
+  const autoContext = normalizeFinding(withoutId(contextFinding()), 'context');
+  assert.match(autoContext.id, /^CR-[0-9a-f]{8}$/);
+  const tamperedContext = contextReviewFailures({
+    findings: [{ ...autoContext, fingerprint: 'context:scope:other#x' }], rounds: [contextRound()],
+  });
+  assert.ok(tamperedContext.some((f) => f.message === `context-review finding ${autoContext.id} fingerprint mismatch`));
+});
+
 test('findingFingerprint identity components → are normalized', () => {
   assert.strictEqual(
     findingFingerprint({ category: ' Spec ', brief_clause: 'Interface.거부', file: './a/b.ts', symbol: 'f' }),

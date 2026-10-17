@@ -68,6 +68,12 @@ unresolved. Used from `/bouncer-run`.
      part with trim; lowercase category and brief_clause; use `/` as the file
      separator; strip a leading `./`. Example:
      `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`;
+     `bouncer review record` overwrites any supplied fingerprint with this
+     formula, so automation may omit or approximate it. Omit the `id` key to
+     have the recorder assign `F-<first 8 hex of sha256(fingerprint)>` (the
+     same fingerprint keeps the same id across rounds); an explicit `id` must
+     be a non-empty string and is kept as given. The result's `finding_ids`
+     lists the normalized ids of that round in input order;
    - `accepted` findings **require** a note (authorized risk-acceptance rationale);
    - `deferred` findings **require** a note (independent follow-up planning item).
      Do not classify a finding that affects current-task accuracy as `deferred`.
