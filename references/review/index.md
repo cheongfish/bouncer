@@ -50,7 +50,8 @@ unresolved. Used from `/bouncer-run`.
    from a fresh `git diff`. The artifact holds the same frozen content the
    dispatch used to size the review, so what the reviewer reads and how the
    review was classified cannot diverge. Then load the brief set: every commit task (`tasks/<NNN>/tasks.md`: Goal & intent,
-   Interface, Touch, Do not touch, Constraints, Checklist) plus the blueprint
+   Current behavior, Target behavior, Interface, Touch, Do not touch,
+   Constraints, Checklist; omit an absent optional behavior section) plus the blueprint
    Contract in blueprint review mode, or that same section list from the
    pointer task when `review_scope` is absent, together with the frozen
    `task_brief_hash` / `task_brief_hashes`, `intent_bundle_id` /
@@ -60,7 +61,9 @@ unresolved. Used from `/bouncer-run`.
    as review authority.
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:
-   - `severity`: one of `blocker | major | minor | nit`;
+   - `severity`: one of `blocker | major | minor | nit`; new reviewer output
+     uses only `blocker | major | minor`, and `nit` stays readable for legacy
+     records only;
    - `status`: `resolved`, `accepted`, `deferred`, or `open` (not yet fixed;
      it cannot remain once the review is `accepted`, so change it to `resolved`
      in the delta round first);

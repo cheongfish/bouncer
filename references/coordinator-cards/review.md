@@ -50,8 +50,10 @@ start or stop, read [review-round](../../skills/bouncer-run/references/review-ro
   without risk → the three non-security perspectives; large risk → those three
   then `security`). Named, generic fallback, and inline paths all walk that
   same `perspectives` sequence — never a different fan-out per host. Each
-  discovery prompt contains only its assigned perspective, the six brief
-  sections, the reviewer's `intent_sections` projection from `bouncer intent
+  discovery prompt contains only its assigned perspective, the eight brief
+  sections (Goal & intent, Current behavior, Target behavior, Interface,
+  Touch, Do not touch, Constraints, Checklist; an absent optional behavior
+  section is omitted), the reviewer's `intent_sections` projection from `bouncer intent
   sections --task <current.task.path> --role reviewer`, the frozen target
   (including the shared bundle identifiers), `strategy`, and `risk_flags`, and
   never another reviewer's findings or the full Explain body. The slot also

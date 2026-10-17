@@ -52,8 +52,9 @@ review and Procedure step 6 (Close).
   round for it (`review-dispatch execute --mode delta` without `--task` exits
   2, and `review record` rejects a new root delta as
   `final-review-single-round`).
-- Give each reviewer every commit task brief (Goal & intent, Interface, Touch,
-  Do not touch, Constraints, Checklist) and the blueprint Contract.
+- Give each reviewer every commit task brief (Goal & intent, Current behavior,
+  Target behavior, Interface, Touch, Do not touch, Constraints, Checklist; an
+  absent optional behavior section is omitted) and the blueprint Contract.
 - Record `bouncer.review.findings[]` and `rounds[]` on the blueprint-root
   `review.md` with `bouncer review record --blueprint <dir> --round
   <json-file>` (omit `--task`; add `--status` only when changing document
