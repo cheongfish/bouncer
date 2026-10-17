@@ -584,8 +584,11 @@ const FALLBACK_SITES = [
     inputs: REVIEWER_INPUTS,
   },
   {
+    // debugger payload·fallback 정본은 agent-dispatch로 옮겨졌다. verification-recovery는
+    // 링크만 두므로 아래 별도 테스트가 복제 부재를 본다.
     role: 'debugger',
-    rel: 'skills/bouncer-run/references/verification-recovery.md',
+    rel: 'skills/bouncer-run/references/agent-dispatch.md',
+    after: '## Debugger dispatch',
     start: 'When named agents are unavailable',
     end: '\n\n',
     inline: true,
@@ -604,6 +607,16 @@ const FALLBACK_SITES = [
       'Goal & intent', 'Current behavior', 'Target behavior', 'Interface',
       'Touch', 'Do not touch', 'Constraints', 'Checklist', 'actual worktree cwd',
     ],
+  },
+  {
+    // run step 4가 실제로 dispatch하는 coordinator fallback 문장. "same coordinator
+    // brief" 라벨만 남으면 위임받은 쪽이 worktree guard 없이 drive를 시작한다.
+    role: 'coordinator',
+    rel: 'skills/bouncer-run/SKILL.md',
+    start: 'When named agents are unavailable',
+    end: '\n\n',
+    inline: false,
+    inputs: ['step 4 payload', 'worktree write boundary', 'item 5'],
   },
   {
     role: 'coordinator',
@@ -664,4 +677,25 @@ test('dispatch rule → item 6 defines completed notices and metrics end timing,
   assert.match(item6, /metrics end/);
   const item8 = contract.match(/\n8\. [\s\S]*?(?=\n\n|$)/)?.[0] || '';
   assert.match(item8, /ToolSearch/);
+});
+
+// debugger fallback 본문이 verification-recovery에 다시 복제되면 두 정본이 어긋나도
+// 위 FALLBACK_SITES가 한쪽만 본다. recovery는 실재하는 agent-dispatch 링크로만 넘긴다.
+test('verification-recovery debugger dispatch → links agent-dispatch and carries no fallback body', () => {
+  const md = readRepo('skills/bouncer-run/references/verification-recovery.md');
+  assert.ok(md.includes('](./agent-dispatch.md)'), 'verification-recovery must link agent-dispatch');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'skills/bouncer-run/references/agent-dispatch.md')));
+  assert.doesNotMatch(md, /entire\s+body\s+of/);
+  assert.doesNotMatch(md, /--role debugger/);
+});
+
+// 공통 모델 규칙은 run worker의 payload·기록을 다시 적지 않고 정본을 조건부로 가리킨다.
+// 모델 resolve·inherit 재시도·whole-role fallback·foreground 경계는 그대로 남아야 한다.
+test('subagent-model rule → points run workers at agent-dispatch without dropping its own boundaries', () => {
+  const contract = readRepo('rules/subagent-model.md');
+  const item4 = passage('rules/subagent-model.md', '4. When named agents are unavailable', '\n5. ');
+  assert.match(item4, wrapped('read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`'));
+  assert.doesNotMatch(contract, /worker-(?:model|tokens) --blueprint/);
+  assert.match(contract, /rejected model slug[\s\S]{0,120}`inherit`/i);
+  assert.match(contract, /runs in the foreground/);
 });

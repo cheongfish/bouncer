@@ -154,7 +154,8 @@ to your `Decision required` judgment, never a second brief.
   final report is collected. Never return `blocked` or `continue` while a
   worker is still running or a report is outstanding.
 - Per-action drive rules come from the `card` on each `coordinate next`
-  response.
+  response. When a card dispatches a worker, applies its fallback, or records
+  its model or tokens, read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`.
 
 ## Task round
 

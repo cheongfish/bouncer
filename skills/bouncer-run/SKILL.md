@@ -133,8 +133,10 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    `bouncer subagent-model --agent bouncer-coordinator` and report its output
    to the user (`inherit` omits the model argument). Dispatch named `bouncer-coordinator` singly
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
-   one generic subagent with the same coordinator brief and the same worktree
-   guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
+   one generic subagent per item 5 of that rule: its payload carries the entire
+   body of `${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — every section from
+   Authority through Output contract, verbatim, with its worktree write
+   boundary — plus the step 4 payload below. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
    "print"`), the coordinator is a `bouncer dispatch print --role coordinator`
    process per `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` instead; never without the
    step 2 approval.

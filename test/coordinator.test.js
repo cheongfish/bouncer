@@ -1720,25 +1720,31 @@ function briefHash(worker, blueprint, task) {
 // drive false acceptance 방지: CLI 전략 실패·frozen target 불일치에서는
 // review round를 열거나 accepted로 기록하지 않는다. coordinator.ts 전이가 아니라
 // Worker dispatch 계약이 막는다 — ledger에 새 상태를 추가하지 않는다.
+// 중단 조건은 review·final_review 카드가 단계 입력으로 갖고, CLI 결과를 덮어쓰지 않는
+// fan-out 규칙은 agent-dispatch 정본 하나가 갖는다. 둘을 이어 붙이면 어느 쪽이 빠져도
+// 다른 쪽이 통과시키므로 문서별로 따로 본다.
 test('coordinator agent with a strategy failure or target mismatch → refuses review recording', () => {
   const root = path.join(__dirname, '..');
   const cardsDir = path.join(root, 'references/coordinator-cards');
-  const md = [
-    fs.readFileSync(path.join(cardsDir, 'review.md'), 'utf8'),
-    fs.readFileSync(path.join(cardsDir, 'final_review.md'), 'utf8'),
-  ].join('\n');
-  assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
-  assert.match(md, /ok:\s*false|`ok`:\s*`false`/);
-  assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i);
-  assert.match(
-    md,
-    /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
-  );
+  for (const card of ['review.md', 'final_review.md']) {
+    const md = fs.readFileSync(path.join(cardsDir, card), 'utf8');
+    assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/, card);
+    assert.match(md, /ok:\s*false|`ok`:\s*`false`/, card);
+    assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i, card);
+    assert.match(
+      md,
+      /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
+      card,
+    );
+    assert.match(md, /risk_flags/, card);
+    assert.ok(md.includes('](../../skills/bouncer-run/references/agent-dispatch.md)'), `${card} must link agent-dispatch`);
+  }
   // risk_flags·perspectives는 CLI 그대로; file/line 재계산으로 전략을 바꾸지 않는다.
-  assert.match(md, /risk_flags|perspectives/);
+  const canon = fs.readFileSync(path.join(root, 'skills/bouncer-run/references/agent-dispatch.md'), 'utf8');
+  assert.match(canon, /`ok: false`[\s\S]{0,200}stop/);
   assert.match(
-    md,
-    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
+    canon,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
   );
 });
 

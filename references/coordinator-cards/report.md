@@ -1,16 +1,16 @@
 # report
 
-Contract card for the `coordinate next` action `report`. Rules are copied from
-the coordinator Procedure step 3 (Drive) and step 5 (Judge).
+Contract card for the `coordinate next` action `report`, from the coordinator
+Procedure step 3 (Drive) and step 5 (Judge). When the report's Brief revision
+does not match the active dispatch, read the stale report rule in
+[agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md) and run
+`coordinate report` only as that rule says.
 
 - Judge the implementer's **Brief revision** (`attempt` and
   `task_brief_hash`) against the active dispatch. Matching values: fill
   `judge.fields` and run the `report` `argv`; only an `accepted` report may
-  then run the `record` `argv`.
-- A mismatched Brief revision is stale — call `coordinate report` with the
-  received `attempt` and `task_brief_hash` so runtime can append
-  `stale-report`; do not call `accepted` or `coordinate record`, and keep the
-  attempt open. A report file that is missing, or lacks `## Brief revision`,
+  then run the `record` `argv`. A mismatch is stale and follows agent-dispatch.
+- A report file that is missing, or lacks `## Brief revision`,
   `## Open choices`, or `## Known weaknesses`, is not stale: `coordinate report`
   refuses with `report-revision-missing` / `report-section-missing` without
   writing the ledger. Redispatch the same attempt or ask the worker to fix the

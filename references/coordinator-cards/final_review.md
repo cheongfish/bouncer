@@ -1,25 +1,17 @@
 # final_review
 
 Contract card for the `coordinate next` action `final_review` (blueprint
-review mode). Rules are copied from the coordinator Worker dispatch final
-review and Procedure step 6 (Close).
+review mode). When dispatching a final reviewer, applying its fallback, or
+recording its model and tokens, read
+[agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md): it owns
+the CLI `perspectives` fan-out, the whole-role fallback, and the final-review
+model and token records (no `--task`). This card keeps the final-review inputs
+and Procedure step 6 (Close).
 
 - When `next` returns `final_review`, run that `argv` (`review-dispatch
   execute`) once through this final-review procedure, record the round from
   `judge` `review-round`, then call `next` again. Do not Close while that root
   `review.md` is not `accepted`.
-- Immediately before each reviewer dispatch, run `bouncer subagent-model
-  --agent bouncer-reviewer`, then record it with `bouncer coordinate
-  worker-model --blueprint <dir> --role reviewer --model <value> [--perspective
-  <name>] --ledger-path <p> --ledger-hash <h>` from the integration cwd (no
-  `--task`: the final review spans the blueprint), and pass the same value to
-  the dispatch. If a slug rejection forces the `inherit` retry, record the
-  retried value again.
-  The host's completion notice reports `subagent_tokens`. If the notice is not
-  here yet, record without `--tokens`; once it arrives, append it with
-  `bouncer coordinate worker-tokens --blueprint <dir> --role reviewer [--perspective <name>] --tokens <n>
-  --ledger-path <p> --ledger-hash <h>` (same task and perspective). If the host
-  gives no value, leave it out: it is counted as missing, never estimated.
 - Blueprint review mode is `bouncer.review_scope: blueprint` on blueprint
   `index.md`. In that mode do **not** dispatch a per-task execute reviewer.
   Open one final review after every commit task is integrated and the terminal
@@ -43,13 +35,8 @@ review and Procedure step 6 (Close).
   `review record` rejection (`review-snapshot-stale`, `-mismatch`, `-invalid`,
   `-required`), follow `next`: dispatch a new snapshot, reclassify, and
   re-review; never edit status or rounds by hand to bypass it.
-- In discovery, walk the CLI `perspectives` array in order as the only
-  discovery fan-out — do not also branch on `strategy` to invent calls, and do
-  not append `security` from `risk_flags` separately (the CLI list already
-  includes it when required; for example small risk → `combined` then
-  `security`). Named and fallback review paths walk the same `perspectives`
-  sequence. The final review is this one discovery round: there is no delta
-  round for it (`review-dispatch execute --mode delta` without `--task` exits
+- In discovery, walk `perspectives` in CLI order per agent-dispatch. The final
+  review is this one discovery round: there is no delta round for it (`review-dispatch execute --mode delta` without `--task` exits
   2, and `review record` rejects a new root delta as
   `final-review-single-round`).
 - Give each reviewer every commit task brief (Goal & intent, Current behavior,

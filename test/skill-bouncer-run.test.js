@@ -51,6 +51,12 @@ test('run skill → runs the coordinator model check before the named dispatch',
   const dispatchAt = paragraph.indexOf('Dispatch named');
   assert.ok(dispatchAt >= 0, 'subagent-model 문단에 Dispatch named 문구 없음');
   assert.ok(paragraph.indexOf(command) < dispatchAt, 'model check must precede Dispatch named');
+  // fallback은 같은 문단에서 공통 규칙(item 5)을 가리키고 "same coordinator brief" 라벨로
+  // 대체되지 않아야 한다. 라벨만 남으면 축약 payload가 통과한다.
+  const fallbackAt = paragraph.indexOf('When named agents are unavailable');
+  assert.ok(fallbackAt > dispatchAt, 'fallback must follow the named dispatch');
+  assert.ok(paragraph.includes('item 5 of that rule'), 'fallback must cite subagent-model item 5');
+  assert.ok(!/same coordinator brief/.test(paragraph), 'fallback must not use the same-brief label');
 });
 
 // 루트가 drive-metrics.md를 열지 않아도 metrics end 시점을 알아야 한다.
