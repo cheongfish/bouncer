@@ -84,6 +84,12 @@ read code/tests/repo context needed to implement.
    touches; trace the real flow end to end. Only then apply the decision ladder
    in its `Reuse and abstraction` section and stop at the first rung that holds.
 
+   When `intent_sections.symbol_locations` is present, open each supplied path
+   at its recorded line before editing. Confirm the function definition and
+   inspect its callers; if the location no longer matches, search by symbol
+   name and re-check the definition. Treat coordinates as navigation hints:
+   they do not change the task's Touch, Do not touch, or Constraints boundary.
+
    YAGNI is absent on the implement path on purpose: do not shrink approved briefs.
 
    If the ladder suggests dropping an approved checklist item, escalate it to

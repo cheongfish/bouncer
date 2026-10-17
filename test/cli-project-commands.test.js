@@ -576,14 +576,26 @@ test('intent sections after a bundle exists → prints role JSON', () => {
     'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
   ]);
   assert.equal(created.code, 0);
+  const bundle = JSON.parse(created.out);
   const result = capture([
-    'intent', 'sections', '--repo', repo, '--task', taskFile, '--role', 'debugger',
+    'intent', 'sections', '--repo', repo, '--task', taskFile, '--role', 'implementer',
   ]);
   assert.equal(result.code, 0);
   assert.equal(result.err, '');
   const payload = JSON.parse(result.out);
   assert.equal(payload.ok, true);
-  assert.equal(payload.role, 'debugger');
+  assert.equal(payload.role, 'implementer');
+  assert.equal(payload.bundle_id, bundle.bundle_id);
+  assert.equal(payload.revision, bundle.revision);
+  assert.equal(payload.task_brief_hash, bundle.task_brief_hash);
+  assert.deepEqual(payload.symbol_locations, bundle.functions
+    .filter((entry) => entry.status === 'resolved' || entry.status === 'unlinked')
+    .map(({ symbol, function_ref, symbol_ref }) => ({ symbol, function_ref, symbol_ref })));
+  const debugResult = capture([
+    'intent', 'sections', '--repo', repo, '--task', taskFile, '--role', 'debugger',
+  ]);
+  assert.equal(debugResult.code, 0);
+  assert.equal(Object.hasOwn(JSON.parse(debugResult.out), 'symbol_locations'), false);
 });
 
 test('intent bundle run twice → creates then reuses the same bundle_id and revision', () => {
@@ -631,6 +643,10 @@ test('intent bundle --no-symbols run twice → creates then reuses an empty bund
   const payload = JSON.parse(sections.out);
   assert.equal(payload.ok, true);
   assert.deepEqual(payload.functions, []);
+  assert.deepEqual(payload.symbol_locations, []);
+  assert.equal(payload.bundle_id, created.bundle_id);
+  assert.equal(payload.revision, created.revision);
+  assert.equal(payload.task_brief_hash, created.task_brief_hash);
 });
 
 test('intent bundle with --no-symbols misuse or no symbol option → rejects with exit 2', () => {

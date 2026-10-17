@@ -696,7 +696,7 @@ test('non-canonical cache explain and intent symlink escape → are rejected', (
 test('role projection → keeps role section sets and omits missing Explain headings', () => {
   const { repo, taskFile } = seedResolvedRepo(1, { taskSections: durableTaskSections() });
   const deps = { execFileSync };
-  resolveTaskIntentBundle({
+  const bundle = resolveTaskIntentBundle({
     repoRoot: repo,
     taskFile,
     functions: [{ symbol: 'targetFn' }],
@@ -716,6 +716,10 @@ test('role projection → keeps role section sets and omits missing Explain head
   });
   assert.equal(implementer.ok, true);
   assert.equal(implementer.role, 'implementer');
+  assert.deepStrictEqual(implementer.symbol_locations, bundle.functions
+    .filter((entry) => entry.status === 'resolved' || entry.status === 'unlinked')
+    .map(({ symbol, function_ref, symbol_ref }) => ({ symbol, function_ref, symbol_ref })));
+  assert.equal(Object.hasOwn(reviewer, 'symbol_locations'), false);
   assert.deepStrictEqual(
     implementer.functions[0].sections.map((s) => s.name),
     ['Goal & intent', 'Current behavior', 'Target behavior', 'Interface', 'Touch', 'Constraints'],
@@ -771,7 +775,7 @@ test('role projection with historical functions and missing stale drift → omit
       };
     },
   };
-  resolveTaskIntentBundle({
+  const historicalBundle = resolveTaskIntentBundle({
     repoRoot: repo,
     taskFile,
     functions: [{ symbol: 'targetFn' }],
@@ -780,11 +784,14 @@ test('role projection with historical functions and missing stale drift → omit
   const historical = projectRoleIntentSections({
     repoRoot: repo,
     taskFile,
-    role: 'debugger',
+    role: 'implementer',
     deps,
   });
   assert.equal(historical.ok, true);
   assert.deepEqual(historical.functions, []);
+  assert.deepEqual(historical.symbol_locations, historicalBundle.functions
+    .filter((entry) => entry.status === 'resolved' || entry.status === 'unlinked')
+    .map(({ symbol, function_ref, symbol_ref }) => ({ symbol, function_ref, symbol_ref })));
 
   const located = intentBundlePathFor({
     repoRoot: repo,
@@ -797,7 +804,8 @@ test('role projection with historical functions and missing stale drift → omit
     taskFile,
     role: 'implementer',
     deps,
-  }), (error) => error.reason === 'intent-bundle-missing');
+  }), (error) => error.reason === 'intent-bundle-missing'
+    && error.next === `bouncer intent bundle --task ${taskFile} --symbol <name>...`);
 
   resolveTaskIntentBundle({
     repoRoot: repo,
@@ -811,7 +819,8 @@ test('role projection with historical functions and missing stale drift → omit
     taskFile,
     role: 'implementer',
     deps,
-  }), (error) => error.reason === 'intent-bundle-stale');
+  }), (error) => error.reason === 'intent-bundle-stale'
+    && error.next === `bouncer intent bundle --task ${taskFile} --symbol <name>...`);
 
   writeTaskBrief(repo);
   resolveTaskIntentBundle({
@@ -828,5 +837,72 @@ test('role projection with historical functions and missing stale drift → omit
     taskFile,
     role: 'implementer',
     deps,
-  }), (error) => error.reason === 'intent-sections-drift');
+  }), (error) => error.reason === 'intent-sections-drift'
+    && error.next === `bouncer intent bundle --task ${taskFile} --symbol <name>...`);
+});
+
+test('mixed resolved unlinked and unresolved entries → preserves only original locations in bundle order', () => {
+  const { repo, taskFile } = seedResolvedRepo(1, { taskSections: durableTaskSections() });
+  writeFile(repo, 'src/orphan.ts', 'export function orphanFn() { return 2; }\n');
+  commit(repo, 'feat: add orphanFn', '2026-01-02T00:00:00 +0900');
+  let provenanceCalls = 0;
+  const deps = {
+    execFileSync,
+    resolveIntentProvenance(input) {
+      provenanceCalls += 1;
+      if (input.symbol === 'orphanFn') return { status: 'unlinked' };
+      return resolveIntentProvenance(input);
+    },
+  };
+  assert.throws(() => resolveTaskIntentBundle({
+    repoRoot: repo,
+    taskFile,
+    functions: [{ symbol: 'targetFn' }],
+    deps: {
+      ...deps,
+      resolveSymbol() { return { status: 'ambiguous' }; },
+    },
+  }), /ambiguous symbol requires candidate ref: targetFn/);
+  const bundle = resolveTaskIntentBundle({
+    repoRoot: repo,
+    taskFile,
+    functions: [
+      { symbol: 'targetFn' },
+      { symbol: 'orphanFn' },
+      { symbol: 'missingFn' },
+    ],
+    deps,
+  });
+  assert.deepEqual(bundle.functions.map((entry) => entry.status), [
+    'unresolved', 'unlinked', 'resolved',
+  ]);
+  const projectionCalls = provenanceCalls;
+  const located = intentBundlePathFor({
+    repoRoot: repo,
+    taskRel: taskFile,
+    deps: { execFileSync },
+  });
+  const cacheBefore = fs.readFileSync(located.intentFile);
+  const result = projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'implementer',
+    deps: {
+      ...deps,
+      resolveIntentProvenance() { throw new Error('projection must not resolve provenance'); },
+      resolveSymbol() { throw new Error('projection must not resolve symbols'); },
+      fs: {
+        writeFileSync() { throw new Error('projection must not write'); },
+        mkdirSync() { throw new Error('projection must not create directories'); },
+        renameSync() { throw new Error('projection must not rename files'); },
+      },
+    },
+  });
+  assert.deepEqual(result.symbol_locations, bundle.functions
+    .filter((entry) => entry.status === 'resolved' || entry.status === 'unlinked')
+    .map(({ symbol, function_ref, symbol_ref }) => ({ symbol, function_ref, symbol_ref })));
+  assert.equal(result.symbol_locations.length, 2);
+  assert.equal(result.functions.length, 1);
+  assert.equal(provenanceCalls, projectionCalls);
+  assert.deepEqual(fs.readFileSync(located.intentFile), cacheBefore);
 });

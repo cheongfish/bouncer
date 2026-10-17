@@ -63,3 +63,4 @@ bouncer_schema: '0.1'
 * [105 drive-retro-104-followups](epics/105-drive-retro-104-followups/index.md) - RETRO-104 follow-ups: verify failure output tail, ASCII epic description guard, and plan discovery and review guides
 * [106 source-restructuring](epics/106-source-restructuring/index.md) - Remove the verification-current-coordinator cycle and give DAG, path and policy rules a single source, preserving CLI contracts.
 * [107 workflow-cost-reduction](epics/107-workflow-cost-reduction/index.md) - Cut repeated sessions, evidence calls, reviews, and finalize extras across plan, run, and finalize while keeping approvals and gates.
+* [109 implementer-navigation](epics/109-implementer-navigation/index.md) - Delivers task scoped source locations to implementers from the shared intent bundle.

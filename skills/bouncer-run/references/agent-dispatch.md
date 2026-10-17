@@ -63,6 +63,9 @@ as the fallback path — and require **Brief revision** in the report. The
 generated role file already owns the role instructions, so do not repeat them
 in the named payload. Do not add historical commit subjects, earlier-task
 conversation, unselected context documents, or the full Explain body.
+Pass the complete successful `intent sections` response unchanged, including
+the implementer-only `symbol_locations` array and bundle identifiers; never
+rebuild coordinates from cache files or reduce the projection to `functions`.
 
 Under a coordinator drive the cwd is the task worktree `bouncer coordinate
 prepare` assigned — never the integration worktree and never the main checkout
@@ -99,6 +102,9 @@ pass first reads `${BOUNCER_ROOT}/agents/bouncer-implementer.md` and follows eve
 the same cwd and sections. Either path retains `affected_paths`, status, and
 commit prohibitions. The inline fallback still receives G6–G8 judgment after
 verify and review.
+Named, fallback, and inline implementer paths preserve the entire successful
+projection and its identifiers. Reviewer and debugger projections do not carry
+`symbol_locations`.
 
 For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, or on a light ledger drive that follows `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`, the light path may use the step-3 inline implementation branch; a **full** `/bouncer-run` always retains the named orchestration boundary.
 
