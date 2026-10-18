@@ -3144,6 +3144,17 @@ test('finalize G21 with deferred must_fix without note in accepted review → is
   assert.ok(failures.some((f) => /finding F1 deferred without note/.test(f.message)), JSON.stringify(failures));
 });
 
+test('finalize G21 with accepted_risk must_fix and note in accepted review → has no G21', () => {
+  assert.deepEqual(g21FindingFailures(convergenceFinding({
+    status: 'accepted', accepted_risk: true, note: 'user accepted the risk',
+  })), []);
+});
+
+test('finalize G21 with accepted must_fix without accepted_risk → is accepted with open must_fix', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'accepted', note: 'n' }));
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
 test('finalize G21 with open must_fix in accepted review → is accepted with open must_fix', () => {
   const failures = g21FindingFailures(convergenceFinding({ status: 'open' }));
   assert.ok(failures.some((f) => /accepted with open must_fix F1|open in accepted review/.test(f.message)), JSON.stringify(failures));
