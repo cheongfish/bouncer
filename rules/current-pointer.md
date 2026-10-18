@@ -42,7 +42,12 @@ copy or synchronize a pointer into either checkout.
 
 Use `bouncer current --set <blueprint> [--task <NNN>]` only with the CLI value
 that names the selected blueprint or task. Default `--set` adds or updates that
-namespace key and leaves other keys in place. `--replace` deletes the uniquely
+namespace key. At the base checkout, a `--set` that would add a new key beside
+an existing one is refused with `CURRENT_WOULD_BE_AMBIGUOUS` (exit 1, pointer
+unchanged, `next` lists the commands) because the base would then select
+nothing. State the choice explicitly: `--replace` swaps the uniquely selected
+key, `--keep-others` deliberately keeps parallel keys. Updating the same key
+(including `--task`) and worktree `--set` are never refused. `--replace` deletes the uniquely
 selected key, then writes the target; at a multi-pointer base it returns
 `CURRENT_AMBIGUOUS` and changes nothing. `--set` runs the plan gate and must be
 allowed to refuse the move; never bypass that gate. Initial blueprint setup
@@ -66,4 +71,6 @@ candidates are the ready set in `current.coordinator`, not the next task
 number. These coordinator exceptions never authorize a next-blueprint move.
 The finalize next-blueprint handoff runs `--set` without asking, only for the
 same-epic `next` returned by `bouncer finalize release-main`; a plan-gate
-refusal leaves the pointer cleared and is reported.
+refusal, including `CURRENT_WOULD_BE_AMBIGUOUS`, writes nothing,
+is reported with its code, and is never answered with `--replace` or
+`--keep-others` on the user's behalf.

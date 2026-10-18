@@ -7,7 +7,7 @@ import validate = require('./validate');
 const { validateBlueprint } = validate;
 import current = require('./current');
 const {
-  writeCurrent, clearCurrent, listReadyBlueprints,
+  writeCurrent, clearCurrent, listReadyBlueprints, baseNamespaceKeys,
   resolvePointerTask, presentCurrent, resolveCurrent, CurrentSelectionError,
 } = current;
 import config = require('./config');
@@ -87,11 +87,20 @@ function emitSelectionFailure(io: CliIo, error: InstanceType<typeof CurrentSelec
     reason: string;
     candidates?: PreviousPointer[];
     issues?: Array<{ path: string; reason: string }>;
+    next?: string[];
   } = { ok: false, reason: error.code };
   if (error.candidates) {
     payload.candidates = error.candidates.map(storedCandidate);
   }
   if (error.issues) payload.issues = error.issues;
+  // 모호성은 사용자가 풀어야 하는 상태라 다음 행동을 같이 낸다. INVALID는 파일 수리가
+  // 필요해 일반 안내가 맞지 않으므로 next 없이 둔다.
+  if (error.code === 'CURRENT_AMBIGUOUS') {
+    payload.next = [
+      'run `bouncer current` from the candidate worktree (.worktrees/<epic>/<bp>)',
+      'or pick one candidate blueprint and run `bouncer current --set <blueprint dir> --replace`',
+    ];
+  }
   io.out(`${JSON.stringify(payload, null, 2)}\n`);
   return 1;
 }
@@ -111,10 +120,44 @@ function emitResolutionFailure(
 }
 
 /**
+ * base checkout에서 새 key를 더하면 선택이 모호해지는 `--set`을 쓰기 전에 거절한다.
+ * 포인터 파일은 건드리지 않는다. `--replace`는 기존 key가 정확히 하나일 때만 next에
+ * 싣는다 — 둘 이상이면 어느 key를 지울지 추측할 수 없어 cmdCurrent도 거절하기 때문.
+ *
+ * @param {CliIo} io - stdout 싱크
+ * @param {string} blueprintDir - `--set` 대상
+ * @param {string | undefined} taskArg - 사용자가 준 `--task` 값(있으면 명령 문자열에 보존)
+ * @param {PreviousPointer[]} existing - 이미 저장된 base key들의 저장 형태(blueprint 순)
+ * @returns {number} 항상 1
+ */
+function emitWouldBeAmbiguous(
+  io: CliIo,
+  blueprintDir: string,
+  taskArg: string | undefined,
+  existing: PreviousPointer[],
+): number {
+  const base = `bouncer current --set ${blueprintDir}${taskArg ? ` --task ${taskArg}` : ''}`;
+  const next = [
+    ...(existing.length === 1 ? [`${base} --replace`] : []),
+    `${base} --keep-others`,
+  ];
+  const payload = {
+    ok: false,
+    reason: 'CURRENT_WOULD_BE_AMBIGUOUS',
+    candidates: existing,
+    next,
+  };
+  io.out(`${JSON.stringify(payload, null, 2)}\n`);
+  return 1;
+}
+
+/**
  * 활성 포인터를 읽거나 `--set`/`--clear`로 바꾼다.
  * namespace 전환 뒤 기본 `--set`은 대상 키만 추가·갱신하고 다른 키를 보존한다.
  * `--replace`는 현재 위치에서 유일하게 선택된 키를 지운 뒤 대상을 쓰며,
  * 다중 후보에서는 대상을 추측하지 않고 종료 코드 1이다.
+ * base checkout에서 새 key가 더해져 선택이 모호해질 `--set`은 plan gate 전에 거절하며
+ * (`CURRENT_WOULD_BE_AMBIGUOUS`), `--replace` 또는 `--keep-others`로 의도를 밝혀야 한다.
  * 대상 namespace 포인터가 없을 때와 `--reapprove`일 때만 승인 파일을 기록한다.
  * 이미 있는 포인터에 task만 전진하면 승인 파일을 건드리지 않아 `/bouncer-commit`의
  * `--set --task`가 매번 재승인되지 않게 한다.
@@ -131,6 +174,7 @@ function cmdCurrent(rest: string[], io: CliIo) {
   const wantsClear = f.clear === true;
   const wantsTask = Object.prototype.hasOwnProperty.call(f, 'task');
   const wantsReplace = Object.prototype.hasOwnProperty.call(f, 'replace');
+  const wantsKeepOthers = Object.prototype.hasOwnProperty.call(f, 'keep-others');
   const wantsReapprove = Object.prototype.hasOwnProperty.call(f, 'reapprove');
 
   // 모순을 값 검증보다 먼저: 어느 값을 고쳐야 하는지 알 수 없는 채
@@ -145,6 +189,18 @@ function cmdCurrent(rest: string[], io: CliIo) {
   }
   if (wantsClear && wantsReplace) {
     io.err('current: --clear and --replace are mutually exclusive\n');
+    return 2;
+  }
+  if (wantsKeepOthers && wantsClear) {
+    io.err('current: --clear and --keep-others are mutually exclusive\n');
+    return 2;
+  }
+  if (wantsKeepOthers && wantsReplace) {
+    io.err('current: --replace and --keep-others are mutually exclusive\n');
+    return 2;
+  }
+  if (wantsKeepOthers && !wantsSet) {
+    io.err('current: --keep-others requires --set\n');
     return 2;
   }
   if (wantsTask && !wantsSet) {
@@ -195,6 +251,27 @@ function cmdCurrent(rest: string[], io: CliIo) {
         previous = previousPayload(selection.current);
         replaceKey = selection.key;
       }
+    }
+    // plan gate보다 먼저: 거절될 요청에 gate 비용·부수효과를 쓰지 않는다. key는
+    // writeCurrent와 같은 pointerKeyFromBlueprint로 계산해 판정이 쓰기와 어긋나지 않는다.
+    // 같은 key 갱신·nested/flat worktree·--replace는 새 모호성을 만들지 않으므로 통과한다.
+    const targetKey = pointerKeyFromBlueprint(blueprintDir).key;
+    const baseKeys = wantsReplace ? null : baseNamespaceKeys({ repoRoot });
+    const existingEntries = baseKeys
+      ? listNamespacePointers({ repoRoot })
+        .filter((e) => e.pointer != null && e.key !== targetKey)
+      : [];
+    // 쓰기 뒤 key가 2개 이상이 되는 경우(= 기존 key가 있고 대상이 새 key)만 거절한다.
+    if (baseKeys && !wantsKeepOthers && !baseKeys.includes(targetKey) && baseKeys.length >= 1) {
+      const existing = existingEntries
+        .map((e) => previousPayload(e.pointer as PreviousPointer))
+        .sort((x, y) => (x.blueprint < y.blueprint ? -1 : x.blueprint > y.blueprint ? 1 : 0));
+      return emitWouldBeAmbiguous(
+        io,
+        blueprintDir,
+        typeof f.task === 'string' ? f.task : undefined,
+        existing,
+      );
     }
     const result = validateBlueprint({
       repoRoot,
@@ -297,11 +374,15 @@ function cmdCurrent(rest: string[], io: CliIo) {
       task: typeof resolved.task === 'string' ? resolved.task : null,
     };
     const current = presentCurrent(stored, { repoRoot });
+    // --keep-others로 병렬 key를 남겼다는 사실을 호출자가 볼 수 있게 한다.
+    const others = wantsKeepOthers && existingEntries.length > 0
+      ? existingEntries.map((e) => ({ blueprint: (e.pointer as PreviousPointer).blueprint }))
+      : undefined;
     if (previous) {
       emitPrevious(io, previous);
       io.out(`${JSON.stringify({ ok: true, current, previous, approval }, null, 2)}\n`);
     } else {
-      io.out(`${JSON.stringify({ ok: true, current, approval }, null, 2)}\n`);
+      io.out(`${JSON.stringify({ ok: true, current, ...(others ? { others } : {}), approval }, null, 2)}\n`);
     }
     return 0;
   }
@@ -326,12 +407,14 @@ function cmdCurrent(rest: string[], io: CliIo) {
 export = {
   current: {
     run: cmdCurrent,
-    usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--reapprove]]
+    usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others] [--reapprove]]
              [--clear]
              Show the active blueprint pointer, or set / clear it.
              --task picks a task doc; without it, first ready/in_progress wins.
              --replace deletes the uniquely selected key then writes the target; omitted,
              --set adds a parallel key. --replace at a multi-pointer base exits 1 with CURRENT_AMBIGUOUS.
+             At a base checkout, --set that would add a second key exits 1 with CURRENT_WOULD_BE_AMBIGUOUS
+             unless --replace or --keep-others (keep the other keys) is given.
              --reapprove rewrites the approval snapshot after the user explicitly approves a scope change.
 `,
   },

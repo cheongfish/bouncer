@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
   resolveCurrent, CurrentSelectionError,
+  baseNamespaceKeys,
 } = require('../scripts/lib/current');
 const { init } = require('../scripts/lib/init');
 
@@ -1329,4 +1330,16 @@ test('ledger with malformed lease → reviseTaskScope refuses it', () => {
   });
   assert.strictEqual(revised.ok, false);
   assert.strictEqual(revised.reason, 'lease-invalid');
+});
+
+test('base 위치와 nested worktree → baseNamespaceKeys는 base에서만 namespace key 목록을 낸다', () => {
+  const repo = tmpGitRepo();
+  seedCommit(repo);
+  const nested = addWorktree(repo, '.worktrees/001/001');
+  const deps = runtimeDeps(repo);
+  assert.deepStrictEqual(baseNamespaceKeys({ repoRoot: repo, deps }), []);
+  writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
+  writeCurrent({ repoRoot: repo, blueprint: BP_B, base: 'main', deps });
+  assert.deepStrictEqual(baseNamespaceKeys({ repoRoot: repo, deps }), ['001/001', '002/003']);
+  assert.strictEqual(baseNamespaceKeys({ repoRoot: nested, deps }), null);
 });
