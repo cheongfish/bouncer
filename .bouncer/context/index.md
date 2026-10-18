@@ -1,0 +1,67 @@
+---
+okf_version: '0.1'
+bouncer_schema: '0.1'
+---
+# Epics
+
+
+* [001 product-surface-hosts](epics/001-product-surface-hosts/index.md) - `bouncer` CLI 사용성, 다중 에이전트 플러그인, 호스트 지원, 설치 환경 및 감사 후속 조치를 통합 관리
+* [004 planning-quality-governance](epics/004-planning-quality-governance/index.md) - 계획 수립 가드레일, 리뷰 루브릭, 검증 래퍼, 컨텍스트 리뷰 및 스킬 문서 품질 결함을 통합 관리
+* [006 platform-architecture](epics/006-platform-architecture/index.md) - TypeScript 전환, 스킬 구조, 코어 모듈 분해, 스킬 본문 골격, 구현 주석 지침 및 카탈로그 숨김을 통합 관리
+* [007 project-distill](epics/007-project-distill/index.md) - 프로젝트 공용 Distill을 plan/execute/finalize 런타임에 연결한다
+* [009 agent-orchestration](epics/009-agent-orchestration/index.md) - 프로바이더별 named 서브에이전트 모델을 config로 권고하고 디스패치 시점에 적용
+* [014 numeric-context-ids](epics/014-numeric-context-ids/index.md) - epic/bp 경로·메타에서 EPIC-/BP- 접두를 제거하고 마이그레이션 경로를 둔다
+* [018 task-unit-commits](epics/018-task-unit-commits/index.md) - blueprint 안에 여러 task 문서를 두고 task 하나를 하나의 커밋 단위로 삼는다
+* [034 evaluation-benchmarking](epics/034-evaluation-benchmarking/index.md) - 워크플로 밖 개발자 도구로 벤치마크 스킬을 반입해 런 사이 비교 가능한 점수를 남긴다
+* [039 오픈소스 1.0 공개](epics/039-release-security/index.md) - Security, quality, public contract, and release history for the 1.0.0 open-source plugin
+* [043 bouncer-cost-improvement](epics/043-bouncer-cost-improvement/index.md) - 측정 가능한 비용 절감과 경량 계획 계약으로 Bouncer의 품질 이득을 유지한다
+* [060 graphify-search-quality](epics/060-graphify-search-quality/index.md) - 과거 결정과 코드 관계를 연결해 누락이 적고 신뢰도를 설명할 수 있는 변경 경로 후보를 만든다
+* [061 structural-audit-remediation](epics/061-structural-audit-remediation/index.md) - Addresses measured structural audit findings through staged security, efficiency, correctness, and distribution improvements.
+* [062 document-commit-contracts](epics/062-document-commit-contracts/index.md) - Organizes durable document and commit contracts so future workflow improvements remain consistent.
+* [063 maintenance](epics/063-maintenance/index.md) - Maintains cross-cutting quality, docs, and minor repairs across Bouncer.
+* [064 runtime-policy-pointer-safety](epics/064-runtime-policy-pointer-safety/index.md) - Unifies verification policy and isolates active blueprint state across linked worktrees.
+* [065 workflow-reliability](epics/065-workflow-reliability/index.md) - Hardens workflow contracts so validation and review remain reliable across task lifecycles.
+* [066 workflow-contract-followup](epics/066-workflow-contract-followup/index.md) - Coordinates implementer role synchronization, workflow skill measurements, and Graphify context ranking evaluation.
+* [067 task-dag-coordinator](epics/067-task-dag-coordinator/index.md) - Delegates DAG execution to a coordinator that autonomously completes blueprint work in isolated worktrees.
+* [068 context-runtime-rearchitecture](epics/068-context-runtime-rearchitecture/index.md) - Removes Project Distill, introduces ranked canonical context retrieval, and adds bounded coordinator CI recovery.
+* [069 workflow-improvement](epics/069-workflow-improvement/index.md) - Incremental Bouncer workflow improvements to runtime context cost, review convergence, and execution traceability, delivered as independent blueprints.
+* [070 task-brief-specificity](epics/070-task-brief-specificity/index.md) - Makes task briefs executable without extra design judgment by linking current behavior, target behavior, code symbols, and verification.
+* [071 code-grounded-intent-provenance](epics/071-code-grounded-intent-provenance/index.md) - Connects code changes to durable task intent through stable task identifiers and commit provenance.
+* [072 search-payload-context-retention](epics/072-search-payload-context-retention/index.md) - Bounds search payloads and retained context while preserving provenance and Node-only distribution.
+* [073 task-intent-bundle-reuse](epics/073-task-intent-bundle-reuse/index.md) - Reuses task intent bundles across execute roles and creates a new revision when function or Explain inputs change.
+* [074 plan-context-quality-efficiency](epics/074-plan-context-quality-efficiency/index.md) - Makes task briefs settle test seams and failure classes, ties worker reports to brief revisions, and trims plan-time context use.
+* [075 adaptive-review-dispatch](epics/075-adaptive-review-dispatch/index.md) - Selects plan and execute review perspectives from deterministic size and risk signals while preserving review convergence contracts.
+* [076 verification-reuse-checkpoint-compaction](epics/076-verification-reuse-checkpoint-compaction/index.md) - Reuses successful verification evidence and compacts completed coordinator state without weakening auditability.
+* [077 rules-reorganization](epics/077-rules-reorganization/index.md) - Maps Bouncer rule ownership and preserves current workflow loading and behavior during reorganization.
+* [078 plan-review-loop-guard](epics/078-plan-review-loop-guard/index.md) - 계획 문서가 context review 전에 G19·G20과 Touch 정합성을 통과하고, 리뷰 뒤 문서 변경을 G18이 stale로 거절하게 해 plan 리뷰 반복 루프를 끊는다.
+* [078 parallel-run-finalize-digest](epics/078-parallel-run-finalize-digest/index.md) - Runs independent Bouncer tasks in parallel under coordinator leases and compresses finalize input into one CLI digest.
+* [079 roadmap-closeout](epics/079-roadmap-closeout/index.md) - Closes the remaining roadmap items by shipping built CommonJS through a release branch and removing the leftover governance rule file.
+* [080 execution-token-cost](epics/080-execution-token-cost/index.md) - Close execution-contract gaps and run review once at final verification to cut drive token cost
+* [081 cli-deterministic-procedures](epics/081-cli-deterministic-procedures/index.md) - Move intent_sections projection, Cursor print dispatch, and review round recording from hand-assembled steps into CLI commands
+* [082 explain-index-intent-exit](epics/082-explain-index-intent-exit/index.md) - Shrink the coordinator block finalize writes into explain frontmatter to a task index, and make intent sections reject a non-canonical --task with exit 1 intent-task-invalid per contract
+* [083 drive-context-reduction](epics/083-drive-context-reduction/index.md) - Cut coordinator drive context by compacting coordinate output, narrowing instruction reads, and splitting the drive into per-wave coordinator sessions
+* [084 drive-plan-copy-hygiene](epics/084-drive-plan-copy-hygiene/index.md) - Keep main free of closed blueprint plan copies after a drive and move scaffold authoring guidance out of templates into skills.
+* [085 finalize-runtime-slimming](epics/085-finalize-runtime-slimming/index.md) - Finalize quiz, explain, and PR stop carrying drive execution records, and coordinator and gate recovery stop loading runtime rules they do not need.
+* [086 finalize-output-cleanup](epics/086-finalize-output-cleanup/index.md) - Finalize resolves the PR base from the repository default branch, and finalize result JSON stops carrying coordinator drive records.
+* [087 v153-evaluation-remediation](epics/087-v153-evaluation-remediation/index.md) - Works through the v1.5.3 evaluation's improvement tasks under a mistake-prevention threat model, starting with enforcement, operations, and release alignment.
+* [088 drive-token-reduction](epics/088-drive-token-reduction/index.md) - Cut Bouncer drive token cost by removing coordinator recovery loops and source lookups first, then restructuring the drive, while fixing the approval and review issues found during the 1.5.4 remeasurement.
+* [089 workflow-cost-and-light-path](epics/089-workflow-cost-and-light-path/index.md) - Cut planning, coordination, and closing round-trips for everyday tasks and rebuild the light path into a single-session implementation with one independent reviewer.
+* [090 drive-reliability](epics/090-drive-reliability/index.md) - Prevent premature coordinator handbacks, recover early returns safely, prepare dependencies before finalize verification, and close remaining drive gaps.
+* [091 drive-observation-cleanup](epics/091-drive-observation-cleanup/index.md) - Clean up digest and PR input noise, reconcile post-drive state, improve CLI error guidance, and cut duplicated context found in the 089/004 drive.
+* [092 source-test-hygiene](epics/092-source-test-hygiene/index.md) - Consolidate duplicated source helpers and shift tests to behavior-focused, tiered suites with consumer-facing testing guidance.
+* [093 benchmark-contract-stability](epics/093-benchmark-contract-stability/index.md) - 벤치마크 응답기가 채팅 문장 추측 대신 Bouncer의 기계 판독 계약(게이트 카탈로그·ACQ 블록·drive 요약)만 읽게 해 버전·문구 변화마다 하네스를 고치는 반복을 없앤다.
+* [094 deepswe-benchmark](epics/094-deepswe-benchmark/index.md) - 벤치마크를 ledger 합성 과제에서 DeepSWE의 어려운 상류 과제로 옮겨 vanilla와 bouncer-full의 차이가 드러나게 한다
+* [095 coding-standards-pr-retro](epics/095-coding-standards-pr-retro/index.md) - Give implementers and reviewers one canonical coding and test standard, add test-trust review and a test-name lint, require change diagrams and decision data in every PR, and run an evidence-based retro after finalize.
+* [096 plan-review-convergence](epics/096-plan-review-convergence/index.md) - Bound planning review restarts, preserve review history, and certify document revisions without resetting the review cycle.
+* [097 intent-fence-guard](epics/097-intent-fence-guard/index.md) - Make blueprint Intent parsing skip code fences and report malformed Intent as a structured failure before finalize reaches commit message generation.
+* [098 drive-plan-cost-control](epics/098-drive-plan-cost-control/index.md) - Cut drive restart and plan review costs, fix environment and output faults, and close worker report and role provenance gaps with measured effects.
+* [099 bouncer-improvements-2026-10-14](epics/099-bouncer-improvements-2026-10-14/index.md) - Plans and verifies prioritized Bouncer backlog improvements in independent blueprints.
+* [100 graphify-raw-query](epics/100-graphify-raw-query/index.md) - Replaces the plan-time graph-suggest file estimation with raw Graphify queries plus grep and removes graph-suggest.
+* [101 plan-review-call-reduction](epics/101-plan-review-call-reduction/index.md) - Cut plan context-review model calls by making review CLI help complete, writing context-review.md on close, and approving plan status in one command.
+* [103 drive-repair-integrity](epics/103-drive-repair-integrity/index.md) - drive의 다중 attempt fan-in 누락, 리뷰 라운드 순서와 repair wave 상한 불일치, repair brief의 finding 누락을 고친다.
+* [104 drive-retro-103-followups](epics/104-drive-retro-103-followups/index.md) - RETRO-103-001 follow-ups: reject duplicate fingerprints at context-review record and record subagent token usage
+* [105 drive-retro-104-followups](epics/105-drive-retro-104-followups/index.md) - RETRO-104 follow-ups: verify failure output tail, ASCII epic description guard, and plan discovery and review guides
+* [106 source-restructuring](epics/106-source-restructuring/index.md) - Remove the verification-current-coordinator cycle and give DAG, path and policy rules a single source, preserving CLI contracts.
+* [107 workflow-cost-reduction](epics/107-workflow-cost-reduction/index.md) - Cut repeated sessions, evidence calls, reviews, and finalize extras across plan, run, and finalize while keeping approvals and gates.
+* [109 implementer-navigation](epics/109-implementer-navigation/index.md) - Delivers task scoped source locations to implementers from the shared intent bundle.
+* [111 context-ontology](epics/111-context-ontology/index.md) - Tracks deterministic context ontology retrieval and CLI delivery with source evidence and remaining verification work.
