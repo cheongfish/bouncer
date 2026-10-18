@@ -480,7 +480,9 @@ function acceptReviewRisk(input: AcceptRiskInput): AcceptRiskOk | RecordReviewFa
   const findings: unknown[] = Array.isArray(review.findings) ? review.findings : [];
   const target = findings.find((item) => isRecord(item) && item.id === input.finding);
   if (!isRecord(target)) {
-    return fail('review-finding-missing', `finding ${input.finding} not found in ${rel}`, 'pass an existing --finding id');
+    return fail(
+      'review-finding-missing', `finding ${input.finding} not found in ${rel}`, 'pass an existing --finding id',
+    );
   }
   if (target.status !== 'open') {
     return fail(

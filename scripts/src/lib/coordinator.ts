@@ -5255,15 +5255,20 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'scope-path-glob': {
     cause: 'A given scope path contains a glob character, but scope paths must be literal files or directories.',
-    next: 'Replace each glob with literal tracked paths (or a directory ending in `/`) and rerun `bouncer coordinate revise`.',
+    next:
+      'Replace each glob with literal tracked paths (or a directory ending in `/`) and rerun `bouncer ' +
+      'coordinate revise`.',
   },
   'scope-path-out-of-bounds': {
-    cause: 'A given scope path points outside the repository or into a path scope may not cover (such as `.bouncer/context/`).',
+    cause:
+      'A given scope path points outside the repository or into a path scope may not cover (such as ' +
+      '`.bouncer/context/`).',
     next: 'Use repo-relative source or test paths only, then rerun `bouncer coordinate revise`.',
   },
   'task-document-missing': {
     cause: 'The task document for the named task cannot be found or read in this worktree.',
-    next: 'Check `--task` and `--blueprint` against `bouncer coordinate status`, then rerun `bouncer coordinate revise`.',
+    next:
+      'Check `--task` and `--blueprint` against `bouncer coordinate status`, then rerun `bouncer coordinate revise`.',
   },
   'no-coordinator-paths': {
     cause: 'No coordinator runtime paths could be derived for this blueprint.',
@@ -5283,7 +5288,9 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'unreadable-ledger': {
     cause: 'The coordinator ledger exists but cannot be read or parsed.',
-    next: 'Do not edit the ledger by hand; restore it from the integration worktree and rerun after `bouncer coordinate status` succeeds.',
+    next:
+      'Do not edit the ledger by hand; restore it from the integration worktree and rerun after `bouncer ' +
+      'coordinate status` succeeds.',
   },
   'ledger-locked': {
     cause: 'Another coordinator command holds the ledger lock.',

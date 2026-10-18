@@ -782,7 +782,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     if (ledgerPath === undefined || ledgerPath === ''
       || ledgerHash === undefined || ledgerHash === '') {
       // 다른 coordinate 거절과 같이 hint 표를 거쳐 cause·next를 붙인다.
-      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' }))}\n`);
+      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+      io.out(`${JSON.stringify(hinted)}\n`);
       return 1;
     }
   }
@@ -930,7 +931,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
     const loaded = loadLedgerBytes(paths.ledgerFile);
     if (!loaded) {
-      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' }))}\n`);
+      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+      io.out(`${JSON.stringify(hinted)}\n`);
       return 1;
     }
     const fenced = assertLedgerFence({

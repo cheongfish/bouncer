@@ -44,11 +44,15 @@ const DETACH_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
   },
   'detach-awaiting-confirmation': {
     cause: 'The ledger is waiting for a user decision after the repair wave limit, and detach must not bypass it.',
-    next: 'Resolve the pending decision with `bouncer coordinate next`, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+    next:
+      'Resolve the pending decision with `bouncer coordinate next`, then rerun `bouncer run detach ' +
+      '--blueprint <dir> --yes`.',
   },
   'detach-worker-in-flight': {
     cause: 'A task that is not integrated still has an active or reported dispatch, or is prepared or recorded.',
-    next: 'Finish or revoke the listed tasks with `bouncer coordinate next`, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+    next:
+      'Finish or revoke the listed tasks with `bouncer coordinate next`, then rerun `bouncer run detach ' +
+      '--blueprint <dir> --yes`.',
   },
   'no-ledger': {
     cause: 'No coordinator ledger exists for this blueprint, so there is no drive to detach.',
@@ -56,7 +60,9 @@ const DETACH_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
   },
   'unreadable-ledger': {
     cause: 'The coordinator ledger could not be read as valid JSON.',
-    next: 'Inspect the ledger file named in `ledgerFile`, restore it, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+    next:
+      'Inspect the ledger file named in `ledgerFile`, restore it, then rerun `bouncer run detach ' +
+      '--blueprint <dir> --yes`.',
   },
   'ledger-locked': {
     cause: 'Another writer holds the ledger lock.',

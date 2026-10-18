@@ -84,8 +84,12 @@ type NextErr = { ok: false; reason: string; cause: string; next: string };
 
 const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
   'worker-commit-stamp-mismatch': {
-    cause: 'The commit_sha stamp in the worker tasks.md differs from the first 8 chars of HEAD and no in-scope change is left to commit.',
-    next: 'Do not rerun commit (nothing is left to commit). Report the stale stamp to the user, or `bouncer coordinate revoke` and `prepare` the task again.',
+    cause:
+      'The commit_sha stamp in the worker tasks.md differs from the first 8 chars of HEAD and no in-scope ' +
+      'change is left to commit.',
+    next:
+      'Do not rerun commit (nothing is left to commit). Report the stale stamp to the user, or `bouncer ' +
+      'coordinate revoke` and `prepare` the task again.',
   },
   'partial-closed': {
     cause: 'This drive was partial-closed after the repair-wave limit.',

@@ -735,7 +735,8 @@ function trackedScopeViolations(
   // 추적 파일과 맞아 untracked 사전 거절을 우회한다. 입력을 글자 그대로 비교한다
   // (review-snapshot.ts와 같은 이유). TrackedExec에 env가 없어 argv로 넘긴다.
   const tracked = (entry: string): boolean => String(exec(
-    'git', ['--literal-pathspecs', 'ls-files', '--', entry], { cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    'git', ['--literal-pathspecs', 'ls-files', '--', entry],
+    { cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   )).trim() !== '';
   const untracked = paths.filter((entry) => !tracked(entry));
   const parentMissing = newPaths.filter((entry) => {
