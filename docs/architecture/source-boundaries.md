@@ -45,18 +45,64 @@
 
 저장소 밖에서 `scripts/lib/*`를 `require`하는지는 저장소 안에서 알 수 없다. `package.json`의 `files`가 `scripts/lib/`를 배포하므로 기술적으로는 가능하다. 따라서 공개 경계를 좁히는 blueprint는 외부 사용이 없다고 가정하지 말고 호환 영향을 따로 기록한다.
 
+이번 경계 이동으로 제거한 export와 대체 위치는 다음과 같다. 저장소 밖 소비자는 대체 모듈에서 함수를 가져오도록 바꿔야 하므로 호환성이 깨질 수 있다.
+
+| 제거한 export | 대체 위치 |
+| --- | --- |
+| `verification.entriesForVerify` | `verification.selectVerificationEntries`·`verification-target.resolveVerificationTarget` |
+| `verification.readVerifyCommand` | `verification-target.readVerifyCommand` |
+| `finalize.buildCommitMessage`·`buildFinalizeCommitMessage` | `commit-message` |
+| `finalize.realGit`·`resolveCheckoutBranch` | `git-ops` |
+| `finalize.collectTransientRels`·`collectTaskCommits`·`buildCoordinatorProvenance`·`collectCoordinatorProvenance` | `finalize-collect` |
+| `finalize.buildTaskContext`·`writeExplainTaskCommits`·`writeExplainTaskContext` | `finalize-explain` |
+
 ## 기능별 공개 경계 초안
 
-영역별 경계의 함수 이름은 후속 blueprint가 확정한다. 아래는 책임의 구분만 적은 초안이다.
+영역별 경계의 함수 이름은 이 blueprint에서 확정했다. planning·execution은 이 blueprint의 이동 대상이 아니므로 기존 초안 표기를 유지한다.
 
 | 영역 | 책임 | 외부로 노출할 경계 | 비고 |
 | --- | --- | --- | --- |
 | planning | epic·blueprint·tasks 문서 작성, scope, 계획 gate 입력 | 영역 진입 함수 한 묶음 (이름은 후속 blueprint가 확정) | 나머지 helper는 내부로 둔다 |
 | execution | coordinator 판단, worker 배정, ledger 기록 | 영역 진입 함수 한 묶음 (이름은 후속 blueprint가 확정) | export 키가 가장 많은 `coordinator`가 우선 대상이다 |
-| verification | verify 실행, 증거 기록, gate 판정 | 영역 진입 함수 한 묶음 (이름은 후속 blueprint가 확정) | execute gate만 성공 증거를 쓴다는 규칙을 유지한다 |
-| delivery | finalize, commit 안전, PR 인계 | 영역 진입 함수 한 묶음 (이름은 후속 blueprint가 확정) | 훅이 쓰는 `commit-hook`은 외부 진입점이므로 유지한다 |
+| verification | verify 실행, 증거 기록, gate 판정 | `verification-target.resolveVerificationTarget`·`runSelectedVerification`·`readVerifyCommand`, `verification.runVerification` | execute gate만 성공 증거를 쓴다는 규칙을 유지한다 |
+| delivery | finalize, commit 안전, PR 인계 | `git-ops.realGit`·`resolveCheckoutBranch`, `commit-message.buildCommitMessage`·`buildFinalizeCommitMessage`, `finalize.finalize` | `retention-migration`은 delivery 소비자로 단계 모듈을 직접 쓴다. 훅이 쓰는 `commit-hook`은 외부 진입점이므로 유지한다 |
+| CLI | 명령 dispatch, usage 제공, 명령별 실행기 적재 | `cli.runCli` | 명령별 구현은 지연 적재한다. `cli-usage`는 정적 usage만 제공한다 |
 
-영역별 모듈 배치 표는 미분류 — 해당 영역을 수정하는 blueprint에서 채운다.
+영역별 모듈 배치는 TASKS-001~003 통합 결과와 빌드된 export를 기준으로 기록한다.
+
+| 영역 | 모듈 | 책임 | 공개 경계 여부 |
+| --- | --- | --- | --- |
+| verification | `verification-target` | 대상 확인, 선택된 대상 실행, verify 명령 조회 | 예: `resolveVerificationTarget`, `runSelectedVerification`, `readVerifyCommand` |
+| verification | `verification` | 대상 목록 선택, verify 실행 및 결과 기록 | 예: `selectVerificationEntries`, `runVerification` |
+| delivery | `git-ops` | Git 실행과 checkout branch 결정 | 예: `realGit`, `resolveCheckoutBranch` |
+| delivery | `commit-message` | commit/finalize commit 메시지 구성 | 예: `buildCommitMessage`, `buildFinalizeCommitMessage` |
+| delivery | `finalize` | finalize 절차 오케스트레이션 | 예: `finalize` |
+| delivery | `finalize-collect` | task commit, provenance, transient relation 수집 | 아니요: 내부 단계 helper |
+| delivery | `finalize-checks` | integration과 coordinator evidence 검사 | 아니요: 내부 단계 helper |
+| delivery | `finalize-explain` | explain용 task context와 commit 설명 구성 | 아니요: 내부 단계 helper |
+| delivery | `retention-migration` | 보존 정책 migration; 단계 모듈을 직접 소비 | 예: `auditRetention`, `migrateRetention`, 조회 helper |
+| CLI | `cli` | CLI 진입점, dispatch 및 flags 처리 | 예: `runCli`, `parseFlags` |
+| CLI | `cli-usage` | 공통 명령 usage 정본 | 아니요: 상수 모듈 |
+| CLI | `cli-git-commands` | coordinate 및 Git 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-doc-commands` | 문서·검증 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-project-commands` | 프로젝트 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-commit-guard-command` | commit guard 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-config-command` | config 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-context-review-command` | context review 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-current-command` | current 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-dispatch-command` | dispatch 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-intent-command` | intent 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-metrics-command` | metrics 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-retro-command` | retro 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-review-command` | review 명령 handler | 아니요: CLI 내부 handler |
+| CLI | `cli-review-dispatch-command` | review dispatch handler | 아니요: CLI 내부 handler |
+
+CLI 적재는 빌드 후 아래 두 명령으로 측정했다. `require('./scripts/lib/cli')` 직후와 `--help` 실행 후 모두 `scripts/lib` 모듈 3개가 적재되어 기준선 77보다 74개 적다. help를 출력하기 위해 명령별 업무 모듈을 추가 적재하지 않으므로 영역별 지연 적재 판정은 통과한다.
+
+```bash
+node -e "require('./scripts/lib/cli'); console.log(Object.keys(require.cache).filter(k=>k.includes('/scripts/lib/')).length)" # 3
+node -e "require('./scripts/lib/cli').runCli(['--help'],{out(){},err(){}}); console.log(Object.keys(require.cache).filter(k=>k.includes('/scripts/lib/')).length)" # 3
+```
 
 ## 구현 고정 테스트 inventory
 
