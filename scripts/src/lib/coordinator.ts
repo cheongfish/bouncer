@@ -151,8 +151,10 @@ type WorkerSalvageDecision = {
   task: string; kind: 'worker-salvage'; generation: number; head: string;
   patch?: string; ref?: string; dirty_paths: string[];
 };
-type SalvageResult = { patch?: string; ref?: string; dirty_paths: string[] };
-type SalvageEntry = SalvageResult & { task: string; generation: number; head: string };
+// head·generation은 보존 대상이 있을 때 호출자가 SalvageEntry를 만들 값이다. 호출자가 같은 값을
+// git·lease에서 다시 계산하지 않도록 결과에 싣는다. 등록되지 않은 worker는 head가 빈 문자열이다.
+type SalvageResult = { patch?: string; ref?: string; dirty_paths: string[]; head: string; generation: number };
+type SalvageEntry = SalvageResult & { task: string };
 type Exec = (file: string, args?: readonly string[], options?: {
   cwd?: unknown; encoding?: unknown; stdio?: unknown;
 }) => string | Buffer;
@@ -2389,18 +2391,20 @@ function rejectLeaseMismatch(
  * @param {string} integrationPath - integration checkout (patch·ref의 저장소)
  * @param {Task} item - revoke 후 재준비 대상
  * @param {string} integrationHead - 미통합 커밋 판정 기준
- * @returns {SalvageResult} 보존한 patch·ref와 dirty 경로. 보존할 것이 없으면 dirty_paths는 빈 배열
+ * @returns {SalvageResult} 보존한 patch·ref와 dirty 경로, 읽은 worker HEAD와 lease generation.
+ *   보존할 것이 없으면 dirty_paths는 빈 배열, 미등록 worker는 head가 빈 문자열
  * @throws patch 쓰기나 ref 생성 실패. 이미 쓴 patch 경로는 `error.patch`에 실린다
  */
 function salvageRevokedWorker(
   exec: Exec, integrationPath: string, item: Task, integrationHead: string,
 ): SalvageResult {
-  const result: SalvageResult = { dirty_paths: [] };
+  const generation = item.lease && Number.isInteger(item.lease.generation) ? item.lease.generation : 0;
+  const result: SalvageResult = { dirty_paths: [], head: '', generation };
   const workerPath = item.workerPath;
   if (!workerPath || !registeredWorker(exec, integrationPath, workerPath)) return result;
   const head = git(exec, workerPath, ['rev-parse', 'HEAD']);
+  result.head = head;
   const short = head.slice(0, 8);
-  const generation = item.lease && Number.isInteger(item.lease.generation) ? item.lease.generation : 0;
 
   // git은 `status -z`의 untracked를 디렉터리 단위로 접지 않도록 --untracked-files=all로 읽는다.
   // git()은 출력을 trim해 첫 항목의 앞 공백(` M`)을 깎으므로 직접 읽는다.
@@ -2754,10 +2758,10 @@ function prepareCoordinator({
               salvage: [...salvage, ...(partial?.patch ? [{ task: item.id, patch: partial.patch }] : [])] };
           }
           if (saved.patch || saved.ref) {
-            const generation = item.lease && Number.isInteger(item.lease.generation)
-              ? item.lease.generation : 0;
-            salvage.push({ ...saved, task: item.id, generation,
-              head: git(exec, item.workerPath as string, ['rev-parse', 'HEAD']) });
+            // head·generation은 salvage가 이미 읽은 값을 쓴다(재계산 없음). 출력 키 순서를
+            // 예전과 같게 두려고 구조 분해 뒤 task 다음에 다시 붙인다.
+            const { head, generation, ...kept } = saved;
+            salvage.push({ ...kept, task: item.id, generation, head });
           }
         }
         for (const item of revokedItems) removeRevokedWorker(exec, integration.integrationPath, item);
