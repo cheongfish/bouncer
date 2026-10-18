@@ -407,12 +407,13 @@ function cmdCurrent(rest: string[], io: CliIo) {
 export = {
   current: {
     run: cmdCurrent,
-    usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others] [--reapprove]]
-             [--clear]
+    usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]
+             [--keep-others] [--reapprove]] [--clear]
              Show the active blueprint pointer, or set / clear it.
              --task picks a task doc; without it, first ready/in_progress wins.
              --replace deletes the uniquely selected key then writes the target; omitted,
-             --set adds a parallel key. --replace at a multi-pointer base exits 1 with CURRENT_AMBIGUOUS.
+             --set adds a parallel key. --replace at a multi-pointer base exits 1 with
+             CURRENT_AMBIGUOUS.
              At a base checkout, --set that would add a second key exits 1 with CURRENT_WOULD_BE_AMBIGUOUS
              unless --replace or --keep-others (keep the other keys) is given.
              --reapprove rewrites the approval snapshot after the user explicitly approves a scope change.
