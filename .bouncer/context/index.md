@@ -65,3 +65,4 @@ bouncer_schema: '0.1'
 * [107 workflow-cost-reduction](epics/107-workflow-cost-reduction/index.md) - Cut repeated sessions, evidence calls, reviews, and finalize extras across plan, run, and finalize while keeping approvals and gates.
 * [109 implementer-navigation](epics/109-implementer-navigation/index.md) - Delivers task scoped source locations to implementers from the shared intent bundle.
 * [111 context-ontology](epics/111-context-ontology/index.md) - Tracks deterministic context ontology retrieval and CLI delivery with source evidence and remaining verification work.
+* [112 workflow-transition-guards](epics/112-workflow-transition-guards/index.md) - Reject invalid Bouncer workflow state transitions in the CLI before mutation and align skill contracts.
