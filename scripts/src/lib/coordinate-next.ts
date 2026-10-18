@@ -915,12 +915,15 @@ function taskNext(ctx: {
       argv: ['bouncer', 'commit', '--blueprint', blueprint, '--yes'],
     });
   }
-  const shortHead = workerHead.slice(0, 8).toLowerCase();
-  const shortStamp = normalizeCommitSha(stamped);
   // dispatch 때 이미 dirty였던 경로(커밋 전 plan 문서의 seed)는 이 attempt가 만든 변경이 아니다.
   const baseline = new Set(dirtyPaths(item.dispatch.initial_worktree_state));
   const extras = dirtyPaths(porcelainText).filter((rel) => !baseline.has(rel));
-  if (shortStamp === shortHead && onlyTaskBriefDirty(extras, blueprint, task)) {
+  // stamp 규칙은 report·record가 거절에 쓰는 workerCommitEvidence와 같은 함수 하나를 쓴다.
+  // 그래야 next가 report를 권한 상태를 CLI가 거절하는 어긋남이 생기지 않는다.
+  if (coordinator.workerCommitEvidence(
+    exec, cwd, blueprint, item as Parameters<typeof coordinator.workerCommitEvidence>[3], ledger,
+  ).ok
+    && onlyTaskBriefDirty(extras, blueprint, task)) {
     return ok({
       scope: 'task', action: 'report', cwd,
       argv: coordinateArgv('report', blueprint, ledgerRef, { task, item }, [

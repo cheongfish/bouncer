@@ -383,13 +383,18 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   --outcome <accepted|rework|scope_revision|task_change|blocked> --summary <text>
   ${COORDINATE_FENCE_NOTE} [--repo <main>] [--lease-id <id>] [--generation <n>]
   Record a worker report against the active attempt, or append stale-report evidence.
+  \`--outcome accepted\` is refused (ledger unchanged) until the worker task commit exists, its commit_sha
+  stamp matches HEAD, and no file inside the approved scope is dirty: worker-commit-missing,
+  worker-commit-stamp-mismatch, worker-scope-dirty. Run \`coordinate advance\` to commit first.
 `,
   },
   record: {
     help: `usage: bouncer coordinate record
   --blueprint <dir> --task <ddd> ${COORDINATE_FENCE_NOTE}
   [--sha <sha>] [--repo <dir>] [--lease-id <id>] [--generation <n>]
-  Record the worker HEAD after an accepted report.
+  Record the worker HEAD after an accepted report. Refused with worker-commit-missing,
+  worker-commit-stamp-mismatch, or worker-scope-dirty (ledger unchanged) unless the worker task commit
+  and its commit_sha stamp match HEAD and the approved scope is clean; run \`coordinate advance\` first.
 `,
   },
   rerecord: {

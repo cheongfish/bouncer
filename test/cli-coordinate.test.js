@@ -183,6 +183,19 @@ function repairDecision(task, wave) {
   };
 }
 
+/**
+ * `bouncer commit`이 남기는 결과를 흉내 낸다: worker 커밋이 이미 있다는 전제에서 tasks.md에
+ * HEAD 앞 8자 `commit_sha` stamp를 쓴다. accepted report·record가 커밋 확정을 요구하므로
+ * commit → report → record 순서를 fixture에서 지킨다. stamp는 brief hash가 무시하는 필드다.
+ */
+function stampWorkerCommit(worker, task = '001') {
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const file = path.join(worker, BP_REL, 'tasks', task, 'tasks.md');
+  const text = fs.readFileSync(file, 'utf8');
+  assert.match(text, /^\s+status: ready$/m);
+  fs.writeFileSync(file, text.replace(/^(\s+)status: ready$/m, `$1status: ready\n$1commit_sha: '${head.slice(0, 8)}'`));
+}
+
 function recordedDrive() {
   const drive = preparedDrive();
   const run = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
@@ -190,6 +203,7 @@ function recordedDrive() {
   run(drive.worker, ['add', 'README']);
   run(drive.worker, ['commit', '-m', 'first']);
   const oldSha = run(drive.worker, ['rev-parse', 'HEAD']);
+  stampWorkerCommit(drive.worker);
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint: BP_REL,
     cwd: drive.worker, task: '001',
@@ -556,6 +570,11 @@ test('coordinate dispatch and report without worker cwd or report metadata flags
   assert.strictEqual(badOutcome.code, 1);
   assert.match(JSON.parse(badOutcome.buf.out).reason, /outcome/);
 
+  fs.writeFileSync(path.join(drive.worker, 'README'), 'worker result\n');
+  execFileSync('git', ['add', 'README'], { cwd: drive.worker });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-m', 'worker result'],
+    { cwd: drive.worker });
+  stampWorkerCommit(drive.worker);
   writeWorkerReport(drive.worker, '001', meta.attempt, meta.task_brief_hash);
   const reported = coordinateCli(drive.worker, 'report', [
     '--repo', drive.repo, '--task', '001',

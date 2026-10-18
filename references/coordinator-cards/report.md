@@ -10,6 +10,12 @@ does not match the active dispatch, read the stale report rule in
   `task_brief_hash`) against the active dispatch. Matching values: fill
   `judge.fields` and run the `report` `argv`; only an `accepted` report may
   then run the `record` `argv`. A mismatch is stale and follows agent-dispatch.
+- `--outcome accepted` needs a confirmed worker commit: HEAD past
+  `integrationHead`, `commit_sha` equal to HEAD's first 8 characters, and no
+  dirty file inside the approved scope. Otherwise `coordinate report` refuses
+  with `worker-commit-missing`, `worker-commit-stamp-mismatch`, or
+  `worker-scope-dirty` without writing the ledger; call `advance` to make the
+  task commit, then report again. Other outcomes need no commit.
 - A report file that is missing, or lacks `## Brief revision`,
   `## Open choices`, or `## Known weaknesses`, is not stale: `coordinate report`
   refuses with `report-revision-missing` / `report-section-missing` without

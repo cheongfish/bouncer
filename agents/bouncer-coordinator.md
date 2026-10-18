@@ -242,7 +242,10 @@ same mutation argv right away.
 3. **Drive** — When `advance` stops with `reason` `worker` or `judge` for a
    prepared task (including `drive_tasks` / `implement` / `review` / `report` /
    `record` / `revise` / `dispatch`), follow the returned `card` on
-   `stop.next`. Dispatch a task runner at once (at most `checkpoint.ready`
+   `stop.next`. `report --outcome accepted` and `record` refuse a worker
+   without a stamped task commit (`worker-commit-missing`,
+   `worker-commit-stamp-mismatch`, `worker-scope-dirty`) before touching the
+   ledger: call `advance` so `commit` runs, then retry. Dispatch a task runner at once (at most `checkpoint.ready`
    count, inside the configured parallel ceiling). The coordinator does not
    move the pointer per task. Each runner works in its worker cwd under that
    task's `effectiveTask`. `implement` and `review` dispatch workers through

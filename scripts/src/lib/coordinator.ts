@@ -848,8 +848,21 @@ function finalReviewDiscoveryStored(integrationPath: string, blueprint: string):
  * @returns {string[]} 정규형 변경 경로
  */
 function integrationChangedPaths(exec: Exec, integrationPath: string): string[] {
+  return porcelainPaths(exec, integrationPath)
+    .filter((entry) => entry !== '.bouncer' && !entry.startsWith('.bouncer/'));
+}
+
+/**
+ * worktree의 커밋되지 않은 변경 경로를 필터 없이 모은다(추적·미추적 모두, rename은 양쪽).
+ * `-z`를 쓰므로 한국어·따옴표가 든 이름도 C-quote 없이 원문 그대로 나온다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} cwd - 검사할 worktree
+ * @returns {string[]} 정규형 변경 경로
+ */
+function porcelainPaths(exec: Exec, cwd: string): string[] {
   const raw = String(exec('git', ['status', '--porcelain', '-z', '-uall'], {
-    cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   }));
   const tokens = raw.split('\0').filter((token) => token !== '');
   const out: string[] = [];
@@ -862,7 +875,7 @@ function integrationChangedPaths(exec: Exec, integrationPath: string): string[] 
       out.push(normalizeSupplementPath(tokens[i]));
     }
   }
-  return out.filter((entry) => entry !== '.bouncer' && !entry.startsWith('.bouncer/'));
+  return out;
 }
 
 /**
@@ -2099,6 +2112,62 @@ function readBouncerBlock(file: string): Record<string, unknown> | null {
   }
   const bouncer = data && typeof data === 'object' ? (data as Record<string, unknown>).bouncer : null;
   return bouncer && typeof bouncer === 'object' ? bouncer as Record<string, unknown> : null;
+}
+
+/**
+ * worker가 report(accepted)·record 전에 task commit을 확정했는지 읽기 전용으로 판정한다.
+ * 검사 순서는 원인이 겹칠 때 보이는 코드를 정한다: 커밋 부재 → stamp 불일치 → scope 안 dirty.
+ * 비교 기준은 `ledger.integrationHead`다. wave에서 다른 worker가 먼저 통합돼 live HEAD가
+ * 움직여도 남은 worker를 오판하지 않기 위해서다. `coordinate-next`의 report 선택과 같은
+ * stamp 규칙(`commit_sha` 앞 8자 == HEAD 앞 8자)을 쓰도록 이 함수가 단일 정본이다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} workerPath - worker(light는 integration) checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {Task} task - ledger task(현재 scope 경로의 출처)
+ * @param {{ integrationHead?: unknown }} ledger - integrationHead를 읽을 원장
+ * @returns {{ ok: true } | { ok: false; reason: string; head: string; integration_head: string | null;
+ *   stamp: string | null; dirty_paths: string[] }} 판정
+ */
+function workerCommitEvidence(
+  exec: Exec, workerPath: string, blueprint: string, task: Task, ledger: { integrationHead?: unknown },
+): { ok: true } | {
+  ok: false; reason: string; head: string; integration_head: string | null;
+  stamp: string | null; dirty_paths: string[];
+} {
+  const head = git(exec, workerPath, ['rev-parse', 'HEAD']);
+  const integrationHead = typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null;
+  const block = readBouncerBlock(path.join(workerPath, blueprint, 'tasks', task.id, 'tasks.md'));
+  const stampRaw = block ? normalizeCommitSha(block.commit_sha) : '';
+  const stamp = stampRaw === '' ? null : stampRaw;
+  const refuse = (reason: string, dirty: string[] = []) => ({
+    ok: false as const, reason, head, integration_head: integrationHead, stamp, dirty_paths: dirty,
+  });
+  // 1. HEAD가 integrationHead와 같거나 그 조상이면 worker가 만든 커밋이 없다.
+  //    is-ancestor는 같은 커밋도 성공(exit 0)으로 답한다. exit 1(비조상)만 "커밋 있음"이고,
+  //    object 조회 실패 같은 다른 오류는 추측하지 않고 그대로 올린다.
+  if (integrationHead !== null) {
+    let ancestor: boolean;
+    try {
+      git(exec, workerPath, ['merge-base', '--is-ancestor', head, integrationHead]);
+      ancestor = true;
+    } catch (error) {
+      if ((error as { status?: number }).status !== 1) throw error;
+      ancestor = false;
+    }
+    if (ancestor) return refuse('worker-commit-missing');
+  }
+  // 2. stamp는 `bouncer commit`이 찍는 HEAD 앞 8자와 같아야 한다.
+  if (stamp !== head.slice(0, 8).toLowerCase()) return refuse('worker-commit-stamp-mismatch');
+  // 3. scope 안 dirty는 dispatch 기준선에 있어도 거절한다 — 재dispatch 때 앞 attempt의
+  //    미커밋 수정이 기준선에 흡수되므로 기준선 면제는 커밋 누락을 숨긴다.
+  //    tasks.md(commit이 stamp를 쓰는 파일)는 정상 잔여물이라 제외한다.
+  const briefRel = `${blueprint.replaceAll('\\', '/')}/tasks/${task.id}/tasks.md`;
+  const scope = currentScopePaths(task).map((entry) => normalizeSupplementPath(entry).replace(/\/+$/, ''));
+  const dirty = porcelainPaths(exec, workerPath).filter((rel) => rel !== briefRel
+    && scope.some((entry) => entry !== '' && (rel === entry || rel.startsWith(`${entry}/`))));
+  if (dirty.length > 0) return refuse('worker-scope-dirty', [...new Set(dirty)].sort());
+  return { ok: true };
 }
 
 /**
@@ -4593,6 +4662,14 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         { const lost = commitWrite(); if (lost) return lost; }
         return { ok: false, reason: 'stale-report', expected, received };
       }
+      // accepted만 커밋 확정을 요구한다. rework·blocked 등은 커밋 없이도 보고돼야 하므로
+      // 건드리지 않는다. stale 판정 뒤·report decision 쓰기 전에 둬서 거절이 원장을 바꾸지 않는다.
+      if (outcome === 'accepted' && (item.execution_kind || 'commit') !== 'verification') {
+        const evidence = workerCommitEvidence(
+          exec, item.workerPath || integration.integrationPath, blueprint, item, ledger,
+        );
+        if (!evidence.ok) return evidence;
+      }
       item.dispatch.status = 'reported';
       item.dispatch.outcome = outcome as ReportOutcome;
       item.dispatch.summary = summary;
@@ -4643,6 +4720,12 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       // 않은 채 stale-worker-report로만 거절해 재디스패치 여지를 남긴다.
       if (taskBriefHashOf(cwd, blueprint, task) !== item.dispatch.task_brief_hash) {
         return { ok: false, reason: 'stale-worker-report' };
+      }
+      // accepted report 뒤 worker HEAD·stamp·작업 트리가 바뀌었을 수 있어 record에서 다시 본다.
+      // item.sha에 HEAD를 쓰기 전이어야 기준 HEAD가 worker 결과로 기록되지 않는다.
+      if ((item.execution_kind || 'commit') !== 'verification') {
+        const evidence = workerCommitEvidence(exec, cwd, blueprint, item, ledger);
+        if (!evidence.ok) return evidence;
       }
       const workerHead = git(exec, cwd, ['rev-parse', 'HEAD']);
       // record 시점의 HEAD만 허용한다. caller가 임의 SHA를 주장하거나 worker가
@@ -5146,8 +5229,23 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Close those evidence files on the worker, then retry `bouncer coordinate integrate`.',
   },
   'worker-evidence-sha-mismatch': {
-    cause: 'Worker task-brief bytes do not match the SHA recorded for fan-in.',
-    next: 'Restore the recorded brief on the worker, then retry `bouncer coordinate integrate`.',
+    cause: 'The commit_sha stamp in the worker tasks.md differs from the SHA recorded in the ledger '
+      + '(recorded before the commit, or the worker was recommitted after recording).',
+    next: 'Confirm the commit and stamp on the worker, then call `bouncer coordinate rerecord`; '
+      + 'if the worker has no commit, call `bouncer coordinate revoke` and `prepare` again. '
+      + 'In light mode, report and stop.',
+  },
+  'worker-commit-missing': {
+    cause: 'The worker HEAD is the integration head or one of its ancestors, so no task commit exists yet.',
+    next: 'Run `bouncer coordinate advance` to create the task commit, then rerun report/record.',
+  },
+  'worker-commit-stamp-mismatch': {
+    cause: 'The commit_sha stamp in the worker tasks.md is missing or differs from the first 8 chars of HEAD.',
+    next: 'Run `bouncer coordinate advance` to create the task commit, then rerun report/record.',
+  },
+  'worker-scope-dirty': {
+    cause: 'The worker has uncommitted changes inside the approved scope (dirty_paths).',
+    next: 'Run `bouncer coordinate advance` to create the task commit, then rerun report/record.',
   },
 };
 
@@ -5186,5 +5284,5 @@ export = {
   projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
   registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
   isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
-  reportPathFor,
+  reportPathFor, workerCommitEvidence,
 };

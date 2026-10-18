@@ -182,7 +182,13 @@ integration worktree (no worker worktree), `coordinate next` implement carries
 `payload.inline: true`, and integrate records fan-in verified without
 cherry-pick. Light `report --outcome accepted` requires blueprint-root
 `review.md` rounds from `bouncer review record` and document status `accepted`
-(`light-review-required` otherwise). A resume bootstrap against the opposite
+(`light-review-required` otherwise). `report --outcome accepted` and `record`
+refuse, before any ledger write, a worker without a confirmed task commit:
+`worker-commit-missing` (HEAD is `integrationHead` or its ancestor),
+`worker-commit-stamp-mismatch` (`commit_sha` absent or not HEAD's first 8
+characters), `worker-scope-dirty` (a dirty path inside the current scope, even
+if dirty at dispatch); the output carries `head`, `integration_head`, `stamp`,
+`dirty_paths`, and `next` points at `coordinate advance`. A resume bootstrap against the opposite
 mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
 `coordinate promote-stop` (light only) records `status: promotion_stopped` and
 a `promotion` snapshot (`reason`, `summary`, open task, `diff_sha`, optional

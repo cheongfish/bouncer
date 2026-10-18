@@ -74,11 +74,41 @@ function writeWorkerReport(worker, task, attempt, hash, {
   fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
 }
 
+/**
+ * worker가 integration에 없는 커밋을 갖게 하고 `bouncer commit`이 찍는 stamp(HEAD 앞 8자)를
+ * tasks.md에 쓴다. 이미 worker 커밋이 있으면 새로 만들지 않는다.
+ * report(accepted)·record가 커밋 확정을 요구하므로 정상 순서(commit → report → record)를
+ * 만드는 fixture 단계다. stamp는 task brief hash가 무시하는 `commit_sha`만 바꾼다.
+ */
+function commitAndStampWorker(repo, blueprint, worker, task = '001', { stamp = true } = {}) {
+  const integrationPath = __coordinatorPathsFor({ repoRoot: repo, blueprint }).integrationPath;
+  const integrationHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: integrationPath, encoding: 'utf8' }).trim();
+  let hasCommit = true;
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', integrationHead], { cwd: worker, stdio: 'ignore' });
+    hasCommit = false;
+  } catch (_error) { /* 종료 코드 1 = HEAD가 integration 조상이 아님 = 이미 worker 커밋이 있음 */ }
+  if (!hasCommit) {
+    fs.mkdirSync(path.join(worker, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(worker, `src/task-${task}.js`), `changed by ${task}\n`);
+    execFileSync('git', ['add', `src/task-${task}.js`], { cwd: worker });
+    execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', `feat: ${task}`],
+      { cwd: worker });
+  }
+  if (!stamp) return;
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const file = path.join(worker, blueprint, 'tasks', task, 'tasks.md');
+  const doc = readDoc(file);
+  doc.data.bouncer.commit_sha = head.slice(0, 8);
+  fs.writeFileSync(file, renderDoc(doc.data, doc.body));
+}
+
 function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  commitAndStampWorker(repo, blueprint, worker, task);
   writeWorkerReport(worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
@@ -1053,6 +1083,7 @@ test('task next after dispatch → report evidence pointer targets .bouncer/runt
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   const attempt = dispatched.metadata.attempt;
+  commitAndStampWorker(drive.repo, blueprint, drive.worker);
   writeWorkerReport(drive.worker, '001', attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',

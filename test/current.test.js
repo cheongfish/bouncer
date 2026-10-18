@@ -1068,7 +1068,13 @@ function committedGitRepo() {
   run(['config', 'user.email', 't@example.com']);
   run(['config', 'user.name', 't']);
   fs.writeFileSync(path.join(repo, 'README'), 'base\n');
-  run(['add', 'README']);
+  // reviseTaskScope는 추적 파일이 있는 경로만 받는다(scope-path-untracked).
+  // 아래 테스트가 scope로 쓰는 디렉터리에 추적 파일을 하나씩 둔다.
+  for (const rel of ['src/a/keep.txt', 'src/b/keep.txt', 'lib/keep.txt']) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), 'x\n');
+  }
+  run(['add', '-A']);
   run(['commit', '--quiet', '-m', 'base']);
   return repo;
 }

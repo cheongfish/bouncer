@@ -164,7 +164,7 @@ function commitInWorker(worker, rel, body, message) {
  * @param {string} worker - worker worktree 경로
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} id - 세 자리 task id
- * @param {string} sha - worker 커밋 전체 SHA
+ * @param {string | null} sha - worker 커밋 전체 SHA. null이면 stamp를 쓰지 않는다
  */
 function writeTerminalEvidence(worker, blueprint, id, sha) {
   const dir = path.join(worker, blueprint, 'tasks', id);
@@ -176,7 +176,8 @@ function writeTerminalEvidence(worker, blueprint, id, sha) {
       ? readDoc(file)
       : { data: { bouncer: { id: `${prefix}-${id}` } }, body: `# ${prefix}\n` };
     doc.data.bouncer.status = status;
-    if (name === 'tasks.md') doc.data.bouncer.commit_sha = sha.slice(0, 8);
+    // sha가 null이면 stamp 없는 "커밋 전" 상태를 만든다(`bouncer commit`이 나중에 찍는다).
+    if (name === 'tasks.md' && sha) doc.data.bouncer.commit_sha = sha.slice(0, 8);
     fs.writeFileSync(file, renderDoc(doc.data, doc.body));
   }
 }
@@ -1669,4 +1670,80 @@ test('terminal CI failure classified outside_scope → next proceeds to done and
   stale.integrationHead = git(integrationPath, ['rev-parse', 'HEAD']);
   fs.writeFileSync(path.join(integrationPath, '.bouncer/runtime/coordinator.json'), `${JSON.stringify(stale, null, 2)}\n`);
   assert.strictEqual(nextOf().reason, 'terminal-verification-failed');
+});
+
+test('커밋 전 accepted report가 거절됨 → coordinate advance가 task commit을 만든 뒤 report·record·integrate가 이어짐', () => {
+  const blueprint = '.bouncer/context/epics/112-guards/blueprints/001-order';
+  const { repo, boot, workers } = prepareFanin(blueprint, ['001'], { 'src/alpha.js': 'alpha base\n' });
+  const integration = boot.integrationPath;
+  const worker = workers['001'];
+  const ledgerFile = path.join(integration, '.bouncer/runtime/coordinator.json');
+  // 실제 프로젝트는 .bouncer/runtime/을 gitignore한다. fixture에는 .gitignore가 없어 보고 파일이
+  // dirty로 보이므로 저장소 공용 exclude로 같은 조건을 만든다.
+  fs.appendFileSync(path.join(repo, '.git/info/exclude'), '.bouncer/runtime/\n');
+
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  // 소스는 고쳤고 증적 문서도 terminal이지만 아직 커밋·stamp는 없다.
+  fs.writeFileSync(path.join(worker, 'src/alpha.js'), 'changed by 001\n');
+  writeTerminalEvidence(worker, blueprint, '001', null);
+  writeWorkerReport(worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
+  const reportArgs = {
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'accepted 001',
+  };
+
+  const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
+  const early = coordinate(reportArgs);
+  assert.strictEqual(early.ok, false, JSON.stringify(early));
+  assert.strictEqual(early.reason, 'worker-commit-missing');
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
+
+  // advance는 next가 권한 commit 행동(bouncer commit)만 실행하고 report 판단 앞에서 멈춘다.
+  const previousCwd = process.cwd();
+  process.chdir(integration);
+  let advanced;
+  try {
+    advanced = require('../scripts/lib/coordinate-advance').advance({
+      repoRoot: repo, blueprint, task: '001',
+      deps: {
+        // next·advance는 실제 코드다. 외부 프로세스인 `bouncer commit`만 대신한다 — 실제 명령은
+        // 완전한 plan 문서 gate를 요구하고 그 동작은 commit 테스트가 맡는다. 같은 효과(소스 커밋 +
+        // tasks.md의 8자리 commit_sha stamp, tasks.md는 dirty로 남김)만 재현한다.
+        runArgv: (argv, cwd) => {
+          assert.deepStrictEqual(argv.slice(0, 2), ['bouncer', 'commit']);
+          assert.strictEqual(cwd, worker);
+          // 실제 commit처럼 증적 문서까지 한 커밋에 담는다(tasks.md의 stamp만 커밋 뒤 잔여물).
+          git(worker, ['add', 'src/alpha.js', `${blueprint}/tasks/001`]);
+          git(worker, ['commit', '-m', 'feat: task 001']);
+          const sha = git(worker, ['rev-parse', 'HEAD']);
+          const file = path.join(worker, blueprint, 'tasks/001/tasks.md');
+          const doc = readDoc(file);
+          doc.data.bouncer.commit_sha = sha.slice(0, 8);
+          fs.writeFileSync(file, renderDoc(doc.data, doc.body));
+          return { stdout: JSON.stringify({ ok: true, committed: true }), status: 0 };
+        },
+      },
+    });
+  } finally {
+    process.chdir(previousCwd);
+  }
+  assert.strictEqual(advanced.ok, true, JSON.stringify(advanced));
+  assert.deepStrictEqual(advanced.executed.map((step) => step.action), ['commit']);
+  assert.strictEqual(advanced.stop.next.action, 'report', JSON.stringify(advanced.stop.next));
+  assert.notStrictEqual(git(worker, ['rev-parse', 'HEAD']), git(integration, ['rev-parse', 'HEAD']));
+
+  const reported = coordinate(reportArgs);
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+  assert.strictEqual(recorded.task.sha, git(worker, ['rev-parse', 'HEAD']));
+
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integration, task: '001',
+    deps: { runVerification: passVerification },
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  assert.strictEqual(fs.readFileSync(path.join(integration, 'src/alpha.js'), 'utf8'), 'changed by 001\n');
 });
