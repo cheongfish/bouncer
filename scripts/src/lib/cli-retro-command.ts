@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 const os = require('node:os');
 const path = require('node:path');
 
@@ -162,4 +164,4 @@ function cmdRetro(rest: string[], io: CliIo, deps: RetroDeps = {}): number {
   return 0;
 }
 
-export = { run: cmdRetro, usage: USAGE_BLOCK };
+export = { run: cmdRetro, usage: cliUsage.COMMAND_USAGE["retro"] };

@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 import paths = require('./paths');
@@ -230,5 +232,5 @@ function cmdReview(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdReview,
-  usage: USAGE_BLOCK,
+  usage: cliUsage.COMMAND_USAGE["review"],
 };

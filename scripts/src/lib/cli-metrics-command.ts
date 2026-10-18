@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 import driveMetrics = require('./drive-metrics');
@@ -131,4 +133,4 @@ function cmdMetrics(rest: string[], io: CliIo): number {
   }));
 }
 
-export = { run: cmdMetrics, usage: USAGE_BLOCK };
+export = { run: cmdMetrics, usage: cliUsage.COMMAND_USAGE["metrics"] };

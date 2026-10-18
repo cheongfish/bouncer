@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 const { execFileSync } = require('node:child_process');
@@ -326,13 +328,6 @@ function cmdCurrent(rest: string[], io: CliIo) {
 export = {
   current: {
     run: cmdCurrent,
-    usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--reapprove]]
-             [--clear]
-             Show the active blueprint pointer, or set / clear it.
-             --task picks a task doc; without it, first ready/in_progress wins.
-             --replace deletes the uniquely selected key then writes the target; omitted,
-             --set adds a parallel key. --replace at a multi-pointer base exits 1 with CURRENT_AMBIGUOUS.
-             --reapprove rewrites the approval snapshot after the user explicitly approves a scope change.
-`,
+    usage: cliUsage.COMMAND_USAGE["current"],
   },
 };

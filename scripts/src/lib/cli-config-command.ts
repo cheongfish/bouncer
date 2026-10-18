@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import codexAgents = require('./codex-agents');
 const { NAMED_AGENTS } = codexAgents;
 import subagents = require('./subagents');
@@ -57,5 +59,5 @@ function cmdConfig(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdConfig,
-  usage: USAGE_BLOCK,
+  usage: cliUsage.COMMAND_USAGE["config"],
 };

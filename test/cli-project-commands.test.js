@@ -355,6 +355,64 @@ test('CLI require, help, and a non-intent command → leave intent modules out o
   }
 });
 
+test('help and unknown commands → load no feature areas', () => {
+  for (const args of [['help'], ['--help'], ['-h'], ['nope'], ['toString']]) {
+    const result = probeIntentCache(`
+      const { runCli } = require('./scripts/lib/cli');
+      runCli(${JSON.stringify(args)}, { out() {}, err() {} });
+      ${INTENT_CACHE_FILTER}
+      process.stdout.write(JSON.stringify({ keys }));
+    `);
+    assert.deepStrictEqual(loadedAreas(result.keys), [], args.join(' '));
+  }
+});
+
+test('project-root → loads no feature areas', () => {
+  const result = probeIntentCache(`
+    const { runCli } = require('./scripts/lib/cli');
+    runCli(['project-root'], { out() {}, err() {} });
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({ keys }));
+  `);
+  assert.deepStrictEqual(loadedAreas(result.keys), []);
+});
+
+test('graphify-bin → avoids execution, verification, and delivery areas', () => {
+  const result = probeIntentCache(`
+    const { runCli } = require('./scripts/lib/cli');
+    runCli(['graphify-bin'], { out() {}, err() {} });
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({ keys }));
+  `);
+  const areas = loadedAreas(result.keys);
+  assert.deepStrictEqual(
+    areas.filter((area) => ['execution', 'verification', 'delivery'].includes(area)),
+    [],
+  );
+});
+
+test('commit dispatch → loads delivery without execution modules', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-commit-lazy-'));
+  const result = probeIntentCache(`
+    const { runCli } = require('./scripts/lib/cli');
+    runCli(['commit', '--repo', ${JSON.stringify(repo)}], { out() {}, err() {} });
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({ keys }));
+  `);
+  const areas = loadedAreas(result.keys);
+  assert.ok(areas.includes('delivery'), areas.join(','));
+  assert.ok(!areas.includes('execution'), areas.join(','));
+});
+
+test('requiring cli-usage alone → loads only cli-usage', () => {
+  const result = probeIntentCache(`
+    require('./scripts/lib/cli-usage');
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({ keys }));
+  `);
+  assert.deepStrictEqual(result.keys, ['cli-usage.js']);
+});
+
 test('child process that requires intent-bundle first → loadedAreas reports the intent area', () => {
   // 영역 판정 유효성: 의도 모듈이 실제로 적재되면 위 지연 로딩 단언이 실패해야 한다.
   const loaded = probeIntentCache(`
