@@ -14,7 +14,7 @@ function repo() {
   roots.push(root);
   execFileSync('git', ['init', '-b', 'main'], { cwd: root, stdio: 'ignore', env: cleanGitEnv() });
   const bp = '.bouncer/context/epics/111-context/blueprints/001-design';
-  write(root, '.bouncer/context/epics/111-context/index.md', `---\ntype: bouncer.epic\ntitle: E\nresource: .bouncer/context/epics/111-context/index.md\nbouncer:\n  id: EPIC-111\n  status: draft\n---\n`);
+  write(root, '.bouncer/context/epics/111-context/index.md', '---\ntype: bouncer.epic\ntitle: E\nresource: .bouncer/context/epics/111-context/index.md\nbouncer:\n  id: EPIC-111\n  status: draft\n---\n');
   write(root, `${bp}/index.md`, `---\ntype: bouncer.blueprint\ntitle: B\nresource: ${bp}/index.md\nbouncer:\n  id: EPIC-111/BP-001\n  epic_id: '111'\n  status: draft\n---\n## Contract\n\nUse \`--fast\` and \`src/app.ts\`.\n`);
   write(root, `${bp}/tasks/001/tasks.md`, `---\ntype: bouncer.tasks\ntitle: T\nresource: ${bp}/tasks/001/tasks.md\nbouncer:\n  id: TASKS-001\n  epic_id: '111'\n  blueprint_id: '001'\n  status: ready\n  affected_paths:\n    - src/app.ts\n  task_commits: []\n---\n## Touch\n\n- \`src/main.ts\`\n`);
   const second = '.bouncer/context/epics/111-context/blueprints/002-design';

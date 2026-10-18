@@ -22,7 +22,10 @@ function run(rest: string[], io: CliIo): number {
   }
   const core = require('./context-ontology') as {
     loadContextOntology: (options: { repoRoot: string }) => unknown;
-    queryContextOntology: (index: unknown, query: { mode: string; value: string; limit: number }) => object;
+    queryContextOntology: (
+      index: unknown,
+      query: { mode: string; value: string; limit: number },
+    ) => object;
   };
   let index: unknown;
   try {
@@ -31,7 +34,11 @@ function run(rest: string[], io: CliIo): number {
     return reportCoreError(error, io);
   }
   try {
-    const result = core.queryContextOntology(index, { mode: parsed.mode, value: parsed.value, limit: parsed.limit });
+    const result = core.queryContextOntology(index, {
+      mode: parsed.mode,
+      value: parsed.value,
+      limit: parsed.limit,
+    });
     io.out(`${JSON.stringify(result)}\n`);
     return 0;
   } catch (error) {
@@ -47,7 +54,9 @@ function run(rest: string[], io: CliIo): number {
  */
 function parse(args: string[]): Parsed | { error: string } {
   const mode = args[0];
-  if (mode !== 'entity' && mode !== 'file' && mode !== 'impact') return { error: 'expected entity, file, or impact mode' };
+  if (mode !== 'entity' && mode !== 'file' && mode !== 'impact') {
+    return { error: 'expected entity, file, or impact mode' };
+  }
   const selector = mode === 'entity' ? '--entity' : '--file';
   let value: string | undefined;
   let repo: string | undefined;
@@ -55,21 +64,37 @@ function parse(args: string[]): Parsed | { error: string } {
   const seen = new Set<string>();
   for (let i = 1; i < args.length; i++) {
     const option = args[i];
-    if (option !== selector && option !== '--repo' && option !== '--limit') return { error: `unknown or inapplicable option: ${option}` };
+    if (option !== selector && option !== '--repo' && option !== '--limit') {
+      return { error: `unknown or inapplicable option: ${option}` };
+    }
     if (seen.has(option)) return { error: `${option} may be specified only once` };
     seen.add(option);
     const next = args[++i];
-    if (next === undefined || next === '' || (option !== selector && next.startsWith('--'))) return { error: `${option} requires a value` };
+    if (next === undefined || next === '' || (option !== selector && next.startsWith('--'))) {
+      return { error: `${option} requires a value` };
+    }
     if (option === selector) value = next;
     else if (option === '--repo') repo = next;
     else {
-      if (!/^\d+$/.test(next) || !Number.isSafeInteger(Number(next)) || Number(next) < 1 || Number(next) > 100) return { error: '--limit must be an integer from 1 to 100' };
+      if (
+        !/^\d+$/.test(next) ||
+        !Number.isSafeInteger(Number(next)) ||
+        Number(next) < 1 ||
+        Number(next) > 100
+      ) return { error: '--limit must be an integer from 1 to 100' };
       limit = Number(next);
     }
   }
   if (!value) return { error: `${selector} is required` };
-  if (mode === 'entity' && (/[\s]/.test(value) || /[^\x00-\x7f]/.test(value))) return { error: '--entity must be a non-empty ASCII token without whitespace' };
-  if (mode !== 'entity' && (!value || value.includes('\0') || value.includes('\\') || value.startsWith('/') || value.split('/').includes('..') || /[*?{}[\]]/.test(value))) {
+  const hasNonAscii = [...value].some((char) => char.charCodeAt(0) > 0x7f);
+  if (mode === 'entity' && (/[\s]/.test(value) || hasNonAscii)) {
+    return { error: '--entity must be a non-empty ASCII token without whitespace' };
+  }
+  if (
+    mode !== 'entity' &&
+    (!value || value.includes('\0') || value.includes('\\') || value.startsWith('/') ||
+      value.split('/').includes('..') || /[*?{}[\]]/.test(value))
+  ) {
     return { error: '--file must be a safe repository-relative path' };
   }
   // 상대 경로는 process cwd 기준이다. 코어가 Git root를 검증하므로 하위 경로를 승격하지 않는다.
