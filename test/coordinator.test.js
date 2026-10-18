@@ -2696,6 +2696,10 @@ test('prepare with a revoked task → requeues it with generation 2 and a fresh 
     hasOld = false;
   }
   assert.strictEqual(hasOld, false);
+  // 폐기가 아니라 보존이다: 이전 커밋은 salvage ref로 남는다.
+  assert.strictEqual(execFileSync('git', ['rev-parse', `refs/bouncer/salvage/001/g1-${oldWorkerHead.slice(0, 8)}`], {
+    cwd: boot.integrationPath, encoding: 'utf8',
+  }).trim(), oldWorkerHead);
   assert.notStrictEqual(again.branch, undefined);
   void branch;
 });
@@ -2785,6 +2789,156 @@ test('prepare with a legacy revoked task → requeues it from integration HEAD',
     hasOld = false;
   }
   assert.strictEqual(hasOld, false);
+  // legacy는 generation이 없어 0으로 보존한다.
+  assert.strictEqual(execFileSync('git', ['rev-parse', `refs/bouncer/salvage/001/g0-${oldWorkerHead.slice(0, 8)}`], {
+    cwd: boot.integrationPath, encoding: 'utf8',
+  }).trim(), oldWorkerHead);
+});
+
+// 보존 테스트 공통 준비: worker 1개를 prepare한 뒤 caller가 worker를 더럽히고 revoke한다.
+function salvageFixture(tag, mutate) {
+  const blueprint = `.bouncer/context/epics/083-${tag}/blueprints/001-y`;
+  const repo = uncommittedPlanRepo(`bouncer-salvage-${tag}-`, blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-a' },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks.find((t) => t.id === '001').workerPath;
+  const branch = prepared.tasks.find((t) => t.id === '001').branch;
+  mutate(worker);
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', reason: 'requeue',
+  });
+  assert.strictEqual(revoked.ok, true, JSON.stringify(revoked));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  return { repo, blueprint, boot, worker, branch, ledgerFile };
+}
+const gitOut = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+function commitInWorker(worker, file, text) {
+  fs.writeFileSync(path.join(worker, file), text);
+  execFileSync('git', ['add', file], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'worker'], { cwd: worker });
+  return gitOut(worker, 'rev-parse', 'HEAD');
+}
+
+test('prepare with a dirty revoked worker → writes a patch that reproduces the changes and one worker-salvage decision', () => {
+  const fx = salvageFixture('dirty', (worker) => {
+    fs.writeFileSync(path.join(worker, 'README.md'), 'modified\n');
+    fs.writeFileSync(path.join(worker, 'notes.txt'), 'untracked\n');
+  });
+  const again = coordinate({
+    command: 'prepare', repoRoot: fx.repo, blueprint: fx.blueprint, cwd: fx.boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-b' },
+  });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(again.salvage.length, 1);
+  assert.strictEqual(again.salvage[0].task, '001');
+  assert.strictEqual(fs.existsSync(again.salvage[0].patch), true);
+  const fresh = again.tasks.find((t) => t.id === '001').workerPath;
+  assert.strictEqual(fs.existsSync(path.join(fresh, 'notes.txt')), false);
+  execFileSync('git', ['apply', '--binary', again.salvage[0].patch], { cwd: fresh });
+  assert.strictEqual(fs.readFileSync(path.join(fresh, 'README.md'), 'utf8'), 'modified\n');
+  assert.strictEqual(fs.readFileSync(path.join(fresh, 'notes.txt'), 'utf8'), 'untracked\n');
+  const decisions = JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8')).decisions
+    .filter((d) => d.kind === 'worker-salvage');
+  assert.strictEqual(decisions.length, 1);
+  assert.strictEqual(decisions[0].task, '001');
+  assert.strictEqual(decisions[0].generation, 1);
+  assert.deepStrictEqual(decisions[0].dirty_paths.sort(), ['README.md', 'notes.txt']);
+});
+
+test('prepare with a revoked worker holding an unintegrated commit → keeps it under refs/bouncer/salvage', () => {
+  let head;
+  const fx = salvageFixture('commit', (worker) => { head = commitInWorker(worker, 'README.md', 'committed\n'); });
+  const again = coordinate({
+    command: 'prepare', repoRoot: fx.repo, blueprint: fx.blueprint, cwd: fx.boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-b' },
+  });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  const ref = `refs/bouncer/salvage/001/g1-${head.slice(0, 8)}`;
+  assert.strictEqual(gitOut(fx.boot.integrationPath, 'rev-parse', ref), head);
+  assert.strictEqual(again.salvage[0].ref, ref);
+  assert.strictEqual(again.salvage[0].patch, undefined);
+  const decision = JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8')).decisions
+    .find((d) => d.kind === 'worker-salvage');
+  assert.strictEqual(decision.head, head);
+  assert.strictEqual(decision.ref, ref);
+});
+
+test('prepare with a clean revoked worker → no salvage key and no worker-salvage decision', () => {
+  const fx = salvageFixture('clean', () => {});
+  const again = coordinate({
+    command: 'prepare', repoRoot: fx.repo, blueprint: fx.blueprint, cwd: fx.boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-b' },
+  });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(again, 'salvage'), false);
+  const ledger = JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.decisions.some((d) => d.kind === 'worker-salvage'), false);
+  assert.strictEqual(fs.existsSync(path.join(fx.boot.integrationPath, '.bouncer/runtime/salvage')), false);
+});
+
+test('prepare when ref creation fails → worker-salvage-failed and worker, branch, ledger stay unchanged', () => {
+  const fx = salvageFixture('refail', (worker) => {
+    commitInWorker(worker, 'README.md', 'committed\n');
+    fs.writeFileSync(path.join(worker, 'notes.txt'), 'untracked\n');
+  });
+  const ledgerBefore = fs.readFileSync(fx.ledgerFile);
+  const branchHead = gitOut(fx.boot.integrationPath, 'rev-parse', fx.branch);
+  const failing = (file, args, options) => {
+    if (file === 'git' && args[0] === 'update-ref') throw new Error('injected update-ref failure');
+    return execFileSync(file, args, options);
+  };
+  const failed = coordinate({
+    command: 'prepare', repoRoot: fx.repo, blueprint: fx.blueprint, cwd: fx.boot.integrationPath,
+    deps: { execFileSync: failing, makeLeaseId: () => 'lease-b' },
+  });
+  assert.strictEqual(failed.ok, false);
+  assert.strictEqual(failed.reason, 'worker-salvage-failed');
+  assert.strictEqual(fs.existsSync(failed.salvage[0].patch), true);
+  assert.strictEqual(failed.salvage[0].ref, undefined);
+  assert.strictEqual(fs.existsSync(fx.worker), true);
+  assert.strictEqual(fs.existsSync(path.join(fx.worker, 'notes.txt')), true);
+  assert.strictEqual(gitOut(fx.boot.integrationPath, 'rev-parse', fx.branch), branchHead);
+  assert.deepStrictEqual(fs.readFileSync(fx.ledgerFile), ledgerBefore);
+});
+
+test('prepare when the salvage ref already points at the same commit → succeeds without changing the ref', () => {
+  let head;
+  const fx = salvageFixture('same', (worker) => { head = commitInWorker(worker, 'README.md', 'committed\n'); });
+  const ref = `refs/bouncer/salvage/001/g1-${head.slice(0, 8)}`;
+  execFileSync('git', ['update-ref', ref, head], { cwd: fx.boot.integrationPath });
+  const again = coordinate({
+    command: 'prepare', repoRoot: fx.repo, blueprint: fx.blueprint, cwd: fx.boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-b' },
+  });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(gitOut(fx.boot.integrationPath, 'rev-parse', ref), head);
+});
+
+test('prepare when the salvage ref points at a different commit → worker-salvage-failed and nothing is removed', () => {
+  let head;
+  const fx = salvageFixture('conflict', (worker) => { head = commitInWorker(worker, 'README.md', 'committed\n'); });
+  const ref = `refs/bouncer/salvage/001/g1-${head.slice(0, 8)}`;
+  const other = gitOut(fx.boot.integrationPath, 'rev-parse', 'HEAD');
+  execFileSync('git', ['update-ref', ref, other], { cwd: fx.boot.integrationPath });
+  const ledgerBefore = fs.readFileSync(fx.ledgerFile);
+  const failed = coordinate({
+    command: 'prepare', repoRoot: fx.repo, blueprint: fx.blueprint, cwd: fx.boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-b' },
+  });
+  assert.strictEqual(failed.ok, false);
+  assert.strictEqual(failed.reason, 'worker-salvage-failed');
+  assert.strictEqual(gitOut(fx.boot.integrationPath, 'rev-parse', ref), other);
+  assert.strictEqual(gitOut(fx.boot.integrationPath, 'rev-parse', fx.branch), head);
+  assert.strictEqual(fs.existsSync(fx.worker), true);
+  assert.deepStrictEqual(fs.readFileSync(fx.ledgerFile), ledgerBefore);
 });
 
 // RD-003: --lease-id/--generation 중 하나만 주면 lease-required.

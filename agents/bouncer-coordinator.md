@@ -123,6 +123,12 @@ to your `Decision required` judgment, never a second brief.
   integrated content kept) and the terminal re-verifies after reintegration.
   Late reports or commits from the previous lease are refused. Unrelated tasks do
   not run again. Count it as one repair wave.
+  Before `prepare` removes a revoked worker it preserves that worker's
+  uncommitted changes as a patch under the integration
+  `.bouncer/runtime/salvage/<task>-g<gen>-<short>.patch` and its unintegrated
+  commits as `refs/bouncer/salvage/<task>/g<gen>-<short>`. The output `salvage`
+  lists both; reapply a patch with `git apply --binary`. If preserving fails,
+  `worker-salvage-failed` stops `prepare` and the worker stays as it was.
 - A terminal failure proven to be outside every approved task scope is recorded
   with `coordinate repair --task <terminal> --disposition outside_scope` (with
   the failure command, a summary naming the cause, the failing test, and why the

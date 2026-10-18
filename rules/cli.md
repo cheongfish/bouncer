@@ -174,6 +174,13 @@ pointer moves, scope revisions, result recording, fan-in, and repair.
 `coordinate` stdout is one-line JSON; a success response carries `checkpoint`
 (and prepare also `opened[]`) instead of ledger copies of `tasks` or
 `decisions`.
+When `prepare` recreates a revoked worker it first preserves uncommitted
+changes (patch under integration `.bouncer/runtime/salvage/`) and unintegrated
+commits (`refs/bouncer/salvage/<task>/g<gen>-<short>`), records a
+`worker-salvage` decision, and lists them in the output `salvage` array
+(`task`, `patch`, `ref`). A clean worker adds no `salvage` key. If preserving
+fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
+unchanged.
 `coordinate bootstrap` sets ledger `mode: light` only when blueprint
 `bouncer.scale` is `light` and the blueprint has exactly one commit task with
 an empty `depends_on`; otherwise a light scale is refused with
