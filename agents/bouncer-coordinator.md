@@ -105,6 +105,15 @@ to your `Decision required` judgment, never a second brief.
   scope, and Blueprint necessity; the repair depends on the then-integrated
   leaves and the terminal verification node moves its dependency to that repair.
   After a second repair still fails, automatic execution stops.
+- Take every repair `--paths` entry from tracked files named in the failure
+  evidence or the debugger report; never guess a path. A file the repair must
+  create goes in `--new-path` and needs a tracked parent directory. On a
+  `scoped_terminal` blueprint also pass `--verify <argv>`: one command that
+  checks only the failing files, not the terminal full-suite command. The CLI
+  refuses an untracked path (`scope-path-untracked`,
+  `scope-new-path-parent-missing`) or a bad verify (`repair-verify-required`,
+  `repair-verify-not-single-argv`, `repair-verify-is-terminal`) before writing
+  anything; fix the input and retry, do not work around it.
 - A terminal failure whose cause is code an already integrated task owns is
   resumed on that task, not on a new one: `coordinate repair --task <terminal>
   --resume-task <ddd>` with the same failure command, summary, `--paths` inside

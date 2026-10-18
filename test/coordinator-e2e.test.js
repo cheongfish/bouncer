@@ -1236,6 +1236,57 @@ test('scoped_terminal drive → 보고 Tests가 지정 명령·통과 결과가 
   assert.deepStrictEqual(calls, [{ taskId: terminalId, kind: 'terminal' }]);
 });
 
+test('scoped_terminal terminal failure → repair needs its own --verify and tracked paths, then integrates and the terminal re-verifies', () => {
+  const { repo, blueprint, terminalId } = makeScopedRepo('093');
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integrationPath = boot.integrationPath;
+  const integrate = (task, runVerification) => coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task, deps: { runVerification },
+  });
+  const noRun = () => { throw new Error('wave fan-in must not run the full command'); };
+  const workerFor = (id) => coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath })
+    .tasks.find((t) => t.id === id).workerPath;
+  for (const [id, file] of [['001', 'src/alpha.js'], ['002', 'src/beta.js']]) {
+    const worker = workerFor(id);
+    const sha = commitInWorker(worker, file, `changed by ${id}\n`, `feat: task ${id}`);
+    writeTerminalEvidence(worker, blueprint, id, sha);
+    assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, id, {
+      tests: `- \`node --test test/${id}.test.js\` — 1 pass, 0 fail (exit 0)`,
+    }).ok, true);
+    assert.strictEqual(integrate(id, noRun).ok, true);
+  }
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  const failed = integrate(terminalId, () => ({ ok: false, command: 'npm test', exitCode: 1 }));
+  assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
+
+  const repairArgs = {
+    command: 'repair', repoRoot: repo, blueprint, cwd: integrationPath, task: terminalId,
+    failureCommand: 'npm test', summary: 'alpha broke', paths: ['src/alpha.js'], decision: 'repair alpha',
+  };
+  assert.strictEqual(coordinate(repairArgs).reason, 'repair-verify-required');
+  assert.strictEqual(coordinate({ ...repairArgs, verify: 'npm test' }).reason, 'repair-verify-is-terminal');
+  assert.strictEqual(coordinate({ ...repairArgs, verify: 'a && b' }).reason, 'repair-verify-not-single-argv');
+  assert.strictEqual(coordinate({ ...repairArgs, verify: 'node --test test/alpha.test.js', paths: ['src/ghost.js'] }).reason,
+    'scope-path-untracked');
+
+  const verify = 'node --test test/alpha.test.js';
+  const repair = coordinate({ ...repairArgs, verify });
+  assert.strictEqual(repair.ok, true, JSON.stringify(repair));
+  const repairId = repair.repairTask.id;
+  const repairWorker = workerFor(repairId);
+  const repairSha = commitInWorker(repairWorker, 'src/alpha.js', 'repaired\n', 'fix: repair alpha');
+  writeTerminalEvidence(repairWorker, blueprint, repairId, repairSha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, repairWorker, repairId, {
+    tests: `- \`${verify}\` — 1 pass, 0 fail (exit 0)`,
+  }).ok, true);
+  assert.strictEqual(integrate(repairId, noRun).ok, true);
+
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  const terminal = integrate(terminalId, () => ({ ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) }));
+  assert.strictEqual(terminal.ok, true, JSON.stringify(terminal));
+});
+
 test('legacy blueprint without the marker → fan-in still runs the wave verification and needs no Tests section', () => {
   const blueprint = '.bouncer/context/epics/092-legacy/blueprints/001-drive';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n' });

@@ -51,7 +51,13 @@ const repoTemplate = createGitTemplate((repo) => {
   execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
   execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
-  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  // repair/revise의 --paths는 integration HEAD에서 추적되는 파일만 받는다.
+  // repair 테스트가 쓰는 경로를 미리 추적 파일로 둬 새 추적 검사를 통과시킨다.
+  for (const rel of ['src/fix.js', 'src/third.js', 'test/fix.test.js']) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), 'fixture\n');
+  }
+  execFileSync('git', ['add', '-A'], { cwd: repo });
   execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
 });
 // light-scale 테스트는 기본 커밋에 src/a.js가 더 있어야 하므로 별도 템플릿을 쓴다.
@@ -3516,6 +3522,154 @@ test('coordinate repair with mixed causes or non-integrated review repairs → r
   assert.strictEqual(leftover.reason, 'review-repair-requires-integrated');
 });
 
+/**
+ * 종단 task가 verifying인 repair 드라이브를 만든다. scoped_terminal이면 구현 task가
+ * 자기 verify를, 종단 task가 전체 명령 `npm run ci`를 가진다. legacy는 정책 표식이 없다.
+ */
+function repairIntakeDrive(prefix, blueprint, { scoped }) {
+  const repo = uncommittedPlanRepo(prefix, blueprint, [
+    ['001', `  id: TASKS-001\n  depends_on: []\n  verify: ${scoped ? 'node --test test/fix.test.js' : 'npm run ci'}\n`],
+    ['002', '  id: TASKS-002\n  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: npm run ci\n'],
+  ]);
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'index.md'),
+    `---\nbouncer:\n  status: approved\n${scoped ? '  verification_policy: scoped_terminal\n' : ''}---\n# Blueprint\n`,
+  );
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((entry) => entry.id === '001').status = 'integrated';
+  ledger.tasks.find((entry) => entry.id === '002').status = 'verifying';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  return { repo, blueprint, integrationPath: boot.integrationPath, ledgerFile };
+}
+
+/** ledger와 tasks/ 아래 모든 파일의 바이트를 한 문자열로 모아 거절 전후를 비교한다. */
+function repairIntakeSnapshot(drive) {
+  const tasksDir = path.join(drive.integrationPath, drive.blueprint, 'tasks');
+  const files = fs.readdirSync(tasksDir, { recursive: true }).sort()
+    .filter((rel) => fs.statSync(path.join(tasksDir, rel)).isFile())
+    .map((rel) => `${rel}\n${fs.readFileSync(path.join(tasksDir, rel), 'utf8')}`);
+  return [fs.readFileSync(drive.ledgerFile, 'utf8'), ...files].join('\n--\n');
+}
+
+function repairIntake(drive, overrides) {
+  return coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath, task: '002',
+    failureCommand: 'npm run ci', summary: 'one failed', paths: ['src/fix.js'], decision: 'repair ci',
+    ...overrides,
+  });
+}
+
+test('scoped_terminal repair with a missing, terminal or chained --verify → rejects before any write', () => {
+  const drive = repairIntakeDrive('bouncer-repair-verify-gate-', '.bouncer/context/epics/112-x/blueprints/001-y', { scoped: true });
+  const before = repairIntakeSnapshot(drive);
+  for (const [label, verify, reason] of [
+    ['no --verify', undefined, 'repair-verify-required'],
+    ['terminal full-suite command', 'npm run ci', 'repair-verify-is-terminal'],
+    ['terminal command with extra spaces', '  npm   run ci ', 'repair-verify-is-terminal'],
+    ['shell operator', 'node --test a && node --test b', 'repair-verify-not-single-argv'],
+  ]) {
+    const out = repairIntake(drive, { verify });
+    assert.strictEqual(out.ok, false, label);
+    assert.strictEqual(out.reason, reason, `${label}: ${JSON.stringify(out)}`);
+    assert.ok(out.cause && out.next, `${label} carries cause and next`);
+    assert.strictEqual(repairIntakeSnapshot(drive), before, `${label} keeps ledger and tasks bytes`);
+  }
+});
+
+test('repair with an untracked --paths entry or a --new-path without a tracked parent → rejects before any write', () => {
+  const drive = repairIntakeDrive('bouncer-repair-path-gate-', '.bouncer/context/epics/112-x/blueprints/002-y', { scoped: true });
+  const before = repairIntakeSnapshot(drive);
+  const verify = 'node --test test/fix.test.js';
+  const untracked = repairIntake(drive, { verify, paths: ['src/fix.js', 'scripts/src/commands/ontology.ts'] });
+  assert.strictEqual(untracked.reason, 'scope-path-untracked', JSON.stringify(untracked));
+  assert.deepStrictEqual(untracked.paths, ['scripts/src/commands/ontology.ts']);
+  assert.strictEqual(repairIntakeSnapshot(drive), before);
+
+  const orphan = repairIntake(drive, { verify, newPaths: ['nope/dir/x.ts'] });
+  assert.strictEqual(orphan.reason, 'scope-new-path-parent-missing', JSON.stringify(orphan));
+  assert.deepStrictEqual(orphan.paths, ['nope/dir/x.ts']);
+  assert.strictEqual(repairIntakeSnapshot(drive), before);
+});
+
+test('scoped_terminal repair with --verify and tracked paths plus a --new-path → writes them into the repair document and passes G20', () => {
+  const drive = repairIntakeDrive('bouncer-repair-ok-', '.bouncer/context/epics/112-x/blueprints/003-y', { scoped: true });
+  const verify = 'node --test test/fix.test.js';
+  const out = repairIntake(drive, { verify, newPaths: ['src/new-guard.js'] });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  const repairDoc = readDoc(path.join(drive.integrationPath, drive.blueprint, 'tasks', out.repairTask.id, 'tasks.md'));
+  assert.strictEqual(repairDoc.data.bouncer.verify, verify);
+  assert.deepStrictEqual(repairDoc.data.bouncer.affected_paths, ['src/fix.js', 'src/new-guard.js']);
+  assert.deepStrictEqual(out.repairTask.scope.paths, ['src/fix.js', 'src/new-guard.js']);
+
+  // 만든 repair 문서가 plan gate의 G20(scoped_terminal 규칙)을 통과하는지 같은 문서로 확인한다.
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const leaf = (rel) => {
+    const doc = readDoc(path.join(drive.integrationPath, rel));
+    return { rel, data: doc.data, body: doc.body };
+  };
+  const taskRels = ['001', '002', out.repairTask.id].map((id) => `${drive.blueprint}/tasks/${id}/tasks.md`);
+  const docs = { blueprintIndex: leaf(`${drive.blueprint}/index.md`), tasksDocs: taskRels.map(leaf) };
+  const failures = [];
+  checkPlanDraft(docs, { tasks: taskRels[0], blueprintIndex: docs.blueprintIndex.rel }, failures);
+  assert.deepStrictEqual(failures.filter((f) => f.code === 'G20'), []);
+});
+
+test('legacy repair → keeps the terminal verify without --verify and applies only the single-argv check to --verify', () => {
+  const drive = repairIntakeDrive('bouncer-repair-legacy-verify-', '.bouncer/context/epics/112-x/blueprints/004-y', { scoped: false });
+  const before = repairIntakeSnapshot(drive);
+  const chained = repairIntake(drive, { verify: 'node --test a && node --test b' });
+  assert.strictEqual(chained.reason, 'repair-verify-not-single-argv', JSON.stringify(chained));
+  assert.strictEqual(repairIntakeSnapshot(drive), before);
+
+  const kept = repairIntake(drive, {});
+  assert.strictEqual(kept.ok, true, JSON.stringify(kept));
+  const keptDoc = readDoc(path.join(drive.integrationPath, drive.blueprint, 'tasks', kept.repairTask.id, 'tasks.md'));
+  assert.strictEqual(keptDoc.data.bouncer.verify, 'npm run ci');
+
+  const own = repairIntakeDrive('bouncer-repair-legacy-own-', '.bouncer/context/epics/112-x/blueprints/005-y', { scoped: false });
+  // legacy는 종단 비교 없이 단일 argv만 본다 — 종단과 같은 명령도 거절하지 않는다.
+  const same = repairIntake(own, { verify: 'npm run ci' });
+  assert.strictEqual(same.ok, true, JSON.stringify(same));
+});
+
+test('review-caused repair with an untracked --paths entry → rejects before any write', () => {
+  const drive = repairIntakeDrive('bouncer-repair-review-path-', '.bouncer/context/epics/112-x/blueprints/006-y', { scoped: true });
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  for (const entry of ledger.tasks) entry.status = 'integrated';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const before = repairIntakeSnapshot(drive);
+  const out = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath, task: '002',
+    reviewFindings: ['F1'], summary: 'must_fix', paths: ['src/ghost.js'], decision: 'repair review',
+    verify: 'node --test test/fix.test.js',
+  });
+  assert.strictEqual(out.reason, 'scope-path-untracked', JSON.stringify(out));
+  assert.deepStrictEqual(out.paths, ['src/ghost.js']);
+  assert.strictEqual(repairIntakeSnapshot(drive), before);
+});
+
+test('terminal verification failing after the repair scope was revised → failure evidence carries the current scope', () => {
+  const drive = repairIntakeDrive('bouncer-repair-r2-evidence-', '.bouncer/context/epics/112-x/blueprints/007-y', { scoped: true });
+  const repaired = repairIntake(drive, { verify: 'node --test test/fix.test.js' });
+  assert.strictEqual(repaired.ok, true, JSON.stringify(repaired));
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  const repairEntry = ledger.tasks.find((entry) => entry.id === repaired.repairTask.id);
+  repairEntry.status = 'integrated';
+  repairEntry.scope = { revision: 'r9', paths: ['src/third.js'] };
+  ledger.tasks.find((entry) => entry.id === '002').status = 'ready';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const failed = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath, task: '002',
+    deps: { runVerification: () => ({ ok: false, command: 'npm run ci', exitCode: 1 }) },
+  });
+  assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8')).terminalFailure.paths, ['src/third.js']);
+});
+
 test('bootstrap with leftover scaffold comments → refuses before creating a worktree', () => {
   const { coordinatorPathsFor, branchNamesFor } = require('../scripts/lib/runtime-state');
   const git = (repo, args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
@@ -4486,7 +4640,6 @@ test('supplement --done when verification fails or paths exceed → keeps the de
   }));
   assert.strictEqual(exceeded.reason, 'supplement-paths-exceeded');
   fs.rmSync(path.join(drive.integrationPath, 'src/a.js'));
-  fs.rmdirSync(path.join(drive.integrationPath, 'src'));
 
   fs.mkdirSync(path.join(drive.integrationPath, 'test'), { recursive: true });
   fs.writeFileSync(path.join(drive.integrationPath, 'test/a.test.js'), '// supplement\n');
@@ -4499,7 +4652,7 @@ test('supplement --done when verification fails or paths exceed → keeps the de
 
 test('repair without --kind or with kind product → keeps the wave-consuming path', () => {
   const drive = supplementDrive('bouncer-supp-product-', '.bouncer/context/epics/090-x/blueprints/006-y');
-  const out = coordinate(supplementOpts(drive, { kind: 'product', paths: ['test/a.test.js'] }));
+  const out = coordinate(supplementOpts(drive, { kind: 'product', paths: ['test/fix.test.js'] }));
   assert.strictEqual(out.ok, true, JSON.stringify(out));
   assert.strictEqual(out.wave, 1);
   assert.ok(out.repairTask);

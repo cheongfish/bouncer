@@ -108,7 +108,20 @@ function isValidVerifyCommand(
   return allowlist.includes(verifyExecutableName(argv[0]));
 }
 
+/**
+ * verify 명령을 비교용으로 정규화한다. 앞뒤 공백을 자르고 연속 공백을 하나로
+ * 접는다. G20(종단 전체 명령 금지)과 `coordinate repair --verify` 검사가 같은
+ * 함수를 써야 한 표면이 통과시킨 값을 다른 표면이 종단 명령으로 오인하지 않는다.
+ *
+ * @param {string} cmd - verify 명령 문자열
+ * @returns {string} 정규화된 문자열. 문자열이 아니면 빈 문자열
+ */
+function normalizeVerifyCommand(cmd: string): string {
+  return typeof cmd === 'string' ? cmd.trim().replace(/\s+/g, ' ') : '';
+}
+
 export = {
+  normalizeVerifyCommand,
   parseVerifyArgv,
   verifyExecutableName,
   isValidVerifyCommand,

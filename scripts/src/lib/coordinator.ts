@@ -33,6 +33,7 @@ const { readCoordinatorPolicy, readWavesPerSession } = configMod;
 import taskBriefHashMod = require('./task-brief-hash');
 const { taskBriefHash } = taskBriefHashMod;
 import scopeMod = require('./scope');
+import commandArgvMod = require('./command-argv');
 const { withLedgerLock } = scopeMod;
 import leaseMod = require('./lease');
 import reviewPolicy = require('./review-policy');
@@ -663,6 +664,71 @@ function sourceRepairPaths(paths: unknown): paths is string[] {
       && normalized !== '.git' && !normalized.startsWith('.git/')
       && normalized !== '.bouncer' && !normalized.startsWith('.bouncer/');
   });
+}
+
+/** repair 생성 전 검사 결과. 통과하면 최종 scope와(있으면) 확정 verify를 돌려준다. */
+type RepairIntake =
+  | { ok: true; paths: string[]; verify?: string }
+  | { ok: false; reason: string; paths?: string[] };
+
+/**
+ * repair 생성값(경로·verify)을 ledger 객체 수정과 문서 쓰기 전에 검사한다.
+ * scoped_terminal repair가 종단 전체 명령과 추측한 경로를 받아 재배정이 반복되던
+ * 문제를 생성 시점에 막는 단일 지점이다. CI·리뷰 원인 두 분기가 같은 검사를 쓴다.
+ *
+ * 1. `--paths`는 integration HEAD에서 추적돼야 하고, `--new-path`는 부모 디렉터리가
+ *    추적 파일의 조상이어야 한다(git 실패는 삼키지 않고 던진다).
+ * 2. scoped_terminal은 `--verify`가 필수이며 G20과 같은 규칙(단일 argv, 종단 명령과
+ *    다름)을 통과해야 한다. legacy·정책 미상은 `--verify`가 없으면 기존
+ *    `resolveRepairVerify` 결과를 그대로 쓰도록 verify를 비워 두고, 있으면 단일
+ *    argv 검사만 적용한다 — 종단 비교와 필수 검사는 scoped_terminal 전용이다.
+ *
+ * @param {object} opts
+ * @param {Exec} opts.exec - git 실행기
+ * @param {string} opts.integrationPath - integration worktree 절대 경로
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {Ledger} opts.ledger - 종단(verification) task 목록을 읽을 원장
+ * @param {string[]} opts.paths - `--paths`
+ * @param {string[]} opts.newPaths - `--new-path`
+ * @param {string | undefined} opts.verify - `--verify`
+ * @returns {RepairIntake} 거절 사유(와 위반 경로) 또는 최종 scope·verify
+ */
+function checkRepairIntake({ exec, integrationPath, blueprint, ledger, paths, newPaths, verify }: {
+  exec: Exec; integrationPath: string; blueprint: string; ledger: Ledger;
+  paths: string[]; newPaths: string[]; verify: string | undefined;
+}): RepairIntake {
+  if (newPaths.length > 0 && !sourceRepairPaths(newPaths)) {
+    return { ok: false, reason: 'repair-scope-out-of-bounds' };
+  }
+  const violations = scopeMod.trackedScopeViolations(exec, integrationPath, paths, newPaths);
+  if (violations.untracked.length > 0) {
+    return { ok: false, reason: 'scope-path-untracked', paths: violations.untracked };
+  }
+  if (violations.parentMissing.length > 0) {
+    return { ok: false, reason: 'scope-new-path-parent-missing', paths: violations.parentMissing };
+  }
+  const finalPaths = [...new Set([...paths, ...newPaths])];
+  const scoped = verificationPolicyAt(integrationPath, blueprint) === 'scoped_terminal';
+  if (verify === undefined) {
+    if (scoped) return { ok: false, reason: 'repair-verify-required' };
+    return { ok: true, paths: finalPaths };
+  }
+  if (commandArgvMod.parseVerifyArgv(verify) === null) {
+    return { ok: false, reason: 'repair-verify-not-single-argv' };
+  }
+  if (scoped) {
+    const normalized = commandArgvMod.normalizeVerifyCommand(verify);
+    for (const terminal of ledger.tasks.filter((entry) => entry.execution_kind === 'verification')) {
+      const data = readBouncerBlock(path.join(integrationPath, blueprint, 'tasks', terminal.id, 'tasks.md'));
+      const terminalVerify = data && typeof data === 'object'
+        ? (data as Record<string, unknown>).verify : undefined;
+      if (typeof terminalVerify === 'string'
+        && commandArgvMod.normalizeVerifyCommand(terminalVerify) === normalized) {
+        return { ok: false, reason: 'repair-verify-is-terminal' };
+      }
+    }
+  }
+  return { ok: true, paths: finalPaths, verify };
 }
 
 /**
@@ -1305,12 +1371,14 @@ function formatReviewFindingLine(line: ReviewFindingLine): string {
  * CI 원인 본문을 쓴다. CI 본문은 바이트 단위로 바뀌지 않아야 한다.
  *
  * @param {{ integrationPath: string, blueprint: string, repair: Task, terminal?: Task,
- *   reviewFindings?: ReviewFindingLine[] }} opts
- *   integration 경로, blueprint, repair task, 선택적 종단 verification, 선택적 리뷰 finding 줄
+ *   reviewFindings?: ReviewFindingLine[], verify?: string }} opts
+ *   integration 경로, blueprint, repair task, 선택적 종단 verification, 선택적 리뷰 finding 줄,
+ *   선택적 `--verify`(검사를 통과한 repair 전용 명령)
  * @returns {() => void} ledger write 실패 시 호출할 문서 롤백
  */
-function writeRepairDocuments({ integrationPath, blueprint, repair, terminal, reviewFindings }: {
+function writeRepairDocuments({ integrationPath, blueprint, repair, terminal, reviewFindings, verify }: {
   integrationPath: string; blueprint: string; repair: Task; terminal?: Task; reviewFindings?: ReviewFindingLine[];
+  verify?: string;
 }): () => void {
   // task 문서와 ledger revision은 한 write 단위다.
   const terminalFile = terminal
@@ -1331,7 +1399,10 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal, re
   const idMatch = /(?:^|\/)epics\/(\d{3})[^/]*\/blueprints\/(\d{3})[^/]*$/.exec(blueprint.replaceAll('\\', '/'));
   const epicId = idMatch ? idMatch[1] : '';
   const bpId = idMatch ? idMatch[2] : '';
-  const repairVerify = resolveRepairVerify(integrationPath, blueprint, repair, terminalData);
+  // 호출자가 검사를 통과시킨 --verify가 있으면 그 값이 우선한다. 없을 때만(legacy)
+  // 기존 종단·선행 leaf 해석을 쓰므로 --verify 없는 legacy 결과는 바이트 단위로 같다.
+  const repairVerify = verify !== undefined
+    ? verify : resolveRepairVerify(integrationPath, blueprint, repair, terminalData);
   const repairData = {
     type: 'bouncer.tasks',
     title: reviewFindings ? `Review repair wave ${repair.id}` : `CI repair wave ${repair.id}`,
@@ -2784,9 +2855,13 @@ function integrateVerificationTask({
     if (!item) return { ok: false, reason: 'task-outside-blueprint' };
     if (!result.ok) {
       const lastRepair = (ledger.repairWaves || []).at(-1);
+      // nextScope는 repair 생성 시점(r1) 값이라 scope revision 뒤에는 낡는다.
+      // 복구 task의 현재 scope가 정본이므로 그것을 우선하고, task를 못 찾을 때만 기록값으로 물러난다.
+      const lastRepairTask = lastRepair ? ledger.tasks.find((x) => x.id === lastRepair.task) : undefined;
       const evidence: FailureEvidence = {
         task, command: result.command, summary: `exit code ${result.exitCode}`,
-        paths: lastRepair ? [...lastRepair.nextScope] : [...(ledger.terminalFailure?.paths || [])],
+        paths: lastRepairTask ? currentScopePaths(lastRepairTask)
+          : lastRepair ? [...lastRepair.nextScope] : [...(ledger.terminalFailure?.paths || [])],
         exitCode: result.exitCode, repairWave: (ledger.repairWaves || []).length,
         // 범위 밖 분류가 묶일 원본 identity. 증거 id는 러너가 줄 때만, 소스 identity는 이 검증이
         // 실행된 integration HEAD다. 둘 중 하나라도 없으면 분류를 받을 수 없어 blocked 의미가 유지된다.
@@ -3730,7 +3805,7 @@ function finishFaninAfterFf({
  */
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
   failureCommand, summary, paths: repairPaths, findings, reviewFindings, kind, done, outcome, reason, attempt,
-  resumeTask, disposition,
+  resumeTask, disposition, newPaths, verify,
   taskBriefHash, model, role, perspective, tokens,
   leaseId, generation,
   ledgerPath, ledgerHash,
@@ -3738,7 +3813,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; reviewFindings?: string[]; kind?: string; done?: boolean; outcome?: string; reason?: string;
-  resumeTask?: string; disposition?: string;
+  resumeTask?: string; disposition?: string; newPaths?: string[]; verify?: string;
   attempt?: number; taskBriefHash?: string; promoteLight?: boolean;
   model?: string | true; role?: string; perspective?: string; tokens?: number | string;
   leaseId?: string; generation?: number;
@@ -4201,6 +4276,13 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
           return { ok: false, reason: 'decision-reason-required' };
         }
         if (!sourceRepairPaths(repairPaths)) return { ok: false, reason: 'repair-scope-out-of-bounds' };
+        // 새 검사는 ledger 객체를 만지기 전에 끝내 거절이 바이트 불변이 되게 한다.
+        const intake = checkRepairIntake({
+          exec, integrationPath: integration.integrationPath, blueprint, ledger,
+          paths: repairPaths, newPaths: newPaths || [], verify,
+        });
+        if (!intake.ok) return intake;
+        const scopePaths = intake.paths;
         // 최종 리뷰 수정은 in-flight 작업과 같은 경로를 고칠 수 있다. 모두
         // integrated일 때만 열어, 미통합 worker HEAD를 리뷰 범위로 착각하지 않게 한다.
         if (ledger.tasks.some((entry) => (entry.status || 'pending') !== 'integrated')) {
@@ -4233,7 +4315,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         const repair: Task = {
           id: repairId, depends_on: leaves, dependency_gate: 'integrated', parallel_safe: false,
           execution_kind: 'commit', status: 'pending', dynamic: true,
-          scope: { revision, paths: [...repairPaths] },
+          scope: { revision, paths: [...scopePaths] },
         };
         if (terminal) {
           terminal.depends_on = [repairId];
@@ -4243,7 +4325,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         const repairDecision: RepairDecision = {
           task: repairId, kind: 'repair', wave, reason: decision.trim(), failure,
           previousDag, nextDag: dagSnapshot(ledger.tasks), previousScope: [],
-          nextScope: [...repairPaths],
+          nextScope: [...scopePaths],
           necessity: 'final review finding requires a Blueprint-scoped source repair',
           revision,
         };
@@ -4256,6 +4338,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         const rollbackDocuments = writeRepairDocuments({
           integrationPath: integration.integrationPath, blueprint, repair, terminal,
           reviewFindings: readReviewFindingLines(integration.integrationPath, blueprint, reviewFindings),
+          verify: intake.verify,
         });
         try {
           { const lost = commitWrite(); if (lost) return lost; }
@@ -4281,6 +4364,13 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         return { ok: false, reason: 'decision-reason-required' };
       }
       if (!sourceRepairPaths(repairPaths)) return { ok: false, reason: 'repair-scope-out-of-bounds' };
+      // 새 검사는 ledger 객체를 만지기 전에 끝내 거절이 바이트 불변이 되게 한다.
+      const intake = checkRepairIntake({
+        exec, integrationPath: integration.integrationPath, blueprint, ledger,
+        paths: repairPaths, newPaths: newPaths || [], verify,
+      });
+      if (!intake.ok) return intake;
+      const scopePaths = intake.paths;
       const previousDag = dagSnapshot(ledger.tasks);
       const leaves = integratedLeaves(ledger.tasks, task);
       const repairId = String(Math.max(...ledger.tasks.map((entry) => Number(entry.id)), 0) + 1).padStart(3, '0');
@@ -4292,7 +4382,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       const repair: Task = {
         id: repairId, depends_on: leaves, dependency_gate: 'integrated', parallel_safe: false,
         execution_kind: 'commit', status: 'pending', dynamic: true,
-        scope: { revision, paths: [...repairPaths] },
+        scope: { revision, paths: [...scopePaths] },
       };
       item.depends_on = [repairId];
       item.status = 'pending';
@@ -4300,7 +4390,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       const repairDecision: RepairDecision = {
         task: repairId, kind: 'repair', wave, reason: decision.trim(), failure,
         previousDag, nextDag: dagSnapshot(ledger.tasks), previousScope: [],
-        nextScope: [...repairPaths],
+        nextScope: [...scopePaths],
         necessity: 'terminal CI failure requires a Blueprint-scoped source repair',
         revision,
       };
@@ -4312,6 +4402,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       ledger.status = 'active';
       const rollbackDocuments = writeRepairDocuments({
         integrationPath: integration.integrationPath, blueprint, repair, terminal: item,
+        verify: intake.verify,
       });
       try {
         { const lost = commitWrite(); if (lost) return lost; }
@@ -4870,6 +4961,27 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'disposition-scope-mixed': {
     cause: 'A given path belongs to a task scope, so the failure cannot be classified as outside every approved scope.',
     next: 'Use `--resume-task` for the owning task, or pass only paths no task owns.',
+  },
+  'scope-path-untracked': {
+    cause: 'A given scope path is not tracked at the integration HEAD, so no worker can edit it in place.',
+    next: 'Take paths from tracked files named in the failure evidence or debugger report, '
+      + 'or pass a file to create with `--new-path` when its parent directory is tracked.',
+  },
+  'scope-new-path-parent-missing': {
+    cause: 'The parent directory of a `--new-path` entry holds no tracked file at the integration HEAD.',
+    next: 'Create the file under an existing tracked directory, or revise the plan to add the directory first.',
+  },
+  'repair-verify-required': {
+    cause: 'A scoped_terminal blueprint needs the repair task to carry its own verify command.',
+    next: 'Retry `bouncer coordinate repair` with `--verify` set to one command that checks only the failing files.',
+  },
+  'repair-verify-not-single-argv': {
+    cause: '`--verify` is empty or chains shell operators, so it is not one executable argv.',
+    next: 'Pass a single command such as `node --test test/a.test.js` without `&&`, `|`, `;`, or redirection.',
+  },
+  'repair-verify-is-terminal': {
+    cause: '`--verify` equals the terminal full-suite command, which scoped_terminal forbids on commit tasks (G20).',
+    next: 'Pass a command that checks only the failing files; the terminal task re-runs the full suite.',
   },
   'repair-scope-out-of-bounds': {
     cause: 'Repair paths are outside the blueprint-scoped source bound.',

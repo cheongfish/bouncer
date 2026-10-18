@@ -220,10 +220,10 @@ function cmdImport(rest: string[], io: CliIo) {
  * 경로로 넘기면 reviseTaskScope가 그것을 out-of-bounds로 바꿔 거절 코드가
  * `scope-paths-required`에서 갈라진다.
  */
-function collectPathValues(rest: string[]): string[] {
+function collectPathValues(rest: string[], flag = '--paths'): string[] {
   const out: string[] = [];
   for (let i = 0; i < rest.length; i += 1) {
-    if (rest[i] !== '--paths') continue;
+    if (rest[i] !== flag) continue;
     const value = rest[i + 1];
     if (value === undefined || value.startsWith('--')) continue;
     out.push(value);
@@ -420,18 +420,23 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
 `,
   },
   revise: {
-    registry: '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
+    registry: '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... [--new-path <p>]...\n'
       + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Record one scope decision in the task document and ledger.\n'
       + '             --paths replaces the whole scope with exactly the given set.\n'
+      + '             --paths must be tracked at integration HEAD; --new-path adds a file to\n'
+      + '             create (its parent directory must be tracked).\n'
       + '             Takes no --repo: the write boundary is the current directory, so\n'
       + '             run it from the assigned task worktree, not the main checkout.\n',
     help: `usage: bouncer coordinate revise
-  --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... --reason <text>
+  --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... [--new-path <p>]... --reason <text>
   ${COORDINATE_FENCE_NOTE}
   Record one scope decision in the task document and ledger.
   --paths replaces the whole scope with exactly the given set; pass every path
   the task still needs, not only new ones (dropped paths are reported as warnings).
+  --paths entries must be tracked at integration HEAD (scope-path-untracked otherwise).
+  --new-path <p> adds a file to be created; its parent directory must be tracked
+  (scope-new-path-parent-missing otherwise). Final scope is --paths plus --new-path.
   Takes no --repo: the write boundary is the current directory, so
   run it from the assigned task worktree, not the main checkout.
 `,
@@ -441,6 +446,8 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
       + '             --summary <text> --paths <p> --decision <reason>\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Add one audited repair task and move the terminal CI dependency.\n'
+      + '             [--verify <argv>] [--new-path <p>]...  (--verify is required on scoped_terminal:\n'
+      + '             one command that checks only the failing files; --paths must be tracked files)\n'
       + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>\n'
       + '             --paths <p> --decision <reason> --resume-task <ddd>\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
@@ -465,6 +472,10 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
   --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Add one audited repair task and move the terminal CI dependency.
+  [--verify <argv>] [--new-path <p>]...: --verify is the repair task's own single command
+  (required on scoped_terminal blueprints; must not be the terminal command or chain shell
+  operators). --paths must be tracked at integration HEAD; --new-path adds a file to create
+  whose parent directory is tracked. --verify cannot be used with --resume-task.
   --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
   --paths <p> --decision <reason> --resume-task <ddd> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Rework an existing integrated task inside its approved scope: no new task, DAG unchanged.
@@ -824,12 +835,32 @@ function cmdCoordinate(rest: string[], io: CliIo) {
         return failCoordinateUsage(io, `coordinate repair: --${name} requires a value\n`, command);
       }
     }
+    // --verify는 새 repair task 문서에 쓸 단일 argv다. 값 없는 플래그가 조용히
+    // 생략으로 접히면 scoped_terminal 거절이 엉뚱한 사유로 보이므로 usage(2)로 끝낸다.
+    // --resume-task는 기존 task를 되살릴 뿐 새 verify를 쓰지 않아 함께 쓸 수 없다.
+    if (Object.prototype.hasOwnProperty.call(f, 'verify')
+      && (typeof f.verify !== 'string' || f.verify.trim() === '')) {
+      return failCoordinateUsage(io, 'coordinate repair: --verify requires a value\n', command);
+    }
+    if (Object.prototype.hasOwnProperty.call(f, 'verify')
+      && Object.prototype.hasOwnProperty.call(f, 'resume-task')) {
+      return failCoordinateUsage(
+        io, 'coordinate repair: --verify cannot be combined with --resume-task\n', command,
+      );
+    }
     if (Object.prototype.hasOwnProperty.call(f, 'resume-task')
       && Object.prototype.hasOwnProperty.call(f, 'disposition')) {
       return failCoordinateUsage(
         io, 'coordinate repair: --resume-task and --disposition are mutually exclusive\n', command,
       );
     }
+  }
+  // --new-path는 반복 플래그라 값 없는 occurrence가 유효한 다른 값 뒤에 숨을 수 있다.
+  // 발생 횟수와 수집된 값 수가 다르면 조용히 버리지 않고 usage(2)로 끝낸다.
+  if ((command === 'repair' || command === 'revise')
+    && rest.slice(1).filter((tok) => tok === '--new-path').length
+      !== collectPathValues(rest.slice(1), '--new-path').length) {
+    return failCoordinateUsage(io, `coordinate ${command}: --new-path requires a value\n`, command);
   }
   if (command === 'worker-model' || command === 'worker-tokens') {
     // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
@@ -908,6 +939,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       blueprint: f.blueprint,
       task: typeof f.task === 'string' ? f.task : undefined,
       paths: collectPathValues(rest.slice(1)),
+      newPaths: collectPathValues(rest.slice(1), '--new-path'),
       reason: typeof f.reason === 'string' ? f.reason : undefined,
     }) as { ok: boolean; reason?: string; paths?: string[] };
     if (!result.ok) {
@@ -1000,6 +1032,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       failureCommand: typeof f['failure-command'] === 'string' ? f['failure-command'] : undefined,
       summary: typeof f.summary === 'string' ? f.summary : undefined,
       paths: collectPathValues(rest.slice(1)),
+      newPaths: collectPathValues(rest.slice(1), '--new-path'),
+      verify: typeof f.verify === 'string' ? f.verify : undefined,
       findings: collectFindingValues(rest.slice(1)),
       reviewFindings: collectReviewFindingValues(rest.slice(1)),
       kind: repairKind,

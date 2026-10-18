@@ -3,6 +3,7 @@
 import fs = require('node:fs');
 import path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { execFileSync: realExecFileSync } = require('node:child_process');
 import paths = require('./paths');
 const { epicDirOf, toPosix } = paths;
 import layout = require('./layout');
@@ -646,6 +647,45 @@ function lockedTaskWrite(
   });
 }
 
+/** `trackedScopeViolations`가 쓰는 execFileSync 호환 실행기(테스트에서 주입). */
+type TrackedExec = (file: string, args?: readonly string[], options?: {
+  cwd?: unknown; encoding?: unknown; stdio?: unknown;
+}) => string | Buffer;
+
+/**
+ * scope 경로가 integration HEAD에서 실제로 추적되는지 검사한다. coordinator가
+ * 존재하지 않는 파일을 추측해 `--paths`로 넘기면 worker가 그 경로를 만들 수
+ * 없어 재배정이 반복되므로, 생성 시점에 `git ls-files`로 걸러 낸다.
+ *
+ * - `paths`: 이미 있어야 하는 경로. `git ls-files -- <p>`가 0줄이면 untracked.
+ * - `newPaths`: 새로 만들 파일. 파일 자신은 없어도 되지만 부모 디렉터리는 추적
+ *   파일의 조상이어야 한다(저장소 루트 직하 파일은 부모가 루트라 통과).
+ * git 실행 실패는 삼키지 않고 그대로 던진다 — "추적 안 됨"으로 접으면 저장소
+ * 오류가 경로 오류로 오진된다.
+ *
+ * @param {TrackedExec} exec - execFileSync 호환 실행기
+ * @param {string} integrationPath - integration worktree 절대 경로
+ * @param {string[]} paths - 추적돼야 하는 경로
+ * @param {string[]} newPaths - 새로 만들 경로
+ * @returns {{ untracked: string[], parentMissing: string[] }} 위반 항목(입력 표기 그대로)
+ */
+function trackedScopeViolations(
+  exec: TrackedExec,
+  integrationPath: string,
+  paths: string[],
+  newPaths: string[],
+): { untracked: string[]; parentMissing: string[] } {
+  const tracked = (entry: string): boolean => String(exec(
+    'git', ['ls-files', '--', entry], { cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+  )).trim() !== '';
+  const untracked = paths.filter((entry) => !tracked(entry));
+  const parentMissing = newPaths.filter((entry) => {
+    const parent = path.posix.dirname(path.posix.normalize(toPosix(entry).replace(/\/+$/, '')));
+    return parent !== '.' && !tracked(`${parent}/`);
+  });
+  return { untracked, parentMissing };
+}
+
 /**
  * coordinator가 실행 중 발견한 필수 경로로 task scope를 갱신한다.
  * task 문서와 ledger를 같은 revision으로 옮기고, 이유 없는 변경은 거절한다.
@@ -659,16 +699,21 @@ function lockedTaskWrite(
  *   warnings?: Array<{code: 'scope-paths-dropped', paths: string[]}>}
  *   | {ok: false, reason: string}}
  */
-function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }: {
-  repoRoot: unknown; blueprint: unknown; task: unknown; paths: unknown; reason: unknown;
+function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths, reason, exec }: {
+  repoRoot: unknown; blueprint: unknown; task: unknown; paths: unknown; newPaths?: unknown; reason: unknown;
+  exec?: TrackedExec;
 }) {
   const taskId = coordinatorTaskId(task);
   if (!taskId) return { ok: false, reason: 'task-required' };
   const why = typeof reason === 'string' ? reason.trim() : '';
   // 이유 없는 scope 변경은 감사할 수 없다 — 기록이 곧 권한이다.
   if (!why) return { ok: false, reason: 'decision-reason-required' };
-  const next = (Array.isArray(nextPaths) ? nextPaths : [])
+  const strings = (value: unknown): string[] => (Array.isArray(value) ? value : [])
     .filter((entry): entry is string => typeof entry === 'string' && entry !== '');
+  const existing = strings(nextPaths);
+  const created = strings(newPaths);
+  // 최종 scope는 --paths ∪ --new-path다(중복은 한 번만).
+  const next = [...new Set([...existing, ...created])];
   if (next.length === 0) return { ok: false, reason: 'scope-paths-required' };
   const globs = globScopePaths(next);
   if (globs.length > 0) {
@@ -705,6 +750,22 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
       : [];
     const previous = entry.scope ? entry.scope.paths : declared;
     const revision = nextRevision(ledger.revision);
+
+    // 추적 검사는 task 문서·ledger 쓰기보다 앞선다: 거절된 revise가 바이트를
+    // 바꾸면 안 된다. 기준은 worker가 아니라 integration HEAD다 — worker
+    // worktree는 아직 통합되지 않은 파일을 가질 수 있어 근거가 되지 못한다.
+    const integrationPath = coordinatorPaths(repoRoot, blueprint, null)?.paths.integrationPath;
+    if (integrationPath) {
+      const violations = trackedScopeViolations(
+        exec || realExecFileSync, integrationPath, existing, created,
+      );
+      if (violations.untracked.length > 0) {
+        return { ok: false, reason: 'scope-path-untracked', paths: violations.untracked };
+      }
+      if (violations.parentMissing.length > 0) {
+        return { ok: false, reason: 'scope-new-path-parent-missing', paths: violations.parentMissing };
+      }
+    }
 
     // 문서를 먼저 쓰면 안 된다. 여기서 잠금을 잃은 writer는 ledger에 결코 기록되지
     // 않을 revision을 문서에만 남기고, 그 task는 ledger와 어긋난 stale 상태가 된다.
@@ -829,6 +890,7 @@ export = {
   readCoordinatorLedger,
   coordinatorContext,
   reviseTaskScope,
+  trackedScopeViolations,
   recordActualPaths,
   withLedgerLock,
 };

@@ -673,7 +673,7 @@ function checkScopedTerminalPolicy(
     if (kind === 'verification') terminals.push(doc);
     else if (kind === 'commit') commits.push(doc);
   }
-  const normalize = (value: unknown) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '');
+  const normalize = (value: unknown) => commandArgv.normalizeVerifyCommand(value as string);
   const terminalCommands = new Set(terminals.map((doc) => normalize(bouncerOf(doc).verify)));
 
   for (const doc of commits) {

@@ -63,6 +63,10 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+repair의 `--paths`는 실패 증거·debugger 보고에 나온 integration HEAD 추적 파일에서만
+가져오고(없는 파일은 `--new-path`, 부모 디렉터리가 추적돼야 한다), `scoped_terminal`에서는
+원인 파일만 검사하는 단일 명령을 `--verify`로 넘긴다. 어긋나면 CLI가 쓰기 전에 거절한다.
+
 terminal 실패는 새 repair task를 만들기 전에 원인을 먼저 가른다. 원인이 이미 통합된 task의
 코드이면 `coordinate repair --task <terminal> --resume-task <ddd>`로 그 기존 task를 승인
 scope 안에서 재배정한다(task 수·ID·DAG·scope 불변, lease generation 갱신, 현재 integration

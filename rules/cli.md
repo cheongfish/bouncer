@@ -109,7 +109,9 @@ bouncer coordinate promote-stop --blueprint <dir> \
   --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
   --summary <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
-  --summary <text> --paths <p> --decision <reason>
+  --summary <text> --paths <p> --decision <reason> [--verify <argv>] [--new-path <p>]...
+bouncer coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--new-path <p>]... \
+  --reason <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
@@ -208,6 +210,18 @@ and returns a fresh checkpoint (`ok: false` with `ledger-mode-mismatch` or
 per session (`docs/configuration.md`).
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
+`coordinate repair` and `coordinate revise` accept only paths tracked at the
+integration HEAD: an untracked `--paths` entry is refused with
+`scope-path-untracked` (the output lists it in `paths`), and a `--new-path` file
+to create needs a tracked parent directory or it is refused with
+`scope-new-path-parent-missing`. On a `scoped_terminal` blueprint `repair`
+also needs `--verify <argv>`, one command that checks only the failing files:
+`repair-verify-required` when missing, `repair-verify-not-single-argv` for shell
+operators or an empty value, `repair-verify-is-terminal` when it equals the
+terminal command. A legacy blueprint keeps the terminal verify unless `--verify`
+is given (then only the single-argv check applies). `--verify` cannot be
+combined with `--resume-task`, and a valueless `--verify` or `--new-path`
+exits 2. All of these refuse before the ledger or task documents change.
 Use `coordinate revise` only from the assigned worker worktree with a reason
 and explicit source paths. A `partial-close` requires the workflow's explicit
 user confirmation and is unresolved handoff, not ordinary completion.
