@@ -548,6 +548,7 @@ test('run preflight with an approved blueprint and non-active ledger → reports
   const cases = [
     ['awaiting_confirmation', 'awaiting-confirmation'],
     ['partial_closed', 'partial-closed'],
+    ['detached', 'run-detached'],
   ];
   for (const [ledgerStatus, reason] of cases) {
     const repo = makeRepo();

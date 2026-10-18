@@ -435,6 +435,13 @@ function assertLedgerFence(opts: {
   if (ledgerBytesHash(ledgerBytes) !== ledgerHash) {
     return { ok: false, reason: 'stale-ledger-checkpoint' };
   }
+  // 분리된(`run detach`) 실행은 모든 fenced mutation(prepare·dispatch·report·record·
+  // integrate·repair·revise·supplement·session-open)에서 거절한다. mutation마다 검사를
+  // 복제하면 새 명령이 빠뜨리기 쉬워, 모든 쓰기가 반드시 지나는 fence 끝에 둔다.
+  // hash가 맞은 bytes만 여기까지 오므로 호출자가 본 원장과 같은 내용을 판정한다.
+  // 파싱 실패는 흡수하지 않는다 — 호출자가 이미 같은 bytes를 JSON.parse했다.
+  const parsed = JSON.parse(ledgerBytes.toString('utf8')) as { status?: unknown };
+  if (parsed && parsed.status === 'detached') return { ok: false, reason: 'run-detached' };
   return { ok: true };
 }
 
@@ -5167,6 +5174,11 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'This light ledger is already promotion_stopped with a different reason or summary.',
     next: 'Keep the recorded promotion snapshot; replan as full with a new bootstrap and '
       + '`bouncer current --set` after the user approves.',
+  },
+  'run-detached': {
+    cause: 'This run was detached with `bouncer run detach`; its ledger is preserved but no longer driven.',
+    next: 'Finalize with `bouncer current --set <blueprint>` then /bouncer-finalize, or plan new work; '
+      + 'do not retry coordinate mutations on this blueprint.',
   },
   'promotion-stopped': {
     cause: 'This light ledger was stopped for promotion; light mutations are refused.',

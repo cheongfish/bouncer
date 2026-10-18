@@ -56,7 +56,10 @@ follows the exception below.
 
 `--clear` (owned by `bouncer finalize --yes`) removes only the currently
 selected key. Workflows do not write a replacement empty pointer, and they do
-not clear every namespace key in the Git common directory.
+not clear every namespace key in the Git common directory. The one other
+deletion is `bouncer run detach --blueprint <dir> --yes`: after explicit user
+approval it removes exactly that blueprint's key (nothing else, no legacy file)
+and keeps the ledger. It never moves or writes a pointer.
 
 The legacy file `bouncer/current` remains readable. The first successful
 `--set` migrates it into the target namespace key and deletes the legacy file

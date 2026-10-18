@@ -119,6 +119,16 @@ test('a boundary refusal with nothing staged → still names its cause', () => {
   });
 });
 
+test('a detached run context → leaves the approved-scope judgment unchanged', () => {
+  const res = checkCommitSafety({
+    files: ['src/auth/login.ts'],
+    affectedPaths: ['src/auth/'],
+    blueprintDir: BP,
+    coordinator: { ...COORD, active: false, reason: 'run-detached' },
+  });
+  assert.deepStrictEqual(res, { allow: true, violations: [] });
+});
+
 // coordinator 원장은 실행 상태이지 커밋 대상이 아니다. integration worktree
 // 자신의 커밋 범위에서 원장이 스테이징돼도 out-of-scope로 보고하지 않는다.
 test('the coordinator ledger → is not a scope violation', () => {

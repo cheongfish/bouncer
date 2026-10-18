@@ -13,6 +13,8 @@ After `--yes`, run cleanup from the main worktree, not a checkout you are removi
 
 On `ok: false`, report `reason` and leave the worktrees and the ledger; do not run step 5 `--set`.
 
+**Detached run.** A ledger with `status: detached` (from `bouncer run detach`, which the user approved after a Git merge) is still a preserved drive: its ledger and worktrees are untouched and its pointer key was removed. If the user finalizes it, they first run `bouncer current --set <blueprint>`; `release-main` and `finalize` judge it by the same rules as any ledger (every task `integrated`). Detach itself is neither verification nor finalize, so do not report it as either.
+
 **Drive inventory.** A coordinator drive leaves one integration worktree and one worker worktree per prepared task. Preserve the whole inventory — and the ledger inside the integration worktree — whenever the drive stopped as blocked, a task is still open, or the integration head is unverified: those checkouts are the recovery state, not leftovers. Cleanup is for a closed blueprint only. A `drive-not-closed` refusal from `release-main` yields the same preservation.
 
 Resolve `worktreePathFor` for a single execute checkout, always with `--force`:

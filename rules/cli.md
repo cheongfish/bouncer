@@ -19,6 +19,7 @@ bouncer commit --blueprint <dir> [--yes]
 bouncer finalize --blueprint <dir> [--yes]
 bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
+bouncer run detach --blueprint <dir> --yes [--reason <text>]
 ```
 
 `run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
@@ -36,11 +37,34 @@ with `expected` (the pointer blueprint) and `actual` (the `--blueprint` input,
 no trailing slash, differs from the normalized pointer blueprint, resolves
 outside the repo, or (when it exists) its realpath is outside the repo realpath,
 (4) `delegable:false` from the ledger status: `promotion-stopped`,
-`awaiting-confirmation`, `partial-closed`, (5) `delegable:false` from the
+`awaiting-confirmation`, `partial-closed`, `run-detached`, (5) `delegable:false` from the
 blueprint document status when it is not `approved`: `blueprint-closed`,
 `blueprint-partial-closed`, `blueprint-draft`, `blueprint-superseded`,
 `blueprint-imported`, `blueprint-status-unknown`, (6) `delegable:false`
 `no-open-task`. Every `delegable:false` refusal also has `direct_eligible:false`.
+
+`run detach` closes out a drive whose implementation was already merged by Git
+but whose integration ledger still blocks main-checkout commits with
+`main-worktree-source-write`. Run it in the main checkout only after the user
+approves. It keeps the ledger file, integration and worker worktrees, and
+branches; appends one `detached` decision (`at`, `reason`, `integration_head`,
+`main_head`, `previous_status`; heads are observations, not merge proof) and sets
+ledger `status: detached`; and removes only this blueprint's pointer key.
+Success prints `{ ok, ledger, pointer_removed, next }`; a second run is a
+no-op with `already: true`. It writes no verification, review, or task status
+and is not a finalize. Refusals (exit 1, ledger and pointers unchanged):
+`detach-confirmation-required` (no `--yes`), `no-ledger`, `unreadable-ledger`,
+`detach-worker-in-flight` (lists task ids whose dispatch is `active`/`reported`
+or whose status is `prepared`/`recorded`), `detach-awaiting-confirmation`.
+A missing `--blueprint` or unknown `run` subcommand exits 2. On a detached
+ledger `coordinate next` and every fenced mutation (`prepare`, `dispatch`,
+`report`, `record`, `integrate`, `repair`, `revise`, supplement, `session-open`)
+refuse with `run-detached`, and worker `revise` write boundaries do too. To
+finalize, set the pointer with `bouncer current --set <dir>` and run
+`/bouncer-finalize`; finalize rules are unchanged. The
+`main-worktree-source-write` refusal (hook message and `commit` `recovery.next`)
+carries a `next`: `run detach` when every commit task is `integrated`,
+otherwise "work in the execution worktree or continue `/bouncer-run`".
 
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
 `plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
@@ -100,7 +124,7 @@ Do not scaffold tasks into a closed blueprint.
 ## Pointer, worktree, and coordinator commands
 
 ```sh
-bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
+bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
 bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
@@ -167,6 +191,13 @@ implementer fills with its final report; `coordinate next` carries the same
 non-empty regular file, otherwise `absent` (missing, empty, directory, an older
 attempt's file, or a stat error). It is computed at projection time and never
 stored in the ledger.
+
+At the base checkout, `current --set` that would add a new key beside an
+existing one is refused with `CURRENT_WOULD_BE_AMBIGUOUS` (exit 1, pointer
+unchanged, `next` lists the commands); pass `--replace` to swap the uniquely
+selected key or `--keep-others` to keep parallel keys deliberately.
+`prepare` refuses with `unassigned-worker-worktree` (`workerPath`) when a worker
+path exists on disk but is not a registered worktree, before creating anything.
 
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns

@@ -146,6 +146,11 @@ test('usage → run preflight --blueprint를 나열한다', () => {
   assert.match(r.out, /run\s+preflight --blueprint <dir>/);
 });
 
+test('usage → run detach --blueprint --yes를 나열한다', () => {
+  const r = capture([]);
+  assert.match(r.out, /detach --blueprint <dir> --yes \[--reason <text>\]/);
+});
+
 test('usage → current --replace와 --keep-others를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /current\s+\[--set <blueprint dir>.*\[--replace\].*\[--keep-others\]/s);

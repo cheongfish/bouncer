@@ -118,7 +118,7 @@ function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }: {
 type LedgerTask = Pick<
   CanonicalTask,
   'id' | 'status' | 'workerPath' | 'sha' | 'depends_on' | 'parallel_safe' | 'dependency_gate'
-  | 'scope' | 'actualPaths' | 'decisions' | 'affected_paths' | 'lease'
+  | 'scope' | 'actualPaths' | 'decisions' | 'affected_paths' | 'lease' | 'execution_kind'
 >;
 // 디스크 파일은 어떤 필드든 빠져 있을 수 있어 정본을 전부 선택 필드로 읽는다.
 // `version`은 정본이 리터럴 1이지만 읽기에서는 다른 버전도 받아야 하므로 number로 넓힌다.
@@ -355,6 +355,43 @@ function writeLedger(file: string, data: Ledger): void {
   fs.renameSync(temporary, file);
 }
 
+/**
+ * `bouncer run detach`가 남긴 `detached` 상태인지 본다. 정본 Ledger 타입의 status
+ * union에 아직 이 값이 없어 문자열로 넓혀 비교한다.
+ *
+ * @param {Ledger} ledger - 읽은 원장
+ * @returns {boolean} 분리된 실행이면 true
+ */
+function isDetached(ledger: Ledger): boolean {
+  return (ledger.status as string | undefined) === 'detached';
+}
+
+/**
+ * `main-worktree-source-write` 거절에 붙일 다음 행동 안내를 고른다.
+ * commit hook과 CLI commit이 같은 문구를 쓰도록 한 곳에 둔다.
+ *
+ * 모든 commit task가 `integrated`이면 구현이 끝난 실행이 남은 것이므로(Git 병합 뒤 흔한
+ * 경우) 사용자 승인 뒤 `run detach`를 안내한다. 병합 여부는 여기서 판정하지 않는다 —
+ * 안내일 뿐이고 detach 자체도 병합을 조건으로 보지 않는다.
+ *
+ * @param {{ tasks?: Array<{ status?: string, execution_kind?: string }> }} coordinator - 거절된 컨텍스트
+ * @param {unknown} blueprint - blueprint 상대 경로
+ * @returns {string} 사람이 따라 할 한 줄 안내
+ */
+function mainWorktreeNext(
+  coordinator: { tasks?: Array<{ status?: string; execution_kind?: string }> } | null | undefined,
+  blueprint: unknown,
+): string {
+  const commitTasks = ((coordinator && coordinator.tasks) || [])
+    .filter((item) => item && item.execution_kind !== 'verification');
+  const allIntegrated = commitTasks.length > 0 && commitTasks.every((item) => item.status === 'integrated');
+  if (allIntegrated) {
+    return 'If the Git merge is done, after the user approves run '
+      + `\`bouncer run detach --blueprint ${blueprint} --yes\`; otherwise run /bouncer-finalize.`;
+  }
+  return 'Work in the execution worktree, or continue the drive with /bouncer-run.';
+}
+
 function realOf(target: unknown): string {
   const resolved = path.resolve(String(target));
   try {
@@ -538,7 +575,20 @@ function coordinatorContext({ repoRoot, blueprint, task }: {
   // 할당된 worktree에서 원장이 사라진 상태를 "범위 없음"으로 통과시키지 않는다.
   if (read.status === 'absent') return { ...base, reason: 'missing-coordinator-ledger' };
   const { ledger } = read;
-  if (here === realOf(runtime.projectRoot)) return { ...base, reason: 'main-worktree-source-write' };
+  // 분리된(run detach) 실행은 더 이상 활성 drive가 아니다. 병합 뒤 메인 문서 커밋이
+  // main-worktree-source-write로 영원히 막히지 않게 비활성으로 돌려 일반 scope 판정에 맡긴다.
+  // 위치(main/worker) 판정보다 앞서야 integration·worker cwd도 같은 답을 얻는다 —
+  // 그 cwd의 task 쓰기는 taskWriteBoundary·assignedLedgerTask가 run-detached로 거절한다.
+  if (isDetached(ledger)) return inactiveContext('run-detached');
+  if (here === realOf(runtime.projectRoot)) {
+    // tasks를 함께 실어 거절 안내(mainWorktreeNext)가 병합 뒤 상태인지 판별하게 한다.
+    // 이 거절 경로는 scope를 쓰지 않으므로 tasks 추가가 판정을 바꾸지 않는다.
+    return {
+      ...base,
+      tasks: Array.isArray(ledger.tasks) ? ledger.tasks : [],
+      reason: 'main-worktree-source-write',
+    };
+  }
   if (!inIntegration && !inWorker) return { ...base, reason: 'unassigned-worktree' };
 
   const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
@@ -588,6 +638,12 @@ function taskWriteBoundary({ repoRoot, blueprint, taskId }: {
   if (!paths.workerPath || here !== realOf(paths.workerPath)) {
     return { ok: false as const, reason: 'unassigned-worktree' };
   }
+  // 경계 검사에서 원장 내용은 보지 않는다는 원칙의 유일한 예외: 분리된 실행의 worktree는
+  // 더 이상 task를 쓸 자리가 아니다. 읽기만 하고 잠금·디렉터리는 만들지 않는다.
+  const read = readLedger(paths.ledgerFile);
+  if (read.status === 'ok' && isDetached(read.ledger)) {
+    return { ok: false as const, reason: 'run-detached' };
+  }
   return { ok: true as const, ledgerFile: paths.ledgerFile };
 }
 
@@ -610,6 +666,7 @@ function assignedLedgerTask({ repoRoot, blueprint, taskId }: {
     return { ok: false as const, reason: read.status === 'absent' ? 'missing-ledger' : 'unreadable-ledger' };
   }
   const { ledger } = read;
+  if (isDetached(ledger)) return { ok: false as const, reason: 'run-detached' };
   const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
   const entry = tasks.find((item) => item && item.id === taskId);
   if (!entry) return { ok: false as const, reason: 'task-outside-blueprint' };
@@ -889,8 +946,11 @@ export = {
   coordinatorTaskId,
   readCoordinatorLedger,
   coordinatorContext,
+  mainWorktreeNext,
   reviseTaskScope,
   trackedScopeViolations,
   recordActualPaths,
   withLedgerLock,
+  // run detach가 status 'detached'를 쓴다 — 정본 status union 밖 값이라 unknown으로 받는다.
+  writeLedgerFile: (file: string, data: unknown): void => writeLedger(file, data as Ledger),
 };

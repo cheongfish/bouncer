@@ -297,6 +297,18 @@ test('blueprint next에서 partial_closed → blocked', () => {
   assert.ok(!('tasks' in r) && !('decisions' in r));
 });
 
+test('blueprint next에서 detached → run-detached로 거절하고 원장을 쓰지 않음', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/001-detached';
+  const drive = preparedCommitDrive('bouncer-next-detached-', blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.status = 'detached';
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'run-detached');
+  assert.strictEqual(typeof r.next, 'string');
+});
+
 test('blueprint next에서 promotion_stopped → blocked', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/001-promote-stop';
   const drive = preparedCommitDrive('bouncer-next-promote-', blueprint);

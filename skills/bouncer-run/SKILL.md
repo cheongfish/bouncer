@@ -229,6 +229,15 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.
 
+   **병합 뒤 남은 실행 상태.** 구현을 Git으로 이미 병합했는데 integration ledger가 남아
+   메인 커밋이 `main-worktree-source-write`로 막히면, 사용자에게 상태를 보고하고
+   `bouncer run detach --blueprint <dir> --yes`를 실행해도 되는지 먼저 묻는다.
+   사용자가 명시적으로 승인한 뒤에만 실행한다. detach는 ledger·worktree·branch를
+   지우지 않고 이 blueprint의 포인터 key 하나만 지우며, 검증 성공이나 finalize가
+   아니다. 병합 여부는 detach의 조건도 증거도 아니다. 이후 finalize하려면
+   `bouncer current --set <dir>` 뒤 `/bouncer-finalize`를 쓴다. 이 스킬은 승인 없이
+   detach를 실행하지 않는다.
+
 ## ACQ (AskUserQuestion) gates
 
 Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback. A bare

@@ -22,6 +22,8 @@ import runtimeState = require('./runtime-state');
 const { runtimePaths } = runtimeState;
 import runPreflightMod = require('./run-preflight');
 const { runPreflight } = runPreflightMod;
+import runDetachMod = require('./run-detach');
+const { detachRun } = runDetachMod;
 import subagents = require('./subagents');
 const { resolveSubagentModel } = subagents;
 import codexAgents = require('./codex-agents');
@@ -227,8 +229,9 @@ function cmdProjectRoot(rest: string[], io: CliIo) {
 }
 
 /**
- * `run preflight`만 받는다. 정규화 JSON을 stdout에 내고, 거절은 같은 채널의
- * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ * `run preflight`와 `run detach`를 받는다. 정규화 JSON을 stdout에 내고, 거절은 같은
+ * 채널의 `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ * detach는 사용자 승인(`--yes`)을 detachRun이 확인한다 — 여기서 승인을 추정하지 않는다.
  *
  * @param {string[]} rest - 서브커맨드와 플래그
  * @param {CliIo} io - stdout/stderr 싱크
@@ -237,15 +240,30 @@ function cmdProjectRoot(rest: string[], io: CliIo) {
 function cmdRun(rest: string[], io: CliIo) {
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
-  // preflight만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+  // preflight·detach만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
   // 구분해, 없는 동사를 drive 쓰기로 착각하지 않게 한다.
-  if (command !== 'preflight') {
-    io.err('run: command must be preflight\n');
+  if (command !== 'preflight' && command !== 'detach') {
+    io.err('run: command must be preflight|detach\n');
     return 2;
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
     io.err('run: --blueprint is required\n');
     return 2;
+  }
+  if (command === 'detach') {
+    try {
+      const result = detachRun({
+        repoRoot: (f.repo || process.cwd()) as string,
+        blueprint: f.blueprint,
+        reason: typeof f.reason === 'string' ? f.reason : undefined,
+        yes: f.yes === true,
+      });
+      io.out(`${JSON.stringify(result, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    } catch (error) {
+      io.err(`run detach: ${catchMessage(error)}\n`);
+      return 1;
+    }
   }
   try {
     const result = runPreflight({
@@ -487,6 +505,9 @@ export = {
     run: cmdRun,
     usage: `  run        preflight --blueprint <dir>
              Print pointer, open tasks, DAG, ready wave, and autonomy as JSON.
+             detach --blueprint <dir> --yes [--reason <text>]
+             After the user approves, keep the ledger, mark the run detached, and remove only this
+             blueprint's pointer key. Refused while a worker is in flight or awaiting confirmation.
 `,
   },
 };

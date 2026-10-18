@@ -7,7 +7,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import coordinator = require('./coordinator');
 const {
   registeredIntegration, ensureIntegrationCwd, assertLeaseShape,
-  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
+  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf,
   loadLedgerBytes, readBouncerBlock, projectCheckpoint, COORDINATE_FAILURE_HINTS,
 } = coordinator;
 import runtime = require('./runtime-state');
@@ -509,6 +509,8 @@ function decideNext(opts: {
   if (!leaseShape.ok) return fail(leaseShape.reason);
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   const ledger = loaded.ledger as Ledger;
+  // 분리된 실행은 다음 행동을 정하지 않는다(task 범위 포함). finalize 또는 새 계획으로 안내한다.
+  if ((ledger.status as string | undefined) === 'detached') return fail('run-detached');
   const checkpoint = projectCheckpoint(loaded.ledger, integration.ledgerFile, loaded.bytes);
   const ledgerRef = checkpoint.ledger;
   const integrationCwd = integration.integrationPath;
