@@ -53,6 +53,30 @@ const BOUNCER_SCHEMA_VERSION = '0.1';
 const SCALE_ENUM = ['light', 'full'];
 // scaffold가 blueprint에 쓰는 기본값. 경량 선언은 plan이 이 값을 light로 바꾼다.
 const DEFAULT_SCALE = 'full';
+// blueprint `bouncer.verification_policy` 허용값은 하나뿐이다. 구현 task는 자기
+// 전용 `bouncer.verify`를 갖고, 전체 검증은 마지막 verification node에서 한 번
+// 돈다. 키 부재는 정책 이전 계획(legacy)이며 config.verify 폴백과 기존 topology를
+// 그대로 유지한다 — 소급 migration이 없으므로 부재를 새 규칙으로 읽지 않는다.
+const VERIFICATION_POLICY_ENUM = ['scoped_terminal'];
+/**
+ * blueprint `bouncer` 블록의 검증 정책을 해석한다.
+ * 소비자(plan gate·verify 명령 선택·coordinator)가 같은 판정을 쓰도록 한 곳에 둔다.
+ *
+ * @param {unknown} bouncer - blueprint index.md의 bouncer 객체
+ * @returns {'scoped_terminal' | 'legacy' | null} 키 부재·비객체는 legacy,
+ *   허용값은 그대로, 허용 밖의 값(null 포함)은 null — 호출자가 명시적으로 거절한다
+ */
+function verificationPolicyOf(bouncer) {
+    if (bouncer == null || typeof bouncer !== 'object' || Array.isArray(bouncer))
+        return 'legacy';
+    const rec = bouncer;
+    if (!Object.prototype.hasOwnProperty.call(rec, 'verification_policy'))
+        return 'legacy';
+    const value = rec.verification_policy;
+    return VERIFICATION_POLICY_ENUM.includes(value)
+        ? value
+        : null;
+}
 // finalize가 읽되 scaffold가 비우면 항상 'feat' 폴백으로 떨어지던 구멍 —
 // blueprint에 기본 commit_type을 써 둔다. 값 검사는 TASKS-001 branch helper가
 // 새 worktree 생성 전에 맡아, coordinator와 다른 소비자가 다른 이름을 만들지 않는다.
@@ -192,6 +216,7 @@ module.exports = {
     OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, KIND_TO_TYPE,
     LEGACY_GUIDANCE, detectLegacyFormat,
     BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
+    VERIFICATION_POLICY_ENUM, verificationPolicyOf,
     AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
     DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
     DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,

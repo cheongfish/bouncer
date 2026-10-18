@@ -10,7 +10,7 @@ const { prepareFinalizeDigest } = finalizeDigestMod;
 const finalizePrMod = require("./finalize-pr");
 const { resolveExplainLinks } = finalizePrMod;
 const commit = require("./commit");
-const { commitTask } = commit;
+const { commitTask, commitExceptionResult } = commit;
 const seedWorktreeMod = require("./seed-worktree");
 const { seedWorktree } = seedWorktreeMod;
 const importHistory = require("./import-history");
@@ -32,13 +32,27 @@ function cmdCommit(rest, io) {
         io.err('commit: --blueprint is required\n');
         return 2;
     }
-    const result = commitTask({
-        repoRoot: (f.repo || process.cwd()),
-        blueprintDir: f.blueprint,
-        // === true: parseFlags가 값 없는 --yes만 boolean으로 둔다. `--yes 1` 같은
-        // 문자열은 동의로 치지 않아 실수 커밋을 막는다.
-        yes: f.yes === true,
-    });
+    let result;
+    try {
+        result = commitTask({
+            repoRoot: (f.repo || process.cwd()),
+            blueprintDir: f.blueprint,
+            // === true: parseFlags가 값 없는 --yes만 boolean으로 둔다. `--yes 1` 같은
+            // 문자열은 동의로 치지 않아 실수 커밋을 막는다.
+            yes: f.yes === true,
+        });
+    }
+    catch (error) {
+        // git commit hook 거절 등 모든 commitTask 예외를 stdout JSON 실패로 바꾼다.
+        // 그렇지 않으면 stdout이 비어 advance가 unclear-result로 원인을 잃는다.
+        // 플래그 오류는 위에서 이미 반환했고, 예외 종류와 무관하게 사용자에게
+        // 보이는 결과가 같아야 하므로(report-and-stop) 구분 없이 흡수한다.
+        // stage된 경로는 건드리지 않는다.
+        const failure = commitExceptionResult(error);
+        io.err(`commit: ${failure.cause}\n`);
+        io.out(`${JSON.stringify(failure, null, 2)}\n`);
+        return 1;
+    }
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     // 스코프 실패·훅 거절은 게이트 결과(1). 플래그는 이미 통과했으므로 2가 아니다.
     return result.ok ? 0 : 1;
@@ -285,7 +299,7 @@ function cmdExecute(rest, io) {
 const COORDINATE_COMMANDS = [
     'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
     'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-    'promote-stop',
+    'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
 ];
 const COORDINATE_USAGE_OVERVIEW = '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord'
     + '|integrate|status|revoke> --blueprint <dir>\n'
@@ -305,8 +319,9 @@ const COORDINATE_FENCE_NOTE = `${COORDINATE_FENCE} (from coordinate status check
 const COORDINATE_USAGE_BLOCKS = {
     bootstrap: {
         help: `usage: bouncer coordinate bootstrap
-  --blueprint <dir> [--repo <dir>]
+  --blueprint <dir> [--repo <dir>] [--promote-light]
   Seed the integration worktree and ledger. Not ledger-fenced.
+  --promote-light archives a promotion_stopped light ledger and starts a full ledger.
 `,
     },
     prepare: {
@@ -323,12 +338,13 @@ const COORDINATE_USAGE_BLOCKS = {
     },
     dispatch: {
         registry: '  coordinate dispatch --blueprint <dir> --task <ddd> --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             [--repo <main>] [--lease-id <id> --generation <n>]\n'
+            + '             [--repo <main>] [--lease-id <id> --generation <n>] [--model <value>]\n'
             + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n',
         help: `usage: bouncer coordinate dispatch
   --blueprint <dir> --task <ddd> ${COORDINATE_FENCE_NOTE}
-  [--repo <main>] [--lease-id <id>] [--generation <n>]
+  [--repo <main>] [--lease-id <id>] [--generation <n>] [--model <value>]
   Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.
+  --model records the dispatch model argument (\`bouncer subagent-model\` output) on the ledger.
 `,
     },
     report: {
@@ -382,12 +398,15 @@ const COORDINATE_USAGE_BLOCKS = {
         registry: '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
             + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Record one scope decision in the task document and ledger.\n'
+            + '             --paths replaces the whole scope with exactly the given set.\n'
             + '             Takes no --repo: the write boundary is the current directory, so\n'
             + '             run it from the assigned task worktree, not the main checkout.\n',
         help: `usage: bouncer coordinate revise
   --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... --reason <text>
   ${COORDINATE_FENCE_NOTE}
   Record one scope decision in the task document and ledger.
+  --paths replaces the whole scope with exactly the given set; pass every path
+  the task still needs, not only new ones (dropped paths are reported as warnings).
   Takes no --repo: the write boundary is the current directory, so
   run it from the assigned task worktree, not the main checkout.
 `,
@@ -397,6 +416,14 @@ const COORDINATE_USAGE_BLOCKS = {
             + '             --summary <text> --paths <p> --decision <reason>\n'
             + '             --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Add one audited repair task and move the terminal CI dependency.\n'
+            + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>\n'
+            + '             --paths <p> --decision <reason> --resume-task <ddd>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Rework an existing integrated task inside its approved scope (no new task).\n'
+            + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>\n'
+            + '             --paths <p> --decision <reason> --disposition outside_scope\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Record a proven outside-scope terminal failure; the failure itself stays failed.\n'
             + '  coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>\n'
             + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
             + '             --ledger-path <path> --ledger-hash <sha256>\n'
@@ -413,6 +440,13 @@ const COORDINATE_USAGE_BLOCKS = {
   --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
   --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Add one audited repair task and move the terminal CI dependency.
+  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
+  --paths <p> --decision <reason> --resume-task <ddd> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Rework an existing integrated task inside its approved scope: no new task, DAG unchanged.
+  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
+  --paths <p> --decision <reason> --disposition outside_scope ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Record a proven outside-scope terminal failure (cause, failing test and needed change judged outside
+  every task scope). The failure stays failed; --resume-task and --disposition are mutually exclusive.
   --blueprint <dir> [--task <ddd>] --review-finding <id> [--review-finding <id>]...
   --summary <text> --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
   Open a repair task from final-review must_fix findings (omit --task
@@ -467,7 +501,7 @@ const COORDINATE_USAGE_BLOCKS = {
         help: `usage: bouncer coordinate next
   --blueprint <dir> [--task <ddd>] [--repo <dir>]
   Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
-  Blueprint actions: prepare, drive_tasks, integrate, verification_node, supplement, final_review, done, blocked
+  Blueprint actions: prepare, yield, drive_tasks, integrate, verification_node, supplement, final_review, done, blocked
   Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
   Response fields: action, cwd, argv, judge, task_ids, payload, card, checkpoint
   card {id,body} only on: dispatch, implement, verify, review, report, revise, record, supplement, final_review, blocked
@@ -480,10 +514,52 @@ const COORDINATE_USAGE_BLOCKS = {
   --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]
   Not ledger-fenced. Calls coordinate next and runs argv for prepare, integrate,
   verification_node, verify, and commit until a stop or failure.
-  Stop reasons (ok: true): judge, worker, blocked, done, none, max-steps
+  Stop reasons (ok: true): judge, worker, blocked, done, none, max-steps, yield
   Failure reasons (ok: false): repeated-failure, unclear-result, advance-argv-invalid,
   or the automatic action's failure reason.
   Response fields: executed, stop.next (success) or reason, cause, next, executed (failure)
+`,
+    },
+    'session-open': {
+        registry: '  coordinate session-open --blueprint <dir> --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Record a coordinator session boundary before dispatching a new coordinator.\n',
+        help: `usage: bouncer coordinate session-open
+  --blueprint <dir> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Run by the root before dispatching a coordinator session. Appends a session decision
+  (opened_at, integration_head, waves_cap) so coordinate next can count this session's waves.
+  Refused without changing the ledger on a light, promotion_stopped, partial_closed, or
+  awaiting_confirmation ledger.
+`,
+    },
+    'worker-model': {
+        registry: '  coordinate worker-model --blueprint <dir> --role <implementer|reviewer|debugger> --model <value>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256> [--task <ddd>] [--perspective <name>]\n'
+            + '             [--tokens <n>]\n'
+            + '             Record the model argument (and host-reported tokens) of a worker dispatch.\n',
+        help: `usage: bouncer coordinate worker-model
+  --blueprint <dir> --role <implementer|reviewer|debugger> --model <value> ${COORDINATE_FENCE_NOTE}
+  [--task <ddd>] [--perspective <name>] [--tokens <n>] [--repo <dir>]
+  Run from the integration worktree. Appends a worker-model decision (role, model, task,
+  perspective, tokens) to the ledger; --task also appends it to that task. The model is the one-line
+  \`bouncer subagent-model --agent <name>\` output (slug or inherit); it records what the
+  coordinator passed, not proof of what the host ran. --perspective is reviewer-only.
+  --tokens is the host-reported subagent token count (non-negative integer); omit it when the
+  completion notice has not arrived, then add it later with coordinate worker-tokens.
+  Does not change dispatch, lease, status, or attempt state.
+`,
+    },
+    'worker-tokens': {
+        registry: '  coordinate worker-tokens --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256> [--task <ddd>] [--perspective <name>]\n'
+            + '             Append host-reported subagent tokens that arrived after the worker-model record.\n',
+        help: `usage: bouncer coordinate worker-tokens
+  --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n> ${COORDINATE_FENCE_NOTE}
+  [--task <ddd>] [--perspective <name>] [--repo <dir>]
+  Run from the integration worktree. Appends a worker-tokens decision (role, tokens, task,
+  perspective) to the ledger; --task also appends it to that task. Use it when the host's
+  completion notice arrives after the worker-model record. \`metrics summary\` adds it to
+  worker_tokens, never to the coordinator-session total. --perspective is reviewer-only.
+  Does not change dispatch, lease, status, or attempt state.
 `,
     },
     'promote-stop': {
@@ -502,6 +578,7 @@ const COORDINATE_USAGE_BLOCKS = {
 const COORDINATE_REGISTRY_ORDER = [
     'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
     'partial-close', 'critical-recovery', 'revise', 'next', 'advance', 'promote-stop',
+    'session-open', 'worker-model', 'worker-tokens',
 ];
 /**
  * 전역·`coordinate --help`에 쓰는 registry usage. 맵의 registry 조각을
@@ -622,12 +699,13 @@ function cmdCoordinate(rest, io) {
     // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
     const fencedCommands = new Set([
         'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-        'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop',
+        'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
+        'worker-model', 'worker-tokens',
     ]);
     if (!commands.includes(command)) {
         return failCoordinateUsage(io, 'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
             + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, '
-            + 'advance, or promote-stop\n');
+            + 'advance, promote-stop, session-open, worker-model, or worker-tokens\n');
     }
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
         return failCoordinateUsage(io, 'coordinate: --blueprint is required\n', command);
@@ -641,6 +719,12 @@ function cmdCoordinate(rest, io) {
     }
     const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
     const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
+    // worker-model은 fence 플래그 누락을 다른 fenced 명령과 달리 usage(2)로 막는다
+    // (task 002 Interface: --role·--model·fence 플래그 누락은 core 호출 전 exit 2).
+    if ((command === 'worker-model' || command === 'worker-tokens') && (ledgerPath === undefined || ledgerPath === ''
+        || ledgerHash === undefined || ledgerHash === '')) {
+        return failCoordinateUsage(io, `coordinate ${command}: --ledger-path and --ledger-hash are required\n`, command);
+    }
     if (fencedCommands.has(command)) {
         // Interface: 누락은 usage(2)가 아니라 다른 coordinate 거절과 같은 JSON reason + exit 1.
         // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
@@ -692,6 +776,40 @@ function cmdCoordinate(rest, io) {
                 return failCoordinateUsage(io, 'coordinate repair: --done is a flag accepted only with --kind supplement\n', command);
             }
             repairDone = true;
+        }
+        // --resume-task/--disposition은 값이 필요하다. 값 없는 플래그(true)나 둘의 동시 입력이 조용히
+        // 기존 dynamic repair 경로로 접히면 새 task가 생기므로 core에 보내기 전에 usage(2)로 끝낸다.
+        for (const name of ['resume-task', 'disposition']) {
+            if (Object.prototype.hasOwnProperty.call(f, name)
+                && (typeof f[name] !== 'string' || f[name] === '')) {
+                return failCoordinateUsage(io, `coordinate repair: --${name} requires a value\n`, command);
+            }
+        }
+        if (Object.prototype.hasOwnProperty.call(f, 'resume-task')
+            && Object.prototype.hasOwnProperty.call(f, 'disposition')) {
+            return failCoordinateUsage(io, 'coordinate repair: --resume-task and --disposition are mutually exclusive\n', command);
+        }
+    }
+    if (command === 'worker-model' || command === 'worker-tokens') {
+        // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
+        if (typeof f.role !== 'string' || f.role === '') {
+            return failCoordinateUsage(io, `coordinate ${command}: --role is required\n`, command);
+        }
+        if (command === 'worker-model' && !Object.prototype.hasOwnProperty.call(f, 'model')) {
+            return failCoordinateUsage(io, 'coordinate worker-model: --model is required\n', command);
+        }
+        // --tokens는 worker-tokens에서 필수, worker-model에서 선택이다. 있는데 값이 없으면
+        // 조용히 누락으로 접히지 않게 usage(2)로 막는다. 값 형식은 core가 tokens-invalid(1)로 거절한다.
+        if (command === 'worker-tokens' && !Object.prototype.hasOwnProperty.call(f, 'tokens')) {
+            return failCoordinateUsage(io, 'coordinate worker-tokens: --tokens is required\n', command);
+        }
+        // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
+        // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
+        for (const name of ['task', 'perspective', 'tokens']) {
+            if (Object.prototype.hasOwnProperty.call(f, name)
+                && (typeof f[name] !== 'string' || f[name] === '')) {
+                return failCoordinateUsage(io, `coordinate ${command}: --${name} requires a value\n`, command);
+            }
         }
     }
     if (command === 'revoke') {
@@ -839,15 +957,25 @@ function cmdCoordinate(rest, io) {
             reviewFindings: collectReviewFindingValues(rest.slice(1)),
             kind: repairKind,
             done: repairDone,
+            resumeTask: typeof f['resume-task'] === 'string' ? f['resume-task'] : undefined,
+            disposition: typeof f.disposition === 'string' ? f.disposition : undefined,
             outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
             reason: typeof f.reason === 'string' ? f.reason : undefined,
             attempt: attemptNum,
+            // 값 없는 --model(parseFlags가 true)은 ''로 넘겨 core가 model-invalid로 거절하게 한다.
+            // 플래그가 없으면 undefined라 기록하지 않는다.
+            model: Object.prototype.hasOwnProperty.call(f, 'model')
+                ? (typeof f.model === 'string' ? f.model : '') : undefined,
+            role: typeof f.role === 'string' ? f.role : undefined,
+            perspective: typeof f.perspective === 'string' ? f.perspective : undefined,
+            tokens: typeof f.tokens === 'string' ? f.tokens : undefined,
             taskBriefHash: typeof f['task-brief-hash'] === 'string' ? f['task-brief-hash'] : undefined,
             leaseId,
             generation,
             ledgerPath,
             ledgerHash,
             userConfirmed: f['user-confirmed'] === true,
+            promoteLight: f['promote-light'] === true,
         });
         const compact = compactCoordinateOutput(command, result);
         if (result.ok && hasWriteInput) {

@@ -27,13 +27,16 @@ reviewer. This is a read-only pass: do not modify files, commit, or change
   (`single` | `parallel`); leave empty for delta
 - `{{RISK_FLAGS}}` — CLI `risk_flags` array (may be empty); leave empty for
   delta
-- `{{TARGET}}` — frozen target: base, head, brief revision, `task_brief_hash`
+- `{{TARGET}}` — frozen target: base, head, `snapshot_id` and `snapshot_path`
+  from `review-dispatch execute` `target`, brief revision, `task_brief_hash`
   or `task_brief_hashes`, `intent_bundle_id` / `intent_bundles`,
   `intent_bundle_revision`, and latest verify result
 - `{{BRIEF}}` — when `review_scope` is `blueprint`, every commit task brief
-  (Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist)
-  plus the blueprint Contract; when `review_scope` is absent, the pointer
-  task brief (`tasks/<NNN>/tasks.md`) those same sections only
+  (Goal & intent, Current behavior, Target behavior, Interface, Touch, Do not
+  touch, Constraints, Checklist) plus the blueprint Contract; when
+  `review_scope` is absent, the pointer task brief (`tasks/<NNN>/tasks.md`)
+  those same sections only. Omit Current behavior or Target behavior when the
+  brief has none; this list is separate from the `intent_sections` projection
 - `{{INTENT_SECTIONS}}` — role `intent_sections` projection from
   `bouncer intent sections --task <current.task.path> --role reviewer`;
   do not paste the full Explain body here
@@ -71,6 +74,12 @@ reviewer. This is a read-only pass: do not modify files, commit, or change
 ### Target
 {{TARGET}}
 
+Read the change from the frozen snapshot artifact at `snapshot_path` (its
+content and metadata are the judgement basis); do not re-collect it with
+`git diff` or claim the current checkout's content as the snapshot's. When the
+artifact cannot be read or its target disagrees with the base/head above,
+report a reclassification request instead of judging.
+
 The target records the **Latest verification** result alongside its base, head,
 brief revision, `task_brief_hash`, `intent_bundle_id`, and
 `intent_bundle_revision`; do not substitute a later verification result or mix
@@ -102,7 +111,9 @@ test detects a defect without a run that shows it, and do not re-run tests.
 When mode is `discovery`, inspect the frozen target only through the assigned
 perspective. Do not receive or use other reviewers' findings, and do not report
 outside that perspective. Severity is a label, not a filter, within the assigned
-perspective.
+perspective. Do not report a style-only remark, a comment or
+documentation-comment form, or anything the `npm run ci` commands listed in the
+role's Gate-checked items already decide.
 
 - `combined`: apply `spec_scope`, `correctness_tests`, and
   `minimality_maintainability` in one pass. Do not mix in the `security` rubric.
@@ -112,8 +123,7 @@ perspective.
 - `spec_scope`: Missing / Extra / Misunderstood / Constraint breach.
 - `correctness_tests`: logic defects, contract or test breakage, error
   handling, and missing behavior-change tests.
-- `minimality_maintainability`: unnecessary design, explanation for non-obvious
-  logic, and structure.
+- `minimality_maintainability`: unnecessary design and structure.
 - `security`: public-input validation, authentication or authorization bypass,
   credential or sensitive-data exposure/logging, and shell or path injection.
   Use only when the controller assigned this perspective (non-empty
@@ -125,11 +135,12 @@ Under `correctness_tests`, report a new or changed test that violates the
 ### Delta rules
 
 When mode is `delta`, certify previous-finding resolution and regressions in
-`{{REVISION_DIFF}}`. In blueprint review mode the standalone last-commit
-delta still judges the whole-worktree diff (`git diff <base>` plus untracked
-after the fix), not only the repair hunks; `{{REVISION_DIFF}}` remains origin
+`{{REVISION_DIFF}}`. Delta judges the whole change in its own new
+snapshot (taken after the fix; the target carries that `snapshot_id`), not only
+the repair hunks; the previous findings and the previous snapshot are
+comparison evidence only; `{{REVISION_DIFF}}` remains origin
 evidence for new findings. Do not reopen the target as a new discovery pass and do
-not receive a discovery perspective. Do not report a new `minor` or `nit` in
+not receive a discovery perspective. Do not report a new `minor` in
 unchanged code. A new finding must be either:
 
 - `introduced_by_revision`, with the revision-diff location as origin evidence;
@@ -152,7 +163,8 @@ Return **only** a Findings list. For each finding include:
 
 - stable `id` and relation: `new | resolved | regressed | unresolved`
   `unresolved` is a previous finding still present under the same id and not a regression; the controller keeps it `status: open`.
-- `severity`: `blocker | major | minor | nit`
+- `severity`: `blocker | major | minor` (never emit `nit`; it remains only as
+  a legacy recorded value)
 - `category`, `brief_clause`, `file`, `symbol`, and their TASKS-001 fingerprint
   form: `<category>:<brief_clause>:<file>#<symbol>`
 - summary and evidence (`file:line` or concrete diff reference)

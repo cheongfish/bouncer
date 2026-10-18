@@ -6,7 +6,9 @@ const { spawnSync } = require('node:child_process');
 const AUTO_ACTIONS = new Set([
     'prepare', 'integrate', 'verification_node', 'verify', 'commit',
 ]);
-const TERMINAL_ACTIONS = new Set(['blocked', 'done', 'none']);
+// yield는 세션 경계 신호라 실행할 argv가 없다. worker로 오분류되면 coordinator가 없는
+// worker를 찾아 헤매므로 단말 행동으로 둔다 — 정지만 하고 새 세션 여부는 root가 정한다.
+const TERMINAL_ACTIONS = new Set(['blocked', 'done', 'none', 'yield']);
 // fence가 한 박자 늦은 경우만 재시도한다. stale-lease 등은 원장·lease를
 // 다시 읽어도 같은 argv로는 낫지 않아 즉시 실패로 넘긴다.
 const RETRYABLE_REASONS = new Set([
@@ -236,7 +238,8 @@ function advance(opts) {
             }
         }
         if (outcome.kind === 'unclear') {
-            return failAdvance('unclear-result', outcome.detail, 'Inspect the command output, then call coordinate next again.', executed);
+            return failAdvance('unclear-result', outcome.detail, 'Re-read state with coordinate next or coordinate status and run only the action it names; '
+                + 'do not re-run the same mutation argv first.', executed);
         }
         if (outcome.kind === 'failure') {
             return failFromBody(outcome.body, outcome.reason, executed);

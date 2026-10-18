@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 const paths = require("./paths");
 const { toPosix } = paths;
 const validate = require("./validate");
@@ -31,6 +32,7 @@ const { internalCommitEnv } = preCommitHook;
 // finalize → current → coordinator 경로가 이미 있으므로 직접 import해도 새 순환은
 // 없다(coordinator의 import 닫힘에는 finalize가 없다).
 const coordinatorLib = require("./coordinator");
+const execution_contracts_1 = require("./execution-contracts");
 // seed-worktree는 paths·layout·scope만 import하므로 finalize를 끌어와 순환을 만들지 않는다.
 // 설치 판정(lockfile·marker)과 npm ci 인자를 seed/fan-in과 한 구현으로 공유하려는 import.
 const seedWorktree = require("./seed-worktree");
@@ -744,7 +746,13 @@ function buildIntegration(read) {
     const tasks = (Array.isArray(read.ledger.tasks) ? read.ledger.tasks : [])
         .filter((entry) => Boolean(entry) && typeof entry === 'object')
         .map((entry) => asRecord(entry));
-    const open = tasks.filter((entry) => entry.status !== 'integrated');
+    // 입증된 범위 밖 terminal 실패는 완료를 막는 열린 task가 아니라 별도 충족 사유다. 판정은
+    // next·gate·digest와 같은 validOutsideScope를 쓴다. 실패한 terminal은 status가 verifying 그대로다.
+    const classified = tasks
+        .map((entry) => ({ entry, disposition: (0, execution_contracts_1.validOutsideScope)(read.ledger, String(entry.id)) }))
+        .find((row) => row.disposition !== null);
+    const open = tasks.filter((entry) => entry.status !== 'integrated'
+        && !(classified && classified.entry === entry));
     const openTasks = open
         .map((entry) => threeDigitTaskId(entry.id))
         .filter((id) => Boolean(id))
@@ -761,6 +769,75 @@ function buildIntegration(read) {
         headVerified: verification.length === 0
             ? null
             : verification.every((entry) => entry.status === 'integrated'),
+        ...(classified && classified.disposition
+            ? { outsideScope: { task: String(classified.entry.id), disposition: classified.disposition } }
+            : {}),
+    };
+}
+/**
+ * 재실행 출력의 실패 경로가 모두 분류된 범위 밖 경로 안에 있는지 판정한다.
+ * 출력에서 저장소 파일 경로(디렉터리 구분자가 있는 토큰, node_modules·node: 내부 제외)를 뽑아
+ * 하나 이상 있어야 하고 전부 분류 경로(파일 또는 디렉터리)에 속해야 true다. 경로를 하나도 못
+ * 찾거나 분류 밖 경로가 하나라도 있으면 false라 호출자가 VERIFY_FAILED로 막는다(보수적 판정).
+ *
+ * @param {string} output - 재실행 검증 출력
+ * @param {string[]} classified - 분류 당시 기록한 범위 밖 경로
+ * @param {string} repoRoot - 절대 경로 접두를 벗길 저장소 루트
+ * @returns {boolean} 모든 실패 경로가 분류 안이면 true
+ */
+function failuresWithinClassifiedPaths(output, classified, repoRoot) {
+    const root = toPosix(repoRoot).replace(/\/+$/, '');
+    const norm = (value) => value.replace(/^\.\//, '').replace(/\/+$/, '');
+    const allowed = classified.map((entry) => norm(toPosix(entry)));
+    const found = new Set();
+    for (const match of output.matchAll(/[\w@.~:/\\-]*[\w@.-]+\/[\w@./\\-]*[\w-]\.[A-Za-z0-9]+/g)) {
+        let token = toPosix(match[0]).replace(/^file:\/\//, '');
+        if (token.includes('node_modules') || token.startsWith('node:') || /^[a-z]+:\/\//i.test(token))
+            continue;
+        if (token.startsWith(`${root}/`))
+            token = token.slice(root.length + 1);
+        found.add(norm(token));
+    }
+    if (found.size === 0)
+        return false;
+    return [...found].every((token) => allowed.some((entry) => token === entry || token.startsWith(`${entry}/`)));
+}
+/**
+ * finalize remainder 검증 실패가 원장에 입증된 범위 밖 terminal 실패와 같은 원인인지 판정한다.
+ * 원장이 없거나(비-drive) 분류가 없거나 stale이면, 명령이나 종료 코드가 분류된 실패와 다르면 null이라
+ * 호출자는 기존 VERIFY_FAILED로 막는다. 맞으면 이번 실행의 output digest를 원본 evidence id에
+ * 연결한 새 identity를 돌려준다(원문 출력은 싣지 않는다).
+ *
+ * @param {LedgerReadLike} read - finalize가 한 번 읽은 원장 결과
+ * @param {string} command - 이번 remainder 검증 명령
+ * @param {{ exitCode: number, output: string }} execution - 실패한 검증 결과
+ * @param {string} repoRoot - 출력의 절대 경로를 상대 경로로 바꾸는 기준
+ * @returns {RemainderOutsideScope | null} 같은 범위 밖 원인이면 연결 정보, 아니면 null
+ */
+function remainderOutsideScope(read, command, execution, repoRoot) {
+    if (!read.ok)
+        return null;
+    const failure = asRecord(asRecord(read.ledger).terminalFailure);
+    const taskId = typeof failure.task === 'string' ? failure.task : '';
+    const disposition = (0, execution_contracts_1.validOutsideScope)(read.ledger, taskId);
+    if (!disposition)
+        return null;
+    if (failure.command !== command || failure.exitCode !== execution.exitCode)
+        return null;
+    // 같은 명령·종료 코드는 같은 원인의 증거가 못 된다(npm run ci는 새 범위 내 실패도 exit 1이다).
+    // 재실행 출력이 가리키는 실패 경로가 분류 때 기록한 범위 밖 경로에만 한정될 때만 연결한다.
+    if (!failuresWithinClassifiedPaths(String(execution.output), disposition.paths, repoRoot))
+        return null;
+    return {
+        task: taskId,
+        disposition,
+        remainder: {
+            command,
+            exit_code: execution.exitCode,
+            output_sha: createHash('sha256').update(String(execution.output)).digest('hex'),
+            evidence_id: disposition.evidence_id,
+        },
+        note: `범위 밖 실패 evidence ${disposition.evidence_id}는 id로만 PR에 싣고 로컬 경로는 공유 링크에 넣지 않는다.`,
     };
 }
 /**
@@ -841,6 +918,49 @@ function prepareFinalizeDependencies(repoRoot, dependencyExec) {
     return { ok: false, cause };
 }
 /**
+ * 고치지 않고 deferred로 넘긴 must_fix finding인지 판정한다.
+ * actionability가 원문에 없는 legacy finding은 severity로 추정하지 않는다 — 옛 문서의
+ * blocker/major가 모두 미해결 경고로 승격되면 이미 합의된 이월까지 경고가 된다.
+ *
+ * @param {unknown} raw - review findings[]의 원소
+ * @returns {boolean} `actionability: must_fix`이고 `status: deferred`이며 id가 있으면 true
+ */
+function isDeferredMustFix(raw) {
+    const finding = asRecord(raw);
+    return finding.actionability === 'must_fix'
+        && finding.status === 'deferred'
+        && typeof finding.id === 'string' && finding.id !== '';
+}
+/**
+ * blueprint 루트 리뷰 findings에서 미해결 must_fix 경고를 만든다.
+ * finalize dry-run·prepare digest·PR 초안이 모두 이 함수를 써야 세 경로가 같은
+ * id/note를 낸다. 호출자는 blueprint review_scope일 때만 루트 findings를 넘긴다 —
+ * task 범위 리뷰는 경고를 만들지 않는 것이 계약이다. 순수 함수이며 throw하지 않는다.
+ *
+ * @param {unknown} rawFindings - 루트 review.md `bouncer.review.findings`. 배열이 아니면 빈 결과
+ * @returns {MustFixWarning[]} 첫 등장 순서의 고유 id 목록. note가 없으면 빈 문자열
+ */
+function collectMustFixWarnings(rawFindings) {
+    const warnings = [];
+    const seen = new Set();
+    for (const raw of Array.isArray(rawFindings) ? rawFindings : []) {
+        if (!isDeferredMustFix(raw))
+            continue;
+        const finding = asRecord(raw);
+        const id = finding.id;
+        // 같은 finding이 재기록돼도 미해결 항목은 하나다 — counter도 고유 id 수를 센다.
+        if (seen.has(id))
+            continue;
+        seen.add(id);
+        warnings.push({
+            kind: 'must-fix-deferred',
+            id,
+            note: typeof finding.note === 'string' ? finding.note : '',
+        });
+    }
+    return warnings;
+}
+/**
  * blueprint를 닫는다. dry-run은 계획만 보고, `--yes`는 검증·잠금·커밋까지 간다.
  * drive면 원장에서 읽은 정리 목록을 top-level `worktrees`에 싣고 cleanup이
  * 읽게 한다. explain frontmatter에는 쓰지 않는다 — drive 실행 기록은 원장이
@@ -859,7 +979,9 @@ function prepareFinalizeDependencies(repoRoot, dependencyExec) {
  *   verifyExec 주입은 검증만 바꾸며 설치를 생략시키지 않는다
  * @returns {object} 성공이면 `ok: true`와 worktrees·branch, 실패면 reason.
  *   설치 실패는 `reason: 'dependency-install-failed'`·`code: 'DEPENDENCY_INSTALL_FAILED'`와
- *   cause·next·integration·branch로, 검증 실패(`VERIFY_FAILED`)와 구분된다
+ *   cause·next·integration·branch로, 검증 실패(`VERIFY_FAILED`)와 구분된다.
+ *   `VERIFY_FAILED`는 verify 출력 마지막 100줄 이하인 `output_tail: string`을 함께 돌려준다
+ *   (설정 오류·설치 실패 응답에는 이 키가 없다)
  */
 function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, verifyExec, dependencyExec = execFileSync, }) {
     const gitApi = git || realGit(repoRoot);
@@ -976,6 +1098,14 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         ? appendUnique(staged, [explainRel])
         : staged;
     if (!yes) {
+        // blueprint 루트 리뷰가 deferred로 넘긴 must_fix를 --yes 전에 보이게 한다.
+        // 이미 읽은 docs만 쓰고(파일을 다시 읽지 않음), 실제 finalize cwd의 문서를 본다 —
+        // prepare는 integration checkout을 보지만 drive의 finalize cwd도 그 checkout이라 같다.
+        // task 범위(review_scope 부재)는 경고를 만들지 않는다.
+        const bpBouncer = asRecord(asRecord(docs.blueprintIndex && docs.blueprintIndex.data).bouncer);
+        const warnings = bpBouncer.review_scope === 'blueprint'
+            ? collectMustFixWarnings(asRecord(asRecord(asRecord(docs.review && docs.review.data).bouncer).review).findings)
+            : [];
         // 읽기 전용 보고가 config.verify 전체를 끌고 오면 안 되므로 검증도 생략.
         return {
             ok: true,
@@ -987,6 +1117,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             branch,
             worktrees,
             integration,
+            warnings,
         };
     }
     // 빈 커밋 금지: remainder도 잠금도 없으면 stage/commit을 건너뛰고
@@ -1044,13 +1175,22 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         cwd: repoRoot,
         ...(verifyExec ? { exec: adaptInjectedVerifyExec(verifyExec) } : {}),
     });
-    if (!execution.ok) {
+    // remainder 검증이 실패해도 이미 입증된 범위 밖 terminal 실패와 같은 원인이면 PR 인계를 막지 않는다.
+    // 같은 원인의 근거는 명령·종료 코드 일치에 더해 출력의 실패 경로가 분류 경로에 한정되는 것이다.
+    // 명령이나 종료 코드가 다르면 새 실패라 기존처럼 막는다. 새 실행의 output digest를 원본 evidence에
+    // 묶어 새 identity로 남기며, 원본 evidence는 id로만 싣는다(로컬 경로를 공유 링크에 새기지 않는다).
+    const sameCause = !execution.ok ? remainderOutsideScope(ledgerRead, command, execution, repoRoot) : null;
+    if (!execution.ok && !sameCause) {
         return {
             ok: false,
             reason: 'verify',
             code: 'VERIFY_FAILED',
             command,
             exitCode: execution.exitCode,
+            // 종료 코드만으로는 일시적 실패와 회귀를 가를 수 없어, executeVerify가 이미
+            // 100줄로 자른 출력(stdout+stderr tail)을 그대로 싣는다. 새 상수를 두지 않아
+            // task verify 증적의 output_tail과 같은 상한을 공유한다.
+            output_tail: execution.output,
             integration,
             branch,
         };
@@ -1158,6 +1298,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         branch,
         worktrees,
         integration,
+        ...(sameCause ? { outside_scope: sameCause } : {}),
     };
 }
 module.exports = {
@@ -1169,4 +1310,6 @@ module.exports = {
     buildCoordinatorProvenance, collectCoordinatorProvenance,
     // digest가 finalize와 같은 branch 판정을 쓰도록 공개한다.
     resolveCheckoutBranch,
+    // dry-run·prepare digest·PR 초안이 같은 미해결 must_fix 판정을 쓰도록 공개한다.
+    collectMustFixWarnings, isDeferredMustFix,
 };

@@ -56,7 +56,16 @@ user first. Used from `/bouncer-plan`.
     regenerate them, changelog or release-note entries, tests a behavior change
     must bring, and the command the project runs before merge. Write `none
     found` when the project has no such rules.
-11. **Confirmation** — Present the framing (every handoff output) and get
+11. **Evidence** — For a full plan, group candidate paths by shared entry
+    module or call flow into investigation areas. For each area, record its
+    paths, the current HEAD SHA, and four fields: `observations`,
+    `io_coupling`, `tests`, and `unresolved`. Cite each evidence item as
+    `file:line`; if a field has no applicable evidence, state
+    `해당 없음: <이유>`. Keep unresolved questions in `unresolved` for the
+    controller to close. Do not put intent or Explain results in `Evidence`.
+    These areas and paths guide task mapping but do not decide
+    `affected_paths`.
+12. **Confirmation** — Present the framing (every handoff output) and get
     explicit user confirmation before moving on.
 
 ## Question checklist
@@ -97,3 +106,10 @@ Pass these named outputs to `/bouncer-plan` (do not persist them as new files):
 - `Overlap`
 - `Open decisions` (each with the user's answer, or `none`)
 - `Project rules` (or `none found`)
+- `Evidence` — for a full plan, one object per investigation area:
+  `{ area, paths: [<경로>], head: <sha>, observations, io_coupling, tests, unresolved }`.
+  `head` is the HEAD SHA at evidence collection time. Each of the first three
+  fields contains `file:line` evidence or `해당 없음: <이유>`; unresolved items
+  remain listed until the controller closes them. Task ids are assigned later
+  when step 3 maps areas to scaffolded commit tasks. Do not persist this handoff
+  as a file. For a light plan, pass `Evidence` as empty.

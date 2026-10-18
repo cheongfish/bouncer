@@ -9,7 +9,9 @@ the coordinator Hard guards (scope drift).
   --ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`
   from that task's worktree. That command is the only surface that revises
   scope; it moves the task document and the ledger to one revision and appends
-  the decision behind it, which is what makes the widening reviewable. A scope
+  the decision behind it, which is what makes the widening reviewable. `--paths` replaces the task scope with exactly the given set; pass every path
+  the task still needs, not only new ones.
+  A scope
   revision moves the task document and the ledger to one revision and is
   refused without a reason.
 - A revision names repository source paths only — never an absolute or

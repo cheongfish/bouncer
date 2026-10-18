@@ -29,6 +29,23 @@ one-commit review would be hard; it is not a blocking rule, does not invent a
 G/S failure code, and does not change gate success or process exit codes.
 Legitimate wide tasks (bulk renames, migrations) still pass.
 
+## Verification responsibilities
+
+Blueprint `bouncer.verification_policy` is optional and has one value,
+`scoped_terminal`; `bouncer scaffold blueprint` writes it for new plans. A
+blueprint without the key is **legacy**: the `config.verify` fallback and the
+existing topology are unchanged, and nothing is migrated. On a `scoped_terminal`
+blueprint the plan gate (**G20**) requires every commit task to carry its own
+non-empty, single-argv `bouncer.verify` that is not the terminal full-suite
+command, and exactly one terminal verification task that waits (directly or
+transitively) on every commit task. Workers run only their task command; the
+first full verification runs once in the terminal node after every
+implementation task is integrated, and fan-in rejects a worker report whose
+`## Tests` section lacks the assigned command or a passing result. Failure
+recovery re-verification and the finalize remainder verification are separate
+runs. An unknown `verification_policy` value is a **G20** failure, never read
+as legacy.
+
 ## Lightweight cycle
 
 A **lightweight cycle** is in
@@ -66,11 +83,21 @@ What shrinks (five things only):
    create it once with normal numbering, then keep stacking blueprints under it.
    Never close that epic.
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
-   by `skills/bouncer-execute/references/agent-dispatch.md`. A light ledger
+   by `skills/bouncer-run/references/agent-dispatch.md`. A light ledger
    `/bouncer-run` drive follows
    `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
 5. **Quiz size** — light quiz sizing is owned by
    `${BOUNCER_ROOT}/references/explain-diff/index.md`.
+
+The shrunken **scaffold** stays four documents, but a light blueprint that
+declares `bouncer.verification_policy: scoped_terminal` (every newly scaffolded
+blueprint does) is not complete at four: it needs exactly one independent
+implementation task plus one terminal verification task that depends on it
+(`bouncer scaffold task --execution-kind verification --depends-on TASKS-001
+--verify <full command>`, two more documents, outside the 100-line scaffold
+budget). The implementation task carries its own task-only `bouncer.verify`;
+the terminal task carries the full-suite command. A light blueprint without the
+marker keeps the legacy single-task contract and its four documents.
 
 What stays the same:
 
@@ -87,7 +114,7 @@ means authoring the missing sections and running
 If the separation between writer and named reviewer feels too thin, set
 `scale` back to `full` and return to the named-agent path for implement too —
 inline implement limits stay in
-`skills/bouncer-execute/references/agent-dispatch.md`, and a light ledger
+`skills/bouncer-run/references/agent-dispatch.md`, and a light ledger
 `/bouncer-run` path stays in
 `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
 

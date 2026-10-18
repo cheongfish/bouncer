@@ -57,6 +57,7 @@ const ROLE_SECTION_NAMES = {
  * @param {string} input.repoRoot - 저장소 루트
  * @param {string} input.taskFile - repo-relative canonical tasks.md
  * @param {FunctionRequest[]} input.functions - 중복·빈 이름 없는 함수 요청
+ * @param {boolean} [input.allowEmpty] - true일 때만 빈 `functions`를 허용한다(함수 없는 task용)
  * @param {BundleDeps} [input.deps] - fs·Git·resolver 주입(테스트용)
  * @returns {BundleResult} created | reused 와 bundle_id·revision·function entries
  */
@@ -67,7 +68,7 @@ function resolveTaskIntentBundle(input) {
     const runProvenance = deps.resolveIntentProvenance || defaultResolveIntentProvenance;
     const runSymbol = deps.resolveSymbol || resolveSymbol;
     // 1. 요청·경로·stable ID를 먼저 고정한다. 잘못된 입력이면 cache를 읽지도 않는다.
-    const requests = normalizeFunctionRequests(input.functions);
+    const requests = normalizeFunctionRequests(input.functions, input.allowEmpty === true);
     const { repoReal, taskRel, stableTask, taskBriefHash } = loadExecutionTask({
         repoRoot: input.repoRoot,
         taskFile: input.taskFile,
@@ -95,7 +96,8 @@ function resolveTaskIntentBundle(input) {
         expectedTask: stableTask,
         fs: io,
     });
-    if (previous && isCacheHit(previous, liveCoords, repoReal, io)) {
+    if (previous && previous.task_brief_hash === taskBriefHash
+        && isCacheHit(previous, liveCoords, repoReal, io)) {
         return {
             status: 'reused',
             bundle_id: previous.bundle_id,
@@ -145,10 +147,12 @@ function resolveTaskIntentBundle(input) {
  * 정렬은 기록 단계에서만 한다 — 호출 순서를 바꿔 중복 판정을 숨기지 않는다.
  *
  * @param {unknown} functions - 호출자 함수 요청
+ * @param {boolean} allowEmpty - true면 빈 배열을 허용한다. 기본 거절을 유지해
+ *   실수로 빈 요청이 가짜 "함수 없음" bundle로 기록되지 않게 한다.
  * @returns {FunctionRequest[]} 정규화된 요청
  */
-function normalizeFunctionRequests(functions) {
-    if (!Array.isArray(functions) || functions.length === 0) {
+function normalizeFunctionRequests(functions, allowEmpty) {
+    if (!Array.isArray(functions) || (functions.length === 0 && !allowEmpty)) {
         throw new Error('functions must be a non-empty array');
     }
     const seen = new Set();
@@ -789,13 +793,17 @@ function failIntentSections(reason, cause, next) {
 }
 /**
  * 실패 JSON의 next는 호출자가 같은 task에 bundle을 다시 만들게 한다.
- * sections CLI는 --symbol을 받지 않으므로 placeholder를 남긴다.
+ * 저장된 함수 집합이 비었으면 --no-symbols를 안내해 같은 계약으로 복구하게 한다.
  *
  * @param {string} taskFile - repo-relative canonical tasks.md
+ * @param {boolean} hasFunctions - bundle에 기록된 함수가 하나 이상인지
  * @returns {string} `bouncer intent bundle` 복구 명령
  */
-function intentBundleNext(taskFile) {
-    return `bouncer intent bundle --task ${taskFile} --symbol <name>...`;
+function intentBundleNext(taskFile, hasFunctions) {
+    // 빈 함수 bundle은 재시도에서 임의 symbol을 요구하면 계약과 어긋난다.
+    return hasFunctions
+        ? `bouncer intent bundle --task ${taskFile} --symbol <name>...`
+        : `bouncer intent bundle --task ${taskFile} --no-symbols`;
 }
 function isIntentRole(value) {
     return value === 'implementer' || value === 'reviewer' || value === 'debugger';
@@ -804,7 +812,8 @@ function isIntentRole(value) {
  * 캐시된 intent bundle에서 역할 allowlist에 속한 task 절 본문만 골라 JSON 객체를 만든다.
  * Git provenance resolver와 cache write는 타지 않는다 — 판정은 record, 현재 brief
  * 바이트, 현재 Explain 파일뿐이다. historical·unlinked·unresolved·ambiguous는
- * functions에서 빠지고, 역할 절이 없는 resolved 함수는 sections: []로 남는다.
+ * Explain이 없는 historical·unlinked 함수도 구현자의 탐색 좌표에는 남긴다. 위치 목록은
+ * implementer에만 제공해 reviewer/debugger의 기존 응답 계약을 유지한다.
  *
  * @param {object} input - 조회 입력
  * @param {string} input.repoRoot - 저장소 루트
@@ -814,7 +823,7 @@ function isIntentRole(value) {
  * @returns {RoleIntentSectionsResult} ok: true 역할 projection
  */
 function projectRoleIntentSections(input) {
-    const next = intentBundleNext(input.taskFile);
+    let next = intentBundleNext(input.taskFile, true);
     if (!isIntentRole(input.role)) {
         throw new Error('role must be implementer, reviewer, or debugger');
     }
@@ -862,6 +871,7 @@ function projectRoleIntentSections(input) {
     if (!record) {
         failIntentSections('intent-bundle-missing', 'intent bundle cache is missing or invalid', next);
     }
+    next = intentBundleNext(input.taskFile, record.functions.length > 0);
     if (record.task_brief_hash !== loaded.taskBriefHash) {
         failIntentSections('intent-bundle-stale', 'task brief hash does not match the cached intent bundle', next);
     }
@@ -893,7 +903,7 @@ function projectRoleIntentSections(input) {
                 .map((part) => ({ name: part.name, body: part.body })),
         });
     }
-    return {
+    const result = {
         ok: true,
         role: input.role,
         bundle_id: record.bundle_id,
@@ -901,5 +911,13 @@ function projectRoleIntentSections(input) {
         task_brief_hash: loaded.taskBriefHash,
         functions,
     };
+    if (input.role === 'implementer') {
+        // 좌표는 생성 시점 bundle의 원본만 복사한다. unresolved에는 좌표가 없고,
+        // ambiguous는 bundle 생성 단계에서 선택을 거절하므로 후보를 합성하지 않는다.
+        result.symbol_locations = record.functions
+            .filter((entry) => (entry.status === 'resolved' || entry.status === 'unlinked'))
+            .map(({ symbol, function_ref, symbol_ref }) => ({ symbol, function_ref, symbol_ref }));
+    }
+    return result;
 }
 module.exports = { resolveTaskIntentBundle, projectRoleIntentSections };

@@ -18,7 +18,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    repeated start returns the same cycle and resets nothing). That CLI result
    is the only dispatch authority: do not
    merge, split, combine, or divide its clusters, and do not add an extra
-   perspective to a `single` result. When the payload is `ok: false`, or when
+   perspective to the `single` result. When the payload is `ok: false`, or when
    its `target.digest` / document set disagrees with the frozen snapshot,
    or `start` is rejected, stop — do not call a reviewer and do not mark
    `context-review` accepted. A `previous-payload-required`,
@@ -30,34 +30,50 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    return to `/bouncer-plan` step 3 **Author**; after the fix, restart from
    step 1 freeze.
 
-   On `strategy: single`, dispatch one `bouncer-context-reviewer` call with
-   perspective `combined` (all four rubrics). On `strategy: clustered`,
-   dispatch one `local` call per CLI cluster in that same cluster-id order,
-   then one `global` call. Record round 1 perspectives in that CLI dispatch
-   order (`combined`, or each `local` then `global`). Each named call uses
-   `fork_turns: "none"` (exclude full conversation history) and receives only
-   this controller input allowlist: `mode: discovery`, its one perspective,
-   the frozen digest, the document list for that call (combined/global: the
-   full judged epic · blueprint · task set; each `local`: only that cluster's
-   task documents — never another cluster's docs), the cluster id when
-   perspective is `local`, and the read-only cwd. Do not pass the full
-   conversation, another call's findings, the full ledger, or documents
-   outside that judged set. Do not share or pass findings between local
-   calls, or between local and global. Every discovery `target_digest` equals
-   the frozen digest.
+   Every full initial plan review is `strategy: single`, whatever the task
+   count: dispatch one `bouncer-context-reviewer` call with perspective
+   `combined` (both rubrics). A stored payload with `strategy: clustered` from
+   an older cycle is still read, but never produced. Record round 1 with the
+   `combined` perspective. The call uses `fork_turns: "none"` (exclude full
+   conversation history) and receives only this controller input allowlist:
+   `mode: discovery`, the perspective, the frozen digest, the full judged epic
+   · blueprint · task document set, and the read-only cwd. Do not pass the full
+   conversation, the full ledger, or documents outside that judged set. The
+   discovery `target_digest` equals the frozen digest.
+   **Metrics.** Around every reviewer call (discovery and delta) record it:
+   `bouncer metrics start --kind context-review --blueprint <dir> --label <perspective> --target-digest <call target_digest>`
+   just before dispatch, then `bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>`
+   from the host's final task notification once the reviewer's hand-back report has arrived, per item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md` (omit flags the host did not give).
+   Procedure and rules: `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`. A failed `metrics` call
+   never changes the review result.
 3. **Merge** — Verify each finding's evidence. Record `category`,
    `brief_clause`, `file`, `symbol`, and the fingerprint
    `context:<category>:<brief_clause>:<file>#<symbol>` (for example
    `fingerprint: context:scope:blueprint success criteria:.bouncer/context/epics/014-auth/blueprints/001-signup/index.md#success-criteria`);
    merge findings with the
-   same fingerprint into one; record `severity_changes`; set `origin:
+   same fingerprint into one (`context-review record` rejects a round that still holds
+   duplicates, at any status and without writing anything; merge and record the same round again), and check `warnings` in the `context-review record`
+   result (each `finding-merge-candidate` lists findings on the same file and
+   symbol under different categories) to decide whether to merge those too; record `severity_changes`; set `origin:
    discovery`; and decide `actionability` (`must_fix` or `advisory`) from the
    plan and the evidence.
-4. **Revise once** — As `/bouncer-plan` author, edit the plan documents once
-   for all `must_fix` findings together. Record each `advisory` finding as
+4. **Revise once** — As `/bouncer-plan` author, group all `must_fix`
+   findings by target document and edit each document once (several edits in
+   one pass are fine), so the revision is one pass over each document. Record each `advisory` finding as
    `accepted` with a note instead of editing for it. When no `must_fix`
    exists, skip the revision and the delta; the round sequence stays
-   `discovery`.
+   `discovery`. A body-only edit (no frontmatter structure, Interface or Touch
+   change) needs no further review round: certify it with `close` (step 6).
+   Editing a task's `affected_paths`, `depends_on`,
+   `parallel_safe`, `dependency_gate`, `exclusive_resources` or
+   `execution_kind`, a blueprint's `scale` or `review_scope`, or adding or
+   removing a document is a structure change: the next `review-dispatch plan
+   --previous` returns `follow_up: full`, so the round is a restart, not a
+   delta. Editing only bodies, `review_risk`, or epic frontmatter returns
+   `partial` (delta). Put any needed structure change into the one revision. Editing only
+   a task's Interface or Touch body keeps the structure but changes the
+   contract, so `route` returns `delta`; body-only edits elsewhere return
+   `close`.
 5. **Certify the delta** — After the revision, rerun `bouncer review-dispatch
    plan --blueprint <dir> --previous <stored-latest-payload.json>` (the
    payload the last `start`/`record`/`restart` stored; `--previous` is
@@ -79,8 +95,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    restart --blueprint <dir> --dispatch <new-payload.json> --reason <text>`
    (counted once per cycle, archives the earlier rounds and findings) and run
    discovery on the current digest instead. A second restart is rejected:
-   stop and report the rejection to the user. Delta runs once regardless of
-   `single` or `clustered` and of cluster count. Record round 2 as
+   stop and report the rejection to the user. Delta runs once. Record round 2 as
    `mode: delta` with the new digest. Accept a new delta finding only when it
    is `introduced_by_revision` with a revised passage as evidence, or
    `missed_critical` with `blocker` or `major` severity; its
@@ -89,7 +104,15 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    critical recovery. Mark findings the delta certified as `resolved`. When a
    `must_fix` finding stays open after the delta, leave `context-review`
    unaccepted and bring the open finding to the user; only the user's
-   accepted-risk note may record it `accepted`.
+   accepted-risk note may record it `accepted`. Run `bouncer context-review close`
+   only after explicit user approval. `close` and `record --status accepted`
+   certify the current snapshot: they store `closure_target_digest` in the
+   runtime closure and in `context-review.md`, which plan gate G18 compares
+   first (an older document without it falls back to the last round digest).
+   If plan documents are modified after closing the cycle, rerun
+   `bouncer review-dispatch plan --previous <stored-latest.json>` and
+   `bouncer context-review route`: `close` re-certifies a body-only edit,
+   `delta` or `restart` follow the contract or structure change as below.
 
 When the plan gate reports `context review is stale`, rerun
 `bouncer review-dispatch plan --blueprint <dir> --previous <stored-latest-payload.json>`,
@@ -101,8 +124,13 @@ It is read-only, derives `follow_up` from the payload and prints `next_action`
   add no round and overwrite no recorded report;
 - no round is recorded yet, or a `must_fix` finding is still open after the
   delta → `user`: stop and report. A restart does not resolve findings;
-- only discovery is recorded, the cycle is open and `follow_up` is `partial` →
-  `delta` with the allowlist above (do not restart discovery);
+- the structure and the Interface/Touch contract equal the reviewed baseline
+  and only a body changed → `close`: run `bouncer context-review close` again
+  (new `closure_target_digest`, no new round), even on an already closed cycle.
+  `close` refuses a changed structure or contract;
+- only discovery is recorded, the cycle is open and only the Interface/Touch
+  contract changed (`partial`) → `delta` with the allowlist above (do not
+  restart discovery);
 - delta is already used, or the change is structural (`full`) → `restart` while
   `restart_count` is below 1: `bouncer context-review restart` archives the
   earlier rounds first, then discovery runs on the current digest, and the plan
@@ -119,15 +147,13 @@ first writes that call's controller input allowlist (and nothing else) to
 `<out>/input.md`, then runs:
 
 ```bash
-# Run from PROJECT_ROOT. <call> is r1-combined | r1-local-<cluster id> | r1-global | r2-delta
+# Run from PROJECT_ROOT. <call> is r1-combined | r2-delta
 bouncer dispatch print --role context-reviewer --cwd "$PROJECT_ROOT" \
   --input .bouncer/runtime/print/context-review/<cycle id>/restart-<0|1>/<call>/input.md \
   --out .bouncer/runtime/print/context-review/<cycle id>/restart-<0|1>/<call>
 ```
 
-Use `r1-combined` for discovery `combined`, `r1-local-<cluster id>` (for
-example `r1-local-c1`) for each `local`, `r1-global` for `global`, and
-`r2-delta` for the delta; relative `--out` and `--input` resolve from
+Use `r1-combined` for discovery `combined` and `r2-delta` for the delta; relative `--out` and `--input` resolve from
 `PROJECT_ROOT`. Every call uses its own cycle- and restart-qualified directory,
 so a later cycle or restart never reuses or overwrites an earlier output
 directory. `input.md` holds the same allowlist as the named call. The result
@@ -157,10 +183,16 @@ the subagent must not edit documents or flip status, and the controller does
 not hand-write `rounds[]` or `findings[]`. An `accepted` finding requires a
 note. `--status accepted` closes the cycle only when every finding is
 `resolved` or `accepted` with a note; a `must_fix` finding is accepted only
-with `--accept-risk <id>` after the user explicitly approved that risk. The
-returned `projection` is the canonical `rounds`/`findings`; copy it into the
-existing blueprint-root `context-review.md` (body `## Findings` included) and
-only then set `context-review → accepted`. A recorded success is a review
+with `--accept-risk <id>` after the user explicitly approved that risk.
+Alternatively, close an open cycle after the last round using
+`bouncer context-review close --blueprint <dir> --dispositions <json> [--accept-risk <id[,id...]>]`
+with explicit user approval. `--dispositions` takes a JSON array of `{ id, status, note }`.
+The `close` and `record --status accepted` calls that close the cycle write
+the blueprint-root `context-review.md` themselves (`bouncer.context_review`,
+body `## Findings`, `status: accepted`) and return `written`; do not copy the
+returned `projection` by hand. Any `- inline context review: dispatch print
+failed (<reason>)` line already in `## Findings` stays ahead of the generated
+list after close. Run `close` only after explicit user approval. A recorded success is a review
 disposition, not plan approval or a plan gate pass.
 
 When recording finding `note` (and any other author-written frontmatter

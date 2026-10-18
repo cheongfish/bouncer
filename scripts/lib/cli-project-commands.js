@@ -13,12 +13,12 @@ const graphify = require("./graphify");
 const { resolveGraphifyBin } = graphify;
 const migrateTaskLayoutMod = require("./migrate-task-layout");
 const { migrateTaskLayout } = migrateTaskLayoutMod;
+const migrateReviewScopeMod = require("./migrate-review-scope");
+const { migrateReviewScope } = migrateReviewScopeMod;
 const retentionMigration = require("./retention-migration");
 const { auditRetention, migrateRetention } = retentionMigration;
 const runtimeState = require("./runtime-state");
 const { runtimePaths } = runtimeState;
-const graphSearch = require("./graph-search");
-const { graphSuggest } = graphSearch;
 const runPreflightMod = require("./run-preflight");
 const { runPreflight } = runPreflightMod;
 const subagents = require("./subagents");
@@ -59,95 +59,6 @@ function cmdGraphSync(rest, io) {
     // missing은 상태가 아니라 오류가 아니다(그래프 부재). failed만 종료 코드를 가른다.
     io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
     return result.failed.length === 0 ? 0 : 1;
-}
-/**
- * graph-suggest 전용 인자 파서. --seed는 반복 가능해서 parseFlags(마지막 값만
- * 남김)로 처리하지 않는다. 값 없는 --query/--seed는 사용법 오류(exit 2).
- * --debug는 값 없는 singleton boolean — 중복·값 첨부 모두 거절한다.
- *
- * @param {string[]} rest - 서브커맨드 뒤 argv
- * @returns {GraphSuggestArgs} 성공 시 query·seeds·debug, 실패 시 error
- */
-function parseGraphSuggestArgs(rest) {
-    let query = null;
-    let querySeen = false;
-    const seeds = [];
-    let repo;
-    let debug = false;
-    let debugSeen = false;
-    const fail = (message) => ({
-        error: `graph-suggest: ${message}\n`,
-        query,
-        seeds,
-        repo,
-        debug,
-    });
-    for (let i = 0; i < rest.length; i += 1) {
-        const token = rest[i];
-        if (token === '--query') {
-            const value = rest[++i];
-            // 빈 문자열도 거절 — parseFlags는 ''를 값으로 받아 통과시키므로 여기서 막는다.
-            if (value === undefined || value.startsWith('--') || value.length === 0) {
-                return fail('--query requires a non-empty text value');
-            }
-            query = value;
-            querySeen = true;
-            continue;
-        }
-        if (token === '--seed') {
-            const value = rest[++i];
-            if (value === undefined || value.startsWith('--') || value.length === 0) {
-                return fail('--seed requires a value');
-            }
-            seeds.push(value);
-            continue;
-        }
-        if (token === '--repo') {
-            const value = rest[++i];
-            if (!value || value.startsWith('--'))
-                return fail('--repo requires a directory');
-            repo = value;
-            continue;
-        }
-        if (token === '--debug') {
-            // intent --symbol과 같이 singleton. 두 번째 --debug는 덮지 않고 거절한다.
-            if (debugSeen)
-                return fail('duplicate option: --debug');
-            debugSeen = true;
-            const next = rest[i + 1];
-            // `--debug yes`처럼 값이 붙으면 boolean flag 계약을 깨므로 거절한다.
-            if (next !== undefined && !next.startsWith('--')) {
-                return fail('--debug is a boolean flag and does not take a value');
-            }
-            debug = true;
-            continue;
-        }
-        if (token.startsWith('--'))
-            return fail(`unknown option: ${token}`);
-        return fail(`unexpected argument: ${token}`);
-    }
-    if (!querySeen || query === null) {
-        return fail('--query <text> is required');
-    }
-    return { query, seeds, repo, debug };
-}
-function cmdGraphSuggest(rest, io) {
-    const parsed = parseGraphSuggestArgs(rest);
-    if (parsed.error) {
-        io.err(parsed.error);
-        return 2;
-    }
-    const repoRoot = (parsed.repo || process.cwd());
-    // 그래프 부재·손상은 예외 대신 JSON status로 수렴 — stdout은 JSON 하나만.
-    // debug는 같은 ranking projection만 추가하고 기본 필드·순위를 바꾸지 않는다.
-    const result = graphSuggest({
-        repoRoot,
-        query: parsed.query,
-        seeds: parsed.seeds,
-        debug: parsed.debug,
-    });
-    io.out(`${JSON.stringify(result, null, 2)}\n`);
-    return 0;
 }
 /**
  * 첫 intent 실행에서만 전용 CommonJS command를 적재한다. usage 문자열은 여기
@@ -379,6 +290,46 @@ function parseRetentionMigrateArgs(flagArgs) {
     }
     return { apply, blueprint, repo };
 }
+/**
+ * migrate review-scope 전용 argv. parseFlags는 알 수 없는 option을 조용히 삼키므로
+ * 여기서 엄격히 닫는다. 쓰기 명령이라 --blueprint 누락은 사용법 오류(exit 2)다.
+ *
+ * @param {string[]} flagArgs - `migrate review-scope` 뒤 argv
+ * @returns {{ error?: string, blueprint: string | null, repo?: string }}
+ */
+function parseReviewScopeMigrateArgs(flagArgs) {
+    let blueprint = null;
+    let repo;
+    const fail = (message) => ({
+        error: `migrate review-scope: ${message}\n`,
+        blueprint,
+        repo,
+    });
+    for (let i = 0; i < flagArgs.length; i += 1) {
+        const token = flagArgs[i];
+        if (token === '--blueprint' || token === '--repo') {
+            const isBlueprint = token === '--blueprint';
+            if (isBlueprint ? blueprint !== null : repo !== undefined) {
+                return fail(`duplicate option: ${token}`);
+            }
+            const value = flagArgs[++i];
+            if (value === undefined || value.startsWith('--') || value.trim() === '') {
+                return fail(`${token} requires a directory`);
+            }
+            if (isBlueprint)
+                blueprint = value.trim();
+            else
+                repo = value;
+            continue;
+        }
+        if (token.startsWith('--'))
+            return fail(`unknown option: ${token}`);
+        return fail(`unexpected argument: ${token}`);
+    }
+    if (blueprint === null)
+        return fail('--blueprint <dir> is required');
+    return { blueprint, repo };
+}
 function cmdMigrate(rest, io) {
     const [kind, ...flagArgs] = rest;
     // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
@@ -399,6 +350,19 @@ function cmdMigrate(rest, io) {
             return result.ok ? 0 : 1;
         }
         const result = auditRetention({ repoRoot });
+        io.out(`${JSON.stringify(result, null, 2)}\n`);
+        return result.ok ? 0 : 1;
+    }
+    if (kind === 'review-scope') {
+        const parsed = parseReviewScopeMigrateArgs(flagArgs);
+        if (parsed.error) {
+            io.err(parsed.error);
+            return 2;
+        }
+        const result = migrateReviewScope({
+            repoRoot: (parsed.repo || process.cwd()),
+            blueprintDir: parsed.blueprint,
+        });
         io.out(`${JSON.stringify(result, null, 2)}\n`);
         return result.ok ? 0 : 1;
     }
@@ -425,18 +389,14 @@ module.exports = {
         usage: `  graph-sync Rebuild stale graphify source + test graphs (SessionStart / plan).
 `,
     },
-    'graph-suggest': {
-        run: cmdGraphSuggest,
-        usage: `  graph-suggest --query <text> [--seed <value>]... [--debug]
-             Rank implementation/test file candidates from graphify source/test graphs (JSON).
-`,
-    },
     intent: {
         run: cmdIntentLazy,
         usage: `  intent     --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
              Print function intent provenance JSON (read-only).
   intent     bundle --task <tasks.md> --symbol <name> [--candidate <qualified-ref>]...
              Create or reuse a task intent bundle JSON (read/write cache).
+  intent     bundle --task <tasks.md> --no-symbols
+             Same, with an empty function list for tasks without function symbols.
   intent     sections --task <tasks.md> --role <implementer|reviewer|debugger>
              Print role-specific intent section bodies JSON (read-only).
 `,
@@ -469,6 +429,8 @@ module.exports = {
         run: cmdMigrate,
         usage: `  migrate    task-layout [--dry-run]
              Move legacy task files into tasks/<NNN>/ units.
+  migrate    review-scope --blueprint <dir>
+             Set review_scope: blueprint and create the root pending review.md (idempotent).
   migrate    retention
              Audit closed blueprints for retention (dry-run, JSON, no writes).
   migrate    retention --apply --blueprint <dir>

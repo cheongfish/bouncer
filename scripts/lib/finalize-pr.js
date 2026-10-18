@@ -7,7 +7,7 @@ const { toPosix } = paths;
 const scope = require("./scope");
 const { readCoordinatorLedger } = scope;
 const finalizeMod = require("./finalize");
-const { resolveCheckoutBranch } = finalizeMod;
+const { resolveCheckoutBranch, collectMustFixWarnings, isDeferredMustFix } = finalizeMod;
 const COMMIT_TYPE_RE = /^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?!?:/;
 /**
  * 기본 git 실행기. 주입 exec와 같은 `{ status, stdout }`만 돌려
@@ -165,7 +165,12 @@ function buildVerificationLines(tasks) {
             continue;
         }
         const passed = verification.status === 'passed';
-        const line = `${verification.command} — ${passed ? 'passed' : 'failed'}`;
+        // 범위 밖으로 분류된 terminal 실패는 failed 그대로 두고 원본 증거 id만 덧붙인다 — 분류가
+        // 통과처럼 읽히지 않게 하고, 로컬 경로 대신 id로만 참조한다.
+        const outside = asRecord(verification.outside_scope);
+        const suffix = !passed && typeof outside.evidence_id === 'string' && outside.evidence_id
+            ? ` (outside_scope, evidence ${outside.evidence_id})` : '';
+        const line = `${verification.command} — ${passed ? 'passed' : 'failed'}${suffix}`;
         if (seen.has(line))
             continue;
         seen.add(line);
@@ -178,17 +183,22 @@ function buildVerificationLines(tasks) {
  * task.review와 blueprint_review가 같은 규칙을 쓰게 한 헬퍼 —
  * 한쪽만 note 폴백을 바꾸면 PR 본문이 갈라진다.
  * `seen`에 이미 있는 문자열은 건너뛴다 — finding 메모끼리만 첫 등장을 남기기 위함.
+ * `exclude`가 참인 finding은 다른 절이 이미 싣는 항목이라 건너뛰고 `seen`에도
+ * 넣지 않는다 — 같은 메모를 가진 다른 finding이 그 때문에 사라지지 않게 한다.
  *
  * @param {string[]} points - 누적 배열
  * @param {Set<string>} seen - finding 메모 중복 집합(out_of_scope와 공유하지 않음)
  * @param {unknown} rawFindings - findings 원본
+ * @param {(raw: unknown) => boolean} [exclude] - 이 절에서 뺄 finding 판정. 없으면 모두 대상
  * @returns {void}
  */
-function pushFindingPoints(points, seen, rawFindings) {
+function pushFindingPoints(points, seen, rawFindings, exclude) {
     const findings = Array.isArray(rawFindings) ? rawFindings : [];
     for (const raw of findings) {
         const finding = asRecord(raw);
         if (finding.status !== 'accepted' && finding.status !== 'deferred')
+            continue;
+        if (exclude && exclude(raw))
             continue;
         let text = null;
         if (typeof finding.note === 'string' && finding.note) {
@@ -213,6 +223,8 @@ function pushFindingPoints(points, seen, rawFindings) {
  * finding 메모는 서로만 첫 등장 순서로 한 번 — out_of_scope와 같은 문자열이어도
  * 둘 다 남긴다. digest가 같은 finding을 unverified `finding-*`로도 내므로 그 행은
  * 재게시하지 않는다(path-outside-scope 등 다른 kind는 유지).
+ * blueprint 루트의 deferred must_fix는 `unresolved_must_fix` 절이 싣으므로 여기서
+ * 뺀다. task 범위 finding은 같은 id·메모여도 경고 대상이 아니라 그대로 남긴다.
  *
  * @param {object} digest
  * @param {string[]} digest.out_of_scope
@@ -235,7 +247,22 @@ function buildReviewPoints(digest) {
         const review = asRecord(asRecord(entry).review);
         pushFindingPoints(points, seenFindings, review.findings);
     }
-    pushFindingPoints(points, seenFindings, asRecord(digest.blueprint_review).findings);
+    pushFindingPoints(points, seenFindings, asRecord(digest.blueprint_review).findings, isDeferredMustFix);
+    // worker가 보고한 사양 해석·약점은 finding 뒤, unverified 앞에 둔다. 값은 digest
+    // task 항목(worker_notes)으로만 들어온다 — 원장을 직접 읽지 않는다.
+    for (const entry of tasks) {
+        const task = asRecord(entry);
+        const notes = asRecord(task.worker_notes);
+        const id = typeof task.id === 'string' ? task.id : '';
+        for (const item of Array.isArray(notes.open_choices) ? notes.open_choices : []) {
+            if (typeof item === 'string' && item)
+                points.push(`구현 선택(${id}): ${item}`);
+        }
+        for (const item of Array.isArray(notes.known_weaknesses) ? notes.known_weaknesses : []) {
+            if (typeof item === 'string' && item)
+                points.push(`알려진 약점(${id}): ${item}`);
+        }
+    }
     const unverified = Array.isArray(digest.unverified) ? digest.unverified : [];
     for (const raw of unverified) {
         const row = asRecord(raw);
@@ -310,6 +337,10 @@ function buildPrDraft(digest, opts) {
                 blueprint_review: d.blueprint_review,
             }),
             verification: buildVerificationLines(Array.isArray(d.tasks) ? d.tasks : []),
+            // digest warnings와 같은 함수로 만든다 — PR이 별도 입력 필드에 기대지 않고
+            // blueprint_review(blueprint 모드에서만 non-null)에서 같은 id/note를 얻는다.
+            unresolved_must_fix: collectMustFixWarnings(asRecord(d.blueprint_review).findings)
+                .map((w) => (w.note ? `${w.id}: ${w.note}` : w.id)),
         },
     };
 }

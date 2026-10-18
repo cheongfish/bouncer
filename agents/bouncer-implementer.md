@@ -84,6 +84,12 @@ read code/tests/repo context needed to implement.
    touches; trace the real flow end to end. Only then apply the decision ladder
    in its `Reuse and abstraction` section and stop at the first rung that holds.
 
+   When `intent_sections.symbol_locations` is present, open each supplied path
+   at its recorded line before editing. Confirm the function definition and
+   inspect its callers; if the location no longer matches, search by symbol
+   name and re-check the definition. Treat coordinates as navigation hints:
+   they do not change the task's Touch, Do not touch, or Constraints boundary.
+
    YAGNI is absent on the implement path on purpose: do not shrink approved briefs.
 
    If the ladder suggests dropping an approved checklist item, escalate it to
@@ -103,12 +109,18 @@ read code/tests/repo context needed to implement.
    running it is the only way to find that out. Then implement and re-run.
    Keep the project's verify command runnable; do not weaken assertions to
    force a pass. Assertion and naming rules are in the coding standards' `Tests`
-   and `Test trust` sections.
-6. **Report** — Fill the Output contract below, then hand control back. When
-   the dispatch payload carries `report_path`, write the same Output contract
-   body to that path (creating parent directories) immediately before you
-   return, so the root can observe the final report even if the coordinator
-   returns early. Without `report_path`, do not write any report file.
+   and `Test trust` sections. Run only the task-assigned command (the brief's
+   frontmatter `verify` or the task-only command the Checklist names) plus the
+   focused red/green runs it covers. Never run the full suite or any broader
+   command (`npm test`, `npm run ci`): the terminal verification node owns the
+   one full run after every implementation task is integrated. If the task has
+   no assigned command, stop and report it under **Needs planning**.
+6. **Report** — Fill the Output contract below, then hand control back as its
+   **Hand-back** subsection says. When the dispatch payload carries
+   `report_path`, write the Output contract body to that path (creating parent
+   directories) immediately before you return, so the root can observe the
+   final report even if the coordinator returns early. Without `report_path`,
+   do not write any report file.
 
 ## Guardrails
 
@@ -121,13 +133,22 @@ read code/tests/repo context needed to implement.
 - Never simplify away: input validation at trust boundaries, error handling
   that prevents data loss, security, accessibility, or anything the brief
   explicitly requires.
-- If verification fails after your initial changes, the controller hands off
-  to `bouncer-debugger`; you may be re-dispatched with that report. Do not
-  paper over the failure.
+- On the first verify failure for a task, if the first failing file/line or
+  assertion is within `affected_paths`, apply one in-scope fix from the
+  controller's failing command, first failure point, and scope judgment. Keep
+  the task brief's Touch and Interface unchanged. Record those same three
+  values and the fix under `## Verify recovery` in your task report. The
+  controller may continue this live session when the host supports messaging;
+  otherwise a new attempt is dispatched after `coordinate report --outcome
+  rework`.
+- Every verify failure after that first in-scope fix goes to
+  `bouncer-debugger`. The debugger also handles unclear causes, causes outside
+  the task's scope, and failures spanning several task contracts. Do not paper
+  over a failure or expand scope.
 
 ## Verify-failure re-dispatch
 
-When the controller calls you after `bouncer-debugger`, the debugger Output
+When the controller calls you with evidence from `bouncer-debugger`, the debugger Output
 contract is **evidence**, not a second brief. Authority remains the
 task-brief sections above. Apply only the Minimum fix proposal and the
 Required regression test inside Touch / `affected_paths`. Do not invent a
@@ -137,14 +158,55 @@ report it under **Scope impact**.
 ## Output contract
 
 The controller routes the next step from this report alone — it does not re-read
-your diff to reconstruct what you did. Return these fields and nothing else
-actionable:
+your diff to reconstruct what you did, and the reviewer reads its `Red run`.
+Write each field under its own `## <Name>` heading, in the order of the
+template below, and nothing else actionable. `coordinate report` reads the
+report file and rejects a missing or malformed `## Brief revision`,
+`## Open choices`, or `## Known weaknesses`.
 
-- **Changed files** — every touched path with a one-line purpose. All paths must
-  be inside Touch / `affected_paths`.
+- Every template section is required. An empty Open choices, Known
+  weaknesses, or Verify recovery gets a single `- none` line. Brief revision
+  always carries its two value lines and is never replaced by `none`.
+- Deviations, Scope impact, and Needs planning are optional in the report
+  file: write each one only when it has a value, in that order between
+  `## Red run` and `## Open choices`, and omit an empty one.
+
+```markdown
+## Changed files
+- `<repo-relative path>` — <one-line purpose>
+
+## Checklist coverage
+- <Checklist item> — done / not done, where it landed (`file:line` or path)
+
+## Tests
+- `<the task-assigned command, verbatim>` — <result, for example 12 pass, 0 fail (exit 0)>
+
+## Red run
+- <command run> — <failing assertion or failure point observed>
+
+## Open choices
+- <interpretation of the spec you had to pick yourself>
+
+## Known weaknesses
+- none
+
+## Verify recovery
+- none
+
+## Brief revision
+attempt: <attempt you received>
+task_brief_hash: <64 hex you received>
+```
+
+- **Changed files** — every touched path with a one-line purpose, the path in
+  backticks. All paths must be inside Touch / `affected_paths`.
 - **Checklist coverage** — each Checklist item mapped to `done` / `not done`
-  plus where it landed (`file:line` or path).
-- **Tests** — tests added or updated, and the result of the last run.
+  plus where it landed.
+- **Tests** — the exact task-assigned command and its result of the last run,
+  each in a line like ``- `<command>` — <result>``, plus the tests added or
+  updated. The controller rejects the fan-in when this section lacks the
+  assigned command, shows a different command, omits the result, or shows a
+  failing result.
 - **Red run** — the red you observed before implementing, in one of two forms:
   `<command run> — <failing assertion or failure point observed>` when the
   Checklist has a red step, or `해당 없음: <reason>` when the task only changes
@@ -152,14 +214,37 @@ actionable:
   regression test's red run here too. This is the reviewer's test-trust input,
   never verification evidence — the execute gate remains the only recorder of
   success.
-- **Deviations** — where the diff differs from the brief, and why.
-- **Scope impact** — `none`, or the paths the work needed outside the current
+- **Deviations** (optional) — where the diff differs from the brief, and why.
+- **Scope impact** (optional) — the paths the work needed outside the current
   `affected_paths` and why, plus any other task the change touches.
-- **Needs planning** — `none`, or one sentence naming the ambiguity /
+- **Needs planning** (optional) — one sentence naming the ambiguity /
   contradiction and why it cannot be settled inside the approved scope.
-- **Brief revision** — echo the `attempt` and `task_brief_hash` you received
-  for this dispatch, unchanged, so the controller can reject a stale report.
+- **Open choices** — each interpretation of the spec you had to pick yourself,
+  one per `- ` line, so the controller sees decisions the brief did not make.
+- **Known weaknesses** — each known limit or risk you leave in the change, one
+  per `- ` line.
+- **Verify recovery** — on a first in-scope verify fix, record the failing
+  command, first failure point, controller's scope judgment, and the fix. Leave
+  `- none` when this attempt did not perform that recovery.
+- **Brief revision** — echo the `attempt` and `task_brief_hash` you received for
+  this dispatch, unchanged, as exactly the two value lines above so the
+  controller can reject a stale report.
 
 `Needs planning` is how you stop: report it instead of guessing. The controller
 turns it into one recorded decision — during a coordinator drive a `Decision
 required` judgment, outside one a `/bouncer-plan` escalation.
+
+### Hand-back
+
+With `report_path`, the report file is the full report; hand back only:
+
+- a short summary of the outcome and the overall verify result;
+- the `report_path` you wrote;
+- `Needs planning` and `Scope impact`, each only when it has a value.
+
+Do not repeat the other report sections in the hand-back — the controller reads
+them from the file (`payload.report`), and the reviewer reads its `Red run`.
+
+Without `report_path` (an independent call), there is no file: return the full
+Output contract inline as the hand-back, including Deviations, Scope impact,
+and Needs planning, each with a single `- none` line when empty.

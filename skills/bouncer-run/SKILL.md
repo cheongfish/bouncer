@@ -1,6 +1,6 @@
 ---
 name: bouncer-run
-description: "Use only when the user explicitly asks /bouncer-run; it repeats /bouncer-execute then /bouncer-commit until no open tasks remain."
+description: "Use only when the user explicitly asks /bouncer-run; it drives each open task through implement, verify, review, and task commit until none remain."
 ---
 # /bouncer-run
 
@@ -26,21 +26,21 @@ session owns the drive: implement via `payload.inline` and dispatch one named
 `bouncer-reviewer`. Do not dispatch `bouncer-coordinator`.
 
 For a **full** ledger the drive has one controller, and after the start ACQ it
-is the coordinator, not this session. This session resolves the pointer,
+is the coordinator, not this session — except option D (only when preflight
+`direct_eligible`): this session follows
+[direct-run.md](./references/direct-run.md). Otherwise it resolves the pointer,
 bootstraps the integration worktree, dispatches one `bouncer-coordinator` at a
 time, and on `continue` re-dispatches. It does not read and fix code directly,
 does not run `implementation`, `review`, or `debugging` inline, and does not
 reconstruct a worker's judgment from the diff — the coordinator already judged
-it. On a full drive, do not use execute's inline branch.
+it.
 
-Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
-dispatch, and coordinator output fields belong to
-`${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — do not repeat them here.
+Task-by-task implement, verify, review, and commit, scope revision, worker dispatch, and
+coordinator output fields belong to `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
 For every commit task on a full drive, the coordinator must require its
 implementer to read `${BOUNCER_ROOT}/references/coding-standards/index.md`
-before editing code. That reference's Korean comment and docstring contract is
-mandatory; the full-path root session still does not load it or
-implement inline.
+before editing code; its Korean comment and docstring contract is mandatory.
+The root session never loads it.
 
 For an in-blueprint blocker, the delegated coordinator is the autonomous
 decision-maker. It decides and executes the smallest scoped remediation —
@@ -63,23 +63,40 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+terminal 실패는 새 repair task를 만들기 전에 원인을 먼저 가른다. 원인이 이미 통합된 task의
+코드이면 `coordinate repair --task <terminal> --resume-task <ddd>`로 그 기존 task를 승인
+scope 안에서 재배정한다(task 수·ID·DAG·scope 불변, lease generation 갱신, 현재 integration
+HEAD에서 재작업·재통합 뒤 terminal 재검증, 이전 lease의 report·commit 거부, repair wave 1회
+소모). 원인·실패 테스트·필요 변경이 모든 승인 task scope 밖임이 입증되면
+`--disposition outside_scope`로 원본 evidence/source identity에 묶어 기록한다. 이 분류는
+실패를 passed나 integrated로 바꾸지 않고 terminal을 `verifying`에 둔 채 `next`가 최종 리뷰와
+완료로 진행하게 하며, 최종 보고·finalize·PR에 별도 경고로 남긴다. 원인 불명, scope 안팎 혼합,
+소스 변경(stale)은 계속 `blocked`다. 두 옵션은 상호배타다.
+
+`verification_policy: scoped_terminal` blueprint(새 계획)는 책임을 나눈다. 구현
+worker는 자기 task 전용 `bouncer.verify`만 실행하고 보고 `## Tests`에 그 명령과
+결과를 적는다. 다른 명령·누락·실패 결과면 fan-in이 `worker-test-report-mismatch`로
+거절한다. 정상 경로의 첫 전체 검증은 모든 구현이 통합된 뒤 종단 verification node에서
+한 번이며, 실패 복구 재검증과 finalize remainder 검증은 따로 돈다. 표식이 없는
+legacy 계획은 현행 동작을 유지한다.
+
 When `review_scope` is `blueprint`, the coordinator owns the one final review
 after that verification node (and every commit task) is `integrated`; this
-root session does not open it. When `review_scope` is absent, per-task reviews
-stay on the execute round.
+root session does not open it. A blueprint without `review_scope` is blocked at
+preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts it.
 
 1. **Preflight.** Load runtime state from the CLI only:
    ```bash
    bouncer run preflight --blueprint <dir>
    ```
    Compact output follows that result; emit raw JSON only on `debug`. The payload
-   holds the pointer, remaining-task presentation fields (including
-   `affected_paths`), DAG, and
-   reporting cadence. Follow its status and `delegable` result; read
+   holds the pointer, remaining-task fields (including `affected_paths`), DAG,
+   reporting cadence, and `direct_eligible`. Follow its status and `delegable` result; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
-   pointer return values. When the ledger / pointer `scale` is `light`, read
-   [light-run.md](./references/light-run.md) and follow that procedure for the
-   rest of the drive instead of coordinator dispatch. When nothing to delegate,
+   pointer return values. When preflight returns `ok: false` with `reason:
+   legacy-review-scope`, the blueprint has no `review_scope`: show its `next`
+   command to the user and stop. Run it only when the user explicitly asks, then
+   rerun preflight; never convert the scope yourself. When nothing to delegate,
    tell the user to run `/bouncer-finalize` themselves and stop. Finalize
    consent stays with the user; this session and the coordinator never run
    `/bouncer-finalize` or any part of it.
@@ -89,32 +106,54 @@ stay on the execute round.
    to delegate the drive. Option order: recommended proceed → revise → cancel.
    This is the only gate.
 
+   When preflight reports `direct_eligible: true`:
    **AskUserQuestion — run.start_drive**
-   <!-- acq {"gate":"run.start_drive","options":["A","B","C"],"recommended":"A"} -->
-   1. **Re-ground**: Hand remaining tasks to a coordinator drive?
-   2. **Recommend-why**: Given the task list, the DAG, and `affected_paths`,
-      delegating now covers each ready wave until the blueprint is done. This
-      approval covers the whole drive: neither autonomy value asks again per
-      task; `interactive` only reports progress at each task boundary.
+   <!-- acq {"gate":"run.start_drive","options":["D","A","B","C"],"recommended":"D"} -->
+   1. **Re-ground**: Start the drive for the remaining tasks?
+   2. **Recommend-why**: This short, serial commit-task chain qualifies for
+      direct execution. Root can carry the normal finish and one first
+      rework; workers still implement and review. This approval covers the
+      whole drive: neither autonomy value asks again per task; `interactive`
+      only reports progress at each task boundary.
    3. **Options**:
-      - A) Start drive (Recommended)
+      - D) 직접 실행(coordinator 없음) (Recommended)
+      - A) Start delegated drive
       - B) Revise list/scope and reconfirm
       - C) Cancel
 
-   Stop unless A.
+   When preflight reports `direct_eligible: false`:
+   **AskUserQuestion — run.start_drive**
+   <!-- acq {"gate":"run.start_drive","options":["A","B","C"],"recommended":"A"} -->
+   1. **Re-ground**: Start the drive for the remaining tasks?
+   2. **Recommend-why**: This drive needs coordinator handling. Delegating
+      covers each ready wave until the blueprint is done. This approval
+      covers the whole drive: neither autonomy value asks again per task;
+      `interactive` only reports progress at each task boundary.
+   3. **Options**:
+      - A) Start delegated drive (Recommended)
+      - B) Revise list/scope and reconfirm
+      - C) Cancel
 
-3. **Integration bootstrap.** Only after A, register the integration worktree
+   Stop unless A or D.
+
+3. **Integration bootstrap.** Only after A or D, register the integration worktree
    from the main checkout:
    ```bash
    bouncer coordinate bootstrap --blueprint <pointer.blueprint> --repo "${PROJECT_ROOT}"
    ```
    This is the one command run against the main checkout; it writes no source there. Keep `integrationPath` from the JSON result. On
    `ok: false`, report the reason and stop — do not retry into a different path.
+   When the ledger `mode` or pointer `scale` is `light`, follow
+   [light-run.md](./references/light-run.md) from `integrationPath` and skip step 4.
 
-4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` one at a time
+4. **Coordinator dispatch.** Just before dispatch, run
+   `bouncer subagent-model --agent bouncer-coordinator` and report its output
+   to the user (`inherit` omits the model argument). Dispatch named `bouncer-coordinator` singly
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
-   one generic subagent with the same coordinator brief and the same worktree
-   guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
+   one generic subagent per item 5 of that rule: its payload carries the entire
+   body of `${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — every section from
+   Authority through Output contract, verbatim, with its worktree write
+   boundary — plus the step 4 payload below. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
    "print"`), the coordinator is a `bouncer dispatch print --role coordinator`
    process per `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` instead; never without the
    step 2 approval.
@@ -137,9 +176,9 @@ stay on the execute round.
      per task boundary, `auto` batches), so no per-task ACQ under either value
 
    Take `completed_tasks.length` immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
+   Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); when to call `metrics end` and which usage to pass are fixed per host by its host usage table.
    Wait in the foreground per `${BOUNCER_ROOT}/rules/subagent-model.md` item 6 until the
-   coordinator returns its outcome. A background handle or a "drive started" status is not that outcome:
-   never end the turn or render step 5 while the coordinator still runs.
+   coordinator returns its outcome; never end the turn or render step 5 while the coordinator still runs.
    On `continue`, do not go to step 5. `interactive` emits the
    `${BOUNCER_ROOT}/rules/output.md` continue line; remaining `N` is re-fetched
    `active_tasks.length`. Call `coordinate status --write-input` again to
@@ -161,13 +200,12 @@ stay on the execute round.
    | all terminated | none, hash-only change, or after recovery | stop `no-progress` |
 
    Hand a raw report to the coordinator as data; never judge, verify, integrate, or edit active metadata.
-   `report present`: that file is the raw report; same single recovery.
+   `report present`: that file is the raw report; same recovery.
    `worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer.
    If `completed_tasks.length` grew, dispatch a new coordinator
    with the same payload plus that checkpoint (no ACQ). Wait in the foreground
-   for that new coordinator and apply the same continue / no-progress / terminal-stop rules again (a
-   loop, one at a time).
-   Do not go to step 5 while a coordinator runs. If it did not grow, stop here
+   for that new coordinator and apply the same continue / no-progress / terminal-stop rules again.
+   If it did not grow, stop here
    — except the table's single recovery re-dispatch; a second `continue` without a new integrated task goes to `no-progress` —
    (not step 5) with `blocked` cause `no-progress`, emit
    `중단: <blueprint> · no-progress · …`, and preserve ledger, worktrees,
@@ -180,7 +218,9 @@ stay on the execute round.
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
-   not as your own re-judgment. This skill does not enter finalize.
+   not as your own re-judgment, plus the `metrics summary` token and time table: coordinator and each worker role
+   side by side (never summed together), real wall time apart from host duration, a `null` total
+   shown as unreported and every missing count shown, never as 0. This skill does not enter finalize.
    `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.

@@ -1,12 +1,10 @@
 When confirming affected_paths, read this reference.
 
 For each `tasks/<NNN>/tasks.md` under the blueprint, first show that task's
-`graph-suggest` stdout when a source graph is available — role `candidates`
-(`implementation` / `test`) with scores, `quality.status` /
-`quality.confidence`, and non-empty `quality.reasons` (especially on
-`low-confidence` or `unavailable`). Then show any narrower file-path advisory
-list from that stdout (empty when quality is low-confidence/unavailable). Only
-after that display, return to the numbered step's **ACQ — affected_paths (`plan.affected_paths`)**.
+candidate list from `graphify-runner` — one `<path> — <evidence>` line per
+candidate (Graphify `explain` / `query`, `grep -l`, or generated pair) — plus
+the per-graph sync basis. When the graph was unavailable, say so and show the
+`rg`-based candidates. Only after that display, return to the numbered step's **ACQ — affected_paths (`plan.affected_paths`)**.
 Intent, Explain, and Graphify candidates never set, fill, or widen
 `affected_paths`; write only the user's confirmed value into that task
 document's frontmatter.
@@ -29,7 +27,7 @@ docs, skills, or agents (not only code callers), run the Checklist leftover
 search *before* locking Touch and `affected_paths`. Draft Touch from that
 hit list minus Do not touch; rewrite Goal so it does not claim files outside
 the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
-be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
+be staged for the task commit belongs in `affected_paths`, or commit-safety
 blocks it.
 
 `execution_kind: verification`인 종단 fan-in node는 이 확인의 예외다.

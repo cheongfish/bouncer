@@ -37,8 +37,8 @@ the markup — is the contract.
 
 ## Workflow skills (`skills/bouncer-*/SKILL.md`)
 
-Seven entry skills: `bouncer-init`, `bouncer-plan`, `bouncer-execute`,
-`bouncer-commit`, `bouncer-finalize`, `bouncer-run`, `bouncer-retro`.
+Five entry skills: `bouncer-init`, `bouncer-plan`, `bouncer-run`,
+`bouncer-finalize`, `bouncer-retro`.
 
 Required body order after YAML frontmatter:
 
@@ -59,7 +59,7 @@ Required body order after YAML frontmatter:
 ## Subskills (`${BOUNCER_ROOT}/references/<name>/index.md`, not host catalog)
 
 Helper briefs live under plugin-root `${BOUNCER_ROOT}/references/<name>/index.md`. Hosts scan
-only `skills/*/SKILL.md` (workflow seven). Do not put
+only `skills/*/SKILL.md` (workflow five). Do not put
 helper bodies back under `skills/<name>/SKILL.md`.
 
 Required body order after YAML frontmatter:

@@ -10,7 +10,9 @@ const { renderDoc } = render;
 const paths = require("./paths");
 const { toPosix } = paths;
 const validateSections = require("./validate-sections");
-const { findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT, } = validateSections;
+const { normalizeRoundFindings, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT, BLUEPRINT_ROUND_CONTRACT, } = validateSections;
+const reviewSnapshot = require("./review-snapshot");
+const { loadReviewSnapshot, checkReviewSnapshotCurrent } = reviewSnapshot;
 function fail(reason, cause, next) {
     return { ok: false, reason, cause, next };
 }
@@ -47,9 +49,10 @@ function isBlueprintReviewScopeAt(repoRoot, blueprintDirRel) {
  * 여기만 접두를 허용한다 — 검사 규칙 복제가 아니라 예외 판정이다.
  *
  * @param {unknown[]} rounds - 병합 뒤 rounds
+ * @param {boolean} blueprintScope - blueprint 범위면 BLUEPRINT_ROUND_CONTRACT의 sequences로 판정
  * @returns {boolean} 허용 sequences 원소를 `,`로 나눈 배열의 길이 n 접두면 true
  */
-function isAllowedSequencePrefix(rounds) {
+function isAllowedSequencePrefix(rounds, blueprintScope) {
     const modes = [];
     for (const entry of rounds) {
         if (isRecord(entry) && typeof entry.mode === 'string')
@@ -58,7 +61,8 @@ function isAllowedSequencePrefix(rounds) {
     const joined = modes.join(',');
     if (joined === '')
         return false;
-    for (const sequence of EXECUTE_ROUND_CONTRACT.sequences) {
+    const contract = blueprintScope ? BLUEPRINT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT;
+    for (const sequence of contract.sequences) {
         const parts = sequence.split(',');
         for (let n = 1; n <= parts.length; n += 1) {
             if (parts.slice(0, n).join(',') === joined)
@@ -67,30 +71,81 @@ function isAllowedSequencePrefix(rounds) {
     }
     return false;
 }
-function fingerprintMissing(finding) {
-    const value = finding.fingerprint;
-    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+/**
+ * 새 라운드의 target.snapshot_id가 실제 동결 상태에 묶였는지, 그리고 acceptance라면 그 상태가
+ * 지금도 현재 작업 트리와 같은지 검사한다. 저장 문서 검증기(G14/G21)는 과거 기록을 위해
+ * id가 없는 기록도 받으므로, "새 입력에는 id 필수"와 "지금도 신선한가"는 쓰기 시점의
+ * 이 함수만 판정한다. 호출부가 쓰기 전에 부르므로 거절은 항상 파일을 건드리지 않는다.
+ *
+ * 이 라운드의 snapshot만 본다. delta 뒤에는 앞 discovery snapshot이 정상적으로 stale이므로
+ * 이전 라운드의 id로 acceptance를 막으면 수정 후 재승인이 영원히 불가능해진다.
+ *
+ * @param {object} args - 검사 입력
+ * @param {string} args.repoRoot - 저장소 루트
+ * @param {string} args.blueprintDir - blueprint 상대 경로
+ * @param {string | null} args.task - task 리뷰면 세 자리 id, blueprint 모드면 null
+ * @param {Record<string, unknown>} args.round - 이번에 추가할 round 객체
+ * @param {boolean} args.accepted - 기록 뒤 effective status가 accepted인지(상속 포함)
+ * @returns {RecordReviewFail | null} 거절 사유, 통과하면 null
+ */
+function checkSnapshotBinding(args) {
+    const { repoRoot, blueprintDir, task, round, accepted } = args;
+    const target = isRecord(round.target) ? round.target : {};
+    const snapshotId = target.snapshot_id;
+    if (snapshotId === undefined || snapshotId === null || snapshotId === '') {
+        return fail('review-snapshot-required', 'round.target.snapshot_id is required for a new round', 'run review-dispatch execute for this scope and put its snapshot_id in round.target');
+    }
+    // 형식·존재·손상은 loader가 한 번에 가린다. 형식 검사 없이 경로에 쓰면 입력이 runtime 밖을 가리킨다.
+    const loaded = loadReviewSnapshot({ repoRoot, snapshotId: snapshotId });
+    if (!loaded.ok) {
+        return fail('review-snapshot-invalid', `${loaded.reason}: ${loaded.cause}`, loaded.next);
+    }
+    const stored = loaded.snapshot;
+    const scopeTask = task || null;
+    if (stored.scope.blueprint !== blueprintDir || stored.scope.task !== scopeTask) {
+        return fail('review-snapshot-mismatch', `snapshot scope ${JSON.stringify(stored.scope)} differs from this review`, 'run review-dispatch execute for this blueprint/task and use its snapshot_id');
+    }
+    if (target.base !== stored.target.base || target.head !== stored.target.head) {
+        return fail('review-snapshot-mismatch', 'round.target base/head differ from the snapshot target', 'copy target.base and target.head from the same review-dispatch execute output as snapshot_id');
+    }
+    if (!accepted)
+        return null;
+    const current = checkReviewSnapshotCurrent({
+        repoRoot,
+        blueprintDir,
+        taskId: scopeTask,
+        base: stored.target.base,
+        head: stored.target.head,
+        snapshotId: snapshotId,
+    });
+    if (current.ok)
+        return null;
+    // HEAD가 움직인 것도 "리뷰한 상태와 지금이 다르다"이므로 stale로 안내한다.
+    // 범위·target 차이는 위에서 이미 걸렀으므로 여기 남는 건 stale 계열과 수집 실패다.
+    if (current.reason === 'snapshot-stale' || current.reason === 'head-mismatch') {
+        return fail('review-snapshot-stale', `${current.reason}: ${current.cause}`, 'the worktree changed after the review snapshot; dispatch a new review on the current state '
+            + 'and re-review before accepting');
+    }
+    return fail('review-snapshot-invalid', `${current.reason}: ${current.cause}`, current.next);
 }
 /**
- * 같은 id는 통째로 교체하고 새 id는 끝에 붙인다. fingerprint가 비면 게이트와
- * 같은 findingFingerprint로 채워, 작성자가 validator 소스를 읽지 않게 한다.
+ * 입력 finding을 정규화한 뒤 같은 id는 통째로 교체하고 새 id는 끝에 붙인다. fingerprint는
+ * 입력값과 무관하게 게이트와 같은 findingFingerprint로 덮어쓰고, `id` 키가 없으면
+ * `F-<8hex>` 자동 id를 채운다 — 작성자가 validator 공식을 몰라도 기록되게 한다.
+ * 기존 원장 finding은 고치지 않는다: 수기로 틀린 저장 기록은 G14/G21이 계속 거절해야 한다.
  *
  * @param {unknown[]} existing - 기존 findings
  * @param {unknown[]} incoming - 입력 JSON findings
- * @returns {unknown[]} 병합 결과
+ * @returns {{ok: true, merged: unknown[], incoming: unknown[], ids: string[]} | RecordReviewFail}
+ *   병합 결과, 정규화한 이번 입력, 이번 입력의 정규화 id(순서 유지·중복 제거), 또는 id 오류·충돌 거절
  */
 function mergeFindings(existing, incoming) {
+    const normalized = normalizeRoundFindings(incoming, existing);
+    if (!normalized.ok) {
+        return fail('review-input-invalid', normalized.messages, 'give each finding a non-empty string id or omit the id key; resolve id collisions, then retry');
+    }
     const merged = existing.map((item) => cloneJson(item));
-    for (const raw of incoming) {
-        const finding = isRecord(raw) ? { ...raw } : raw;
-        if (isRecord(finding) && fingerprintMissing(finding)) {
-            finding.fingerprint = findingFingerprint({
-                category: finding.category,
-                brief_clause: finding.brief_clause,
-                file: finding.file,
-                symbol: finding.symbol,
-            });
-        }
+    for (const finding of normalized.findings) {
         const id = isRecord(finding) ? finding.id : undefined;
         const index = merged.findIndex((item) => isRecord(item) && item.id === id);
         if (index >= 0)
@@ -98,7 +153,7 @@ function mergeFindings(existing, incoming) {
         else
             merged.push(finding);
     }
-    return merged;
+    return { ok: true, merged, incoming: normalized.findings, ids: normalized.ids };
 }
 function readRoundInput(roundFile) {
     let raw;
@@ -160,6 +215,11 @@ function recordReview(input) {
     if (!blueprintScope && !task) {
         return fail('review-task-required', '--task is required when review_scope is not blueprint', 'pass --task <ddd> for tasks/<ddd>/review.md');
     }
+    // 최종 리뷰는 discovery 한 라운드로 끝난다. 새 root delta는 파일을 읽기 전에 거절해
+    // 저장 문서가 바뀌지 않게 한다. 이미 저장된 discovery,delta,delta 이력은 G21이 계속 읽는다.
+    if (blueprintScope && parsedInput.round.mode === 'delta') {
+        return fail('final-review-single-round', 'blueprint final review is a single discovery round; a new delta round is not accepted', 'record the discovery round only; defer must_fix findings with a note or report them as blocked');
+    }
     const rel = blueprintScope
         ? `${blueprintDir}/review.md`
         : `${blueprintDir}/tasks/${task}/review.md`;
@@ -184,11 +244,27 @@ function recordReview(input) {
     // 2. 라운드는 끝에만 붙인다. 중간 삽입은 번호 계약을 깨 G21과 어긋난다.
     const mergedRounds = [...existingRounds, cloneJson(parsedInput.round)];
     const existingFindings = Array.isArray(review.findings) ? review.findings : [];
-    const mergedFindings = mergeFindings(existingFindings, parsedInput.findings);
+    const mergeResult = mergeFindings(existingFindings, parsedInput.findings);
+    if (!mergeResult.ok)
+        return mergeResult;
+    const mergedFindings = mergeResult.merged;
     review.rounds = mergedRounds;
     review.findings = mergedFindings;
     if (status)
         bouncer.status = status;
+    // 2-1. 스냅샷 바인딩은 원장 검증 앞에서 본다. 뒤에 두면 잘못된 id가 저장 검증기의
+    //      형식 메시지(review-ledger-invalid)로 먼저 나가 reason이 뭉개진다. 어느 쪽이든
+    //      쓰기 전이라 거절은 파일을 건드리지 않는다. accepted는 이번 --status뿐 아니라
+    //      상속한 상태도 포함한다.
+    const snapshotFailure = checkSnapshotBinding({
+        repoRoot,
+        blueprintDir,
+        task,
+        round: parsedInput.round,
+        accepted: bouncer.status === 'accepted',
+    });
+    if (snapshotFailure)
+        return snapshotFailure;
     const messages = collectFindingFailures({
         body,
         findings: mergedFindings,
@@ -197,10 +273,12 @@ function recordReview(input) {
         findingLabel: 'review',
         allowedStatuses: EXECUTE_REVIEW_STATUS,
         reviewStatus: bouncer.status,
+        // G21과 같은 계약으로 판정해야 기록과 마감 게이트가 서로 다른 답을 내지 않는다.
+        roundScope: blueprintScope ? 'blueprint' : undefined,
     });
     const sequenceOnly = messages.length === 1 && messages[0] === 'review rounds sequence invalid';
     const inProgressOk = sequenceOnly
-        && isAllowedSequencePrefix(mergedRounds)
+        && isAllowedSequencePrefix(mergedRounds, blueprintScope)
         && bouncer.status !== 'accepted';
     if (messages.length > 0 && !inProgressOk) {
         return fail('review-ledger-invalid', messages, 'fix rounds and findings until collectFindingFailures is empty, then retry');
@@ -224,12 +302,17 @@ function recordReview(input) {
         }
         throw error;
     }
+    // 경고는 이번 round 입력만 대상으로 하고(기존 원장은 제외) 기록에는 영향을 주지 않는다.
+    // 자동 id가 경고 ids에도 보이도록 정규화 뒤 입력을 쓴다.
+    const warnings = validateSections.findingMergeCandidates(mergeResult.incoming);
     return {
         ok: true,
         path: rel,
         round: expectedRound,
         status: bouncer.status,
         findings: mergedFindings.length,
+        finding_ids: mergeResult.ids,
+        ...(warnings.length > 0 ? { warnings } : {}),
     };
 }
 module.exports = { recordReview };

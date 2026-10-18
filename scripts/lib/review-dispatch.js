@@ -6,6 +6,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 const validateMod = require("./validate");
 const { validateBlueprint } = validateMod;
 const planSnapshot = require("./plan-snapshot");
+const reviewPolicy = require("./review-policy");
 const { SNAPSHOT_VERSION, computePlanSnapshot, computePlanParts, digestPlanContent, normalizeStructure, structureKindOf, hashBody, hashStructure, } = planSnapshot;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs, taskExecutionKind } = tasksDocs;
@@ -22,19 +23,15 @@ const contextReviewState = require("./context-review-state");
 const { isRecord } = guards;
 const schema = require("./schema");
 const { executionKindOf } = schema;
-// Plan·Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
-// 복제하면 single/clustered·parallel 판정이 갈라진다.
-const PLAN_SMALL_MAX_TASKS = 1;
+const reviewSnapshot = require("./review-snapshot");
+const { captureReviewSnapshot } = reviewSnapshot;
+// Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
+// 복제하면 single/parallel 판정이 갈라진다. Plan은 항상 single이라 경계값이 없다.
 const EXECUTE_SMALL_MAX_FILES = 3;
 const EXECUTE_SMALL_MAX_LINES = 200;
-// S30과 같은 허용 목록. validate-structural이 먼저 거절하지만 Execute 경로는
-// 구조 게이트 없이 이 필드를 읽으므로 여기서도 동일 enum으로 막는다.
-const REVIEW_RISK_ENUM = [
-    'public_interface',
-    'authentication',
-    'authorization',
-    'credential',
-];
+// S30과 같은 허용 목록(review-policy 정본). validate-structural이 먼저 거절하지만
+// Execute 경로는 구조 게이트 없이 이 필드를 읽으므로 여기서도 동일 enum으로 막는다.
+const { REVIEW_RISK_ENUM } = reviewPolicy;
 const LEGACY_REASON = 'legacy-payload-no-content';
 const TASKS_REL_RE = /\/tasks\/(\d{3})\/tasks\.md$/;
 /**
@@ -496,50 +493,40 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
     if (!commitTasks.ok)
         return commitTasks;
     const taskCount = commitTasks.tasks.length;
-    if (taskCount <= PLAN_SMALL_MAX_TASKS) {
-        const only = commitTasks.tasks[0];
-        const clusters = only
-            ? [{
-                    id: 'c1',
-                    tasks: [only.id],
-                    interface_keys: [...only.interfaceKeys].sort(),
-                    touch_paths: [...only.touchPaths].sort(),
-                }]
-            : [];
-        return {
-            ok: true,
-            phase: 'plan',
-            target: { digest: snapshot.digest, documents: snapshot.documents },
-            strategy: 'single',
-            task_count: taskCount,
-            clusters,
-            perspectives: ['combined'],
-            reasons: [
-                `commit task count ${taskCount} <= ${PLAN_SMALL_MAX_TASKS} — single combined reviewer`,
-                ...migrationReasons,
-            ],
-            ...reviewFields,
-        };
-    }
-    const clusters = buildClusters(commitTasks.tasks);
+    // 모든 full 최초 계획 리뷰는 task 수와 무관하게 single combined reviewer 한 명이 읽는다.
+    // clustered(local+global) 다중 호출은 비용 대비 효과가 낮아 신규 dispatch에서 제거했다 —
+    // 과거 clustered payload는 checkPreviousShape·loadDispatch가 읽기 호환으로 계속 받는다.
+    // cluster를 첫 task만으로 만들면 나머지 task의 Interface·Touch가 reviewer 입력에서
+    // 빠지므로, 모든 commit task를 한 cluster에 담는다. task가 0개면 cluster도 없다.
+    const sortedUnique = (values) => [...new Set(values)].sort();
+    const clusters = taskCount > 0
+        ? [{
+                id: 'c1',
+                tasks: commitTasks.tasks.map((task) => task.id).sort(),
+                interface_keys: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.interfaceKeys])),
+                touch_paths: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.touchPaths])),
+            }]
+        : [];
     return {
         ok: true,
         phase: 'plan',
         target: { digest: snapshot.digest, documents: snapshot.documents },
-        strategy: 'clustered',
+        strategy: 'single',
         task_count: taskCount,
         clusters,
-        perspectives: [...clusters.map(() => 'local'), 'global'],
+        perspectives: ['combined'],
         reasons: [
-            `commit task count ${taskCount} > ${PLAN_SMALL_MAX_TASKS} — clustered local+global review`,
-            `formed ${clusters.length} cluster(s) from Interface backtick keys and Touch path overlap`,
+            `commit task count ${taskCount} — single combined reviewer (every full plan review is single)`,
             ...migrationReasons,
         ],
         ...reviewFields,
     };
 }
 /**
- * frozen base/head의 numstat과 승인된 review_risk로 Execute 리뷰 전략을 고른다.
+ * base 이후 최종 작업 트리의 동결 스냅샷 통계와 승인된 review_risk로 Execute 리뷰 전략을 고른다.
+ * 스냅샷 artifact는 `.bouncer/runtime/review-snapshots/`에 저장되며(그 밖에는 쓰지 않는다),
+ * target에 snapshot_id·snapshot_path가 실린다. head가 현재 HEAD와 다르거나 수집이 실패하면
+ * 줄 수 0으로 접지 않고 ok:false(reason·cause·next)를 돌려준다.
  * 경로명·diff 본문 키워드로 위험을 추측하지 않는다.
  * blueprint `bouncer.scale`이 `light`이면 diff 크기와 관계없이 `single`/
  * `combined`다 — light run의 단일 reviewer 계약이 임계값에 갈리지 않게 하기
@@ -556,7 +543,7 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }) {
  * }} opts - repoRoot는 저장소 루트, blueprintDir는 canonical blueprint 상대 경로,
  *   taskId는 선택적 commit task 번호, base/head는 frozen git ref,
  *   reviewMode는 discovery(기본)|delta, exec는 git 호출기
- * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험, 실패 시 ok:false.
+ * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험·snapshot target, 실패 시 ok:false.
  *   blueprint 범위 성공의 `target.task`는 null. S30 위반이면 perspectives 없음.
  *   delta 성공은 항상 `single`/`['combined']`이고 reasons에 한 줄이 더 있다.
  */
@@ -642,14 +629,30 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, rev
         const message = error instanceof Error ? error.message : String(error);
         return { ok: false, error: `git ref resolve failed: ${message}` };
     }
-    let stats;
-    try {
-        stats = readNumstat(exec, repoRoot, resolvedBase, resolvedHead);
-    }
-    catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return { ok: false, error: `git diff failed: ${message}` };
-    }
+    // 별도 live diff로 분류한 뒤 다시 수집하면 분류와 리뷰 입력이 갈라진다. 최종 작업
+    // 트리를 한 번만 동결하고 그 artifact의 통계로 임계값을 판정한다. base 이후의
+    // 미커밋(staged·unstaged·untracked) 변경도 이 경로로만 센다.
+    const captured = captureReviewSnapshot({
+        repoRoot,
+        blueprintDir: bp,
+        taskId: targetTask,
+        base: resolvedBase,
+        head: resolvedHead,
+        deps: {
+            // 기존 exec 주입 호환: 모든 git 호출이 같은 exec를 지나가 테스트가 한 곳에서 대체한다.
+            runGit: (args) => Buffer.from(exec('git', args, { cwd: repoRoot, maxBuffer: 512 * 1024 * 1024 })),
+        },
+    });
+    if (!captured.ok)
+        return captured;
+    const stats = captured.snapshot;
+    const frozenTarget = {
+        base: captured.snapshot.target.base,
+        head: captured.snapshot.target.head,
+        task: targetTask,
+        snapshot_id: captured.snapshot_id,
+        snapshot_path: captured.snapshot_path,
+    };
     const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
         && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
     const lightScale = scale === 'light';
@@ -682,7 +685,7 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, rev
         return {
             ok: true,
             phase: 'execute',
-            target: { base: resolvedBase, head: resolvedHead, task: targetTask },
+            target: frozenTarget,
             strategy: 'single',
             changed_files: stats.changed_files,
             changed_lines: stats.changed_lines,
@@ -694,7 +697,7 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, rev
     return {
         ok: true,
         phase: 'execute',
-        target: { base: resolvedBase, head: resolvedHead, task: targetTask },
+        target: frozenTarget,
         strategy,
         changed_files: stats.changed_files,
         changed_lines: stats.changed_lines,
@@ -949,46 +952,7 @@ function gitRevParse(exec, repoRoot, ref) {
     });
     return String(out).trim();
 }
-/**
- * `git diff --numstat`을 파싱한다. binary(`-`) 행은 파일만 세고 줄 합계에는
- * 넣지 않으며, binary만으로 parallel로 올리지 않는다.
- *
- * @param {ExecFileSyncFn} exec - 주입 가능한 execFileSync
- * @param {string} repoRoot - cwd
- * @param {string} base - resolved base SHA
- * @param {string} head - resolved head SHA
- * @returns {{ changed_files: number, changed_lines: number }}
- */
-function readNumstat(exec, repoRoot, base, head) {
-    const out = String(exec('git', ['diff', '--numstat', base, head], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-    }));
-    let changedFiles = 0;
-    let changedLines = 0;
-    for (const line of out.split('\n')) {
-        if (!line.trim())
-            continue;
-        const parts = line.split('\t');
-        if (parts.length < 3)
-            continue;
-        changedFiles += 1;
-        const add = parts[0];
-        const del = parts[1];
-        // binary는 `-`/`-`. 숫자로 합치면 NaN이 되어 임계값을 오염시킨다.
-        if (add === '-' || del === '-')
-            continue;
-        const additions = Number(add);
-        const deletions = Number(del);
-        if (Number.isFinite(additions))
-            changedLines += additions;
-        if (Number.isFinite(deletions))
-            changedLines += deletions;
-    }
-    return { changed_files: changedFiles, changed_lines: changedLines };
-}
 module.exports = {
-    PLAN_SMALL_MAX_TASKS,
     EXECUTE_SMALL_MAX_FILES,
     EXECUTE_SMALL_MAX_LINES,
     REVIEW_RISK_ENUM,

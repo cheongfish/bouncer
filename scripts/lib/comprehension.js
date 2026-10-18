@@ -7,11 +7,11 @@ const { spawnSync } = require('node:child_process');
 // 이 prefix 아래 governance 문서는 hash를 바꾸면 안 된다 — 그렇지 않으면 explain.md
 // 작성 자체가 그 문서가 담는 comprehension 기록을 무효화한다.
 const DIFF_EXCLUDED_PREFIXES = ['.bouncer/context/'];
-// 키만 정의. heading 정규식은 parseSections 옆 validate.ts에 두어
-// 빈 섹션 규칙이 G10과 공유되게 한다.
+// G16 필수 절 키만 정의. heading 정규식은 parseSections 옆 validate.ts에 두어
+// 빈 섹션 규칙이 G10과 공유되게 한다. intuition은 새 Explain이 더 이상 쓰지 않으므로
+// 필수에서 뺀다(기존 문서의 Intuition은 파서가 선택적으로 계속 읽는다).
 const EXPLAIN_SECTION_DEFS = [
     'background',
-    'intuition',
     'code',
     'quiz',
 ];

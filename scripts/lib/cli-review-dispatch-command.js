@@ -5,13 +5,16 @@ const { parseFlags } = cliFlags;
 // validate-sections는 ./paths 계열만 정적으로 끌어오므로(intent 모듈 없음) help 문자열을
 // 검증기 상수에서 만들어도 ./review-dispatch lazy require 계약이 깨지지 않는다.
 const validateSections = require("./validate-sections");
-const { CONTEXT_REVIEW_PERSPECTIVE, CONTEXT_REVIEW_STATUS, REVIEW_SEVERITY, findingFingerprint, } = validateSections;
+const { CONTEXT_REVIEW_PERSPECTIVE, CONTEXT_REVIEW_STATUS, REVIEW_SEVERITY, findingFingerprint, REPORT_FINDING_STATUS, FINDING_ACTIONABILITY, FINDING_ORIGIN, CONTEXT_ROUND_MODES, } = validateSections;
 const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
 
   review-dispatch plan --blueprint <dir> [--previous <file>]
              Classify plan context-review strategy (read-only JSON).
   review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
-             Classify execute review strategy from frozen diff (read-only JSON).
+             Classify execute review strategy from the frozen final worktree state
+             (JSON). Writes only the snapshot artifact under .bouncer/runtime/
+             review-snapshots/ and returns target.snapshot_id/snapshot_path; --head
+             must be the current HEAD. On failure it prints reason/cause/next, exit 1.
              When that blueprint's scale is light, returns single/combined
              regardless of diff size.
 `;
@@ -65,10 +68,11 @@ ${HELP_CONTEXT_REVIEW_EXAMPLE}
 
 Enums:
   severity: ${REVIEW_SEVERITY.join('|')}
-  finding status: ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
-  actionability: must_fix|advisory
-  origin: discovery|introduced_by_revision|missed_critical
-  round mode: discovery|delta
+  finding status (context-review.md): ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
+  finding status (record input): ${REPORT_FINDING_STATUS.join('|')} (open is in-progress only)
+  actionability: ${FINDING_ACTIONABILITY.join('|')}
+  origin: ${FINDING_ORIGIN.join('|')}
+  round mode: ${CONTEXT_ROUND_MODES.join('|')}
   perspective name (also finding category): ${CONTEXT_REVIEW_PERSPECTIVE.join('|')}
 
 fingerprint formula: context:lower(category):lower(brief_clause):posix(file)#symbol
@@ -77,7 +81,7 @@ Do not compute the digest. Copy \`target.digest\` from the JSON that
 \`review-dispatch plan --blueprint <dir>\` prints into both <target.digest>
 places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
 
-Plan fields (\`single\` / \`clustered\` only; absent on \`skip\` and failures):
+Plan fields (\`single\` only; older stored \`clustered\` payloads are still read; absent on \`skip\` and failures):
   snapshot_version 2. target.digest hashes the ordered {file, body, structure} of
                    every plan document; status/title/timestamp/commit evidence are excluded
   parts            per-document body sha256 (epic index, blueprint index, each tasks.md)
@@ -229,6 +233,10 @@ function parseExecuteArgs(rest) {
             return fail('--mode must be discovery or delta');
         }
     }
+    // blueprint 최종 리뷰는 discovery 한 번이다. task 없는 delta는 사용법 오류로 분류기 전에 거절한다.
+    if (f.mode === 'delta' && !Object.prototype.hasOwnProperty.call(f, 'task')) {
+        return fail('--mode delta requires --task <ddd> (the blueprint final review has no delta round)');
+    }
     return {
         mode: 'execute',
         blueprint: f.blueprint,
@@ -306,7 +314,10 @@ module.exports = {
     usage: `  review-dispatch plan --blueprint <dir> [--previous <file>]
              Classify plan context-review strategy (read-only JSON).
   review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
-             Classify execute review strategy from frozen diff (read-only JSON).
+             Classify execute review strategy from the frozen final worktree state
+             (JSON). Writes only the snapshot artifact under .bouncer/runtime/
+             review-snapshots/ and returns target.snapshot_id/snapshot_path; --head
+             must be the current HEAD. On failure it prints reason/cause/next, exit 1.
              When that blueprint's scale is light, returns single/combined
              regardless of diff size.
 `,

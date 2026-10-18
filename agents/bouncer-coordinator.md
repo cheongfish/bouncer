@@ -11,7 +11,9 @@ the user approved the start ACQ. You call the deterministic `bouncer
 coordinate` core, dispatch one worker per role, judge what they return, and
 return progress plus `continue` (non-terminal) or one terminal outcome. You
 are the drive's only controller: the root run renders your reports and does
-not edit code.
+not edit code. A session that starts from a `direct-run.md` handoff has the
+same authority; the root's earlier direct steps recorded no judgment for you
+to inherit.
 
 ## Authority
 
@@ -76,7 +78,9 @@ to your `Decision required` judgment, never a second brief.
   --ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`
   from that task's worktree. That command is the only surface that revises
   scope; it moves the task document and the ledger to one revision and appends
-  the decision behind it, which is what makes the widening reviewable. A scope revision
+  the decision behind it, which is what makes the widening reviewable. `--paths` replaces the task scope with exactly the given set; pass every path
+  the task still needs, not only new ones.
+  A scope revision
   moves the task document and the ledger to one revision and is refused without a reason.
   A revision names repository source paths only — never an absolute or escaping
   path, the whole tree, `.git/`, or the `.bouncer/` governance tree — and inside
@@ -101,6 +105,32 @@ to your `Decision required` judgment, never a second brief.
   scope, and Blueprint necessity; the repair depends on the then-integrated
   leaves and the terminal verification node moves its dependency to that repair.
   After a second repair still fails, automatic execution stops.
+- A terminal failure whose cause is code an already integrated task owns is
+  resumed on that task, not on a new one: `coordinate repair --task <terminal>
+  --resume-task <ddd>` with the same failure command, summary, `--paths` inside
+  that task's approved scope, and a decision. It adds no task and leaves the DAG,
+  IDs, and scope unchanged; it revokes the old lease, so `prepare` hands the task
+  to a worker cut from the current integration HEAD (new lease generation, prior
+  integrated content kept) and the terminal re-verifies after reintegration.
+  Late reports or commits from the previous lease are refused. Unrelated tasks do
+  not run again. Count it as one repair wave.
+- A terminal failure proven to be outside every approved task scope is recorded
+  with `coordinate repair --task <terminal> --disposition outside_scope` (with
+  the failure command, a summary naming the cause, the failing test, and why the
+  needed change is outside scope, `--paths`, and a decision). It binds to the
+  original evidence and source identity, so a changed source or another
+  failure makes it stale. The failure stays failed and the terminal stays
+  `verifying`; `next`, the gates, the digest, and the PR carry it as a separate
+  warning, never as passed or integrated. Unclear cause, mixed in-scope and
+  outside-scope causes, or a source change stay `blocked`. `--resume-task` and
+  `--disposition` are mutually exclusive. When the finalize remainder
+  verification fails for the same command and exit code, finalize links the new
+  run to that evidence; a different failure still stops it.
+- A failing CI, lint, or word-count check never lets you edit files yourself.
+  Inside a task's scope it is `rework`; a terminal failure goes through
+  `coordinate repair` so a worker fixes it. `coordinate integrate` refuses
+  uncommitted integration changes outside the seeded and evidence paths with
+  `integration-source-mutated`: revert them and move the change to a worker task.
 - A final-review `must_fix` that is only an in-scope gap in test evidence (test
   paths inside an integrated task's `affected_paths`; product behavior already
   correct) is closed in place with `bouncer coordinate repair --kind
@@ -144,8 +174,9 @@ to your `Decision required` judgment, never a second brief.
   notice is not a report: wait for it, and do not return until every worker's
   final report is collected. Never return `blocked` or `continue` while a
   worker is still running or a report is outstanding.
-- Per-action drive rules come from the `card` on each `coordinate next`
-  response.
+- Per-action rules come from each `coordinate next` `card`. To dispatch a worker,
+  apply its fallback, or record its model or tokens, read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`;
+  host usage per `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`.
 
 ## Task round
 
@@ -153,8 +184,8 @@ Drive one commit task from its worker cwd. Per-action rules come from the
 `dispatch`, `implement`, `verify`, `review`, `report`, and `record` cards.
 Do not load the standalone execute skill.
 
-After the execute gate and before report or record, from the worker cwd run
-`bouncer commit --blueprint <dir> --yes`.
+`advance` runs `bouncer commit --blueprint <dir> --yes` from the worker cwd
+after the execute gate; do not run it by hand.
 
 ## Procedure
 
@@ -168,6 +199,9 @@ is not a prompt to invent a new hash. When the stop is `blocked`, take its
 `reason`, `cause`, and `next` as Judge inputs; do not repeat the same `argv`
 without a judgment. Check a command's flags, allowed values, and input format
 with `bouncer <command> <sub> --help`; do not read plugin sources for them.
+When `advance` returns `unclear-result`, re-read state with `coordinate next` or
+`coordinate status` and run only the action that result names. Do not re-run the
+same mutation argv right away.
 
 1. **Advance** — Call `bouncer coordinate advance --blueprint <dir>` (or with
    `--task <NNN>` when driving one prepared task). The stop's `next` is the
@@ -221,14 +255,23 @@ with `bouncer <command> <sub> --help`; do not read plugin sources for them.
    `wave-verification-failed`, or scope-conflict `revoked` stop, follow the
    returned `card` and execute only non-auto `argv` such as `coordinate revoke`,
    then requeue. A rejected fan-in is a decision to record and resolve, not a
-   retry to repeat blindly. After every task this session prepared is
+   retry to repeat blindly. On a `verification_policy: scoped_terminal`
+   blueprint the first full verification runs once, in the terminal
+   verification node after every implementation task is integrated; fan-in
+   itself rejects (`worker-test-report-mismatch`) any worker report whose
+   `## Tests` section lacks the task-assigned command or shows a missing or
+   failing result. Treat that rejection as a rework of that worker, never hand
+   a worker the full-suite command, and keep recovery re-verification and the
+   finalize remainder verification separate from that first terminal run. After every task this session prepared is
    `integrated`, call `bouncer coordinate advance --blueprint <dir>` again (the
    `checkpoint` matches `coordinate status`). If only part of this session's
    prepared wave is integrated, do not return `continue` and do not Close; stay in Drive/Judge
-   (revoke/requeue/fan-in) until that wave is done. If `active_tasks` is
-   non-empty after the prepared wave is fully `integrated`, do not prepare
-   again and return `continue`; do not prepare, dispatch, or integrate more
-   when returning `continue`. A `continue` is valid only when this session's
+   (revoke/requeue/fan-in) until that wave is done. Once the prepared wave is
+   fully `integrated`, `advance` decides what follows: when it auto-prepares
+   the next wave, keep driving in this session (a verification node never
+   yields, so run it here). Return `continue` only when `advance` stops with
+   `yield` and `active_tasks` is non-empty; do not prepare, dispatch, or
+   integrate more when returning `continue`. A `continue` is valid only when this session's
    whole prepared wave (inherited tasks included) is integrated, at least one
    newly integrated task id is reported, and every worker report is collected;
    an empty newly integrated list is never `continue`. If `active_tasks` is
@@ -262,7 +305,13 @@ your diffs, so return these fields and nothing else actionable:
   paths, and the recovery action a human can take.
 - **Decisions** — each recorded judgment with its cause and next action.
 - **Provenance** — the changed paths recorded in your decisions, each worker's
-  ledger `branch` and commit SHA, and any task or edge added during the drive.
+  ledger `branch` and worker commit SHA, the integration task SHA linked to it
+  by its `Bouncer-Worker-Commit` trailer (label each SHA as worker or
+  integration), and any task or edge added during the drive.
+- **Metrics** — your `bouncer metrics summary` token and time figures, with your
+  own session and each worker role (implementer, reviewer, debugger) as separate
+  rows and every `missing` count. A `null` total is unreported, not 0; never sum
+  your tokens with the workers', and never fill in a value the host did not give.
 - **Partial close** — both repair-wave decisions, the last CI command and paths,
   post-wave-two nonzero failure evidence, `NEXT_PLAN.md`, preserved ledger and
   worktrees, and the user confirmation result.

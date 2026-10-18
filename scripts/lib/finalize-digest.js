@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const frontmatter = require("./frontmatter");
+const execution_contracts_1 = require("./execution-contracts");
 const { readDoc } = frontmatter;
 const paths = require("./paths");
 const { toPosix } = paths;
@@ -21,7 +22,7 @@ const { readConfig } = configMod;
 const scope = require("./scope");
 const { readCoordinatorLedger } = scope;
 const finalizeMod = require("./finalize");
-const { buildCoordinatorProvenance, resolveCheckoutBranch } = finalizeMod;
+const { buildCoordinatorProvenance, resolveCheckoutBranch, collectMustFixWarnings } = finalizeMod;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
 const currentMod = require("./current");
@@ -373,6 +374,11 @@ function readReview(absPath) {
             };
             if (typeof row.note === 'string' && row.note)
                 finding.note = row.note;
+            // 미해결 must_fix 경고는 이 값으로만 판정한다. 없을 때 severity로 채우면 legacy
+            // 리뷰의 blocker/major가 경고로 둔갑하므로 원문에 있을 때만 옮긴다.
+            if (typeof row.actionability === 'string' && row.actionability) {
+                finding.actionability = row.actionability;
+            }
             findings.push(finding);
         }
         // 키 부재는 required=true로 본다. 명시 false만 review-skipped를 만든다.
@@ -420,6 +426,39 @@ function pathOutsideScope(changedPath, scopes) {
     return true;
 }
 /**
+ * 원장에서 task별 마지막 accepted 보고의 열린 선택·알려진 약점을 모은다. digest가
+ * 원장 값을 싣는 유일한 경로이며 summary·dispatch 등 다른 필드는 읽지 않는다.
+ * 순수 함수이며 throw하지 않는다 — 원장 모양이 틀리거나 light(보고 파일 없음)면
+ * 빈 Map이다. 두 배열이 모두 비면 항목을 만들지 않는다. 문자열이 아닌 항목은 버린다.
+ *
+ * @param {unknown} ledger - 읽힌 원장 객체. 원장이 없으면 null
+ * @returns {Map<string, WorkerNotes>} 키는 `TASKS-NNN`(TaskDigest.id 형식)
+ */
+function collectWorkerNotes(ledger) {
+    const notes = new Map();
+    const root = asRecord(ledger);
+    if (root.mode === 'light' || !Array.isArray(root.decisions))
+        return notes;
+    // 원장 순서가 시간순이므로 같은 task의 뒤 보고가 앞 보고를 덮어쓴다.
+    const latest = new Map();
+    for (const raw of root.decisions) {
+        const decision = asRecord(raw);
+        if (decision.kind !== 'report' || decision.outcome !== 'accepted')
+            continue;
+        if (typeof decision.task !== 'string' || !decision.task)
+            continue;
+        latest.set(decision.task.startsWith('TASKS-') ? decision.task : `TASKS-${decision.task}`, decision);
+    }
+    for (const [id, decision] of latest) {
+        const open_choices = stringList(decision.open_choices);
+        const known_weaknesses = stringList(decision.known_weaknesses);
+        if (open_choices.length || known_weaknesses.length) {
+            notes.set(id, { open_choices, known_weaknesses });
+        }
+    }
+    return notes;
+}
+/**
  * coordinator 원장을 외부 소비자가 원장 파일을 직접 읽지 않아도 되는 drive 요약으로
  * 줄인다. 순수 함수이며 throw하지 않는다 — 형식이 깨진 원장은 값으로 표현한다.
  * `ready`는 "task가 하나 이상이고 전부 integrated"일 때만 true다. id가 문자열이
@@ -449,9 +488,45 @@ function summarizeDrive(ledger) {
             sha: typeof raw.sha === 'string' ? raw.sha : null,
         });
     }
+    // 입증된 범위 밖 terminal 실패는 성공이 아니라 별도 충족 사유다. ready만 열고 status는 원장 값
+    // (verifying) 그대로 보여 줘 호출자가 integrated로 오해하지 않게 한다.
     const ready = !dropped && tasks.length > 0
-        && tasks.every((task) => task.status === 'integrated');
+        && tasks.every((task) => task.status === 'integrated' || (0, execution_contracts_1.validOutsideScope)(ledger, task.id) !== null);
     return { ready, tasks };
+}
+/**
+ * 원장 decisions에서 Retro 판단용 drive 실행 통계를 센다. 원장 event만 세고 CLI 거절이나
+ * 대화 기록은 추정하지 않는다. 순수 함수이며 입력을 바꾸지 않고 throw하지 않는다.
+ * - rework_reports·blocked: `report` outcome rework/blocked. blocked는 `critical-recovery`
+ *   outcome blocked도 더한다.
+ * - debugger_calls: role debugger인 `worker-model`만. `worker-tokens`는 같은 호출의 늦은
+ *   토큰 기록이라 세면 한 호출이 두 번 잡힌다.
+ * - repair_waves: 같은 repair가 decisions와 `repairWaves`에 함께 남으므로 둘을 더하지 않는다.
+ *   `repairWaves`의 고유 wave가 정본이고, 비어 있거나 없을 때만 decisions repair로 대신한다.
+ * - fanin_verification_failures: `fanin-verification-failed` decision 수.
+ *
+ * @param {unknown} ledger - 읽힌 원장 객체. 원장이 없으면 null(모든 원장 counter 0)
+ * @param {number} deferredMustFix - 루트 리뷰 deferred must_fix 고유 id 수(원장 밖 값)
+ * @returns {DriveIssues} 여섯 counter
+ */
+function summarizeDriveIssues(ledger, deferredMustFix) {
+    const root = asRecord(ledger);
+    const decisions = (Array.isArray(root.decisions) ? root.decisions : []).map(asRecord);
+    const count = (pred) => decisions.filter(pred).length;
+    // wave가 정수인 행만 고유 집합에 넣는다 — 깨진 행이 별도 wave로 세지지 않게.
+    const uniqueWaves = (rows) => new Set(rows.map(asRecord).map((r) => r.wave).filter((w) => Number.isInteger(w))).size;
+    const fromRepairWaves = Array.isArray(root.repairWaves) ? uniqueWaves(root.repairWaves) : 0;
+    return {
+        rework_reports: count((d) => d.kind === 'report' && d.outcome === 'rework'),
+        debugger_calls: count((d) => d.kind === 'worker-model' && d.role === 'debugger'),
+        repair_waves: fromRepairWaves > 0
+            ? fromRepairWaves
+            : uniqueWaves(decisions.filter((d) => d.kind === 'repair')),
+        fanin_verification_failures: count((d) => d.kind === 'fanin-verification-failed'),
+        blocked: count((d) => (d.kind === 'report' || d.kind === 'critical-recovery')
+            && d.outcome === 'blocked'),
+        deferred_must_fix: deferredMustFix,
+    };
 }
 /**
  * Explain·Quiz·PR에 필요한 finalize 입력을 한 JSON으로 모은다.
@@ -465,6 +540,10 @@ function summarizeDrive(ledger) {
  * buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로 조립하지 않게
  * 하기 위함이다. `review_scope: blueprint`이면 루트 리뷰 finding을
  * `blueprint_review`로 싣고, 아니면 그 필드는 null이다.
+ * 루트 리뷰의 deferred must_fix는 최상위 `warnings`(blueprint 모드가 아니면 [])로,
+ * 원장 event 통계는 최상위 `drive_issues`로 싣는다. 둘 다 buildPrDraft 뒤에 붙여
+ * 실행 통계가 PR 입력에 섞이지 않게 한다 — PR의 미해결 절은 같은 판정 함수로
+ * `blueprint_review`에서 직접 만든다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 호출 checkout(보통 main). 원장 경로 해석 기준
@@ -554,11 +633,25 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
             try {
                 intent = parseIntentBody(bpBody);
             }
-            catch (_error) {
-                // Intent 절 형식 오류(파싱 throw)만 흡수한다. Intent는 digest 필수
-                // 필드지만 절이 깨져도 blueprint 자체는 유효하므로 빈 배열로 두고
-                // Explain이 원문을 다시 읽게 한다 — no-base/거절 경로로 승격하지 않는다.
-                intent = [];
+            catch (error) {
+                // 헤딩 부재만 예전처럼 intent:[]로 흡수한다(draft·구형 fixture 호환).
+                // 헤딩이 있는데 내용이 깨진 경우는 prepare가 조용히 통과하면
+                // finalize 커밋 직전에 스택으로 터지므로 S33 validate 실패로 승격한다.
+                const message = error.message || String(error);
+                if (/blueprint Intent is missing or malformed/.test(message)) {
+                    intent = [];
+                }
+                else {
+                    return {
+                        ok: false,
+                        reason: 'validate',
+                        failures: [{
+                                code: 'S33',
+                                message: `blueprint Intent invalid: ${message}`,
+                                file: bpIndexRel,
+                            }],
+                    };
+                }
             }
         }
         catch (_error) {
@@ -576,6 +669,7 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         ledgerFile: ledgerRead.ok ? ledgerRead.ledgerFile : null,
     });
     const built = [];
+    const workerNotes = collectWorkerNotes(ledger);
     const stableIds = [];
     for (const entry of listing.entries) {
         const tasksAbs = path.join(checkoutRoot, entry.tasks.rel);
@@ -636,12 +730,14 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
                         sha: commitShaField,
                         sha8: commitShaField,
                         source: 'commit_sha',
+                        worker_sha: null,
                     }
                     : null,
                 affected_paths: affected,
                 verification,
                 review,
                 constraints,
+                ...(workerNotes.has(id) ? { worker_notes: workerNotes.get(id) } : {}),
             },
         });
     }
@@ -655,13 +751,17 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
     for (const item of built) {
         const hit = trailerMap.get(item.digest.stable_id);
         if (hit) {
-            item.digest.commit = { sha: hit.sha, sha8: hit.sha8, source: 'trailer' };
+            item.digest.commit = {
+                sha: hit.sha, sha8: hit.sha8, source: 'trailer', worker_sha: hit.workerSha,
+            };
             continue;
         }
         // trailer가 없고 commit_sha만 있으면 짧은 hex를 유지한다. 전체 SHA는 없다.
         if (item.digest.commit && item.digest.commit.source === 'commit_sha') {
             const short = item.digest.commit.sha8;
-            item.digest.commit = { sha: short, sha8: short, source: 'commit_sha' };
+            item.digest.commit = {
+                sha: short, sha8: short, source: 'commit_sha', worker_sha: null,
+            };
         }
     }
     const nameOnly = run(['diff', '--name-only', `${base}..${head}`]);
@@ -689,11 +789,29 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
     if (!diffSummary)
         unverified.push({ kind: 'diff-summary-unavailable' });
     let terminalOk = false;
+    let outsideScopeTerminal = null;
     for (const item of built) {
         const task = item.digest;
         if (item.kind === 'verification') {
-            if (task.verification && task.verification.status === 'passed')
+            if (task.verification && task.verification.status === 'passed') {
                 terminalOk = true;
+                continue;
+            }
+            // 실패한 terminal이 입증된 범위 밖 분류를 가지면 passed로 바꾸지 않고 실패 증거에 분류와
+            // 원본 evidence/source identity를 붙인다. 분류가 없거나 stale이면 아래 terminal-missing이 남는다.
+            const accepted = (0, execution_contracts_1.validOutsideScope)(ledger, task.id);
+            if (accepted) {
+                const failure = asRecord(asRecord(ledger).terminalFailure);
+                task.verification = {
+                    status: task.verification ? task.verification.status : 'failed',
+                    command: task.verification?.command ?? (typeof failure.command === 'string' ? failure.command : null),
+                    exit_code: task.verification?.exit_code ?? (typeof failure.exitCode === 'number' ? failure.exitCode : null),
+                    evidence_id: task.verification?.evidence_id ?? accepted.evidence_id,
+                    reused: task.verification ? task.verification.reused : null,
+                    outside_scope: accepted,
+                };
+                outsideScopeTerminal = { stableId: task.stable_id, accepted };
+            }
             continue;
         }
         if (item.kind === 'commit') {
@@ -745,7 +863,15 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
             }
         }
     }
-    if (!terminalOk) {
+    if (!terminalOk && outsideScopeTerminal) {
+        // 별도 경고 항목: 원본 증거 id를 detail에 싣는다(경로가 아니라 id만 — 공유 PR에 로컬 경로가 새지 않게).
+        unverified.push({
+            kind: 'terminal-outside-scope',
+            task: outsideScopeTerminal.stableId,
+            detail: `${outsideScopeTerminal.accepted.reason} (evidence ${outsideScopeTerminal.accepted.evidence_id})`,
+        });
+    }
+    else if (!terminalOk) {
         unverified.push({ kind: 'terminal-missing' });
     }
     const scopes = built.map((item) => item.affected);
@@ -796,6 +922,8 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         out_of_scope: outOfScope,
         blueprint_review: blueprintReview,
     };
+    // task 범위는 경고를 만들지 않는다 — blueprintReview는 blueprint 모드에서만 non-null.
+    const warnings = blueprintReview ? collectMustFixWarnings(blueprintReview.findings) : [];
     const config = readConfig(checkoutRoot) ?? {};
     return {
         ...body,
@@ -805,6 +933,8 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         }),
         // PR draft 입력(body)에 섞이지 않도록 buildPrDraft 호출 뒤 반환 객체에만 붙인다.
         drive: summarizeDrive(ledger),
+        warnings,
+        drive_issues: summarizeDriveIssues(ledger, warnings.length),
     };
 }
-module.exports = { prepareFinalizeDigest, summarizeDrive };
+module.exports = { prepareFinalizeDigest, summarizeDrive, summarizeDriveIssues };

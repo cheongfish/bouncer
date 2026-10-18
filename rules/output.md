@@ -1,7 +1,7 @@
 # 워크플로 출력 계약
 
-일곱 진입 워크플로(`/bouncer-init`, `/bouncer-plan`, `/bouncer-execute`,
-`/bouncer-commit`, `/bouncer-run`, `/bouncer-finalize`, `/bouncer-retro`)는 진행·성공·실패를 이
+다섯 진입 워크플로(`/bouncer-init`, `/bouncer-plan`, `/bouncer-run`,
+`/bouncer-finalize`, `/bouncer-retro`)는 진행·성공·실패를 이
 계약으로 렌더링한다. CLI 반환값과 raw payload는 판단에 계속 사용하되, 표시
 모드는 사용자가 요청한 `debug`가 아니면 `compact`이다.
 
@@ -16,7 +16,7 @@
 
 ### compact 성공 예시
 
-`완료: execute gate 통과 · 변경: rules/output.md, skills/bouncer-execute/SKILL.md · 검증: npm run ci 통과 · 다음: /bouncer-commit`
+`완료: execute gate 통과 · 변경: rules/output.md, skills/bouncer-run/SKILL.md · 검증: npm run ci 통과 · 다음: /bouncer-finalize`
 
 ### compact 실패 예시
 
@@ -46,6 +46,10 @@
 `진행: 003 · integrated · bouncer-implementer · scope r2 개정(src/session/ 추가)`
 
 `완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: /bouncer-finalize (.worktrees/001/001/integration)`
+
+SHA를 쓸 때는 출처를 접두로 붙인다: worker 브랜치 커밋은 `worker <branch>@<sha8>`, integration 커밋은 `integration <sha8>`. 둘은 `Bouncer-Worker-Commit` trailer로 연결되며 같은 SHA가 아니다.
+
+`진행: 003 · worker bouncer/098/001/003@9f8e7d6 → integration a1b2c3d`
 
 `부분 종결: 001-login · 마지막 검증: npm run ci 실패 · 보존: ledger·integration·worker·NEXT_PLAN.md · 다음: NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`
 

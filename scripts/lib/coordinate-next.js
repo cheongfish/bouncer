@@ -7,6 +7,9 @@ const coordinator = require("./coordinator");
 const { registeredIntegration, ensureIntegrationCwd, assertLeaseShape, isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha, loadLedgerBytes, readBouncerBlock, projectCheckpoint, COORDINATE_FAILURE_HINTS, } = coordinator;
 const runtime = require("./runtime-state");
 const { coordinatorPathsFor, runtimePaths } = runtime;
+const configMod = require("./config");
+const driveMetrics = require("./drive-metrics");
+const execution_contracts_1 = require("./execution-contracts");
 // 계약 카드를 싣는 action. 판단(judge)이나 worker 위임이 필요한 행동만 카드를 받는다.
 // argv만 실행하면 끝나는 prepare·drive_tasks·integrate·verification_node·commit·done·none은
 // 카드가 없다 — 응답을 키우지 않고, 그 행동의 규칙은 argv 자체가 담는다.
@@ -26,6 +29,11 @@ const NEXT_FAILURE_HINTS = {
     'no-ready-task': {
         cause: 'No prepared, recorded, ready, or integrable work remains, and the blueprint is not done.',
         next: 'Run `bouncer coordinate status` and report the unexpected ledger combination; do not invent an action.',
+    },
+    'final-review-blocked': {
+        cause: 'The blueprint final review already recorded its one discovery round and the root review is not accepted.',
+        next: 'Show the open findings to the user and wait for their decision (note + deferred, or '
+            + 'accepted-risk consent); do not run a delta round or repair.',
     },
     'critical-recovery-open': {
         cause: 'This prepared task has an open critical-recovery record with no outcome yet.',
@@ -204,12 +212,15 @@ function attachJudgeContext(result, ctx) {
  * @param {string} workerPath - 할당 worker 절대 경로
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} taskId - 세 자리 task id
+ * @param {number | undefined} attempt - 활성 dispatch attempt. 없으면 보고 후보를 만들지 않는다
  * @returns {EvidenceCandidate[]} kind·path 후보
  */
-function defaultEvidenceCandidates(workerPath, blueprint, taskId) {
+function defaultEvidenceCandidates(workerPath, blueprint, taskId, attempt) {
     const taskDir = path.join(workerPath, blueprint.replaceAll('\\', '/'), 'tasks', taskId);
     return [
-        { kind: 'report', path: path.join(taskDir, 'report.md') },
+        // 보고 파일은 `coordinate report`가 읽는 reportPathFor 경로와 같아야 한다.
+        ...(attempt === undefined ? []
+            : [{ kind: 'report', path: coordinator.reportPathFor(workerPath, taskId, attempt) }]),
         { kind: 'verification', path: path.join(taskDir, 'verification.md') },
         { kind: 'review', path: path.join(taskDir, 'review.md') },
     ];
@@ -422,6 +433,62 @@ function decideNext(opts) {
     });
 }
 /**
+ * prepare를 내기 직전에, 이 coordinator 세션을 여기서 끊어야 하는지 원장 기록으로 판정한다.
+ * 한 세션이 직렬·무예외 wave를 이어 처리해 재기동 고정비를 줄이되, 상한에 닿았거나 예외·
+ * 병렬 wave가 끼면 새 세션(깨끗한 컨텍스트)에서 판단하게 하려는 경계다.
+ *
+ * 세션 경계는 `coordinate session-open`이 남긴 마지막 `session` 결정이고, 없으면 원장
+ * 처음부터를 한 세션으로 본다. wave 수는 그 뒤의 `fanin` 결정 수다(원장에 wave id가 없다).
+ * 읽기 전용이다.
+ *
+ * @param {Ledger} ledger - 원장 스냅샷
+ * @param {string[]} ready - checkpoint.ready(pending 후보 wave)
+ * @param {string} integrationCwd - 설정을 읽을 integration 절대 경로
+ * @returns {YieldReason | null} 끊어야 하는 사유. 이어 가도 되면 null
+ */
+function sessionYieldReason(ledger, ready, integrationCwd) {
+    // 1. verification 노드만 남은 wave는 세션 상한과 무관하게 이어 간다. 이 노드는 새 commit
+    //    wave가 아니라 마감 검증이라, 여기서 끊으면 세션만 하나 더 늘어난다.
+    const commitReady = ready.filter((id) => {
+        const item = ledger.tasks.find((candidate) => candidate.id === id);
+        return item !== undefined && item.execution_kind !== 'verification';
+    });
+    if (commitReady.length === 0)
+        return null;
+    const decisions = ledger.decisions || [];
+    let sessionAt = -1;
+    decisions.forEach((entry, index) => {
+        if (entry && entry.kind === 'session')
+            sessionAt = index;
+    });
+    const faninAt = [];
+    decisions.forEach((entry, index) => {
+        if (index > sessionAt && entry && entry.kind === 'fanin')
+            faninAt.push(index);
+    });
+    // 2. 이번 세션에서 아직 wave를 하나도 못 돌렸으면 끊을 이유가 없다. 끊으면 새 세션도
+    //    같은 자리에서 다시 yield해 진행이 멈춘다.
+    if (faninAt.length === 0)
+        return null;
+    // 3. 설정이 invalid면 상한 1로 접는다. 잘못된 설정이 세션을 늘리지 못하게 하고, 거절은
+    //    worktree를 만들기 전 prepare가 맡는다.
+    const policy = configMod.readWavesPerSession(integrationCwd);
+    const cap = policy.ok ? policy.cap : 1;
+    if (faninAt.length >= cap)
+        return 'session-wave-cap';
+    // 4. 예외 창은 직전 wave의 fanin(없으면 세션 시작) 뒤 전부다. 이번 wave 안에서 생긴 repair·
+    //    revoke·비수락 report가 새 세션의 깨끗한 판단을 받게 한다. 그 이전 wave의 예외는 이미
+    //    처리된 것이라 세지 않는다.
+    const windowStart = faninAt.length >= 2 ? faninAt[faninAt.length - 2] + 1 : sessionAt + 1;
+    if (decisions.slice(windowStart).some((entry) => driveMetrics.isException(entry))) {
+        return 'wave-exception';
+    }
+    // 5. 병렬 wave는 worker 여럿의 보고가 한꺼번에 와서 컨텍스트가 빠르게 찬다.
+    if (commitReady.length >= 2)
+        return 'parallel-wave';
+    return null;
+}
+/**
  * blueprint 범위 표. 위에서 처음 맞는 행만 쓴다.
  *
  * @param {object} ctx - 읽기 스냅샷
@@ -456,7 +523,10 @@ function blueprintNext(ctx) {
     const failedId = ledger.terminalFailure && ledger.terminalFailure.task;
     if (failedId) {
         const failed = ledger.tasks.find((item) => item.id === failedId);
-        if (failed && failed.execution_kind === 'verification' && failed.status === 'verifying') {
+        // 입증된 범위 밖 분류가 있으면 terminal 실패는 blocked가 아니라 아래 완료 판정으로 넘어간다.
+        // 분류가 없거나 stale이면(소스 변경·identity 불일치·미완성) 기존 blocked를 그대로 유지한다.
+        if (failed && failed.execution_kind === 'verification' && failed.status === 'verifying'
+            && (0, execution_contracts_1.validOutsideScope)(ledger, failed.id) === null) {
             return ok({
                 scope: 'blueprint', action: 'blocked', reason: 'terminal-verification-failed',
                 cwd: integrationCwd,
@@ -501,13 +571,28 @@ function blueprintNext(ctx) {
         });
     }
     if (checkpoint.ready.length > 0) {
+        const yieldReason = sessionYieldReason(ledger, checkpoint.ready, integrationCwd);
+        if (yieldReason !== null) {
+            return ok({
+                scope: 'blueprint', action: 'yield', reason: yieldReason, cwd: integrationCwd,
+            });
+        }
         return ok({
             scope: 'blueprint', action: 'prepare', cwd: integrationCwd,
             argv: coordinateArgv('prepare', blueprint, ledgerRef),
         });
     }
+    // 완료는 전부 integrated이거나, 남은 하나가 입증된 범위 밖 terminal 실패일 때다. 후자는 성공으로
+    // 바꾸지 않고 payload.outside_scope로 실패 사실을 흘려 보낸다(passed·integrated로 취급하지 않는다).
+    const outsideScope = ledger.tasks
+        .map((item) => (item.status === 'integrated' ? null : (0, execution_contracts_1.validOutsideScope)(ledger, item.id)))
+        .find((entry) => entry !== null) ?? null;
     const allIntegrated = ledger.tasks.length > 0
-        && ledger.tasks.every((item) => item.status === 'integrated');
+        && ledger.tasks.every((item) => item.status === 'integrated'
+            || (outsideScope !== null && (0, execution_contracts_1.validOutsideScope)(ledger, item.id) !== null));
+    const completionPayload = outsideScope !== null
+        ? { payload: { outside_scope: outsideScope, failed_task: ledger.terminalFailure?.task } }
+        : {};
     if (allIntegrated && isBlueprintReviewModeAt(integrationCwd, blueprint)) {
         const rootReview = bouncerStatus(integrationCwd, `${blueprint.replaceAll('\\', '/')}/review.md`);
         if (rootReview !== 'accepted') {
@@ -515,8 +600,17 @@ function blueprintNext(ctx) {
                 ? ledger.integrationHead
                 : git(exec, integrationCwd, ['rev-parse', 'HEAD']);
             const base = typeof ledger.base === 'string' ? ledger.base : head;
-            // 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가 테스트를
-            // 보완해야 하고, verified면 보완 뒤의 한 번뿐인 delta 라운드로 간다.
+            // 최종 리뷰는 discovery 한 라운드로 끝난다. discovery가 저장됐는데 accepted가 아니면
+            // delta·repair·supplement로 되돌리지 않고 사용자 결정까지 멈춘다. 새 review status를
+            // 만들지 않으려고 기존 신호(문서 status requested, open finding)를 그대로 blocked로
+            // 읽는다. 저장된 과거 delta 이력은 읽기만 하고 여기서 새 delta를 만들지 않는다.
+            if (rootReviewHasDiscoveryRound(integrationCwd, blueprint)) {
+                return ok({
+                    scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
+                });
+            }
+            // discovery 전 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가
+            // 테스트를 보완해야 하고, verified면 보완 뒤 한 번뿐인 discovery 라운드로 간다.
             const supplement = [...(ledger.decisions || [])].reverse()
                 .find((entry) => entry && entry.kind === 'supplement');
             if (supplement && supplement.outcome === 'pending') {
@@ -525,24 +619,19 @@ function blueprintNext(ctx) {
                     payload: { paths: supplement.paths || [], findings: supplement.findings || [] },
                 });
             }
-            // discovery round가 이미 있거나 verified supplement면 repair/재개 뒤다.
-            // argv에 --mode delta를 붙여 한 combined reviewer만 연다.
-            const deltaReview = rootReviewHasDiscoveryRound(integrationCwd, blueprint)
-                || Boolean(supplement && supplement.outcome === 'verified');
             return ok({
                 scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
-                ...(deltaReview ? { payload: { mode: 'delta' } } : {}),
                 argv: [
                     'bouncer', 'review-dispatch', 'execute', '--blueprint', blueprint,
                     '--base', base, '--head', head,
-                    ...(deltaReview ? ['--mode', 'delta'] : []),
                 ],
                 judge: { kind: 'review-round', fields: [] },
+                ...completionPayload,
             });
         }
     }
     if (allIntegrated) {
-        return ok({ scope: 'blueprint', action: 'done', cwd: integrationCwd });
+        return ok({ scope: 'blueprint', action: 'done', cwd: integrationCwd, ...completionPayload });
     }
     return ok({
         scope: 'blueprint', action: 'blocked', reason: 'no-ready-task', cwd: integrationCwd,
@@ -581,7 +670,7 @@ function taskNext(ctx) {
     const judgeCtx = {
         lastReport: lastReportedOutcome(item),
         workerPath: cwd,
-        candidates: defaultEvidenceCandidates(cwd, blueprint, task),
+        candidates: defaultEvidenceCandidates(cwd, blueprint, task, item.dispatch?.attempt),
         readEvidence,
     };
     // 성공 응답을 만든 뒤 판단·worker 행동에만 report/evidence를 붙인다. blocked·none·
@@ -672,6 +761,9 @@ function taskNext(ctx) {
         };
         if (ledger.mode === 'light')
             payload.inline = true;
+        // patch는 실행 권한을 넓히지 않는다. implementer는 현재 brief의 affected_paths 안에서만 재사용한다.
+        if (ledger.promoted_from?.patch)
+            payload.promoted_patch = ledger.promoted_from.patch;
         return ok({ scope: 'task', action: 'implement', cwd, payload });
     }
     const tasksRel = `${blueprint.replaceAll('\\', '/')}/tasks/${task}/tasks.md`;

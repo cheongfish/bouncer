@@ -49,6 +49,7 @@ bouncer:
         target:
           base: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
           head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          snapshot_id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
         perspectives:
           - name: combined
             target_head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -67,6 +68,7 @@ bouncer:
         target:
           base: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
           head: 'dddddddddddddddddddddddddddddddddddddddd'
+          snapshot_id: 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
         perspectives:
           - name: combined
             target_head: 'dddddddddddddddddddddddddddddddddddddddd'
@@ -85,6 +87,8 @@ bouncer:
 ---
 # Review
 
+신규 round의 `target`은 `snapshot_id`를 가진다. id 없는 저장 round는 읽기 호환일 뿐 신규 `review record` 입력으로 재사용할 수 없다.
+
 ## Findings
 
 ### F1 — Interface 거부 입력을 throw하지 않음 (major → resolved)
@@ -92,5 +96,6 @@ bouncer:
 - 처분: resolved — throw로 바꿨음.
 
 ### F2 — 주석 순서만 다른 헬퍼 (nit → accepted)
+- legacy: `nit`는 과거 저장 기록 호환 예시다. 신규 reviewer 출력은 `blocker | major | minor`만 쓴다.
 - 요약: 동작은 같고 주석 순서만 다르다.
 - 처분: accepted — 위 frontmatter note 참고.

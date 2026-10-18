@@ -44,11 +44,11 @@ Korean-search support or a bulk rewrite of the existing corpus.
   bundle index summary. The summary row is derived by `scaffold epic` and may
   be appended or replaced, while S13 reports a mismatch; the row is not an
   authoring surface.
-- `tags` are the domain search vocabulary that people and `graph-suggest`
-  queries use. Each item is an English ASCII single token matching
+- `tags` are the domain search vocabulary that people and Graphify
+  queries and `grep` use. Each item is an English ASCII single token matching
   `[A-Za-z0-9_./-]`. Keep the scaffold's `bouncer` and document-kind tag;
   add 2–5 durable domain tags (for example `worktree`, `intent`, or
-  `graph-suggest`). Do not add temporary
+  `affected-paths`). Do not add temporary
   ticket ids, one-off filenames, or synonyms for the same concept.
 
 **Plan fields.** `bouncer.affected_paths` is the minimum approved set of
@@ -63,7 +63,7 @@ task's acceptance criteria, not prose such as "run tests." Blueprint
 merely to make an implementation easier to fit. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
-`graph-suggest` candidates and `bouncer intent` results are advisory input; do
+Graphify query candidates, `grep` results, and `bouncer intent` results are advisory input; do
 not store them in frontmatter. No code reads leftover `bouncer.scope_evidence`
 or `bouncer.graph` on older task documents.
 
@@ -77,6 +77,13 @@ display and default sort order — not execution authority.
   verification node, so implementation scope cannot be placed behind it. Its
   task status closes as `ready → verifying → integrated`; it has no review
   document or commit SHA.
+
+- Blueprint `bouncer.verification_policy` is optional; `scoped_terminal` is the
+  only value and absence means legacy. Under `scoped_terminal` the existing
+  fields carry the contract: each `commit` task needs its own non-empty
+  `bouncer.verify`, and exactly one `verification` task (the mandatory terminal
+  node) must depend, directly or transitively, on every commit task. An unknown
+  value is rejected by the plan gate (G20).
 
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
@@ -109,12 +116,21 @@ display and default sort order — not execution authority.
 Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
 YAML lists of 1–2 Korean terminal sentences (each item a `- ` line). A scalar
 string such as `commit_intent: 문장함` fails structural validation as `S32`.
-Absent or `[]` keeps drafts and older tasks readable, and `/bouncer-commit` treats
-`[]` like an absent field by omitting that body line. `/bouncer-commit` renders present
+On the plan gate, an item that fails the commit-time Korean terminal sentence
+check (for example `…시킴.`) fails as `S34` (`commit_intent invalid: …` or
+`commit_summary invalid: …`), so the error surfaces before approval; a list-shape
+error stays `S32` only.
+Absent or `[]` keeps drafts and older tasks readable, and `bouncer commit` treats
+`[]` like an absent field by omitting that body line. `bouncer commit` renders present
 fields in that order and rejects malformed values without partial omission;
 missing fields keep older task documents readable. `/bouncer-finalize` renders
 1–2 Korean terminal sentences parsed from the blueprint `## Intent` section and
-rejects an absent or malformed section. Authored intent and summary may name
+rejects an absent or malformed section. Code fences under `## Intent` (including
+mermaid diagrams) are skipped when collecting those sentences — keep only the
+1–2 Korean terminal lines there and put diagrams under a separate `##` heading.
+Plan and finalize gates report a broken Intent (heading present, content invalid)
+as `S33`; draft status and a missing `## Intent` heading do not raise `S33`.
+Authored intent and summary may name
 identifiers, paths, and packages inside a Korean terminal sentence; the check
 covers only line count, Korean text, and the Korean terminal ending. Keep Epic /
 Blueprint ids out of them, and do not add dependencies or trailers.
@@ -127,17 +143,23 @@ record their respective workflow evidence. Treat all of them as data produced by
 their designated step. Do not manufacture values to satisfy a gate; correct the
 plan, rerun the designated step, or return to planning.
 
-Plan context-review state is owned by `bouncer context-review start|record|restart`.
+Plan context-review state is owned by `bouncer context-review start|record|close|restart`.
 Its cycle (`id`, `restart_count` capped at 1, `history`, `active_reports`,
 `latest_dispatch`) lives in the canonical runtime state
 `.bouncer/runtime/context-review/<blueprint path with / as __>/state.json`, with
-immutable reports and dispatch payloads under `cycles/<id>/...` referenced by path
+immutable reports, dispositions, and dispatch payloads under `cycles/<id>/...` referenced by path
 and sha256. `restart_count` is also anchored in the blueprint-root
 `context-review.md` as `bouncer.context_review.restart_count`, written only by
 `restart`, so deleting the runtime state cannot reset it: with a marker of 1 and no
 `state.json`, `start` and `restart` refuse, and a state count below the marker is
-corrupt. Only an accepted record returns the canonical `rounds`/`findings`
-projection (`resolved` or `accepted` with a note). A recorded disposition is not a
+corrupt. Only an accepted record or close returns the canonical `rounds`/`findings`
+projection (`resolved` or `accepted` with a note; accepted must_fix findings carry `accepted_risk: true`). `close` and an accepted record also certify the current snapshot: the runtime
+`closure.closure_target_digest` and `bouncer.context_review.closure_target_digest`
+hold the same 64 lowercase hex value, G18 compares it before the last round
+digest, and a document without it falls back to the round digest. A malformed
+value is a structural error and is never replaced by the current content. A
+`restart` archives the earlier closure and starts the new cycle without one.
+A recorded disposition is not a
 plan gate pass. A follow-up `review-dispatch plan` needs the stored `latest_dispatch`
 payload as `--previous`.
 

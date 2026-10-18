@@ -14,13 +14,14 @@ const USAGE = 'usage: bouncer review record --blueprint <dir> [--task <ddd>] '
 /**
  * `review record --help`에 실리는 예시 round JSON.
  * blueprint 모드에서 두 맵을 round 최상위에 두고 target 안에 넣지 않게 보여
- * 준다. 검증기를 통과하는 discovery round 1이며 펜스는 하나다.
+ * 준다. 검증기를 통과하는 discovery round 1이며 펜스는 하나다. aaa/bbb와
+ * `<snapshot_id>`는 placeholder이고 실제 값은 review-dispatch execute 출력에서 옮긴다.
  */
 const HELP_ROUND_EXAMPLE = `{
   "round": {
     "round": 1,
     "mode": "discovery",
-    "target": { "base": "aaa", "head": "bbb" },
+    "target": { "base": "aaa", "head": "bbb", "snapshot_id": "<snapshot_id>" },
     "perspectives": [{ "name": "combined", "target_head": "bbb" }],
     "task_brief_hashes": { "TASKS-001": "<hash>" },
     "intent_bundles": { "TASKS-001": { "id": "...", "revision": 1 } },
@@ -54,6 +55,11 @@ const HELP_ROUND_EXAMPLE = `{
 const HELP = `${USAGE}
 --round file format: a JSON object { "round": object, "findings": array }.
 Blueprint review (omit --task) puts task_brief_hashes and intent_bundles on round.
+Every new round needs round.target.snapshot_id (64 lowercase hex) from review-dispatch execute,
+with target.base and target.head copied from the same output. The recorder rejects it with
+review-snapshot-required|invalid|mismatch when missing, unknown, corrupt or for another scope.
+With --status accepted (or an inherited accepted status) it also rejects review-snapshot-stale
+when the worktree no longer matches the snapshot; dispatch a new review on the current state.
 
 \`\`\`json
 ${HELP_ROUND_EXAMPLE}
@@ -69,7 +75,17 @@ Enums:
   perspective name: combined|spec_scope|correctness_tests|minimality_maintainability|security
   --status: requested|addressed|accepted
 
+Success is { ok: true, path, round, status, findings, finding_ids } (exit 0). finding_ids lists this
+round's normalized finding ids in input order without duplicates. When findings recorded in this round
+share a file and symbol under different categories it also carries warnings: [{ code:
+'finding-merge-candidate', file, symbol, ids }] (ids in input order); the key is omitted when there is
+none. A warning never blocks the record; the controller decides whether to merge those findings.
+
 fingerprint formula: lower(category):lower(brief_clause):posix(file)#symbol
+The recorder always overwrites a supplied fingerprint with this formula. Omit the id key to get
+F-<first 8 hex of sha256(fingerprint)>; the same fingerprint gets the same id in every round. An
+explicit id must be a non-empty string (null, "", blank or non-string is review-input-invalid), and an
+omitted id whose generated id is taken by a different fingerprint is rejected as review-input-invalid.
 
 Repair wave example (open in discovery, resolved in delta): see the review and
 final_review coordinator cards, section "Finding status".

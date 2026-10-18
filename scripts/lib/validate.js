@@ -4,7 +4,7 @@ const { catchMessage } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 const schema = require("./schema");
-const { detectLegacyFormat } = schema;
+const { detectLegacyFormat, isValidAuthoredLineList } = schema;
 const layout = require("./layout");
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
 const paths = require("./paths");
@@ -23,6 +23,8 @@ const validateGates = require("./validate-gates");
 const { checkGate, checkPlanDraft } = validateGates;
 const validateSections = require("./validate-sections");
 const { parseTasksSections, parseSections, extractPathCandidates, } = validateSections;
+const templates = require("./templates");
+const { parseIntentBody, normalizeAuthoredLines } = templates;
 // 복구가 메시지에 없는 코드만 여기를 본다. 같은 G 코드라도 이미 다음 행동을
 // 말하는 메시지(G13 body sections, G18 status != accepted 등)에는 next를 붙이지
 // 않아야 에이전트가 표 밖의 경로를 발명하지 않는다. match는 메시지 문자열을
@@ -62,10 +64,33 @@ const GATE_FAILURE_HINTS = Object.freeze([
             + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
     },
     {
+        code: 'G25',
+        match: /Touch path (does not exist|escapes repository)/,
+        next: 'Fix the path typo, change `변경` to `Create` if the task creates it, '
+            + 'or add the creating predecessor task to `depends_on`; Touch paths must be '
+            + 'repository-relative and stay inside the repository. Then rerun the plan gate.',
+    },
+    {
         code: 'S32',
         match: /must be a YAML list/,
         next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '
             + '(each item on its own `- ` line), then rerun the plan gate.',
+    },
+    {
+        code: 'S33',
+        match: /blueprint Intent invalid/,
+        // Intent에 다이어그램·코드 펜스를 두면 문장 검사에 걸려 finalize가
+        // 스택으로 터지던 경로다. 문장만 남기고 펜스는 다른 ## 절로 옮기라고 안내한다.
+        next: 'Keep only 1-2 Korean terminal sentences under `## Intent`, move code '
+            + 'fences and diagrams under a separate `##` heading, then rerun the gate.',
+    },
+    {
+        code: 'S34',
+        match: /^(commit_intent|commit_summary) invalid: /,
+        // hint 표는 정적이라 필드 이름을 못 끼운다. 어느 필드가 틀렸는지는 메시지가
+        // 말하므로 next는 두 필드 공통 문구로 둔다.
+        next: 'Rewrite each failing commit_intent/commit_summary item as one Korean '
+            + 'terminal sentence (e.g. …함, …임, …됨, …다), then rerun the plan gate.',
     },
 ]);
 /**
@@ -100,7 +125,7 @@ function withGateFailureHints(result) {
  * @param {boolean} [opts.planDraft] - true면 gate 대신 status 무관 plan draft 검사를 돌린다
  * @param {GateDeps} [opts.deps] - gate 검사에 주입할 의존성(테스트용)
  * @returns {{ ok: boolean, failures: FailureEntry[], warnings?: FailureEntry[] }}
- *   failures가 비면 ok:true. task-split 경고가 있을 때만 warnings 키를 싣는다
+ *   failures가 비면 ok:true. 경고(task-split·dag-*·review-risk-missing 등)가 있을 때만 warnings 키를 싣는다
  * @throws {Error} planDraft와 gate를 함께 주면 'planDraft cannot be combined with gate'
  */
 function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
@@ -213,6 +238,59 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
     }
     if (docs.blueprintIndex && !docs.epicIndex) {
         failures.push({ code: 'S8', message: 'epic index.md absent', file: rels.epicIndex });
+    }
+    // S33: plan·finalize만. draft와 Intent 헤딩 부재는 기존 fixture·scaffold를
+    // 보존하려고 건너뛴다 — 헤딩이 없으면 finalize prepare도 intent:[]로 통과한다.
+    // 오류 메시지 원문은 parseIntentBody throw를 그대로 붙인다(계약 문자열 유지).
+    if ((gate === 'plan' || gate === 'finalize') && docs.blueprintIndex
+        && statusOf(docs.blueprintIndex) !== 'draft') {
+        const bpBody = typeof docs.blueprintIndex.body === 'string'
+            ? docs.blueprintIndex.body
+            : '';
+        const hasIntentHeading = /^##\s+Intent\s*$/im.test(bpBody.replace(/<!--[\s\S]*?-->/g, ''));
+        if (hasIntentHeading) {
+            try {
+                parseIntentBody(bpBody);
+            }
+            catch (error) {
+                failures.push({
+                    code: 'S33',
+                    message: `blueprint Intent invalid: ${catchMessage(error)}`,
+                    file: rels.blueprintIndex || docs.blueprintIndex.rel,
+                });
+            }
+        }
+    }
+    // S34: plan gate만. S32(목록 형태)는 checkStructural이 gate를 몰라 그대로 두고,
+    // 종결어미 판정은 `bouncer commit`이 쓰는 normalizeAuthoredLines를 그대로 불러
+    // 두 시점의 답이 갈라지지 않게 한다. 형태 오류는 S32 소관이라 건너뛰고, 부재·[]는
+    // 작성 전 scaffold라 통과시킨다. 필드당 한 번만 보고한다.
+    if (gate === 'plan') {
+        const hasTaskUnitsForS34 = Array.isArray(docs.taskUnits) && docs.taskUnits.length > 0;
+        const taskLeaves = hasTaskUnitsForS34
+            ? (docs.taskUnits || []).flatMap((unit) => (unit.tasks ? [unit.tasks] : []))
+            : (docs.tasksDocs || (docs.tasks ? [docs.tasks] : []));
+        for (const leaf of taskLeaves) {
+            const data = leaf.data;
+            const bouncerFm = (data && data.bouncer) || {};
+            for (const field of ['commit_intent', 'commit_summary']) {
+                const value = bouncerFm[field];
+                if (!isValidAuthoredLineList(value) || value === undefined)
+                    continue;
+                if (Array.isArray(value) && value.length === 0)
+                    continue;
+                try {
+                    normalizeAuthoredLines(value, field);
+                }
+                catch (error) {
+                    failures.push({
+                        code: 'S34',
+                        message: `${field} invalid: ${catchMessage(error)}`,
+                        file: leaf.rel,
+                    });
+                }
+            }
+        }
     }
     // 구조 검사를 돌기 전에 정책을 한 번만 읽는다. 문서마다 config를 다시
     // 열면 같은 blueprint에서 S12 답이 갈라질 수 있고, 파손된 파일을

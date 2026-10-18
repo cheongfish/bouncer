@@ -121,6 +121,8 @@ function parseQueryArgs(rest) {
 /**
  * intent bundle 인자. --symbol은 반복 가능하고 --candidate는 바로 앞
  * --symbol에만 붙는다. --limit은 query 전용이라 bundle에서 거절한다.
+ * --no-symbols는 함수 없는 task(문서·테스트 전용)용 명시 opt-in이며
+ * --symbol/--candidate와 함께 쓸 수 없다.
  *
  * @param {string[]} rest - `intent bundle` 뒤 argv
  * @returns {BundleArgs} 성공 시 task·functions·optional repo, 실패 시 error
@@ -140,8 +142,23 @@ function parseBundleArgs(rest) {
         functions,
         repo,
     });
+    // --no-symbols 조합 검사는 위치와 무관해야 한다(`--no-symbols --candidate x`가
+    // "--candidate requires a preceding --symbol"로 새지 않도록). 그래서 루프 전에
+    // 한 번 훑는다. --task/--repo 값은 `--`로 시작할 수 없어(루프에서 거절) 값 위치
+    // 토큰으로 인한 오탐이 없다.
+    const noSymbolsCount = rest.filter((token) => token === '--no-symbols').length;
+    if (noSymbolsCount > 0) {
+        if (rest.includes('--symbol') || rest.includes('--candidate')) {
+            return fail('--no-symbols cannot be combined with --symbol or --candidate');
+        }
+        if (noSymbolsCount > 1)
+            return fail('duplicate option: --no-symbols');
+    }
+    const noSymbols = noSymbolsCount === 1;
     for (let i = 0; i < rest.length; i += 1) {
         const token = rest[i];
+        if (token === '--no-symbols')
+            continue; // 위에서 이미 검증했다.
         if (token === '--task') {
             if (taskSeen)
                 return fail('duplicate option: --task');
@@ -214,10 +231,10 @@ function parseBundleArgs(rest) {
     if (!taskSeen || task === null) {
         return fail('--task <tasks.md> is required');
     }
-    if (functions.length === 0) {
+    if (functions.length === 0 && !noSymbols) {
         return fail('--symbol <function-name> is required');
     }
-    return { mode: 'bundle', task, functions, repo };
+    return { mode: 'bundle', task, functions, allowEmpty: noSymbols, repo };
 }
 /**
  * intent sections 인자. --task와 --role만 받고 query·bundle 옵션이 섞이면
@@ -371,6 +388,7 @@ function cmdIntentBundle(parsed, io) {
             repoRoot,
             taskFile: parsed.task,
             functions: parsed.functions,
+            allowEmpty: parsed.allowEmpty === true,
         });
         io.out(`${JSON.stringify(result, null, 2)}\n`);
         return 0;

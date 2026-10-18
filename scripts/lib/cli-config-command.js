@@ -20,6 +20,10 @@ Keys under "subagents" in .bouncer/config.json (read-only help; this command wri
   subagents.<provider>.<agent>  inherit | <host model slug>
                                 default: inherit (parent session model; missing, empty, or non-string also inherit)
     <agent>: ${NAMED_AGENTS.join(', ')}
+
+Key under "metrics" (read by "bouncer metrics end"):
+  metrics.pricing               { "<model slug>": { "input_per_mtok": <n>, "output_per_mtok": <n> } } | absent
+                                default: absent (cost is recorded as null with reason no-pricing)
 `;
 /**
  * `bouncer config` 핸들러. 인자가 정확히 `--help` 또는 `-h` 하나일 때만

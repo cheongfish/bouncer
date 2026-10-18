@@ -13,11 +13,18 @@ const PR_TEMPLATE = `## 관련 이슈
 
 ## 배경 · 변경 의도
 
-- <background and intent>
+- 문제
+  - <problem>
+  - <problem>
+- 의도
+  - <intent>
+  - <intent>
 
 ## 주요 변경 내용
 
-- <main changes>
+| 파일 | 변경 |
+| --- | --- |
+| <changed file or group> | <what changed> |
 
 ## 변경 그림
 
@@ -28,7 +35,9 @@ flowchart TD
 
 ## 변경 전후
 
-- <before and after; 변경 전 결과 미관측 when not observed>
+| 항목 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| <behavior> | <before; 변경 전 결과 미관측 when not observed> | <after> |
 
 ## 리뷰 포인트
 
@@ -85,12 +94,6 @@ Epic: [<EPIC-id>](../../index.md)
 
 ## One-commit justification
 - <TODO: 한 커밋에 들어가는 이유>
-
-## Documents
-* [Tasks](tasks/001/tasks.md) - 구현 브리프
-* [Verification](tasks/001/verification.md) - 검증 명령과 증적
-* [Review](review.md) - 리뷰 발견사항
-* [Context review](context-review.md) - 계획 문서 정합성 판정
 `,
     'tasks.md': `# Tasks
 
@@ -136,7 +139,7 @@ Blueprint: [<BP-id>](../../index.md)
 <TODO: 이 검증이 증명하는 종단 조건>
 
 ## Interface
-- 제공: 선행 task가 모두 통합된 상태에서 verify 명령이 남기는 종단 검증 증적.
+- 제공: 구현 task가 모두 통합된 뒤 전체 검증 명령을 한 번 실행해 남기는 종단 검증 증적. 구현 task는 각자 task 전용 명령만 갖는다.
 - 거부: source 변경, review 문서, commit.
 
 ## Touch
@@ -162,13 +165,13 @@ Source 변경 경로 없음.
 ## Findings
 - <finding>
 `,
-    // G16는 필수 네 절이 비어 있으면 거절한다. 주석을 지워도 제목만 있는
-    // 본문은 손대지 않은 tasks 템플릿이 G10에 걸리듯 통과할 수 없다.
+    // G16는 필수 세 절(Background·Code·Quiz)이 비어 있으면 거절한다. 주석을 지워도
+    // 제목만 있는 본문은 손대지 않은 tasks 템플릿이 G10에 걸리듯 통과할 수 없다.
+    // Intuition은 새 문서에 만들지 않는다 — 기존 Explain의 Intuition은 파서가
+    // 선택적 legacy 절로 계속 읽는다.
     'explain.md': `# Explain
 
 ## Background
-
-## Intuition
 
 ## Code
 
@@ -177,8 +180,10 @@ Source 변경 경로 없음.
 ## Tasks
 `,
     // --- scale: light 전용 본문 ---
-    // light는 plan 단계 네 문서(index + 루트 review + tasks/001 두 문서) 전체 줄 수를
-    // 100줄 이하로 묶는 계약이다(rules/planning.md). 그래서 full 템플릿의 작성
+    // light scaffold는 네 문서(index + 루트 review + tasks/001 두 문서) 전체 줄 수를
+    // 100줄 이하로 묶는 계약이다(rules/planning.md). scoped_terminal light의 종단
+    // verification task(`scaffold task --execution-kind verification`, 두 문서)는
+    // 이 예산 밖에서 따로 붙는다. 그래서 full 템플릿의 작성
     // 가이드 주석을 옮겨오지 않는다 — 가이드는 skills/spec-authoring이 갖고,
     // 본문에는 게이트가 요구하는 제목과 <TODO:> 자리만 남긴다.
     // full 본문은 바이트 단위로 그대로 두고 여기서만 갈라진다.
@@ -290,12 +295,13 @@ const LEGACY_SCAFFOLD_COMMENT_BODIES = Object.freeze([
         'status: resolved | accepted\n' +
         'mode를 쓰는 rounds[]면 category, brief_clause, file, symbol, fingerprint, actionability,\n' +
         'origin, first_seen_round, last_seen_round도 필수.\n' +
-        'category: cross_document | scope | korean_quality | success_criteria\n' +
+        'category: combined | local | global (cross_document | scope | korean_quality | success_criteria는 기존 기록 읽기 호환용)\n' +
         'brief_clause: finding이 걸린 문서 절 (예: tasks/002 Interface)\nfile: 계획 문서의 저장소 상대 경로, symbol: 절 제목 slug (절이 없으면 -)\n' +
         'fingerprint: context:<category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ ' +
         '제거)\nactionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\n' +
         'optional bouncer.context_review.rounds[]: round (양의 정수), mode (discovery | delta),\ntarget (digest),\n' +
-        'perspectives (combined | local | global | cross_document | scope | korean_quality | success_criteria,\n' +
+        'perspectives (combined | local | global 사용.\n' +
+        'cross_document | scope | korean_quality | success_criteria는 기존 기록 읽기 호환용,\n' +
         'target_digest는 target.digest와 동일), severity_changes. rounds 없는 구문서는 기존 계약으로 통과한다.',
     '이 변경이 생긴 배경. 무엇을 고치려 했는가.',
     '한 줄로 말하면 무엇인가. 비유·그림이 있으면 여기.',
@@ -388,11 +394,15 @@ function normalizeAuthoredLines(raw, field) {
 }
 // blueprint Intent는 문서 본문이 정본이다. heading 밖의 내용을 섞지 않고,
 // bullet 표식만 벗겨 같은 본문 렌더러가 task/finalize 양쪽을 조립하게 한다.
+// mermaid·코드 펜스는 문장이 아니므로 집계에서 뺀다 — 펜스를 문장으로 읽으면
+// 다이어그램이 있는 승인 문서가 finalize 직전에 터진다(S33이 막는 실패 모드).
+// 섹션 경계(`## `)는 펜스보다 먼저 자르므로, 펜스 안의 `## `도 예전처럼
+// Intent를 끝낸다(펜스 인식으로 섹션 길이를 늘리지 않는다).
 //
 // 요약: blueprint 본문의 `## Intent` 섹션에서 1-2개 한국어 문장을 뽑는다.
 // 인자:
 //   body: blueprint index 문서 본문(문자열이 아니면 malformed).
-// 반환: bullet 표식을 벗긴 문장 배열.
+// 반환: bullet 표식·코드 펜스를 벗긴 문장 배열.
 // 빈 섹션은 normalizeAuthoredLines가 `[]`를 허용하게 되었으므로 여기서 직접
 // 거절한다(기존과 같은 메시지 유지).
 function parseIntentBody(body) {
@@ -406,11 +416,39 @@ function parseIntentBody(body) {
     const afterHeading = withoutComments.slice(heading.index + heading[0].length);
     const nextHeading = /^##\s+/m.exec(afterHeading);
     const section = nextHeading ? afterHeading.slice(0, nextHeading.index) : afterHeading;
-    const lines = section
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => line.replace(/^[-*]\s+/, '').trim());
+    // 펜스 판정은 불릿·공백을 벗긴 뒤 한다. 여는 줄은 ` 또는 ~ 3개 이상이면
+    // 언어 태그가 있어도 열고, 닫는 줄은 같은 문자만·개수 ≥ 열림이어야 한다
+    // (```x 처럼 뒤에 글자가 있으면 닫히지 않음 — CommonMark에 맞춤).
+    const lines = [];
+    let fenceChar = null;
+    let fenceLen = 0;
+    for (const raw of section.split('\n')) {
+        const trimmed = raw.trim();
+        if (!trimmed)
+            continue;
+        const content = trimmed.replace(/^[-*+]\s+/, '').trim();
+        const fence = /^(?<marker>[`~]{3,})(?<rest>.*)$/.exec(content);
+        if (fence && fence.groups) {
+            const marker = fence.groups.marker;
+            const rest = fence.groups.rest;
+            const char = marker[0];
+            const len = marker.length;
+            if (fenceChar === null) {
+                fenceChar = char;
+                fenceLen = len;
+                continue;
+            }
+            // 닫힘: 같은 문자·길이 이상·뒤에 다른 글자 없음. 아니면 펜스 안 줄로 건너뛴다.
+            if (char === fenceChar && len >= fenceLen && rest === '') {
+                fenceChar = null;
+                fenceLen = 0;
+            }
+            continue;
+        }
+        if (fenceChar !== null)
+            continue;
+        lines.push(content);
+    }
     if (lines.length === 0) {
         throw new Error('blueprint Intent must contain 1-2 Korean terminal sentences');
     }

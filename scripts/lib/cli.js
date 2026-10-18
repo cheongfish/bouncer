@@ -12,6 +12,7 @@ const dispatchCommand = require("./cli-dispatch-command");
 const commitGuardCommand = require("./cli-commit-guard-command");
 const configCommand = require("./cli-config-command");
 const retroCommand = require("./cli-retro-command");
+const metricsCommand = require("./cli-metrics-command");
 // 선언 순서 = 옛 USAGE 나열 순서. 디스패치는 키 조회라 이 순서에 의존하지
 // 않지만, help 문자열이 레지스트리에서 조립되므로 키를 빼먹으면 목록에서
 // 사라지고 usage를 빼먹으면 해당 블록이 비어 테스트가 실패한다.
@@ -33,7 +34,6 @@ const COMMANDS = {
     // --upgrade-graphify 는 init 핸들러(parseFlags)와 그 usage 문자열에만 있다.
     // 여기 레지스트리는 도움말 조립이라 플래그를 다시 파싱하지 않는다.
     'graph-sync': projectCommands['graph-sync'],
-    'graph-suggest': projectCommands['graph-suggest'],
     intent: projectCommands.intent,
     'graphify-bin': projectCommands['graphify-bin'],
     'project-root': projectCommands['project-root'],
@@ -57,6 +57,8 @@ const COMMANDS = {
     config: configCommand,
     // transcript 후보 탐색(읽기 전용). host별 저장 위치 추측을 명령 한 곳에 모은다.
     retro: retroCommand,
+    // drive 계측 기록. coordinator 세션과 plan 리뷰 호출의 토큰·진행을 main worktree runtime에 남긴다.
+    metrics: metricsCommand,
 };
 const USAGE_HEADER = `usage: bouncer <command> [options]
 

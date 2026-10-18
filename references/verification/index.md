@@ -1,6 +1,6 @@
 ---
 name: verification
-description: "Use when investigating verify results from /bouncer-execute, or when named; never hand-write success evidence."
+description: "Use when investigating verify results from /bouncer-run, or when named; never hand-write success evidence."
 ---
 
 # Verification
@@ -12,7 +12,7 @@ evidence authority: it runs the configured command and records the result.
 
 When investigating verification results. Never hand-writes success evidence;
 the execute gate runs the configured command and records it. Used from
-`/bouncer-execute`.
+`/bouncer-run`.
 
 ## Steps
 

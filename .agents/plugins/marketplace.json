@@ -1,7 +1,7 @@
 {
-  "name": "chunjae-tools",
+  "name": "cheongfish-tools",
   "interface": {
-    "displayName": "Chunjae Tools"
+    "displayName": "Cheongfish Tools"
   },
   "plugins": [
     {

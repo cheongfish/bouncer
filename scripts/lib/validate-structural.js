@@ -10,14 +10,10 @@ const tasksDocs = require("./tasks-docs");
 const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = tasksDocs;
 const config = require("./config");
 const { DEFAULT_VERIFY_ALLOWLIST } = config;
-// review-dispatch Execute 경로와 같은 허용 목록. 여기 S30과 분류기 거절이
-// 어긋나면 malformed 위험이 한쪽에만 통과한다.
-const REVIEW_RISK_ENUM = [
-    'public_interface',
-    'authentication',
-    'authorization',
-    'credential',
-];
+// review-dispatch Execute 경로와 같은 허용 목록(review-policy 정본). 정본이 하나라
+// S30과 분류기 거절이 어긋나 malformed 위험이 한쪽에만 통과하는 일이 없다.
+const reviewPolicy = require("./review-policy");
+const { REVIEW_RISK_ENUM } = reviewPolicy;
 /**
  * 경로가 요구하는 bouncer type. 위치 규칙이 없으면 null — S19를 내지 않는다.
  * task 묶음 basename은 TASK_UNIT_BASENAMES만 순회하고 문자열을 여기 두지 않는다.

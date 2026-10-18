@@ -19,6 +19,8 @@ const time = require("./time");
 const { nowIsoKst } = time;
 const planInspectMod = require("./plan-inspect");
 const { planInspect } = planInspectMod;
+const planApproveMod = require("./plan-approve");
+const { approvePlan } = planApproveMod;
 function cmdValidate(rest, io) {
     const f = parseFlags(rest);
     // 게이트 실패(1)와 구분: 필수 플래그 누락은 호출 형식 오류(2). 없으면
@@ -198,9 +200,9 @@ function cmdScaffold(rest, io) {
     return 0;
 }
 /**
- * `plan inspect`만 받는다. 추천 JSON을 stdout에 내고, 거절은 같은 채널의
- * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드·값 없는
- * `--blueprint`는 사용법(2).
+ * `plan inspect`(추천 JSON)와 `plan approve`(status 일괄 전이)를 받는다. 결과 JSON은
+ * stdout에 내고, 거절은 같은 채널의 `{ok:false}`와 종료 코드 1이다. 알 수 없는
+ * 서브커맨드·값 없는 `--blueprint`·중복 `--blueprint`는 사용법(2).
  *
  * @param {string[]} rest - 서브커맨드와 플래그
  * @param {CliIo} io - stdout/stderr 싱크
@@ -209,11 +211,39 @@ function cmdScaffold(rest, io) {
 function cmdPlan(rest, io) {
     const command = rest[0];
     const f = parseFlags(rest.slice(1));
-    // inspect만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+    // inspect·approve만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
     // 구분해, 없는 동사를 계획 쓰기로 착각하지 않게 한다.
-    if (command !== 'inspect') {
-        io.err('plan: command must be inspect\n');
+    if (command !== 'inspect' && command !== 'approve') {
+        io.err('plan: command must be inspect or approve\n');
         return 2;
+    }
+    if (command === 'approve') {
+        // parseFlags는 중복 플래그를 마지막 값으로 덮어 조용히 삼킨다. 승인 대상이
+        // 모호해지므로 토큰을 직접 세어 사용법(2)으로 거절한다.
+        if (rest.filter((tok) => tok === '--blueprint').length > 1) {
+            io.err('plan approve: --blueprint given more than once\n');
+            return 2;
+        }
+        if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+            io.err('plan approve: --blueprint requires a directory\n');
+            return 2;
+        }
+        // --repo도 같은 이유로 거절한다: 중복이면 마지막 값이 이겨 다른 저장소를 승인할 수 있고,
+        // 값이 없으면 parseFlags가 true를 줘 cwd로 조용히 폴백한다. 둘 다 사용법(2).
+        if (rest.filter((tok) => tok === '--repo').length > 1) {
+            io.err('plan approve: --repo given more than once\n');
+            return 2;
+        }
+        if (Object.hasOwn(f, 'repo') && (typeof f.repo !== 'string' || f.repo === '')) {
+            io.err('plan approve: --repo requires a directory\n');
+            return 2;
+        }
+        const approved = approvePlan({
+            repoRoot: (f.repo || process.cwd()),
+            blueprintDir: f.blueprint,
+        });
+        io.out(`${JSON.stringify(approved, null, 2)}\n`);
+        return approved.ok ? 0 : 1;
     }
     // --blueprint는 선택이다. 플래그만 주고 값이 없으면 parseFlags가 true를
     // 주므로 invalid-blueprint-dir(1)로 위장하지 않고 사용법(2)로 가른다.
@@ -262,6 +292,9 @@ module.exports = {
         usage: `  plan       inspect [--epic-dir <dir>] [--blueprint <dir>]
              Print next ids, maintenance epic, verify signals, pointer state,
              and optional advisory light routing as JSON.
+  plan       approve --blueprint <dir> [--repo <dir>]
+             Move epic, blueprint, and task status to approved/ready in one
+             all-or-nothing step. Run only after the user approves the plan.
 `,
     },
 };

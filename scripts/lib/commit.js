@@ -18,8 +18,8 @@ const preCommitHook = require("./pre-commit-hook");
 const { internalCommitEnv } = preCommitHook;
 const scope = require("./scope");
 const { filterTaskCommitCandidates, isTaskWorkflowArtifact, coordinatorContext, recordActualPaths, } = scope;
-const coordinatorCore = require("./coordinator");
-const { readyWave } = coordinatorCore;
+const executionDag = require("./execution-dag");
+const { readyWave } = executionDag;
 const configMod = require("./config");
 const { readCoordinatorPolicy } = configMod;
 const paths = require("./paths");
@@ -231,6 +231,26 @@ function recoveryFor(reason, coordinatorActive) {
         detail: `Stop and report ${reason}. Do not stage, commit, or move the pointer.`,
     };
 }
+/**
+ * commitTask가 던진 예외를 CLI가 stdout에 낼 실패 결과로 바꾼다.
+ *
+ * git commit의 hook 거절처럼 반환값으로 못 돌려주는 git I/O 예외를 JSON으로
+ * 남겨야 `coordinate advance`가 원인을 잃고 unclear-result로 멈추지 않는다.
+ * stack은 싣지 않고 message 첫 줄만 cause로 둔다.
+ *
+ * @param {unknown} error - commitTask가 던진 값
+ * @returns {{ok: false, reason: 'commit-exception', cause: string, recovery: {action: RecoveryAction, detail: string}}}
+ *   스킬이 렌더할 실패 결과. recovery는 알 수 없는 reason 경로(report-and-stop)다
+ */
+function commitExceptionResult(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+        ok: false,
+        reason: 'commit-exception',
+        cause: message.split('\n')[0],
+        recovery: recoveryFor('commit-exception', false),
+    };
+}
 function commitTask({ repoRoot, blueprintDir, yes = false, git, validateGate = validateBlueprint, }) {
     // 게이트·범위 실패는 반환값. git I/O 예외는 finalize와 같이 그대로 올린다.
     const gitApi = git || realGit(repoRoot);
@@ -435,4 +455,4 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, validateGate = v
         }),
     };
 }
-module.exports = { commitTask };
+module.exports = { commitTask, commitExceptionResult };

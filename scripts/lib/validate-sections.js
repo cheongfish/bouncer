@@ -1,7 +1,13 @@
 'use strict';
+const { createHash } = require('node:crypto');
 const guards = require("./guards");
 const { isRecord } = guards;
 const paths = require("./paths");
+const reviewPolicy = require("./review-policy");
+// pathsOverlap 정본은 path-overlap.ts다. scope 등 하위 모듈이 검증 계층 없이 쓸 수
+// 있도록 옮겼고, 기존 소비자는 이 모듈의 export로 같은 이름을 계속 받는다.
+const pathOverlapMod = require("./path-overlap");
+const { pathsOverlap } = pathOverlapMod;
 const { toPosix } = paths;
 const SECTION_DEFS = [
     { key: 'goal', re: /^##\s+(Goal\s*&\s*intent|목적[·・.]?의도)\s*$/i },
@@ -35,16 +41,20 @@ const REVIEW_STATUS = CONTEXT_REVIEW_STATUS;
 const NOTE_REQUIRED_STATUS = ['accepted', 'deferred'];
 const FINDING_ACTIONABILITY = ['must_fix', 'advisory'];
 const FINDING_ORIGIN = ['discovery', 'introduced_by_revision', 'missed_critical'];
+// `context-review record` 입력(--round)의 finding status. 진행 중 보고는 해결 전 `open`을
+// 허용하지만 context-review.md에 남는 canonical 값(CONTEXT_REVIEW_STATUS)에는 `open`이 없다.
+// 도움말과 record 검증이 같은 배열을 보게 해 두 곳이 어긋나는 일을 막는다.
+const REPORT_FINDING_STATUS = ['open', ...CONTEXT_REVIEW_STATUS];
+// canonical context round 계약(discovery 또는 discovery→delta)의 mode 순서.
+// ROUND_MODE(critical_recovery 포함)와 달리 record가 받는 순서 있는 두 값만 담는다.
+const CONTEXT_ROUND_MODES = ['discovery', 'delta'];
+// `context-review record --status`의 허용 값.
+const CONTEXT_REPORT_STATUS = ['requested', 'addressed', 'accepted'];
 const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
 // adaptive Execute는 combined를 추가하고, legacy 네 이름은 기존 round를 계속
 // 통과시킨다. security는 위험 flag가 있을 때만 별도 call로 붙는다.
-const REVIEW_PERSPECTIVE = [
-    'combined',
-    'spec_scope',
-    'correctness_tests',
-    'minimality_maintainability',
-    'security',
-];
+// 목록 본체는 review-policy 정본이며 코디네이터의 worker-model 검사도 같은 값을 쓴다.
+const { REVIEW_PERSPECTIVE } = reviewPolicy;
 // adaptive Plan은 combined·local·global을 쓰되, legacy 네 관점 round도 읽는다.
 // execute 관점과 이름을 섞지 않아야 G18이 diff 리뷰 원장을 계획 원장으로 오인하지 않는다.
 const CONTEXT_REVIEW_PERSPECTIVE = [
@@ -59,6 +69,8 @@ const CONTEXT_REVIEW_PERSPECTIVE = [
 // execute fingerprint는 접두가 없고 context fingerprint만 이 접두를 갖는다. 두 원장이
 // 같은 문자열을 만들 수 없게 해 finding을 다른 리뷰로 옮겨 적는 실수를 게이트가 잡는다.
 const CONTEXT_FINDING_NAMESPACE = 'context';
+// review-snapshot의 id 형식과 같다(64자 소문자 hex). 모듈을 import하면 검증기가 git 수집 코드에 묶인다.
+const SNAPSHOT_ID_RE = /^[0-9a-f]{64}$/;
 const EXECUTE_ROUND_CONTRACT = {
     modes: ROUND_MODE,
     sequences: ['discovery', 'discovery,delta', 'discovery,delta,critical_recovery,delta'],
@@ -67,6 +79,21 @@ const EXECUTE_ROUND_CONTRACT = {
     targetKey: 'head',
     perspectiveTargetKey: 'target_head',
     counters: true,
+};
+// repair wave 상한의 단일 출처. coordinator ledger 검사(runtime-state)와 blueprint
+// 최종 리뷰 라운드 순서(BLUEPRINT_ROUND_CONTRACT)가 같은 값을 보게 해, 한쪽만 바뀌어
+// "wave는 허용하는데 그 뒤 리뷰는 기록할 수 없는" 불일치가 재발하지 않게 한다.
+const REPAIR_WAVE_LIMIT = 2;
+// blueprint 최종 리뷰 전용 계약. repair wave마다 delta 라운드 하나를 기록해야 하므로
+// task 계약의 순서에 `discovery` 뒤 delta를 wave 상한만큼 붙인 순서를 더한다.
+// critical_recovery를 섞은 새 조합은 일부러 열지 않는다. task 범위(G14)는 계속
+// EXECUTE_ROUND_CONTRACT를 써서 라운드 상한이 늘지 않는다.
+const BLUEPRINT_ROUND_CONTRACT = {
+    ...EXECUTE_ROUND_CONTRACT,
+    sequences: [
+        ...EXECUTE_ROUND_CONTRACT.sequences,
+        ['discovery', ...Array(REPAIR_WAVE_LIMIT).fill('delta')].join(','),
+    ],
 };
 const CONTEXT_ROUND_CONTRACT = {
     modes: ['discovery', 'delta'],
@@ -82,6 +109,8 @@ const CONTEXT_ROUND_CONTRACT = {
 // EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
 const EXPLAIN_SECTION_HEADINGS = [
     { key: 'background', re: /^##\s+Background\s*$/i },
+    // 선택적 legacy 절: 새 Explain은 만들지 않고 G16도 요구하지 않는다. 정규식을 지우면
+    // 기존 문서의 Intuition 본문이 앞 절(background)에 흡수되어 provenance body가 바뀐다.
     { key: 'intuition', re: /^##\s+Intuition\s*$/i },
     { key: 'code', re: /^##\s+Code\s*$/i },
     { key: 'quiz', re: /^##\s+Quiz\s*$/i },
@@ -148,10 +177,36 @@ function extractPathCandidates(text) {
     }
     return [...found];
 }
-// 디렉터리 prefix도 교차로 본다. `scripts/` 금지가 `scripts/lib/x.js`를
-// 통과시키면 G12가 파일 단위 affected_paths를 놓친다.
-function pathsOverlap(a, b) {
-    return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+const TOUCH_CHANGES = ['Create', 'Modify', 'Delete', 'Rename'];
+/**
+ * Touch 절의 Markdown 표 행을 `변경` 열 기준으로 읽는다. G25가 "어느 경로를 수정·삭제·
+ * 이름 변경하는가"를 판정하려면 경로 후보만 모으는 extractPathCandidates로는 부족하다.
+ * 머리행·구분행, `변경` 값이 네 값 밖인 행, 표가 아닌 줄(bullet Touch)은 조용히 건너뛴다 —
+ * 형식 판정은 G10·S 코드의 몫이고 여기서 실패로 만들면 기존 문서가 막힌다.
+ *
+ * @param {string} touchText - parseTasksSections(body).touch 본문
+ * @returns {TouchRow[]} 행 순서대로의 `{ change, path, renameTo }`. Rename은 경로 칸을
+ *   `→`로 나눠 path=old, renameTo=new로 두고, `→`가 없으면 renameTo는 null이다
+ */
+function parseTouchRows(touchText) {
+    const rows = [];
+    const norm = (cell) => toPosix(cell.replace(/`/g, '').trim()).replace(/^\.\//, '');
+    for (const line of (typeof touchText === 'string' ? touchText : '').split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('|'))
+            continue;
+        const cells = trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+        const change = cells[2];
+        if (cells.length < 3 || !TOUCH_CHANGES.includes(change))
+            continue;
+        const [first, second] = cells[0].split('→');
+        const rowPath = norm(first);
+        if (!rowPath)
+            continue;
+        const renameTo = change === 'Rename' && second !== undefined && norm(second) ? norm(second) : null;
+        rows.push({ change: change, path: rowPath, renameTo });
+    }
+    return rows;
 }
 function pathJustifiedByTouch(ap, touchText) {
     if (touchText.includes(ap))
@@ -165,6 +220,16 @@ function isNonNegativeInteger(value) {
     return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 /**
+ * finding의 file 경로 정규화(posix·trim·앞 `./` 제거). fingerprint와 병합 후보 계산이
+ * 같은 규칙을 써야 두 경로가 같은 파일을 다르게 판단하지 않는다. 대소문자는 접지 않는다.
+ *
+ * @param {unknown} file - finding.file 원본
+ * @returns {string} 정규화한 경로
+ */
+function normalizeFindingFile(file) {
+    return toPosix(String(file ?? '').trim()).replace(/^\.\//, '');
+}
+/**
  * finding 식별자를 한 곳에서 정규화한다. review 작성자마다 `./`·대소문자가 달라
  * 같은 문제를 새 finding으로 기록하는 일을 막기 위해, namespace는 후속 계약이
  * 필요할 때만 정규형 앞에 붙인다.
@@ -173,10 +238,141 @@ function findingFingerprint({ category, brief_clause, file, symbol, }, namespace
     const normalized = [
         String(category ?? '').trim().toLowerCase(),
         String(brief_clause ?? '').trim().toLowerCase(),
-        toPosix(String(file ?? '').trim()).replace(/^\.\//, ''),
+        normalizeFindingFile(file),
     ].join(':');
     const fingerprint = `${normalized}#${String(symbol ?? '').trim()}`;
     return namespace ? `${namespace}:${fingerprint}` : fingerprint;
+}
+/**
+ * 정규 fingerprint에서 결정적 finding id를 만든다. 같은 fingerprint는 round를 넘어 같은 id가
+ * 되어야 이전 round finding을 교체하므로 sha256 앞 8hex를 쓴다. 32bit라 충돌이 드물게
+ * 가능하며, 충돌 판정은 normalizeRoundFindings가 거절로 처리한다(조용히 merge하지 않는다).
+ *
+ * @param {string} fingerprint - findingFingerprint가 돌려준 정규 문자열
+ * @param {'context'} [namespace] - context면 `CR-`, 생략하면 execute `F-` 접두
+ * @returns {string} `F-<8hex>` 또는 `CR-<8hex>`
+ */
+function findingAutoId(fingerprint, namespace) {
+    const prefix = namespace === CONTEXT_FINDING_NAMESPACE ? 'CR-' : 'F-';
+    return `${prefix}${createHash('sha256').update(fingerprint).digest('hex').slice(0, 8)}`;
+}
+/**
+ * record/close 경계에서 finding 하나를 정규화한 사본을 만든다. fingerprint는 입력값과 무관하게
+ * 공식으로 덮어쓰고, `id` 키가 없을 때만 자동 id를 채운다. severity·status·note·accepted_risk·
+ * 명시 id 등 다른 필드는 건드리지 않는다. 객체가 아닌 항목은 그대로 돌려줘 형식 거절을
+ * 기존 검사에 맡긴다. 명시 id의 유효성은 보지 않는다 — 과거 저장 보고(fold·projection)를
+ * 다시 읽을 때도 쓰이므로 거절은 normalizeRoundFindings가 새 입력에만 건다.
+ *
+ * @param {unknown} finding - 원본 finding(변형하지 않는다)
+ * @param {'context'} [namespace] - context review면 fingerprint 접두·`CR-` id
+ * @returns {unknown} 정규화한 사본, 또는 객체가 아니면 원본
+ */
+function normalizeFinding(finding, namespace) {
+    if (!isRecord(finding))
+        return finding;
+    const fingerprint = findingFingerprint({
+        category: finding.category, brief_clause: finding.brief_clause, file: finding.file, symbol: finding.symbol,
+    }, namespace);
+    // 생략은 key 부재만 뜻한다. `id: null`·빈 문자열을 자동 id로 바꾸면 작성 실수가 조용히 새 finding이 된다.
+    const id = Object.prototype.hasOwnProperty.call(finding, 'id') ? finding.id : findingAutoId(fingerprint, namespace);
+    return { ...finding, id, fingerprint };
+}
+/**
+ * 이번 round 입력 finding을 정규화하고, 기존 finding과 합치기 전에 id 오류를 거절한다.
+ * - 명시 id가 비어 있지 않은 문자열이 아니면(null·빈 문자열·공백·비문자열) 거절한다.
+ * - 자동 id가 입력 안 다른 항목이나 기존 finding의 id와 같은데 정규 fingerprint가 다르면
+ *   해시 충돌이나 id 선점이다. id로 merge하면 다른 문제를 덮어쓰므로 거절한다.
+ * - 자동 id가 같은 입력 안에서 같은 fingerprint로 두 번 나오면 중복 fingerprint로 거절한다
+ *   (id merge로 조용히 하나가 사라지지 않게). 명시 id끼리의 같은 id는 기존 교체 동작을 유지한다.
+ * 기존 finding의 fingerprint는 저장 값이 아니라 공식으로 다시 계산해 비교한다 — 과거에 틀린
+ * fingerprint로 저장된 같은 finding을 충돌로 오판하지 않기 위해서다.
+ *
+ * @param {unknown[]} incoming - 이번 round 입력 findings
+ * @param {unknown[]} existing - 이미 기록된(또는 fold한) findings
+ * @param {'context'} [namespace] - context review면 fingerprint 접두·`CR-` id·메시지 접두
+ * @returns {{ok: true, findings: unknown[], ids: string[]} | {ok: false, messages: string[]}}
+ *   성공이면 정규화 사본과 입력 순서·중복 제거한 id 목록, 실패면 사유 메시지
+ */
+function normalizeRoundFindings(incoming, existing, namespace) {
+    const label = namespace === CONTEXT_FINDING_NAMESPACE ? 'context-review' : 'review';
+    const messages = [];
+    // id → 정규 fingerprint. 기존 finding을 먼저 넣어 입력이 기존 id를 노리는지 본다.
+    const owners = new Map();
+    for (const item of existing) {
+        const norm = normalizeFinding(item, namespace);
+        if (isRecord(norm) && typeof norm.id === 'string')
+            owners.set(norm.id, norm.fingerprint);
+    }
+    const seenInInput = new Map();
+    const findings = [];
+    const ids = [];
+    for (const raw of incoming) {
+        const auto = isRecord(raw) && !Object.prototype.hasOwnProperty.call(raw, 'id');
+        if (isRecord(raw) && !auto && (typeof raw.id !== 'string' || raw.id.trim() === '')) {
+            messages.push(`${label} finding id invalid: ${JSON.stringify(raw.id) ?? 'undefined'}`);
+            continue;
+        }
+        const norm = normalizeFinding(raw, namespace);
+        findings.push(norm);
+        if (!isRecord(norm))
+            continue;
+        const id = norm.id;
+        const fingerprint = norm.fingerprint;
+        const prior = seenInInput.get(id);
+        if (prior && (auto || prior.auto)) {
+            messages.push(prior.fingerprint === fingerprint
+                ? `${label} duplicate fingerprint ${fingerprint}`
+                : `${label} finding id collision ${id}`);
+        }
+        else if (auto && owners.has(id) && owners.get(id) !== fingerprint) {
+            messages.push(`${label} finding id collision ${id}`);
+        }
+        if (!prior)
+            seenInInput.set(id, { fingerprint, auto });
+        if (!ids.includes(id))
+            ids.push(id);
+    }
+    return messages.length > 0 ? { ok: false, messages } : { ok: true, findings, ids };
+}
+/**
+ * 한 round의 finding 중 정규화 file·trim symbol이 같고 category가 둘 이상인 묶음을
+ * 병합 후보로 돌려준다. 관점이 다른 리뷰어가 같은 문제를 다른 fingerprint로 보고해도
+ * controller가 병합 여부를 판단할 수 있게 알리는 용도이며, 기록을 막지 않는다.
+ * 던지지 않는다: 배열이 아니거나, 객체가 아니거나, file·symbol이 비었거나 문자열이 아닌
+ * 항목은 조용히 건너뛴다(형식 거절은 collectFindingFailures의 책임).
+ *
+ * @param {unknown[]} findings - 기록 중인 round의 finding 목록
+ * @returns {Array<{code: 'finding-merge-candidate', file: string, symbol: string, ids: string[]}>}
+ *   후보 묶음(첫 등장 순서). ids는 입력 순서이며 id가 없는 항목은 ids에서 빠진다.
+ */
+function findingMergeCandidates(findings) {
+    if (!Array.isArray(findings))
+        return [];
+    const groups = new Map();
+    for (const item of findings) {
+        if (typeof item !== 'object' || item === null)
+            continue;
+        const rec = item;
+        if (typeof rec.file !== 'string' || typeof rec.symbol !== 'string')
+            continue;
+        const file = normalizeFindingFile(rec.file);
+        const symbol = rec.symbol.trim();
+        if (file === '' || symbol === '')
+            continue;
+        // 구분자 충돌을 피하려고 JSON 배열을 키로 쓴다.
+        const key = JSON.stringify([file, symbol]);
+        let group = groups.get(key);
+        if (!group) {
+            group = { file, symbol, ids: [], categories: new Set() };
+            groups.set(key, group);
+        }
+        if (typeof rec.id === 'string')
+            group.ids.push(rec.id);
+        group.categories.add(String(rec.category ?? '').trim().toLowerCase());
+    }
+    return [...groups.values()]
+        .filter((g) => g.categories.size >= 2)
+        .map((g) => ({ code: 'finding-merge-candidate', file: g.file, symbol: g.symbol, ids: g.ids }));
 }
 function missingFindingField(record, field) {
     const value = record[field];
@@ -202,9 +398,11 @@ function missingFindingField(record, field) {
  *   `bouncer.context_review.rounds`. 부재면 검사 생략
  * @param {'context'} [namespace] - context review면 fingerprint 접두와 context round 계약.
  *   생략하면 execute 계약(접두 없음, commit target)
+ * @param {'blueprint'} [roundScope] - blueprint 최종 리뷰면 execute namespace에서
+ *   BLUEPRINT_ROUND_CONTRACT를 쓴다. context namespace에서는 무시한다
  * @returns {string[]} 게이트 메시지. 없으면 빈 배열
  */
-function collectFindingFailures({ body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, reviewStatus, namespace, }) {
+function collectFindingFailures({ body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, reviewStatus, namespace, roundScope, }) {
     const messages = [];
     const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
     if (!rs.findings) {
@@ -274,12 +472,29 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel, al
             if (!FINDING_ORIGIN.includes(rec.origin)) {
                 messages.push(`${findingLabel} finding ${id} origin invalid`);
             }
-            if (reviewStatus === 'accepted' && rec.actionability === 'must_fix' && rec.status !== 'resolved') {
+            // context namespace(G18)는 reviewStatus 인자가 생략되더라도 게이트 진입 조건에서 이미 status=accepted를
+            // 확인하므로 accepted 검사를 적용한다. execute(G14)는 reviewStatus === 'accepted'일 때 검사한다.
+            // context namespace에서만 명시적 사용자 동의가 반영된 accepted_risk: true(비어 있지 않은 note 필수)를
+            // 예외로 인정하며, execute namespace에서는 accepted_risk를 인정하지 않는다.
+            const isReviewAccepted = reviewStatus === 'accepted' || namespace === CONTEXT_FINDING_NAMESPACE;
+            const isContextAcceptedRisk = namespace === CONTEXT_FINDING_NAMESPACE
+                && rec.status === 'accepted'
+                && rec.accepted_risk === true
+                && typeof rec.note === 'string'
+                && rec.note.trim() !== '';
+            // blueprint 최종 리뷰는 discovery 한 라운드로 끝나므로, 고치지 않고 넘기는 must_fix는
+            // deferred(+note, 위 NOTE_REQUIRED_STATUS 검사)로 기록해 accepted를 허용한다.
+            // task 범위(G14)는 roundScope가 없어 이 예외를 받지 않고 기존처럼 거절한다.
+            const isBlueprintDeferred = roundScope === 'blueprint' && rec.status === 'deferred';
+            if (isReviewAccepted && rec.actionability === 'must_fix' && rec.status !== 'resolved'
+                && !isContextAcceptedRisk && !isBlueprintDeferred) {
                 messages.push(`${findingLabel} accepted with open must_fix ${id}`);
             }
         }
     }
-    messages.push(...collectRoundFailures(rounds, findingLabel, list, modeContract, namespace === CONTEXT_FINDING_NAMESPACE ? CONTEXT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT));
+    messages.push(...collectRoundFailures(rounds, findingLabel, list, modeContract, namespace === CONTEXT_FINDING_NAMESPACE
+        ? CONTEXT_ROUND_CONTRACT
+        : (roundScope === 'blueprint' ? BLUEPRINT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT)));
     return messages;
 }
 /**
@@ -336,6 +551,13 @@ function collectRoundFailures(rounds, findingLabel, findings = [], modeContract 
             const target = isRecord(entry.target) ? entry.target : undefined;
             if (!target || contract.targetKeys.some((key) => !target[key])) {
                 messages.push(`${findingLabel} round ${round} target invalid`);
+            }
+            // snapshot_id는 새 라운드에만 있고 과거 저장 기록에는 없으므로 부재는 허용하고 있을 때만
+            // 형식을 본다. counters로 execute 계약에만 적용해 context digest 계약을 건드리지 않는다.
+            // 파일 존재·현재 freshness는 쓰기 시점의 recorder가 판정한다.
+            if (contract.counters && target && target.snapshot_id !== undefined
+                && !(typeof target.snapshot_id === 'string' && SNAPSHOT_ID_RE.test(target.snapshot_id))) {
+                messages.push(`${findingLabel} round ${round} target snapshot_id invalid`);
             }
             if (entry.perspectives !== undefined) {
                 const perspectives = Array.isArray(entry.perspectives) ? entry.perspectives : [entry.perspectives];
@@ -395,6 +617,11 @@ module.exports = {
     REVIEW_STATUS,
     CONTEXT_REVIEW_STATUS,
     CONTEXT_REVIEW_PERSPECTIVE,
+    FINDING_ACTIONABILITY,
+    FINDING_ORIGIN,
+    REPORT_FINDING_STATUS,
+    CONTEXT_ROUND_MODES,
+    CONTEXT_REPORT_STATUS,
     EXECUTE_REVIEW_STATUS,
     EXPLAIN_SECTION_HEADINGS,
     TODO_RE,
@@ -403,9 +630,16 @@ module.exports = {
     parseTasksSections,
     parseExplainSections,
     extractPathCandidates,
+    parseTouchRows,
     pathsOverlap,
     pathJustifiedByTouch,
     findingFingerprint,
+    findingAutoId,
+    normalizeFinding,
+    normalizeRoundFindings,
+    findingMergeCandidates,
     collectFindingFailures,
     EXECUTE_ROUND_CONTRACT,
+    BLUEPRINT_ROUND_CONTRACT,
+    REPAIR_WAVE_LIMIT,
 };

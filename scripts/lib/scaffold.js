@@ -139,6 +139,14 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }) {
         && (typeof description !== 'string' || !description.trim() || description.trim() === `Epic ${epicId}`)) {
         throw new Error(`epic description must be a non-placeholder string for ${epicId}`);
     }
+    // 규칙 출처는 references/spec-authoring의 "description in English ASCII"다. 문서에만
+    // 있으면 한국어로 scaffold한 뒤에야 고치게 되므로 생성 시점에 거부한다. 새 epic 블록
+    // 안에만 두어 한국어 description을 가진 기존 epic의 재실행(넘긴 값 무시)은 건드리지
+    // 않고, trim 전 원문을 검사해 탭·개행·NBSP 같은 공백류도 잡는다. 위 placeholder
+    // 검사 뒤에 두어 기존 거부 문구와 순서를 보존한다.
+    if (!fs.existsSync(epicAbs) && /[^\x20-\x7E]/.test(description)) {
+        throw new Error(`epic description must be printable ASCII (0x20-0x7E) for ${epicId}`);
+    }
     const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
     // 번호는 다른 slug로 다시 쓰면 새 디렉터리에 그대로 써지고, 경로에서 id를
     // 파생하는 S5도 통과한다. 그래서 같은 번호를 쓰는 epic이 둘 생겨도 아무
@@ -332,6 +340,10 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
         // 새 blueprint는 task별 리뷰 대신 루트 review.md 하나다.
         // 기존 문서의 필드 부재는 구형 계약으로 남긴다(여기서 소급하지 않음).
         review_scope: 'blueprint',
+        // 새 계획은 구현 task별 전용 명령 + 마지막 verification node 계약을 쓴다.
+        // 표식이 없는 기존 blueprint는 legacy로 남으므로 소급하지 않는다. 표식의
+        // 의미(명령 누락 거절·terminal topology)는 plan gate가 판정한다.
+        verification_policy: 'scoped_terminal',
         supersedes: [],
     }), body('blueprint.md')));
     // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.

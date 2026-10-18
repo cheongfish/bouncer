@@ -53,7 +53,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
      Those sections are the sole brief for execution. Current behavior and
      Target behavior are optional on the template; when absent, execution
      passes only the sections that exist. Set `title` as the
-     **task commit subject** (`/bouncer-commit` copies it). Set
+     **task commit subject** (the internal `bouncer commit` copies it). Set
      `bouncer.commit_intent` to 1–2 Korean terminal sentences (배경·의도) drawn
      from Goal & intent, and optionally `bouncer.commit_summary` to 1–2 Korean
      terminal sentences (변경 요약) — not the subject noun phrase. For a flow change, show only
@@ -82,6 +82,21 @@ body content only; never edits harness-owned frontmatter fields. Used from
        `[]`와 `parallel_safe`의 `false`만 자리표시자다). 알 수 없는 id·자기
        참조·중복·cycle은 plan gate G19가, 잘못된 shape·enum·자원 id는 S28이
        거절한다.
+
+       plan gate와 plan draft 검사는 DAG 모양에 권고 경고 두 가지를 `warnings[]`에
+       싣는다. 실패가 아니므로 `ok`는 바뀌지 않고, 받으면 아래를 검토한다.
+       - `dag-serial-overlap`: 경로 중첩률 0.5 이상인 edge로 이어진 task가 3개
+         이상 직렬이다. 같은 파일을 연달아 고치는 task는 한 task로 **병합**할 수
+         있는지 먼저 본다. 병합이 크면 공유 경로를 앞 task로 몰고 나머지가 서로
+         다른 경로를 갖도록 쪼개 `parallel_safe` wave로 보낼 수 있는지 검토한다.
+       - `dag-disjoint-edge`: 경로가 하나도 겹치지 않는데 `depends_on`으로 직렬인
+         commit→commit edge다. 실제 의존이 아니면 edge를 지우고
+         `parallel_safe: true`를 검토한다. 후행 task가 선행 결과를 fixture·테스트로만
+         쓴다면 그 fixture만 바꾸는 **fixture 선행 task**를 따로 떼어 병렬 wave로
+         보낸다.
+       - 예: `TASKS-002`가 `TASKS-001`이 만든 fixture만 읽는다면, fixture 생성을
+         `TASKS-001`로 두고 `TASKS-002`·`TASKS-003`을 각자 다른 경로로 나눠 둘 다
+         `depends_on: [TASKS-001]`로 걸면 한 wave에 함께 실행된다.
      - **execution_kind**: 신규 구현 task는 `commit`을 명시한다. 전체 CI fan-in
        node만 `verification`으로 쓰고, non-empty `depends_on`,
        `parallel_safe: false`, `dependency_gate: integrated`, 실행 가능한 `verify`,
@@ -129,18 +144,32 @@ body content only; never edits harness-owned frontmatter fields. Used from
      - **Touch**: write a Markdown table with columns
        `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
        `변경` is `Create`, `Modify`, `Delete`, or `Rename`. Wrap path and
-       symbol cells in backticks. List only symbols
+       symbol cells in backticks. Write a `Rename` path cell as
+       `` `old` → `new` ``. The plan gate (G25) fails a `Modify`, `Delete`, or
+       `Rename` old path that is absent from the repository and from every
+       predecessor task's `Create` or `Rename` new path, and fails any path that is
+       absolute or resolves outside the repository. List only symbols
        tied to the entry point, state change, or verification point, and give
        the selection reason in `근거`. When the symbol name is not yet
        grounded, write `신규 추출 지점: <responsibility>` instead of inventing
        a name. Internal symbol names are search hints — completion must not
-       depend on keeping that exact name. A bare directory still opens every
+       depend on keeping that exact name. When `explain(<symbol>)` ran for a
+       Touch symbol, `근거` may carry its caller count in the form
+       `explain(<symbol>): 호출 N / 파일 M`. Never set a test expectation from
+       a graph result, and re-check an export's impact range with `rg` because
+       indirect links do not show in the graph. A bare directory still opens every
        file under it, so Touch must justify every `affected_paths` entry.
      - **Touch** (contract change): when Interface revises a shared
        serialized shape or gate input, also list every test/fixture file that
        *constructs or asserts* that shape, with `Modify` — even if the owning
        production module is under Do not touch. Import absence is not absence
        of blast radius.
+     - **Touch** (size or shape contract): before planning an addition to a Touch
+       path, check whether a test or `scripts/check-doc-shape.js` pins that file's
+       size, headings, or step shape (`rg` the path in `test/` and `scripts/`). If
+       one does, plan a replacement or a different location in the task; an
+       addition that the contract rejects only surfaces during execute and
+       departs from the approved brief.
      - **Judgable prose**: ban undecidable verbs such as `개선한다` or
        `적절히 처리한다`. Replace them with observable outcomes a gate or
        test can accept or reject.
@@ -167,8 +196,13 @@ body content only; never edits harness-owned frontmatter fields. Used from
        commit, push, and branch remain forbidden.
      - **Checklist** (focused vs verify): focused tests and `check:emit` are
        mid-implementation checks; the final completion command is
-       `bouncer.verify` (or `config.verify` when absent), and the
-       `execute gate` records the evidence.
+       `bouncer.verify` (or `config.verify` when absent on a legacy blueprint),
+       and the `execute gate` records the evidence. On a blueprint with
+       `verification_policy: scoped_terminal` every commit task must declare
+       its own task-only `bouncer.verify` (the plan gate rejects a missing or
+       empty one, and a full-suite command copied from the terminal node), and
+       the Checklist's last item names that command so the worker report can
+       echo it under `## Tests`.
      - **Checklist** (verify vs paths): if the verify command is the full
        suite (e.g. `npm test`), the set of files that must change for green
        must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
@@ -187,8 +221,15 @@ body content only; never edits harness-owned frontmatter fields. Used from
        is the signal to set `scale` back to `full` rather than to smuggle those
        rules into Goal & intent — a path you must protect has nowhere to live in a
        light task, and G12 can only judge a Do not touch section that exists.
-       The whole light plan set is budgeted at 100 lines
-       (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`).
+       The scaffolded light plan set is budgeted at 100 lines
+       (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`). A
+       `scoped_terminal` light plan adds one terminal verification task
+       (verification only, no source Touch) that depends on the one
+       implementation task; that pair of documents sits outside the budget.
+   - **terminal verification**: on a `scoped_terminal` blueprint author exactly
+     one verification task, last in the DAG, that depends on every commit task
+     and holds the full-suite `bouncer.verify`; its Touch declares no source
+     paths. Full and light plans both need it.
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.
@@ -214,13 +255,13 @@ body content only; never edits harness-owned frontmatter fields. Used from
 - **Discovery fields.** For new or modified docs, `title` stays Korean as the
   `.gitmessage` nominal commit-title source; do not translate it. Write
   `description` and `tags` in English ASCII. Search queries also use English
-  ASCII for graph-suggest; do not propose tokenizer or Korean-search support or
+  ASCII for Graphify queries and `grep`; do not propose tokenizer or Korean-search support or
   bulk-rewrite the existing corpus.
 - **Domain tags.** Frontmatter `tags` are the domain search vocabulary that
-  people and `graph-suggest` queries use. Each item is an English ASCII
+  people and Graphify queries and `grep` use. Each item is an English ASCII
   single token matching `[A-Za-z0-9_./-]`. Keep scaffold `bouncer` and the
   document's own kind tag, then add 2–5 domain tags (for
-  example `worktree`, `intent`, `graph-suggest`).
+  example `worktree`, `intent`, `affected-paths`).
 - **Stop slop.** After drafting Korean plan/explain bodies, apply the
   `stop-slop` skill (`${BOUNCER_ROOT}/references/stop-slop/index.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.
@@ -266,7 +307,7 @@ flowchart LR
 
 ## Commit-message titles (`.gitmessage`)
 
-`/bouncer-commit` builds each **task** commit message from document
+The internal `bouncer commit` builds each **task** commit message from document
 frontmatter, not from free-form prose. `/bouncer-finalize` builds any
 **remainder** commit from the blueprint `title` /
 `commit_type` and its `## Intent` section. Follow the
@@ -280,14 +321,19 @@ setting these fields:
 | `tasks` `bouncer.commit_intent` (1–2 strings) | task-commit 배경·의도 bullets (`- …함`) |
 | `tasks` `bouncer.commit_summary` (1–2 strings) | task-commit 변경 요약 bullets after intent |
 | `blueprint` `title` | finalize remainder subject; also the fallback when a task title is empty |
-| blueprint `## Intent` (1–2 Korean sentences) | finalize remainder body bullets; malformed or absent Intent rejects message generation |
+| blueprint `## Intent` (1–2 Korean sentences) | finalize remainder body bullets; malformed Intent with a heading fails as `S33` on plan/finalize and on `finalize prepare` |
 
 `commit_intent` and `commit_summary` must each be a YAML list of 1–2 Korean
 terminal sentences, written on the **task** document only. A missing field is
 compatible with existing tasks and contributes no bullets; a present malformed
 field rejects message generation rather than being partly omitted. Finalize
 reads only the blueprint `## Intent` section, which must contain 1–2 Korean
-terminal sentences.
+terminal sentences. Put mermaid or other code fences under a separate `##`
+heading (for example `## Contract` or `## Diagram`) — fences inside `## Intent`
+are skipped when collecting sentences, and a fence-only or otherwise invalid
+Intent raises `S33` once the blueprint is past `draft`.
+A malformed sentence ending (for example `…시킴.`) is caught on the plan gate as
+`S34`, so fix it before approval instead of after dispatch.
 
 Leave Epic / Blueprint identifiers out of titles,
 `commit_intent`, and `commit_summary` — they belong in the blueprint docs and PR body, not the commit
@@ -334,9 +380,12 @@ does **not** ban backticks in Markdown 본문 — those are 금지하지 않는�
 - **Do** rewrite scaffold default `title` values (and optional
   `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent` /
   `bouncer.commit_summary`).
-  They are authored content, not harness ids — `/bouncer-commit` copies task
+  They are authored content, not harness ids — `bouncer commit` copies task
   fields into the task message, while `/bouncer-finalize` copies the blueprint
   `## Intent` section into the remainder message.
+- **Rewriting** a scaffolded document with a whole-file write drops its
+  harness fields. Read the frontmatter first and copy `timestamp` and the
+  other harness-owned fields back unchanged, or edit only the body.
 - The other exception is content the calling command explicitly tells you to
   write into the protocol block (for example graph suggestions or confirmed
   `affected_paths`). Otherwise, bodies only.

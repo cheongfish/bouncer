@@ -246,6 +246,12 @@ function runPrintDispatch({ repoRoot, role, cwd, inputFile, outDir, deps, }) {
     if (resultEvent.is_error === true) {
         return fail('result-error', 'the final result event has is_error true', 'fix the dispatch input from the report, then retry', { report, stdout: stdoutPath, stderr: stderrPath });
     }
+    // transport가 성공해도 보고서 문자열이 없으면 coordinator가 판정할 보고가 없다.
+    // result-error 뒤에 두어 is_error + 빈 result는 기존대로 result-error로 남기고,
+    // trim은 판정에만 쓰며 성공 시 report 원문은 그대로 돌려준다.
+    if (report.trim().length === 0) {
+        return fail('report-missing', 'the final result event has no report string', `inspect ${stdoutPath} and retry the dispatch`, { stdout: stdoutPath, stderr: stderrPath });
+    }
     return {
         ok: true,
         role: role,

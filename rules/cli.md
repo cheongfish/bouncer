@@ -11,6 +11,7 @@ actual write cwd.
 ```sh
 bouncer init [--upgrade-graphify]
 bouncer plan inspect [--epic-dir <dir>] [--blueprint <dir>]
+bouncer plan approve --blueprint <dir> [--repo <dir>]
 bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 bouncer verify --blueprint <dir>
 bouncer execute prepare --blueprint <dir>
@@ -20,7 +21,35 @@ bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
 ```
 
+`run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
+every simulated wave has width 1, `parallel` for a single wave of width 2+,
+`mixed` otherwise, `null` with no open commit task, `unknown` when the
+simulation cannot open the remaining tasks), `max_wave_width`, `commit_tasks`,
+`review_risk` (sorted union over open commit tasks) and `parallel_safe_tasks`.
+It simulates `readyWave` over open commit tasks only; verification nodes and
+edges to them are ignored. Failure payloads omit `shape`.
+
+`run preflight` refuses in this order: (1) `ok:false` with a `CURRENT_*`
+selection error, (2) `ok:false` `no-current`, (3) `ok:false` `pointer-mismatch`
+with `expected` (the pointer blueprint) and `actual` (the `--blueprint` input,
+`toPosix` only) when the `--blueprint` input, normalized to a repo-relative POSIX path with
+no trailing slash, differs from the normalized pointer blueprint, resolves
+outside the repo, or (when it exists) its realpath is outside the repo realpath,
+(4) `delegable:false` from the ledger status: `promotion-stopped`,
+`awaiting-confirmation`, `partial-closed`, (5) `delegable:false` from the
+blueprint document status when it is not `approved`: `blueprint-closed`,
+`blueprint-partial-closed`, `blueprint-draft`, `blueprint-superseded`,
+`blueprint-imported`, `blueprint-status-unknown`, (6) `delegable:false`
+`no-open-task`. Every `delegable:false` refusal also has `direct_eligible:false`.
+
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
+`plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
+tasks to `ready` all-or-nothing; run it only after the user approves the
+plan. Success prints `{ ok: true, changed, unchanged }` (exit 1 on refusal:
+`{ ok: false, reason, cause, next }`, no file changed). Only the
+`plan-approve-write` refusal (an I/O failure mid-write) also carries `changed`,
+the files already written; rerunning completes the rest. A missing or repeated
+`--blueprint` or `--repo` is exit 2.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag
 `routing` is `null`. The signal does not select or approve light.
@@ -38,7 +67,15 @@ an empty close, config errors, and gate or scope refusals never install. An
 install failure exits 1 with `code: DEPENDENCY_INSTALL_FAILED`, `cause`, and
 `next` before verify, staging, commit, or pointer clearing — repair the
 install in that checkout as `next` says, then rerun the same finalize command.
-`VERIFY_FAILED` still means only that verify failed after dependencies were ready.
+`VERIFY_FAILED` still means only that verify failed after dependencies were ready;
+its payload carries `output_tail`, the last 100 lines or fewer of the verify output.
+Worktree dependency preparation (`seed-worktree`, `execute prepare`, finalize)
+also runs the optional `worktree.setup` command from the main checkout config
+once after the install step. It is one argv (no shell operators) and must pass
+`verify_allowlist`; a rejected or failing setup is `dependency-install-failed`
+with a message starting `worktree.setup`. `bouncer init` seeds it as
+`npm run build` only for a new config whose `package.json` has `scripts.build`;
+existing configs are never rewritten.
 `finalize release-main --blueprint <dir>` is main-checkout-only: it cleans
 main plan copies after a closed drive.
 
@@ -58,13 +95,14 @@ IDs are zero-padded three digits. A verification task is terminal: it creates
 only `tasks.md` and `verification.md`, runs its declared command in the
 integration checkout, and creates neither a source commit nor `review.md`.
 Do not scaffold tasks into a closed blueprint.
+`scaffold epic` accepts only printable ASCII (0x20-0x7E) in the new epic's description and rejects anything else with exit 2.
 
 ## Pointer, worktree, and coordinator commands
 
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|promote-stop> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
@@ -72,6 +110,10 @@ bouncer coordinate promote-stop --blueprint <dir> \
   --summary <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason>
+bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
+  --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
+bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
+  --summary <text> --paths <p> --decision <reason> --disposition outside_scope
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
   [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> --kind supplement --review-finding <id> \
@@ -86,6 +128,33 @@ track host executors, so a task `dispatch.status: active` (recorded before the
 host launch) and a changed `ledger.sha256` (fencing token only) are not proof a
 worker is running or made progress; only the root session's real host handle
 can show running or terminated.
+
+`coordinate dispatch [--model <value>]` records the dispatch model argument
+(`bouncer subagent-model --agent <name>` output, a slug or `inherit`) as
+`model` on the task's `dispatch` and on the dispatch decision; omit the flag and
+no `model` key is written. A valueless or blank `--model` is refused with
+`model-invalid` before any attempt opens. `coordinate worker-model --blueprint
+<dir> --role <implementer|reviewer|debugger> --model <value> --ledger-path <p>
+--ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]` runs from
+the integration cwd and appends `{kind: worker-model, role, model, task?,
+perspective?, tokens?}` to the ledger
+decisions (and to that task's decisions when `--task` is given) without
+changing dispatch, lease, status, or attempt. `--perspective` is reviewer-only
+and must be an execute review perspective. `--tokens` is the host-reported
+subagent token count (`/^\d+$/`, safe integer); without it no `tokens` key is
+written and the record counts as missing. `coordinate worker-tokens --blueprint
+<dir> --role <implementer|reviewer|debugger> --tokens <n> --ledger-path <p>
+--ledger-hash <h> [--task <ddd>] [--perspective <name>]` appends
+`{kind: worker-tokens, role, tokens, task?, perspective?}` the same way for a
+completion notice that arrives after the worker-model record (a missing
+`--tokens` is usage, exit 2). Refusals: `worker-model-role-invalid`,
+`worker-model-perspective-invalid`, `tokens-invalid`, `model-invalid` (worker-model
+only), `task-outside-blueprint`; none writes the ledger. The recorded model is
+what the coordinator passed to the dispatch, not proof of the model the host ran.
+`metrics summary` adds `worker_tokens: {total, missing, by_role: {implementer,
+reviewer, debugger}}` from these decisions, per `(task, role, perspective)` key:
+`missing` is `max(0, worker-model records − reported tokens)` summed over keys,
+and it is never added to the `coordinator-session` `tokens_total`.
 
 `coordinate dispatch` also returns a top-level `report_path`
 (`<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md`, absolute) that the
@@ -120,11 +189,23 @@ evidence ids). Reasons are `security-risk`, `out-of-scope`, `task-split`,
 idempotent; afterward `prepare`/`dispatch`/`report`/`record`/`integrate` and
 `run preflight` delegation fail with `promotion-stopped`. There is no resume —
 full replan needs a new `bootstrap` and `current --set`.
+After the main checkout has an approved full blueprint, `coordinate bootstrap --promote-light` archives a promotion-stopped light ledger and saves integration dirty changes to `.bouncer/runtime/light-promoted.patch`. It resets those changes, seeds the full plan, and creates a full ledger on the same integration branch. The response and ledger include `promoted_from`; `coordinate next` passes its patch path as `promoted_patch` in the implement payload. Rejections are `promote-light-requires-stopped`, `promote-light-scale-light`, `promote-light-archive-exists`, and `promotion-diff-drift`. A failed partial promotion reports `promote-light-incomplete` and whether rollback completed.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
-`worker`, `blocked`, `done`, `none`, `max-steps`, or a failure
+`worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
 (`repeated-failure`, `unclear-result`, `advance-argv-invalid`, or the
 automatic action's reason).
+`run preflight` also reports `direct_eligible` (delegable, `full`, serial shape,
+`1 <= commit_tasks <= coordinator.direct_max_commit_tasks`); `/bouncer-run`
+offers root-direct execution only when it is true. `bouncer metrics start
+--kind root-direct-session` records that session (no `--target-digest`).
+`yield` is a session boundary with no argv: the coordinator returns `continue`.
+The root runs `coordinate session-open --blueprint <dir> --ledger-path <p>
+--ledger-hash <h>` from the integration cwd before each coordinator dispatch;
+it appends a `{kind: session, opened_at, integration_head, waves_cap}` decision
+and returns a fresh checkpoint (`ok: false` with `ledger-mode-mismatch` or
+`ledger-not-active` otherwise). `coordinator.waves_per_session` caps the waves
+per session (`docs/configuration.md`).
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
 Use `coordinate revise` only from the assigned worker worktree with a reason
@@ -137,10 +218,10 @@ user confirmation and is unresolved handoff, not ordinary completion.
 bouncer project-root
 bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
 bouncer intent bundle --task <tasks.md> --symbol <name>... [--candidate <qualified-ref>]...
+bouncer intent bundle --task <tasks.md> --no-symbols
 bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
 bouncer graphify-bin
 bouncer graph-sync
-bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
 bouncer subagent-model --agent <name> [--provider <name>]
 bouncer config --help
 bouncer retro sources [--repo <dir>] [--limit <1..200>] [--claude-root <dir>] [--codex-root <dir>] [--cursor-root <dir>]
@@ -164,8 +245,13 @@ failures are `{ ok: false, reason: unreadable|unsupported-schema }` (exit 1).
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
-`intent bundle` creates or reuses the task intent cache. `intent sections` is
-read-only: it projects role-specific section bodies from that cache. On
+`intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. `intent sections` is
+read-only: it projects role-specific section bodies from that cache. Successful
+implementer responses also include `symbol_locations`, copied in bundle order
+from resolved (including historical) and unlinked entries; unresolved and
+unselected ambiguous entries have no location. Reviewer and debugger responses
+retain their existing shape without this field. The projection preserves the
+bundle ID, revision, brief hash, and existing `functions` data. On
 `{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`,
 `intent-sections-drift`, or `intent-task-invalid` (exit 1). For the first three,
 follow `next` and run `bouncer intent bundle --task <path> --symbol <name>...`
@@ -181,9 +267,9 @@ prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
 
-`review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
-clustered`) or Execute (`single | parallel`, with `security` when
-`review_risk` is non-empty). Plan `single` / `clustered` also include
+`review-dispatch` is read-only. It returns JSON for Plan (`skip | single`;
+older stored `clustered` payloads are still read) or Execute (`single | parallel`, with `security` when
+`review_risk` is non-empty). Plan `single` also includes
 `snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
 (per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
 `structure_parts` (per-document structure sha256; the `follow_up` input),
@@ -203,10 +289,11 @@ rounds/findings exist, `previous` is required. Those fields are absent on `skip`
 (missing), `previous-payload-invalid` (not JSON, wrong shape, another blueprint,
 unreadable stored reference), or `previous-payload-stale` (differs from the
 cycle `latest_dispatch`). `--previous` without a path or a repeated
-`--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|restart|route
---blueprint <dir> --dispatch <json>` owns cycle state (`record` also takes
-`--round <json>`, `--status`, `--accept-risk`; `restart` takes `--reason`, at most
-once); run `bouncer context-review --help`. A stale target after the delta
+`--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|close|restart|route`
+owns cycle state (`start|record|restart|route` take `--blueprint <dir> --dispatch <json>`;
+`record` also takes `--round <json>`, `--status`, `--accept-risk`, and its success may carry `warnings` (`finding-merge-candidate`: findings of the round that share `file` and `symbol` under different categories; key omitted when none, never blocks), but it rejects with `context-review-input-invalid` a round whose merged findings share a fingerprint under different ids, at any `--status`, leaving state and report files unchanged (merge them and record the same round again);
+`close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk`;
+`restart` takes `--reason`, at most once); run `bouncer context-review --help`. The path that closes the cycle (`close` or `record --status accepted`) writes `context-review.md` and returns `written`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),
 `restart` (delta used or structural, `restart_count` below 1) or `user`
 (round pending, open `must_fix`, restart spent); routing never writes state.
@@ -222,8 +309,8 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 `dispatch print` runs one Cursor print process. It returns JSON for success
 (`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
 `reason` is `print-dispatch-disabled`, `agent-unavailable`,
-`agent-exit-nonzero`, `result-missing`, `result-error`,
-`dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
+`agent-exit-nonzero`, `result-missing`, `result-error`, `report-missing`
+(the final `result` is absent or blank), `dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
 assemble the identity line, role body, or `agent --print` argv in the
 session. Invalid argv (`print` missing, unknown `--role`, duplicate or
 missing `--role`/`--cwd`/`--input`/`--out`) is exit 2.
@@ -234,7 +321,7 @@ bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file> [--st
 
 `review record` writes one round and finding updates into `review.md`
 frontmatter only after the same finding/round checks as G21 and G14 pass.
-Success is `{ ok: true, path, round, status, findings }` (exit 0). Failure is
+Success is `{ ok: true, path, round, status, findings }` (exit 0), plus `warnings: [{ code: 'finding-merge-candidate', file, symbol, ids }]` when findings of the round share `file` and `symbol` under different categories (key omitted when none; never blocks the record). Failure is
 `{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
 `reason` is `review-target-missing`, `review-task-required`,
 `review-task-not-allowed`, `review-input-invalid`,
@@ -257,6 +344,28 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it, and the next final review is the one delta round.
 `--kind` accepts only `product` (default) or `supplement`.
+
+Terminal CI failures add two mutually exclusive forms of `coordinate repair`
+(both need `--task <terminal>`, the recorded `--failure-command`, `--summary`,
+`--paths`, `--decision`, and the ledger path/hash fence; both without a value, or
+together, exit 2). `--resume-task <ddd>` reassigns an already integrated
+implementation task of the same blueprint: no task is added, IDs, DAG, and
+approved scope stay unchanged, `--paths` must lie inside that task's scope, the
+lease is revoked so `prepare` hands it to a worker cut from the current
+integration HEAD with a new generation, and the terminal re-verifies after
+reintegration (one repair wave). `--disposition outside_scope` records that the
+cause, the failing test, and the needed change are outside every approved task
+scope. It binds the original evidence id and source digest recorded at the
+failure; the failure and the `verifying` status stay, and `next`, `validate
+--gate finalize`, the finalize digest, and the PR treat it as a separate
+warning, never as passed or integrated. Refused before any write: both options,
+a command or task other than the recorded failure
+(`failure-evidence-mismatch`), missing evidence or source identity
+(`disposition-evidence-required`), a changed source (`disposition-stale-source`),
+a path owned by any task scope (`disposition-scope-mixed`), a non-integrated or
+foreign resume task (`resume-task-invalid`), a path outside the chosen task's
+scope (`repair-scope-out-of-bounds`). Review-caused repair and supplement are
+unchanged.
 
 ## Controlled migrations
 

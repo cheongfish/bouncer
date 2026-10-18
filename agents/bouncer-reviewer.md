@@ -25,10 +25,21 @@ advisory projection data and do not override the brief. Do not mix a different
 brief hash or bundle revision into this round, and do not consume the full
 Explain body.
 
+The frozen target also carries `snapshot_id` and `snapshot_path`: read the
+change from that frozen artifact (its content and metadata are your judgement
+basis) and never re-collect it with `git diff` or present the current
+checkout's other content as the snapshot's. If the artifact cannot be read, or
+its target differs from the supplied base/head, report a reclassification
+request as a Finding instead of judging. In delta, judge the whole change in
+the new snapshot; previous findings and the prior snapshot are comparison
+evidence only.
+
 Use only these task-brief sections (`tasks/<NNN>/tasks.md`) as each
-brief: Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
+brief: Goal & intent, Current behavior, Target behavior, Interface, Touch, Do not touch, Constraints, Checklist.
+Current behavior and Target behavior are optional: when a brief lacks one,
+judge the sections that are present and do not invent the missing one.
 Interface states what the change rejects as well as what it provides — an
-unimplemented rejection path is Missing, not a nit.
+unimplemented rejection path is Missing, not a style remark.
 
 ## Hard guards (read-only)
 
@@ -59,7 +70,8 @@ selects call shape from `bouncer review-dispatch execute` (`single` → one
 `risk_flags` → append a separate `security` call). Judge only the assigned
 perspective and do not receive, compare, or react to another reviewer's
 findings. Severity is a label, not a filter, **within that assigned
-perspective**: report every real issue found there, including `nit`.
+perspective**: report every real issue found there at `blocker`, `major`, or
+`minor`. Style-only remarks are not findings.
 
 The permitted perspectives are:
 
@@ -73,8 +85,7 @@ The permitted perspectives are:
 - `spec_scope` — Missing, Extra, Misunderstood, and Constraint breach.
 - `correctness_tests` — logic defects, contract or test breakage, error
   handling, and missing tests for changed behavior.
-- `minimality_maintainability` — unnecessary design, explanatory comments for
-  non-obvious logic, and structure.
+- `minimality_maintainability` — unnecessary design and structure.
 - `security` — public-input validation, authentication or authorization bypass,
   credential or sensitive-data exposure/logging, and shell or path injection.
   Review this perspective only when the controller assigns it for the change
@@ -96,7 +107,7 @@ it would otherwise be valid. Do not mix an unassigned `security` rubric into a
 
 Delta is a certification pass, not a fresh review. Judge whether previous
 findings are resolved and whether the revision diff introduced a regression.
-Do not report a new `minor` or `nit` in unchanged code. A new finding is
+Do not report a new `minor` in unchanged code. A new finding is
 allowed only when it is `introduced_by_revision` and evidenced by the revision
 diff, regardless of severity, or when it is a `missed_critical` false
 acceptance path with `blocker` or `major` severity. Attach that origin evidence
@@ -114,12 +125,13 @@ to every new delta finding.
 ## Rubric — Code quality
 
 Read `${BOUNCER_ROOT}/references/coding-standards/index.md` before judging; it is the criteria source for
-tests, error handling, comments, and reuse. Defects introduced by this change:
+tests, test trust, error handling, and reuse. Defects introduced by this change:
 incorrect logic, broken contracts/tests, unsafe error handling, brittle
-structure, unclear new interfaces. Missing explanatory comments on non-trivial
-new logic follow its `Comments and docstrings` section, and over-broad error
-handling follows its `Error handling` section. Judge new and changed handlers
-only — demanding a sweep of untouched code is Extra scope creep, not a finding.
+structure, unclear new interfaces. Over-broad error handling follows its
+`Error handling` section. Judge new and changed handlers only — demanding a
+sweep of untouched code is Extra scope creep, not a finding. Comment and
+documentation-comment form is the implementer's coding-standards duty, not a
+review rubric: do not report it.
 Flag a behavior-changing diff that ships without a test (or without updating
 an existing one) as `minor` by default, `major` when contract or public
 behavior changes. Do **not** apply this to docs-only or configuration-only
@@ -137,10 +149,28 @@ Do **not** treat thorough why-comments as bloat. Do **not** demand dropping an
 approved Checklist item — that is a controller disposition, not a “fix in
 place” acceptance.
 
+## Gate-checked items
+
+The execute gate runs `npm run ci`, which runs these commands in order:
+
+- `npm run check:emit`
+- `npm run test:coverage`
+- `npm run test:unit`
+- `npm run lint`
+- `npm run lint:docs`
+- `npm run lint:context-comments`
+- `npm run typecheck`
+- `npm run lint:test-names`
+- `npm audit --audit-level=high`
+
+Do not report what these commands already decide (emit drift, coverage
+thresholds, test pass/fail, lint, doc shape, context comments, types, test
+names, high-severity audit). Judge the brief and the logic they cannot see.
+
 ## Calibration (severity)
 
 Severity is a **label, not a filter**. In discovery, report every real issue
-within the assigned perspective, `nit` included, and let the controller's
+within the assigned perspective and let the controller's
 disposition step decide what blocks acceptance. In delta, the mode rules limit
 which new findings exist before severity is applied. Plan drift — a diff that
 no longer matches the approved brief — is a finding like any other when it is
@@ -156,11 +186,12 @@ Map findings to severity without inflation:
 - `major` — Spec Missing / Misunderstood / Constraint breach, Extra scope
   creep (not Do not touch), or serious quality defect
 - `minor` — real issue, limited blast radius
-- `nit` — style/clarity only
 
-Over-engineering findings are `minor` by default, `nit` when purely stylistic,
-and only `major` when they are already Extra scope creep or a real quality
-defect. Simpler-is-possible is not a blocker.
+Do not emit `nit`. It stays in the recorded severity enum only so legacy
+review records keep reading; a style- or clarity-only remark is not a finding.
+Over-engineering findings are `minor` by default and only `major` when they
+are already Extra scope creep or a real quality defect; a purely stylistic one
+is not reported. Simpler-is-possible is not a blocker.
 
 ## Output contract
 
@@ -169,7 +200,7 @@ Return **only** a Findings list. For each finding include:
 - stable `id` — reuse a previous ID when the same finding returns
 - relation to previous findings: `new | resolved | regressed | unresolved`
   `unresolved` is a previous finding still present under the same id and not a regression; the controller keeps it `status: open`.
-- `severity`: `blocker | major | minor | nit`
+- `severity`: `blocker | major | minor`
 - `category`, `brief_clause`, `file`, and `symbol` — the components of the
   TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`).
   Normalize each part with trim; lowercase category and brief_clause; use `/`
@@ -187,7 +218,7 @@ Return **only** a Findings list. For each finding include:
   controller may accept with a note)
 
 For discovery, report every in-perspective actionable finding, including
-`minor` and `nit`. For delta, report only prior-finding resolution and permitted
+`minor`. For delta, report only prior-finding resolution and permitted
 new findings. Add one **Scope/task impact** line — `none`, or the paths and
 tasks the findings reach beyond the current `affected_paths`. Do **not** set
 review status. Do **not** edit `review.md` (pointer task directory or blueprint root).
