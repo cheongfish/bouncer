@@ -31,6 +31,13 @@ from the coordinator Procedure step 5 (Judge) and Hard guards.
   Its refusal is final; never start another wave by hand. Terminal CI failure
   may add at most two dynamic repair tasks. After a second repair still fails,
   automatic execution stops.
+- Repair `--paths` come from tracked files named in the failure evidence or
+  debugger report; a file to create goes in `--new-path` under a tracked
+  directory. On `scoped_terminal` pass `--verify <argv>` that checks only the
+  failing files. A refusal (`scope-path-untracked`,
+  `scope-new-path-parent-missing`, `repair-verify-required`,
+  `repair-verify-not-single-argv`, `repair-verify-is-terminal`) changes
+  nothing: correct the input and retry.
 - Before adding a task, classify the cause. Code owned by an integrated task is
   reworked on that task: `coordinate repair --task <terminal> --resume-task
   <ddd>` (no new task, DAG and scope unchanged, new lease generation). A cause,

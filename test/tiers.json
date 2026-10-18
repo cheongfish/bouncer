@@ -100,6 +100,7 @@
     "review-dispatch.test.js",
     "review-record.test.js",
     "review-snapshot.test.js",
+    "run-detach.test.js",
     "run-preflight.test.js",
     "runtime-state.test.js",
     "seed-worktree.test.js",

@@ -61,7 +61,13 @@ const planTemplate = createGitTemplate((repo) => {
   run(['config', 'user.email', 't@example.com']);
   run(['config', 'user.name', 't']);
   fs.writeFileSync(path.join(repo, 'README'), 'base\n');
-  run(['add', 'README']);
+  // revise/repair의 --paths는 integration HEAD의 추적 파일만 받는다. 테스트가 쓰는
+  // src/auth/, src/session/ 경로를 실제 추적 파일로 둔다.
+  for (const rel of ['src/auth/login.ts', 'src/session/token.ts']) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), 'x\n');
+  }
+  run(['add', '-A']);
   run(['commit', '-m', 'base']);
 
   writeDoc(repo, `${BP_REL}/index.md`, {
@@ -177,6 +183,19 @@ function repairDecision(task, wave) {
   };
 }
 
+/**
+ * `bouncer commit`이 남기는 결과를 흉내 낸다: worker 커밋이 이미 있다는 전제에서 tasks.md에
+ * HEAD 앞 8자 `commit_sha` stamp를 쓴다. accepted report·record가 커밋 확정을 요구하므로
+ * commit → report → record 순서를 fixture에서 지킨다. stamp는 brief hash가 무시하는 필드다.
+ */
+function stampWorkerCommit(worker, task = '001') {
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const file = path.join(worker, BP_REL, 'tasks', task, 'tasks.md');
+  const text = fs.readFileSync(file, 'utf8');
+  assert.match(text, /^\s+status: ready$/m);
+  fs.writeFileSync(file, text.replace(/^(\s+)status: ready$/m, `$1status: ready\n$1commit_sha: '${head.slice(0, 8)}'`));
+}
+
 function recordedDrive() {
   const drive = preparedDrive();
   const run = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
@@ -184,6 +203,7 @@ function recordedDrive() {
   run(drive.worker, ['add', 'README']);
   run(drive.worker, ['commit', '-m', 'first']);
   const oldSha = run(drive.worker, ['rev-parse', 'HEAD']);
+  stampWorkerCommit(drive.worker);
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint: BP_REL,
     cwd: drive.worker, task: '001',
@@ -550,6 +570,11 @@ test('coordinate dispatch and report without worker cwd or report metadata flags
   assert.strictEqual(badOutcome.code, 1);
   assert.match(JSON.parse(badOutcome.buf.out).reason, /outcome/);
 
+  fs.writeFileSync(path.join(drive.worker, 'README'), 'worker result\n');
+  execFileSync('git', ['add', 'README'], { cwd: drive.worker });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-m', 'worker result'],
+    { cwd: drive.worker });
+  stampWorkerCommit(drive.worker);
   writeWorkerReport(drive.worker, '001', meta.attempt, meta.task_brief_hash);
   const reported = coordinateCli(drive.worker, 'report', [
     '--repo', drive.repo, '--task', '001',
@@ -1382,4 +1407,57 @@ test('CLI coordinate repair resolution with a stale ledger hash or an out-of-sco
   assert.strictEqual(escaped.code, 1, escaped.buf.err + escaped.buf.out);
   assert.strictEqual(JSON.parse(escaped.buf.out).reason, 'repair-scope-out-of-bounds');
   assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+});
+
+test('CLI coordinate repair with a valueless --verify or --new-path, or --verify with --resume-task → exits 2 and writes nothing', () => {
+  const drive = terminalFailedCliDrive();
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  for (const [label, extra] of [
+    ['valueless --verify', ['--paths', 'src/auth/login.ts', '--verify']],
+    ['valueless --new-path', ['--paths', 'src/auth/login.ts', '--new-path']],
+    ['valueless --new-path after a valid one', ['--paths', 'src/auth/login.ts', '--new-path', 'src/auth/a.ts', '--new-path']],
+    ['--verify with --resume-task', ['--paths', 'src/auth/login.ts', '--verify', 'node --test a', '--resume-task', '001']],
+  ]) {
+    const out = coordinateCli(drive.integration, 'repair', terminalRepairArgs(drive, extra));
+    assert.strictEqual(out.code, 2, `${label}: ${out.buf.err}${out.buf.out}`);
+  }
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+});
+
+test('CLI coordinate repair with --verify, --paths and --new-path → forwards them to the repair intake checks (exit 1 with the matching reason)', () => {
+  const drive = terminalFailedCliDrive();
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  for (const [label, extra, reason] of [
+    ['chained --verify', ['--paths', 'src/auth/login.ts', '--verify', 'node --test a && node --test b'], 'repair-verify-not-single-argv'],
+    ['untracked --paths', ['--paths', 'src/ghost.ts'], 'scope-path-untracked'],
+    ['orphan --new-path', ['--paths', 'src/auth/login.ts', '--new-path', 'nope/x.ts'], 'scope-new-path-parent-missing'],
+  ]) {
+    const out = coordinateCli(drive.integration, 'repair', terminalRepairArgs(drive, extra));
+    assert.strictEqual(out.code, 1, `${label}: ${out.buf.err}${out.buf.out}`);
+    assert.strictEqual(JSON.parse(out.buf.out).reason, reason, label);
+  }
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+});
+
+test('coordinate revise with an untracked --paths entry or a valueless --new-path → exits 1 or 2 and keeps the task document', () => {
+  const { worker, repo } = preparedDrive();
+  const docFile = path.join(worker, BP_REL, 'tasks/001/tasks.md');
+  const before = fs.readFileSync(docFile, 'utf8');
+  const untracked = revise(worker, [
+    '--task', '001', '--paths', 'src/auth/', '--paths', 'scripts/src/commands/ontology.ts', '--reason', 'guess',
+  ], [], repo);
+  assert.strictEqual(untracked.code, 1);
+  assert.match(untracked.buf.err, /scope-path-untracked/);
+  const valueless = revise(worker, ['--task', '001', '--paths', 'src/auth/', '--new-path', '--reason', 'r'], [], repo);
+  assert.strictEqual(valueless.code, 2, valueless.buf.err);
+  assert.strictEqual(fs.readFileSync(docFile, 'utf8'), before);
+});
+
+test('coordinate revise with --new-path under a tracked directory → scope is --paths plus --new-path', () => {
+  const { worker, repo } = preparedDrive();
+  const { code, buf } = revise(worker, [
+    '--task', '001', '--paths', 'src/auth/', '--new-path', 'src/session/guard.ts', '--reason', 'add a guard',
+  ], [], repo);
+  assert.strictEqual(code, 0, buf.err);
+  assert.deepStrictEqual(JSON.parse(buf.out).paths, ['src/auth/', 'src/session/guard.ts']);
 });

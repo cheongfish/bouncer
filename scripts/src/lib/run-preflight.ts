@@ -74,7 +74,7 @@ type PreflightOk = {
   // promotion-stopped는 원장 status만 본다. 원장 부재 시에는 이 값을 내지 않는다.
   // 위임을 막는 이유. 판정 순서는 원장 상태 → 문서 status → no-open-task 이다.
   reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped'
-    | 'awaiting-confirmation' | 'partial-closed'
+    | 'awaiting-confirmation' | 'partial-closed' | 'run-detached'
     | 'blueprint-partial-closed' | 'blueprint-draft' | 'blueprint-superseded'
     | 'blueprint-imported' | 'blueprint-status-unknown' | null;
 };
@@ -239,6 +239,7 @@ const LEDGER_REASON: Record<string, NonNullable<PreflightOk['reason']>> = {
   promotion_stopped: 'promotion-stopped',
   awaiting_confirmation: 'awaiting-confirmation',
   partial_closed: 'partial-closed',
+  detached: 'run-detached',
 };
 
 function collectTasks(repoRoot: string, blueprintDir: string): {

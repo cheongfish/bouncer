@@ -541,7 +541,7 @@ test('a live coordinator ledger → refuses a main-worktree commit and allows th
   assert.deepStrictEqual(fromWorker, { block: false });
 });
 
-test('a git -C worker commit uses its explicit worktree when the hook receives the main cwd', () => {
+test('git -C worker commit with the main cwd in the hook → uses the explicit worker worktree', () => {
   const { repo, worker } = coordinatorFixture();
   const staged = { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] };
 

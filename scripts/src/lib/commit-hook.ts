@@ -427,7 +427,11 @@ function evaluateIndex({ repoRoot, deps, all }: {
     // 손상된 원장 하나가 모든 checkout을 막으므로 어느 파일인지 보여야 한다.
     const where = detail || `no staged path in ${repoRoot}`;
     const ledger = coordinator && coordinator.ledgerFile ? ` (ledger: ${coordinator.ledgerFile})` : '';
-    return { block: true, reason: `commit blocked: ${code}: ${where}${ledger}` };
+    // 메인 checkout 거절은 막다른 길로 보이지 않게 다음 행동을 덧붙인다(병합 뒤 분리 경로).
+    const next = code === 'main-worktree-source-write'
+      ? ` | next: ${scope.mainWorktreeNext(coordinator, blueprintDir)}`
+      : '';
+    return { block: true, reason: `commit blocked: ${code}: ${where}${ledger}${next}` };
   }
   return {
     block: true,

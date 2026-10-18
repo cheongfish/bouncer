@@ -3,6 +3,7 @@
 import fs = require('node:fs');
 import path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { execFileSync: realExecFileSync } = require('node:child_process');
 import paths = require('./paths');
 const { epicDirOf, toPosix } = paths;
 import layout = require('./layout');
@@ -117,7 +118,7 @@ function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }: {
 type LedgerTask = Pick<
   CanonicalTask,
   'id' | 'status' | 'workerPath' | 'sha' | 'depends_on' | 'parallel_safe' | 'dependency_gate'
-  | 'scope' | 'actualPaths' | 'decisions' | 'affected_paths' | 'lease'
+  | 'scope' | 'actualPaths' | 'decisions' | 'affected_paths' | 'lease' | 'execution_kind'
 >;
 // 디스크 파일은 어떤 필드든 빠져 있을 수 있어 정본을 전부 선택 필드로 읽는다.
 // `version`은 정본이 리터럴 1이지만 읽기에서는 다른 버전도 받아야 하므로 number로 넓힌다.
@@ -354,6 +355,43 @@ function writeLedger(file: string, data: Ledger): void {
   fs.renameSync(temporary, file);
 }
 
+/**
+ * `bouncer run detach`가 남긴 `detached` 상태인지 본다. 정본 Ledger 타입의 status
+ * union에 아직 이 값이 없어 문자열로 넓혀 비교한다.
+ *
+ * @param {Ledger} ledger - 읽은 원장
+ * @returns {boolean} 분리된 실행이면 true
+ */
+function isDetached(ledger: Ledger): boolean {
+  return (ledger.status as string | undefined) === 'detached';
+}
+
+/**
+ * `main-worktree-source-write` 거절에 붙일 다음 행동 안내를 고른다.
+ * commit hook과 CLI commit이 같은 문구를 쓰도록 한 곳에 둔다.
+ *
+ * 모든 commit task가 `integrated`이면 구현이 끝난 실행이 남은 것이므로(Git 병합 뒤 흔한
+ * 경우) 사용자 승인 뒤 `run detach`를 안내한다. 병합 여부는 여기서 판정하지 않는다 —
+ * 안내일 뿐이고 detach 자체도 병합을 조건으로 보지 않는다.
+ *
+ * @param {{ tasks?: Array<{ status?: string, execution_kind?: string }> }} coordinator - 거절된 컨텍스트
+ * @param {unknown} blueprint - blueprint 상대 경로
+ * @returns {string} 사람이 따라 할 한 줄 안내
+ */
+function mainWorktreeNext(
+  coordinator: { tasks?: Array<{ status?: string; execution_kind?: string }> } | null | undefined,
+  blueprint: unknown,
+): string {
+  const commitTasks = ((coordinator && coordinator.tasks) || [])
+    .filter((item) => item && item.execution_kind !== 'verification');
+  const allIntegrated = commitTasks.length > 0 && commitTasks.every((item) => item.status === 'integrated');
+  if (allIntegrated) {
+    return 'If the Git merge is done, after the user approves run '
+      + `\`bouncer run detach --blueprint ${blueprint} --yes\`; otherwise run /bouncer-finalize.`;
+  }
+  return 'Work in the execution worktree, or continue the drive with /bouncer-run.';
+}
+
 function realOf(target: unknown): string {
   const resolved = path.resolve(String(target));
   try {
@@ -537,7 +575,20 @@ function coordinatorContext({ repoRoot, blueprint, task }: {
   // 할당된 worktree에서 원장이 사라진 상태를 "범위 없음"으로 통과시키지 않는다.
   if (read.status === 'absent') return { ...base, reason: 'missing-coordinator-ledger' };
   const { ledger } = read;
-  if (here === realOf(runtime.projectRoot)) return { ...base, reason: 'main-worktree-source-write' };
+  // 분리된(run detach) 실행은 더 이상 활성 drive가 아니다. 병합 뒤 메인 문서 커밋이
+  // main-worktree-source-write로 영원히 막히지 않게 비활성으로 돌려 일반 scope 판정에 맡긴다.
+  // 위치(main/worker) 판정보다 앞서야 integration·worker cwd도 같은 답을 얻는다 —
+  // 그 cwd의 task 쓰기는 taskWriteBoundary·assignedLedgerTask가 run-detached로 거절한다.
+  if (isDetached(ledger)) return inactiveContext('run-detached');
+  if (here === realOf(runtime.projectRoot)) {
+    // tasks를 함께 실어 거절 안내(mainWorktreeNext)가 병합 뒤 상태인지 판별하게 한다.
+    // 이 거절 경로는 scope를 쓰지 않으므로 tasks 추가가 판정을 바꾸지 않는다.
+    return {
+      ...base,
+      tasks: Array.isArray(ledger.tasks) ? ledger.tasks : [],
+      reason: 'main-worktree-source-write',
+    };
+  }
   if (!inIntegration && !inWorker) return { ...base, reason: 'unassigned-worktree' };
 
   const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
@@ -587,6 +638,12 @@ function taskWriteBoundary({ repoRoot, blueprint, taskId }: {
   if (!paths.workerPath || here !== realOf(paths.workerPath)) {
     return { ok: false as const, reason: 'unassigned-worktree' };
   }
+  // 경계 검사에서 원장 내용은 보지 않는다는 원칙의 유일한 예외: 분리된 실행의 worktree는
+  // 더 이상 task를 쓸 자리가 아니다. 읽기만 하고 잠금·디렉터리는 만들지 않는다.
+  const read = readLedger(paths.ledgerFile);
+  if (read.status === 'ok' && isDetached(read.ledger)) {
+    return { ok: false as const, reason: 'run-detached' };
+  }
   return { ok: true as const, ledgerFile: paths.ledgerFile };
 }
 
@@ -609,6 +666,7 @@ function assignedLedgerTask({ repoRoot, blueprint, taskId }: {
     return { ok: false as const, reason: read.status === 'absent' ? 'missing-ledger' : 'unreadable-ledger' };
   }
   const { ledger } = read;
+  if (isDetached(ledger)) return { ok: false as const, reason: 'run-detached' };
   const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
   const entry = tasks.find((item) => item && item.id === taskId);
   if (!entry) return { ok: false as const, reason: 'task-outside-blueprint' };
@@ -646,6 +704,45 @@ function lockedTaskWrite(
   });
 }
 
+/** `trackedScopeViolations`가 쓰는 execFileSync 호환 실행기(테스트에서 주입). */
+type TrackedExec = (file: string, args?: readonly string[], options?: {
+  cwd?: unknown; encoding?: unknown; stdio?: unknown;
+}) => string | Buffer;
+
+/**
+ * scope 경로가 integration HEAD에서 실제로 추적되는지 검사한다. coordinator가
+ * 존재하지 않는 파일을 추측해 `--paths`로 넘기면 worker가 그 경로를 만들 수
+ * 없어 재배정이 반복되므로, 생성 시점에 `git ls-files`로 걸러 낸다.
+ *
+ * - `paths`: 이미 있어야 하는 경로. `git ls-files -- <p>`가 0줄이면 untracked.
+ * - `newPaths`: 새로 만들 파일. 파일 자신은 없어도 되지만 부모 디렉터리는 추적
+ *   파일의 조상이어야 한다(저장소 루트 직하 파일은 부모가 루트라 통과).
+ * git 실행 실패는 삼키지 않고 그대로 던진다 — "추적 안 됨"으로 접으면 저장소
+ * 오류가 경로 오류로 오진된다.
+ *
+ * @param {TrackedExec} exec - execFileSync 호환 실행기
+ * @param {string} integrationPath - integration worktree 절대 경로
+ * @param {string[]} paths - 추적돼야 하는 경로
+ * @param {string[]} newPaths - 새로 만들 경로
+ * @returns {{ untracked: string[], parentMissing: string[] }} 위반 항목(입력 표기 그대로)
+ */
+function trackedScopeViolations(
+  exec: TrackedExec,
+  integrationPath: string,
+  paths: string[],
+  newPaths: string[],
+): { untracked: string[]; parentMissing: string[] } {
+  const tracked = (entry: string): boolean => String(exec(
+    'git', ['ls-files', '--', entry], { cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+  )).trim() !== '';
+  const untracked = paths.filter((entry) => !tracked(entry));
+  const parentMissing = newPaths.filter((entry) => {
+    const parent = path.posix.dirname(path.posix.normalize(toPosix(entry).replace(/\/+$/, '')));
+    return parent !== '.' && !tracked(`${parent}/`);
+  });
+  return { untracked, parentMissing };
+}
+
 /**
  * coordinator가 실행 중 발견한 필수 경로로 task scope를 갱신한다.
  * task 문서와 ledger를 같은 revision으로 옮기고, 이유 없는 변경은 거절한다.
@@ -659,16 +756,21 @@ function lockedTaskWrite(
  *   warnings?: Array<{code: 'scope-paths-dropped', paths: string[]}>}
  *   | {ok: false, reason: string}}
  */
-function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }: {
-  repoRoot: unknown; blueprint: unknown; task: unknown; paths: unknown; reason: unknown;
+function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths, reason, exec }: {
+  repoRoot: unknown; blueprint: unknown; task: unknown; paths: unknown; newPaths?: unknown; reason: unknown;
+  exec?: TrackedExec;
 }) {
   const taskId = coordinatorTaskId(task);
   if (!taskId) return { ok: false, reason: 'task-required' };
   const why = typeof reason === 'string' ? reason.trim() : '';
   // 이유 없는 scope 변경은 감사할 수 없다 — 기록이 곧 권한이다.
   if (!why) return { ok: false, reason: 'decision-reason-required' };
-  const next = (Array.isArray(nextPaths) ? nextPaths : [])
+  const strings = (value: unknown): string[] => (Array.isArray(value) ? value : [])
     .filter((entry): entry is string => typeof entry === 'string' && entry !== '');
+  const existing = strings(nextPaths);
+  const created = strings(newPaths);
+  // 최종 scope는 --paths ∪ --new-path다(중복은 한 번만).
+  const next = [...new Set([...existing, ...created])];
   if (next.length === 0) return { ok: false, reason: 'scope-paths-required' };
   const globs = globScopePaths(next);
   if (globs.length > 0) {
@@ -705,6 +807,22 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
       : [];
     const previous = entry.scope ? entry.scope.paths : declared;
     const revision = nextRevision(ledger.revision);
+
+    // 추적 검사는 task 문서·ledger 쓰기보다 앞선다: 거절된 revise가 바이트를
+    // 바꾸면 안 된다. 기준은 worker가 아니라 integration HEAD다 — worker
+    // worktree는 아직 통합되지 않은 파일을 가질 수 있어 근거가 되지 못한다.
+    const integrationPath = coordinatorPaths(repoRoot, blueprint, null)?.paths.integrationPath;
+    if (integrationPath) {
+      const violations = trackedScopeViolations(
+        exec || realExecFileSync, integrationPath, existing, created,
+      );
+      if (violations.untracked.length > 0) {
+        return { ok: false, reason: 'scope-path-untracked', paths: violations.untracked };
+      }
+      if (violations.parentMissing.length > 0) {
+        return { ok: false, reason: 'scope-new-path-parent-missing', paths: violations.parentMissing };
+      }
+    }
 
     // 문서를 먼저 쓰면 안 된다. 여기서 잠금을 잃은 writer는 ledger에 결코 기록되지
     // 않을 revision을 문서에만 남기고, 그 task는 ledger와 어긋난 stale 상태가 된다.
@@ -828,7 +946,11 @@ export = {
   coordinatorTaskId,
   readCoordinatorLedger,
   coordinatorContext,
+  mainWorktreeNext,
   reviseTaskScope,
+  trackedScopeViolations,
   recordActualPaths,
   withLedgerLock,
+  // run detach가 status 'detached'를 쓴다 — 정본 status union 밖 값이라 unknown으로 받는다.
+  writeLedgerFile: (file: string, data: unknown): void => writeLedger(file, data as Ledger),
 };

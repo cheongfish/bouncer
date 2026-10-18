@@ -7,7 +7,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import coordinator = require('./coordinator');
 const {
   registeredIntegration, ensureIntegrationCwd, assertLeaseShape,
-  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
+  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf,
   loadLedgerBytes, readBouncerBlock, projectCheckpoint, COORDINATE_FAILURE_HINTS,
 } = coordinator;
 import runtime = require('./runtime-state');
@@ -509,6 +509,8 @@ function decideNext(opts: {
   if (!leaseShape.ok) return fail(leaseShape.reason);
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   const ledger = loaded.ledger as Ledger;
+  // 분리된 실행은 다음 행동을 정하지 않는다(task 범위 포함). finalize 또는 새 계획으로 안내한다.
+  if ((ledger.status as string | undefined) === 'detached') return fail('run-detached');
   const checkpoint = projectCheckpoint(loaded.ledger, integration.ledgerFile, loaded.bytes);
   const ledgerRef = checkpoint.ledger;
   const integrationCwd = integration.integrationPath;
@@ -915,12 +917,15 @@ function taskNext(ctx: {
       argv: ['bouncer', 'commit', '--blueprint', blueprint, '--yes'],
     });
   }
-  const shortHead = workerHead.slice(0, 8).toLowerCase();
-  const shortStamp = normalizeCommitSha(stamped);
   // dispatch 때 이미 dirty였던 경로(커밋 전 plan 문서의 seed)는 이 attempt가 만든 변경이 아니다.
   const baseline = new Set(dirtyPaths(item.dispatch.initial_worktree_state));
   const extras = dirtyPaths(porcelainText).filter((rel) => !baseline.has(rel));
-  if (shortStamp === shortHead && onlyTaskBriefDirty(extras, blueprint, task)) {
+  // stamp 규칙은 report·record가 거절에 쓰는 workerCommitEvidence와 같은 함수 하나를 쓴다.
+  // 그래야 next가 report를 권한 상태를 CLI가 거절하는 어긋남이 생기지 않는다.
+  if (coordinator.workerCommitEvidence(
+    exec, cwd, blueprint, item as Parameters<typeof coordinator.workerCommitEvidence>[3], ledger,
+  ).ok
+    && onlyTaskBriefDirty(extras, blueprint, task)) {
     return ok({
       scope: 'task', action: 'report', cwd,
       argv: coordinateArgv('report', blueprint, ledgerRef, { task, item }, [

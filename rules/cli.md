@@ -19,6 +19,7 @@ bouncer commit --blueprint <dir> [--yes]
 bouncer finalize --blueprint <dir> [--yes]
 bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
+bouncer run detach --blueprint <dir> --yes [--reason <text>]
 ```
 
 `run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
@@ -36,11 +37,34 @@ with `expected` (the pointer blueprint) and `actual` (the `--blueprint` input,
 no trailing slash, differs from the normalized pointer blueprint, resolves
 outside the repo, or (when it exists) its realpath is outside the repo realpath,
 (4) `delegable:false` from the ledger status: `promotion-stopped`,
-`awaiting-confirmation`, `partial-closed`, (5) `delegable:false` from the
+`awaiting-confirmation`, `partial-closed`, `run-detached`, (5) `delegable:false` from the
 blueprint document status when it is not `approved`: `blueprint-closed`,
 `blueprint-partial-closed`, `blueprint-draft`, `blueprint-superseded`,
 `blueprint-imported`, `blueprint-status-unknown`, (6) `delegable:false`
 `no-open-task`. Every `delegable:false` refusal also has `direct_eligible:false`.
+
+`run detach` closes out a drive whose implementation was already merged by Git
+but whose integration ledger still blocks main-checkout commits with
+`main-worktree-source-write`. Run it in the main checkout only after the user
+approves. It keeps the ledger file, integration and worker worktrees, and
+branches; appends one `detached` decision (`at`, `reason`, `integration_head`,
+`main_head`, `previous_status`; heads are observations, not merge proof) and sets
+ledger `status: detached`; and removes only this blueprint's pointer key.
+Success prints `{ ok, ledger, pointer_removed, next }`; a second run is a
+no-op with `already: true`. It writes no verification, review, or task status
+and is not a finalize. Refusals (exit 1, ledger and pointers unchanged):
+`detach-confirmation-required` (no `--yes`), `no-ledger`, `unreadable-ledger`,
+`detach-worker-in-flight` (lists task ids whose dispatch is `active`/`reported`
+or whose status is `prepared`/`recorded`), `detach-awaiting-confirmation`.
+A missing `--blueprint` or unknown `run` subcommand exits 2. On a detached
+ledger `coordinate next` and every fenced mutation (`prepare`, `dispatch`,
+`report`, `record`, `integrate`, `repair`, `revise`, supplement, `session-open`)
+refuse with `run-detached`, and worker `revise` write boundaries do too. To
+finalize, set the pointer with `bouncer current --set <dir>` and run
+`/bouncer-finalize`; finalize rules are unchanged. The
+`main-worktree-source-write` refusal (hook message and `commit` `recovery.next`)
+carries a `next`: `run detach` when every commit task is `integrated`,
+otherwise "work in the execution worktree or continue `/bouncer-run`".
 
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
 `plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
@@ -100,7 +124,7 @@ Do not scaffold tasks into a closed blueprint.
 ## Pointer, worktree, and coordinator commands
 
 ```sh
-bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
+bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
 bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
@@ -109,7 +133,9 @@ bouncer coordinate promote-stop --blueprint <dir> \
   --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
   --summary <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
-  --summary <text> --paths <p> --decision <reason>
+  --summary <text> --paths <p> --decision <reason> [--verify <argv>] [--new-path <p>]...
+bouncer coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--new-path <p>]... \
+  --reason <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
@@ -166,12 +192,26 @@ non-empty regular file, otherwise `absent` (missing, empty, directory, an older
 attempt's file, or a stat error). It is computed at projection time and never
 stored in the ledger.
 
+At the base checkout, `current --set` that would add a new key beside an
+existing one is refused with `CURRENT_WOULD_BE_AMBIGUOUS` (exit 1, pointer
+unchanged, `next` lists the commands); pass `--replace` to swap the uniquely
+selected key or `--keep-others` to keep parallel keys deliberately.
+`prepare` refuses with `unassigned-worker-worktree` (`workerPath`) when a worker
+path exists on disk but is not a registered worktree, before creating anything.
+
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, and repair.
 `coordinate` stdout is one-line JSON; a success response carries `checkpoint`
 (and prepare also `opened[]`) instead of ledger copies of `tasks` or
 `decisions`.
+When `prepare` recreates a revoked worker it first preserves uncommitted
+changes (patch under integration `.bouncer/runtime/salvage/`) and unintegrated
+commits (`refs/bouncer/salvage/<task>/g<gen>-<short>`), records a
+`worker-salvage` decision, and lists them in the output `salvage` array
+(`task`, `patch`, `ref`). A clean worker adds no `salvage` key. If preserving
+fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
+unchanged.
 `coordinate bootstrap` sets ledger `mode: light` only when blueprint
 `bouncer.scale` is `light` and the blueprint has exactly one commit task with
 an empty `depends_on`; otherwise a light scale is refused with
@@ -180,7 +220,13 @@ integration worktree (no worker worktree), `coordinate next` implement carries
 `payload.inline: true`, and integrate records fan-in verified without
 cherry-pick. Light `report --outcome accepted` requires blueprint-root
 `review.md` rounds from `bouncer review record` and document status `accepted`
-(`light-review-required` otherwise). A resume bootstrap against the opposite
+(`light-review-required` otherwise). `report --outcome accepted` and `record`
+refuse, before any ledger write, a worker without a confirmed task commit:
+`worker-commit-missing` (HEAD is `integrationHead` or its ancestor),
+`worker-commit-stamp-mismatch` (`commit_sha` absent or not HEAD's first 8
+characters), `worker-scope-dirty` (a dirty path inside the current scope, even
+if dirty at dispatch); the output carries `head`, `integration_head`, `stamp`,
+`dirty_paths`, and `next` points at `coordinate advance`. A resume bootstrap against the opposite
 mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
 `coordinate promote-stop` (light only) records `status: promotion_stopped` and
 a `promotion` snapshot (`reason`, `summary`, open task, `diff_sha`, optional
@@ -208,6 +254,18 @@ and returns a fresh checkpoint (`ok: false` with `ledger-mode-mismatch` or
 per session (`docs/configuration.md`).
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
+`coordinate repair` and `coordinate revise` accept only paths tracked at the
+integration HEAD: an untracked `--paths` entry is refused with
+`scope-path-untracked` (the output lists it in `paths`), and a `--new-path` file
+to create needs a tracked parent directory or it is refused with
+`scope-new-path-parent-missing`. On a `scoped_terminal` blueprint `repair`
+also needs `--verify <argv>`, one command that checks only the failing files:
+`repair-verify-required` when missing, `repair-verify-not-single-argv` for shell
+operators or an empty value, `repair-verify-is-terminal` when it equals the
+terminal command. A legacy blueprint keeps the terminal verify unless `--verify`
+is given (then only the single-argv check applies). `--verify` cannot be
+combined with `--resume-task`, and a valueless `--verify` or `--new-path`
+exits 2. All of these refuse before the ledger or task documents change.
 Use `coordinate revise` only from the assigned worker worktree with a reason
 and explicit source paths. A `partial-close` requires the workflow's explicit
 user confirmation and is unresolved handoff, not ordinary completion.

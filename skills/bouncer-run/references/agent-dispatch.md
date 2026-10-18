@@ -20,6 +20,14 @@ The implementer returns **Brief revision** with the same `attempt` and
 received attempt and hash so runtime can append `stale-report`, and do not
 treat it as accepted or call `coordinate record`.
 
+`coordinate report --outcome accepted` and `coordinate record` check the worker
+commit themselves: the worker HEAD must be past `integrationHead`, the
+`commit_sha` stamp must equal HEAD's first 8 characters, and no file inside the
+approved scope may be dirty. A refusal (`worker-commit-missing`,
+`worker-commit-stamp-mismatch`, `worker-scope-dirty`) leaves the ledger
+unchanged; follow its `next` (`coordinate advance` creates the task commit),
+then report/record again. Do not work around it by editing the ledger.
+
 ## Lightweight and implement dispatch
 
 When `bouncer.scale` is `light` (from pointer `scale`), run the implementer

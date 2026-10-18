@@ -105,6 +105,15 @@ to your `Decision required` judgment, never a second brief.
   scope, and Blueprint necessity; the repair depends on the then-integrated
   leaves and the terminal verification node moves its dependency to that repair.
   After a second repair still fails, automatic execution stops.
+- Take every repair `--paths` entry from tracked files named in the failure
+  evidence or the debugger report; never guess a path. A file the repair must
+  create goes in `--new-path` and needs a tracked parent directory. On a
+  `scoped_terminal` blueprint also pass `--verify <argv>`: one command that
+  checks only the failing files, not the terminal full-suite command. The CLI
+  refuses an untracked path (`scope-path-untracked`,
+  `scope-new-path-parent-missing`) or a bad verify (`repair-verify-required`,
+  `repair-verify-not-single-argv`, `repair-verify-is-terminal`) before writing
+  anything; fix the input and retry, do not work around it.
 - A terminal failure whose cause is code an already integrated task owns is
   resumed on that task, not on a new one: `coordinate repair --task <terminal>
   --resume-task <ddd>` with the same failure command, summary, `--paths` inside
@@ -114,6 +123,12 @@ to your `Decision required` judgment, never a second brief.
   integrated content kept) and the terminal re-verifies after reintegration.
   Late reports or commits from the previous lease are refused. Unrelated tasks do
   not run again. Count it as one repair wave.
+  Before `prepare` removes a revoked worker it preserves that worker's
+  uncommitted changes as a patch under the integration
+  `.bouncer/runtime/salvage/<task>-g<gen>-<short>.patch` and its unintegrated
+  commits as `refs/bouncer/salvage/<task>/g<gen>-<short>`. The output `salvage`
+  lists both; reapply a patch with `git apply --binary`. If preserving fails,
+  `worker-salvage-failed` stops `prepare` and the worker stays as it was.
 - A terminal failure proven to be outside every approved task scope is recorded
   with `coordinate repair --task <terminal> --disposition outside_scope` (with
   the failure command, a summary naming the cause, the failing test, and why the
@@ -233,7 +248,10 @@ same mutation argv right away.
 3. **Drive** — When `advance` stops with `reason` `worker` or `judge` for a
    prepared task (including `drive_tasks` / `implement` / `review` / `report` /
    `record` / `revise` / `dispatch`), follow the returned `card` on
-   `stop.next`. Dispatch a task runner at once (at most `checkpoint.ready`
+   `stop.next`. `report --outcome accepted` and `record` refuse a worker
+   without a stamped task commit (`worker-commit-missing`,
+   `worker-commit-stamp-mismatch`, `worker-scope-dirty`) before touching the
+   ledger: call `advance` so `commit` runs, then retry. Dispatch a task runner at once (at most `checkpoint.ready`
    count, inside the configured parallel ceiling). The coordinator does not
    move the pointer per task. Each runner works in its worker cwd under that
    task's `effectiveTask`. `implement` and `review` dispatch workers through

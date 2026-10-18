@@ -263,7 +263,9 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    bouncer current --set <blueprint dir>
    ```
    Read `${BOUNCER_ROOT}/rules/current-pointer.md` for the approved initial-pointer application;
-   its `--set` refusal stops this workflow.
+   its `--set` refusal stops this workflow. On `CURRENT_WOULD_BE_AMBIGUOUS`, ask
+   the user inside the existing ACQ flow whether to `--replace`, `--keep-others`,
+   or stop, then run the chosen `next` command; never choose implicitly.
 
 8. **Gate.** Run `bouncer validate --gate plan` and render its result through
    `${BOUNCER_ROOT}/rules/output.md`:
