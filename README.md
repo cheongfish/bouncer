@@ -1,11 +1,18 @@
 # Bouncer
 
-에이전트가 "다 했습니다"라고 말하기 전에, **실행했는지** 검사하는 플러그인.
+**승인한 명세를 병렬로 구현하고, 검증된 결과로 통합하는 SDD 플러그인.**
 
+명세 변경을 검토하고 독립된 task를 worktree에서 실행하며, 각 작업과 통합 결과의
+검증 근거를 확인합니다. 변경의 의도와 설명은 저장소에 남습니다.
 
-## Why
+## Bouncer가 제공하는 것
 
-> 코딩 에이전트에게 일을 맡기면 세 가지가 반복됩니다.
+- **합의된 작업 단위** — task brief와 승인 범위가 구현 판단의 기준이 됩니다.
+- **병렬 실행과 통합** — 독립 task는 worker worktree에서 처리하고 integration worktree에 모읍니다.
+- **검증 근거** — 실제 검증 실행 기록과 검증 뒤 소스 변경 여부를 확인합니다.
+- **지속되는 맥락** — epic, blueprint, explain에 의도와 판단 근거를 남깁니다.
+
+## 줄이려는 문제
 
 - **범위가 번진다.** 인증을 고치라고 했는데 결제 코드까지 손댄다.
 - **검증이 말뿐이다.** "테스트 전부 통과"라고 적지만 실행한 적은 없다.
@@ -17,13 +24,13 @@
 호스트별 절차는 [install.md](docs/install.md)에 있습니다.
 
 ```
-/plugin marketplace add https://github.com/cheongfish/bouncer.git
-/plugin install bouncer@chunjae-tools
+/plugin marketplace add cheongfish/bouncer#release
+/plugin install bouncer@cheongfish-tools
 ```
 
 ```bash
-claude plugin install bouncer@chunjae-tools --scope project   # 팀 공유
-claude plugin install bouncer@chunjae-tools --scope local     # 본인만
+claude plugin install bouncer@cheongfish-tools --scope project   # 팀 공유
+claude plugin install bouncer@cheongfish-tools --scope local     # 본인만
 ```
 
 ## Quickstart
@@ -51,15 +58,20 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 /bouncer-retro     # 세션 근거 개선 후보 제안 (채팅 전용)
 ```
 
+## How it works
+
+승인된 blueprint에서 의존성이 없는 task를 고릅니다. 각 task는 별도 worker worktree에서
+구현·검증·리뷰되고, 결과는 integration worktree에 모여 통합 검증을 거친 뒤 마감됩니다.
+
+`명세 검토 → task 분할 → 병렬 구현 → 개별 검증 → 통합 검증 → 설명 보존`
+
 ## When to use
 
-한 사이클은 task 묶음과 게이트 4개를 거칩니다.
-
-| 상황 | 판단 |
+| 적합한 경우 | 덜 적합한 경우 |
 | --- | --- |
-| 코드가 바뀌고 검증 명령이 의미 있는 결과를 내는 작업 | Bouncer 사이클 |
-| 범위가 번질 위험이 있는 작업 (여러 디렉터리를 건드릴 것 같은) | Bouncer 사이클 |
-| 오타·문구 수정처럼 검증할 것이 없는 변경 | 일반 커밋 |
+| 기존 코드베이스에서 여러 모듈을 바꾸는 작업 | 오타·문구 수정, 짧은 실험 |
+| 요구사항과 변경 이유를 나중에도 추적해야 하는 작업 | 검증할 명령이나 통합할 결과가 없는 작업 |
+| 독립 task를 나눠 병렬로 위임할 수 있는 작업 | 절차 비용이 이득보다 큰 아주 작은 변경 |
 
 
 ## Requirements

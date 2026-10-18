@@ -83,7 +83,7 @@ ref를 붙이고, ref 지정 설치를 확인하지 않은 호스트는 `git clo
 
 ```
 /plugin marketplace add cheongfish/bouncer#release
-/plugin install bouncer@chunjae-tools
+/plugin install bouncer@cheongfish-tools
 ```
 
 git URL이면 `<사내-git-url>#release` 형식을 씁니다. ref를 붙여 등록한
@@ -96,7 +96,7 @@ tip을 따라갑니다. ref 없이 등록해 둔 marketplace는 한 번 제거�
 ```
 git clone -b release <사내-git-url> ./bouncer-release
 /plugin marketplace add ./bouncer-release
-/plugin install bouncer@chunjae-tools
+/plugin install bouncer@cheongfish-tools
 ```
 
 개발 checkout을 쓰려면 그 트리에서 `npm run build`를 실행한 뒤 같은 로컬 경로
@@ -106,7 +106,7 @@ git clone -b release <사내-git-url> ./bouncer-release
 
 ```
 /plugin marketplace add ./path/to/bouncer
-/plugin install bouncer@chunjae-tools
+/plugin install bouncer@cheongfish-tools
 ```
 
 ## Cursor
