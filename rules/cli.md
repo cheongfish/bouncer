@@ -52,14 +52,18 @@ branches; appends one `detached` decision (`at`, `reason`, `integration_head`,
 ledger `status: detached`; and removes only this blueprint's pointer key.
 Success prints `{ ok, ledger, pointer_removed, next }`; a second run is a
 no-op with `already: true`. It writes no verification, review, or task status
-and is not a finalize. Refusals (exit 1, ledger and pointers unchanged):
-`detach-confirmation-required` (no `--yes`), `no-ledger`, `unreadable-ledger`,
+and is not a finalize. Refusals (exit 1, ledger and pointers unchanged, except
+`ledger-lock-lost` below): `detach-confirmation-required` (no `--yes`), `no-ledger`,
+`unreadable-ledger`,
 `detach-worker-in-flight` (lists task ids whose status is not `integrated` and
 whose dispatch is `active`/`reported` or whose status is `prepared`/`recorded`;
 an `integrated` task never counts, even though its dispatch stays `reported`),
 `detach-awaiting-confirmation`, `ledger-locked` (the ledger lock is held by
 another process), and `ledger-lock-lost` (the lock was taken over during the
-write). Every refusal is `{ ok: false, reason, cause, next }`.
+write). When the lock is lost before the write, nothing changed. When releasing
+the lock fails after the write, the ledger and pointer may already be written:
+rerun `run detach` and confirm it reports `already: true`. Every refusal is
+`{ ok: false, reason, cause, next }`.
 A missing `--blueprint` or unknown `run` subcommand exits 2. On a detached
 ledger `coordinate next` and every fenced mutation (`prepare`, `dispatch`,
 `report`, `record`, `integrate`, `repair`, `revise`, supplement, `session-open`)

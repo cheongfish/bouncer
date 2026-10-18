@@ -238,6 +238,17 @@ test('revise rejection reason missing from the hint table before this change →
   }
 });
 
+test('shared hint reasons other subcommands also emit → next does not point at coordinate revise only', () => {
+  const shared = [
+    'ledger-locked', 'no-git', 'unassigned-worktree', 'main-worktree-source-write', 'task-document-missing',
+  ];
+  for (const reason of shared) {
+    const hinted = withCoordinateFailureHints({ ok: false, reason });
+    assert.ok(!hinted.next.includes('coordinate revise'), `${reason}: ${hinted.next}`);
+    assert.ok(hinted.next.includes('`bouncer coordinate`'), `${reason}: ${hinted.next}`);
+  }
+});
+
 test('readyWave with pending, blocked and done tasks → returns only pending tasks with completed dependencies', () => {
   const tasks = [
     { id: '001', depends_on: [], status: 'integrated' },

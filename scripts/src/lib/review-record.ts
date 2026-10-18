@@ -261,6 +261,53 @@ function readRoundInput(roundFile: string): RecordReviewFail | { round: Record<s
 }
 
 /**
+ * review.md를 읽어 쓰기용 사본과 bouncer·review 블록을 돌려준다. recordReview와
+ * acceptReviewRisk가 같은 방식으로 문서를 열도록 한 곳에 둔다.
+ *
+ * @param {string} abs - review.md 절대 경로
+ * @returns {{ nextData: Record<string, unknown>, body: string, bouncer: Record<string, unknown>,
+ *   review: Record<string, unknown> }} 편집 가능한 front matter 사본과 본문
+ */
+function loadReviewDoc(abs: string): {
+  nextData: Record<string, unknown>;
+  body: string;
+  bouncer: Record<string, unknown>;
+  review: Record<string, unknown>;
+} {
+  const { data, body } = parseFrontmatter(fs.readFileSync(abs, 'utf8'));
+  const nextData: Record<string, unknown> = isRecord(data) ? cloneJson(data) : {};
+  if (!isRecord(nextData.bouncer)) nextData.bouncer = {};
+  const bouncer = nextData.bouncer as Record<string, unknown>;
+  if (!isRecord(bouncer.review)) bouncer.review = {};
+  const review = bouncer.review as Record<string, unknown>;
+  return { nextData, body, bouncer, review };
+}
+
+/**
+ * 검증을 통과한 review.md 본문을 임시 파일로 쓴 뒤 rename으로 교체한다. renameSync는
+ * 같은 디렉터리라 원자적이고, 실패하면 tmp를 지워 재시도가 깨진 바이트를 읽지 않게 한다.
+ *
+ * @param {string} abs - review.md 절대 경로
+ * @param {string} text - 렌더링된 문서 전체
+ * @returns {void}
+ */
+function writeReviewDocAtomically(abs: string, text: string): void {
+  const tmp = path.join(path.dirname(abs), `.review.md.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, abs);
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch (unlinkError) {
+      // ENOENT만 흡수: rename이 이미 옮겼거나 write가 실패해 파일이 없다.
+      if (!isRecord(unlinkError) || unlinkError.code !== 'ENOENT') throw unlinkError;
+    }
+    throw error;
+  }
+}
+
+/**
  * 라운드 하나와 finding 갱신을 review.md에 기록한다. 쓰기는 collectFindingFailures가
  * G21·G14와 같은 인자로 통과한 뒤에만 같은 디렉터리 임시 파일 + rename이다.
  *
@@ -320,13 +367,7 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     );
   }
 
-  const raw = fs.readFileSync(abs, 'utf8');
-  const { data, body } = parseFrontmatter(raw);
-  const nextData = isRecord(data) ? cloneJson(data) : {};
-  if (!isRecord(nextData.bouncer)) nextData.bouncer = {};
-  const bouncer = nextData.bouncer as Record<string, unknown>;
-  if (!isRecord(bouncer.review)) bouncer.review = {};
-  const review = bouncer.review as Record<string, unknown>;
+  const { nextData, body, bouncer, review } = loadReviewDoc(abs);
   const existingRounds = Array.isArray(review.rounds) ? cloneJson(review.rounds) : [];
   const expectedRound = existingRounds.length + 1;
   if (parsedInput.round.round !== expectedRound) {
@@ -385,20 +426,7 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
 
   // 3. 검증 통과 뒤에만 임시 파일을 만든다. 실패 경로에 tmp를 남기면 재시도가
   //    깨진 바이트를 읽을 수 있다. renameSync는 같은 디렉터리라 원자적이다.
-  const text = renderDoc(nextData, body);
-  const tmp = path.join(path.dirname(abs), `.review.md.${process.pid}.tmp`);
-  try {
-    fs.writeFileSync(tmp, text);
-    fs.renameSync(tmp, abs);
-  } catch (error) {
-    try {
-      fs.unlinkSync(tmp);
-    } catch (unlinkError) {
-      // ENOENT만 흡수: rename이 이미 옮겼거나 write가 실패해 파일이 없다.
-      if (!isRecord(unlinkError) || unlinkError.code !== 'ENOENT') throw unlinkError;
-    }
-    throw error;
-  }
+  writeReviewDocAtomically(abs, renderDoc(nextData, body));
 
   // 경고는 이번 round 입력만 대상으로 하고(기존 원장은 제외) 기록에는 영향을 주지 않는다.
   // 자동 id가 경고 ids에도 보이도록 정규화 뒤 입력을 쓴다.
@@ -471,12 +499,7 @@ function acceptReviewRisk(input: AcceptRiskInput): AcceptRiskOk | RecordReviewFa
     return fail('review-target-missing', rel, 'scaffold the review.md for this blueprint, then retry');
   }
 
-  const { data, body } = parseFrontmatter(fs.readFileSync(abs, 'utf8'));
-  const nextData = isRecord(data) ? cloneJson(data) : {};
-  if (!isRecord(nextData.bouncer)) nextData.bouncer = {};
-  const bouncer = nextData.bouncer as Record<string, unknown>;
-  if (!isRecord(bouncer.review)) bouncer.review = {};
-  const review = bouncer.review as Record<string, unknown>;
+  const { nextData, body, bouncer, review } = loadReviewDoc(abs);
   const findings: unknown[] = Array.isArray(review.findings) ? review.findings : [];
   const target = findings.find((item) => isRecord(item) && item.id === input.finding);
   if (!isRecord(target)) {
@@ -528,19 +551,7 @@ function acceptReviewRisk(input: AcceptRiskInput): AcceptRiskOk | RecordReviewFa
   }
 
   // 3. 검증 통과 뒤에만 쓴다. recordReview와 같은 temp+rename.
-  const tmp = path.join(path.dirname(abs), `.review.md.${process.pid}.tmp`);
-  try {
-    fs.writeFileSync(tmp, renderDoc(nextData, body));
-    fs.renameSync(tmp, abs);
-  } catch (error) {
-    try {
-      fs.unlinkSync(tmp);
-    } catch (unlinkError) {
-      // ENOENT만 흡수: rename이 이미 옮겼거나 write가 실패해 파일이 없다.
-      if (!isRecord(unlinkError) || unlinkError.code !== 'ENOENT') throw unlinkError;
-    }
-    throw error;
-  }
+  writeReviewDocAtomically(abs, renderDoc(nextData, body));
   return {
     ok: true, path: rel, finding: input.finding, status: bouncer.status, open_remaining: openRemaining,
   };

@@ -5268,7 +5268,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'task-document-missing': {
     cause: 'The task document for the named task cannot be found or read in this worktree.',
     next:
-      'Check `--task` and `--blueprint` against `bouncer coordinate status`, then rerun `bouncer coordinate revise`.',
+      'Check `--task` and `--blueprint` against `bouncer coordinate status`, then rerun the same ' +
+      '`bouncer coordinate` command.',
   },
   'no-coordinator-paths': {
     cause: 'No coordinator runtime paths could be derived for this blueprint.',
@@ -5276,15 +5277,15 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'no-git': {
     cause: 'The current directory is not inside a git work tree, so scope cannot be judged.',
-    next: 'Change cwd to the assigned worker worktree and rerun `bouncer coordinate revise`.',
+    next: 'Change cwd to the assigned worker worktree and rerun the same `bouncer coordinate` command.',
   },
   'main-worktree-source-write': {
     cause: 'The current directory is the main checkout, which a coordinator drive must not write.',
-    next: 'Change cwd to the assigned worker worktree and rerun `bouncer coordinate revise`.',
+    next: 'Change cwd to the assigned worker worktree and rerun the same `bouncer coordinate` command.',
   },
   'unassigned-worktree': {
     cause: 'The current worktree is not a worker worktree registered in the coordinator ledger.',
-    next: 'Change cwd to the worker worktree assigned to the task and rerun `bouncer coordinate revise`.',
+    next: 'Change cwd to the worker worktree assigned to the task and rerun the same `bouncer coordinate` command.',
   },
   'unreadable-ledger': {
     cause: 'The coordinator ledger exists but cannot be read or parsed.',
@@ -5294,7 +5295,7 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'ledger-locked': {
     cause: 'Another coordinator command holds the ledger lock.',
-    next: 'Wait for the other command to finish, then retry `bouncer coordinate revise`.',
+    next: 'Wait for the other command to finish, then retry the same `bouncer coordinate` command.',
   },
   'scope-new-path-parent-missing': {
     cause: 'The parent directory of a `--new-path` entry holds no tracked file at the integration HEAD.',

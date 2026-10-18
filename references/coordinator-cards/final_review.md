@@ -108,7 +108,7 @@ document `--status` (`review record --status`).
 | --- | --- |
 | `open` | confirmed but not fixed yet; the document cannot be `accepted` while any finding is `open` |
 | `resolved` | fixed in the diff |
-| `accepted` | risk accepted, `note` required |
+| `accepted` | risk accepted, `note` required; a `blocked` finding gets this only through `review accept-risk` (sets `accepted_risk: true`) after explicit user approval |
 | `deferred` | follow-up plan independent of the current task, `note` required |
 
 | document `--status` | meaning |
