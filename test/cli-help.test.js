@@ -9,6 +9,7 @@ const { NAMED_AGENTS } = require('../scripts/lib/codex-agents');
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'intent',
+  'ontology',
   'graphify-bin',
   'project-root',
   'subagent-model',
@@ -155,6 +156,13 @@ test('usage → intent --symbol [--candidate] [--limit]를 나열한다', () => 
   assert.match(r.out, /intent\s+--symbol <function-name>/);
   assert.match(r.out, /\[--candidate <qualified-ref>\]/);
   assert.match(r.out, /\[--limit <1\.\.5>\]/);
+});
+
+test('usage → ontology의 세 질의 signature를 나열한다', () => {
+  const out = capture([]).out;
+  assert.match(out, /ontology\s+entity --entity <token> \[--repo <dir>\] \[--limit <1\.\.100>\]/);
+  assert.match(out, /file --file <path>/);
+  assert.match(out, /impact --file <path>/);
 });
 
 test('intent가 공개된 뒤 알 수 없는 명령 → 여전히 거부된다', () => {

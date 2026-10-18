@@ -50,6 +50,7 @@ const COMMANDS: Record<string, CliCommand> = {
   // 여기 레지스트리는 도움말 조립이라 플래그를 다시 파싱하지 않는다.
   'graph-sync': projectCommands['graph-sync'],
   intent: projectCommands.intent,
+  ontology: projectCommands.ontology,
   'graphify-bin': projectCommands['graphify-bin'],
   'project-root': projectCommands['project-root'],
   'subagent-model': projectCommands['subagent-model'],

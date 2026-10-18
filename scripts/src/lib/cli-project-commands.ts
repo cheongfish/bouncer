@@ -85,6 +85,19 @@ function cmdIntentLazy(rest: string[], io: CliIo): number {
   return intentCommand.run(rest, io);
 }
 
+/**
+ * ontology parser와 색인을 첫 명령 실행까지 지연한다. help 구성은 registry usage만
+ * 읽으므로 전체 CLI와 다른 project command에서 검색 코어를 적재하지 않는다.
+ *
+ * @param {string[]} rest - `ontology` 뒤의 모드와 옵션
+ * @param {CliIo} io - stdout/stderr 싱크
+ * @returns {number} ontology 전용 handler의 종료 코드
+ */
+function cmdOntologyLazy(rest: string[], io: CliIo): number {
+  const command = require('./cli-ontology-command') as { run: (rest: string[], io: CliIo) => number };
+  return command.run(rest, io);
+}
+
 function cmdGraphifyBin(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
   const repoRoot = (f.repo || process.cwd()) as string;
@@ -424,6 +437,14 @@ export = {
              Same, with an empty function list for tasks without function symbols.
   intent     sections --task <tasks.md> --role <implementer|reviewer|debugger>
              Print role-specific intent section bodies JSON (read-only).
+`,
+  },
+  ontology: {
+    run: cmdOntologyLazy,
+    usage: `  ontology   entity --entity <token> [--repo <dir>] [--limit <1..100>]
+             file --file <path> [--repo <dir>] [--limit <1..100>]
+             impact --file <path> [--repo <dir>] [--limit <1..100>]
+             Search canonical Bouncer context in memory (read-only JSON).
 `,
   },
   'graphify-bin': {

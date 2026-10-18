@@ -57,6 +57,7 @@
     "cli-current.test.js",
     "cli-init.test.js",
     "cli-project-commands.test.js",
+    "cli-ontology.test.js",
     "cli-project-root.test.js",
     "cli-validate.test.js",
     "cli-verify.test.js",
