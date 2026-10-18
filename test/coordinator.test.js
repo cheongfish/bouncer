@@ -35,7 +35,15 @@ function coordinate(opts) {
   return __coordinatorMod.coordinate(opts);
 }
 const coordinateRaw = __coordinatorMod.coordinate;
-const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
+const { COORDINATE_FAILURE_HINTS, withCoordinateFailureHints } = __coordinatorMod;
+
+// revise 거절 중 힌트 표에 없던 reason 10종. revise 응답이 이 reason들에 fallback
+// `cause`(= reason 문자열)를 받으면 coordinator가 다음 행동을 알 수 없게 된다.
+const REVISE_HINTLESS_REASONS = [
+  'scope-paths-required', 'scope-path-glob', 'scope-path-out-of-bounds', 'task-document-missing',
+  'no-coordinator-paths', 'no-git', 'main-worktree-source-write', 'unassigned-worktree',
+  'unreadable-ledger', 'ledger-locked',
+];
 
 const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
@@ -219,6 +227,15 @@ test('every coordinator reason literal exists → COORDINATE_FAILURE_HINTS cover
 
 test('an injected reason with no hint → missingHints reports it', () => {
   assert.deepStrictEqual(missingHints(['fake-x'], COORDINATE_FAILURE_HINTS), ['fake-x']);
+});
+
+test('revise rejection reason missing from the hint table before this change → gets its own cause and next, not the fallback', () => {
+  for (const reason of REVISE_HINTLESS_REASONS) {
+    const hinted = withCoordinateFailureHints({ ok: false, reason });
+    assertHinted(hinted);
+    assert.strictEqual(typeof hinted.next, 'string', reason);
+    assert.notStrictEqual(hinted.next, '', reason);
+  }
 });
 
 test('readyWave with pending, blocked and done tasks → returns only pending tasks with completed dependencies', () => {
@@ -3919,6 +3936,15 @@ test('repair with an untracked --paths entry or a --new-path without a tracked p
   const orphan = repairIntake(drive, { verify, newPaths: ['nope/dir/x.ts'] });
   assert.strictEqual(orphan.reason, 'scope-new-path-parent-missing', JSON.stringify(orphan));
   assert.deepStrictEqual(orphan.paths, ['nope/dir/x.ts']);
+  assert.strictEqual(repairIntakeSnapshot(drive), before);
+});
+
+test('repair with a pathspec-magic --paths entry that names no tracked file → rejects with scope-path-untracked before any write', () => {
+  const drive = repairIntakeDrive('bouncer-repair-magic-path-', '.bouncer/context/epics/112-x/blueprints/007-y', { scoped: true });
+  const before = repairIntakeSnapshot(drive);
+  const out = repairIntake(drive, { verify: 'node --test test/fix.test.js', paths: [':!README.md'] });
+  assert.strictEqual(out.reason, 'scope-path-untracked', JSON.stringify(out));
+  assert.deepStrictEqual(out.paths, [':!README.md']);
   assert.strictEqual(repairIntakeSnapshot(drive), before);
 });
 

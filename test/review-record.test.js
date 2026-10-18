@@ -242,6 +242,125 @@ test('task scope deferred must_fix with note and --status accepted → is review
   assert.ok(result.cause.some((m) => String(m).includes('review accepted with open must_fix')));
 });
 
+/** open 상태 finding 여러 개를 가진 blueprint 최종 리뷰를 requested로 기록해 둔다. */
+function recordOpenFindings(fx, ids) {
+  const findings = ids.map((id) => ({
+    ...EXAMPLE_FINDING, id, status: 'open', symbol: `s${id}`,
+  }));
+  const result = fx.record(fx.payload({}, findings), { status: 'requested' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+}
+
+function acceptRiskCli(fx, extra = {}) {
+  const argv = ['review', 'accept-risk', '--repo', fx.repo, '--blueprint', BP_REL];
+  argv.push('--finding', extra.finding || 'F1');
+  argv.push('--note', extra.note === undefined ? 'user accepted' : extra.note);
+  if (extra.yes !== false) argv.push('--yes');
+  const r = capture(argv);
+  return { code: r.code, result: JSON.parse(r.out) };
+}
+
+test('accept-risk on the only open must_fix → accepts the document without adding a round', () => {
+  const fx = makeFixture();
+  recordOpenFindings(fx, ['F1']);
+  const before = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8')).data.bouncer.review;
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 0, JSON.stringify(result));
+  assert.equal(result.ok, true);
+  assert.equal(result.finding, 'F1');
+  assert.equal(result.status, 'accepted');
+  assert.equal(result.open_remaining, 0);
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'accepted');
+  const finding = data.bouncer.review.findings[0];
+  assert.equal(finding.status, 'accepted');
+  assert.equal(finding.accepted_risk, true);
+  assert.equal(finding.note, 'user accepted');
+  assert.deepEqual(data.bouncer.review.rounds, before.rounds);
+});
+
+test('accept-risk on one of two open findings → keeps the document requested', () => {
+  const fx = makeFixture();
+  recordOpenFindings(fx, ['F1', 'F2']);
+  const before = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8')).data.bouncer.review;
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 0, JSON.stringify(result));
+  assert.equal(result.status, 'requested');
+  assert.equal(result.open_remaining, 1);
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'requested');
+  assert.deepEqual(data.bouncer.review.findings[1], before.findings[1]);
+  assert.deepEqual(data.bouncer.review.rounds, before.rounds);
+});
+
+test('accept-risk without --yes → is review-accept-risk-confirmation-required and leaves bytes unchanged', () => {
+  const fx = makeFixture();
+  recordOpenFindings(fx, ['F1']);
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx, { yes: false });
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-accept-risk-confirmation-required');
+});
+
+test('accept-risk on task review_scope → is review-accept-risk-task-scope', () => {
+  const fx = makeFixture({ taskMode: true });
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-accept-risk-task-scope');
+});
+
+test('accept-risk with review.md missing → is review-target-missing', () => {
+  const fx = makeFixture();
+  recordOpenFindings(fx, ['F1']);
+  fs.unlinkSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 1);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'review-target-missing');
+});
+
+test('accept-risk with unknown finding id → is review-finding-missing', () => {
+  const fx = makeFixture();
+  recordOpenFindings(fx, ['F1']);
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx, { finding: 'F9' });
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-finding-missing');
+});
+
+test('accept-risk on a deferred finding → is review-finding-not-open', () => {
+  const fx = makeFixture();
+  const finding = { ...EXAMPLE_FINDING, status: 'deferred', note: 'later' };
+  assert.equal(fx.record(fx.payload({}, [finding]), { status: 'accepted' }).ok, true);
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-finding-not-open');
+});
+
+test('accept-risk with whitespace-only note → is review-note-required', () => {
+  const fx = makeFixture();
+  recordOpenFindings(fx, ['F1']);
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx, { note: '   ' });
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-note-required');
+});
+
+test('accept-risk when the resulting ledger fails G21 → is review-ledger-invalid', () => {
+  const fx = makeFixture();
+  recordOpenFindings(fx, ['F1']);
+  // 저장된 finding의 fingerprint를 깨 사전 검증이 실패하게 한다.
+  const parsed = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  parsed.data.bouncer.review.findings[0].fingerprint = 'bogus';
+  fs.writeFileSync(fx.reviewPath, renderDoc(parsed.data, parsed.body));
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+});
+
 test('--task on blueprint review_scope → is not allowed', () => {
   const fx = makeFixture();
   const before = fs.readFileSync(fx.reviewPath);

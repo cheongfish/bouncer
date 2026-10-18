@@ -54,8 +54,12 @@ Success prints `{ ok, ledger, pointer_removed, next }`; a second run is a
 no-op with `already: true`. It writes no verification, review, or task status
 and is not a finalize. Refusals (exit 1, ledger and pointers unchanged):
 `detach-confirmation-required` (no `--yes`), `no-ledger`, `unreadable-ledger`,
-`detach-worker-in-flight` (lists task ids whose dispatch is `active`/`reported`
-or whose status is `prepared`/`recorded`), `detach-awaiting-confirmation`.
+`detach-worker-in-flight` (lists task ids whose status is not `integrated` and
+whose dispatch is `active`/`reported` or whose status is `prepared`/`recorded`;
+an `integrated` task never counts, even though its dispatch stays `reported`),
+`detach-awaiting-confirmation`, `ledger-locked` (the ledger lock is held by
+another process), and `ledger-lock-lost` (the lock was taken over during the
+write). Every refusal is `{ ok: false, reason, cause, next }`.
 A missing `--blueprint` or unknown `run` subcommand exits 2. On a detached
 ledger `coordinate next` and every fenced mutation (`prepare`, `dispatch`,
 `report`, `record`, `integrate`, `repair`, `revise`, supplement, `session-open`)
@@ -194,7 +198,7 @@ stored in the ledger.
 
 At the base checkout, `current --set` that would add a new key beside an
 existing one is refused with `CURRENT_WOULD_BE_AMBIGUOUS` (exit 1, pointer
-unchanged, `next` lists the commands); pass `--replace` to swap the uniquely
+unchanged, `cause` explains why the pointer would be ambiguous, `next` lists the commands); pass `--replace` to swap the uniquely
 selected key or `--keep-others` to keep parallel keys deliberately.
 `prepare` refuses with `unassigned-worker-worktree` (`workerPath`) when a worker
 path exists on disk but is not a registered worktree, before creating anything.
@@ -258,7 +262,9 @@ not recover by reading plugin sources.
 integration HEAD: an untracked `--paths` entry is refused with
 `scope-path-untracked` (the output lists it in `paths`), and a `--new-path` file
 to create needs a tracked parent directory or it is refused with
-`scope-new-path-parent-missing`. On a `scoped_terminal` blueprint `repair`
+`scope-new-path-parent-missing`. The tracked-path check treats each value as a
+literal pathspec: glob characters and pathspec magic (for example `:(...)`) are
+matched as plain text, never expanded. On a `scoped_terminal` blueprint `repair`
 also needs `--verify <argv>`, one command that checks only the failing files:
 `repair-verify-required` when missing, `repair-verify-not-single-argv` for shell
 operators or an empty value, `repair-verify-is-terminal` when it equals the
@@ -266,6 +272,12 @@ terminal command. A legacy blueprint keeps the terminal verify unless `--verify`
 is given (then only the single-argv check applies). `--verify` cannot be
 combined with `--resume-task`, and a valueless `--verify` or `--new-path`
 exits 2. All of these refuse before the ledger or task documents change.
+A `coordinate revise` refusal is written to stdout as JSON
+`{ ok: false, reason, paths?, cause, next }` with exit 1 (`paths` only when the
+reason lists paths, such as `scope-path-untracked`).
+`coordinate next` returns `commit` when the task worktree has scope changes to
+commit; on a clean tree whose commit stamp is stale it returns a `blocked`
+action with reason `worker-commit-stamp-mismatch` instead.
 Use `coordinate revise` only from the assigned worker worktree with a reason
 and explicit source paths. A `partial-close` requires the workflow's explicit
 user confirmation and is unresolved handoff, not ordinary completion.
@@ -388,6 +400,25 @@ not edit YAML by hand or read validator sources to invent a passing
 frontmatter. Invalid argv (`record` missing, `--blueprint`/`--round` missing,
 duplicate options, `--task` not three digits, `--status` outside
 `requested|addressed|accepted` including `pending`) is exit 2.
+
+```sh
+bouncer review accept-risk --blueprint <dir> --finding <id> --note <text> --yes
+```
+
+`review accept-risk` closes one `open` finding of a blueprint-scope final review
+as a user-accepted risk, because the final review is a single round and cannot
+take another. Run it only after the user explicitly approves accepting that
+risk; `--yes` carries that approval. It changes only the target finding
+(`status: accepted`, `accepted_risk: true`, `note`) and leaves `rounds`
+unchanged; the document status becomes `accepted` only when no finding stays
+`open`. Success is `{ ok: true, path, finding, status, open_remaining }`
+(exit 0). Failure is `{ ok: false, reason, cause, next }` (exit 1) with
+`reason` `review-accept-risk-confirmation-required` (no `--yes`, checked before
+any file read), `review-accept-risk-task-scope` (the review is not
+`review_scope: blueprint`), `review-target-missing`, `review-finding-missing`,
+`review-finding-not-open`, `review-note-required` (blank `--note`), or
+`review-ledger-invalid`. A missing or duplicate `--blueprint`/`--finding`/
+`--note`, or any `--task`, is exit 2.
 
 ```sh
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \

@@ -542,8 +542,16 @@ function collectFindingFailures({
       // deferred(+note, 위 NOTE_REQUIRED_STATUS 검사)로 기록해 accepted를 허용한다.
       // task 범위(G14)는 roundScope가 없어 이 예외를 받지 않고 기존처럼 거절한다.
       const isBlueprintDeferred = roundScope === 'blueprint' && rec.status === 'deferred';
+      // blueprint 최종 리뷰의 blocked finding은 round를 더할 수 없어 open으로 남는다. 사용자가
+      // 명시적으로 위험을 수용하면 `review accept-risk`가 accepted + accepted_risk: true + note로
+      // 닫는다. task 범위(G14)는 roundScope가 없어 이 예외를 받지 않는다.
+      const isBlueprintAcceptedRisk = roundScope === 'blueprint'
+        && rec.status === 'accepted'
+        && rec.accepted_risk === true
+        && typeof rec.note === 'string'
+        && rec.note.trim() !== '';
       if (isReviewAccepted && rec.actionability === 'must_fix' && rec.status !== 'resolved'
-        && !isContextAcceptedRisk && !isBlueprintDeferred) {
+        && !isContextAcceptedRisk && !isBlueprintDeferred && !isBlueprintAcceptedRisk) {
         messages.push(`${findingLabel} accepted with open must_fix ${id}`);
       }
     }

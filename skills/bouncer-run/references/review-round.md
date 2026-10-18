@@ -74,7 +74,11 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             the discovery round is stored, review-caused `coordinate repair
             --review-finding`, `coordinate repair --kind supplement`, its
             `--done`, and a new root delta record are refused with
-            `final-review-single-round`.
+            `final-review-single-round`. Only after the user explicitly
+            approves accepting the risk of a blocked finding, run `bouncer
+            review accept-risk --blueprint <dir> --finding <id> --note
+            <reason> --yes`; it closes that finding without a new round and
+            never runs without that approval.
             Under a coordinator drive on the
             per-task path: judge the prior implementer report
             (`coordinate report`), revise only when the outcome requires it,

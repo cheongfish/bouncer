@@ -144,6 +144,7 @@ function emitWouldBeAmbiguous(
   const payload = {
     ok: false,
     reason: 'CURRENT_WOULD_BE_AMBIGUOUS',
+    cause: 'The base already stores another pointer key, so this --set would leave the active pointer ambiguous.',
     candidates: existing,
     next,
   };
@@ -335,8 +336,11 @@ function cmdCurrent(rest: string[], io: CliIo) {
       return 1;
     }
     const pointerKey = pointerKeyFromBlueprint(blueprintDir).key;
-    const pointerExisted = listNamespacePointers({ repoRoot })
-      .some((entry) => entry.key === pointerKey);
+    // baseKeys를 읽은 뒤 writeCurrent 전까지 포인터를 바꾸는 코드가 없으므로 같은 목록을 재사용한다.
+    // baseKeys가 null(--replace 또는 base checkout 아님)일 때만 다시 읽는다.
+    const pointerExisted = baseKeys
+      ? baseKeys.includes(pointerKey)
+      : listNamespacePointers({ repoRoot }).some((entry) => entry.key === pointerKey);
     // 포인터가 이미 있으면 task 전진만으로 승인 파일을 덮지 않는다.
     // `--reapprove`만 사용자가 명시한 재승인이다 (AGENTS.md hard rule 3).
     const recordApproval = wantsReapprove || !pointerExisted;

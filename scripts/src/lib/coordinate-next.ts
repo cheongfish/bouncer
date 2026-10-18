@@ -83,6 +83,14 @@ type NextOk = {
 type NextErr = { ok: false; reason: string; cause: string; next: string };
 
 const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
+  'worker-commit-stamp-mismatch': {
+    cause:
+      'The commit_sha stamp in the worker tasks.md differs from the first 8 chars of HEAD and no in-scope ' +
+      'change is left to commit.',
+    next:
+      'Do not rerun commit (nothing is left to commit). Report the stale stamp to the user, or `bouncer ' +
+      'coordinate revoke` and `prepare` the task again.',
+  },
   'partial-closed': {
     cause: 'This drive was partial-closed after the repair-wave limit.',
     next: 'Report the preserved drive to the user; do not retry coordinate mutations on this blueprint.',
@@ -510,7 +518,7 @@ function decideNext(opts: {
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   const ledger = loaded.ledger as Ledger;
   // 분리된 실행은 다음 행동을 정하지 않는다(task 범위 포함). finalize 또는 새 계획으로 안내한다.
-  if ((ledger.status as string | undefined) === 'detached') return fail('run-detached');
+  if (ledger.status === 'detached') return fail('run-detached');
   const checkpoint = projectCheckpoint(loaded.ledger, integration.ledgerFile, loaded.bytes);
   const ledgerRef = checkpoint.ledger;
   const integrationCwd = integration.integrationPath;
@@ -922,10 +930,9 @@ function taskNext(ctx: {
   const extras = dirtyPaths(porcelainText).filter((rel) => !baseline.has(rel));
   // stamp 규칙은 report·record가 거절에 쓰는 workerCommitEvidence와 같은 함수 하나를 쓴다.
   // 그래야 next가 report를 권한 상태를 CLI가 거절하는 어긋남이 생기지 않는다.
-  if (coordinator.workerCommitEvidence(
-    exec, cwd, blueprint, item as Parameters<typeof coordinator.workerCommitEvidence>[3], ledger,
-  ).ok
-    && onlyTaskBriefDirty(extras, blueprint, task)) {
+  const taskItem = item as Parameters<typeof coordinator.workerCommitEvidence>[3];
+  const evidence = coordinator.workerCommitEvidence(exec, cwd, blueprint, taskItem, ledger);
+  if (evidence.ok && onlyTaskBriefDirty(extras, blueprint, task)) {
     return ok({
       scope: 'task', action: 'report', cwd,
       argv: coordinateArgv('report', blueprint, ledgerRef, { task, item }, [
@@ -938,6 +945,26 @@ function taskNext(ctx: {
         allowed: ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'],
       },
     });
+  }
+  if (!evidence.ok) {
+    // report·record는 이 두 거절에서 advance의 commit을 안내한다. 커밋할 scope 변경이 실제로
+    // 있을 때만 commit을 골라야 한다 — 변경이 없으면 `bouncer commit --yes`가 committed:false로
+    // 끝나 stamp를 못 고치므로 advance가 같은 commit 단계를 무한 반복한다.
+    const hasCommittable = evidence.reason === 'worker-scope-dirty'
+      || (evidence.reason === 'worker-commit-stamp-mismatch'
+        && coordinator.workerScopeDirtyPaths(exec, cwd, blueprint, taskItem).length > 0);
+    if (hasCommittable) {
+      return ok({
+        scope: 'task', action: 'commit', cwd,
+        argv: ['bouncer', 'commit', '--blueprint', blueprint, '--yes'],
+      });
+    }
+    // 커밋으로 풀리지 않는 낡은 stamp는 원인 코드를 그대로 드러낸다.
+    if (evidence.reason === 'worker-commit-stamp-mismatch') {
+      return ok({
+        scope: 'task', action: 'blocked', reason: 'worker-commit-stamp-mismatch', cwd,
+      });
+    }
   }
   return ok({
     scope: 'task', action: 'blocked', reason: 'commit-evidence-mismatch', cwd,

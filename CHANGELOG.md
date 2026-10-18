@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **전이 가드 후속 보정 (EPIC 112 BP 002)** — `run detach`는 `integrated`가 아닌 task만 진행 중으로 보고,
+  거절에 `cause`·`next`를 담으며 잠금 경합을 `ledger-locked`·`ledger-lock-lost`로 알린다.
+  `coordinate revise` 거절은 `cause`·`next`와 함께 stdout JSON으로 나오고, `current --set`의
+  `CURRENT_WOULD_BE_AMBIGUOUS`도 `cause`를 갖는다. `coordinate next`는 커밋할 scope 변경이 있으면 `commit`을,
+  깨끗한 tree의 낡은 stamp면 `worker-commit-stamp-mismatch` blocked를 낸다. `revise`·`repair`의 추적 경로
+  검사는 literal pathspec으로 pathspec magic을 막는다.
+
+### Added
+
+- **최종 리뷰 위험 수용 명령 (EPIC 112 BP 002)** — `bouncer review accept-risk --blueprint <dir> --finding <id>
+  --note <text> --yes`가 blueprint 최종 리뷰의 open finding 하나를 round 추가 없이 사용자 수용 위험으로 닫는다.
+  `--yes`가 없으면 파일을 읽기 전에 거절한다.
+
 ## [1.6.0] — 2026-10-18
 
 ### Added

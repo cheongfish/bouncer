@@ -151,8 +151,10 @@ type WorkerSalvageDecision = {
   task: string; kind: 'worker-salvage'; generation: number; head: string;
   patch?: string; ref?: string; dirty_paths: string[];
 };
-type SalvageResult = { patch?: string; ref?: string; dirty_paths: string[] };
-type SalvageEntry = SalvageResult & { task: string; generation: number; head: string };
+// head·generation은 보존 대상이 있을 때 호출자가 SalvageEntry를 만들 값이다. 호출자가 같은 값을
+// git·lease에서 다시 계산하지 않도록 결과에 싣는다. 등록되지 않은 worker는 head가 빈 문자열이다.
+type SalvageResult = { patch?: string; ref?: string; dirty_paths: string[]; head: string; generation: number };
+type SalvageEntry = SalvageResult & { task: string };
 type Exec = (file: string, args?: readonly string[], options?: {
   cwd?: unknown; encoding?: unknown; stdio?: unknown;
 }) => string | Buffer;
@@ -2177,13 +2179,30 @@ function workerCommitEvidence(
   if (stamp !== head.slice(0, 8).toLowerCase()) return refuse('worker-commit-stamp-mismatch');
   // 3. scope 안 dirty는 dispatch 기준선에 있어도 거절한다 — 재dispatch 때 앞 attempt의
   //    미커밋 수정이 기준선에 흡수되므로 기준선 면제는 커밋 누락을 숨긴다.
-  //    tasks.md(commit이 stamp를 쓰는 파일)는 정상 잔여물이라 제외한다.
+  //    tasks.md 제외 규칙은 workerScopeDirtyPaths가 갖는다(next와 같은 집합을 쓰기 위해 추출).
+  const dirty = workerScopeDirtyPaths(exec, workerPath, blueprint, task);
+  if (dirty.length > 0) return refuse('worker-scope-dirty', dirty);
+  return { ok: true };
+}
+
+/**
+ * worker porcelain 경로 가운데 task 현재 scope 안에 있고 tasks.md가 아닌 "커밋할 scope 변경"을 모은다.
+ * tasks.md는 `bouncer commit`이 stamp를 쓰는 파일이라 정상 잔여물이므로 뺀다. dispatch 기준선은
+ * 면제하지 않는다. `workerCommitEvidence`의 scope dirty 판정과 `coordinate next`의 commit 선택이
+ * 같은 집합을 보게 하려고 한 곳에 둔다. 읽기만 한다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} workerPath - worker(light는 integration) checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {Task} task - ledger task(현재 scope 경로의 출처)
+ * @returns {string[]} 중복을 없애 정렬한 repo 상대 경로. 없으면 빈 배열
+ */
+function workerScopeDirtyPaths(exec: Exec, workerPath: string, blueprint: string, task: Task): string[] {
   const briefRel = `${blueprint.replaceAll('\\', '/')}/tasks/${task.id}/tasks.md`;
   const scope = currentScopePaths(task).map((entry) => normalizeSupplementPath(entry).replace(/\/+$/, ''));
   const dirty = porcelainPaths(exec, workerPath).filter((rel) => rel !== briefRel
     && scope.some((entry) => entry !== '' && (rel === entry || rel.startsWith(`${entry}/`))));
-  if (dirty.length > 0) return refuse('worker-scope-dirty', [...new Set(dirty)].sort());
-  return { ok: true };
+  return [...new Set(dirty)].sort();
 }
 
 /**
@@ -2372,18 +2391,20 @@ function rejectLeaseMismatch(
  * @param {string} integrationPath - integration checkout (patch·ref의 저장소)
  * @param {Task} item - revoke 후 재준비 대상
  * @param {string} integrationHead - 미통합 커밋 판정 기준
- * @returns {SalvageResult} 보존한 patch·ref와 dirty 경로. 보존할 것이 없으면 dirty_paths는 빈 배열
+ * @returns {SalvageResult} 보존한 patch·ref와 dirty 경로, 읽은 worker HEAD와 lease generation.
+ *   보존할 것이 없으면 dirty_paths는 빈 배열, 미등록 worker는 head가 빈 문자열
  * @throws patch 쓰기나 ref 생성 실패. 이미 쓴 patch 경로는 `error.patch`에 실린다
  */
 function salvageRevokedWorker(
   exec: Exec, integrationPath: string, item: Task, integrationHead: string,
 ): SalvageResult {
-  const result: SalvageResult = { dirty_paths: [] };
+  const generation = item.lease && Number.isInteger(item.lease.generation) ? item.lease.generation : 0;
+  const result: SalvageResult = { dirty_paths: [], head: '', generation };
   const workerPath = item.workerPath;
   if (!workerPath || !registeredWorker(exec, integrationPath, workerPath)) return result;
   const head = git(exec, workerPath, ['rev-parse', 'HEAD']);
+  result.head = head;
   const short = head.slice(0, 8);
-  const generation = item.lease && Number.isInteger(item.lease.generation) ? item.lease.generation : 0;
 
   // git은 `status -z`의 untracked를 디렉터리 단위로 접지 않도록 --untracked-files=all로 읽는다.
   // git()은 출력을 trim해 첫 항목의 앞 공백(` M`)을 깎으므로 직접 읽는다.
@@ -2737,10 +2758,10 @@ function prepareCoordinator({
               salvage: [...salvage, ...(partial?.patch ? [{ task: item.id, patch: partial.patch }] : [])] };
           }
           if (saved.patch || saved.ref) {
-            const generation = item.lease && Number.isInteger(item.lease.generation)
-              ? item.lease.generation : 0;
-            salvage.push({ ...saved, task: item.id, generation,
-              head: git(exec, item.workerPath as string, ['rev-parse', 'HEAD']) });
+            // head·generation은 salvage가 이미 읽은 값을 쓴다(재계산 없음). 출력 키 순서를
+            // 예전과 같게 두려고 구조 분해 뒤 task 다음에 다시 붙인다.
+            const { head, generation, ...kept } = saved;
+            salvage.push({ ...kept, task: item.id, generation, head });
           }
         }
         for (const item of revokedItems) removeRevokedWorker(exec, integration.integrationPath, item);
@@ -5226,6 +5247,55 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Take paths from tracked files named in the failure evidence or debugger report, '
       + 'or pass a file to create with `--new-path` when its parent directory is tracked.',
   },
+  // 아래 10종은 `coordinate revise`(reviseTaskScope)만 내는 거절이다. 표에 없으면
+  // fallback 힌트가 붙어 coordinator가 거절 원인과 다음 행동을 알 수 없다.
+  'scope-paths-required': {
+    cause: '`coordinate revise` was called without any `--paths` entry.',
+    next: 'Pass the full replacement scope as `--paths <path>...` and rerun `bouncer coordinate revise`.',
+  },
+  'scope-path-glob': {
+    cause: 'A given scope path contains a glob character, but scope paths must be literal files or directories.',
+    next:
+      'Replace each glob with literal tracked paths (or a directory ending in `/`) and rerun `bouncer ' +
+      'coordinate revise`.',
+  },
+  'scope-path-out-of-bounds': {
+    cause:
+      'A given scope path points outside the repository or into a path scope may not cover (such as ' +
+      '`.bouncer/context/`).',
+    next: 'Use repo-relative source or test paths only, then rerun `bouncer coordinate revise`.',
+  },
+  'task-document-missing': {
+    cause: 'The task document for the named task cannot be found or read in this worktree.',
+    next:
+      'Check `--task` and `--blueprint` against `bouncer coordinate status`, then rerun `bouncer coordinate revise`.',
+  },
+  'no-coordinator-paths': {
+    cause: 'No coordinator runtime paths could be derived for this blueprint.',
+    next: 'Run from the worker or integration worktree of the driven blueprint and pass a valid `--blueprint`.',
+  },
+  'no-git': {
+    cause: 'The current directory is not inside a git work tree, so scope cannot be judged.',
+    next: 'Change cwd to the assigned worker worktree and rerun `bouncer coordinate revise`.',
+  },
+  'main-worktree-source-write': {
+    cause: 'The current directory is the main checkout, which a coordinator drive must not write.',
+    next: 'Change cwd to the assigned worker worktree and rerun `bouncer coordinate revise`.',
+  },
+  'unassigned-worktree': {
+    cause: 'The current worktree is not a worker worktree registered in the coordinator ledger.',
+    next: 'Change cwd to the worker worktree assigned to the task and rerun `bouncer coordinate revise`.',
+  },
+  'unreadable-ledger': {
+    cause: 'The coordinator ledger exists but cannot be read or parsed.',
+    next:
+      'Do not edit the ledger by hand; restore it from the integration worktree and rerun after `bouncer ' +
+      'coordinate status` succeeds.',
+  },
+  'ledger-locked': {
+    cause: 'Another coordinator command holds the ledger lock.',
+    next: 'Wait for the other command to finish, then retry `bouncer coordinate revise`.',
+  },
   'scope-new-path-parent-missing': {
     cause: 'The parent directory of a `--new-path` entry holds no tracked file at the integration HEAD.',
     next: 'Create the file under an existing tracked directory, or revise the plan to add the directory first.',
@@ -5461,8 +5531,8 @@ function coordinateWithHints(opts: Parameters<typeof coordinate>[0]) {
 
 export = {
   readyWave, transition, coordinate: coordinateWithHints, loadLedger, loadLedgerBytes, readBouncerBlock,
-  projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
+  projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS, withCoordinateFailureHints,
   registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
   isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
-  reportPathFor, workerCommitEvidence,
+  reportPathFor, workerCommitEvidence, workerScopeDirtyPaths,
 };

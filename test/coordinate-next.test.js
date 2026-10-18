@@ -272,6 +272,7 @@ test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons�
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
     'verification-task-uses-blueprint-next', 'coordinator-card-missing', 'final-review-blocked',
+    'worker-commit-stamp-mismatch',
   ];
   assert.deepStrictEqual(Object.keys(NEXT_FAILURE_HINTS).sort(), [...keys].sort());
   for (const key of keys) {
@@ -869,6 +870,72 @@ test('task next에서 tasks.md 외 dirty files → commit-evidence-mismatch', ()
   assert.strictEqual(r.action, 'blocked');
   assertCardFor(r);
   assert.strictEqual(r.reason, 'commit-evidence-mismatch');
+});
+
+// 낡은 stamp / scope dirty는 report·record가 worker-commit-stamp-mismatch·worker-scope-dirty로 거절하며
+// advance의 commit을 안내한다. next도 커밋할 scope 변경이 있으면 같은 commit을 골라야 어긋나지 않는다.
+// fixture task는 affected_paths가 없어 scope가 비므로, 원장 task에 src/를 scope로 준다.
+function giveTaskScope(drive, scopePaths) {
+  const ledger = loadLedger(drive.ledgerFile);
+  for (const item of ledger.tasks) item.affected_paths = scopePaths;
+  writeLedger(drive.ledgerFile, ledger);
+}
+
+function stampedDriveWithStaleStamp(prefix, blueprint) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  commitInWorker(drive.worker, 'src/a.js', 'a\n', 'feat: a');
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+  });
+  git(drive.worker, ['add', '-A']);
+  git(drive.worker, ['commit', '-m', 'evidence']);
+  const head = git(drive.worker, ['rev-parse', 'HEAD']);
+  setDocStatus(drive.worker, blueprint, '001', 'tasks.md', 'verified', { commit_sha: head.slice(0, 8) });
+  // stamp를 남긴 뒤 다시 commit하면 HEAD가 바뀌어 stamp가 낡는다.
+  commitInWorker(drive.worker, 'src/b.js', 'b\n', 'feat: b');
+  giveTaskScope(drive, ['src/']);
+  return drive;
+}
+
+test('task next에서 낡은 stamp이고 scope 파일이 dirty → commit', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/041-stale-dirty';
+  const drive = stampedDriveWithStaleStamp('bouncer-next-stale-dirty-', blueprint);
+  fs.writeFileSync(path.join(drive.worker, 'src/c.js'), 'c\n');
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'commit');
+  assert.ok(r.argv.includes('commit'));
+  assert.ok(r.argv.includes('--yes'));
+});
+
+test('task next에서 stamp 일치하고 scope 파일이 dirty → commit', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/042-match-dirty';
+  const drive = preparedCommitDrive('bouncer-next-match-dirty-', blueprint);
+  coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  commitInWorker(drive.worker, 'src/a.js', 'a\n', 'feat: a');
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+  });
+  git(drive.worker, ['add', '-A']);
+  git(drive.worker, ['commit', '-m', 'evidence']);
+  const head = git(drive.worker, ['rev-parse', 'HEAD']);
+  setDocStatus(drive.worker, blueprint, '001', 'tasks.md', 'verified', { commit_sha: head.slice(0, 8) });
+  giveTaskScope(drive, ['src/']);
+  fs.writeFileSync(path.join(drive.worker, 'src/a.js'), 'a changed\n');
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'commit');
+});
+
+test('task next에서 낡은 stamp이고 tree가 깨끗 → worker-commit-stamp-mismatch blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/043-stale-clean';
+  const drive = stampedDriveWithStaleStamp('bouncer-next-stale-clean-', blueprint);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'worker-commit-stamp-mismatch');
 });
 
 // /bouncer-plan leaves plan documents uncommitted until finalize, and seed copies them into the worker,

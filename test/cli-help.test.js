@@ -209,6 +209,31 @@ test('usage → review record 형식을 나열한다', () => {
   );
 });
 
+test('usage → review accept-risk 형식을 나열한다', () => {
+  const out = capture([]).out;
+  assert.match(
+    out,
+    /review accept-risk --blueprint <dir> --finding <id> --note <text> --yes/,
+  );
+});
+
+test('review accept-risk에 --finding 누락, --task, 알 수 없는 동사가 있으면 → exit 2로 거부한다', () => {
+  const missing = capture(['review', 'accept-risk', '--blueprint', 'bp', '--note', 'n', '--yes']);
+  assert.strictEqual(missing.code, 2);
+  assert.match(missing.err, /finding/i);
+  assert.strictEqual(missing.out, '');
+
+  const withTask = capture([
+    'review', 'accept-risk', '--blueprint', 'bp', '--finding', 'F1', '--note', 'n', '--task', '001', '--yes',
+  ]);
+  assert.strictEqual(withTask.code, 2);
+  assert.strictEqual(withTask.out, '');
+
+  const verb = capture(['review', 'bogus', '--blueprint', 'bp']);
+  assert.strictEqual(verb.code, 2);
+  assert.strictEqual(verb.out, '');
+});
+
 test('review record에 --status pending, non-ddd --task, --round 누락이 있으면 → 거부한다', () => {
   const pending = capture([
     'review', 'record', '--blueprint', 'bp', '--round', 'x.json', '--status', 'pending',

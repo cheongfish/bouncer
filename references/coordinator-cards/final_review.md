@@ -65,6 +65,12 @@ and Procedure step 6 (Close).
     review-caused `coordinate repair --review-finding`, or open
     `coordinate repair --kind supplement` — after the discovery round is
     stored those are refused with `final-review-single-round`.
+  - Only after the user explicitly approves accepting the risk of a blocked
+    finding, run `bouncer review accept-risk --blueprint <dir> --finding <id>
+    --note <reason> --yes`. It records that finding `accepted` with
+    `accepted_risk: true` without adding a round, and the document becomes
+    `accepted` once no open finding remains. Never run it without that
+    explicit user approval.
 - A terminal verification task that is `verifying` with a proven `outside_scope`
   classification is a separate completion reason: `next` reaches this action
   with `payload.outside_scope`. Review as usual, keep the failure (never call

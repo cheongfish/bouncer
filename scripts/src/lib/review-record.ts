@@ -414,4 +414,136 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   };
 }
 
-export = { recordReview };
+type AcceptRiskInput = {
+  repoRoot: string;
+  blueprintDir: string;
+  finding: string;
+  note: string;
+  yes: boolean;
+};
+
+type AcceptRiskOk = {
+  ok: true;
+  path: string;
+  finding: string;
+  status: unknown;
+  open_remaining: number;
+};
+
+/**
+ * blueprint 최종 리뷰의 open finding 하나를 사용자가 수용한 위험으로 닫는다. 최종 리뷰는
+ * discovery 한 라운드로 끝나 blocked finding이 open으로 남는데, round를 더할 수 없으므로
+ * (final-review-single-round) 이 경로가 round 없이 finding만 accepted + accepted_risk로 바꾼다.
+ * 남은 open이 0이면 문서도 accepted로 올리고, 아니면 기존 status를 유지한다.
+ * `yes`가 없으면 파일을 읽기 전에 거절한다 — 사용자 승인 경계다.
+ * 쓰기는 recordReview와 같은 temp+rename이며 collectFindingFailures 통과 뒤에만 한다.
+ *
+ * @param {AcceptRiskInput} input - 수용 입력
+ * @param {string} input.repoRoot - 저장소 루트 절대 경로
+ * @param {string} input.blueprintDir - blueprint 상대 경로
+ * @param {string} input.finding - 닫을 finding id
+ * @param {string} input.note - 수용 사유. 공백뿐이면 거절
+ * @param {boolean} input.yes - 사용자 명시 승인 여부
+ * @returns {AcceptRiskOk | RecordReviewFail} 성공 시 path·finding·status·open_remaining, 실패 시 reason·cause·next
+ */
+function acceptReviewRisk(input: AcceptRiskInput): AcceptRiskOk | RecordReviewFail {
+  const { repoRoot } = input;
+  const blueprintDir = toPosix(input.blueprintDir);
+
+  // 1. 승인 경계는 어떤 I/O보다 먼저 본다.
+  if (input.yes !== true) {
+    return fail(
+      'review-accept-risk-confirmation-required',
+      '--yes is required to record an accepted risk',
+      'ask the user to explicitly approve accepting this risk, then rerun with --yes',
+    );
+  }
+  if (!isBlueprintReviewScopeAt(repoRoot, blueprintDir)) {
+    return fail(
+      'review-accept-risk-task-scope',
+      'accept-risk is only available when review_scope is blueprint',
+      'task reviews cannot accept risk; fix the finding or record it through review record',
+    );
+  }
+  const rel = `${blueprintDir}/review.md`;
+  const abs = path.join(repoRoot, rel);
+  if (!fs.existsSync(abs)) {
+    return fail('review-target-missing', rel, 'scaffold the review.md for this blueprint, then retry');
+  }
+
+  const { data, body } = parseFrontmatter(fs.readFileSync(abs, 'utf8'));
+  const nextData = isRecord(data) ? cloneJson(data) : {};
+  if (!isRecord(nextData.bouncer)) nextData.bouncer = {};
+  const bouncer = nextData.bouncer as Record<string, unknown>;
+  if (!isRecord(bouncer.review)) bouncer.review = {};
+  const review = bouncer.review as Record<string, unknown>;
+  const findings: unknown[] = Array.isArray(review.findings) ? review.findings : [];
+  const target = findings.find((item) => isRecord(item) && item.id === input.finding);
+  if (!isRecord(target)) {
+    return fail(
+      'review-finding-missing', `finding ${input.finding} not found in ${rel}`, 'pass an existing --finding id',
+    );
+  }
+  if (target.status !== 'open') {
+    return fail(
+      'review-finding-not-open',
+      `finding ${input.finding} status is ${String(target.status)}`,
+      'only an open finding can be accepted as a risk',
+    );
+  }
+  const note = typeof input.note === 'string' ? input.note.trim() : '';
+  if (note === '') {
+    return fail('review-note-required', '--note is empty', 'pass the reason the user accepted this risk');
+  }
+
+  // 2. 대상 finding만 바꾼다. rounds와 다른 finding은 손대지 않는다.
+  target.status = 'accepted';
+  target.accepted_risk = true;
+  target.note = note;
+  const openRemaining = findings.filter((item) => isRecord(item) && item.status === 'open').length;
+  if (openRemaining === 0) bouncer.status = 'accepted';
+
+  const messages = collectFindingFailures({
+    body,
+    findings,
+    rounds: review.rounds,
+    sectionLabel: 'review.md',
+    findingLabel: 'review',
+    allowedStatuses: EXECUTE_REVIEW_STATUS,
+    reviewStatus: bouncer.status,
+    roundScope: 'blueprint',
+  });
+  // 남은 open이 있는 부분 수용은 문서가 requested라 정상이다. 완결 순서 검사만 접두 예외를 건다.
+  const sequenceOnly = messages.length === 1 && messages[0] === 'review rounds sequence invalid';
+  const inProgressOk = sequenceOnly
+    && Array.isArray(review.rounds)
+    && isAllowedSequencePrefix(review.rounds, true)
+    && bouncer.status !== 'accepted';
+  if (messages.length > 0 && !inProgressOk) {
+    return fail(
+      'review-ledger-invalid',
+      messages,
+      'fix rounds and findings until collectFindingFailures is empty, then retry',
+    );
+  }
+
+  // 3. 검증 통과 뒤에만 쓴다. recordReview와 같은 temp+rename.
+  const tmp = path.join(path.dirname(abs), `.review.md.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(tmp, renderDoc(nextData, body));
+    fs.renameSync(tmp, abs);
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch (unlinkError) {
+      // ENOENT만 흡수: rename이 이미 옮겼거나 write가 실패해 파일이 없다.
+      if (!isRecord(unlinkError) || unlinkError.code !== 'ENOENT') throw unlinkError;
+    }
+    throw error;
+  }
+  return {
+    ok: true, path: rel, finding: input.finding, status: bouncer.status, open_remaining: openRemaining,
+  };
+}
+
+export = { recordReview, acceptReviewRisk };

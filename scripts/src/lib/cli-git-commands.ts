@@ -781,7 +781,9 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
     if (ledgerPath === undefined || ledgerPath === ''
       || ledgerHash === undefined || ledgerHash === '') {
-      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' })}\n`);
+      // 다른 coordinate 거절과 같이 hint 표를 거쳐 cause·next를 붙인다.
+      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+      io.out(`${JSON.stringify(hinted)}\n`);
       return 1;
     }
   }
@@ -929,14 +931,15 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
     const loaded = loadLedgerBytes(paths.ledgerFile);
     if (!loaded) {
-      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' })}\n`);
+      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+      io.out(`${JSON.stringify(hinted)}\n`);
       return 1;
     }
     const fenced = assertLedgerFence({
       ledgerPath, ledgerHash, ledgerBytes: loaded.bytes,
     });
     if (!fenced.ok) {
-      io.out(`${JSON.stringify(fenced)}\n`);
+      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(fenced))}\n`);
       return 1;
     }
     const result = reviseTaskScope({
@@ -948,7 +951,10 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       reason: typeof f.reason === 'string' ? f.reason : undefined,
     }) as { ok: boolean; reason?: string; paths?: string[] };
     if (!result.ok) {
-      // 거절은 stdout을 pipe-clean으로 두고 reason 코드만 stderr로 낸다.
+      // 거절도 다른 coordinate 명령처럼 hint를 거친 stdout JSON(reason·paths·cause·next)으로
+      // 낸다. coordinator가 stderr 문자열을 파싱하지 않고 다음 행동을 고르게 하려는 것이다.
+      // stderr의 reason 한 줄은 사람이 읽는 기존 신호라 그대로 둔다.
+      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(result))}\n`);
       io.err(`coordinate revise: ${result.reason}\n`);
       return 1;
     }
