@@ -153,7 +153,7 @@ test('the vendored yaml module → provides load and dump', () => {
 
 test('marketplace.json → lists bouncer from the repository root', () => {
   const mkt = readJson('.claude-plugin/marketplace.json');
-  assert.strictEqual(mkt.name, 'chunjae-tools');
+  assert.strictEqual(mkt.name, 'cheongfish-tools');
   assert.ok(mkt.owner && typeof mkt.owner.name === 'string' && mkt.owner.name);
   assert.ok(Array.isArray(mkt.plugins));
   const entry = mkt.plugins.find((p) => p.name === 'bouncer');
