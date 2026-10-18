@@ -516,6 +516,8 @@ test('base에 다른 key가 있을 때 current --set → CURRENT_WOULD_BE_AMBIGU
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, false);
   assert.strictEqual(parsed.reason, 'CURRENT_WOULD_BE_AMBIGUOUS');
+  assert.strictEqual(typeof parsed.cause, 'string');
+  assert.ok(parsed.cause.length > 0);
   assert.deepStrictEqual(parsed.candidates, [storedPointer(BP_REL, 'develop', null)]);
   assert.strictEqual(parsed.next.some((c) => c.includes('--replace')), true);
   assert.strictEqual(parsed.next.some((c) => c.includes('--keep-others')), true);

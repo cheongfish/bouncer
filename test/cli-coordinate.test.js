@@ -431,20 +431,26 @@ test('coordinate revise narrowing the previous scope → prints scope-paths-drop
   assert.deepStrictEqual(JSON.parse(buf.out).warnings, [{ code: 'scope-paths-dropped', paths: ['src/session/'] }]);
 });
 
-test('coordinate revise with any reviseTaskScope reason code → carries it to stderr with exit 1', () => {
+test('coordinate revise with any reviseTaskScope reason code → exits 1 with a JSON failure on stdout and the reason on stderr', () => {
   const drive = preparedDrive();
+  // 세 번째 값: 응답에 `paths` 배열이 있어야 하는 거절인지.
   const cases = [
-    ['task-required', ['--paths', 'src/auth/', '--reason', 'r']],
-    ['decision-reason-required', ['--task', '001', '--paths', 'src/auth/']],
-    ['scope-paths-required', ['--task', '001', '--reason', 'r']],
-    ['scope-path-glob', ['--task', '001', '--paths', 'src/**/*.ts', '--reason', 'r']],
-    ['scope-path-out-of-bounds', ['--task', '001', '--paths', '.bouncer/context/', '--reason', 'r']],
+    ['task-required', ['--paths', 'src/auth/', '--reason', 'r'], false],
+    ['decision-reason-required', ['--task', '001', '--paths', 'src/auth/'], false],
+    ['scope-paths-required', ['--task', '001', '--reason', 'r'], false],
+    ['scope-path-glob', ['--task', '001', '--paths', 'src/**/*.ts', '--reason', 'r'], true],
+    ['scope-path-out-of-bounds', ['--task', '001', '--paths', '.bouncer/context/', '--reason', 'r'], true],
   ];
-  for (const [reason, extra] of cases) {
+  for (const [reason, extra, hasPaths] of cases) {
     const { code, buf } = revise(drive.worker, extra, [], drive.repo);
     assert.strictEqual(code, 1, `${reason}: ${buf.out}`);
     assert.match(buf.err, new RegExp(reason));
-    assert.strictEqual(buf.out, '', `${reason} must not print a success payload`);
+    const body = JSON.parse(buf.out);
+    assert.strictEqual(body.ok, false, reason);
+    assert.strictEqual(body.reason, reason);
+    assert.strictEqual(typeof body.cause, 'string', reason);
+    assert.strictEqual(typeof body.next, 'string', reason);
+    assert.strictEqual(Array.isArray(body.paths), hasPaths, reason);
   }
 });
 
@@ -464,10 +470,12 @@ test('coordinate revise in the main worktree or an unassigned worktree → refus
   const main = revise(drive.repo, args, [], drive.repo);
   assert.strictEqual(main.code, 1);
   assert.match(main.buf.err, /main-worktree-source-write/);
+  assert.strictEqual(JSON.parse(main.buf.out).reason, 'main-worktree-source-write');
 
   const integration = revise(drive.integration, args, [], drive.repo);
   assert.strictEqual(integration.code, 1);
   assert.match(integration.buf.err, /unassigned-worktree/);
+  assert.strictEqual(JSON.parse(integration.buf.out).reason, 'unassigned-worktree');
 });
 
 // `--repo`는 caller가 주는 값이다. revise가 그것을 write boundary로 삼으면
@@ -480,7 +488,7 @@ test('coordinate revise with --repo → ignores it and judges the boundary by th
   const spoofed = revise(drive.repo, args, ['--repo', drive.worker], drive.repo);
   assert.strictEqual(spoofed.code, 1, spoofed.buf.out);
   assert.match(spoofed.buf.err, /main-worktree-source-write/);
-  assert.strictEqual(spoofed.buf.out, '');
+  assert.strictEqual(JSON.parse(spoofed.buf.out).reason, 'main-worktree-source-write');
 
   // 반대 방향도 같다: 올바른 worktree에 서 있으면 잘못된 --repo가 막지 못한다.
   const honest = revise(drive.worker, args, ['--repo', drive.repo], drive.repo);
@@ -608,9 +616,12 @@ test('coordinate mutations without the ledger path/hash pair → require it and 
   ], { fence: false });
   // Interface: 누락은 usage(2)가 아니라 다른 coordinate 실패와 같은 JSON + exit 1.
   assert.strictEqual(missing.code, 1);
-  assert.deepStrictEqual(JSON.parse(missing.buf.out), {
-    ok: false, reason: 'ledger-checkpoint-invalid',
-  });
+  // fence 누락도 hint 표를 거치므로 cause·next가 함께 나온다.
+  const missingBody = JSON.parse(missing.buf.out);
+  assert.strictEqual(missingBody.ok, false);
+  assert.strictEqual(missingBody.reason, 'ledger-checkpoint-invalid');
+  assert.strictEqual(typeof missingBody.cause, 'string');
+  assert.strictEqual(typeof missingBody.next, 'string');
   const stale = coordinateCli(drive.integration, 'critical-recovery', [
     '--repo', drive.repo, '--task', '001', '--findings', 'R-1', '--reason', 'x',
     '--ledger-path', '.bouncer/runtime/coordinator.json',
@@ -884,7 +895,10 @@ test('coordinate revise stdout on success and fence refusals → is one-line JSO
     missingLedger.buf.out,
     `${JSON.stringify(JSON.parse(missingLedger.buf.out))}\n`,
   );
-  assert.strictEqual(JSON.parse(missingLedger.buf.out).reason, 'ledger-checkpoint-invalid');
+  const missingBody = JSON.parse(missingLedger.buf.out);
+  assert.strictEqual(missingBody.reason, 'ledger-checkpoint-invalid');
+  assert.strictEqual(typeof missingBody.cause, 'string');
+  assert.strictEqual(typeof missingBody.next, 'string');
 
   const badHash = revise(drive.worker, [
     '--task', '001', '--paths', 'src/session/token.ts', '--reason', 'wrong fence',
@@ -894,6 +908,19 @@ test('coordinate revise stdout on success and fence refusals → is one-line JSO
   ]);
   assert.strictEqual(badHash.code, 1);
   assert.strictEqual(badHash.buf.out, `${JSON.stringify(JSON.parse(badHash.buf.out))}\n`);
+  // fence 실패는 coordinator의 fence reason 가운데 하나로 나오고, 힌트가 붙어야 한다.
+  const badBody = JSON.parse(badHash.buf.out);
+  assert.ok(['ledger-checkpoint-invalid', 'stale-ledger-checkpoint', 'run-detached'].includes(badBody.reason));
+  assert.strictEqual(typeof badBody.cause, 'string');
+  assert.strictEqual(typeof badBody.next, 'string');
+
+  // fence 플래그 자체가 없는 revise도 같은 JSON 채널로 막히고 힌트가 붙어야 한다.
+  const noFence = revise(drive.worker, ['--task', '001', '--paths', 'src/auth/', '--reason', 'r']);
+  assert.strictEqual(noFence.code, 1);
+  const noFenceBody = JSON.parse(noFence.buf.out);
+  assert.strictEqual(noFenceBody.reason, 'ledger-checkpoint-invalid');
+  assert.strictEqual(typeof noFenceBody.cause, 'string');
+  assert.strictEqual(typeof noFenceBody.next, 'string');
 });
 
 test('coordinate next without a ledger fence → prints the next action', () => {
@@ -1448,6 +1475,10 @@ test('coordinate revise with an untracked --paths entry or a valueless --new-pat
   ], [], repo);
   assert.strictEqual(untracked.code, 1);
   assert.match(untracked.buf.err, /scope-path-untracked/);
+  const untrackedBody = JSON.parse(untracked.buf.out);
+  assert.strictEqual(untrackedBody.reason, 'scope-path-untracked');
+  assert.ok(Array.isArray(untrackedBody.paths));
+  assert.ok(untrackedBody.paths.includes('scripts/src/commands/ontology.ts'));
   const valueless = revise(worker, ['--task', '001', '--paths', 'src/auth/', '--new-path', '--reason', 'r'], [], repo);
   assert.strictEqual(valueless.code, 2, valueless.buf.err);
   assert.strictEqual(fs.readFileSync(docFile, 'utf8'), before);

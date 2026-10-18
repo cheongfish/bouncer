@@ -144,6 +144,7 @@ function emitWouldBeAmbiguous(
   const payload = {
     ok: false,
     reason: 'CURRENT_WOULD_BE_AMBIGUOUS',
+    cause: 'The base already stores another pointer key, so this --set would leave the active pointer ambiguous.',
     candidates: existing,
     next,
   };

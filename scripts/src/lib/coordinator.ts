@@ -5226,6 +5226,48 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Take paths from tracked files named in the failure evidence or debugger report, '
       + 'or pass a file to create with `--new-path` when its parent directory is tracked.',
   },
+  // 아래 10종은 `coordinate revise`(reviseTaskScope)만 내는 거절이다. 표에 없으면
+  // fallback 힌트가 붙어 coordinator가 거절 원인과 다음 행동을 알 수 없다.
+  'scope-paths-required': {
+    cause: '`coordinate revise` was called without any `--paths` entry.',
+    next: 'Pass the full replacement scope as `--paths <path>...` and rerun `bouncer coordinate revise`.',
+  },
+  'scope-path-glob': {
+    cause: 'A given scope path contains a glob character, but scope paths must be literal files or directories.',
+    next: 'Replace each glob with literal tracked paths (or a directory ending in `/`) and rerun `bouncer coordinate revise`.',
+  },
+  'scope-path-out-of-bounds': {
+    cause: 'A given scope path points outside the repository or into a path scope may not cover (such as `.bouncer/context/`).',
+    next: 'Use repo-relative source or test paths only, then rerun `bouncer coordinate revise`.',
+  },
+  'task-document-missing': {
+    cause: 'The task document for the named task cannot be found or read in this worktree.',
+    next: 'Check `--task` and `--blueprint` against `bouncer coordinate status`, then rerun `bouncer coordinate revise`.',
+  },
+  'no-coordinator-paths': {
+    cause: 'No coordinator runtime paths could be derived for this blueprint.',
+    next: 'Run from the worker or integration worktree of the driven blueprint and pass a valid `--blueprint`.',
+  },
+  'no-git': {
+    cause: 'The current directory is not inside a git work tree, so scope cannot be judged.',
+    next: 'Change cwd to the assigned worker worktree and rerun `bouncer coordinate revise`.',
+  },
+  'main-worktree-source-write': {
+    cause: 'The current directory is the main checkout, which a coordinator drive must not write.',
+    next: 'Change cwd to the assigned worker worktree and rerun `bouncer coordinate revise`.',
+  },
+  'unassigned-worktree': {
+    cause: 'The current worktree is not a worker worktree registered in the coordinator ledger.',
+    next: 'Change cwd to the worker worktree assigned to the task and rerun `bouncer coordinate revise`.',
+  },
+  'unreadable-ledger': {
+    cause: 'The coordinator ledger exists but cannot be read or parsed.',
+    next: 'Do not edit the ledger by hand; restore it from the integration worktree and rerun after `bouncer coordinate status` succeeds.',
+  },
+  'ledger-locked': {
+    cause: 'Another coordinator command holds the ledger lock.',
+    next: 'Wait for the other command to finish, then retry `bouncer coordinate revise`.',
+  },
   'scope-new-path-parent-missing': {
     cause: 'The parent directory of a `--new-path` entry holds no tracked file at the integration HEAD.',
     next: 'Create the file under an existing tracked directory, or revise the plan to add the directory first.',
@@ -5461,7 +5503,7 @@ function coordinateWithHints(opts: Parameters<typeof coordinate>[0]) {
 
 export = {
   readyWave, transition, coordinate: coordinateWithHints, loadLedger, loadLedgerBytes, readBouncerBlock,
-  projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
+  projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS, withCoordinateFailureHints,
   registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
   isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
   reportPathFor, workerCommitEvidence,

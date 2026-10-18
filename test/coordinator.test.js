@@ -35,7 +35,15 @@ function coordinate(opts) {
   return __coordinatorMod.coordinate(opts);
 }
 const coordinateRaw = __coordinatorMod.coordinate;
-const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
+const { COORDINATE_FAILURE_HINTS, withCoordinateFailureHints } = __coordinatorMod;
+
+// revise 거절 중 힌트 표에 없던 reason 10종. revise 응답이 이 reason들에 fallback
+// `cause`(= reason 문자열)를 받으면 coordinator가 다음 행동을 알 수 없게 된다.
+const REVISE_HINTLESS_REASONS = [
+  'scope-paths-required', 'scope-path-glob', 'scope-path-out-of-bounds', 'task-document-missing',
+  'no-coordinator-paths', 'no-git', 'main-worktree-source-write', 'unassigned-worktree',
+  'unreadable-ledger', 'ledger-locked',
+];
 
 const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
@@ -219,6 +227,15 @@ test('every coordinator reason literal exists → COORDINATE_FAILURE_HINTS cover
 
 test('an injected reason with no hint → missingHints reports it', () => {
   assert.deepStrictEqual(missingHints(['fake-x'], COORDINATE_FAILURE_HINTS), ['fake-x']);
+});
+
+test('revise rejection reason missing from the hint table before this change → gets its own cause and next, not the fallback', () => {
+  for (const reason of REVISE_HINTLESS_REASONS) {
+    const hinted = withCoordinateFailureHints({ ok: false, reason });
+    assertHinted(hinted);
+    assert.strictEqual(typeof hinted.next, 'string', reason);
+    assert.notStrictEqual(hinted.next, '', reason);
+  }
 });
 
 test('readyWave with pending, blocked and done tasks → returns only pending tasks with completed dependencies', () => {
