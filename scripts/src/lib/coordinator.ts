@@ -2177,13 +2177,30 @@ function workerCommitEvidence(
   if (stamp !== head.slice(0, 8).toLowerCase()) return refuse('worker-commit-stamp-mismatch');
   // 3. scope 안 dirty는 dispatch 기준선에 있어도 거절한다 — 재dispatch 때 앞 attempt의
   //    미커밋 수정이 기준선에 흡수되므로 기준선 면제는 커밋 누락을 숨긴다.
-  //    tasks.md(commit이 stamp를 쓰는 파일)는 정상 잔여물이라 제외한다.
+  //    tasks.md 제외 규칙은 workerScopeDirtyPaths가 갖는다(next와 같은 집합을 쓰기 위해 추출).
+  const dirty = workerScopeDirtyPaths(exec, workerPath, blueprint, task);
+  if (dirty.length > 0) return refuse('worker-scope-dirty', dirty);
+  return { ok: true };
+}
+
+/**
+ * worker porcelain 경로 가운데 task 현재 scope 안에 있고 tasks.md가 아닌 "커밋할 scope 변경"을 모은다.
+ * tasks.md는 `bouncer commit`이 stamp를 쓰는 파일이라 정상 잔여물이므로 뺀다. dispatch 기준선은
+ * 면제하지 않는다. `workerCommitEvidence`의 scope dirty 판정과 `coordinate next`의 commit 선택이
+ * 같은 집합을 보게 하려고 한 곳에 둔다. 읽기만 한다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} workerPath - worker(light는 integration) checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {Task} task - ledger task(현재 scope 경로의 출처)
+ * @returns {string[]} 중복을 없애 정렬한 repo 상대 경로. 없으면 빈 배열
+ */
+function workerScopeDirtyPaths(exec: Exec, workerPath: string, blueprint: string, task: Task): string[] {
   const briefRel = `${blueprint.replaceAll('\\', '/')}/tasks/${task.id}/tasks.md`;
   const scope = currentScopePaths(task).map((entry) => normalizeSupplementPath(entry).replace(/\/+$/, ''));
   const dirty = porcelainPaths(exec, workerPath).filter((rel) => rel !== briefRel
     && scope.some((entry) => entry !== '' && (rel === entry || rel.startsWith(`${entry}/`))));
-  if (dirty.length > 0) return refuse('worker-scope-dirty', [...new Set(dirty)].sort());
-  return { ok: true };
+  return [...new Set(dirty)].sort();
 }
 
 /**
@@ -5506,5 +5523,5 @@ export = {
   projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS, withCoordinateFailureHints,
   registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
   isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
-  reportPathFor, workerCommitEvidence,
+  reportPathFor, workerCommitEvidence, workerScopeDirtyPaths,
 };
