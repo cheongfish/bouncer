@@ -3,6 +3,7 @@
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import scope = require('./scope');
 const { readCoordinatorLedger, withLedgerLock, writeLedgerFile } = scope;
+import type { Ledger } from './execution-contracts';
 import runtimeState = require('./runtime-state');
 const { pointerKeyFromBlueprint, removeNamespacePointer } = runtimeState;
 
@@ -13,11 +14,15 @@ type DetachDeps = {
   git?: GitFn;
   /** 결정 기록 시각(ISO 8601). */
   now?: () => string;
+  /** 테스트 seam: ledger 잠금 함수. 기본값은 `withLedgerLock`이다. */
+  withLock?: <T>(ledgerFile: string, run: (owns: () => boolean) => T) => T | { ok: false; reason: string };
 };
 
 type DetachFail = {
   ok: false;
   reason: string;
+  cause: string;
+  next: string;
   tasks?: string[];
   ledgerFile?: string;
 };
@@ -29,6 +34,54 @@ type DetachOk = {
   already?: true;
   next: string;
 };
+
+// 모든 detach 거절이 `{ reason, cause, next }`로 답하도록 하는 표. coordinator 모듈을
+// import하지 않고(의존 경계) COORDINATE_FAILURE_HINTS와 같은 관례로 여기에 둔다.
+const DETACH_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
+  'detach-confirmation-required': {
+    cause: 'Detach changes the ledger and pointer, so it needs explicit user approval.',
+    next: 'After the user approves, rerun `bouncer run detach --blueprint <dir> --yes`.',
+  },
+  'detach-awaiting-confirmation': {
+    cause: 'The ledger is waiting for a user decision after the repair wave limit, and detach must not bypass it.',
+    next: 'Resolve the pending decision with `bouncer coordinate next`, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+  },
+  'detach-worker-in-flight': {
+    cause: 'A task that is not integrated still has an active or reported dispatch, or is prepared or recorded.',
+    next: 'Finish or revoke the listed tasks with `bouncer coordinate next`, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+  },
+  'no-ledger': {
+    cause: 'No coordinator ledger exists for this blueprint, so there is no drive to detach.',
+    next: 'Check the blueprint path with `bouncer current`, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+  },
+  'unreadable-ledger': {
+    cause: 'The coordinator ledger could not be read as valid JSON.',
+    next: 'Inspect the ledger file named in `ledgerFile`, restore it, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+  },
+  'ledger-locked': {
+    cause: 'Another writer holds the ledger lock.',
+    next: 'Wait for the other command to finish, then rerun `bouncer run detach --blueprint <dir> --yes`.',
+  },
+  'ledger-lock-lost': {
+    cause: 'The ledger lock was lost during detach, so the ledger and pointer may already have been written.',
+    next: 'Rerun `bouncer run detach --blueprint <dir> --yes` and confirm it reports `already: true`.',
+  },
+};
+
+/**
+ * 실패 body에 hint 표의 cause·next를 합친다. 표에 없는 reason도 빈 응답이 되지 않도록
+ * reason을 cause로 쓰는 폴백을 둔다(표 전수 보장은 테스트가 한다).
+ *
+ * @param {{ reason: string; tasks?: string[]; ledgerFile?: string }} body - hint가 없는 실패 body
+ * @returns {DetachFail} cause·next가 채워진 실패 결과
+ */
+function withHint(body: { reason: string; tasks?: string[]; ledgerFile?: string }): DetachFail {
+  const hint = DETACH_FAILURE_HINTS[body.reason] || {
+    cause: body.reason,
+    next: 'Rerun `bouncer run detach --blueprint <dir> --yes` after fixing the reported reason.',
+  };
+  return { ok: false, ...body, cause: hint.cause, next: hint.next };
+}
 
 const defaultGit: GitFn = (cwd, args) => String(realExecFileSync('git', args, {
   cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
@@ -82,9 +135,10 @@ function detachRun({ repoRoot, blueprint, reason, yes, deps }: {
 }): DetachOk | DetachFail {
   const git = (deps && deps.git) || defaultGit;
   const now = (deps && deps.now) || (() => new Date().toISOString());
+  const withLock = (deps && deps.withLock) || withLedgerLock;
 
   // 1. 승인 없는 경로를 만들지 않는다: ledger를 읽기 전에 먼저 막는다.
-  if (yes !== true) return { ok: false, reason: 'detach-confirmation-required' };
+  if (yes !== true) return withHint({ reason: 'detach-confirmation-required' });
 
   // 2. 포인터 key는 쓰기 전에 계산한다. 경로에서 id를 못 뽑으면 throw하므로
   //    ledger를 건드리기 전에 실패시켜 부분 변경을 막는다.
@@ -92,35 +146,33 @@ function detachRun({ repoRoot, blueprint, reason, yes, deps }: {
 
   const first = readCoordinatorLedger({ repoRoot, blueprint });
   if (!first.ok) {
-    return { ok: false, reason: first.reason, ledgerFile: first.ledgerFile };
+    return withHint({ reason: first.reason, ledgerFile: first.ledgerFile });
   }
   const ledgerFile = first.ledgerFile as string;
   const nextHint = `To finalize, run \`bouncer current --set ${blueprint}\` and then /bouncer-finalize.`;
 
-  return withLedgerLock(ledgerFile, () => {
+  const outcome = withLock(ledgerFile, (owns): DetachOk | DetachFail => {
     // 3. 잠금 안에서 다시 읽는다 — 위 읽기 뒤에 다른 writer가 상태를 바꿨을 수 있다.
     const read = readCoordinatorLedger({ repoRoot, blueprint });
-    if (!read.ok) return { ok: false as const, reason: read.reason, ledgerFile };
-    const ledger = read.ledger as {
-      status?: string; tasks?: Array<{
-        id: string; status?: string; dispatch?: { status?: string };
-      }>; decisions?: unknown[]; integrationHead?: string;
-    };
+    if (!read.ok) return withHint({ reason: read.reason, ledgerFile });
+    const ledger = read.ledger as Ledger;
     const previous = ledger.status || 'active';
     if (previous === 'detached') {
-      return { ok: true as const, ledger: ledgerFile, pointer_removed: false, already: true as const, next: nextHint };
+      return { ok: true, ledger: ledgerFile, pointer_removed: false, already: true, next: nextHint };
     }
     // 사용자 확인 흐름(repair wave 한도 뒤 결정)을 detach로 우회하지 않는다.
     if (previous === 'awaiting_confirmation') {
-      return { ok: false as const, reason: 'detach-awaiting-confirmation' };
+      return withHint({ reason: 'detach-awaiting-confirmation' });
     }
     const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
-    const inFlight = tasks.filter((item) => item && (
+    // integrated task는 정상 완료 뒤에도 dispatch.status 'reported'가 남는다. 그 잔여
+    // 상태를 진행 중으로 읽으면 안내된 복구 명령이 스스로 막히므로 먼저 제외한다.
+    const inFlight = tasks.filter((item) => item && item.status !== 'integrated' && (
       (item.dispatch && (item.dispatch.status === 'active' || item.dispatch.status === 'reported'))
       || item.status === 'prepared' || item.status === 'recorded'
     )).map((item) => item.id);
     if (inFlight.length > 0) {
-      return { ok: false as const, reason: 'detach-worker-in-flight', tasks: inFlight };
+      return withHint({ reason: 'detach-worker-in-flight', tasks: inFlight });
     }
 
     // 4. 기존 decision은 그대로 두고 append만 한다. 관찰 HEAD는 기록용이다.
@@ -135,12 +187,19 @@ function detachRun({ repoRoot, blueprint, reason, yes, deps }: {
     });
     ledger.decisions = decisions;
     ledger.status = 'detached';
+    // 잠금을 잃었다면 다른 writer의 상태를 덮어쓸 수 있으므로 쓰기 직전에 소유를 확인하고
+    // 물러난다. 이 시점까지 ledger와 포인터는 바뀐 적이 없다.
+    if (!owns()) return withHint({ reason: 'ledger-lock-lost' });
     writeLedgerFile(ledgerFile, ledger);
 
     // 5. 이 blueprint의 key 하나만 지운다. 다른 key와 ledger·worktree·branch는 그대로다.
     const removed = removeNamespacePointer({ repoRoot, key });
-    return { ok: true as const, ledger: ledgerFile, pointer_removed: removed, next: nextHint };
-  }) as DetachOk | DetachFail;
+    return { ok: true, ledger: ledgerFile, pointer_removed: removed, next: nextHint };
+  });
+  // withLock이 직접 돌려준 실패(ledger-locked, 쓰기 뒤 해제 실패의 ledger-lock-lost)에도
+  // hint를 붙인다. 해제 실패는 이미 쓴 뒤일 수 있어 hint의 next가 재실행 확인을 안내한다.
+  if (outcome.ok === false && !('cause' in outcome)) return withHint(outcome);
+  return outcome;
 }
 
-export = { detachRun };
+export = { detachRun, DETACH_FAILURE_HINTS };

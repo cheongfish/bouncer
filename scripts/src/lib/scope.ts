@@ -356,14 +356,13 @@ function writeLedger(file: string, data: Ledger): void {
 }
 
 /**
- * `bouncer run detach`가 남긴 `detached` 상태인지 본다. 정본 Ledger 타입의 status
- * union에 아직 이 값이 없어 문자열로 넓혀 비교한다.
+ * `bouncer run detach`가 남긴 `detached` 상태인지 본다.
  *
  * @param {Ledger} ledger - 읽은 원장
  * @returns {boolean} 분리된 실행이면 true
  */
 function isDetached(ledger: Ledger): boolean {
-  return (ledger.status as string | undefined) === 'detached';
+  return ledger.status === 'detached';
 }
 
 /**
@@ -951,6 +950,6 @@ export = {
   trackedScopeViolations,
   recordActualPaths,
   withLedgerLock,
-  // run detach가 status 'detached'를 쓴다 — 정본 status union 밖 값이라 unknown으로 받는다.
-  writeLedgerFile: (file: string, data: unknown): void => writeLedger(file, data as Ledger),
+  // run detach가 status 'detached'를 쓴다. 정본 Ledger 타입이 그 값을 받으므로 인자 타입을 좁힌다.
+  writeLedgerFile: (file: string, data: Ledger): void => writeLedger(file, data),
 };

@@ -85,7 +85,8 @@ export type Ledger = {
   version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
   seedManifest?: Array<{ path: string; sha256: string }>;
   decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
-  status?: 'active' | 'awaiting_confirmation' | 'partial_closed' | 'promotion_stopped';
+  // detached는 `bouncer run detach`가 남기는 종료 상태다. 이 union에 없으면 읽는 쪽이 문자열 cast를 해야 한다.
+  status?: 'active' | 'awaiting_confirmation' | 'partial_closed' | 'promotion_stopped' | 'detached';
   userConfirmed?: boolean; revision?: string;
   leaseSeq?: number;
   // light만 기록한다. 부재·undefined는 full(legacy 호환). 응답 mode는 항상 light|full.

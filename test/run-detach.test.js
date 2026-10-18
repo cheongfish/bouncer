@@ -165,6 +165,24 @@ test('merged drive with a live ledger → main commit is blocked, then allowed a
   assert.deepStrictEqual(evaluateStaged({ repoRoot: repo }), { block: false });
 });
 
+test('integrated tasks with a leftover reported dispatch → detach succeeds and removes the pointer', () => {
+  // 정상 완료된 drive는 task가 integrated가 되어도 dispatch.status 'reported'가 남는다.
+  // 그 값만으로 진행 중 worker라고 거절하면 안내된 복구 명령이 막힌다.
+  const { repo, ledgerFile, ownKey } = drive();
+  patchLedger(ledgerFile, (ledger) => {
+    for (const item of ledger.tasks) item.dispatch = { attempt: 1, status: 'reported' };
+  });
+
+  const result = capture(detachArgs(repo));
+
+  assert.strictEqual(result.code, 0, result.out + result.err);
+  const payload = JSON.parse(result.out);
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.pointer_removed, true);
+  assert.strictEqual(readLedgerFile(ledgerFile).status, 'detached');
+  assert.strictEqual(fs.existsSync(ownKey), false);
+});
+
 test('detached ledger with the pointer set again for finalize → main coordinator context stays inactive', () => {
   const { repo } = drive();
   assert.strictEqual(capture(detachArgs(repo)).code, 0);
@@ -219,6 +237,8 @@ test('detach refusals → leave the ledger and every pointer file byte-identical
       name: 'active dispatch',
       args: (repo) => detachArgs(repo),
       setup: (ledgerFile) => patchLedger(ledgerFile, (l) => {
+        // integrated가 아닌 task의 active dispatch만 진행 중이다.
+        l.tasks[0].status = 'dispatched';
         l.tasks[0].dispatch = { attempt: 1, status: 'active' };
       }),
       reason: 'detach-worker-in-flight',
@@ -245,21 +265,79 @@ test('detach refusals → leave the ledger and every pointer file byte-identical
     assert.strictEqual(payload.ok, false, item.name);
     assert.strictEqual(payload.reason, item.reason, item.name);
     if (item.tasks) assert.deepStrictEqual(payload.tasks, item.tasks, item.name);
+    // 모든 거절은 사람이 복구할 수 있도록 cause와 next를 함께 답한다.
+    assert.ok(typeof payload.cause === 'string' && payload.cause !== payload.reason, item.name);
+    assert.strictEqual(typeof payload.next, 'string', item.name);
     watched.forEach((file, index) => {
       assert.ok(fs.readFileSync(file).equals(before[index]), `${item.name}: ${path.basename(file)} changed`);
     });
   }
 });
 
-test('detach without a ledger or with a corrupt ledger → refuses with the existing reasons', () => {
+test('lock lost before the ledger write → refuses with ledger-lock-lost and leaves ledger and pointers unchanged', () => {
+  const { repo, ledgerFile, ownKey, otherKey, addOtherKey } = drive();
+  addOtherKey();
+  const watched = [ledgerFile, ownKey, otherKey];
+  const before = watched.map((file) => fs.readFileSync(file));
+
+  // 임계 구역 안에서 소유를 잃은 상황: owns()가 false를 돌려준다.
+  const result = detachRun({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    yes: true,
+    deps: { withLock: (file, run) => run(() => false) },
+  });
+
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'ledger-lock-lost');
+  assert.ok(typeof result.cause === 'string' && result.cause !== result.reason);
+  assert.strictEqual(typeof result.next, 'string');
+  watched.forEach((file, index) => {
+    assert.ok(fs.readFileSync(file).equals(before[index]), `${path.basename(file)} changed`);
+  });
+});
+
+test('lock released late after the ledger write → refuses with cause and next, and a plain rerun reports already', () => {
+  const { repo, ledgerFile } = drive();
+
+  // 쓰기는 끝났지만 잠금 해제에서 소유를 잃은 상황을 흉내 낸다.
+  const result = detachRun({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    yes: true,
+    deps: {
+      withLock: (file, run) => {
+        run(() => true);
+        return { ok: false, reason: 'ledger-lock-lost' };
+      },
+    },
+  });
+
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'ledger-lock-lost');
+  // 쓰기가 일어났을 수 있다는 사실과, 재실행으로 확인하는 경로를 안내해야 한다.
+  assert.ok(typeof result.cause === 'string' && result.cause !== result.reason);
+  assert.match(result.next, /run detach/);
+  assert.strictEqual(readLedgerFile(ledgerFile).status, 'detached');
+
+  const again = detachRun({ repoRoot: repo, blueprint: BP_REL, yes: true });
+  assert.strictEqual(again.ok, true);
+  assert.strictEqual(again.already, true);
+});
+
+test('detach without a ledger or with a corrupt ledger → refuses with the existing reasons and cause and next', () => {
   const repo = planTemplate.copy();
   const missing = JSON.parse(capture(detachArgs(repo)).out);
   assert.strictEqual(missing.reason, 'no-ledger');
+  assert.ok(typeof missing.cause === 'string' && missing.cause !== missing.reason);
+  assert.strictEqual(typeof missing.next, 'string');
 
   const { repo: repo2, ledgerFile } = drive();
   fs.writeFileSync(ledgerFile, '{not json');
   const corrupt = JSON.parse(capture(detachArgs(repo2)).out);
   assert.strictEqual(corrupt.reason, 'unreadable-ledger');
+  assert.ok(typeof corrupt.cause === 'string' && corrupt.cause !== corrupt.reason);
+  assert.strictEqual(typeof corrupt.next, 'string');
 });
 
 test('second detach → succeeds as a no-op and keeps a pointer set again afterwards', () => {
