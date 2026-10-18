@@ -3939,6 +3939,15 @@ test('repair with an untracked --paths entry or a --new-path without a tracked p
   assert.strictEqual(repairIntakeSnapshot(drive), before);
 });
 
+test('repair with a pathspec-magic --paths entry that names no tracked file → rejects with scope-path-untracked before any write', () => {
+  const drive = repairIntakeDrive('bouncer-repair-magic-path-', '.bouncer/context/epics/112-x/blueprints/007-y', { scoped: true });
+  const before = repairIntakeSnapshot(drive);
+  const out = repairIntake(drive, { verify: 'node --test test/fix.test.js', paths: [':!README.md'] });
+  assert.strictEqual(out.reason, 'scope-path-untracked', JSON.stringify(out));
+  assert.deepStrictEqual(out.paths, [':!README.md']);
+  assert.strictEqual(repairIntakeSnapshot(drive), before);
+});
+
 test('scoped_terminal repair with --verify and tracked paths plus a --new-path → writes them into the repair document and passes G20', () => {
   const drive = repairIntakeDrive('bouncer-repair-ok-', '.bouncer/context/epics/112-x/blueprints/003-y', { scoped: true });
   const verify = 'node --test test/fix.test.js';

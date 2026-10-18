@@ -815,6 +815,29 @@ test('reviseTaskScope with an untracked path or a new path without a tracked par
   assert.strictEqual(bytes(), before);
 });
 
+test('reviseTaskScope with a pathspec-magic path that names no tracked file → refuses with scope-path-untracked and keeps the bytes', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot: repo, blueprint });
+  const docAbs = path.join(worker, blueprint, 'tasks/001/tasks.md');
+  const bytes = () => `${fs.readFileSync(ledgerFile, 'utf8')}\n--\n${fs.readFileSync(docAbs, 'utf8')}`;
+  const before = bytes();
+  for (const magic of [':!README', ':(icase)SRC/auth/login.ts', ':/']) {
+    const out = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: [magic], reason: 'magic pathspec probe',
+    });
+    assert.strictEqual(out.ok, false, magic);
+    assert.strictEqual(out.reason, 'scope-path-untracked', `${magic}: ${JSON.stringify(out)}`);
+    assert.deepStrictEqual(out.paths, [magic]);
+    assert.strictEqual(bytes(), before, `${magic} keeps ledger and document bytes`);
+  }
+  const orphan = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], newPaths: [':(icase)src/new.ts'],
+    reason: 'magic parent probe',
+  });
+  assert.strictEqual(orphan.reason, 'scope-new-path-parent-missing', JSON.stringify(orphan));
+  assert.strictEqual(bytes(), before);
+});
+
 test('reviseTaskScope with a new path under a tracked directory → scopes to paths plus the new path', () => {
   const { worker, blueprint } = coordinatorFixture();
   const revised = reviseTaskScope({
