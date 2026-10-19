@@ -318,6 +318,57 @@ test('size constants → are exported from one module', () => {
   assert.strictEqual(EXECUTE_SMALL_MAX_LINES, 200);
 });
 
+test('snapshot contract → exposes the same pure digest helpers without I/O dependencies', () => {
+  const contractPath = require.resolve('../scripts/lib/plan-snapshot-contract');
+  const compatibility = require('../scripts/lib/plan-snapshot');
+  const Module = require('node:module');
+  const originalLoad = Module._load;
+  const blocked = new Set([
+    'node:fs', 'fs', 'node:child_process', 'child_process',
+    './plan-snapshot', './plan-approve', './scaffold', './review-dispatch', './validate',
+  ]);
+  const attempted = [];
+  Module._load = function (request, parent, isMain) {
+    if (blocked.has(request)) {
+      attempted.push(request);
+      throw new Error(`forbidden contract dependency: ${request}`);
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  let contract;
+  try {
+    delete require.cache[contractPath];
+    contract = require(contractPath);
+  } finally {
+    Module._load = originalLoad;
+  }
+  assert.deepStrictEqual(attempted, []);
+  assert.strictEqual(typeof contract.digestPlanContent, 'function');
+  assert.strictEqual(typeof contract.normalizeStructure, 'function');
+  assert.strictEqual(compatibility.SNAPSHOT_VERSION, contract.SNAPSHOT_VERSION);
+  const structure = { affected_paths: ['b', 'a'] };
+  const content = { a: { body: 'body', structure } };
+  assert.strictEqual(compatibility.digestPlanContent(['a'], content), contract.digestPlanContent(['a'], content));
+  assert.deepStrictEqual(
+    compatibility.normalizeStructure('task', { affected_paths: ['b', 'a'] }),
+    contract.normalizeStructure('task', { affected_paths: ['b', 'a'] }),
+  );
+  assert.strictEqual(compatibility.structureKindOf(`${BP_REL}/index.md`, BP_REL), contract.structureKindOf(`${BP_REL}/index.md`, BP_REL));
+  assert.strictEqual(compatibility.hashBody('body'), contract.hashBody('body'));
+  assert.strictEqual(compatibility.hashStructure(structure), contract.hashStructure(structure));
+
+  // 금지 모듈을 요구하는 fixture로 감시 장치가 실제 위반을 잡는지도 확인한다.
+  const violatingFixture = () => Module._load('node:fs', module, false);
+  assert.throws(() => {
+    Module._load = function (request, parent, isMain) {
+      if (blocked.has(request)) throw new Error(`forbidden contract dependency: ${request}`);
+      return originalLoad.call(this, request, parent, isMain);
+    };
+    violatingFixture();
+  }, /forbidden contract dependency: node:fs/);
+  Module._load = originalLoad;
+});
+
 test('plan with light scale → returns skip without perspectives', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'light', tasks: ['001'] });

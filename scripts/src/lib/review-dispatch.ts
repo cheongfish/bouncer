@@ -8,11 +8,12 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import validateMod = require('./validate');
 const { validateBlueprint } = validateMod;
 import planSnapshot = require('./plan-snapshot');
+import snapshotContract = require('./plan-snapshot-contract');
 import reviewPolicy = require('./review-policy');
+const { computePlanSnapshot, computePlanParts } = planSnapshot;
 const {
-  SNAPSHOT_VERSION, computePlanSnapshot, computePlanParts, digestPlanContent,
-  normalizeStructure, structureKindOf, hashBody, hashStructure,
-} = planSnapshot;
+  SNAPSHOT_VERSION, digestPlanContent, normalizeStructure, structureKindOf, hashBody, hashStructure,
+} = snapshotContract;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs, taskExecutionKind } = tasksDocs;
 import frontmatter = require('./frontmatter');
