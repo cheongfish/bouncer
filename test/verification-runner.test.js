@@ -659,11 +659,9 @@ test('runVerification → records evidence into the pointer tasks/002 unit only'
     task: `${BP_REL}/tasks/002/tasks.md`,
   });
 
-  const result = runVerification({
+  const result = runSelectedVerification({
     repoRoot: repo,
     blueprintDir: BP_REL,
-    now: () => new Date('2026-07-27T00:00:00.000Z'),
-    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
   });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.command, 'node -e "process.exit(0)"');
@@ -1780,10 +1778,7 @@ test('runVerification → refuses a worker cwd without an active lease', () => {
   ledger.tasks.find((t) => t.id === '002').lease.status = 'revoked';
   fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
   assert.throws(
-    () => runVerification({
-      repoRoot: worker002, blueprintDir: epic, deps: fixedDeps(),
-      exec: () => ({ status: 0, stdout: '', stderr: '' }),
-    }),
+    () => runSelectedVerification({ repoRoot: worker002, blueprintDir: epic }),
     (e) => e.code === 'VERIFY_IDENTITY_INVALID'
       && /no active lease for worker worktree/.test(e.message),
   );
@@ -1796,10 +1791,7 @@ test('runVerification → refuses a worker cwd with an unreadable ledger', () =>
   fs.copyFileSync(path.join(worker002, epic, 'tasks/002/verification.md'), legacy);
   fs.writeFileSync(path.join(integration, '.bouncer/runtime/coordinator.json'), '{ truncated');
   assert.throws(
-    () => runVerification({
-      repoRoot: worker002, blueprintDir: epic, deps: fixedDeps(),
-      exec: () => ({ status: 0, stdout: '', stderr: '' }),
-    }),
+    () => runSelectedVerification({ repoRoot: worker002, blueprintDir: epic }),
     (e) => e.code === 'VERIFY_IDENTITY_INVALID'
       && /no active lease for worker worktree/.test(e.message),
   );
@@ -1906,12 +1898,10 @@ test('runVerification markTaskVerified → promotes a ready pointer commit task'
   const repo = setupRepo('node -e "process.exit(0)"');
   writeUnitTasks(repo, '001');
   pointerOn(repo, '001');
-  const result = runVerification({
+  const result = runSelectedVerification({
     repoRoot: repo,
     blueprintDir: BP_REL,
     markTaskVerified: true,
-    now: () => new Date('2026-07-27T00:00:00.000Z'),
-    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
   });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'verified');
@@ -1919,11 +1909,10 @@ test('runVerification markTaskVerified → promotes a ready pointer commit task'
 
 test('runVerification markTaskVerified → promotes a ready leased commit task', () => {
   const { epic, worker002 } = leaseVerifyFixture();
-  const result = runVerification({
+  const result = runSelectedVerification({
     repoRoot: worker002,
     blueprintDir: epic,
     markTaskVerified: true,
-    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
   });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(
