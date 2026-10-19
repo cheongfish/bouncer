@@ -1,4 +1,5 @@
 'use strict';
+const { createHash } = require('node:crypto');
 import guards = require('./guards');
 const { isRecord } = guards;
 import paths = require('./paths');
@@ -139,6 +140,8 @@ const CONTEXT_ROUND_CONTRACT: RoundContract = {
 // EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
 const EXPLAIN_SECTION_HEADINGS: SectionDef[] = [
   { key: 'background', re: /^##\s+Background\s*$/i },
+  // 선택적 legacy 절: 새 Explain은 만들지 않고 G16도 요구하지 않는다. 정규식을 지우면
+  // 기존 문서의 Intuition 본문이 앞 절(background)에 흡수되어 provenance body가 바뀐다.
   { key: 'intuition', re: /^##\s+Intuition\s*$/i },
   { key: 'code', re: /^##\s+Code\s*$/i },
   { key: 'quiz', re: /^##\s+Quiz\s*$/i },
@@ -285,6 +288,95 @@ function findingFingerprint({
   ].join(':');
   const fingerprint = `${normalized}#${String(symbol ?? '').trim()}`;
   return namespace ? `${namespace}:${fingerprint}` : fingerprint;
+}
+
+/**
+ * 정규 fingerprint에서 결정적 finding id를 만든다. 같은 fingerprint는 round를 넘어 같은 id가
+ * 되어야 이전 round finding을 교체하므로 sha256 앞 8hex를 쓴다. 32bit라 충돌이 드물게
+ * 가능하며, 충돌 판정은 normalizeRoundFindings가 거절로 처리한다(조용히 merge하지 않는다).
+ *
+ * @param {string} fingerprint - findingFingerprint가 돌려준 정규 문자열
+ * @param {'context'} [namespace] - context면 `CR-`, 생략하면 execute `F-` 접두
+ * @returns {string} `F-<8hex>` 또는 `CR-<8hex>`
+ */
+function findingAutoId(fingerprint: string, namespace?: string): string {
+  const prefix = namespace === CONTEXT_FINDING_NAMESPACE ? 'CR-' : 'F-';
+  return `${prefix}${createHash('sha256').update(fingerprint).digest('hex').slice(0, 8)}`;
+}
+
+/**
+ * record/close 경계에서 finding 하나를 정규화한 사본을 만든다. fingerprint는 입력값과 무관하게
+ * 공식으로 덮어쓰고, `id` 키가 없을 때만 자동 id를 채운다. severity·status·note·accepted_risk·
+ * 명시 id 등 다른 필드는 건드리지 않는다. 객체가 아닌 항목은 그대로 돌려줘 형식 거절을
+ * 기존 검사에 맡긴다. 명시 id의 유효성은 보지 않는다 — 과거 저장 보고(fold·projection)를
+ * 다시 읽을 때도 쓰이므로 거절은 normalizeRoundFindings가 새 입력에만 건다.
+ *
+ * @param {unknown} finding - 원본 finding(변형하지 않는다)
+ * @param {'context'} [namespace] - context review면 fingerprint 접두·`CR-` id
+ * @returns {unknown} 정규화한 사본, 또는 객체가 아니면 원본
+ */
+function normalizeFinding(finding: unknown, namespace?: string): unknown {
+  if (!isRecord(finding)) return finding;
+  const fingerprint = findingFingerprint({
+    category: finding.category, brief_clause: finding.brief_clause, file: finding.file, symbol: finding.symbol,
+  }, namespace);
+  // 생략은 key 부재만 뜻한다. `id: null`·빈 문자열을 자동 id로 바꾸면 작성 실수가 조용히 새 finding이 된다.
+  const id = Object.prototype.hasOwnProperty.call(finding, 'id') ? finding.id : findingAutoId(fingerprint, namespace);
+  return { ...finding, id, fingerprint };
+}
+
+/**
+ * 이번 round 입력 finding을 정규화하고, 기존 finding과 합치기 전에 id 오류를 거절한다.
+ * - 명시 id가 비어 있지 않은 문자열이 아니면(null·빈 문자열·공백·비문자열) 거절한다.
+ * - 자동 id가 입력 안 다른 항목이나 기존 finding의 id와 같은데 정규 fingerprint가 다르면
+ *   해시 충돌이나 id 선점이다. id로 merge하면 다른 문제를 덮어쓰므로 거절한다.
+ * - 자동 id가 같은 입력 안에서 같은 fingerprint로 두 번 나오면 중복 fingerprint로 거절한다
+ *   (id merge로 조용히 하나가 사라지지 않게). 명시 id끼리의 같은 id는 기존 교체 동작을 유지한다.
+ * 기존 finding의 fingerprint는 저장 값이 아니라 공식으로 다시 계산해 비교한다 — 과거에 틀린
+ * fingerprint로 저장된 같은 finding을 충돌로 오판하지 않기 위해서다.
+ *
+ * @param {unknown[]} incoming - 이번 round 입력 findings
+ * @param {unknown[]} existing - 이미 기록된(또는 fold한) findings
+ * @param {'context'} [namespace] - context review면 fingerprint 접두·`CR-` id·메시지 접두
+ * @returns {{ok: true, findings: unknown[], ids: string[]} | {ok: false, messages: string[]}}
+ *   성공이면 정규화 사본과 입력 순서·중복 제거한 id 목록, 실패면 사유 메시지
+ */
+function normalizeRoundFindings(incoming: unknown[], existing: unknown[], namespace?: string):
+  { ok: true; findings: unknown[]; ids: string[] } | { ok: false; messages: string[] } {
+  const label = namespace === CONTEXT_FINDING_NAMESPACE ? 'context-review' : 'review';
+  const messages: string[] = [];
+  // id → 정규 fingerprint. 기존 finding을 먼저 넣어 입력이 기존 id를 노리는지 본다.
+  const owners = new Map<string, string>();
+  for (const item of existing) {
+    const norm = normalizeFinding(item, namespace);
+    if (isRecord(norm) && typeof norm.id === 'string') owners.set(norm.id, norm.fingerprint as string);
+  }
+  const seenInInput = new Map<string, { fingerprint: string; auto: boolean }>();
+  const findings: unknown[] = [];
+  const ids: string[] = [];
+  for (const raw of incoming) {
+    const auto = isRecord(raw) && !Object.prototype.hasOwnProperty.call(raw, 'id');
+    if (isRecord(raw) && !auto && (typeof raw.id !== 'string' || raw.id.trim() === '')) {
+      messages.push(`${label} finding id invalid: ${JSON.stringify(raw.id) ?? 'undefined'}`);
+      continue;
+    }
+    const norm = normalizeFinding(raw, namespace);
+    findings.push(norm);
+    if (!isRecord(norm)) continue;
+    const id = norm.id as string;
+    const fingerprint = norm.fingerprint as string;
+    const prior = seenInInput.get(id);
+    if (prior && (auto || prior.auto)) {
+      messages.push(prior.fingerprint === fingerprint
+        ? `${label} duplicate fingerprint ${fingerprint}`
+        : `${label} finding id collision ${id}`);
+    } else if (auto && owners.has(id) && owners.get(id) !== fingerprint) {
+      messages.push(`${label} finding id collision ${id}`);
+    }
+    if (!prior) seenInInput.set(id, { fingerprint, auto });
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return messages.length > 0 ? { ok: false, messages } : { ok: true, findings, ids };
 }
 
 /**
@@ -446,7 +538,20 @@ function collectFindingFailures({
         && rec.accepted_risk === true
         && typeof rec.note === 'string'
         && rec.note.trim() !== '';
-      if (isReviewAccepted && rec.actionability === 'must_fix' && rec.status !== 'resolved' && !isContextAcceptedRisk) {
+      // blueprint 최종 리뷰는 discovery 한 라운드로 끝나므로, 고치지 않고 넘기는 must_fix는
+      // deferred(+note, 위 NOTE_REQUIRED_STATUS 검사)로 기록해 accepted를 허용한다.
+      // task 범위(G14)는 roundScope가 없어 이 예외를 받지 않고 기존처럼 거절한다.
+      const isBlueprintDeferred = roundScope === 'blueprint' && rec.status === 'deferred';
+      // blueprint 최종 리뷰의 blocked finding은 round를 더할 수 없어 open으로 남는다. 사용자가
+      // 명시적으로 위험을 수용하면 `review accept-risk`가 accepted + accepted_risk: true + note로
+      // 닫는다. task 범위(G14)는 roundScope가 없어 이 예외를 받지 않는다.
+      const isBlueprintAcceptedRisk = roundScope === 'blueprint'
+        && rec.status === 'accepted'
+        && rec.accepted_risk === true
+        && typeof rec.note === 'string'
+        && rec.note.trim() !== '';
+      if (isReviewAccepted && rec.actionability === 'must_fix' && rec.status !== 'resolved'
+        && !isContextAcceptedRisk && !isBlueprintDeferred && !isBlueprintAcceptedRisk) {
         messages.push(`${findingLabel} accepted with open must_fix ${id}`);
       }
     }
@@ -599,6 +704,9 @@ export = {
   pathsOverlap,
   pathJustifiedByTouch,
   findingFingerprint,
+  findingAutoId,
+  normalizeFinding,
+  normalizeRoundFindings,
   findingMergeCandidates,
   collectFindingFailures,
   EXECUTE_ROUND_CONTRACT,

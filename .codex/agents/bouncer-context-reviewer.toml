@@ -20,8 +20,8 @@ list), the assigned perspective (discovery) or, for delta, the previous
 findings plus the revision evidence (`changed_documents`, `revision_diff` with
 each changed document's `before` and `after`, and `related_documents` with
 their current contract text), and the read-only cwd; these are this role's
-complete call input. On a clustered `local` call the controller also
-names the CLI cluster id whose task documents are in the list.
+complete call input. A new plan review is always one `combined` call; a recorded
+legacy `local` call named a CLI cluster id whose task documents were in the list.
 
 Judge only the document list the controller attached. For `combined` and
 `global` that is normally the plan set as a whole: epic `index.md`, blueprint
@@ -51,9 +51,8 @@ reopen the snapshot or add a perspective that the controller did not assign.
 ### Discovery
 
 Discovery is an independent pass over the frozen snapshot. The controller
-selects call shape from `bouncer review-dispatch plan` (`single` → one
-`combined` call; `clustered` → one `local` per CLI cluster, then one
-`global`). Judge only the assigned perspective and do not receive, compare, or
+dispatches every new full plan review as `single` (one `combined` call);
+`local` / `global` below describe legacy recorded `clustered` rounds only. Judge only the assigned perspective and do not receive, compare, or
 react to another reviewer's findings. Adaptive perspectives map onto the
 Rubric scopes below without dropping a judgment item:
 

@@ -12,7 +12,7 @@ import paths = require('./paths');
 const { toPosix } = paths;
 import validateSections = require('./validate-sections');
 const {
-  findingFingerprint, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,
+  normalizeRoundFindings, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,
   BLUEPRINT_ROUND_CONTRACT,
 } = validateSections;
 import reviewSnapshot = require('./review-snapshot');
@@ -32,6 +32,8 @@ type RecordReviewOk = {
   round: number;
   status: unknown;
   findings: number;
+  // 이번 입력 finding의 정규화 id(자동 id 포함). 입력 순서 유지·중복 제거.
+  finding_ids: string[];
   // 같은 file·symbol을 다른 category가 가리키는 병합 후보. 없으면 키를 생략한다.
   warnings?: ReturnType<typeof validateSections.findingMergeCandidates>;
 };
@@ -180,37 +182,36 @@ function checkSnapshotBinding(args: {
   return fail('review-snapshot-invalid', `${current.reason}: ${current.cause}`, current.next);
 }
 
-function fingerprintMissing(finding: Record<string, unknown>): boolean {
-  const value = finding.fingerprint;
-  return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
-}
-
 /**
- * 같은 id는 통째로 교체하고 새 id는 끝에 붙인다. fingerprint가 비면 게이트와
- * 같은 findingFingerprint로 채워, 작성자가 validator 소스를 읽지 않게 한다.
+ * 입력 finding을 정규화한 뒤 같은 id는 통째로 교체하고 새 id는 끝에 붙인다. fingerprint는
+ * 입력값과 무관하게 게이트와 같은 findingFingerprint로 덮어쓰고, `id` 키가 없으면
+ * `F-<8hex>` 자동 id를 채운다 — 작성자가 validator 공식을 몰라도 기록되게 한다.
+ * 기존 원장 finding은 고치지 않는다: 수기로 틀린 저장 기록은 G14/G21이 계속 거절해야 한다.
  *
  * @param {unknown[]} existing - 기존 findings
  * @param {unknown[]} incoming - 입력 JSON findings
- * @returns {unknown[]} 병합 결과
+ * @returns {{ok: true, merged: unknown[], incoming: unknown[], ids: string[]} | RecordReviewFail}
+ *   병합 결과, 정규화한 이번 입력, 이번 입력의 정규화 id(순서 유지·중복 제거), 또는 id 오류·충돌 거절
  */
-function mergeFindings(existing: unknown[], incoming: unknown[]): unknown[] {
+function mergeFindings(
+  existing: unknown[], incoming: unknown[],
+): { ok: true; merged: unknown[]; incoming: unknown[]; ids: string[] } | RecordReviewFail {
+  const normalized = normalizeRoundFindings(incoming, existing);
+  if (!normalized.ok) {
+    return fail(
+      'review-input-invalid',
+      normalized.messages,
+      'give each finding a non-empty string id or omit the id key; resolve id collisions, then retry',
+    );
+  }
   const merged = existing.map((item) => cloneJson(item));
-  for (const raw of incoming) {
-    const finding = isRecord(raw) ? { ...raw } : raw;
-    if (isRecord(finding) && fingerprintMissing(finding)) {
-      finding.fingerprint = findingFingerprint({
-        category: finding.category,
-        brief_clause: finding.brief_clause,
-        file: finding.file,
-        symbol: finding.symbol,
-      });
-    }
+  for (const finding of normalized.findings) {
     const id = isRecord(finding) ? finding.id : undefined;
     const index = merged.findIndex((item) => isRecord(item) && item.id === id);
     if (index >= 0) merged[index] = finding;
     else merged.push(finding);
   }
-  return merged;
+  return { ok: true, merged, incoming: normalized.findings, ids: normalized.ids };
 }
 
 function readRoundInput(roundFile: string): RecordReviewFail | { round: Record<string, unknown>; findings: unknown[] } {
@@ -260,6 +261,53 @@ function readRoundInput(roundFile: string): RecordReviewFail | { round: Record<s
 }
 
 /**
+ * review.md를 읽어 쓰기용 사본과 bouncer·review 블록을 돌려준다. recordReview와
+ * acceptReviewRisk가 같은 방식으로 문서를 열도록 한 곳에 둔다.
+ *
+ * @param {string} abs - review.md 절대 경로
+ * @returns {{ nextData: Record<string, unknown>, body: string, bouncer: Record<string, unknown>,
+ *   review: Record<string, unknown> }} 편집 가능한 front matter 사본과 본문
+ */
+function loadReviewDoc(abs: string): {
+  nextData: Record<string, unknown>;
+  body: string;
+  bouncer: Record<string, unknown>;
+  review: Record<string, unknown>;
+} {
+  const { data, body } = parseFrontmatter(fs.readFileSync(abs, 'utf8'));
+  const nextData: Record<string, unknown> = isRecord(data) ? cloneJson(data) : {};
+  if (!isRecord(nextData.bouncer)) nextData.bouncer = {};
+  const bouncer = nextData.bouncer as Record<string, unknown>;
+  if (!isRecord(bouncer.review)) bouncer.review = {};
+  const review = bouncer.review as Record<string, unknown>;
+  return { nextData, body, bouncer, review };
+}
+
+/**
+ * 검증을 통과한 review.md 본문을 임시 파일로 쓴 뒤 rename으로 교체한다. renameSync는
+ * 같은 디렉터리라 원자적이고, 실패하면 tmp를 지워 재시도가 깨진 바이트를 읽지 않게 한다.
+ *
+ * @param {string} abs - review.md 절대 경로
+ * @param {string} text - 렌더링된 문서 전체
+ * @returns {void}
+ */
+function writeReviewDocAtomically(abs: string, text: string): void {
+  const tmp = path.join(path.dirname(abs), `.review.md.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, abs);
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch (unlinkError) {
+      // ENOENT만 흡수: rename이 이미 옮겼거나 write가 실패해 파일이 없다.
+      if (!isRecord(unlinkError) || unlinkError.code !== 'ENOENT') throw unlinkError;
+    }
+    throw error;
+  }
+}
+
+/**
  * 라운드 하나와 finding 갱신을 review.md에 기록한다. 쓰기는 collectFindingFailures가
  * G21·G14와 같은 인자로 통과한 뒤에만 같은 디렉터리 임시 파일 + rename이다.
  *
@@ -297,6 +345,16 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     );
   }
 
+  // 최종 리뷰는 discovery 한 라운드로 끝난다. 새 root delta는 파일을 읽기 전에 거절해
+  // 저장 문서가 바뀌지 않게 한다. 이미 저장된 discovery,delta,delta 이력은 G21이 계속 읽는다.
+  if (blueprintScope && parsedInput.round.mode === 'delta') {
+    return fail(
+      'final-review-single-round',
+      'blueprint final review is a single discovery round; a new delta round is not accepted',
+      'record the discovery round only; defer must_fix findings with a note or report them as blocked',
+    );
+  }
+
   const rel = blueprintScope
     ? `${blueprintDir}/review.md`
     : `${blueprintDir}/tasks/${task}/review.md`;
@@ -309,13 +367,7 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     );
   }
 
-  const raw = fs.readFileSync(abs, 'utf8');
-  const { data, body } = parseFrontmatter(raw);
-  const nextData = isRecord(data) ? cloneJson(data) : {};
-  if (!isRecord(nextData.bouncer)) nextData.bouncer = {};
-  const bouncer = nextData.bouncer as Record<string, unknown>;
-  if (!isRecord(bouncer.review)) bouncer.review = {};
-  const review = bouncer.review as Record<string, unknown>;
+  const { nextData, body, bouncer, review } = loadReviewDoc(abs);
   const existingRounds = Array.isArray(review.rounds) ? cloneJson(review.rounds) : [];
   const expectedRound = existingRounds.length + 1;
   if (parsedInput.round.round !== expectedRound) {
@@ -329,7 +381,9 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   // 2. 라운드는 끝에만 붙인다. 중간 삽입은 번호 계약을 깨 G21과 어긋난다.
   const mergedRounds = [...existingRounds, cloneJson(parsedInput.round)];
   const existingFindings = Array.isArray(review.findings) ? review.findings : [];
-  const mergedFindings = mergeFindings(existingFindings, parsedInput.findings);
+  const mergeResult = mergeFindings(existingFindings, parsedInput.findings);
+  if (!mergeResult.ok) return mergeResult;
+  const mergedFindings = mergeResult.merged;
   review.rounds = mergedRounds;
   review.findings = mergedFindings;
   if (status) bouncer.status = status;
@@ -372,31 +426,135 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
 
   // 3. 검증 통과 뒤에만 임시 파일을 만든다. 실패 경로에 tmp를 남기면 재시도가
   //    깨진 바이트를 읽을 수 있다. renameSync는 같은 디렉터리라 원자적이다.
-  const text = renderDoc(nextData, body);
-  const tmp = path.join(path.dirname(abs), `.review.md.${process.pid}.tmp`);
-  try {
-    fs.writeFileSync(tmp, text);
-    fs.renameSync(tmp, abs);
-  } catch (error) {
-    try {
-      fs.unlinkSync(tmp);
-    } catch (unlinkError) {
-      // ENOENT만 흡수: rename이 이미 옮겼거나 write가 실패해 파일이 없다.
-      if (!isRecord(unlinkError) || unlinkError.code !== 'ENOENT') throw unlinkError;
-    }
-    throw error;
-  }
+  writeReviewDocAtomically(abs, renderDoc(nextData, body));
 
   // 경고는 이번 round 입력만 대상으로 하고(기존 원장은 제외) 기록에는 영향을 주지 않는다.
-  const warnings = validateSections.findingMergeCandidates(parsedInput.findings);
+  // 자동 id가 경고 ids에도 보이도록 정규화 뒤 입력을 쓴다.
+  const warnings = validateSections.findingMergeCandidates(mergeResult.incoming);
   return {
     ok: true,
     path: rel,
     round: expectedRound,
     status: bouncer.status,
     findings: mergedFindings.length,
+    finding_ids: mergeResult.ids,
     ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 
-export = { recordReview };
+type AcceptRiskInput = {
+  repoRoot: string;
+  blueprintDir: string;
+  finding: string;
+  note: string;
+  yes: boolean;
+};
+
+type AcceptRiskOk = {
+  ok: true;
+  path: string;
+  finding: string;
+  status: unknown;
+  open_remaining: number;
+};
+
+/**
+ * blueprint 최종 리뷰의 open finding 하나를 사용자가 수용한 위험으로 닫는다. 최종 리뷰는
+ * discovery 한 라운드로 끝나 blocked finding이 open으로 남는데, round를 더할 수 없으므로
+ * (final-review-single-round) 이 경로가 round 없이 finding만 accepted + accepted_risk로 바꾼다.
+ * 남은 open이 0이면 문서도 accepted로 올리고, 아니면 기존 status를 유지한다.
+ * `yes`가 없으면 파일을 읽기 전에 거절한다 — 사용자 승인 경계다.
+ * 쓰기는 recordReview와 같은 temp+rename이며 collectFindingFailures 통과 뒤에만 한다.
+ *
+ * @param {AcceptRiskInput} input - 수용 입력
+ * @param {string} input.repoRoot - 저장소 루트 절대 경로
+ * @param {string} input.blueprintDir - blueprint 상대 경로
+ * @param {string} input.finding - 닫을 finding id
+ * @param {string} input.note - 수용 사유. 공백뿐이면 거절
+ * @param {boolean} input.yes - 사용자 명시 승인 여부
+ * @returns {AcceptRiskOk | RecordReviewFail} 성공 시 path·finding·status·open_remaining, 실패 시 reason·cause·next
+ */
+function acceptReviewRisk(input: AcceptRiskInput): AcceptRiskOk | RecordReviewFail {
+  const { repoRoot } = input;
+  const blueprintDir = toPosix(input.blueprintDir);
+
+  // 1. 승인 경계는 어떤 I/O보다 먼저 본다.
+  if (input.yes !== true) {
+    return fail(
+      'review-accept-risk-confirmation-required',
+      '--yes is required to record an accepted risk',
+      'ask the user to explicitly approve accepting this risk, then rerun with --yes',
+    );
+  }
+  if (!isBlueprintReviewScopeAt(repoRoot, blueprintDir)) {
+    return fail(
+      'review-accept-risk-task-scope',
+      'accept-risk is only available when review_scope is blueprint',
+      'task reviews cannot accept risk; fix the finding or record it through review record',
+    );
+  }
+  const rel = `${blueprintDir}/review.md`;
+  const abs = path.join(repoRoot, rel);
+  if (!fs.existsSync(abs)) {
+    return fail('review-target-missing', rel, 'scaffold the review.md for this blueprint, then retry');
+  }
+
+  const { nextData, body, bouncer, review } = loadReviewDoc(abs);
+  const findings: unknown[] = Array.isArray(review.findings) ? review.findings : [];
+  const target = findings.find((item) => isRecord(item) && item.id === input.finding);
+  if (!isRecord(target)) {
+    return fail(
+      'review-finding-missing', `finding ${input.finding} not found in ${rel}`, 'pass an existing --finding id',
+    );
+  }
+  if (target.status !== 'open') {
+    return fail(
+      'review-finding-not-open',
+      `finding ${input.finding} status is ${String(target.status)}`,
+      'only an open finding can be accepted as a risk',
+    );
+  }
+  const note = typeof input.note === 'string' ? input.note.trim() : '';
+  if (note === '') {
+    return fail('review-note-required', '--note is empty', 'pass the reason the user accepted this risk');
+  }
+
+  // 2. 대상 finding만 바꾼다. rounds와 다른 finding은 손대지 않는다.
+  target.status = 'accepted';
+  target.accepted_risk = true;
+  target.note = note;
+  const openRemaining = findings.filter((item) => isRecord(item) && item.status === 'open').length;
+  if (openRemaining === 0) bouncer.status = 'accepted';
+
+  const messages = collectFindingFailures({
+    body,
+    findings,
+    rounds: review.rounds,
+    sectionLabel: 'review.md',
+    findingLabel: 'review',
+    allowedStatuses: EXECUTE_REVIEW_STATUS,
+    reviewStatus: bouncer.status,
+    roundScope: 'blueprint',
+  });
+  // 남은 open이 있는 부분 수용은 문서가 requested라 정상이다. 완결 순서 검사만 접두 예외를 건다.
+  const sequenceOnly = messages.length === 1 && messages[0] === 'review rounds sequence invalid';
+  const inProgressOk = sequenceOnly
+    && Array.isArray(review.rounds)
+    && isAllowedSequencePrefix(review.rounds, true)
+    && bouncer.status !== 'accepted';
+  if (messages.length > 0 && !inProgressOk) {
+    return fail(
+      'review-ledger-invalid',
+      messages,
+      'fix rounds and findings until collectFindingFailures is empty, then retry',
+    );
+  }
+
+  // 3. 검증 통과 뒤에만 쓴다. recordReview와 같은 temp+rename.
+  writeReviewDocAtomically(abs, renderDoc(nextData, body));
+  return {
+    ok: true, path: rel, finding: input.finding, status: bouncer.status, open_remaining: openRemaining,
+  };
+}
+
+export = { recordReview, acceptReviewRisk };

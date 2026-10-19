@@ -30,6 +30,8 @@ const {
   CONTEXT_REVIEW_STATUS, EXECUTE_REVIEW_STATUS,
 } = validateSections;
 import schema = require('./schema');
+import commandArgv = require('./command-argv');
+import { validOutsideScope } from './execution-contracts';
 const { executionKindOf } = schema;
 // plan-snapshot은 validate·validate-gates를 require하지 않으므로 순환이 없다.
 import planSnapshotLib = require('./plan-snapshot');
@@ -625,6 +627,142 @@ function checkVerificationTaskGraph(tasksList: DocLeaf[], failures: FailureEntry
 }
 
 /**
+ * `verification_policy: scoped_terminal` blueprint의 검증 책임 분리를 판정한다(G20).
+ * 구현 task는 task 전용 `bouncer.verify`를 가져야 하고, 전체 검증은 구현 task를
+ * 모두 기다리는 단 하나의 마지막 verification node가 맡는다. 표식이 없는 legacy
+ * blueprint는 소급하지 않고 그대로 통과시킨다. 허용 밖의 값은 legacy로 접지 않고
+ * 거절한다 — 오타가 조용히 옛 계약으로 읽히면 새 계획의 보호가 풀리기 때문이다.
+ * 거절 사유: 정책 값 오류, 구현 task 명령 누락·단일 argv 위반, 구현 task에 terminal과
+ * 같은 전체 명령 배정, terminal 개수가 1이 아님, terminal이 구현 task를 (간접 포함)
+ * 기다리지 않음, 새 light에서 구현이 하나가 아니거나 독립이 아님. 검증 뒤 구현
+ * node는 checkVerificationTaskGraph가 이미 거절하므로 중복 보고하지 않는다.
+ *
+ * @param {DocLeaf | undefined} blueprintIndex - blueprint index.md 문서
+ * @param {DocLeaf[]} tasksList - blueprint의 모든 tasks.md
+ * @param {boolean} isLight - blueprint scale이 light인지
+ * @param {FailureEntry[]} failures - G20 결과 누적 배열
+ * @returns {void} 결과는 failures에 push로만 남긴다
+ */
+function checkScopedTerminalPolicy(
+  blueprintIndex: DocLeaf | undefined,
+  tasksList: DocLeaf[],
+  isLight: boolean,
+  failures: FailureEntry[],
+): void {
+  const bpData = asData(blueprintIndex);
+  const policy = schema.verificationPolicyOf(bpData ? bpData.bouncer : undefined);
+  const bpFile = blueprintIndex ? blueprintIndex.rel : '';
+  if (policy === null) {
+    failures.push({
+      code: 'G20',
+      message: `verification_policy must be one of ${schema.VERIFICATION_POLICY_ENUM.join(' | ')} or absent`,
+      file: bpFile,
+    });
+    return;
+  }
+  if (policy === 'legacy') return;
+
+  const bouncerOf = (doc: DocLeaf) => {
+    const data = asData(doc);
+    return (data && data.bouncer ? data.bouncer : {}) as Record<string, unknown>;
+  };
+  const commits: DocLeaf[] = [];
+  const terminals: DocLeaf[] = [];
+  for (const doc of tasksList) {
+    const kind = executionKindOf(bouncerOf(doc));
+    if (kind === 'verification') terminals.push(doc);
+    else if (kind === 'commit') commits.push(doc);
+  }
+  const normalize = (value: unknown) => commandArgv.normalizeVerifyCommand(value as string);
+  const terminalCommands = new Set(terminals.map((doc) => normalize(bouncerOf(doc).verify)));
+
+  for (const doc of commits) {
+    const verify = bouncerOf(doc).verify;
+    if (typeof verify !== 'string' || verify.trim() === '') {
+      failures.push({
+        code: 'G20',
+        message: 'scoped_terminal commit task requires its own non-empty bouncer.verify',
+        file: doc.rel,
+      });
+    } else if (commandArgv.parseVerifyArgv(verify) === null) {
+      // 셸 연산자·미종료 인용은 실행 시점의 VERIFY_COMMAND_INVALID와 같은 파서로 미리 막는다.
+      failures.push({
+        code: 'G20',
+        message: 'scoped_terminal commit task verify must be a single executable command',
+        file: doc.rel,
+      });
+    } else if (terminalCommands.has(normalize(verify))) {
+      failures.push({
+        code: 'G20',
+        message: `scoped_terminal commit task must not run the terminal full-suite command: ${normalize(verify)}`,
+        file: doc.rel,
+      });
+    }
+  }
+
+  if (terminals.length !== 1) {
+    failures.push({
+      code: 'G20',
+      message: terminals.length === 0
+        ? 'scoped_terminal requires exactly one terminal verification task, found none'
+        : `scoped_terminal requires exactly one terminal verification task, found ${terminals.length}`,
+      file: bpFile,
+    });
+    return;
+  }
+  if (commits.length === 0) {
+    failures.push({
+      code: 'G20',
+      message: 'scoped_terminal requires at least one commit task before the terminal verification',
+      file: terminals[0].rel,
+    });
+    return;
+  }
+
+  // terminal이 모든 구현 task를 (간접 포함) 기다려야 "구현 통합 뒤 한 번"이 성립한다.
+  // 선행 id를 거슬러 올라가며 도달 집합을 만든다. 순환은 G19가 이미 거절했으므로
+  // visited 집합으로 한 번씩만 방문해 끝나게 한다.
+  const dependsById = new Map<string, string[]>();
+  for (const doc of tasksList) {
+    const b = bouncerOf(doc);
+    if (typeof b.id === 'string') {
+      const declared = Array.isArray(b.depends_on) ? b.depends_on : [];
+      dependsById.set(b.id, declared.filter((x): x is string => typeof x === 'string'));
+    }
+  }
+  const reached = new Set<string>();
+  const queue = [...(dependsById.get(String(bouncerOf(terminals[0]).id)) || [])];
+  while (queue.length > 0) {
+    const id = queue.pop() as string;
+    if (reached.has(id)) continue;
+    reached.add(id);
+    queue.push(...(dependsById.get(id) || []));
+  }
+  for (const doc of commits) {
+    const id = String(bouncerOf(doc).id);
+    if (!reached.has(id)) {
+      failures.push({
+        code: 'G20',
+        message: `terminal verification must wait for commit task: ${id}`,
+        file: terminals[0].rel,
+      });
+    }
+  }
+
+  if (isLight) {
+    const only = commits[0];
+    const dependsOn = bouncerOf(only).depends_on;
+    if (commits.length !== 1 || (Array.isArray(dependsOn) && dependsOn.length > 0)) {
+      failures.push({
+        code: 'G20',
+        message: 'scoped_terminal light requires one independent commit task plus the terminal verification',
+        file: bpFile,
+      });
+    }
+  }
+}
+
+/**
  * Git common dir의 verify 원장을 읽는다. evidenceId가 있으면 v2 경로를 쓰고,
  * 없으면 legacy(rel-only) 경로를 연다 — 구 원장 miss와 v2 hit 경계를 같게 유지한다.
  *
@@ -1052,6 +1190,7 @@ function runCheckGate(
             crMeta && crMeta.rounds,
             planTasksOf(docs),
             { repoRoot, blueprintDir, deps },
+            crMeta && crMeta.closure_target_digest,
           );
           if (stale) add('G18', stale, 'contextReview');
         }
@@ -1090,6 +1229,7 @@ function runCheckGate(
       }
     }
     checkVerificationTaskGraph(tasksList, failures);
+    checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
     return;
   }
   if (gate === 'execute') {
@@ -1163,30 +1303,46 @@ function runCheckGate(
       ? docs.tasksDocs
       : (docs.tasks ? [docs.tasks] : []);
     const openIds: string[] = [];
-    for (const tasksDoc of tasksList) {
+    // 입증된 범위 밖 terminal 실패는 integrated가 아니어도 닫힌 것으로 본다. 판정은 next·digest·
+    // finalize와 같은 validOutsideScope 하나를 쓰고, 문서가 verifying일 때만 적용해 pending/ready 같은
+    // 재작업 대기 문서가 분류 하나로 닫히지 않게 한다. 원장이 없거나(비-drive) 분류가 stale이면 null이라
+    // 기존 open-task 실패가 그대로 나온다. 통과 시 실패 사실이 사라지지 않도록 경고를 남긴다.
+    const ledgerFn = (deps && deps.coordinatorLedgerFor) || defaultCoordinatorLedgerFor;
+    let ledgerCache: object | null | undefined;
+    const taskIsOpen = (tasksDoc: DocLeaf): boolean => {
       const data = asData(tasksDoc);
       const taskBouncer = data && data.bouncer as Record<string, unknown> | undefined;
-      const expectedStatus = executionKindOf(taskBouncer) === 'verification'
-        ? 'integrated'
-        : 'verified';
-      if (statusOf(tasksDoc) !== expectedStatus) {
-        const id = data && data.bouncer
-          ? (data.bouncer as Record<string, unknown>).id
-          : undefined;
-        openIds.push(typeof id === 'string' && id ? id : '(unknown)');
+      const isTerminal = executionKindOf(taskBouncer) === 'verification';
+      const status = statusOf(tasksDoc);
+      if (status === (isTerminal ? 'integrated' : 'verified')) return false;
+      if (!isTerminal || status !== 'verifying' || typeof repoRoot !== 'string'
+        || typeof blueprintDir !== 'string' || typeof taskBouncer?.id !== 'string') return true;
+      if (ledgerCache === undefined) ledgerCache = ledgerFn({ repoRoot, blueprint: blueprintDir });
+      const accepted = validOutsideScope(ledgerCache, taskBouncer.id);
+      if (!accepted) return true;
+      if (ctx && Array.isArray(ctx.warnings)) {
+        ctx.warnings.push({
+          code: 'G16',
+          message: `terminal verification ${taskBouncer.id} failed and is classified outside_scope: ${accepted.reason}`,
+          file: tasksDoc.rel || rels.tasks,
+        });
       }
+      return false;
+    };
+    const openDocs: DocLeaf[] = [];
+    for (const tasksDoc of tasksList) {
+      if (!taskIsOpen(tasksDoc)) continue;
+      openDocs.push(tasksDoc);
+      const data = asData(tasksDoc);
+      const id = data && data.bouncer
+        ? (data.bouncer as Record<string, unknown>).id
+        : undefined;
+      openIds.push(typeof id === 'string' && id ? id : '(unknown)');
     }
     if (openIds.length) {
       // 열린 task id를 메시지에 담아 어느 묶음이 남았는지 바로 보이게 한다.
       // 경고가 아니라 hard fail — 사용자가 넘길 수 없다.
-      const openDoc = tasksList.find((taskDoc) => {
-        const data = asData(taskDoc);
-        const taskBouncer = data && data.bouncer as Record<string, unknown> | undefined;
-        const expectedStatus = executionKindOf(taskBouncer) === 'verification'
-          ? 'integrated'
-          : 'verified';
-        return statusOf(taskDoc) !== expectedStatus;
-      });
+      const openDoc = openDocs[0];
       failures.push({
         code: 'G16',
         message: `open tasks remain (not verified): ${openIds.join(', ')}`,
@@ -1478,6 +1634,23 @@ function planTasksOf(docs: BlueprintDocs): DocLeaf[] {
 const FRESHNESS_TASK_STATUSES: readonly unknown[] = ['draft', 'ready'];
 
 /**
+ * G18이 대조할 현재 계획 snapshot. 주입 함수는 테스트가 ctx 경로 없이 분기를 고정하도록 항상 부르고,
+ * 기본 구현은 경로가 둘 다 있을 때만 파일을 읽는다 — 직접 checkGate 호출 보존.
+ *
+ * @param {{ repoRoot?: string, blueprintDir?: string, deps?: GateDeps }} ctx - gate 경로와 주입 의존성
+ * @returns {PlanSnapshotResult | null} 계산 결과, 대조할 경로가 없으면 null
+ */
+function currentPlanSnapshot(
+  { repoRoot, blueprintDir, deps }: { repoRoot?: string; blueprintDir?: string; deps?: GateDeps },
+): PlanSnapshotResult | null {
+  if (deps && deps.planSnapshot) return deps.planSnapshot({ repoRoot, blueprintDir });
+  if (typeof repoRoot === 'string' && typeof blueprintDir === 'string') {
+    return computePlanSnapshot({ repoRoot, blueprintDir });
+  }
+  return null;
+}
+
+/**
  * accepted context-review의 마지막 round `target.digest`를 현재 계획 snapshot digest와
  * 대조해 G18 신선도 실패 메시지를 만든다. digest 자동 갱신이나 round 추가는 하지 않는다.
  * 대조 생략(null 반환): rounds가 배열이 아니거나 비었을 때, task 하나라도 status가
@@ -1489,13 +1662,31 @@ const FRESHNESS_TASK_STATUSES: readonly unknown[] = ['draft', 'ready'];
  * @param {unknown} rounds - context_review.rounds 원본 값
  * @param {DocLeaf[]} tasksList - blueprint의 plan 대상 tasks 문서 목록
  * @param {{ repoRoot?: string, blueprintDir?: string, deps?: GateDeps }} ctx - gate 경로와 주입 의존성
+ * @param {unknown} [closureDigest] - `context_review.closure_target_digest`. 있으면 round digest보다
+ *   먼저 대조한다(본문 수정 뒤 재close한 문서는 마지막 round digest가 낡아도 신선하다).
+ *   64 lowercase hex가 아니면 현재 내용으로 대체 인증하지 않고 거절한다. 부재면 round 폴백.
  * @returns {string | null} stale·계산 실패 메시지, 통과하거나 대조를 생략하면 null
  */
 function contextReviewFreshnessFailure(
   rounds: unknown,
   tasksList: DocLeaf[],
   { repoRoot, blueprintDir, deps }: { repoRoot?: string; blueprintDir?: string; deps?: GateDeps },
+  closureDigest?: unknown,
 ): string | null {
+  // 0. closure digest가 round 기록보다 우선한다. rounds가 비어도 대조하지만, 실행이 시작된
+  //    blueprint는 round 경로와 똑같이 대조하지 않는다.
+  if (closureDigest !== undefined) {
+    if (!tasksList.every((t) => FRESHNESS_TASK_STATUSES.includes(statusOf(t)))) return null;
+    if (typeof closureDigest !== 'string' || !/^[0-9a-f]{64}$/.test(closureDigest)) {
+      return 'context review closure_target_digest must be 64 lowercase hex; rerun context review close';
+    }
+    const currentClosure = currentPlanSnapshot({ repoRoot, blueprintDir, deps });
+    if (currentClosure === null) return null;
+    if (!currentClosure.ok) return `context review freshness unavailable: ${currentClosure.error}`;
+    if (currentClosure.digest === closureDigest) return null;
+    return `context review is stale: closure digest ${closureDigest} != current ${currentClosure.digest}; `
+      + 'rerun context review (close if only the body changed)';
+  }
   // 1. 문서 쪽 조건: rounds 없는 구문서와 실행이 시작된 blueprint는 대조하지 않는다.
   if (!Array.isArray(rounds) || rounds.length === 0) return null;
   if (!tasksList.every((t) => FRESHNESS_TASK_STATUSES.includes(statusOf(t)))) return null;
@@ -1525,14 +1716,8 @@ function contextReviewFreshnessFailure(
 
   // 3. 현재 digest. 주입 함수는 테스트가 ctx 경로 없이 분기를 고정하도록 항상 부른다.
   //    기본 구현은 경로가 둘 다 있을 때만 파일을 읽는다 — 직접 checkGate 호출 보존.
-  let current: PlanSnapshotResult;
-  if (deps && deps.planSnapshot) {
-    current = deps.planSnapshot({ repoRoot, blueprintDir });
-  } else if (typeof repoRoot === 'string' && typeof blueprintDir === 'string') {
-    current = computePlanSnapshot({ repoRoot, blueprintDir });
-  } else {
-    return null;
-  }
+  const current = currentPlanSnapshot({ repoRoot, blueprintDir, deps });
+  if (current === null) return null;
   if (!current.ok) return `context review freshness unavailable: ${current.error}`;
   if (current.digest === recorded) return null;
   return `context review is stale: last round digest ${recorded} != current ${current.digest}; rerun context review`;
@@ -1674,7 +1859,7 @@ function checkPlanDraft(
   failures: FailureEntry[],
   ctx: GateContext = {},
 ): void {
-  const { sectionKeys } = planScaleOf(docs);
+  const { isLight, sectionKeys } = planScaleOf(docs);
   const tasksList = planTasksOf(docs);
   if (tasksList.length === 0) {
     // plan gate의 빈 목록 분기에서 status 코드(G3)만 뺀 것이다.
@@ -1694,6 +1879,7 @@ function checkPlanDraft(
   // plan gate와 같은 조건: G19가 실패하면 모양 경고를 건너뛴다.
   if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   checkVerificationTaskGraph(tasksList, failures);
+  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
 }
 
 export = { checkGate, checkPartialCloseEvidence, checkPlanDraft, SECURITY_PATH_TOKENS };

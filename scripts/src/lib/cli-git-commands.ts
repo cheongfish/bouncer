@@ -219,10 +219,10 @@ function cmdImport(rest: string[], io: CliIo) {
  * 경로로 넘기면 reviseTaskScope가 그것을 out-of-bounds로 바꿔 거절 코드가
  * `scope-paths-required`에서 갈라진다.
  */
-function collectPathValues(rest: string[]): string[] {
+function collectPathValues(rest: string[], flag = '--paths'): string[] {
   const out: string[] = [];
   for (let i = 0; i < rest.length; i += 1) {
-    if (rest[i] !== '--paths') continue;
+    if (rest[i] !== flag) continue;
     const value = rest[i + 1];
     if (value === undefined || value.startsWith('--')) continue;
     out.push(value);
@@ -485,7 +485,9 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
     if (ledgerPath === undefined || ledgerPath === ''
       || ledgerHash === undefined || ledgerHash === '') {
-      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' })}\n`);
+      // 다른 coordinate 거절과 같이 hint 표를 거쳐 cause·next를 붙인다.
+      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+      io.out(`${JSON.stringify(hinted)}\n`);
       return 1;
     }
   }
@@ -536,6 +538,40 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       }
       repairDone = true;
     }
+    // --resume-task/--disposition은 값이 필요하다. 값 없는 플래그(true)나 둘의 동시 입력이 조용히
+    // 기존 dynamic repair 경로로 접히면 새 task가 생기므로 core에 보내기 전에 usage(2)로 끝낸다.
+    for (const name of ['resume-task', 'disposition']) {
+      if (Object.prototype.hasOwnProperty.call(f, name)
+        && (typeof f[name] !== 'string' || f[name] === '')) {
+        return failCoordinateUsage(io, `coordinate repair: --${name} requires a value\n`, command);
+      }
+    }
+    // --verify는 새 repair task 문서에 쓸 단일 argv다. 값 없는 플래그가 조용히
+    // 생략으로 접히면 scoped_terminal 거절이 엉뚱한 사유로 보이므로 usage(2)로 끝낸다.
+    // --resume-task는 기존 task를 되살릴 뿐 새 verify를 쓰지 않아 함께 쓸 수 없다.
+    if (Object.prototype.hasOwnProperty.call(f, 'verify')
+      && (typeof f.verify !== 'string' || f.verify.trim() === '')) {
+      return failCoordinateUsage(io, 'coordinate repair: --verify requires a value\n', command);
+    }
+    if (Object.prototype.hasOwnProperty.call(f, 'verify')
+      && Object.prototype.hasOwnProperty.call(f, 'resume-task')) {
+      return failCoordinateUsage(
+        io, 'coordinate repair: --verify cannot be combined with --resume-task\n', command,
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(f, 'resume-task')
+      && Object.prototype.hasOwnProperty.call(f, 'disposition')) {
+      return failCoordinateUsage(
+        io, 'coordinate repair: --resume-task and --disposition are mutually exclusive\n', command,
+      );
+    }
+  }
+  // --new-path는 반복 플래그라 값 없는 occurrence가 유효한 다른 값 뒤에 숨을 수 있다.
+  // 발생 횟수와 수집된 값 수가 다르면 조용히 버리지 않고 usage(2)로 끝낸다.
+  if ((command === 'repair' || command === 'revise')
+    && rest.slice(1).filter((tok) => tok === '--new-path').length
+      !== collectPathValues(rest.slice(1), '--new-path').length) {
+    return failCoordinateUsage(io, `coordinate ${command}: --new-path requires a value\n`, command);
   }
   if (command === 'worker-model' || command === 'worker-tokens') {
     // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
@@ -599,14 +635,15 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
     const loaded = loadLedgerBytes(paths.ledgerFile);
     if (!loaded) {
-      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' })}\n`);
+      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+      io.out(`${JSON.stringify(hinted)}\n`);
       return 1;
     }
     const fenced = assertLedgerFence({
       ledgerPath, ledgerHash, ledgerBytes: loaded.bytes,
     });
     if (!fenced.ok) {
-      io.out(`${JSON.stringify(fenced)}\n`);
+      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(fenced))}\n`);
       return 1;
     }
     const result = reviseTaskScope({
@@ -614,10 +651,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       blueprint: f.blueprint,
       task: typeof f.task === 'string' ? f.task : undefined,
       paths: collectPathValues(rest.slice(1)),
+      newPaths: collectPathValues(rest.slice(1), '--new-path'),
       reason: typeof f.reason === 'string' ? f.reason : undefined,
     }) as { ok: boolean; reason?: string; paths?: string[] };
     if (!result.ok) {
-      // 거절은 stdout을 pipe-clean으로 두고 reason 코드만 stderr로 낸다.
+      // 거절도 다른 coordinate 명령처럼 hint를 거친 stdout JSON(reason·paths·cause·next)으로
+      // 낸다. coordinator가 stderr 문자열을 파싱하지 않고 다음 행동을 고르게 하려는 것이다.
+      // stderr의 reason 한 줄은 사람이 읽는 기존 신호라 그대로 둔다.
+      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(result))}\n`);
       io.err(`coordinate revise: ${result.reason}\n`);
       return 1;
     }
@@ -706,10 +747,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       failureCommand: typeof f['failure-command'] === 'string' ? f['failure-command'] : undefined,
       summary: typeof f.summary === 'string' ? f.summary : undefined,
       paths: collectPathValues(rest.slice(1)),
+      newPaths: collectPathValues(rest.slice(1), '--new-path'),
+      verify: typeof f.verify === 'string' ? f.verify : undefined,
       findings: collectFindingValues(rest.slice(1)),
       reviewFindings: collectReviewFindingValues(rest.slice(1)),
       kind: repairKind,
       done: repairDone,
+      resumeTask: typeof f['resume-task'] === 'string' ? f['resume-task'] : undefined,
+      disposition: typeof f.disposition === 'string' ? f.disposition : undefined,
       outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
       reason: typeof f.reason === 'string' ? f.reason : undefined,
       attempt: attemptNum,
@@ -726,6 +771,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       ledgerPath,
       ledgerHash,
       userConfirmed: f['user-confirmed'] === true,
+      promoteLight: f['promote-light'] === true,
     }) as { ok: boolean };
     const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
     if (result.ok && hasWriteInput) {

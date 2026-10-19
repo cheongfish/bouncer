@@ -72,6 +72,19 @@ function cmdIntentLazy(rest: string[], io: CliIo): number {
   return intentCommand.run(rest, io);
 }
 
+/**
+ * ontology parser와 색인을 첫 명령 실행까지 지연한다. help 구성은 registry usage만
+ * 읽으므로 전체 CLI와 다른 project command에서 검색 코어를 적재하지 않는다.
+ *
+ * @param {string[]} rest - `ontology` 뒤의 모드와 옵션
+ * @param {CliIo} io - stdout/stderr 싱크
+ * @returns {number} ontology 전용 handler의 종료 코드
+ */
+function cmdOntologyLazy(rest: string[], io: CliIo): number {
+  const command = require('./cli-ontology-command') as { run: (rest: string[], io: CliIo) => number };
+  return command.run(rest, io);
+}
+
 function cmdGraphifyBin(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
@@ -223,8 +236,9 @@ function cmdProjectRoot(rest: string[], io: CliIo) {
 }
 
 /**
- * `run preflight`만 받는다. 정규화 JSON을 stdout에 내고, 거절은 같은 채널의
- * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ * `run preflight`와 `run detach`를 받는다. 정규화 JSON을 stdout에 내고, 거절은 같은
+ * 채널의 `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ * detach는 사용자 승인(`--yes`)을 detachRun이 확인한다 — 여기서 승인을 추정하지 않는다.
  *
  * @param {string[]} rest - 서브커맨드와 플래그
  * @param {CliIo} io - stdout/stderr 싱크
@@ -239,15 +253,30 @@ function cmdRun(rest: string[], io: CliIo) {
   const { runPreflight } = require('./run-preflight') as typeof import('./run-preflight');
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
-  // preflight만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+  // preflight·detach만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
   // 구분해, 없는 동사를 drive 쓰기로 착각하지 않게 한다.
-  if (command !== 'preflight') {
-    io.err('run: command must be preflight\n');
+  if (command !== 'preflight' && command !== 'detach') {
+    io.err('run: command must be preflight|detach\n');
     return 2;
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
     io.err('run: --blueprint is required\n');
     return 2;
+  }
+  if (command === 'detach') {
+    try {
+      const result = detachRun({
+        repoRoot: (f.repo || process.cwd()) as string,
+        blueprint: f.blueprint,
+        reason: typeof f.reason === 'string' ? f.reason : undefined,
+        yes: f.yes === true,
+      });
+      io.out(`${JSON.stringify(result, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    } catch (error) {
+      io.err(`run detach: ${catchMessage(error)}\n`);
+      return 1;
+    }
   }
   try {
     const result = runPreflight({
@@ -328,6 +357,47 @@ function parseRetentionMigrateArgs(flagArgs: string[]): {
   return { apply, blueprint, repo };
 }
 
+/**
+ * migrate review-scope 전용 argv. parseFlags는 알 수 없는 option을 조용히 삼키므로
+ * 여기서 엄격히 닫는다. 쓰기 명령이라 --blueprint 누락은 사용법 오류(exit 2)다.
+ *
+ * @param {string[]} flagArgs - `migrate review-scope` 뒤 argv
+ * @returns {{ error?: string, blueprint: string | null, repo?: string }}
+ */
+function parseReviewScopeMigrateArgs(flagArgs: string[]): {
+  error?: string;
+  blueprint: string | null;
+  repo?: string;
+} {
+  let blueprint: string | null = null;
+  let repo: string | undefined;
+  const fail = (message: string) => ({
+    error: `migrate review-scope: ${message}\n`,
+    blueprint,
+    repo,
+  });
+  for (let i = 0; i < flagArgs.length; i += 1) {
+    const token = flagArgs[i];
+    if (token === '--blueprint' || token === '--repo') {
+      const isBlueprint = token === '--blueprint';
+      if (isBlueprint ? blueprint !== null : repo !== undefined) {
+        return fail(`duplicate option: ${token}`);
+      }
+      const value = flagArgs[++i];
+      if (value === undefined || value.startsWith('--') || value.trim() === '') {
+        return fail(`${token} requires a directory`);
+      }
+      if (isBlueprint) blueprint = value.trim();
+      else repo = value;
+      continue;
+    }
+    if (token.startsWith('--')) return fail(`unknown option: ${token}`);
+    return fail(`unexpected argument: ${token}`);
+  }
+  if (blueprint === null) return fail('--blueprint <dir> is required');
+  return { blueprint, repo };
+}
+
 function cmdMigrate(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
@@ -357,6 +427,19 @@ function cmdMigrate(rest: string[], io: CliIo) {
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
   }
+  if (kind === 'review-scope') {
+    const parsed = parseReviewScopeMigrateArgs(flagArgs);
+    if (parsed.error) {
+      io.err(parsed.error);
+      return 2;
+    }
+    const result = migrateReviewScope({
+      repoRoot: (parsed.repo || process.cwd()) as string,
+      blueprintDir: parsed.blueprint as string,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  }
   if (kind !== 'task-layout') {
     io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);
     return 2;
@@ -381,6 +464,14 @@ export = {
   intent: {
     run: cmdIntentLazy,
     usage: cliUsage.COMMAND_USAGE["intent"],
+  },
+  ontology: {
+    run: cmdOntologyLazy,
+    usage: `  ontology   entity --entity <token> [--repo <dir>] [--limit <1..100>]
+             file --file <path> [--repo <dir>] [--limit <1..100>]
+             impact --file <path> [--repo <dir>] [--limit <1..100>]
+             Search canonical Bouncer context in memory (read-only JSON).
+`,
   },
   'graphify-bin': {
     run: cmdGraphifyBin,

@@ -7,6 +7,8 @@ import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
+import { validOutsideScope } from './execution-contracts';
+import type { OutsideScopeDisposition } from './execution-contracts';
 function asRecord(value: unknown): Record<string, unknown> { return value as Record<string, unknown>; }
 
 
@@ -19,7 +21,35 @@ type IntegrationReport = {
   complete: boolean;
   openTasks: string[];
   headVerified: boolean | null;
+  outsideScope?: { task: string; disposition: OutsideScopeDisposition };
 };
+
+type MustFixWarning = { kind: 'must-fix-deferred'; id: string; note: string };
+
+function isDeferredMustFix(raw: unknown): boolean {
+  const finding = asRecord(raw);
+  return finding.actionability === 'must_fix'
+    && finding.status === 'deferred'
+    && typeof finding.id === 'string' && finding.id !== '';
+}
+
+function collectMustFixWarnings(rawFindings: unknown): MustFixWarning[] {
+  const warnings: MustFixWarning[] = [];
+  const seen = new Set<string>();
+  for (const raw of Array.isArray(rawFindings) ? rawFindings : []) {
+    if (!isDeferredMustFix(raw)) continue;
+    const finding = asRecord(raw);
+    const id = finding.id as string;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    warnings.push({
+      kind: 'must-fix-deferred',
+      id,
+      note: typeof finding.note === 'string' ? finding.note : '',
+    });
+  }
+  return warnings;
+}
 
 
 
@@ -73,7 +103,11 @@ function buildIntegration(read: LedgerReadLike): IntegrationReport {
   const tasks = (Array.isArray(read.ledger.tasks) ? read.ledger.tasks : [])
     .filter((entry) => Boolean(entry) && typeof entry === 'object')
     .map((entry) => asRecord(entry));
-  const open = tasks.filter((entry) => entry.status !== 'integrated');
+  const classified = tasks
+    .map((entry) => ({ entry, disposition: validOutsideScope(read.ledger, String(entry.id)) }))
+    .find((row) => row.disposition !== null);
+  const open = tasks.filter((entry) => entry.status !== 'integrated'
+    && !(classified && classified.entry === entry));
   const openTasks = open
     .map((entry) => threeDigitTaskId(entry.id))
     .filter((id): id is string => Boolean(id))
@@ -90,6 +124,9 @@ function buildIntegration(read: LedgerReadLike): IntegrationReport {
     headVerified: verification.length === 0
       ? null
       : verification.every((entry) => entry.status === 'integrated'),
+    ...(classified && classified.disposition
+      ? { outsideScope: { task: String(classified.entry.id), disposition: classified.disposition } }
+      : {}),
   };
 }
 
@@ -166,4 +203,7 @@ function readTaskStatus(file: string): string | null {
 }
 
 
-export = { buildIntegration, coordinatorEvidenceMismatches };
+export = {
+  buildIntegration, coordinatorEvidenceMismatches,
+  collectMustFixWarnings, isDeferredMustFix,
+};

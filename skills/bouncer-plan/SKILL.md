@@ -92,16 +92,17 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    are not scratch work: they become the numbered `## Success criteria` list
    in the epic body in step 3.
 
-2. **Scaffold.** Recommended ids come from the preflight `bouncer plan inspect`
+2. **Scaffold.** IDs are auto-allocated from `plan inspect`; to change one, the user replies with the new id and you use it. Recommended ids come from the preflight `bouncer plan inspect`
    payload — `nextEpicId`, and when `--epic-dir` was passed,
    `epic.nextBlueprintId`. These are suggestions only; the user may override
    them. If adding to an existing epic and preflight omitted `--epic-dir`,
    re-run `bouncer plan inspect --epic-dir <dir>` for `nextBlueprintId`.
-   **ACQ — ID allocation (`plan.id_allocation`):** show the suggested
-   epic/blueprint id and let the user override it.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
-   **Light path.** **ACQ — Light scope (`plan.light_scope`):** ask whether the work is narrow-scope —
-   do not auto-judge. On a light declaration, create no new epic; allocate only a
+   **Light path.** **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
+   ID in the Re-ground and say it can be changed by replying with a new id.
+   Recommend light only when one commit task is expected and no public interface, protected path, or cross-module state change is involved; otherwise recommend full.
+   Base that recommendation only on the discovery handoff; the user still declares light or full.
+   On a light declaration, create no new epic; allocate only a
    blueprint id under the epic whose slug is `maintenance` (`maintenanceEpic`
    from inspect), creating that epic once with the next free `\d{3}` id if
    `maintenanceEpic` is `null` (never assume a number such as
@@ -119,7 +120,12 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    **Light scaffold.** When this step received a light declaration, add
    `--scale light` to the blueprint command. That creates only four documents:
    blueprint `index.md`, `tasks/001/{tasks,verification}.md`, and root
-   `review.md` — no `context-review.md` (100 lines or fewer total). Omit the
+   `review.md` — no `context-review.md` (100 lines or fewer total). The new
+   blueprint also records `bouncer.verification_policy: scoped_terminal`, so a
+   light plan is complete only with one terminal verification task: run
+   `bouncer scaffold task --blueprint <dir> --id 002 --execution-kind
+   verification --depends-on TASKS-001 --verify "<full command>"` after the
+   implementation task (two more documents outside the 100-line budget). Omit the
    flag or use `--scale full` and all five documents are created as described
    below. Values
    outside `light`/`full` create no documents and exit with code 2. Do not attach
@@ -189,7 +195,18 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    an error contract, or state changes across multiple modules signals a return to
    full: set `scale` back, run `bouncer scaffold context-review --blueprint <dir>`,
    fill Interface and Do not touch, and rejoin the normal path.
-   **Verify command (optional).** Once the draft bodies make this blueprint's
+   **Verify command (required per commit task on a `scoped_terminal` blueprint).**
+   Every new blueprint carries `bouncer.verification_policy: scoped_terminal`.
+   Each commit task needs its own task-only `bouncer.verify` (a single argv that
+   runs just that task's tests — the tests its Checklist adds or changes), and
+   the last task is exactly one terminal verification task, created with
+   `bouncer scaffold task --execution-kind verification --depends-on ...
+   --verify "<full-suite command>"`, that waits for every commit task. Never
+   assign the full-suite command to a commit task; the plan gate (G20) rejects
+   a missing or empty command, a full-suite command on a commit task, a missing
+   or second terminal, and a terminal that skips a commit task. A blueprint
+   without the key is legacy and keeps the optional behavior below.
+   Once the draft bodies make this blueprint's
    character clear, use `verifySignals` from `bouncer plan inspect`. The
    command reports **repository root only** presence of `docker-compose.yml`,
    `docker-compose.yaml`, `compose.yml`, `compose.yaml`, `Makefile`, or
@@ -198,10 +215,11 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    least one signal, run
    **ACQ — Verify command (`plan.verify_command`):** ask whether to set `tasks.bouncer.verify` for this
    blueprint. When `Project rules` names one command the project runs before
-   merge (for example the script its CI runs), recommend that command. On accept, write a **single** executable argv string into each
+   merge (for example the script its CI runs), recommend that command for the
+   terminal verification task. On accept, write a **single** executable argv string into each
    `tasks/<NNN>/tasks.md` frontmatter `bouncer.verify` (e.g. `npm run test:e2e`,
-   `make test`); with no signal or on refusal leave it unset so execute keeps
-   the global `config.verify`. Never write `bouncer.verify` from detection
+   `make test`); on a legacy blueprint with no signal or on refusal leave it
+   unset so execute keeps the global `config.verify`. Never write `bouncer.verify` from detection
    alone, and never edit `config.verify` / `.bouncer/config.json` here. Do not
    propose values mixing `&&`, `;`, pipes, redirection, or a `cd` prefix —
    verify is a single argv so the evidence command stays reproducible from the
@@ -229,7 +247,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    light plan the user's `affected_paths` confirmation and G3–G5 / G10–G12
    carry approved scope.
 
-   For a `scale: full` blueprint, after `affected_paths` confirmation, read: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`; its strategy (`single` | `clustered`) is the only discovery dispatch choice. Follow-ups, routing, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or digest mismatch, stop without reviewers and report. Behavioral brief: the `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while an actionable finding remains unresolved. An open `must_fix` after delta stops for the user; accepted-risk needs explicit user consent.
+   For a `scale: full` blueprint, after `affected_paths` confirmation, read: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`; its strategy is always `single` (one `combined` reviewer; older `clustered` payloads are only read). Follow-ups, routing, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or digest mismatch, stop without reviewers and report. Behavioral brief: the `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while an actionable finding remains unresolved. An open `must_fix` after delta stops for the user; accepted-risk needs explicit user consent.
 
 6. **Approval (explicit).** Before asking for approval, show the authored
    task DAG: each task's `depends_on`, `parallel_safe`, and
@@ -245,7 +263,9 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    bouncer current --set <blueprint dir>
    ```
    Read `${BOUNCER_ROOT}/rules/current-pointer.md` for the approved initial-pointer application;
-   its `--set` refusal stops this workflow.
+   its `--set` refusal stops this workflow. On `CURRENT_WOULD_BE_AMBIGUOUS`, ask
+   the user inside the existing ACQ flow whether to `--replace`, `--keep-others`,
+   or stop, then run the chosen `next` command; never choose implicitly.
 
 8. **Gate.** Run `bouncer validate --gate plan` and render its result through
    `${BOUNCER_ROOT}/rules/output.md`:
@@ -271,7 +291,7 @@ Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback.
 **Index:**
 - Before step 1 — `plan.request` Request (when invocation had no description)
 - Step 1 — `plan.discovery` Discover confirm
-- Step 2 — `plan.id_allocation` ID allocation · `plan.light_scope` Light scope
+- Step 2 — `plan.light_scope` Light scope
 - Step 3 — `plan.verify_command` Verify command
 - Step 4 — `plan.affected_paths` affected_paths
 - Step 6 — `plan.approval` Approval

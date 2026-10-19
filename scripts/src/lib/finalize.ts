@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 import paths = require('./paths');
 const { toPosix } = paths;
 import validate = require('./validate');
@@ -41,7 +42,9 @@ const {
   buildCoordinatorProvenance, provenanceFromLedgerRead, stableIdFromTaskData,
 } = finalizeCollect;
 import finalizeChecks = require('./finalize-checks');
-const { buildIntegration, coordinatorEvidenceMismatches } = finalizeChecks;
+const {
+  buildIntegration, coordinatorEvidenceMismatches, collectMustFixWarnings,
+} = finalizeChecks;
 import finalizeExplain = require('./finalize-explain');
 const { writeExplainTaskCommits, buildTaskContext, writeExplainTaskContext } = finalizeExplain;
 
@@ -55,6 +58,8 @@ const { internalCommitEnv } = preCommitHook;
 // finalize → current → coordinator 경로가 이미 있으므로 직접 import해도 새 순환은
 // 없다(coordinator의 import 닫힘에는 finalize가 없다).
 import coordinatorLib = require('./coordinator');
+import { validOutsideScope } from './execution-contracts';
+import type { OutsideScopeDisposition } from './execution-contracts';
 // seed-worktree는 paths·layout·scope만 import하므로 finalize를 끌어와 순환을 만들지 않는다.
 // 설치 판정(lockfile·marker)과 npm ci 인자를 seed/fan-in과 한 구현으로 공유하려는 import.
 import seedWorktree = require('./seed-worktree');
@@ -241,13 +246,77 @@ type UnreadableProvenance = {
 };
 
 type LedgerReadLike = ReturnType<typeof readCoordinatorLedger>;
-type IntegrationReport = {
-  ledger: 'absent' | 'ok' | 'unreadable';
-  required: boolean;
-  complete: boolean;
-  openTasks: string[];
-  headVerified: boolean | null;
+/**
+ * 재실행 출력의 실패 경로가 모두 분류된 범위 밖 경로 안에 있는지 판정한다.
+ * 출력에서 저장소 파일 경로(디렉터리 구분자가 있는 토큰, node_modules·node: 내부 제외)를 뽑아
+ * 하나 이상 있어야 하고 전부 분류 경로(파일 또는 디렉터리)에 속해야 true다. 경로를 하나도 못
+ * 찾거나 분류 밖 경로가 하나라도 있으면 false라 호출자가 VERIFY_FAILED로 막는다(보수적 판정).
+ *
+ * @param {string} output - 재실행 검증 출력
+ * @param {string[]} classified - 분류 당시 기록한 범위 밖 경로
+ * @param {string} repoRoot - 절대 경로 접두를 벗길 저장소 루트
+ * @returns {boolean} 모든 실패 경로가 분류 안이면 true
+ */
+function failuresWithinClassifiedPaths(output: string, classified: string[], repoRoot: string): boolean {
+  const root = toPosix(repoRoot).replace(/\/+$/, '');
+  const norm = (value: string) => value.replace(/^\.\//, '').replace(/\/+$/, '');
+  const allowed = classified.map((entry) => norm(toPosix(entry)));
+  const found = new Set<string>();
+  for (const match of output.matchAll(/[\w@.~:/\\-]*[\w@.-]+\/[\w@./\\-]*[\w-]\.[A-Za-z0-9]+/g)) {
+    let token = toPosix(match[0]).replace(/^file:\/\//, '');
+    if (token.includes('node_modules') || token.startsWith('node:') || /^[a-z]+:\/\//i.test(token)) continue;
+    if (token.startsWith(`${root}/`)) token = token.slice(root.length + 1);
+    found.add(norm(token));
+  }
+  if (found.size === 0) return false;
+  return [...found].every((token) => allowed.some((entry) => token === entry || token.startsWith(`${entry}/`)));
+}
+
+type RemainderOutsideScope = {
+  task: string; disposition: OutsideScopeDisposition;
+  remainder: { command: string; exit_code: number; output_sha: string; evidence_id: string };
+  note: string;
 };
+
+/**
+ * finalize remainder 검증 실패가 원장에 입증된 범위 밖 terminal 실패와 같은 원인인지 판정한다.
+ * 원장이 없거나(비-drive) 분류가 없거나 stale이면, 명령이나 종료 코드가 분류된 실패와 다르면 null이라
+ * 호출자는 기존 VERIFY_FAILED로 막는다. 맞으면 이번 실행의 output digest를 원본 evidence id에
+ * 연결한 새 identity를 돌려준다(원문 출력은 싣지 않는다).
+ *
+ * @param {LedgerReadLike} read - finalize가 한 번 읽은 원장 결과
+ * @param {string} command - 이번 remainder 검증 명령
+ * @param {{ exitCode: number, output: string }} execution - 실패한 검증 결과
+ * @param {string} repoRoot - 출력의 절대 경로를 상대 경로로 바꾸는 기준
+ * @returns {RemainderOutsideScope | null} 같은 범위 밖 원인이면 연결 정보, 아니면 null
+ */
+function remainderOutsideScope(
+  read: LedgerReadLike,
+  command: string,
+  execution: { exitCode: number; output: string },
+  repoRoot: string,
+): RemainderOutsideScope | null {
+  if (!read.ok) return null;
+  const failure = asRecord(asRecord(read.ledger).terminalFailure);
+  const taskId = typeof failure.task === 'string' ? failure.task : '';
+  const disposition = validOutsideScope(read.ledger, taskId);
+  if (!disposition) return null;
+  if (failure.command !== command || failure.exitCode !== execution.exitCode) return null;
+  // 같은 명령·종료 코드는 같은 원인의 증거가 못 된다(npm run ci는 새 범위 내 실패도 exit 1이다).
+  // 재실행 출력이 가리키는 실패 경로가 분류 때 기록한 범위 밖 경로에만 한정될 때만 연결한다.
+  if (!failuresWithinClassifiedPaths(String(execution.output), disposition.paths, repoRoot)) return null;
+  return {
+    task: taskId,
+    disposition,
+    remainder: {
+      command,
+      exit_code: execution.exitCode,
+      output_sha: createHash('sha256').update(String(execution.output)).digest('hex'),
+      evidence_id: disposition.evidence_id,
+    },
+    note: `범위 밖 실패 evidence ${disposition.evidence_id}는 id로만 PR에 싣고 로컬 경로는 공유 링크에 넣지 않는다.`,
+  };
+}
 
 type EvidenceMismatch = { id: string | null; expected: string; actual: string | null };
 
@@ -455,6 +524,16 @@ function finalize({
     : staged;
 
   if (!yes) {
+    // blueprint 루트 리뷰가 deferred로 넘긴 must_fix를 --yes 전에 보이게 한다.
+    // 이미 읽은 docs만 쓰고(파일을 다시 읽지 않음), 실제 finalize cwd의 문서를 본다 —
+    // prepare는 integration checkout을 보지만 drive의 finalize cwd도 그 checkout이라 같다.
+    // task 범위(review_scope 부재)는 경고를 만들지 않는다.
+    const bpBouncer = asRecord(asRecord(docs.blueprintIndex && docs.blueprintIndex.data).bouncer);
+    const warnings = bpBouncer.review_scope === 'blueprint'
+      ? collectMustFixWarnings(
+        asRecord(asRecord(asRecord(docs.review && docs.review.data).bouncer).review).findings,
+      )
+      : [];
     // 읽기 전용 보고가 config.verify 전체를 끌고 오면 안 되므로 검증도 생략.
     return {
       ok: true,
@@ -466,6 +545,7 @@ function finalize({
       branch,
       worktrees,
       integration,
+      warnings,
     };
   }
 
@@ -524,7 +604,12 @@ function finalize({
     cwd: repoRoot,
     ...(verifyExec ? { exec: adaptInjectedVerifyExec(verifyExec) } : {}),
   });
-  if (!execution.ok) {
+  // remainder 검증이 실패해도 이미 입증된 범위 밖 terminal 실패와 같은 원인이면 PR 인계를 막지 않는다.
+  // 같은 원인의 근거는 명령·종료 코드 일치에 더해 출력의 실패 경로가 분류 경로에 한정되는 것이다.
+  // 명령이나 종료 코드가 다르면 새 실패라 기존처럼 막는다. 새 실행의 output digest를 원본 evidence에
+  // 묶어 새 identity로 남기며, 원본 evidence는 id로만 싣는다(로컬 경로를 공유 링크에 새기지 않는다).
+  const sameCause = !execution.ok ? remainderOutsideScope(ledgerRead, command, execution, repoRoot) : null;
+  if (!execution.ok && !sameCause) {
     return {
       ok: false,
       reason: 'verify',
@@ -641,6 +726,7 @@ function finalize({
     branch,
     worktrees,
     integration,
+    ...(sameCause ? { outside_scope: sameCause } : {}),
   };
 }
 

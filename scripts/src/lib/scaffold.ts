@@ -425,6 +425,10 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
         // 새 blueprint는 task별 리뷰 대신 루트 review.md 하나다.
         // 기존 문서의 필드 부재는 구형 계약으로 남긴다(여기서 소급하지 않음).
         review_scope: 'blueprint',
+        // 새 계획은 구현 task별 전용 명령 + 마지막 verification node 계약을 쓴다.
+        // 표식이 없는 기존 blueprint는 legacy로 남으므로 소급하지 않는다. 표식의
+        // 의미(명령 누락 거절·terminal topology)는 plan gate가 판정한다.
+        verification_policy: 'scoped_terminal',
         supersedes: [],
       }),
     body('blueprint.md')));

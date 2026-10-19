@@ -74,11 +74,41 @@ function writeWorkerReport(worker, task, attempt, hash, {
   fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
 }
 
+/**
+ * worker가 integration에 없는 커밋을 갖게 하고 `bouncer commit`이 찍는 stamp(HEAD 앞 8자)를
+ * tasks.md에 쓴다. 이미 worker 커밋이 있으면 새로 만들지 않는다.
+ * report(accepted)·record가 커밋 확정을 요구하므로 정상 순서(commit → report → record)를
+ * 만드는 fixture 단계다. stamp는 task brief hash가 무시하는 `commit_sha`만 바꾼다.
+ */
+function commitAndStampWorker(repo, blueprint, worker, task = '001', { stamp = true } = {}) {
+  const integrationPath = __coordinatorPathsFor({ repoRoot: repo, blueprint }).integrationPath;
+  const integrationHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: integrationPath, encoding: 'utf8' }).trim();
+  let hasCommit = true;
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', integrationHead], { cwd: worker, stdio: 'ignore' });
+    hasCommit = false;
+  } catch (_error) { /* 종료 코드 1 = HEAD가 integration 조상이 아님 = 이미 worker 커밋이 있음 */ }
+  if (!hasCommit) {
+    fs.mkdirSync(path.join(worker, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(worker, `src/task-${task}.js`), `changed by ${task}\n`);
+    execFileSync('git', ['add', `src/task-${task}.js`], { cwd: worker });
+    execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', `feat: ${task}`],
+      { cwd: worker });
+  }
+  if (!stamp) return;
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const file = path.join(worker, blueprint, 'tasks', task, 'tasks.md');
+  const doc = readDoc(file);
+  doc.data.bouncer.commit_sha = head.slice(0, 8);
+  fs.writeFileSync(file, renderDoc(doc.data, doc.body));
+}
+
 function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  commitAndStampWorker(repo, blueprint, worker, task);
   writeWorkerReport(worker, task, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
@@ -241,7 +271,8 @@ test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons�
   const keys = [
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
-    'verification-task-uses-blueprint-next', 'coordinator-card-missing',
+    'verification-task-uses-blueprint-next', 'coordinator-card-missing', 'final-review-blocked',
+    'worker-commit-stamp-mismatch',
   ];
   assert.deepStrictEqual(Object.keys(NEXT_FAILURE_HINTS).sort(), [...keys].sort());
   for (const key of keys) {
@@ -265,6 +296,18 @@ test('blueprint next에서 partial_closed → blocked', () => {
   assert.strictEqual(r.cause, NEXT_FAILURE_HINTS['partial-closed'].cause);
   assert.strictEqual(r.next, NEXT_FAILURE_HINTS['partial-closed'].next);
   assert.ok(!('tasks' in r) && !('decisions' in r));
+});
+
+test('blueprint next에서 detached → run-detached로 거절하고 원장을 쓰지 않음', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/001-detached';
+  const drive = preparedCommitDrive('bouncer-next-detached-', blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.status = 'detached';
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'run-detached');
+  assert.strictEqual(typeof r.next, 'string');
 });
 
 test('blueprint next에서 promotion_stopped → blocked', () => {
@@ -415,6 +458,33 @@ test('blueprint next에서 ready verification task → verification_node', () =>
   assert.strictEqual(r.cwd, boot.integrationPath);
 });
 
+test('light ledger with a terminal verification node → integrate first, prepare then verification_node only after the implementation is integrated', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/010-light-terminal';
+  const drive = preparedCommitDrive('bouncer-next-light-terminal-', blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.mode = 'light';
+  ledger.tasks.push({
+    id: '002', depends_on: ['001'], execution_kind: 'verification', dependency_gate: 'integrated',
+    parallel_safe: false, affected_paths: [], exclusive_resources: [], status: 'pending',
+  });
+  // 1. 구현이 recorded인 동안은 종단이 선행 조건 때문에 열릴 수 없고 integrate가 먼저다.
+  ledger.tasks[0].status = 'recorded';
+  ledger.tasks[0].sha = 'a'.repeat(40);
+  writeLedger(drive.ledgerFile, ledger);
+  assert.strictEqual(assertNoWrite(drive, () => nextOf(drive)).action, 'integrate');
+  // 2. 구현이 integrated가 되면 종단 node를 ready로 올리는 prepare가 다음이다.
+  ledger.tasks[0].status = 'integrated';
+  writeLedger(drive.ledgerFile, ledger);
+  const afterImpl = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(afterImpl.action, 'prepare');
+  // 3. prepare가 종단을 ready로 올린 뒤에야 verification_node가 선택된다.
+  ledger.tasks[1].status = 'ready';
+  writeLedger(drive.ledgerFile, ledger);
+  const node = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(node.action, 'verification_node');
+  assert.strictEqual(node.task, '002');
+});
+
 test('blueprint next에서 review mode의 all integrated이고 accepted root review 없음 → final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/009-fr';
   const drive = preparedCommitDrive('bouncer-next-fr-', blueprint);
@@ -452,15 +522,15 @@ test('blueprint next에서 pending supplement decision → supplement action', (
   assertCardFor(r);
 });
 
-test('blueprint next에서 verified supplement → delta mode의 final_review', () => {
+test('blueprint next에서 discovery 없는 verified supplement → mode 없는 final_review', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/021-supp';
   const drive = supplementReviewDrive('bouncer-next-supp-v-', blueprint, [
     { kind: 'supplement', outcome: 'verified', paths: ['test/a.test.js'], findings: ['F1'] },
   ]);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'final_review');
-  assert.strictEqual(r.payload.mode, 'delta');
-  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
+  assert.strictEqual(r.payload, undefined);
+  assert.ok(!r.argv.includes('--mode'));
   assertCardFor(r);
 });
 
@@ -473,7 +543,7 @@ test('blueprint next에서 supplement decision 없음 → final_review에 mode�
   assert.ok(!r.argv.includes('--mode'));
 });
 
-test('root review에 discovery round → final_review argv 끝이 --mode delta이고 payload.mode delta', () => {
+test('root review에 discovery round가 있고 accepted가 아님 → final-review-blocked이며 delta를 내지 않음', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/023-disc';
   const drive = supplementReviewDrive('bouncer-next-disc-', blueprint, []);
   fs.writeFileSync(
@@ -481,10 +551,35 @@ test('root review에 discovery round → final_review argv 끝이 --mode delta�
     '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
   );
   const r = assertNoWrite(drive, () => nextOf(drive));
-  assert.strictEqual(r.action, 'final_review');
-  assert.strictEqual(r.payload.mode, 'delta');
-  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
-  assertCardFor(r);
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+  assert.ok(r.cause && r.next);
+  assert.strictEqual(r.argv, undefined);
+});
+
+test('root review에 discovery round가 있고 pending supplement → final-review-blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/025-disc-supp';
+  const drive = supplementReviewDrive('bouncer-next-disc-supp-', blueprint, [
+    { kind: 'supplement', outcome: 'pending', paths: ['test/a.test.js'], findings: ['F1'] },
+  ]);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+});
+
+test('root review가 discovery 뒤 accepted → done', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/026-disc-ok';
+  const drive = supplementReviewDrive('bouncer-next-disc-ok-', blueprint, []);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: accepted\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n---\n# Review\n',
+  );
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'done');
 });
 
 test('root review.md YAML이 깨짐 → final_review argv에 --mode 없음, 예외 없음', () => {
@@ -777,6 +872,72 @@ test('task next에서 tasks.md 외 dirty files → commit-evidence-mismatch', ()
   assert.strictEqual(r.reason, 'commit-evidence-mismatch');
 });
 
+// 낡은 stamp / scope dirty는 report·record가 worker-commit-stamp-mismatch·worker-scope-dirty로 거절하며
+// advance의 commit을 안내한다. next도 커밋할 scope 변경이 있으면 같은 commit을 골라야 어긋나지 않는다.
+// fixture task는 affected_paths가 없어 scope가 비므로, 원장 task에 src/를 scope로 준다.
+function giveTaskScope(drive, scopePaths) {
+  const ledger = loadLedger(drive.ledgerFile);
+  for (const item of ledger.tasks) item.affected_paths = scopePaths;
+  writeLedger(drive.ledgerFile, ledger);
+}
+
+function stampedDriveWithStaleStamp(prefix, blueprint) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  commitInWorker(drive.worker, 'src/a.js', 'a\n', 'feat: a');
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+  });
+  git(drive.worker, ['add', '-A']);
+  git(drive.worker, ['commit', '-m', 'evidence']);
+  const head = git(drive.worker, ['rev-parse', 'HEAD']);
+  setDocStatus(drive.worker, blueprint, '001', 'tasks.md', 'verified', { commit_sha: head.slice(0, 8) });
+  // stamp를 남긴 뒤 다시 commit하면 HEAD가 바뀌어 stamp가 낡는다.
+  commitInWorker(drive.worker, 'src/b.js', 'b\n', 'feat: b');
+  giveTaskScope(drive, ['src/']);
+  return drive;
+}
+
+test('task next에서 낡은 stamp이고 scope 파일이 dirty → commit', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/041-stale-dirty';
+  const drive = stampedDriveWithStaleStamp('bouncer-next-stale-dirty-', blueprint);
+  fs.writeFileSync(path.join(drive.worker, 'src/c.js'), 'c\n');
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'commit');
+  assert.ok(r.argv.includes('commit'));
+  assert.ok(r.argv.includes('--yes'));
+});
+
+test('task next에서 stamp 일치하고 scope 파일이 dirty → commit', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/042-match-dirty';
+  const drive = preparedCommitDrive('bouncer-next-match-dirty-', blueprint);
+  coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  commitInWorker(drive.worker, 'src/a.js', 'a\n', 'feat: a');
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+  });
+  git(drive.worker, ['add', '-A']);
+  git(drive.worker, ['commit', '-m', 'evidence']);
+  const head = git(drive.worker, ['rev-parse', 'HEAD']);
+  setDocStatus(drive.worker, blueprint, '001', 'tasks.md', 'verified', { commit_sha: head.slice(0, 8) });
+  giveTaskScope(drive, ['src/']);
+  fs.writeFileSync(path.join(drive.worker, 'src/a.js'), 'a changed\n');
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'commit');
+});
+
+test('task next에서 낡은 stamp이고 tree가 깨끗 → worker-commit-stamp-mismatch blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/043-stale-clean';
+  const drive = stampedDriveWithStaleStamp('bouncer-next-stale-clean-', blueprint);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'worker-commit-stamp-mismatch');
+});
+
 // /bouncer-plan leaves plan documents uncommitted until finalize, and seed copies them into the worker,
 // so the worker is already dirty when the attempt opens. Benchmark runs of a full bouncer drive were blocked here.
 test('task next에서 dispatch가 남긴 seeded plan documents가 dirty → report를 허용함', () => {
@@ -1001,6 +1162,7 @@ test('task next after dispatch → report evidence pointer targets .bouncer/runt
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
   const attempt = dispatched.metadata.attempt;
+  commitAndStampWorker(drive.repo, blueprint, drive.worker);
   writeWorkerReport(drive.worker, '001', attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
     command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
@@ -1285,8 +1447,8 @@ test('card에서 directory 확인 → 정확히 card 아홉 개이고 index.md �
   assert.deepStrictEqual(files, CARD_ACTIONS.map((id) => `${id}.md`).sort());
 });
 
-// 공통 규칙은 카드와 run-owned reference(skills/bouncer-run/references)가 같은 정규식으로 맞아야 한다. 한쪽만
-// 바뀌면 coordinator drive와 run reference가 서로 어긋나게 된다.
+// dispatch 밖의 phase 규칙(review 상한·debugger 1회)은 카드가 실행 입력이라 카드와
+// run-owned reference(skills/bouncer-run/references)가 같은 정규식으로 맞아야 한다.
 const RUN_REF = (name) => fs.readFileSync(
   path.join(__dirname, '..', 'skills', 'bouncer-run', 'references', `${name}.md`), 'utf8',
 );
@@ -1302,22 +1464,72 @@ const SHARED_RULES = [
     re: /re-verify\s+fails\s+again,\s+the\s+cycle\s+is\s+over[\s\S]{0,120}do\s+not\s+start\s+a\s+third\s+round/,
     cards: ['verify'], refs: ['verification-recovery'],
   },
-  {
-    label: 'stale Brief revision reports but never records',
-    re: /stale[\s\S]{0,40}call\s+`coordinate report`\s+with\s+the\s+received[\s\S]{0,120}`stale-report`[\s\S]{0,40}(?:do not|never)[\s\S]{0,60}`coordinate record`/,
-    cards: ['report', 'implement'], refs: ['agent-dispatch'],
-  },
-  {
-    label: 'CLI perspectives order is the only fan-out',
-    re: /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array\s+in\s+order/i,
-    cards: ['review', 'final_review'], refs: ['agent-dispatch', 'review-round'],
-  },
 ];
 
 test('card에서 shared rules 대조 → card와 run reference 둘 다와 일치함', () => {
   for (const rule of SHARED_RULES) {
     for (const id of rule.cards) assert.match(cardOf(id), rule.re, `${rule.label} card ${id}`);
     for (const ref of rule.refs) assert.match(RUN_REF(ref), rule.re, `${rule.label} ref ${ref}`);
+  }
+});
+
+// payload·metadata·fallback·모델·토큰 기록은 agent-dispatch 한 곳만 소유한다. 카드에 같은
+// 본문이 다시 생기면 두 정본이 어긋나도 테스트가 모르므로, 정본 본문과 카드 링크·부재를
+// 따로 본다(카드와 정본을 이어 붙여 존재만 보면 어느 쪽이 소유하는지 잃는다).
+const DISPATCH_CANON = [
+  {
+    label: 'stale Brief revision reports but never records',
+    re: /stale[\s\S]{0,200}call\s+`coordinate report`\s+with\s+the\s+received[\s\S]{0,120}`stale-report`[\s\S]{0,40}(?:do not|never)[\s\S]{0,60}`coordinate record`/,
+  },
+  {
+    label: 'CLI perspectives order is the only fan-out',
+    re: /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array\s+in\s+order/i,
+  },
+  {
+    label: 'implementer inherit retry does not reopen the attempt',
+    re: /retry\s+only\s+the\s+host\s+dispatch[\s\S]{0,120}`dispatch-already-active`[\s\S]{0,200}do\s+not\s+record\s+the\s+dispatch\s+model\s+a\s+second\s+time/,
+  },
+  {
+    label: 'report_path stays outside metadata',
+    re: /`report_path`[\s\S]{0,260}not\s+one\s+of\s+the\s+`metadata`\s+keys/,
+  },
+  {
+    label: 'brief frozen while the attempt is active',
+    re: /attempt\s+is\s+active\s+the\s+brief\s+stays\s+frozen/,
+  },
+  {
+    label: 'missing worker tokens are never estimated',
+    re: /worker-tokens[\s\S]{0,300}counted\s+as\s+missing,\s+never\s+estimated/,
+  },
+  {
+    label: 'records run from the integration cwd, worker keeps task or light cwd',
+    re: /from\s+the\s+integration\s+cwd[\s\S]{0,200}task\s+worktree\s+on\s+a\s+full\s+ledger,\s+the\s+integration\s+path\s+on\s+a\s+light\s+ledger/,
+  },
+];
+// 카드 본문에 다시 들어오면 안 되는 정본 고유 문장. 정본 정규식 일부를 재사용한다.
+const DISPATCH_CANON_ONLY = [
+  /`coordinate dispatch` also returns a top-level `report_path`/,
+  /worker-tokens --blueprint/,
+  /entire\s+body\s+of/,
+  /counted\s+as\s+missing/,
+  /call\s+`coordinate report`\s+with\s+the\s+received/,
+  /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array/,
+  /intent bundle --task <path> --symbol/,
+];
+const DISPATCH_LINK = '../../skills/bouncer-run/references/agent-dispatch.md';
+const DISPATCH_CARDS = ['dispatch', 'implement', 'verify', 'review', 'final_review', 'report', 'record'];
+
+test('agent-dispatch 정본 → payload·metadata·fallback·모델·토큰 규칙 본문을 모두 가짐', () => {
+  const canon = RUN_REF('agent-dispatch');
+  for (const rule of DISPATCH_CANON) assert.match(canon, rule.re, rule.label);
+});
+
+test('dispatch 공통 규칙을 쓰는 카드 → 실재하는 agent-dispatch 링크만 두고 정본 본문을 복제하지 않음', () => {
+  for (const id of DISPATCH_CARDS) {
+    const md = cardOf(id);
+    assert.ok(md.includes(`](${DISPATCH_LINK})`), `${id} card must link agent-dispatch`);
+    assert.ok(fs.existsSync(path.resolve(CARD_DIR, DISPATCH_LINK)), `${id} link target must exist`);
+    for (const re of DISPATCH_CANON_ONLY) assert.doesNotMatch(md, re, `${id} card restates canon ${re}`);
   }
 });
 
@@ -1375,15 +1587,9 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
   // test/agents.test.js — review-dispatch execute result
   assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
   assert.match(md, /perspectives/);
-  assert.match(md, /`combined`|combined/);
-  assert.match(md, /`security`|security/);
-  assert.match(
-    md,
-    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
-  );
+  assert.match(md, /review_scope/);
   assert.match(md, /ok:\s*false|`ok`:\s*`false`|target[\s\S]{0,80}mismatch/i);
   assert.match(md, /--review-finding/);
-  assert.match(md, /review_scope/);
   assert.match(md, /repair-wave-limit/);
   assert.match(md, /task_brief_hashes/);
   assert.match(md, /intent_bundles/);
@@ -1392,34 +1598,18 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
   // test/agents.test.js — provenance inside the recorded decision
   assert.match(md, /provenance[\s\S]{0,120}inside[\s\S]{0,20}the decision/i);
   assert.doesNotMatch(md, /`bouncer coordinate record` its result SHA, actual paths/);
-  // test/agents.test.js — attempt metadata and stale Brief revision
+  // 단계 입력: dispatch·report 단계가 넘기고 판단하는 값
   assert.match(md, /coordinate dispatch/);
   assert.match(md, /\battempt\b/);
   assert.match(md, /task_brief_hash/);
   assert.match(md, /base_head/);
   assert.match(md, /initial_worktree_state/);
   assert.match(md, /previous_outcome/);
-  assert.match(md, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
   assert.match(md, /payload\.report/);
   assert.match(md, /payload\.evidence/);
-  assert.match(
-    md,
-    /(?:before|immediately before)[\s\S]{0,120}(?:implementer|bouncer-implementer)|(?:implementer|bouncer-implementer)[\s\S]{0,80}(?:before|after)[\s\S]{0,40}dispatch|dispatch[\s\S]{0,120}(?:before|then)[\s\S]{0,80}(?:implementer|bouncer-implementer)/i,
-  );
-  assert.match(
-    md,
-    /(?:do not|never|freeze|frozen)[\s\S]{0,120}(?:revise|brief)|(?:revise|brief)[\s\S]{0,120}(?:after|until)[\s\S]{0,80}(?:report|outcome)/i,
-  );
+  assert.match(md, /report_path/);
   assert.match(md, /coordinate report/);
   assert.match(md, /Brief revision/);
-  assert.match(
-    md,
-    /(?:stale|mismatch)[\s\S]{0,240}coordinate report[\s\S]{0,160}(?:received|attempt|task_brief_hash)|coordinate report[\s\S]{0,160}(?:received|stale|mismatch)[\s\S]{0,120}(?:attempt|task_brief_hash|stale-report)/i,
-  );
-  assert.match(
-    md,
-    /(?:stale|mismatch)[\s\S]{0,200}(?:accepted|coordinate record)|(?:do not|never)[\s\S]{0,80}(?:accepted|coordinate record)[\s\S]{0,120}(?:stale|mismatch|Brief revision)/i,
-  );
   assert.match(
     md,
     /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|payload\.report|redispatch|re-?dispatch)/i,
@@ -1427,11 +1617,8 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
   // test/agents.test.js — Task round (heading assertion excluded)
   assert.doesNotMatch(md, /skills\/bouncer-execute\/SKILL\.md/);
   assert.match(md, /bouncer intent bundle/);
-  assert.match(md, /bouncer intent sections/);
-  assert.match(md, /intent_bundle_revision/);
   assert.match(md, /--gate execute/);
   assert.match(md, /never hand-write|do not write `## Command`/i);
-  assert.match(md, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
   // test/coordinator.test.js — refuse review recording on strategy failure or target mismatch
   assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i);
   assert.match(
@@ -1439,6 +1626,33 @@ test('card에서 cards를 이어 붙임 → coordinator document rule regexes를
     /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
   );
   assert.match(md, /risk_flags|perspectives/);
+});
+
+// 카드에서 빠진 attempt metadata·stale·intent bundle 규칙은 agent-dispatch 정본에서 본다.
+test('agent-dispatch 정본 → attempt metadata·stale Brief revision·intent bundle 규칙을 만족함', () => {
+  const md = RUN_REF('agent-dispatch');
+  assert.match(md, /`combined`|combined/);
+  assert.match(md, /`security`|security/);
+  assert.match(
+    md,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
+  );
+  assert.match(md, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  assert.match(md, /initial_worktree_state/);
+  assert.match(md, /base_head/);
+  assert.match(
+    md,
+    /(?:before|immediately before)[\s\S]{0,120}(?:implementer|bouncer-implementer)/i,
+  );
+  assert.match(
+    md,
+    /(?:stale|mismatch)[\s\S]{0,240}coordinate report[\s\S]{0,160}(?:received|attempt|task_brief_hash)/i,
+  );
+  assert.match(md, /(?:stale|mismatch)[\s\S]{0,200}(?:accepted|coordinate record)/i);
+  assert.match(md, /bouncer intent bundle/);
+  assert.match(md, /bouncer intent sections/);
+  assert.match(md, /intent_bundle_revision/);
+  assert.match(md, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
 });
 
 test('light ledger의 implement → payload.inline을 싣고 cwd는 integration', () => {
@@ -1499,6 +1713,32 @@ test('full ledger의 implement → payload.inline을 생략함', () => {
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'implement');
   assert.strictEqual('inline' in (r.payload || {}), false);
+});
+
+test('implement payload with promoted_from.patch → carries promoted_patch', () => {
+  const blueprint = '.bouncer/context/epics/107-promoted/blueprints/001-patch';
+  const drive = preparedCommitDrive('bouncer-next-promoted-patch-', blueprint);
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.promoted_from = { archive: '/archive', patch: '/saved.patch', diff_sha: 'a'.repeat(64), reason: 'task-split', task: '001' };
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'implement');
+  assert.strictEqual(r.payload.promoted_patch, '/saved.patch');
+});
+
+test('implement payload with promoted_from.patch null → omits promoted_patch', () => {
+  const blueprint = '.bouncer/context/epics/107-promoted/blueprints/002-no-patch';
+  const drive = preparedCommitDrive('bouncer-next-promoted-no-patch-', blueprint);
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.promoted_from = { archive: '/archive', patch: null, diff_sha: 'a'.repeat(64), reason: 'task-split', task: '001' };
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'implement');
+  assert.strictEqual('promoted_patch' in r.payload, false);
 });
 
 // ---- 세션 yield 판정 (BP 098/002) ----------------------------------------------------
@@ -1642,4 +1882,77 @@ test('an invalid waves_per_session → next caps at 1 and prepare rejects with c
   });
   assert.strictEqual(prepared.ok, false);
   assert.strictEqual(prepared.reason, 'coordinator-config-invalid');
+});
+
+/**
+ * 001이 integrated이고 terminal 002가 `verifying`인 상태에 terminalFailure를 시드한다.
+ * `mutate`로 분류·identity를 바꿔 next가 어떤 조합에서 진행하는지 관찰한다.
+ */
+function classifiedTerminalDrive(prefix, mutate = () => {}, { review = false } = {}) {
+  const blueprint = '.bouncer/context/epics/108-n/blueprints/001-outside';
+  const repo = uncommittedPlanRepo(prefix, blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: false\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  verify: "/bin/true"\n'],
+  ]);
+  if (review) writeReviewScope(repo, blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = loadLedger(ledgerFile);
+  const head = git(boot.integrationPath, ['rev-parse', 'HEAD']);
+  ledger.integrationHead = head;
+  ledger.tasks[0].status = 'integrated';
+  ledger.tasks[1].status = 'verifying';
+  ledger.terminalFailure = {
+    task: '002', command: '/bin/true', summary: 'exit code 1', paths: [], exitCode: 1, repairWave: 0,
+    evidence_id: 'e'.repeat(64), source_digest: head,
+    disposition: {
+      kind: 'outside_scope', reason: 'cause is outside every task scope', evidence_id: 'e'.repeat(64),
+      source_digest: head, paths: ['vendor/lock.json'],
+    },
+  };
+  mutate(ledger);
+  writeLedger(ledgerFile, ledger);
+  return { repo, blueprint, integrationPath: boot.integrationPath, ledgerFile, head };
+}
+
+test('blueprint next with a proven outside_scope terminal failure → done carrying the failure, not blocked', () => {
+  const drive = classifiedTerminalDrive('bouncer-next-outside-done-');
+  const before = loadLedger(drive.ledgerFile);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'done');
+  assert.strictEqual(r.payload.outside_scope.kind, 'outside_scope');
+  assert.strictEqual(r.payload.failed_task, '002');
+  // 성공으로 바꾸지 않는다 — terminal은 verifying, 실패 사실은 그대로다.
+  assert.strictEqual(before.tasks[1].status, 'verifying');
+  assert.strictEqual(before.terminalFailure.exitCode, 1);
+});
+
+test('blueprint next with a proven outside_scope failure in blueprint review mode → final_review before done', () => {
+  const drive = classifiedTerminalDrive('bouncer-next-outside-review-', () => {}, { review: true });
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'final_review');
+  assert.strictEqual(r.payload.outside_scope.reason, 'cause is outside every task scope');
+});
+
+test('blueprint next with an unclassified, stale, mismatched or incomplete outside_scope failure → stays blocked', () => {
+  const cases = [
+    ['no classification (legacy failure)', (l) => { delete l.terminalFailure.disposition; }],
+    ['source moved after the classification', (l) => { l.integrationHead = 'a'.repeat(40); }],
+    ['classification bound to another evidence', (l) => { l.terminalFailure.disposition.evidence_id = 'd'.repeat(64); }],
+    ['classification bound to another source', (l) => { l.terminalFailure.disposition.source_digest = 'b'.repeat(40); }],
+    ['failure without recorded identity', (l) => {
+      delete l.terminalFailure.evidence_id; delete l.terminalFailure.disposition.evidence_id;
+    }],
+    ['classification without paths', (l) => { l.terminalFailure.disposition.paths = []; }],
+    ['classification without a reason', (l) => { l.terminalFailure.disposition.reason = ' '; }],
+    // 다른 task의 실패 기록이면 002에는 실패 기록이 없는 verifying이라 검증 재실행이 맞다. 어느 쪽이든 완료가 아니다.
+    ['failure of another task', (l) => { l.terminalFailure.task = '001'; }, 'verification_node'],
+  ];
+  for (const [label, mutate, expected = 'blocked'] of cases) {
+    const drive = classifiedTerminalDrive('bouncer-next-outside-bad-', mutate);
+    const r = assertNoWrite(drive, () => nextOf(drive));
+    assert.strictEqual(r.action, expected, label);
+    assert.notStrictEqual(r.action, 'done', label);
+  }
 });

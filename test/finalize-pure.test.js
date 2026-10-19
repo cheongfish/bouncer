@@ -6,7 +6,7 @@ const path = require('node:path');
 const { loadModuleGraph, reachable } = require('./helpers/module-graph');
 const { buildCommitMessage, buildFinalizeCommitMessage } = require('../scripts/lib/commit-message');
 const { buildTaskContext } = require('../scripts/lib/finalize-explain');
-const { summarizeDrive } = require('../scripts/lib/finalize-digest');
+const { summarizeDrive, summarizeDriveIssues } = require('../scripts/lib/finalize-digest');
 const { makeAllowed, isUnder } = require('../scripts/lib/scope');
 const { buildStableProvenance, COMMIT_SHA_LEN } = require('../scripts/lib/commit-sha');
 
@@ -1164,4 +1164,71 @@ test('summarizeDrive: sha가 숫자인 integrated task → sha null, ready true'
     ready: true,
     tasks: [{ id: '001', status: 'integrated', sha: null }],
   });
+});
+
+// ---- drive_issues counter (107/002 TASKS-008) ----
+// 각 counter가 다른 event에 섞이지 않는지 보려고, 한 event 종류만 넣은 원장마다
+// 해당 counter만 1이고 나머지는 0인지 비교한다. 기대값은 Target behavior 정의에서 온다.
+const ZERO_ISSUES = {
+  rework_reports: 0,
+  debugger_calls: 0,
+  repair_waves: 0,
+  fanin_verification_failures: 0,
+  blocked: 0,
+  deferred_must_fix: 0,
+};
+const issueReport = (outcome) => ({
+  task: '001', kind: 'report', attempt: 1, task_brief_hash: 'h', outcome, summary: 's',
+});
+const repairRow = (wave) => ({
+  task: 'R1', kind: 'repair', wave, reason: 'r', failure: {}, previousDag: [], nextDag: [],
+  previousScope: [], nextScope: [], necessity: 'n', revision: 'x',
+});
+
+test('summarizeDriveIssues: 원장 null·빈 decisions·accepted 보고만 → 모든 counter 0', () => {
+  assert.deepStrictEqual(summarizeDriveIssues(null, 0), ZERO_ISSUES);
+  assert.deepStrictEqual(summarizeDriveIssues({ tasks: [], decisions: [] }, 0), ZERO_ISSUES);
+  assert.deepStrictEqual(
+    summarizeDriveIssues({ decisions: [issueReport('accepted'), { kind: 'fanin', tasks: [] }] }, 0),
+    ZERO_ISSUES,
+  );
+});
+
+test('summarizeDriveIssues: event 종류 하나씩 → 해당 counter만 1', () => {
+  const cases = [
+    ['rework_reports', { decisions: [issueReport('rework')] }],
+    // worker-tokens는 같은 debugger 호출의 늦은 토큰 기록이라 0증가여야 한다.
+    ['debugger_calls', { decisions: [
+      { kind: 'worker-model', role: 'debugger', model: 'm', task: '001' },
+      { kind: 'worker-tokens', role: 'debugger', tokens: 10, task: '001' },
+      { kind: 'worker-model', role: 'reviewer', model: 'm', task: '001' },
+    ] }],
+    // 같은 repair가 decisions와 repairWaves에 중복 기록돼도 wave는 1이다.
+    ['repair_waves', { decisions: [repairRow(1)], repairWaves: [repairRow(1)] }],
+    // repairWaves가 없으면 decisions repair의 고유 wave로 센다.
+    ['repair_waves', { decisions: [repairRow(2), repairRow(2)] }],
+    ['fanin_verification_failures', { decisions: [
+      { kind: 'fanin-verification-failed', tasks: ['001'], command: 'c', exitCode: 1, evidence_id: null },
+    ] }],
+    ['blocked', { decisions: [issueReport('blocked')] }],
+    ['blocked', { decisions: [
+      { task: '001', kind: 'critical-recovery', used: 1, findings: [], reason: 'r', outcome: 'blocked' },
+      { task: '002', kind: 'critical-recovery', used: 1, findings: [], reason: 'r', outcome: null },
+    ] }],
+  ];
+  for (const [key, ledger] of cases) {
+    assert.deepStrictEqual(
+      summarizeDriveIssues(ledger, 0),
+      { ...ZERO_ISSUES, [key]: 1 },
+      `${key}: ${JSON.stringify(ledger)}`,
+    );
+  }
+  assert.deepStrictEqual(summarizeDriveIssues(null, 1), { ...ZERO_ISSUES, deferred_must_fix: 1 });
+});
+
+test('summarizeDriveIssues: 원장 객체 → 입력을 바꾸지 않는다', () => {
+  const ledger = { decisions: [issueReport('rework'), repairRow(1)], repairWaves: [repairRow(1)] };
+  const before = JSON.stringify(ledger);
+  summarizeDriveIssues(ledger, 0);
+  assert.strictEqual(JSON.stringify(ledger), before);
 });

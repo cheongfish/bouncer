@@ -1815,6 +1815,59 @@ test('no review_scope → the root review.md survives the closed transition', ()
   assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/review.md`)), true);
 });
 
+// prepare digest 테스트(test/finalize-digest.test.js)와 같은 root finding 집합 — 두 경로가
+// 같은 id/note 경고를 내는지 같은 기대값으로 고정한다.
+const ROOT_MUST_FIX_FINDINGS = [
+  { id: 'F-MF', severity: 'major', actionability: 'must_fix', status: 'deferred', note: 'must fix later' },
+  { id: 'F-ADV', severity: 'minor', actionability: 'advisory', status: 'deferred', note: 'advisory later' },
+  { id: 'F-LEGACY', severity: 'blocker', status: 'deferred', note: 'legacy deferred' },
+];
+
+function writeRootReviewFindings(repo, findings, blueprintDir = BP_REL) {
+  writeDoc(repo, `${blueprintDir}/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: `${blueprintDir}/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: {
+        required: true,
+        findings,
+        rounds: [{
+          round: 1, previous_finding_ids: [], new: 0, resolved: 0, regressed: 0, target: { head: 'deadbeef' },
+        }],
+      },
+    },
+  }, '# Review\n\n## Findings\n(none)\n');
+}
+
+test('blueprint review mode with a deferred must_fix → dry-run warnings carry its id and note', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  setBlueprintReviewScope(repo);
+  writeRootReviewFindings(repo, ROOT_MUST_FIX_FINDINGS);
+  const reviewAbs = path.join(repo, `${BP_REL}/review.md`);
+  const before = fs.readFileSync(reviewAbs);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(res.dryRun, true);
+  assert.deepStrictEqual(res.warnings, [
+    { kind: 'must-fix-deferred', id: 'F-MF', note: 'must fix later' },
+  ]);
+  assert.deepStrictEqual(fs.readFileSync(reviewAbs), before);
+});
+
+test('task review scope with the same root findings → dry-run warnings stay empty', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeRootReviewFindings(repo, ROOT_MUST_FIX_FINDINGS);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.deepStrictEqual(res.warnings, []);
+});
+
 // ---- 마감 검증 의존성 준비 (090/003) ----
 // finalize --yes는 integration checkout에서 검증하므로, git worktree가 가져오지 않는
 // node_modules를 검증 직전에 채워야 한다. 아래 fixture는 실제 package-lock 파일과
@@ -2120,5 +2173,110 @@ test('dependency install failure without a usable message → falls back to a re
     assert.ok(res.cause.length > 0, name);
     assert.ok(res.cause.startsWith('dependency-install-failed:'), `${name}: ${res.cause}`);
     assert.deepStrictEqual(log, [], name);
+  }
+});
+
+/**
+ * 001 integrated + terminal 002(verifying)가 실패한 drive 원장을 쓴다. mutate로 분류·identity를 바꾼다.
+ * 명령은 fullBlueprint의 config verify(`true`)와 같게 두어 remainder 재실행이 같은 명령이 되게 한다.
+ */
+function writeFailedTerminalDrive(repo, mutate = () => {}) {
+  const paths = writeCoordinatorLedger(repo, []);
+  const head = 'c'.repeat(40);
+  const ledger = {
+    version: 1, blueprint: BP_REL, base: 'work', integrationHead: head,
+    tasks: [
+      { id: '001', status: 'integrated', execution_kind: 'commit' },
+      { id: '002', status: 'verifying', execution_kind: 'verification' },
+    ],
+    decisions: [],
+    terminalFailure: {
+      task: '002', command: 'true', summary: 'exit code 1', paths: [], exitCode: 1, repairWave: 0,
+      evidence_id: 'e'.repeat(64), source_digest: head,
+      disposition: {
+        kind: 'outside_scope', reason: 'vendor drift is outside every task scope',
+        evidence_id: 'e'.repeat(64), source_digest: head, paths: ['vendor/lock.json'],
+      },
+    },
+  };
+  mutate(ledger);
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  writeIntegrationTask(paths.integrationPath, '001', 'verified');
+  writeIntegrationTask(paths.integrationPath, '002', 'verifying', 'verification');
+  return paths;
+}
+
+test('a drive whose terminal failure is proven outside_scope → finalize integration is complete but still reports the failure', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeFailedTerminalDrive(repo);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(res.integration.complete, true);
+  assert.deepStrictEqual(res.integration.openTasks, []);
+  // 성공으로 바뀌지 않는다 — head는 검증되지 않았고 분류가 별도로 실린다.
+  assert.strictEqual(res.integration.headVerified, false);
+  assert.strictEqual(res.integration.outsideScope.task, '002');
+  assert.strictEqual(res.integration.outsideScope.disposition.evidence_id, 'e'.repeat(64));
+});
+
+test('a drive whose terminal failure has no valid classification → finalize integration stays incomplete', () => {
+  const cases = [
+    ['legacy failure', (l) => { delete l.terminalFailure.disposition; }],
+    ['source moved', (l) => { l.integrationHead = 'd'.repeat(40); }],
+    ['other evidence', (l) => { l.terminalFailure.disposition.evidence_id = 'f'.repeat(64); }],
+  ];
+  for (const [label, mutate] of cases) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    fullBlueprint(repo);
+    writeFailedTerminalDrive(repo, mutate);
+    const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+    assert.strictEqual(res.integration.complete, false, label);
+    assert.deepStrictEqual(res.integration.openTasks, ['002'], label);
+    assert.strictEqual('outsideScope' in res.integration, false, label);
+  }
+});
+
+test('--yes with a remainder failure from the same outside_scope cause → finalize commits and links the new run to the original evidence', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeFailedTerminalDrive(repo);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
+    verifyExec: () => ({ ok: false, exitCode: 1, output: 'vendor drift failure in vendor/lock.json:3' }),
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(res.committed, true);
+  assert.notStrictEqual(g.calls.committed, null);
+  assert.strictEqual(res.outside_scope.task, '002');
+  assert.strictEqual(res.outside_scope.remainder.evidence_id, 'e'.repeat(64));
+  assert.strictEqual(res.outside_scope.remainder.command, 'true');
+  assert.strictEqual(res.outside_scope.remainder.exit_code, 1);
+  assert.match(res.outside_scope.remainder.output_sha, /^[0-9a-f]{64}$/);
+  assert.strictEqual(JSON.stringify(res).includes('vendor drift failure'), false);
+});
+
+test('--yes with a new remainder failure or no valid classification → finalize still stops with VERIFY_FAILED', () => {
+  const cases = [
+    ['different exit code (a new failure)', undefined, { ok: false, exitCode: 2, output: 'new' }],
+    ['legacy failure without classification', (l) => { delete l.terminalFailure.disposition; }, { ok: false, exitCode: 1, output: 'x' }],
+    ['source moved after classification', (l) => { l.integrationHead = 'd'.repeat(40); }, { ok: false, exitCode: 1, output: 'x' }],
+    ['same command and exit code but a new in-scope failure', undefined, { ok: false, exitCode: 1, output: 'not ok 1 - login\n  at test/auth/login.test.js:12:3' }],
+    ['classified path plus a new in-scope failure', undefined, { ok: false, exitCode: 1, output: 'vendor/lock.json drift\nfail src/auth/login.ts:4' }],
+    ['no identifiable failure path', undefined, { ok: false, exitCode: 1, output: 'boom' }],
+    ['terminal failed another command', (l) => { l.terminalFailure.command = 'npm test'; }, { ok: false, exitCode: 1, output: 'x' }],
+  ];
+  for (const [label, mutate, result] of cases) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    fullBlueprint(repo);
+    writeFailedTerminalDrive(repo, mutate);
+    const g = fakeGit(['src/auth/login.ts'], []);
+    const res = finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: () => result,
+    });
+    assert.strictEqual(res.ok, false, label);
+    assert.strictEqual(res.code, 'VERIFY_FAILED', label);
+    assert.deepStrictEqual(g.calls, { staged: null, committed: null }, label);
   }
 });

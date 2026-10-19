@@ -8,7 +8,7 @@ BP4 구현 설명 이전 이후 기준선이다. BP2 규범의 현재 소유자�
 
 소유권 표의 열은 `id`, `source`, `current owner`, `target owner`, `consumers`, `migration BP`이다. `source`는 현재 정본의 heading과, 그 heading 안에서 한 단위만 가리키는 구절이다. `current owner`는 그 구절이 들어 있는 경로이다. 구절은 파일을 열어 그대로 찾는다.
 
-`target owner`는 `AGENTS.md`, `shared rule`, `agent`, `skill`, `docs/code` 중 하나이다. 둘 이상의 소비자가 같은 판단을 하면 `shared rule`이다. 한 역할만 수행하는 절차는 `agent`이다. 한 workflow의 절차는 `skill`이다. lock, fencing, scale을 읽는 코드 위치처럼 에이전트가 실행 중 다시 추론하지 않는 설명은 `docs/code`이다. 이 파일의 단위 가운데 다섯 workflow가 모두 같은 불변조건으로 읽는 항목은 없다. 모든 세션이 읽는 네 경계는 이미 `AGENTS.md`에 있다.
+`target owner`는 `AGENTS.md`, `shared rule`, `agent`, `skill`, `docs/code` 중 하나이다. 둘 이상의 소비자가 같은 판단을 하면 `shared rule`이다. 한 역할만 수행하는 절차는 `agent`이다. 한 workflow의 절차는 `skill`이다. lock, fencing, scale을 읽는 코드 위치처럼 에이전트가 실행 중 다시 추론하지 않는 설명은 `docs/code`이다. 이 파일의 단위 가운데 다섯 workflow가 모두 같은 불변조건으로 읽는 항목은 없다. 모든 세션이 읽는 다섯 경계(trust boundary, gate 판정, 명시적 사용자 승인, 실제 write cwd, 사용자 대상 한국어)는 이미 `AGENTS.md` hard rule 1–5에 있다.
 
 `migration BP`는 `BP2`, `BP3`, `BP4` 중 하나이다. BP2는 plan, init, spec-authoring, template, scaffold가 읽는 계획 계약이다. BP3는 run, finalize, coordinator가 읽는 실행 계약이다. BP4는 구현 함수 주석과, 정본 파일을 삭제한 뒤 남는 배포 및 공개 문서 참조이다.
 
@@ -62,6 +62,14 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-COORD-REPAIR | `## Hard guards` / `at most two dynamic repair` | `agents/bouncer-coordinator.md` | agent | coordinator · run | BP3 |
 | GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `scripts/src/lib/coordinator.ts` | docs/code | scripts/lib/coordinator.js | BP4 |
 | GOV-COORD-PARTIAL-CLOSE | `## Hard guards` / `partial_closed` | `agents/bouncer-coordinator.md` | agent | coordinator · run · finalize | BP3 |
+| GOV-DISPATCH-PAYLOAD | `## Intent bundle` / `never document headings, item numbers, or test names` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · test/skill-bouncer-surface.test.js | BP3 |
+| GOV-DISPATCH-METADATA | `## Dispatch metadata and reports` / `Pass only the five metadata fields above` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · references/coordinator-cards/implement.md · test/coordinate-next.test.js | BP3 |
+| GOV-DISPATCH-REPORT-PATH | `## Dispatch metadata and reports` / `Pass it next to the metadata` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · references/coordinator-cards/implement.md · test/coordinate-next.test.js | BP3 |
+| GOV-DISPATCH-STALE | `## Dispatch metadata and reports` / `keeps the attempt open` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/report.md · references/coordinator-cards/record.md · test/coordinate-next.test.js | BP3 |
+| GOV-DISPATCH-FALLBACK-IMPLEMENTER | `## Implementer fallback` / `do not compact` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/implement.md · test/subagents.test.js | BP3 |
+| GOV-DISPATCH-FALLBACK-DEBUGGER | `## Debugger dispatch` / `before it diagnoses` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/verify.md · skills/bouncer-run/references/verification-recovery.md · test/subagents.test.js | BP3 |
+| GOV-DISPATCH-WORKER-MODEL | `## Worker model and token records` / `do not record the dispatch model a second time` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · references/coordinator-cards/verify.md · references/coordinator-cards/review.md · references/coordinator-cards/final_review.md · test/coordinate-next.test.js | BP3 |
+| GOV-DISPATCH-WORKER-TOKENS | `## Worker model and token records` / `counted as missing, never estimated` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/verify.md · references/coordinator-cards/review.md · references/coordinator-cards/final_review.md · test/coordinate-next.test.js | BP3 |
 
 ## Load graph
 
@@ -71,9 +79,9 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | plan | `rules/plugin-root.md` · `AGENTS.md` | `1 Discover: references/discovery/index.md` · `3 Author: references/spec-authoring/index.md` · `skills/bouncer-plan/references/evidence-dispatch.md` · `rules/document-schema.md` · `rules/planning.md` · `references/stop-slop/index.md` · `references/graphify-runner/index.md` · `4 Scope confirm: skills/bouncer-plan/references/scope-confirm.md` · `rules/acq.md` · `references/minimality/index.md` · `5 Review: skills/bouncer-plan/references/context-review.md` · `references/context-review/index.md` · `6 Approval: rules/acq.md` · `7 Activate: rules/current-pointer.md` · `8 Gate: rules/output.md` | 없음 |
 | run | `rules/plugin-root.md` · `AGENTS.md` | `1 Preflight: rules/cli.md` · `rules/current-pointer.md` · `2 Start ACQ: rules/acq.md` · `4 Coordinator dispatch: rules/subagent-model.md` · `5 Report: rules/output.md` | 없음 |
 | finalize | `rules/plugin-root.md` · `AGENTS.md` | `1 Explain + quiz: skills/bouncer-finalize/references/explain-quiz.md` · `references/explain-diff/index.md` · `2 Remainder: rules/commit-scope.md` · `skills/bouncer-finalize/references/remainder.md` · `rules/acq.md` · `3 PR: skills/bouncer-finalize/references/draft-pr.md` · `4 Cleanup: skills/bouncer-finalize/references/cleanup-handoff.md` · `5 Handoff: rules/current-pointer.md` · `rules/output.md` | 없음 |
-| coordinator | `AGENTS.md` | `Hard guards의 scope revision: rules/commit-scope.md` · `Worker dispatch: rules/subagent-model.md` · `references/coding-standards/index.md` | 없음 |
+| coordinator | `AGENTS.md` | `Hard guards의 scope revision: rules/commit-scope.md` · `Worker dispatch: rules/subagent-model.md` · `references/coding-standards/index.md` · `skills/bouncer-run/references/agent-dispatch.md` | 없음 |
 
-run은 drive 진입 때 startup을 한 번 읽고, 같은 drive의 task 반복에서 `AGENTS.md`를 다시 열지 않는다. run 세션은 `references/coding-standards/index.md`를 열지 않으며, coordinator가 implementer dispatch 때 그 파일을 요구한다. plan step 3과 spec-authoring step 1이 여는 `rules/planning.md`는 계획 계약만 담는다. finalize step 2는 `rules/commit-scope.md`를 열고, coordinator의 Hard guards scope revision도 `rules/commit-scope.md`를 연다. coordinator의 implement·review 카드는 dispatch 때 `skills/bouncer-run/references/agent-dispatch.md`를 링크로 연다. run은 step 1에서 `rules/cli.md`와 `rules/current-pointer.md`, step 2에서 `rules/acq.md`, step 4에서 `rules/subagent-model.md`, step 5에서 `rules/output.md`를 읽는다. `rules/governance.md`는 삭제되어 어떤 consumer도 열지 않는다. 단위별 판단 주체는 소유권 표가 가리키고, 그 목적 밖의 단위를 startup으로 올리지 않는다.
+run은 drive 진입 때 startup을 한 번 읽고, 같은 drive의 task 반복에서 `AGENTS.md`를 다시 열지 않는다. run 세션은 `references/coding-standards/index.md`를 열지 않으며, coordinator가 implementer dispatch 때 그 파일을 요구한다. plan step 3과 spec-authoring step 1이 여는 `rules/planning.md`는 계획 계약만 담는다. finalize step 2는 `rules/commit-scope.md`를 열고, coordinator의 Hard guards scope revision도 `rules/commit-scope.md`를 연다. coordinator의 Worker dispatch와 dispatch·implement·verify·review·final_review·report·record 카드는 worker dispatch, fallback, model·token 기록, stale 보고 판단 때 `skills/bouncer-run/references/agent-dispatch.md`를 링크로 연다. payload·metadata·fallback·worker model/token 기록 본문은 그 reference 하나가 소유하고(GOV-DISPATCH-*), 카드는 단계 입력·`next`·print template과 그 링크만 둔다. 어느 host 알림이 `subagent_tokens`를 싣는지의 usage 이벤트 대응은 `skills/bouncer-run/references/drive-metrics.md`가 소유하고 agent-dispatch는 그것을 링크한다. run은 step 1에서 `rules/cli.md`와 `rules/current-pointer.md`, step 2에서 `rules/acq.md`, step 4에서 `rules/subagent-model.md`, step 5에서 `rules/output.md`를 읽는다. `rules/governance.md`는 삭제되어 어떤 consumer도 열지 않는다. 단위별 판단 주체는 소유권 표가 가리키고, 그 목적 밖의 단위를 startup으로 올리지 않는다.
 
 coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision 문장에 있다. 절차 1 Ground 앞에서 파일 전체를 `Read`하라는 명령은 없다. revision을 판단할 때 연다. repair 거절과 `partial_closed` 중지는 역할 문서의 Hard guards에 자체 완결돼 있다.
 
@@ -96,8 +104,6 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | `references/spec-authoring/index.md:26` | plan | step 3. spec-authoring step 1이 제품 규칙 위치를 `rules/planning.md`로 가리킨다 |
 | `references/spec-authoring/index.md:190` | plan | step 3. light task 분기에서 `rules/planning.md` `## Lightweight cycle`을 가리킨다 |
 | `docs/workflow.md:133` | plan | 없음. 사용자 문서가 `rules/planning.md` `## Lightweight cycle`을 가리킨다. GOV-LIGHT-DOC-SET, GOV-LIGHT-G10, GOV-LIGHT-RETURN-FULL의 소비자이다 |
-| `AGENTS.md:23` | 없음 | 없음. runtime index의 planning 링크이다. startup에서 이 링크를 따라 열지 않는다 |
-| `AGENTS.md:24` | 없음 | 없음. runtime index의 commit-scope 링크이다. startup에서 이 링크를 따라 열지 않는다 |
 | `test/lightweight-cycle.test.js:15` | 없음 | 없음. GOV-LIGHT-* planning locator를 읽는 characterization이다 |
 | `test/lightweight-cycle.test.js:29` | 없음 | 없음. GOV-LIGHT-INLINE-DISPATCH와 `scripts/src/lib/scaffold.ts`의 scale read-site locator |
 | `test/lightweight-cycle.test.js:46` | 없음 | 없음. GOV-LIGHT-DECLARATION, GOV-LIGHT-RETURN-FULL |
@@ -175,3 +181,11 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | GOV-COORD-REPAIR | coordinator 88-93 |
 | GOV-COORD-REPAIR-WRITE | coordinator.ts 623 |
 | GOV-COORD-PARTIAL-CLOSE | coordinator 102-108 |
+| GOV-DISPATCH-PAYLOAD | dispatch 151-178 |
+| GOV-DISPATCH-METADATA | dispatch 182-190 |
+| GOV-DISPATCH-REPORT-PATH | dispatch 192-195 |
+| GOV-DISPATCH-STALE | dispatch 203-206 |
+| GOV-DISPATCH-FALLBACK-IMPLEMENTER | dispatch 82-101 |
+| GOV-DISPATCH-FALLBACK-DEBUGGER | dispatch 220-230 |
+| GOV-DISPATCH-WORKER-MODEL | dispatch 232-266 |
+| GOV-DISPATCH-WORKER-TOKENS | dispatch 268-275 |

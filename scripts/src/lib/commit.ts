@@ -248,12 +248,24 @@ function commitGuidance({
  *
  * @param {string} reason - 기존 실패 코드. 값을 바꾸지 않는다
  * @param {boolean} coordinatorActive - ledger가 활성이면 true
- * @returns {{action: RecoveryAction, detail: string}} 스킬이 렌더할 복구 안내
+ * @param {string} [next] - `main-worktree-source-write`에만 쓰는 다음 행동 안내
+ * @returns {{action: RecoveryAction, detail: string, next?: string}} 스킬이 렌더할 복구 안내.
+ *   `next`는 `main-worktree-source-write`이면서 안내가 주어졌을 때만 있다
  */
-function recoveryFor(reason: string, coordinatorActive: boolean): {
+function recoveryFor(reason: string, coordinatorActive: boolean, next?: string): {
   action: RecoveryAction;
   detail: string;
+  next?: string;
 } {
+  // 메인 checkout 거절만 전용 안내를 가진다. 액션은 report-and-stop 그대로 두고(스킬이 이미
+  // 처리한다) 사용자에게 보일 다음 행동만 `next`로 덧붙인다.
+  if (reason === 'main-worktree-source-write' && next) {
+    return {
+      action: 'report-and-stop',
+      detail: `Stop and report ${reason}. Do not stage, commit, or move the pointer.`,
+      next,
+    };
+  }
   if (reason === 'out-of-scope') {
     if (coordinatorActive) {
       return {
@@ -405,7 +417,11 @@ function commitTask({
       ok: false,
       reason,
       violations,
-      recovery: recoveryFor(reason, coordinator.active),
+      recovery: recoveryFor(
+        reason,
+        coordinator.active,
+        reason === 'main-worktree-source-write' ? scope.mainWorktreeNext(coordinator, blueprintDir) : undefined,
+      ),
     };
   }
 

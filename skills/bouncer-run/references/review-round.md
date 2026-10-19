@@ -65,15 +65,20 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 3 aggregate Verify evidence, merge duplicate fingerprints, record
             severity_changes and origin, then decide must_fix or advisory from
             the brief, evidence, and changed range — never a reviewer vote.
-4 fix       Under a coordinator drive in blueprint review mode: open one
-            `bouncer coordinate repair … --review-finding <id>` task that
-            fixes every must_fix together. Do not use that repair for a
-            finding that needs a new product decision, dependency, or public
-            interface — those stay blocked. A must_fix that is only an
-            in-scope gap in test evidence (test paths inside an integrated
-            task's `affected_paths`, product behavior already correct) is
-            instead supplemented in place with `coordinate repair --kind
-            supplement`: no new task or repair wave, then the one delta round.
+4 fix       Under a coordinator drive in blueprint review mode there is no
+            fix step: the final review is the single discovery round. A
+            `must_fix` is recorded `deferred` with a `note` and the review
+            `accepted` (reported as a warning); a `blocked` finding stays
+            `open`, the review stays `requested`, and `coordinate next`
+            returns `final-review-blocked` for the user's decision. After
+            the discovery round is stored, review-caused `coordinate repair
+            --review-finding`, `coordinate repair --kind supplement`, its
+            `--done`, and a new root delta record are refused with
+            `final-review-single-round`. Only after the user explicitly
+            approves accepting the risk of a blocked finding, run `bouncer
+            review accept-risk --blueprint <dir> --finding <id> --note
+            <reason> --yes`; it closes that finding without a new round and
+            never runs without that approval.
             Under a coordinator drive on the
             per-task path: judge the prior implementer report
             (`coordinate report`), revise only when the outcome requires it,
@@ -86,7 +91,8 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             user and send them to `/bouncer-plan`.
 5 verify    Re-run latest verify (standalone) or the terminal verification
             (coordinator final review).
-6 certify   Dispatch one delta reviewer with previous findings, resolution,
+6 certify   Task and light reviews only (the blueprint final review has no
+            delta): dispatch one delta reviewer with previous findings, resolution,
             revision-origin evidence, and the `Red run` lines (the fix
             attempt's latest report value per task) — never a discovery perspective and never a
             second strategy-shaped fan-out. Delta keeps the frozen base and
@@ -139,8 +145,10 @@ readable, but it cannot be reused as input for a new record.
 
 The only complete mode sequences are `discovery`, `discovery → delta`, and the
 drive-only recovery sequence `discovery → delta → critical_recovery → delta`.
-The blueprint final review (`review_scope: blueprint`) additionally allows
-`discovery → delta → delta`, one delta per repair wave; task reviews do not.
+The blueprint final review (`review_scope: blueprint`) is a single `discovery`
+round for new records. A stored `discovery → delta → delta` history is still
+read and passes G21, but no new root delta is recorded; task reviews keep the
+sequences above.
 An `advisory` is recorded once as `accepted` or `deferred` with a note; it never
 opens another implementer dispatch. Do not classify a current-task accuracy
 finding as `deferred` or `advisory`. An unresolved finding is never recorded as

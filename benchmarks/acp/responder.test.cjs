@@ -174,10 +174,16 @@ for (const fixture of require('./fixtures/acq/cases.json')) {
     const workDir = workdirWith(fixture.workdir);
     const text = readFileSync(path.join(fixtureDir, fixture.file), 'utf8');
     // finalize·plan 게이트 증거 판정은 실제 git·drive·bouncer CLI가 필요하므로 case가 요구할 때만 참으로 주입한다.
-    const deps = fixture.finalizeEvidence || fixture.planGateEvidence
-      ? { finalizeEvidence: () => Boolean(fixture.finalizeEvidence), planGateEvidence: () => Boolean(fixture.planGateEvidence) }
-      : undefined;
-    const catalogIds = new Set(Object.values(loadCatalog()).flat());
+    const catalog = loadCatalog();
+    // 과거 plan 녹취의 ID는 재생 동안에만 legacy gate로 등록해 현재 catalog를 오염시키지 않는다.
+    const legacyIds = ['plan.id_allocation'];
+    catalog['bouncer-plan'] = [...catalog['bouncer-plan'], ...legacyIds];
+    const deps = {
+      catalog,
+      finalizeEvidence: () => Boolean(fixture.finalizeEvidence),
+      planGateEvidence: () => Boolean(fixture.planGateEvidence),
+    };
+    const catalogIds = new Set(Object.values(catalog).flat());
     assert.match(fixture.source, FIXTURE_SOURCE);
     assert.ok(fixture.gates.every((gate) => catalogIds.has(gate)), `${fixture.file} has a gate outside the catalog`);
     try {
@@ -253,7 +259,9 @@ test('answers bundled discovery, light scope, and first ID blocks in order', () 
     acq('plan.discovery', '위 framing 승인', ['위 framing 승인 (Recommended)', '수정']),
     acq('plan.light_scope', 'scope', ['light (Recommended)', 'full']),
     acq('plan.id_allocation', 'nextEpicId: 001', ['Epic 001, Blueprint 001 (Recommended)', '다른 id 지정'])].join('\n\n');
-  const result = answerTextQuestion(policy, 'bouncer-plan', text, workDir);
+  const catalog = loadCatalog();
+  catalog['bouncer-plan'] = [...catalog['bouncer-plan'], 'plan.id_allocation'];
+  const result = answerTextQuestion(policy, 'bouncer-plan', text, workDir, { catalog });
   assert.equal(result.reply, 'A / B / A');
   assert.deepEqual(result.choices.map((choice) => choice.gate), ['plan.discovery', 'plan.light_scope', 'plan.id_allocation']);
   assert.ok(result.choices.every((choice) => choice.identified_by === 'block'));
@@ -751,7 +759,7 @@ test('proposed 정책 → loadPolicy가 explicit user approval로 거부', () =>
 });
 
 test('IMPLEMENTED_ANSWERS 키 → 모두 loadCatalog 결과 합집합이나 legacy ID 안', () => {
-  const known = new Set([...Object.values(loadCatalog()).flat(), 'plan.activate_pointer', 'finalize.quiz', 'commit.next_task']);
+  const known = new Set([...Object.values(loadCatalog()).flat(), 'plan.activate_pointer', 'plan.id_allocation', 'finalize.quiz', 'commit.next_task']);
   for (const id of Object.keys(IMPLEMENTED_ANSWERS)) assert.ok(known.has(id), id);
 });
 

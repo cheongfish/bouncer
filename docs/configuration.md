@@ -42,9 +42,12 @@ brief로 대신하지 않습니다. 이미 `bouncer init`을 돌린 config에는
 없을 수 있는데, 없어도 부모 모델을 상속하므로 동작은 같습니다.
 
 **직접 실행(선택).** `direct_eligible`(위임 가능한 full 직렬 체인이고 commit task 수가
-`coordinator.direct_max_commit_tasks` 이하)일 때만 시작 ACQ에 D 선택지가 생깁니다. D를 고르면 root가
-coordinator 없이 `coordinate advance`를 돌리고 worker는 서브에이전트로 띄웁니다. accepted가 아닌 판단이나
-그 밖의 정지에서는 판단을 기록하지 않고 coordinator에 넘기며, 이후는 coordinator가 끝까지 맡습니다.
+`coordinator.direct_max_commit_tasks` 이하)일 때 시작 ACQ는 D를 권장하고,
+그렇지 않으면 D 없이 A를 권장합니다. D를 고르면 root가 coordinator 없이
+`coordinate advance`를 돌리고 worker는 서브에이전트로 띄웁니다.
+direct 실행은 attempt 1의 `rework`와 `must_fix` 없는 최종 리뷰까지 처리한다.
+그 뒤의 재작업,
+수정이 필요한 리뷰, 기타 지원하지 않는 정지는 coordinator에 넘깁니다.
 
 **`autonomy`의 역할이 달라졌습니다.** 예전에는 `/bouncer-run`이 얼마나 자주
 물어보는지를 정했지만, 위임 주행에서 승인은 시작 ACQ 하나뿐입니다. 두 값 모두

@@ -153,6 +153,12 @@ type RoleFunctionProjection = {
   sections: RoleSectionProjection[];
 };
 
+type RoleSymbolLocation = {
+  symbol: string;
+  function_ref: string;
+  symbol_ref: SymbolRef;
+};
+
 type RoleIntentSectionsResult = {
   ok: true;
   role: IntentRole;
@@ -160,6 +166,7 @@ type RoleIntentSectionsResult = {
   revision: number;
   task_brief_hash: string;
   functions: RoleFunctionProjection[];
+  symbol_locations?: RoleSymbolLocation[];
 };
 
 // 역할 집합은 CLI와 같은 상수다. Explain Background·Intuition·Code는 여기 없으므로
@@ -245,7 +252,8 @@ function resolveTaskIntentBundle(input: {
     expectedTask: stableTask,
     fs: io,
   });
-  if (previous && isCacheHit(previous, liveCoords, repoReal, io)) {
+  if (previous && previous.task_brief_hash === taskBriefHash
+    && isCacheHit(previous, liveCoords, repoReal, io)) {
     return {
       status: 'reused',
       bundle_id: previous.bundle_id,
@@ -954,13 +962,17 @@ function failIntentSections(
 
 /**
  * 실패 JSON의 next는 호출자가 같은 task에 bundle을 다시 만들게 한다.
- * sections CLI는 --symbol을 받지 않으므로 placeholder를 남긴다.
+ * 저장된 함수 집합이 비었으면 --no-symbols를 안내해 같은 계약으로 복구하게 한다.
  *
  * @param {string} taskFile - repo-relative canonical tasks.md
+ * @param {boolean} hasFunctions - bundle에 기록된 함수가 하나 이상인지
  * @returns {string} `bouncer intent bundle` 복구 명령
  */
-function intentBundleNext(taskFile: string): string {
-  return `bouncer intent bundle --task ${taskFile} --symbol <name>...`;
+function intentBundleNext(taskFile: string, hasFunctions: boolean): string {
+  // 빈 함수 bundle은 재시도에서 임의 symbol을 요구하면 계약과 어긋난다.
+  return hasFunctions
+    ? `bouncer intent bundle --task ${taskFile} --symbol <name>...`
+    : `bouncer intent bundle --task ${taskFile} --no-symbols`;
 }
 
 function isIntentRole(value: string): value is IntentRole {
@@ -971,7 +983,8 @@ function isIntentRole(value: string): value is IntentRole {
  * 캐시된 intent bundle에서 역할 allowlist에 속한 task 절 본문만 골라 JSON 객체를 만든다.
  * Git provenance resolver와 cache write는 타지 않는다 — 판정은 record, 현재 brief
  * 바이트, 현재 Explain 파일뿐이다. historical·unlinked·unresolved·ambiguous는
- * functions에서 빠지고, 역할 절이 없는 resolved 함수는 sections: []로 남는다.
+ * Explain이 없는 historical·unlinked 함수도 구현자의 탐색 좌표에는 남긴다. 위치 목록은
+ * implementer에만 제공해 reviewer/debugger의 기존 응답 계약을 유지한다.
  *
  * @param {object} input - 조회 입력
  * @param {string} input.repoRoot - 저장소 루트
@@ -986,7 +999,7 @@ function projectRoleIntentSections(input: {
   role: IntentRole;
   deps?: BundleDeps | null;
 }): RoleIntentSectionsResult {
-  const next = intentBundleNext(input.taskFile);
+  let next = intentBundleNext(input.taskFile, true);
   if (!isIntentRole(input.role)) {
     throw new Error('role must be implementer, reviewer, or debugger');
   }
@@ -1046,6 +1059,7 @@ function projectRoleIntentSections(input: {
       next,
     );
   }
+  next = intentBundleNext(input.taskFile, record.functions.length > 0);
   if (record.task_brief_hash !== loaded.taskBriefHash) {
     failIntentSections(
       'intent-bundle-stale',
@@ -1089,7 +1103,7 @@ function projectRoleIntentSections(input: {
     });
   }
 
-  return {
+  const result: RoleIntentSectionsResult = {
     ok: true,
     role: input.role,
     bundle_id: record.bundle_id,
@@ -1097,6 +1111,16 @@ function projectRoleIntentSections(input: {
     task_brief_hash: loaded.taskBriefHash,
     functions,
   };
+  if (input.role === 'implementer') {
+    // 좌표는 생성 시점 bundle의 원본만 복사한다. unresolved에는 좌표가 없고,
+    // ambiguous는 bundle 생성 단계에서 선택을 거절하므로 후보를 합성하지 않는다.
+    result.symbol_locations = record.functions
+      .filter((entry): entry is Extract<BundleFunctionEntry, { status: 'resolved' | 'unlinked' }> => (
+        entry.status === 'resolved' || entry.status === 'unlinked'
+      ))
+      .map(({ symbol, function_ref, symbol_ref }) => ({ symbol, function_ref, symbol_ref }));
+  }
+  return result;
 }
 
 export = { resolveTaskIntentBundle, projectRoleIntentSections };

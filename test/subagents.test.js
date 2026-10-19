@@ -486,6 +486,26 @@ test('Codex slug dispatch → item 1 requires fork_turns "none" with the model',
   assert.match(item1, /slug/);
 });
 
+test('dispatch history rule → item 1 isolates history independent of inherit', () => {
+  const contract = fs.readFileSync(
+    path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',
+  );
+  const agentDispatch = fs.readFileSync(
+    path.join(__dirname, '..', 'skills/bouncer-run/references/agent-dispatch.md'), 'utf8',
+  );
+  const item1 = (contract.match(/\n1\. Resolve[\s\S]*?(?=\n2\. )/)?.[0] || '')
+    .replace(/\s+/g, ' ');
+  const item3 = (contract.match(/\n3\. [\s\S]*?(?=\n4\. )/)?.[0] || '')
+    .replace(/\s+/g, ' ');
+  assert.ok(item1.includes('Every new dispatch starts without conversation history, whether the resolved model is a slug or `inherit`; this covers `bouncer-coordinator`, `bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`, `bouncer-context-reviewer`, and plan evidence agents.'));
+  assert.ok(item1.includes('Host methods: Codex sets `fork_turns: "none"`; Claude Code uses a named subagent call and never a fork; Cursor print runs a separate process per dispatch.'));
+  assert.ok(item1.includes('The only exception is an implementer continuing its own session for the first in-scope verify fix defined in `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`.'));
+  assert.doesNotMatch(item1, /stays whatever the calling workflow specifies/);
+  assert.doesNotMatch(item1, /parent-session inheritance/);
+  assert.ok(item3.includes('The retry also starts without conversation history.'));
+  assert.ok(agentDispatch.includes('Every new worker dispatch starts without conversation history (item 1 of that rule).'));
+});
+
 // fallback payload는 dispatcher 지시문이 소유한다. 역할 문서 안에 "fallback으로
 // 온전히 전달된다"고 적어 봐야 dispatcher가 그 문서를 보내지 않으면 읽히지
 // 않는다. 그래서 실제로 실행되는 다섯 fallback 문단이 역할 문서 본문 전체와
@@ -564,8 +584,11 @@ const FALLBACK_SITES = [
     inputs: REVIEWER_INPUTS,
   },
   {
+    // debugger payload·fallback 정본은 agent-dispatch로 옮겨졌다. verification-recovery는
+    // 링크만 두므로 아래 별도 테스트가 복제 부재를 본다.
     role: 'debugger',
-    rel: 'skills/bouncer-run/references/verification-recovery.md',
+    rel: 'skills/bouncer-run/references/agent-dispatch.md',
+    after: '## Debugger dispatch',
     start: 'When named agents are unavailable',
     end: '\n\n',
     inline: true,
@@ -584,6 +607,16 @@ const FALLBACK_SITES = [
       'Goal & intent', 'Current behavior', 'Target behavior', 'Interface',
       'Touch', 'Do not touch', 'Constraints', 'Checklist', 'actual worktree cwd',
     ],
+  },
+  {
+    // run step 4가 실제로 dispatch하는 coordinator fallback 문장. "same coordinator
+    // brief" 라벨만 남으면 위임받은 쪽이 worktree guard 없이 drive를 시작한다.
+    role: 'coordinator',
+    rel: 'skills/bouncer-run/SKILL.md',
+    start: 'When named agents are unavailable',
+    end: '\n\n',
+    inline: false,
+    inputs: ['step 4 payload', 'worktree write boundary', 'item 5'],
   },
   {
     role: 'coordinator',
@@ -642,6 +675,32 @@ test('dispatch rule → item 6 defines completed notices and metrics end timing,
   const item6 = contract.match(/\n6\. [\s\S]*?(?=\n7\. )/)?.[0] || '';
   assert.match(item6, /`completed`/);
   assert.match(item6, /metrics end/);
+  // 보고 완료 판정은 item 6이, 호스트별 usage 출처는 drive-metrics 표가 소유한다.
+  // usage가 없다는 사실은 보고 미완료가 아니다 — 두 판정을 섞으면 대기가 끝나지 않는다.
+  assert.match(item6, /drive-metrics\.md/);
+  assert.match(item6, /host usage table/);
+  assert.match(item6, /missing usage[\s\S]{0,80}not an unfinished report/i);
   const item8 = contract.match(/\n8\. [\s\S]*?(?=\n\n|$)/)?.[0] || '';
   assert.match(item8, /ToolSearch/);
+});
+
+// debugger fallback 본문이 verification-recovery에 다시 복제되면 두 정본이 어긋나도
+// 위 FALLBACK_SITES가 한쪽만 본다. recovery는 실재하는 agent-dispatch 링크로만 넘긴다.
+test('verification-recovery debugger dispatch → links agent-dispatch and carries no fallback body', () => {
+  const md = readRepo('skills/bouncer-run/references/verification-recovery.md');
+  assert.ok(md.includes('](./agent-dispatch.md)'), 'verification-recovery must link agent-dispatch');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'skills/bouncer-run/references/agent-dispatch.md')));
+  assert.doesNotMatch(md, /entire\s+body\s+of/);
+  assert.doesNotMatch(md, /--role debugger/);
+});
+
+// 공통 모델 규칙은 run worker의 payload·기록을 다시 적지 않고 정본을 조건부로 가리킨다.
+// 모델 resolve·inherit 재시도·whole-role fallback·foreground 경계는 그대로 남아야 한다.
+test('subagent-model rule → points run workers at agent-dispatch without dropping its own boundaries', () => {
+  const contract = readRepo('rules/subagent-model.md');
+  const item4 = passage('rules/subagent-model.md', '4. When named agents are unavailable', '\n5. ');
+  assert.match(item4, wrapped('read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`'));
+  assert.doesNotMatch(contract, /worker-(?:model|tokens) --blueprint/);
+  assert.match(contract, /rejected model slug[\s\S]{0,120}`inherit`/i);
+  assert.match(contract, /runs in the foreground/);
 });

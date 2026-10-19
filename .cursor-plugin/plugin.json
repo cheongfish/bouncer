@@ -1,8 +1,8 @@
 {
   "name": "bouncer",
   "displayName": "Bouncer",
-  "description": "Spec-driven development gates for Cursor: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
-  "version": "1.5.9",
+  "description": "Spec-driven development workflow for parallel task execution and verified integration.",
+  "version": "1.6.0",
   "author": {
     "name": "Kim Cheongwoon",
     "email": "rlq10324@chunjae.com"

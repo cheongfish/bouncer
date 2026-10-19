@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
   resolveCurrent, CurrentSelectionError,
+  baseNamespaceKeys,
 } = require('../scripts/lib/current');
 const { init } = require('../scripts/lib/init');
 
@@ -1067,7 +1068,13 @@ function committedGitRepo() {
   run(['config', 'user.email', 't@example.com']);
   run(['config', 'user.name', 't']);
   fs.writeFileSync(path.join(repo, 'README'), 'base\n');
-  run(['add', 'README']);
+  // reviseTaskScope는 추적 파일이 있는 경로만 받는다(scope-path-untracked).
+  // 아래 테스트가 scope로 쓰는 디렉터리에 추적 파일을 하나씩 둔다.
+  for (const rel of ['src/a/keep.txt', 'src/b/keep.txt', 'lib/keep.txt']) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), 'x\n');
+  }
+  run(['add', '-A']);
   run(['commit', '--quiet', '-m', 'base']);
   return repo;
 }
@@ -1329,4 +1336,16 @@ test('ledger with malformed lease → reviseTaskScope refuses it', () => {
   });
   assert.strictEqual(revised.ok, false);
   assert.strictEqual(revised.reason, 'lease-invalid');
+});
+
+test('base 위치와 nested worktree → baseNamespaceKeys는 base에서만 namespace key 목록을 낸다', () => {
+  const repo = tmpGitRepo();
+  seedCommit(repo);
+  const nested = addWorktree(repo, '.worktrees/001/001');
+  const deps = runtimeDeps(repo);
+  assert.deepStrictEqual(baseNamespaceKeys({ repoRoot: repo, deps }), []);
+  writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
+  writeCurrent({ repoRoot: repo, blueprint: BP_B, base: 'main', deps });
+  assert.deepStrictEqual(baseNamespaceKeys({ repoRoot: repo, deps }), ['001/001', '002/003']);
+  assert.strictEqual(baseNamespaceKeys({ repoRoot: nested, deps }), null);
 });

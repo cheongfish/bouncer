@@ -96,6 +96,21 @@ function readOptionalLeaf(
   }
 }
 
+/**
+ * context-review frontmatter의 closure_target_digest 모양을 검사한다. 부재(과거 문서)는 유효하고,
+ * 있으면 64 lowercase hex 문자열이어야 한다.
+ *
+ * @param {unknown} data - context-review.md frontmatter
+ * @returns {boolean} 부재이거나 올바른 hex이면 true
+ */
+function isValidClosureDigestField(data: unknown): boolean {
+  const bouncer = (data as { bouncer?: unknown } | null)?.bouncer;
+  const meta = (bouncer as { context_review?: unknown } | null | undefined)?.context_review;
+  if (meta === null || typeof meta !== 'object') return true;
+  const digest = (meta as Record<string, unknown>).closure_target_digest;
+  return digest === undefined || (typeof digest === 'string' && /^[0-9a-f]{64}$/.test(digest));
+}
+
 function loadBlueprintDocs({ repoRoot, blueprintDir }: {
   repoRoot: string;
   blueprintDir: string;
@@ -135,6 +150,15 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }: {
       try {
         const { data, body } = readDoc(abs);
         docs[key] = { data, body, rel };
+        // context_review.closure_target_digest는 64 lowercase hex만 구조상 유효하다. 틀린 값은
+        // 현재 내용으로 대체 인증하지 않고 구조 오류로 남겨 G18이 stale로 통과시키지 못하게 한다.
+        if (key === 'contextReview' && !isValidClosureDigestField(data)) {
+          parseErrors.push({
+            code: 'S0',
+            message: 'bouncer.context_review.closure_target_digest must be 64 lowercase hex',
+            file: rel,
+          });
+        }
       } catch (e) {
         parseErrors.push({ code: 'S0', message: errorMessage(e), file: rel });
       }

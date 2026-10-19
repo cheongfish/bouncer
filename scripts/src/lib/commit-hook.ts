@@ -229,6 +229,42 @@ function detect(
     );
 }
 
+// PreToolUse payload의 cwd는 일부 호스트에서 호출한 Bash 도구의 기본 checkout으로
+// 남는다. `git -C <worktree> commit`은 Git 자신이 커밋 대상을 명시하므로, 이 경우
+// scope 판정도 같은 worktree에서 해야 한다. 경로는 실행하지 않고 Git argv의 리터럴
+// `-C` 값만 누적해 해석한다.
+function commitWorktree(command: unknown, fallback: string): string {
+  if (typeof command !== 'string') return fallback;
+  let worktree = fallback;
+  for (const segment of segments(tokenize(command))) {
+    const gitIdx = segment.findIndex((token) => isWord(token, 'git'));
+    if (gitIdx === -1) continue;
+    for (let i = gitIdx + 1; i < segment.length; i += 1) {
+      const token = segment[i];
+      if (token.value === 'commit') {
+        if (worktree === fallback) return fallback;
+        try {
+          return execFileSync('git', ['rev-parse', '--show-toplevel'], {
+            cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+          }).trim();
+        } catch (_e) {
+          // `-C` 대상이 Git worktree임을 증명할 수 없으면 host cwd 판정을 유지한다.
+          return fallback;
+        }
+      }
+      if (token.quoted || EXPANSION.test(token.value)) continue;
+      let value: WordToken | undefined;
+      if (token.value === '-C') value = segment[++i];
+      else if (token.value.startsWith('-C') && token.value.length > 2) {
+        value = { value: token.value.slice(2), quoted: false };
+      }
+      if (value && !EXPANSION.test(value.value)) worktree = path.resolve(worktree, value.value);
+      else if (GIT_VALUE_FLAGS.has(token.value)) i += 1;
+    }
+  }
+  return fallback;
+}
+
 function realResolveAlias(cwd: unknown): ResolveAlias {
   return (name: string) => {
     try {
@@ -391,7 +427,11 @@ function evaluateIndex({ repoRoot, deps, all }: {
     // 손상된 원장 하나가 모든 checkout을 막으므로 어느 파일인지 보여야 한다.
     const where = detail || `no staged path in ${repoRoot}`;
     const ledger = coordinator && coordinator.ledgerFile ? ` (ledger: ${coordinator.ledgerFile})` : '';
-    return { block: true, reason: `commit blocked: ${code}: ${where}${ledger}` };
+    // 메인 checkout 거절은 막다른 길로 보이지 않게 다음 행동을 덧붙인다(병합 뒤 분리 경로).
+    const next = code === 'main-worktree-source-write'
+      ? ` | next: ${scope.mainWorktreeNext(coordinator, blueprintDir)}`
+      : '';
+    return { block: true, reason: `commit blocked: ${code}: ${where}${ledger}${next}` };
   }
   return {
     block: true,
@@ -435,9 +475,10 @@ function evaluateCommit({ command, repoRoot, deps }: {
   deps?: CommitHookDeps | null;
 }) {
   const d = mergeCommitHookDeps(deps);
-  const judgment = detect(command, realResolveAlias(repoRoot), 0);
+  const worktree = commitWorktree(command, repoRoot);
+  const judgment = detect(command, realResolveAlias(worktree), 0);
   if (!judgment.commit) return { block: false };
-  return evaluateIndex({ repoRoot, deps: d, all: judgment.all });
+  return evaluateIndex({ repoRoot: worktree, deps: d, all: judgment.all });
 }
 
 export = {

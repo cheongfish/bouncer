@@ -16,7 +16,9 @@ const ALLOWED_STATUS = ['requested', 'addressed', 'accepted'] as const;
 
 const USAGE_BLOCK = '  review record --blueprint <dir> [--task <ddd>] --round <json-file> '
   + '[--status <requested|addressed|accepted>]\n'
-  + '             Record one review round and finding updates (JSON).\n';
+  + '             Record one review round and finding updates (JSON).\n'
+  + '  review accept-risk --blueprint <dir> --finding <id> --note <text> --yes\n'
+  + '             Close one open blueprint final-review finding as a user-accepted risk.\n';
 
 const USAGE = 'usage: bouncer review record --blueprint <dir> [--task <ddd>] '
   + '--round <json-file> [--status <requested|addressed|accepted>] [--repo <dir>]\n'
@@ -88,12 +90,17 @@ Enums:
   perspective name: combined|spec_scope|correctness_tests|minimality_maintainability|security
   --status: requested|addressed|accepted
 
-Success is { ok: true, path, round, status, findings } (exit 0). When findings recorded in this round
+Success is { ok: true, path, round, status, findings, finding_ids } (exit 0). finding_ids lists this
+round's normalized finding ids in input order without duplicates. When findings recorded in this round
 share a file and symbol under different categories it also carries warnings: [{ code:
 'finding-merge-candidate', file, symbol, ids }] (ids in input order); the key is omitted when there is
 none. A warning never blocks the record; the controller decides whether to merge those findings.
 
 fingerprint formula: lower(category):lower(brief_clause):posix(file)#symbol
+The recorder always overwrites a supplied fingerprint with this formula. Omit the id key to get
+F-<first 8 hex of sha256(fingerprint)>; the same fingerprint gets the same id in every round. An
+explicit id must be a non-empty string (null, "", blank or non-string is review-input-invalid), and an
+omitted id whose generated id is taken by a different fingerprint is rejected as review-input-invalid.
 
 Repair wave example (open in discovery, resolved in delta): see the review and
 final_review coordinator cards, section "Finding status".
@@ -160,7 +167,7 @@ function parseReviewRecordArgs(rest: string[]): ParsedRecord {
     status: null,
   });
   if (rest[0] !== 'record') {
-    return fail('command must be record');
+    return fail('command must be record or accept-risk');
   }
   const flags = rest.slice(1);
   for (const name of ['blueprint', 'round', 'task', 'status', 'repo']) {
@@ -197,6 +204,47 @@ function parseReviewRecordArgs(rest: string[]): ParsedRecord {
   };
 }
 
+type ParsedAcceptRisk = {
+  error?: string;
+  blueprint: string;
+  finding: string;
+  note: string;
+  yes: boolean;
+  repo?: string;
+};
+
+/**
+ * `review accept-risk` argv. 필수 플래그 누락·중복과 --task는 기록 모듈을 열기 전에
+ * 거절해 사용법 오류(exit 2)와 원장 거절(exit 1)을 가른다. --yes 누락은 사용법이 아니라
+ * 승인 경계이므로 여기서 통과시켜 기록 모듈이 confirmation-required로 거절한다.
+ *
+ * @param {string[]} flags - `accept-risk` 뒤 argv
+ * @returns {ParsedAcceptRisk} 성공 필드 또는 error
+ */
+function parseAcceptRiskArgs(flags: string[]): ParsedAcceptRisk {
+  const fail = (message: string): ParsedAcceptRisk => ({
+    error: `review accept-risk: ${message}\n${USAGE}`, blueprint: '', finding: '', note: '', yes: false,
+  });
+  if (countFlag(flags, 'task') > 0) return fail('--task is not allowed');
+  for (const name of ['blueprint', 'finding', 'note', 'repo']) {
+    if (countFlag(flags, name) > 1) return fail(`--${name} specified more than once`);
+  }
+  const f = parseFlags(flags);
+  for (const name of ['blueprint', 'finding', 'note']) {
+    if (typeof f[name] !== 'string' || f[name] === '') return fail(`--${name} is required`);
+  }
+  if (f.repo !== undefined && (typeof f.repo !== 'string' || f.repo === '')) {
+    return fail('--repo requires a directory');
+  }
+  return {
+    blueprint: f.blueprint as string,
+    finding: f.finding as string,
+    note: f.note as string,
+    yes: f.yes === true,
+    repo: typeof f.repo === 'string' ? f.repo : undefined,
+  };
+}
+
 /**
  * 공개 `review` 핸들러. `--help`는 기록 모듈을 열기 전에 stdout으로 끝내고,
  * 그 외는 argv 검증과 원장 기록·JSON·exit만 연결한다.
@@ -210,6 +258,23 @@ function cmdReview(rest: string[], io: CliIo): number {
   if (argvRequestsHelp(rest)) {
     io.out(HELP);
     return 0;
+  }
+  if (rest[0] === 'accept-risk') {
+    const accept = parseAcceptRiskArgs(rest.slice(1));
+    if (accept.error) {
+      io.err(accept.error);
+      return 2;
+    }
+    const reviewRecord = require('./review-record') as typeof import('./review-record');
+    const outcome = reviewRecord.acceptReviewRisk({
+      repoRoot: accept.repo ? accept.repo : process.cwd(),
+      blueprintDir: accept.blueprint,
+      finding: accept.finding,
+      note: accept.note,
+      yes: accept.yes,
+    });
+    io.out(`${JSON.stringify(outcome, null, 2)}\n`);
+    return outcome.ok ? 0 : 1;
   }
   const parsed = parseReviewRecordArgs(rest);
   if (parsed.error) {

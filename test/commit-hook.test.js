@@ -541,6 +541,17 @@ test('a live coordinator ledger → refuses a main-worktree commit and allows th
   assert.deepStrictEqual(fromWorker, { block: false });
 });
 
+test('git -C worker commit with the main cwd in the hook → uses the explicit worker worktree', () => {
+  const { repo, worker } = coordinatorFixture();
+  const staged = { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] };
+
+  const result = evaluateCommit({
+    command: `git -C ${worker} commit -m x`, repoRoot: repo, deps: staged,
+  });
+
+  assert.deepStrictEqual(result, { block: false });
+});
+
 test('an unreadable ledger → names the file that is blocking every checkout', () => {
   const { repo, worker } = coordinatorFixture('.bouncer/context/epics/045-x/blueprints/046-y');
   const ledgerFile = path.join(

@@ -4,6 +4,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 import frontmatter = require('./frontmatter');
+import { validOutsideScope } from './execution-contracts';
+import type { OutsideScopeDisposition } from './execution-contracts';
 const { readDoc } = frontmatter;
 import paths = require('./paths');
 const { toPosix } = paths;
@@ -25,6 +27,8 @@ import finalizeCollect = require('./finalize-collect');
 const { buildCoordinatorProvenance } = finalizeCollect;
 import gitOps = require('./git-ops');
 const { resolveCheckoutBranch } = gitOps;
+import finalizeChecks = require('./finalize-checks');
+const { collectMustFixWarnings } = finalizeChecks;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import currentMod = require('./current');
@@ -49,7 +53,8 @@ type DigestFail = {
 
 type WorkerNotes = { open_choices: string[]; known_weaknesses: string[] };
 
-type Finding = { id: string; severity: string; status: string; note?: string };
+// actionability는 원문에 문자열로 있을 때만 싣는다. legacy finding에는 키가 없다.
+type Finding = { id: string; severity: string; status: string; note?: string; actionability?: string };
 
 type TaskDigest = {
   stable_id: string;
@@ -69,6 +74,8 @@ type TaskDigest = {
     exit_code: number | null;
     evidence_id: string | null;
     reused: boolean | null;
+    // terminal 실패가 입증된 범위 밖 분류를 받았을 때만 붙는다. status는 그대로 failed다.
+    outside_scope?: OutsideScopeDisposition;
   } | null;
   review: { required: boolean; findings: Finding[] } | null;
   constraints: string | null;
@@ -88,6 +95,16 @@ type Unverified = { kind: string; task?: string | null; path?: string; detail?: 
 type DriveSummary = {
   ready: boolean;
   tasks: Array<{ id: string; status: string | null; sha: string | null }>;
+};
+
+// Retro 실행 여부를 가르는 drive 실행 통계. 모든 값은 0 이상 정수다.
+type DriveIssues = {
+  rework_reports: number;
+  debugger_calls: number;
+  repair_waves: number;
+  fanin_verification_failures: number;
+  blocked: number;
+  deferred_must_fix: number;
 };
 
 type FinalizeDigest = {
@@ -117,6 +134,8 @@ type FinalizeDigest = {
   blueprint_review: { findings: Finding[] } | null;
   pr: ReturnType<typeof buildPrDraft>;
   drive: DriveSummary | null;
+  warnings: ReturnType<typeof collectMustFixWarnings>;
+  drive_issues: DriveIssues;
 };
 
 const OUT_OF_SCOPE_DEFS = [
@@ -468,6 +487,11 @@ function readReview(absPath: string | null): TaskDigest['review'] {
         status: typeof row.status === 'string' ? row.status : 'resolved',
       };
       if (typeof row.note === 'string' && row.note) finding.note = row.note;
+      // 미해결 must_fix 경고는 이 값으로만 판정한다. 없을 때 severity로 채우면 legacy
+      // 리뷰의 blocker/major가 경고로 둔갑하므로 원문에 있을 때만 옮긴다.
+      if (typeof row.actionability === 'string' && row.actionability) {
+        finding.actionability = row.actionability;
+      }
       findings.push(finding);
     }
     // 키 부재는 required=true로 본다. 명시 false만 review-skipped를 만든다.
@@ -574,9 +598,48 @@ function summarizeDrive(ledger: unknown): DriveSummary | null {
       sha: typeof raw.sha === 'string' ? raw.sha : null,
     });
   }
+  // 입증된 범위 밖 terminal 실패는 성공이 아니라 별도 충족 사유다. ready만 열고 status는 원장 값
+  // (verifying) 그대로 보여 줘 호출자가 integrated로 오해하지 않게 한다.
   const ready = !dropped && tasks.length > 0
-    && tasks.every((task) => task.status === 'integrated');
+    && tasks.every((task) => task.status === 'integrated' || validOutsideScope(ledger, task.id) !== null);
   return { ready, tasks };
+}
+
+/**
+ * 원장 decisions에서 Retro 판단용 drive 실행 통계를 센다. 원장 event만 세고 CLI 거절이나
+ * 대화 기록은 추정하지 않는다. 순수 함수이며 입력을 바꾸지 않고 throw하지 않는다.
+ * - rework_reports·blocked: `report` outcome rework/blocked. blocked는 `critical-recovery`
+ *   outcome blocked도 더한다.
+ * - debugger_calls: role debugger인 `worker-model`만. `worker-tokens`는 같은 호출의 늦은
+ *   토큰 기록이라 세면 한 호출이 두 번 잡힌다.
+ * - repair_waves: 같은 repair가 decisions와 `repairWaves`에 함께 남으므로 둘을 더하지 않는다.
+ *   `repairWaves`의 고유 wave가 정본이고, 비어 있거나 없을 때만 decisions repair로 대신한다.
+ * - fanin_verification_failures: `fanin-verification-failed` decision 수.
+ *
+ * @param {unknown} ledger - 읽힌 원장 객체. 원장이 없으면 null(모든 원장 counter 0)
+ * @param {number} deferredMustFix - 루트 리뷰 deferred must_fix 고유 id 수(원장 밖 값)
+ * @returns {DriveIssues} 여섯 counter
+ */
+function summarizeDriveIssues(ledger: unknown, deferredMustFix: number): DriveIssues {
+  const root = asRecord(ledger);
+  const decisions = (Array.isArray(root.decisions) ? root.decisions : []).map(asRecord);
+  const count = (pred: (d: Record<string, unknown>) => boolean) => decisions.filter(pred).length;
+  // wave가 정수인 행만 고유 집합에 넣는다 — 깨진 행이 별도 wave로 세지지 않게.
+  const uniqueWaves = (rows: unknown[]) => new Set(
+    rows.map(asRecord).map((r) => r.wave).filter((w) => Number.isInteger(w)),
+  ).size;
+  const fromRepairWaves = Array.isArray(root.repairWaves) ? uniqueWaves(root.repairWaves) : 0;
+  return {
+    rework_reports: count((d) => d.kind === 'report' && d.outcome === 'rework'),
+    debugger_calls: count((d) => d.kind === 'worker-model' && d.role === 'debugger'),
+    repair_waves: fromRepairWaves > 0
+      ? fromRepairWaves
+      : uniqueWaves(decisions.filter((d) => d.kind === 'repair')),
+    fanin_verification_failures: count((d) => d.kind === 'fanin-verification-failed'),
+    blocked: count((d) => (d.kind === 'report' || d.kind === 'critical-recovery')
+      && d.outcome === 'blocked'),
+    deferred_must_fix: deferredMustFix,
+  };
 }
 
 /**
@@ -591,6 +654,10 @@ function summarizeDrive(ledger: unknown): DriveSummary | null {
  * buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로 조립하지 않게
  * 하기 위함이다. `review_scope: blueprint`이면 루트 리뷰 finding을
  * `blueprint_review`로 싣고, 아니면 그 필드는 null이다.
+ * 루트 리뷰의 deferred must_fix는 최상위 `warnings`(blueprint 모드가 아니면 [])로,
+ * 원장 event 통계는 최상위 `drive_issues`로 싣는다. 둘 다 buildPrDraft 뒤에 붙여
+ * 실행 통계가 PR 입력에 섞이지 않게 한다 — PR의 미해결 절은 같은 판정 함수로
+ * `blueprint_review`에서 직접 만든다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 호출 checkout(보통 main). 원장 경로 해석 기준
@@ -864,10 +931,29 @@ function prepareFinalizeDigest({
   const unverified: Unverified[] = [];
   if (!diffSummary) unverified.push({ kind: 'diff-summary-unavailable' });
   let terminalOk = false;
+  let outsideScopeTerminal: { stableId: string; accepted: OutsideScopeDisposition } | null = null;
   for (const item of built) {
     const task = item.digest;
     if (item.kind === 'verification') {
-      if (task.verification && task.verification.status === 'passed') terminalOk = true;
+      if (task.verification && task.verification.status === 'passed') {
+        terminalOk = true;
+        continue;
+      }
+      // 실패한 terminal이 입증된 범위 밖 분류를 가지면 passed로 바꾸지 않고 실패 증거에 분류와
+      // 원본 evidence/source identity를 붙인다. 분류가 없거나 stale이면 아래 terminal-missing이 남는다.
+      const accepted = validOutsideScope(ledger, task.id);
+      if (accepted) {
+        const failure = asRecord(asRecord(ledger).terminalFailure);
+        task.verification = {
+          status: task.verification ? task.verification.status : 'failed',
+          command: task.verification?.command ?? (typeof failure.command === 'string' ? failure.command : null),
+          exit_code: task.verification?.exit_code ?? (typeof failure.exitCode === 'number' ? failure.exitCode : null),
+          evidence_id: task.verification?.evidence_id ?? accepted.evidence_id,
+          reused: task.verification ? task.verification.reused : null,
+          outside_scope: accepted,
+        };
+        outsideScopeTerminal = { stableId: task.stable_id, accepted };
+      }
       continue;
     }
     if (item.kind === 'commit') {
@@ -917,7 +1003,14 @@ function prepareFinalizeDigest({
       }
     }
   }
-  if (!terminalOk) {
+  if (!terminalOk && outsideScopeTerminal) {
+    // 별도 경고 항목: 원본 증거 id를 detail에 싣는다(경로가 아니라 id만 — 공유 PR에 로컬 경로가 새지 않게).
+    unverified.push({
+      kind: 'terminal-outside-scope',
+      task: outsideScopeTerminal.stableId,
+      detail: `${outsideScopeTerminal.accepted.reason} (evidence ${outsideScopeTerminal.accepted.evidence_id})`,
+    });
+  } else if (!terminalOk) {
     unverified.push({ kind: 'terminal-missing' });
   }
 
@@ -974,6 +1067,8 @@ function prepareFinalizeDigest({
     blueprint_review: blueprintReview,
   };
 
+  // task 범위는 경고를 만들지 않는다 — blueprintReview는 blueprint 모드에서만 non-null.
+  const warnings = blueprintReview ? collectMustFixWarnings(blueprintReview.findings) : [];
   const config = readConfig(checkoutRoot) ?? {};
   return {
     ...body,
@@ -983,7 +1078,9 @@ function prepareFinalizeDigest({
     }),
     // PR draft 입력(body)에 섞이지 않도록 buildPrDraft 호출 뒤 반환 객체에만 붙인다.
     drive: summarizeDrive(ledger),
+    warnings,
+    drive_issues: summarizeDriveIssues(ledger, warnings.length),
   };
 }
 
-export = { prepareFinalizeDigest, summarizeDrive };
+export = { prepareFinalizeDigest, summarizeDrive, summarizeDriveIssues };

@@ -1,90 +1,40 @@
 # implement
 
-Contract card for the `coordinate next` action `implement`. Rules are copied
-from the coordinator Worker dispatch. When dispatching a named implementer or applying
-its fallback, read [agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md).
+Contract card for the `coordinate next` action `implement`. When dispatching a
+named implementer or applying its fallback, read
+[agent-dispatch](../../skills/bouncer-run/references/agent-dispatch.md): it owns
+the named payload, the whole-role fallback, the five dispatch metadata fields,
+`report_path`, the brief freeze, the stale Brief revision rule, and the model
+record. This card keeps only the implement-phase inputs.
 
 - Dispatch named `bouncer-implementer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   Never play that role yourself and never let one worker judge another's
   report.
-- The model argument for that dispatch is the `bouncer subagent-model --agent
-  bouncer-implementer` output you already passed to `coordinate dispatch --model
-  <value>`; that call is what records it. Pass the same value to the
-  implementer dispatch. Do not record it a second time, including after an `inherit` retry: the ledger keeps the first value.
 - Before a `bouncer-implementer` edits a commit task, require it to read
   `${BOUNCER_ROOT}/references/coding-standards/index.md`. This is mandatory, not a suggested
   reference: it holds the Korean comment and docstring contract and the test
   and error-handling standards.
-- Immediately before every `bouncer-implementer` call, run `bouncer coordinate
-  dispatch` from that task's worktree. Pass only the returned five metadata
-  fields with the current brief: `attempt`, `task_brief_hash`, `base_head`,
-  `initial_worktree_state`, and — when present — `previous_outcome` as
-  `{ outcome, summary }`. The first attempt has no `previous_outcome`. Named
-  and fallback payloads receive the same shape; do not add the raw ledger, other
-  task briefs, completed task documents, prior worker report bodies, or past
-  conversation. Separately from the five metadata fields, also pass the
-  `report_path` that `coordinate dispatch` returned (or that `coordinate next`
-  put in the `implement` payload) so the implementer writes its final report there.
-- While that attempt is active, freeze the task brief: do not call
-  `coordinate revise` and do not edit the brief until you have judged the
-  implementer's report. If scope must change, wait for the report, record
-  `scope_revision`, revise, then open a new dispatch.
-- Give each worker its assigned task worktree as cwd and only that task's
-  current brief — the one your latest revision left behind, not the approval
-  snapshot.
+- Inputs for this step: the assigned task worktree as cwd, the current brief
+  (the one your latest revision left behind, not the approval snapshot), the
+  `metadata` and `report_path` that `coordinate dispatch` returned (or that
+  `coordinate next` put in the `implement` payload), and the shared bundle
+  identifiers with the implementer's `intent_sections`.
+
+## Test command and report check
+
+On a `verification_policy: scoped_terminal` blueprint the worker runs only the
+task's own `bouncer.verify` command; never pass it the full-suite command or ask
+it to run `npm test` / `npm run ci`. The worker's report must carry that exact
+command and a passing result under `## Tests`. A different command, a missing
+result, or a failing result is rejected at fan-in (`worker-test-report-mismatch`),
+so judge such a report as rework instead of integrating it. The instruction text
+alone does not show which command an agent actually ran; the report check
+(and the execute gate) is the evidence. The first full verification is the
+terminal verification node's single run after all implementation is integrated.
 
 ## Payload
 
-- Every named and fallback payload for implementer, debugger, and reviewer
-  carries the same `task_brief_hash`, `intent_bundle_id`, and
-  `intent_bundle_revision` from the controller's single preflight
-  `bouncer intent bundle` resolve, plus a role-specific `intent_sections`
-  projection from `bouncer intent sections --task <current.task.path> --role
-  <role>`. Named and fallback receive identical identifiers and the same role
-  section set. Do not pass the full Explain body, another task's bundle, or
-  another role's report.
-- Under a coordinator drive, every implementer dispatch — named or fallback —
-  also carries the same five `coordinate dispatch` metadata fields: `attempt`,
-  `task_brief_hash`, `base_head`, `initial_worktree_state`, and when present
-  `previous_outcome` as `{ outcome, summary }`. Freeze the task brief while the
-  attempt is active: do not revise until after the implementer report is judged.
-  The implementer returns **Brief revision** with the same `attempt` and
-  `task_brief_hash`; a mismatch is stale — call `coordinate report` with the
-  received attempt and hash so runtime can append `stale-report`, and do not
-  treat it as accepted or call `coordinate record`.
-- Before a **new named dispatch**, run `bouncer codex-agents check --agent
-  bouncer-implementer`. Compact input is allowed only when the JSON reports
-  `in_sync: true` — the local TOML starts with `# bouncer-generated` and is an
-  exact match of the generated bytes.
-- When that check succeeds, dispatch named `bouncer-implementer` with the
-  actual worktree cwd and only the current task's Goal & intent, Current
-  behavior, Target behavior, Interface, Touch, Do not touch, Constraints, and
-  Checklist (omit any of those two behavior sections that the brief does not
-  carry), plus `task_brief_hash`, `intent_bundle_id`,
-  `intent_bundle_revision`, and the implementer's `intent_sections` projection
-  from `bouncer intent sections --task <current.task.path> --role
-  implementer`. Under a coordinator drive also pass `attempt`, `base_head`,
-  `initial_worktree_state`, and when present `previous_outcome` from
-  `coordinate dispatch` — the same five metadata fields as the fallback path —
-  and require **Brief revision** in the report. The generated role file
-  already owns the role instructions, so do not repeat them in the named
-  payload.
-- Under a coordinator drive the cwd is the task worktree `bouncer coordinate
-  prepare` assigned — never the integration worktree and never the main
-  checkout — and the eight sections come from the brief as the coordinator's
-  latest `bouncer coordinate revise` left it, not the approval snapshot (omit
-  absent behavior sections). Other tasks' briefs, the ledger, and other
-  workers' reports stay out of the payload.
-- If the TOML is missing, has a mismatch, is user-owned (no generated marker),
-  or named agents are unavailable, do not compact. Use a fresh generic
-  subagent whose payload carries the entire body of
-  `${BOUNCER_ROOT}/agents/bouncer-implementer.md` — every section from Authority through
-  Output contract, verbatim — plus the actual worktree cwd and the eight
-  current-task sections, with the same `task_brief_hash`, `intent_bundle_id`,
-  `intent_bundle_revision`, and `intent_sections` as the named path, and under
-  a coordinator drive the same five dispatch metadata fields (`attempt`,
-  `task_brief_hash`, `base_head`, `initial_worktree_state`, and conditional
-  `previous_outcome`) so **Brief revision** stays comparable.
+When `payload.promoted_patch` is present, it points to the saved dirty-work patch from a stopped light run. Inspect it as task input and reuse only changes covered by the current task's `affected_paths`; the patch is evidence of prior work, not expanded authority.
 
 ## Print dispatch input
 

@@ -7,13 +7,14 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import coordinator = require('./coordinator');
 const {
   registeredIntegration, ensureIntegrationCwd, assertLeaseShape,
-  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
+  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf,
   loadLedgerBytes, readBouncerBlock, projectCheckpoint, COORDINATE_FAILURE_HINTS,
 } = coordinator;
 import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths } = runtime;
 import configMod = require('./config');
 import driveMetrics = require('./drive-metrics');
+import { validOutsideScope } from './execution-contracts';
 import type {
   Lease as CanonicalLease, DispatchState as CanonicalDispatchState, Task as CanonicalTask,
   Ledger as CanonicalLedger, LedgerRef as CanonicalLedgerRef,
@@ -52,7 +53,7 @@ type JudgeContext = {
 };
 // status·base는 문자열로만 비교하고, revision은 부재를 null로 읽으므로 넓게 재선언한다.
 type Ledger = Omit<
-  Partial<Pick<CanonicalLedger, 'status' | 'base' | 'integrationHead' | 'fanin' | 'mode'>>,
+  Partial<Pick<CanonicalLedger, 'status' | 'base' | 'integrationHead' | 'fanin' | 'mode' | 'promoted_from'>>,
   'status' | 'base'
 > & {
   status?: string; base?: string;
@@ -82,6 +83,14 @@ type NextOk = {
 type NextErr = { ok: false; reason: string; cause: string; next: string };
 
 const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
+  'worker-commit-stamp-mismatch': {
+    cause:
+      'The commit_sha stamp in the worker tasks.md differs from the first 8 chars of HEAD and no in-scope ' +
+      'change is left to commit.',
+    next:
+      'Do not rerun commit (nothing is left to commit). Report the stale stamp to the user, or `bouncer ' +
+      'coordinate revoke` and `prepare` the task again.',
+  },
   'partial-closed': {
     cause: 'This drive was partial-closed after the repair-wave limit.',
     next: 'Report the preserved drive to the user; do not retry coordinate mutations on this blueprint.',
@@ -93,6 +102,11 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
   'no-ready-task': {
     cause: 'No prepared, recorded, ready, or integrable work remains, and the blueprint is not done.',
     next: 'Run `bouncer coordinate status` and report the unexpected ledger combination; do not invent an action.',
+  },
+  'final-review-blocked': {
+    cause: 'The blueprint final review already recorded its one discovery round and the root review is not accepted.',
+    next: 'Show the open findings to the user and wait for their decision (note + deferred, or '
+      + 'accepted-risk consent); do not run a delta round or repair.',
   },
   'critical-recovery-open': {
     cause: 'This prepared task has an open critical-recovery record with no outcome yet.',
@@ -503,6 +517,8 @@ function decideNext(opts: {
   if (!leaseShape.ok) return fail(leaseShape.reason);
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   const ledger = loaded.ledger as Ledger;
+  // 분리된 실행은 다음 행동을 정하지 않는다(task 범위 포함). finalize 또는 새 계획으로 안내한다.
+  if (ledger.status === 'detached') return fail('run-detached');
   const checkpoint = projectCheckpoint(loaded.ledger, integration.ledgerFile, loaded.bytes);
   const ledgerRef = checkpoint.ledger;
   const integrationCwd = integration.integrationPath;
@@ -615,7 +631,10 @@ function blueprintNext(ctx: {
   const failedId = ledger.terminalFailure && ledger.terminalFailure.task;
   if (failedId) {
     const failed = ledger.tasks.find((item) => item.id === failedId);
-    if (failed && failed.execution_kind === 'verification' && failed.status === 'verifying') {
+    // 입증된 범위 밖 분류가 있으면 terminal 실패는 blocked가 아니라 아래 완료 판정으로 넘어간다.
+    // 분류가 없거나 stale이면(소스 변경·identity 불일치·미완성) 기존 blocked를 그대로 유지한다.
+    if (failed && failed.execution_kind === 'verification' && failed.status === 'verifying'
+      && validOutsideScope(ledger, failed.id) === null) {
       return ok({
         scope: 'blueprint', action: 'blocked', reason: 'terminal-verification-failed',
         cwd: integrationCwd,
@@ -671,8 +690,17 @@ function blueprintNext(ctx: {
       argv: coordinateArgv('prepare', blueprint, ledgerRef),
     });
   }
+  // 완료는 전부 integrated이거나, 남은 하나가 입증된 범위 밖 terminal 실패일 때다. 후자는 성공으로
+  // 바꾸지 않고 payload.outside_scope로 실패 사실을 흘려 보낸다(passed·integrated로 취급하지 않는다).
+  const outsideScope = ledger.tasks
+    .map((item) => (item.status === 'integrated' ? null : validOutsideScope(ledger, item.id)))
+    .find((entry) => entry !== null) ?? null;
   const allIntegrated = ledger.tasks.length > 0
-    && ledger.tasks.every((item) => item.status === 'integrated');
+    && ledger.tasks.every((item) => item.status === 'integrated'
+      || (outsideScope !== null && validOutsideScope(ledger, item.id) !== null));
+  const completionPayload = outsideScope !== null
+    ? { payload: { outside_scope: outsideScope, failed_task: ledger.terminalFailure?.task } }
+    : {};
   if (allIntegrated && isBlueprintReviewModeAt(integrationCwd, blueprint)) {
     const rootReview = bouncerStatus(integrationCwd, `${blueprint.replaceAll('\\', '/')}/review.md`);
     if (rootReview !== 'accepted') {
@@ -680,8 +708,17 @@ function blueprintNext(ctx: {
         ? ledger.integrationHead
         : git(exec, integrationCwd, ['rev-parse', 'HEAD']);
       const base = typeof ledger.base === 'string' ? ledger.base : head;
-      // 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가 테스트를
-      // 보완해야 하고, verified면 보완 뒤의 한 번뿐인 delta 라운드로 간다.
+      // 최종 리뷰는 discovery 한 라운드로 끝난다. discovery가 저장됐는데 accepted가 아니면
+      // delta·repair·supplement로 되돌리지 않고 사용자 결정까지 멈춘다. 새 review status를
+      // 만들지 않으려고 기존 신호(문서 status requested, open finding)를 그대로 blocked로
+      // 읽는다. 저장된 과거 delta 이력은 읽기만 하고 여기서 새 delta를 만들지 않는다.
+      if (rootReviewHasDiscoveryRound(integrationCwd, blueprint)) {
+        return ok({
+          scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
+        });
+      }
+      // discovery 전 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가
+      // 테스트를 보완해야 하고, verified면 보완 뒤 한 번뿐인 discovery 라운드로 간다.
       const supplement = [...(ledger.decisions || [])].reverse()
         .find((entry) => entry && entry.kind === 'supplement');
       if (supplement && supplement.outcome === 'pending') {
@@ -690,24 +727,19 @@ function blueprintNext(ctx: {
           payload: { paths: supplement.paths || [], findings: supplement.findings || [] },
         });
       }
-      // discovery round가 이미 있거나 verified supplement면 repair/재개 뒤다.
-      // argv에 --mode delta를 붙여 한 combined reviewer만 연다.
-      const deltaReview = rootReviewHasDiscoveryRound(integrationCwd, blueprint)
-        || Boolean(supplement && supplement.outcome === 'verified');
       return ok({
         scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
-        ...(deltaReview ? { payload: { mode: 'delta' } } : {}),
         argv: [
           'bouncer', 'review-dispatch', 'execute', '--blueprint', blueprint,
           '--base', base, '--head', head,
-          ...(deltaReview ? ['--mode', 'delta'] : []),
         ],
         judge: { kind: 'review-round', fields: [] },
+        ...completionPayload,
       });
     }
   }
   if (allIntegrated) {
-    return ok({ scope: 'blueprint', action: 'done', cwd: integrationCwd });
+    return ok({ scope: 'blueprint', action: 'done', cwd: integrationCwd, ...completionPayload });
   }
   return ok({
     scope: 'blueprint', action: 'blocked', reason: 'no-ready-task', cwd: integrationCwd,
@@ -845,6 +877,8 @@ function taskNext(ctx: {
       ),
     };
     if (ledger.mode === 'light') payload.inline = true;
+    // patch는 실행 권한을 넓히지 않는다. implementer는 현재 brief의 affected_paths 안에서만 재사용한다.
+    if (ledger.promoted_from?.patch) payload.promoted_patch = ledger.promoted_from.patch;
     return ok({ scope: 'task', action: 'implement', cwd, payload });
   }
 
@@ -891,12 +925,14 @@ function taskNext(ctx: {
       argv: ['bouncer', 'commit', '--blueprint', blueprint, '--yes'],
     });
   }
-  const shortHead = workerHead.slice(0, 8).toLowerCase();
-  const shortStamp = normalizeCommitSha(stamped);
   // dispatch 때 이미 dirty였던 경로(커밋 전 plan 문서의 seed)는 이 attempt가 만든 변경이 아니다.
   const baseline = new Set(dirtyPaths(item.dispatch.initial_worktree_state));
   const extras = dirtyPaths(porcelainText).filter((rel) => !baseline.has(rel));
-  if (shortStamp === shortHead && onlyTaskBriefDirty(extras, blueprint, task)) {
+  // stamp 규칙은 report·record가 거절에 쓰는 workerCommitEvidence와 같은 함수 하나를 쓴다.
+  // 그래야 next가 report를 권한 상태를 CLI가 거절하는 어긋남이 생기지 않는다.
+  const taskItem = item as Parameters<typeof coordinator.workerCommitEvidence>[3];
+  const evidence = coordinator.workerCommitEvidence(exec, cwd, blueprint, taskItem, ledger);
+  if (evidence.ok && onlyTaskBriefDirty(extras, blueprint, task)) {
     return ok({
       scope: 'task', action: 'report', cwd,
       argv: coordinateArgv('report', blueprint, ledgerRef, { task, item }, [
@@ -909,6 +945,26 @@ function taskNext(ctx: {
         allowed: ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'],
       },
     });
+  }
+  if (!evidence.ok) {
+    // report·record는 이 두 거절에서 advance의 commit을 안내한다. 커밋할 scope 변경이 실제로
+    // 있을 때만 commit을 골라야 한다 — 변경이 없으면 `bouncer commit --yes`가 committed:false로
+    // 끝나 stamp를 못 고치므로 advance가 같은 commit 단계를 무한 반복한다.
+    const hasCommittable = evidence.reason === 'worker-scope-dirty'
+      || (evidence.reason === 'worker-commit-stamp-mismatch'
+        && coordinator.workerScopeDirtyPaths(exec, cwd, blueprint, taskItem).length > 0);
+    if (hasCommittable) {
+      return ok({
+        scope: 'task', action: 'commit', cwd,
+        argv: ['bouncer', 'commit', '--blueprint', blueprint, '--yes'],
+      });
+    }
+    // 커밋으로 풀리지 않는 낡은 stamp는 원인 코드를 그대로 드러낸다.
+    if (evidence.reason === 'worker-commit-stamp-mismatch') {
+      return ok({
+        scope: 'task', action: 'blocked', reason: 'worker-commit-stamp-mismatch', cwd,
+      });
+    }
   }
   return ok({
     scope: 'task', action: 'blocked', reason: 'commit-evidence-mismatch', cwd,

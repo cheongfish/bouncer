@@ -23,7 +23,7 @@ import validateSections = require('./validate-sections');
 const {
   REVIEW_SEVERITY, CONTEXT_REVIEW_STATUS, FINDING_ACTIONABILITY,
   REPORT_FINDING_STATUS: FINDING_STATUS, CONTEXT_ROUND_MODES: ROUND_MODES,
-  CONTEXT_REPORT_STATUS: REPORT_STATUS, collectFindingFailures,
+  CONTEXT_REPORT_STATUS: REPORT_STATUS, collectFindingFailures, normalizeFinding, normalizeRoundFindings,
 } = validateSections;
 
 // 계획 리뷰 cycle의 단일 writer. 전체 재시작을 누적 1회로 제한하고, 재시작이
@@ -55,7 +55,10 @@ type Cycle = {
   active_reports: ReportRef[];
   latest_dispatch: Ref;
 };
-type Closure = { dispositions: Ref; accept_risk: string[] };
+// closure_target_digest: close·accepted record가 인증한 계획 snapshot digest(64 lowercase hex).
+// G18이 마지막 round digest보다 먼저 비교하는 값이다. 이 필드가 없는 과거 state는 round digest로 폴백한다.
+// dispositions는 close 전이만 남긴다 — accepted record는 처분 파일 없이 round 보고로 닫기 때문이다.
+type Closure = { dispositions?: Ref; accept_risk: string[]; closure_target_digest?: string };
 type State = {
   version: 1;
   blueprint: string;
@@ -404,10 +407,15 @@ function loadState(ctx: Ctx): State | null | Fail {
   // closure는 선택 필드다. 존재하면 형상과 dispositions 참조를 검증한다.
   if (parsed.closure !== undefined) {
     if (!isRecord(parsed.closure)
-      || !isRecord(parsed.closure.dispositions)
+      || (parsed.closure.dispositions !== undefined && !isRecord(parsed.closure.dispositions))
       || !Array.isArray(parsed.closure.accept_risk)
       || !parsed.closure.accept_risk.every((x) => typeof x === 'string')) {
       return corrupt('closure shape');
+    }
+    // 손상된 digest를 현재 내용으로 대체 인증하지 않는다: 형식이 틀리면 state 손상이다.
+    const digest = parsed.closure.closure_target_digest;
+    if (digest !== undefined && (typeof digest !== 'string' || !SHA256_RE.test(digest))) {
+      return corrupt('closure digest shape');
     }
   }
   const c = parsed.cycle;
@@ -472,6 +480,9 @@ function readRef(ctx: Ctx, repoRoot: string, ref: Ref): string | Fail {
 /**
  * active 보고들을 읽어 round 객체와 ID별 최신 finding을 합친다. 같은 id는 뒤 보고가
  * 통째로 대체한다(처분 갱신). 입력 객체는 변형하지 않아 archive가 원본을 보존한다.
+ * 각 finding은 합치기 전에 정규화한다(fingerprint 공식 덮어쓰기, 생략 id는 `CR-<8hex>`).
+ * immutable 보고 원문·sha는 그대로 두고 파생 결과에서만 고쳐, 과거에 틀린 fingerprint로
+ * 기록된 보고도 close·projection에서 복구된다.
  *
  * @param {Ctx} ctx - namespace 경로
  * @param {string} repoRoot - 저장소 루트
@@ -488,7 +499,8 @@ function foldReports(
     if (isFail(text)) return text;
     const body = JSON.parse(text) as { round: unknown; findings: Finding[] };
     rounds.push(body.round);
-    for (const f of body.findings) {
+    for (const raw of body.findings) {
+      const f = normalizeFinding(raw, 'context') as Finding;
       const at = findings.findIndex((x) => x.id === f.id);
       if (at >= 0) findings[at] = f;
       else findings.push(f);
@@ -657,10 +669,12 @@ function rewriteFindingsSection(body: string, generated: string[]): string {
  * @param {string} repoRoot - 저장소 루트
  * @param {string} bp - blueprint 상대 POSIX 경로
  * @param {{ findings: Finding[]; rounds: unknown[] }} projection - 닫힌 cycle의 투영
+ * @param {string} [closureTargetDigest] - 인증한 snapshot digest. 있으면 frontmatter에 기록한다
  * @returns {{ abs: string, text: string, rel: string } | Fail} 쓸 파일·본문·저장소 상대 경로, 또는 거절
  */
 function prepareClosureDoc(
   repoRoot: string, bp: string, projection: { findings: Finding[]; rounds: unknown[] },
+  closureTargetDigest?: string,
 ): { abs: string; text: string; rel: string } | Fail {
   const rel = `${bp}/context-review.md`;
   const abs = path.join(repoRoot, bp, 'context-review.md');
@@ -683,6 +697,9 @@ function prepareClosureDoc(
   bouncer.status = 'accepted';
   cr.rounds = JSON.parse(JSON.stringify(projection.rounds));
   cr.findings = JSON.parse(JSON.stringify(projection.findings));
+  // runtime closure와 같은 값을 frontmatter에 투영한다. 과거 closed state는 digest가 없으므로
+  // 그 경우 기존 값을 건드리지 않아 G18이 round digest 폴백으로 판정하게 둔다.
+  if (closureTargetDigest !== undefined) cr.closure_target_digest = closureTargetDigest;
   bouncer.context_review = cr;
   const body = rewriteFindingsSection(parsed.body, findingLines(projection.findings));
   const messages = collectFindingFailures({
@@ -713,6 +730,36 @@ function duplicateFingerprints(findings: Array<{ fingerprint?: unknown }>): stri
     seen.add(f.fingerprint);
   }
   return [...dup];
+}
+
+/**
+ * 이번 입력 finding의 정규화 id를 입력 순서로 중복 없이 돌려준다. noop 응답도 첫 적용과
+ * 같은 값을 내야 하므로 fold 없이 finding 하나씩 정규화해 계산한다(id는 결정적이다).
+ *
+ * @param {Finding[]} findings - 이번 round 입력 findings(readReportInput 통과분)
+ * @returns {string[]} 정규화 id 목록
+ */
+function inputFindingIds(findings: Finding[]): string[] {
+  const ids: string[] = [];
+  for (const f of findings) {
+    const id = (normalizeFinding(f, 'context') as Finding).id as string;
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * 저장된 projection의 finding을 정규화한 사본을 만든다. 정규화 도입 전에 닫힌 state는
+ * 틀린 fingerprint를 projection에 담고 있을 수 있어, noop 재실행이 문서를 다시 쓸 때
+ * 그대로 쓰면 형식 검증에서 막힌다. state.json 자체는 고치지 않는다(파생 값만 복구).
+ *
+ * @param {{ findings: Finding[]; rounds: unknown[] }} projection - state에 저장된 projection
+ * @returns {{ findings: Finding[]; rounds: unknown[] }} findings만 정규화한 사본
+ */
+function normalizeProjection(
+  projection: { findings: Finding[]; rounds: unknown[] },
+): { findings: Finding[]; rounds: unknown[] } {
+  return { ...projection, findings: projection.findings.map((f) => normalizeFinding(f, 'context') as Finding) };
 }
 
 /**
@@ -812,6 +859,8 @@ function startCycle(input: { repoRoot: string; blueprintDir: string; dispatchFil
 /**
  * 보고 입력(`{round,findings}`)을 읽고 finding 모양을 검사한다. 미해결 처분(open)은
  * 진행 중 보고에만 허용되며 canonical 처분 enum은 여기서 늘리지 않는다.
+ * `id` 키 생략은 자동 id 대상이라 통과하지만, 명시한 id는 비어 있지 않은 문자열이어야 한다
+ * (null·빈 문자열·공백·비문자열은 작성 실수로 보고 거절한다).
  */
 function readReportInput(roundFile: string): ReportInput | Fail {
   const next = 'fix --round JSON: object with round and findings array';
@@ -832,7 +881,8 @@ function readReportInput(roundFile: string): ReportInput | Fail {
     return fail('context-review-input-invalid', 'expected { round: object, findings: array }', next);
   }
   for (const f of parsed.findings) {
-    const ok = isRecord(f) && typeof f.id === 'string' && f.id !== ''
+    const ok = isRecord(f)
+      && (!Object.prototype.hasOwnProperty.call(f, 'id') || (typeof f.id === 'string' && f.id.trim() !== ''))
       && REVIEW_SEVERITY.includes(f.severity as string)
       && FINDING_STATUS.includes(f.status as string)
       && FINDING_ACTIONABILITY.includes(f.actionability as string);
@@ -937,8 +987,9 @@ function recordReport(input: {
       // 닫는 전이의 재실행은 문서를 투영 상태로 되돌려 쓴다: 첫 성공 뒤 문서가 바뀌었거나
       // state 저장 뒤 문서 쓰기가 실패했어도 같은 입력의 재실행이 복구한다.
       let written: string | undefined;
-      if (status === 'accepted' && state.projection) {
-        const doc = prepareClosureDoc(repoRoot, ctx.bp, state.projection);
+      const projection = state.projection ? normalizeProjection(state.projection) : null;
+      if (status === 'accepted' && projection) {
+        const doc = prepareClosureDoc(repoRoot, ctx.bp, projection, state.closure?.closure_target_digest);
         if (isFail(doc)) return doc;
         const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
         if (isFail(wrote)) return wrote;
@@ -946,7 +997,8 @@ function recordReport(input: {
       }
       return {
         ok: true, noop: true, cycle, status, closed: state.closed,
-        ...(state.projection ? { projection: state.projection } : {}),
+        finding_ids: inputFindingIds(report.findings),
+        ...(projection ? { projection } : {}),
         ...(written ? { written } : {}),
       };
     }
@@ -979,8 +1031,17 @@ function recordReport(input: {
     // 3. 이전 보고와 합쳐 ID별 최신 처분을 만든다. closure면 projection 검사까지.
     const folded = foldReports(ctx, repoRoot, cycle.active_reports);
     if (isFail(folded)) return folded;
+    // 3-1. 입력도 같은 공식으로 정규화한다(fingerprint 덮어쓰기·생략 id 생성). 명시 id 오류와
+    //      자동 id 충돌은 merge 전에 거절해 다른 finding을 덮어쓰지 않게 한다. 보고 원문(report.text)과
+    //      그 sha·전이 키는 입력 바이트 그대로 두고, 정규화는 fold가 읽을 때마다 다시 적용된다.
+    const normalized = normalizeRoundFindings(report.findings, folded.findings, 'context');
+    if (!normalized.ok) {
+      return fail('context-review-input-invalid', normalized.messages,
+        'give each finding a non-empty string id or omit the id key; resolve id collisions, then retry');
+    }
+    const incoming = normalized.findings as Finding[];
     const merged = [...folded.findings];
-    for (const f of report.findings) {
+    for (const f of incoming) {
       const at = merged.findIndex((x) => x.id === f.id);
       if (at >= 0) merged[at] = f;
       else merged.push(f);
@@ -1000,7 +1061,8 @@ function recordReport(input: {
       if (isFail(projected)) return projected;
       projection = { findings: projected, rounds: [...folded.rounds, report.round] };
       // state를 바꾸기 전에 문서를 렌더·검증한다: 부재·검증 실패 거절이 아무것도 남기지 않는다.
-      closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection);
+      // accepted record는 round target과 같다고 검증된 dispatch.digest를 인증 대상으로 쓴다.
+      closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection, dispatch.digest);
       if (isFail(closureDoc)) return closureDoc;
     }
     // 4. 쓰기: immutable 자료 → state 교체 순.
@@ -1025,6 +1087,9 @@ function recordReport(input: {
       },
       transitions: [...state.transitions, key],
       closed: status === 'accepted',
+      ...(status === 'accepted'
+        ? { closure: { accept_risk: acceptRisk, closure_target_digest: dispatch.digest } }
+        : {}),
       projection,
     };
     const saved = guardWrites(() => saveState(ctx, next));
@@ -1036,9 +1101,9 @@ function recordReport(input: {
       if (isFail(wrote)) return wrote;
     }
     // 병합 후보 경고는 noop이 아닌 이번 기록의 round 입력만 대상으로 한다(추가 I/O 없음).
-    const warnings = validateSections.findingMergeCandidates(report.findings);
+    const warnings = validateSections.findingMergeCandidates(incoming);
     return {
-      ok: true, noop: false, cycle: next.cycle, status, closed: next.closed,
+      ok: true, noop: false, cycle: next.cycle, status, closed: next.closed, finding_ids: normalized.ids,
       ...(warnings.length > 0 ? { warnings } : {}),
       ...(projection ? { projection } : {}),
       ...(closureDoc && !isFail(closureDoc) ? { written: closureDoc.rel } : {}),
@@ -1108,14 +1173,23 @@ function closeCycle(input: {
     if (mismatch) return mismatch;
     const cycle = state.cycle;
 
-    // 1. 전이 키: cycle id, restart count, 'close', dispositions 원본 바이트 sha256, 정렬된 accept-risk
-    const key = transitionKey([cycle.id, cycle.restart_count, 'close', sha256(dispBytes), acceptRisk.join(',')]);
+    // 0. 인증 대상: 지금 디스크의 계획 snapshot. close는 dispatch를 받지 않으므로 현재 내용이 곧 대상이다.
+    const snap = computePlanSnapshot({ repoRoot, blueprintDir: ctx.bp });
+    if (!snap.ok) return targetInvalid(snap.error, 'fix the plan documents, then retry close');
+
+    // 1. 전이 키: cycle id, restart count, 'close', dispositions 원본 바이트 sha256, 정렬된 accept-risk,
+    //    인증 대상 digest. digest를 넣어야 닫힌 뒤 본문을 고친 재close가 같은 처분 파일로도
+    //    no-op으로 삼켜지지 않는다.
+    const key = transitionKey([cycle.id, cycle.restart_count, 'close', sha256(dispBytes), acceptRisk.join(','),
+      snap.digest]);
     if (state.transitions.includes(key)) {
       // 이미 반영된 close 전이이므로 closure 결과(status: 'accepted')를 돌려주되, 문서는
       // 투영 상태로 다시 쓴다(첫 성공 뒤 변경·쓰기 실패 복구).
+      // 저장 projection은 정규화 전 기록일 수 있어 파생 사본을 정규화해 쓴다.
       let written: string | undefined;
-      if (state.projection) {
-        const doc = prepareClosureDoc(repoRoot, ctx.bp, state.projection);
+      const projection = state.projection ? normalizeProjection(state.projection) : null;
+      if (projection) {
+        const doc = prepareClosureDoc(repoRoot, ctx.bp, projection, snap.digest);
         if (isFail(doc)) return doc;
         const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
         if (isFail(wrote)) return wrote;
@@ -1123,25 +1197,44 @@ function closeCycle(input: {
       }
       return {
         ok: true, noop: true, cycle, status: 'accepted', closed: state.closed,
-        ...(state.projection ? { projection: state.projection } : {}),
+        ...(projection ? { projection } : {}),
         ...(written ? { written } : {}),
       };
     }
 
-    // 2. 상태 충돌 검사: 이미 닫힌 cycle이거나 아직 기록된 round가 없으면 거절
-    if (state.closed) {
+    // 2. 상태 충돌 검사: 아직 기록된 round가 없으면 거절. 이미 닫힌 cycle은 인증한 digest와
+    //    현재 snapshot이 같을 때만 거절한다 — 다르면 본문 수정 뒤 재close 후보다(3-1에서 계약 대조).
+    const latestText = readRef(ctx, repoRoot, cycle.latest_dispatch);
+    if (isFail(latestText)) return latestText;
+    const baseline = JSON.parse(latestText) as Record<string, unknown>;
+    const baselineTarget = isRecord(baseline.target) ? baseline.target : {};
+    const certified = state.closure?.closure_target_digest ?? baselineTarget.digest;
+    if (state.closed && certified === snap.digest) {
       return fail('context-review-state-conflict', 'cycle is already closed', 'restart only when the plan changed');
     }
     if (cycle.active_reports.length === 0) {
       return fail('context-review-state-conflict', 'no round has been recorded in this cycle',
         'record at least one round before close');
     }
+    // 2-1. 구조·계약 대조: 리뷰한 baseline과 digest가 다르면 문서 집합·structure_parts·scope_parts가
+    //      모두 같은 본문 수정만 인증한다. 다른 변경은 route의 delta/restart 몫이다.
+    if (baselineTarget.digest !== snap.digest) {
+      const parts = computePlanParts({ repoRoot, blueprintDir: ctx.bp });
+      if (!parts.ok) return targetInvalid(parts.error, 'fix the plan documents, then retry close');
+      if (!sameStructureAndScope(baseline, { documents: snap.documents, ...parts })) {
+        return fail('context-review-state-conflict',
+          'plan structure or contract differs from the reviewed baseline; close cannot certify it',
+          'run context-review route with a fresh review-dispatch plan: delta for an Interface/Touch change, '
+          + 'restart for a structure change');
+      }
+    }
 
     // 3. active 보고들을 fold하여 기존 finding 목록을 취합한다
     const folded = foldReports(ctx, repoRoot, cycle.active_reports);
     if (isFail(folded)) return folded;
 
-    // 4. dispositions 항목 유효성 검사 및 합성
+    // 4. dispositions 항목 유효성 검사 및 합성. folded는 이미 정규화돼 있어 처분은 정규화 후 id에
+    //    적용된다(생략 id로 기록한 finding도 `CR-<8hex>`로 지정한다).
     const seenIds = new Set<string>();
     const merged = folded.findings.map((f) => ({ ...f }));
     for (const item of parsed) {
@@ -1175,7 +1268,7 @@ function closeCycle(input: {
     if (isFail(projected)) return projected;
     const projection = { findings: projected, rounds: folded.rounds };
     // 5-1. state를 바꾸기 전에 문서를 렌더·검증한다(부재·검증 실패는 무변경 거절).
-    const closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection);
+    const closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection, snap.digest);
     if (isFail(closureDoc)) return closureDoc;
 
     // 6. 쓰기: immutable dispositions 저장 후 state.json 원자적 교체
@@ -1192,7 +1285,7 @@ function closeCycle(input: {
       ...state,
       transitions: [...state.transitions, key],
       closed: true,
-      closure: { dispositions: dispRef, accept_risk: acceptRisk },
+      closure: { dispositions: dispRef, accept_risk: acceptRisk, closure_target_digest: snap.digest },
       projection,
     };
     const saved = guardWrites(() => saveState(ctx, next));
@@ -1286,7 +1379,10 @@ function restartCycle(input: {
       }
       const latest = readRef(ctx, repoRoot, state.cycle.latest_dispatch);
       if (isFail(latest)) return latest;
-      const previousDigest = (JSON.parse(latest) as { target: { digest: string } }).target.digest;
+      // 닫힌 cycle은 close가 인증한 digest가 마지막 certified target이다(본문 재close가 latest_dispatch를
+      // 바꾸지 않으므로 round digest만 보면 이미 인증된 snapshot으로 restart할 수 있다).
+      const previousDigest = state.closure?.closure_target_digest
+        ?? (JSON.parse(latest) as { target: { digest: string } }).target.digest;
       if (previousDigest === dispatch.digest) {
         return fail('context-review-state-conflict', 'plan snapshot is unchanged since the last certified target',
           'restart only after the plan documents changed');
@@ -1362,7 +1458,32 @@ function restartCycle(input: {
   }) as Record<string, unknown>;
 }
 
-type NextAction = 'reuse' | 'delta' | 'restart' | 'user';
+type NextAction = 'reuse' | 'close' | 'delta' | 'restart' | 'user';
+
+/**
+ * 두 plan payload의 문서 집합·structure_parts(구조)와 scope_parts(Interface·Touch 계약)가 같은지 본다.
+ * scope_parts의 해시 공식은 plan-snapshot 소유라 여기서는 값만 비교한다.
+ *
+ * @param {Record<string, unknown>} a - 기준 payload(저장된 latest dispatch)
+ * @param {Record<string, unknown>} b - 비교 payload 또는 현재 계산값
+ * @returns {{ structure: boolean, scope: boolean }} 구조 동일 여부와 계약 동일 여부
+ */
+function compareShape(a: Record<string, unknown>, b: Record<string, unknown>): { structure: boolean; scope: boolean } {
+  const docs = (x: Record<string, unknown>): unknown => (
+    Array.isArray(x.documents) ? x.documents
+      : (isRecord(x.target) ? x.target.documents : undefined)
+  );
+  return {
+    structure: isDeepStrictEqual(docs(a), docs(b)) && isDeepStrictEqual(a.structure_parts, b.structure_parts),
+    scope: isDeepStrictEqual(a.scope_parts, b.scope_parts),
+  };
+}
+
+/** 구조와 계약이 모두 같은지(본문만 달라진 수정인지). */
+function sameStructureAndScope(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const shape = compareShape(a, b);
+  return shape.structure && shape.scope;
+}
 
 function route(next_action: NextAction, reason: string, cause: unknown, next: string, cycle: Cycle) {
   return { ok: true as const, next_action, reason, cause, next, cycle };
@@ -1372,8 +1493,9 @@ function route(next_action: NextAction, reason: string, cause: unknown, next: st
  * 새 review-dispatch payload가 기존 cycle에서 어떤 후속 조치를 요구하는지 정한다.
  * 읽기 전용이라 state.json·보고·dispatch 저장본을 쓰지 않는다 — 호출이 round 수나 restart
  * 횟수를 바꾸지 못하므로 "delta 뒤 새 stale"가 세 번째 round나 두 번째 restart로 새지 않는다.
- * 판정 순서: 같은 target(reuse) → round 없음·미해결 must_fix(user) → discovery 뒤 partial(delta)
- * → 그 밖의 stale: restart_count<1이면 restart, 한도 소진이면 user.
+ * 판정 순서: 같은 target(reuse) → round 없음·미해결 must_fix(user) → 구조·계약 동일(close)
+ * → 구조 동일 + 계약 변경, discovery 뒤 partial(delta)
+ * → 그 밖의 stale(구조 변경): restart_count<1이면 restart, 한도 소진이면 user.
  *
  * @param {object} input - 입력
  * @param {string} input.repoRoot - 저장소 루트
@@ -1382,7 +1504,7 @@ function route(next_action: NextAction, reason: string, cause: unknown, next: st
  * @param {string} [input.followUp] - 선택. 주어지면 payload의 follow_up과 같아야 한다 — 호출자가
  *   payload와 다른 판정을 주입해 routing을 바꾸지 못한다. 생략하면 payload에서 파생한다.
  * @returns {object} 성공 `{ok:true,next_action,reason,cause,next,cycle}`
- *   (next_action은 reuse|delta|restart|user), 실패 `{ok:false,reason,cause,next}`
+ *   (next_action은 reuse|close|delta|restart|user), 실패 `{ok:false,reason,cause,next}`
  */
 function routeFollowUp(input: {
   repoRoot: string; blueprintDir: string; dispatchFile: string; followUp?: string;
@@ -1417,7 +1539,11 @@ function routeFollowUp(input: {
   // 2. 마지막 reviewed target과 같으면 재사용한다: round도 restart도 늘리지 않는다.
   const latest = readRef(ctx, repoRoot, cycle.latest_dispatch);
   if (isFail(latest)) return latest;
-  if ((JSON.parse(latest) as { target: { digest: string } }).target.digest === dispatch.digest) {
+  const baseline = JSON.parse(latest) as Record<string, unknown>;
+  const newPayload = JSON.parse(dispatch.text) as Record<string, unknown>;
+  // close로 재인증한 digest도 이미 검토·인증된 target이다: latest_dispatch는 그대로라 따로 본다.
+  if ((baseline.target as { digest: string }).digest === dispatch.digest
+    || state.closure?.closure_target_digest === dispatch.digest) {
     return route('reuse', 'context-review-target-unchanged', 'plan snapshot equals the last reviewed target',
       'reuse the recorded review result; do not add a round', cycle);
   }
@@ -1431,12 +1557,21 @@ function routeFollowUp(input: {
         + 'restart cannot resolve findings', cycle);
     }
   }
-  // 4. discovery 뒤 닫히지 않은 cycle의 partial만 delta다. 닫힌 cycle은 round 기록이 거절되므로 제외한다.
-  if (followUp === 'partial' && !state.closed && rounds === 1) {
+  // 4. 구조·계약이 baseline과 같은 본문 수정은 새 round 없이 close로 현재 digest를 인증한다.
+  //    닫힌 cycle의 본문 수정도 같은 경로다(닫힌 뒤 stale이 되면 재close).
+  const shape = compareShape(baseline, newPayload);
+  if (shape.structure && shape.scope) {
+    return route('close', 'context-review-close-available',
+      'body-only change: structure and contract equal the reviewed baseline',
+      'run context-review close with dispositions; it certifies the current snapshot digest', cycle);
+  }
+  // 5. 구조가 같고 Interface·Touch만 바뀐 discovery 뒤 닫히지 않은 cycle의 partial만 delta다.
+  //    닫힌 cycle은 round 기록이 거절되므로 제외한다.
+  if (followUp === 'partial' && shape.structure && !state.closed && rounds === 1) {
     return route('delta', 'context-review-delta-available', 'partial change after discovery with no delta used',
       'dispatch one delta round with revision_diff and related_documents', cycle);
   }
-  // 5. delta를 이미 썼거나 structural full: 남은 restart가 있을 때만 전체 재시작이다.
+  // 6. delta를 이미 썼거나 structural full: 남은 restart가 있을 때만 전체 재시작이다.
   if (cycle.restart_count < RESTART_LIMIT) {
     return route('restart', 'context-review-restart-available', 'delta is used or the change is structural',
       'run context-review restart, then dispatch discovery', cycle);

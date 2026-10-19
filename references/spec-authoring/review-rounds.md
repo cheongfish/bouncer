@@ -96,5 +96,6 @@ bouncer:
 - 처분: resolved — throw로 바꿨음.
 
 ### F2 — 주석 순서만 다른 헬퍼 (nit → accepted)
+- legacy: `nit`는 과거 저장 기록 호환 예시다. 신규 reviewer 출력은 `blocker | major | minor`만 쓴다.
 - 요약: 동작은 같고 주석 순서만 다르다.
 - 처분: accepted — 위 frontmatter note 참고.

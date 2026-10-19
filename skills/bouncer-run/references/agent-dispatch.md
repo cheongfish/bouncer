@@ -1,5 +1,6 @@
-When dispatching a named agent or applying its fallback, read this reference.
+When dispatching a named agent, applying its fallback, recording a worker's model or tokens, or judging a stale worker report, read this reference.
 Apply [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
+Every new worker dispatch starts without conversation history (item 1 of that rule).
 
 Every named and fallback payload for implementer, debugger, and reviewer carries
 the same `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`
@@ -18,6 +19,14 @@ The implementer returns **Brief revision** with the same `attempt` and
 `task_brief_hash`; a mismatch is stale — call `coordinate report` with the
 received attempt and hash so runtime can append `stale-report`, and do not
 treat it as accepted or call `coordinate record`.
+
+`coordinate report --outcome accepted` and `coordinate record` check the worker
+commit themselves: the worker HEAD must be past `integrationHead`, the
+`commit_sha` stamp must equal HEAD's first 8 characters, and no file inside the
+approved scope may be dirty. A refusal (`worker-commit-missing`,
+`worker-commit-stamp-mismatch`, `worker-scope-dirty`) leaves the ledger
+unchanged; follow its `next` (`coordinate advance` creates the task commit),
+then report/record again. Do not work around it by editing the ledger.
 
 ## Lightweight and implement dispatch
 
@@ -62,6 +71,9 @@ as the fallback path — and require **Brief revision** in the report. The
 generated role file already owns the role instructions, so do not repeat them
 in the named payload. Do not add historical commit subjects, earlier-task
 conversation, unselected context documents, or the full Explain body.
+Pass the complete successful `intent sections` response unchanged, including
+the implementer-only `symbol_locations` array and bundle identifiers; never
+rebuild coordinates from cache files or reduce the projection to `functions`.
 
 Under a coordinator drive the cwd is the task worktree `bouncer coordinate
 prepare` assigned — never the integration worktree and never the main checkout
@@ -98,6 +110,9 @@ pass first reads `${BOUNCER_ROOT}/agents/bouncer-implementer.md` and follows eve
 the same cwd and sections. Either path retains `affected_paths`, status, and
 commit prohibitions. The inline fallback still receives G6–G8 judgment after
 verify and review.
+Named, fallback, and inline implementer paths preserve the entire successful
+projection and its identifiers. Reviewer and debugger projections do not carry
+`symbol_locations`.
 
 For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, or on a light ledger drive that follows `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`, the light path may use the step-3 inline implementation branch; a **full** `/bouncer-run` always retains the named orchestration boundary.
 
@@ -120,7 +135,9 @@ risk → `combined`; small risk → `combined` then `security`; `parallel`
 without risk → the three non-security perspectives; large risk → those three
 then `security`). Named, generic fallback, and inline paths all walk that same
 `perspectives` sequence — never a different fan-out per host. Each discovery prompt contains only its assigned perspective,
-the six brief sections, the reviewer's `intent_sections` projection from
+the eight brief sections (Goal & intent, Current behavior, Target behavior,
+Interface, Touch, Do not touch, Constraints, Checklist; an absent optional
+behavior section is omitted), the reviewer's `intent_sections` projection from
 `bouncer intent sections --task <current.task.path> --role reviewer`, the frozen
 target (including the shared bundle identifiers), `strategy`, and `risk_flags`,
 and never another reviewer's findings or the full Explain body. After
@@ -145,4 +162,131 @@ dispatch exactly one delta reviewer with previous findings and the revision
 diff — delta does not receive a discovery perspective. Reviewers remain named
 regardless of scale.
 
-Every worker returns its Output contract to the controller — the coordinator during a drive. Its **Scope impact** / **Scope/task impact** line is an input to one coordinator decision (scope revision through `bouncer coordinate revise`, rework, a task change, or terminal blocked), never a licence for the worker to widen its own scope or move the pointer.
+## Intent bundle
+
+Before any role dispatch, pin the current task-brief bytes as
+`task_brief_hash` and resolve related functions into one shared intent bundle:
+
+```bash
+bouncer intent bundle --task <path> --symbol <name>...
+```
+
+Pass only source-file functions or methods picked from the Touch table as
+`--symbol`; never document headings, item numbers, or test names. With none,
+run `bouncer intent bundle --task <path> --no-symbols`. Capture
+`intent_bundle_id` and `intent_bundle_revision` from that single resolve; the
+role payload rule at the top of this reference then applies to every later
+named or fallback payload. The bundle is advisory only. Handle its result as
+follows:
+
+| Result | Dispatch action |
+| --- | --- |
+| `created` or `reused` (exit 0) | Continue with the pinned bundle. |
+| `ambiguous` (exit 0, no `bundle_id`) | Reselect once from evidence; if still ambiguous, rerun with `--no-symbols` and continue. |
+| exit 1 or exit 2 | Stop role dispatch and report the failure. |
+
+After `coordinate revise`, open a new `coordinate dispatch` and re-call
+`bouncer intent bundle` against the revised brief hash and the function set
+re-picked from the revised brief (`--no-symbols` when it is empty). When
+function blob and section hashes match, keep the existing
+`intent_bundle_revision`; when either differs, pin the new revision for every
+later role. If revalidation exits 1 or 2, stop role dispatch and report the
+failure. An `ambiguous` result follows the one-time evidence reselection above.
+
+## Dispatch metadata and reports
+
+Immediately before every `bouncer-implementer` call under a coordinator drive,
+run `bouncer coordinate dispatch` from that task's worktree; its `argv` already
+carries `--lease-id` / `--generation` and the held `--ledger-path` /
+`--ledger-hash` fence. The first attempt has no `previous_outcome`. Pass only
+the five metadata fields above with the current brief — never the raw ledger,
+other task briefs, completed task documents, prior worker report bodies, or
+past conversation.
+
+`coordinate dispatch` also returns a top-level `report_path` (the implementer's
+per-attempt report file; `coordinate next` puts the same value in the
+`implement` payload). Pass it next to the metadata so the implementer writes its
+final report there; it is not one of the `metadata` keys.
+
+While the attempt is active the brief stays frozen: do not call `coordinate
+revise` or edit the brief until the implementer report is judged. If scope must
+change, wait for the report, record `scope_revision`, revise, then open a new
+dispatch. After `rework`, `scope_revision`, or `task_change`, redispatch so
+runtime supplies the increased `attempt` and `payload.report`.
+
+A stale **Brief revision** (its `attempt` or `task_brief_hash` differs from the
+active dispatch) keeps the attempt open: call `coordinate report` with the
+received values so runtime appends `stale-report`, and never record it
+`accepted` or call `coordinate record`.
+
+## Debugger dispatch
+
+Dispatch named `bouncer-debugger` (plugin `${BOUNCER_ROOT}/agents/bouncer-debugger.md`) with
+the failing verify evidence, only the pointer task brief's Goal & intent,
+Interface, Touch, Do not touch, Constraints, and Checklist, the shared
+`task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, the debugger's
+`intent_sections` projection from
+`bouncer intent sections --task <current.task.path> --role debugger`,
+and the assigned read-only cwd. Do not pass the
+full Explain body or another role's report. The `debugging` skill remains its
+behavioral brief. Even on the light path, debugger dispatch remains named.
+
+When named agents are unavailable, use a fresh generic
+read-only subagent whose payload carries the entire body of
+`${BOUNCER_ROOT}/agents/bouncer-debugger.md` — every section from Authority through Output
+contract, verbatim — plus the failing verify evidence, the task brief's Goal & intent,
+Interface, Touch, Do not touch, Constraints, and Checklist, the same
+`task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
+`intent_sections` from
+`bouncer intent sections --task <current.task.path> --role debugger`,
+and the assigned read-only cwd; or run `debugging` inline,
+where the inline pass first reads `${BOUNCER_ROOT}/agents/bouncer-debugger.md` and follows
+every section with those same inputs before it diagnoses.
+
+## Worker model and token records
+
+Under a coordinator drive, run every `bouncer coordinate worker-model` and
+`worker-tokens` record from the integration cwd with the held `--ledger-path
+<p> --ledger-hash <h>` pair. The worker itself keeps its own cwd: the task
+worktree on a full ledger, the integration path on a light ledger. Each record
+uses the value `bouncer subagent-model --agent <name>` printed for that
+dispatch, and the dispatch receives that same value.
+
+- **Implementer.** Before `coordinate dispatch`, run `bouncer subagent-model
+  --agent bouncer-implementer` and append its one-line output to the
+  `coordinate dispatch` argv as `--model <value>` (`next` does not put it in
+  `argv`). That call records the dispatch model: the ledger keeps the argument
+  you pass so it can be compared with `config.json` later, not proof of the
+  model the host ran. Pass the same value to the implementer dispatch. If a
+  slug rejection forces the `inherit` retry from
+  `${BOUNCER_ROOT}/rules/subagent-model.md` item 3, retry only the host
+  dispatch. Do not run `coordinate dispatch` again — the attempt is still
+  active (`dispatch-already-active`) and a second call would not be a retry —
+  and do not record the dispatch model a second time; the ledger keeps the slug
+  first passed, and you state the `inherit` retry in your own report to the
+  user. The implementer's worker record is `bouncer coordinate worker-model
+  --blueprint <dir> --role implementer --model <value> --task <NNN> --tokens
+  <n>`, written when the host reports the worker's tokens.
+- **Debugger.** Immediately before each debugger dispatch, record `bouncer
+  coordinate worker-model --blueprint <dir> --role debugger --model <value>
+  --task <NNN>`. If a slug rejection forces the `inherit` retry, record the
+  retried value again.
+- **Reviewer, per task.** Immediately before each reviewer dispatch (one per
+  perspective), record `bouncer coordinate worker-model --blueprint <dir>
+  --role reviewer --model <value> --task <NNN> --perspective <name>`. If a slug
+  rejection forces the `inherit` retry, record the retried value again.
+- **Reviewer, final review.** The same record without `--task` (the final
+  review spans the blueprint): `--role reviewer --model <value> [--perspective
+  <name>]`, and the retried value again after an `inherit` retry.
+
+Where each host puts a worker's final usage, and when it has none, is owned by
+the host usage table in [drive-metrics](./drive-metrics.md); read it when you
+wait for a worker's usage. If that value is not here when you record the model, record without
+`--tokens`; once it arrives, append it with `bouncer coordinate worker-tokens
+--blueprint <dir> --role <role> [--task <NNN>] [--perspective <name>] --tokens
+<n>` using the same task and perspective. If the host gives no value, leave it
+out: it is counted as missing, never estimated.
+
+## Worker hand-back
+
+Every worker returns its Output contract to the controller — the coordinator during a drive. The implementer is the one exception: with `report_path` it writes the full Output contract to that file and hands back only the short form in its role document's Output contract **Hand-back** subsection (summary, `report_path`, and Needs planning / Scope impact when they have a value); without `report_path` it returns the full contract inline. Other workers' output contracts are unchanged. Each worker's **Scope impact** / **Scope/task impact** line is an input to one coordinator decision (scope revision through `bouncer coordinate revise`, rework, a task change, or terminal blocked), never a licence for the worker to widen its own scope or move the pointer.

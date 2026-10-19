@@ -115,8 +115,10 @@ test('package.json → exposes context comment lint and ordered ci', () => {
   assert.match(pkg.scripts['check:emit'], /scripts\/check-emit\.js/);
   assert.match(pkg.scripts['lint:docs'], /scripts\/check-doc-shape\.js/);
   assert.match(pkg.scripts['lint:context-comments'], /scripts\/check-context-comments\.js/);
+  assert.strictEqual(pkg.scripts.test, 'node --test test/*.test.js');
   const coverage = pkg.scripts['test:coverage'];
   assert.match(coverage, /node --test/);
+  assert.match(coverage, /test\/\*\.test\.js/);
   assert.doesNotMatch(coverage, /--test-concurrency=1/);
   assert.strictEqual(pkg.scripts['test:unit'], 'node scripts/test-tier.js unit');
   assert.strictEqual(pkg.scripts['test:integration'], 'node scripts/test-tier.js integration');

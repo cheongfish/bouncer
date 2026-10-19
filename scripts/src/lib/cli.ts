@@ -45,6 +45,7 @@ const COMMANDS: Record<string, CliCommand> = {
   config: { usage: COMMAND_USAGE.config, load: () => (require('./cli-config-command') as typeof import('./cli-config-command')).run },
   retro: { usage: COMMAND_USAGE.retro, load: () => (require('./cli-retro-command') as typeof import('./cli-retro-command')).run },
   metrics: { usage: COMMAND_USAGE.metrics, load: () => (require('./cli-metrics-command') as typeof import('./cli-metrics-command')).run },
+  ontology: { usage: COMMAND_USAGE.ontology, load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands')).ontology.run },
 };
 
 /**

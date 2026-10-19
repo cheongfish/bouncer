@@ -58,5 +58,9 @@ this section is the call contract, not the implementation rubric.
 
 ## Return
 
-Report which paths changed, checklist coverage, tests run, and any deviations
-from the brief. Do not invent verification or gate outcomes.
+Report which paths changed, checklist coverage, tests run, the red run, and
+any deviations from the brief. With a `report_path`, that full report goes in
+the file and the hand-back is short: a summary, the overall verify result, the
+`report_path`, and Needs planning / Scope impact only when they have a value.
+Without one, return the full report inline. Do not invent verification or gate
+outcomes.

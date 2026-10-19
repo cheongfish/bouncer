@@ -1,26 +1,20 @@
 On verify failure, when recovering through debugger then implementer, read this reference.
 Apply [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
 
-Dispatch named `bouncer-debugger` (plugin `${BOUNCER_ROOT}/agents/bouncer-debugger.md`) with
-the failing verify evidence, only the pointer task brief's Goal & intent,
-Interface, Touch, Do not touch, Constraints, and Checklist, the shared
-`task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, the debugger's
-`intent_sections` projection from
-`bouncer intent sections --task <current.task.path> --role debugger`,
-and the assigned read-only cwd. Do not pass the
-full Explain body or another role's report. The `debugging` skill remains its
-behavioral brief. When named agents are unavailable, use a fresh generic
-read-only subagent whose payload carries the entire body of
-`${BOUNCER_ROOT}/agents/bouncer-debugger.md` — every section from Authority through Output
-contract, verbatim — plus the failing verify evidence, the task brief's Goal & intent,
-Interface, Touch, Do not touch, Constraints, and Checklist, the same
-`task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
-`intent_sections` from
-`bouncer intent sections --task <current.task.path> --role debugger`,
-and the assigned read-only cwd; or run `debugging` inline,
-where the inline pass first reads `${BOUNCER_ROOT}/agents/bouncer-debugger.md` and follows
-every section with those same inputs before it diagnoses. Even on the light
-path, debugger dispatch remains named.
+One first in-scope fix is allowed per task; after it, every verify failure goes to `bouncer-debugger`.
+Find the first-fix record in the `## Verify recovery` section of this task's report files.
+
+If this is the task's first verify failure and the first failing file/line or assertion is inside its `affected_paths`, the controller sends the failing command, first failure point, and scope judgment to the implementer. Continue the same implementer session when the host can message that live session; otherwise start a new session. The implementer fixes only within the task brief and writes those same three values plus the fix to `## Verify recovery` in its task report. For a new session, first record `coordinate report --outcome rework` with the failing command and first failure point, then dispatch the next attempt. For the same session, dispatch and report are unnecessary: run `coordinate next` to obtain `verify` and re-verify.
+
+The first-fix record is a populated `## Verify recovery` entry containing the failing command, first failure point, scope judgment, and fix. An empty section or `- none` does not consume the first fix. The record is in the task report, not the ledger's `rework` summary.
+
+Use the debugger path when the first fix was already used, the cause is unclear or outside the task's scope, or several task contracts are involved. Scope decisions remain with the controller; coordinator workers do not edit directly.
+
+When dispatching `bouncer-debugger` or applying its fallback, read
+[agent-dispatch](./agent-dispatch.md): its `## Debugger dispatch` section owns
+the named payload, the whole-role generic or inline fallback, and the rule that
+debugger dispatch stays named even on the light path; its `## Worker model and
+token records` section owns the debugger model and token records.
 
 The debugger must not edit files, commit, or flip status. It returns a root-cause
 report only: **Reproduction**, **Evidence**, **Single hypothesis**,

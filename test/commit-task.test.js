@@ -54,7 +54,11 @@ const gitChangeTemplate = createGitTemplate((repo) => {
   run(['branch', 'develop']);
   fs.mkdirSync(path.join(repo, 'src/auth'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export {}\n');
-  run(['add', 'src/auth/login.ts']);
+  // reviseTaskScope의 --paths는 integration HEAD의 추적 경로만 받는다. revise 테스트가
+  // 쓰는 src/session/ 도 실제 추적 파일로 둔다.
+  fs.mkdirSync(path.join(repo, 'src/session'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/session/token.ts'), 'export {}\n');
+  run(['add', 'src/auth/login.ts', 'src/session/token.ts']);
   run(['commit', '-m', 'change']);
 });
 test.after(() => gitChangeTemplate.dispose());
@@ -585,6 +589,7 @@ function coordinate(opts) {
 }
 
 const { coordinatorContext, reviseTaskScope, recordActualPaths } = require('../scripts/lib/scope');
+const { readDoc } = require('../scripts/lib/frontmatter');
 
 /**
  * bootstrap + prepare 로 실제 worktree를 연 뒤, 할당된 worker 안에서 commit
@@ -784,6 +789,65 @@ test('coordinator empty staged --yes → returns to coordinator without a stampP
   assert.strictEqual(res.controller, 'coordinator');
   assert.strictEqual(res.nextAction, 'return-to-coordinator');
   assert.strictEqual(res.stampPath, null);
+});
+
+test('reviseTaskScope with an untracked path or a new path without a tracked parent → refuses before writing the document or ledger', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot: repo, blueprint });
+  const docAbs = path.join(worker, blueprint, 'tasks/001/tasks.md');
+  const bytes = () => `${fs.readFileSync(ledgerFile, 'utf8')}\n--\n${fs.readFileSync(docAbs, 'utf8')}`;
+  const before = bytes();
+
+  const untracked = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/', 'scripts/src/commands/ontology.ts'],
+    reason: 'guessed path',
+  });
+  assert.deepStrictEqual(untracked, {
+    ok: false, reason: 'scope-path-untracked', paths: ['scripts/src/commands/ontology.ts'],
+  });
+  const orphan = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], newPaths: ['nope/dir/x.ts'],
+    reason: 'parent does not exist',
+  });
+  assert.deepStrictEqual(orphan, {
+    ok: false, reason: 'scope-new-path-parent-missing', paths: ['nope/dir/x.ts'],
+  });
+  assert.strictEqual(bytes(), before);
+});
+
+test('reviseTaskScope with a pathspec-magic path that names no tracked file → refuses with scope-path-untracked and keeps the bytes', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot: repo, blueprint });
+  const docAbs = path.join(worker, blueprint, 'tasks/001/tasks.md');
+  const bytes = () => `${fs.readFileSync(ledgerFile, 'utf8')}\n--\n${fs.readFileSync(docAbs, 'utf8')}`;
+  const before = bytes();
+  for (const magic of [':!README', ':(icase)SRC/auth/login.ts', ':/']) {
+    const out = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: [magic], reason: 'magic pathspec probe',
+    });
+    assert.strictEqual(out.ok, false, magic);
+    assert.strictEqual(out.reason, 'scope-path-untracked', `${magic}: ${JSON.stringify(out)}`);
+    assert.deepStrictEqual(out.paths, [magic]);
+    assert.strictEqual(bytes(), before, `${magic} keeps ledger and document bytes`);
+  }
+  const orphan = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], newPaths: [':(icase)src/new.ts'],
+    reason: 'magic parent probe',
+  });
+  assert.strictEqual(orphan.reason, 'scope-new-path-parent-missing', JSON.stringify(orphan));
+  assert.strictEqual(bytes(), before);
+});
+
+test('reviseTaskScope with a new path under a tracked directory → scopes to paths plus the new path', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  const revised = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], newPaths: ['src/session/guard.ts'],
+    reason: 'add a guard next to the token',
+  });
+  assert.strictEqual(revised.ok, true, JSON.stringify(revised));
+  assert.deepStrictEqual(revised.paths, ['src/auth/', 'src/session/guard.ts']);
+  const doc = readDoc(path.join(worker, blueprint, 'tasks/001/tasks.md'));
+  assert.deepStrictEqual(doc.data.bouncer.affected_paths, ['src/auth/', 'src/session/guard.ts']);
 });
 
 test('coordinator commit with a staged path outside the current ledger scope → refuses', () => {

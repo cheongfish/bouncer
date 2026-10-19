@@ -59,7 +59,9 @@ type OpenTask = {
 
 type PreflightOk = {
   ok: true;
-  blueprint: { dir: string; status: string; scale: string };
+  // verification_policy는 실행 세션이 구현 worker에게 줄 명령(task 전용)과 종단 전체 검증을
+  // 구분하는 입력이다. 표식이 없으면 legacy, 허용 밖 값은 'invalid'로 드러낸다.
+  blueprint: { dir: string; status: string; scale: string; verification_policy: string };
   base: string;
   openTasks: OpenTask[];
   readyWave: string[];
@@ -72,7 +74,7 @@ type PreflightOk = {
   // promotion-stopped는 원장 status만 본다. 원장 부재 시에는 이 값을 내지 않는다.
   // 위임을 막는 이유. 판정 순서는 원장 상태 → 문서 status → no-open-task 이다.
   reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped'
-    | 'awaiting-confirmation' | 'partial-closed'
+    | 'awaiting-confirmation' | 'partial-closed' | 'run-detached'
     | 'blueprint-partial-closed' | 'blueprint-draft' | 'blueprint-superseded'
     | 'blueprint-imported' | 'blueprint-status-unknown' | null;
 };
@@ -80,6 +82,8 @@ type PreflightOk = {
 type PreflightFail = {
   ok: false;
   reason: string;
+  // legacy-review-scope에서만 채운다: 그대로 실행할 수 있는 전환 명령.
+  next?: string;
   candidates?: unknown;
   issues?: unknown;
   // pointer-mismatch에서만 채운다: 포인터 blueprint 경로와 요청 입력값(toPosix만 적용).
@@ -185,17 +189,25 @@ function readAutonomy(repoRoot: string): Autonomy {
 function readBlueprintMeta(repoRoot: string, blueprintDir: string): {
   status: string;
   scale: string;
+  verificationPolicy: string;
+  legacyReviewScope: boolean;
 } {
   try {
     const doc = readDoc(path.join(repoRoot, blueprintDir, 'index.md'));
     const bouncer = bouncerOf(doc.data);
     const status = bouncer && typeof bouncer.status === 'string' ? bouncer.status : '';
     const scale = bouncer && typeof bouncer.scale === 'string' ? bouncer.scale : DEFAULT_SCALE;
-    return { status, scale };
+    // bouncer 블록이 있는 읽힌 index만 legacy 판정 대상이다. 읽지 못한 문서는
+    // status ''로 접혀 blueprint-status-unknown이 되므로 여기서 이중 판정하지 않는다.
+    const legacyReviewScope = bouncer !== null && bouncer.review_scope !== 'blueprint';
+    return {
+      status, scale, legacyReviewScope,
+      verificationPolicy: schema.verificationPolicyOf(bouncer) ?? 'invalid',
+    };
   } catch (_error) {
     // index 부재·파싱 실패는 status를 ''로 접는다. 호출부(docStatusReason)가 ''를
     // blueprint-status-unknown으로 거절하므로 읽지 못한 blueprint는 위임되지 않는다.
-    return { status: '', scale: DEFAULT_SCALE };
+    return { status: '', scale: DEFAULT_SCALE, verificationPolicy: 'legacy', legacyReviewScope: false };
   }
 }
 
@@ -227,6 +239,7 @@ const LEDGER_REASON: Record<string, NonNullable<PreflightOk['reason']>> = {
   promotion_stopped: 'promotion-stopped',
   awaiting_confirmation: 'awaiting-confirmation',
   partial_closed: 'partial-closed',
+  detached: 'run-detached',
 };
 
 function collectTasks(repoRoot: string, blueprintDir: string): {
@@ -391,6 +404,19 @@ function runPreflight({ repoRoot, blueprintDir }: {
   }
 
   const meta = readBlueprintMeta(repoRoot, blueprint);
+  // review_scope 없는 blueprint는 위임·원장 재개 판정보다 먼저 막는다. 실행 중에 최종
+  // 리뷰 범위가 바뀌면 안 되므로 사용자가 명시적으로 전환해야 한다. flat layout은
+  // review-scope 전환이 거절하므로 task-layout 전환을 먼저 안내한다.
+  if (meta.legacyReviewScope) {
+    const flat = listTasksDocs({ repoRoot, blueprintDir: blueprint }).legacy;
+    return {
+      ok: false,
+      reason: 'legacy-review-scope',
+      next: flat
+        ? 'bouncer migrate task-layout'
+        : `bouncer migrate review-scope --blueprint ${blueprint}`,
+    };
+  }
   const { openTasks, waveTasks, shapeTasks } = collectTasks(repoRoot, blueprint);
 
   // 우선순위: 원장 상태 → 문서 status → no-open-task. 원장이 진행 중 정지·확인 대기·
@@ -428,7 +454,10 @@ function runPreflight({ repoRoot, blueprintDir }: {
 
   return {
     ok: true,
-    blueprint: { dir: blueprint, status: meta.status, scale: meta.scale },
+    blueprint: {
+      dir: blueprint, status: meta.status, scale: meta.scale,
+      verification_policy: meta.verificationPolicy,
+    },
     base: pointer.base,
     openTasks,
     readyWave: readyWave(waveTasks, { maxParallel }),

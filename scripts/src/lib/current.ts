@@ -304,6 +304,32 @@ function resolveCurrent({ repoRoot, deps }: {
 }
 
 /**
+ * 기준(base) checkout에서 저장된 namespace key 목록을 돌려준다. `--set`이 쓰기 전에
+ * "새 key를 더하면 base 선택이 모호해지는가"를 판정하는 입력이다. 위치 판정은
+ * resolveCurrent와 같은 selectionLocation을 쓰므로 두 경로가 어긋나지 않는다.
+ * 읽기 전용이며 깨진 포인터 파일(issue)이 있는 항목은 목록에서 뺀다 — 그런 상태는
+ * 호출부가 resolveCurrent의 invalid로 먼저 걸러야 한다.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps }} opts - repoRoot는 선택 위치
+ * @returns {string[] | null} base 위치면 `<epic>/<bp>` key 목록, nested·flat worktree면 null
+ */
+function baseNamespaceKeys({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: RuntimeDeps;
+}): string[] | null {
+  const paths = runtimePaths({
+    repoRoot,
+    execFileSync: deps?.execFileSync,
+    env: deps?.env,
+    platform: deps?.platform,
+  });
+  if (selectionLocation(repoRoot, paths, deps?.platform).kind !== 'base') return null;
+  return listNamespacePointers({ repoRoot, deps })
+    .filter((e) => e.pointer != null)
+    .map((e) => e.key);
+}
+
+/**
  * resolveCurrent의 호환 wrapper. 호출부가 단일 포인터 또는 없음을 기대할 때 쓴다.
  *
  * @param {{ repoRoot: string, deps?: RuntimeDeps }} opts - resolveCurrent와 같다
@@ -1155,5 +1181,5 @@ function nextBlueprint({ repoRoot, blueprintDir }: {
 export = {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
   resolvePointerTask, presentCurrent, resolveCurrent, resolveEffectiveTask,
-  CurrentSelectionError,
+  baseNamespaceKeys, CurrentSelectionError,
 };

@@ -403,9 +403,10 @@ test('canonical skill descriptions → stay within the locked YAML-scalar budget
 
 // 심볼 선택 지침은 controller가 읽는 문서가 곧 계약이다. 문서 제목·테스트 이름을
 // 함수처럼 넣어 빈 intent 투영을 만드는 일을 막으므로 이 문구 자체를 계약으로 확인한다.
+// 정본은 dispatch 카드에서 agent-dispatch로 옮겨졌고, 카드는 그 절을 링크한다.
 test('intent bundle paragraphs → name --no-symbols and the excluded symbol sources', () => {
   const docs = {
-    'references/coordinator-cards/dispatch.md': fs.readFileSync(path.join(root, 'references/coordinator-cards/dispatch.md'), 'utf8'),
+    'skills/bouncer-run/references/agent-dispatch.md': fs.readFileSync(path.join(root, 'skills/bouncer-run/references/agent-dispatch.md'), 'utf8'),
   };
   for (const [name, body] of Object.entries(docs)) {
     const flat = body.replace(/\s+/g, ' ');

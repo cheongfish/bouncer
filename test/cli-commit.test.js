@@ -518,10 +518,47 @@ test('commit from the main worktree while a coordinator ledger is live → is re
   const parsed = JSON.parse(buf.out);
   assert.strictEqual(parsed.ok, false);
   assert.strictEqual(parsed.reason, 'main-worktree-source-write');
+  // 아직 integrated가 아닌 task가 있으므로 detach가 아니라 실행을 이어가라고 안내한다.
+  assert.match(parsed.recovery.next, /\/bouncer-run/);
   const staged = execFileSync('git', ['diff', '--cached', '--name-only'], {
     cwd: repo, encoding: 'utf8',
   }).trim();
   assert.strictEqual(staged, '');
+});
+
+test('commit from the main worktree after every task is integrated → next points to run detach', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const item of ledger.tasks) item.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
+  const { io, buf } = capture();
+  const code = runCli(['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io);
+  assert.notStrictEqual(code, 0);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.reason, 'main-worktree-source-write');
+  assert.match(parsed.recovery.next, /bouncer run detach --blueprint \S+ --yes/);
+});
+
+test('commit from the main worktree on a detached ledger → is no longer refused by the ledger', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.status = 'detached';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
+  const { io, buf } = capture();
+  const code = runCli(['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io);
+  const parsed = JSON.parse(buf.out);
+  assert.notStrictEqual(parsed.reason, 'main-worktree-source-write', buf.out);
+  assert.strictEqual(code, 0, buf.out + buf.err);
 });
 
 test('commit --yes when a pre-commit hook rejects → exits 1 with one commit-exception JSON and no stack', () => {

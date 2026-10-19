@@ -28,5 +28,6 @@ evidence only — do not treat them as selection or approval.
 ## Step handoff
 
 Between plan steps, carry only the current plan, open decisions, and a short
-change summary. Do not re-pass the full discovery transcript or prior-step
-chatter.
+change summary. Pass discovery `Evidence` as an explicit exception so step 3
+can map investigation areas to scaffolded commit tasks and reuse current
+citations. Do not re-pass the full discovery transcript or prior-step chatter.

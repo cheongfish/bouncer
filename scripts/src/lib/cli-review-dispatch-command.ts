@@ -119,7 +119,7 @@ Do not compute the digest. Copy \`target.digest\` from the JSON that
 \`review-dispatch plan --blueprint <dir>\` prints into both <target.digest>
 places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
 
-Plan fields (\`single\` / \`clustered\` only; absent on \`skip\` and failures):
+Plan fields (\`single\` only; older stored \`clustered\` payloads are still read; absent on \`skip\` and failures):
   snapshot_version 2. target.digest hashes the ordered {file, body, structure} of
                    every plan document; status/title/timestamp/commit evidence are excluded
   parts            per-document body sha256 (epic index, blueprint index, each tasks.md)
@@ -270,6 +270,10 @@ function parseExecuteArgs(rest: string[]): ParsedExecute {
     if (f.mode !== 'discovery' && f.mode !== 'delta') {
       return fail('--mode must be discovery or delta');
     }
+  }
+  // blueprint 최종 리뷰는 discovery 한 번이다. task 없는 delta는 사용법 오류로 분류기 전에 거절한다.
+  if (f.mode === 'delta' && !Object.prototype.hasOwnProperty.call(f, 'task')) {
+    return fail('--mode delta requires --task <ddd> (the blueprint final review has no delta round)');
   }
   return {
     mode: 'execute',

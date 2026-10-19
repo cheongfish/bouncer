@@ -55,7 +55,11 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    `reason: 'coordinator-ledger'` stop, not a non-drive close; do not invent a
    new reject reason. `complete: false` (see `openTasks`; `headVerified` is
    `false` when a verification task is not integrated) is unfinished — stop and
-   hand it to the coordinator instead of recording it as done. Read
+   hand it to the coordinator instead of recording it as done. When
+   `integration.outsideScope` is present, the terminal failure was proven to be
+   outside every approved scope: `complete` is `true` but `headVerified` stays
+   `false`; keep the failure and its evidence id visible in the report and PR
+   instead of calling the head verified. Read
    `${BOUNCER_ROOT}/rules/commit-scope.md` for the integration worktree boundary and how
    remainder staging differs from a task commit. When running
    the finalize gate, showing the dry-run, or handling scope or `reason:
@@ -97,7 +101,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    resulting `closed` state, `integration` (`complete`, `openTasks`,
    `headVerified`), PR URL or skip/decline, worktree result, pointer result, and
    the next sibling Blueprint or `/bouncer-plan` action.
-   Auto retro: after that output is rendered, only when finalize closed and `release-main` returned `ok:true` (also after the PR was declined or skipped), read `${BOUNCER_ROOT}/skills/bouncer-retro/SKILL.md` and run it in finalize-call mode. Evidence is this conversation only: no transcript search, no file reopen. Print the result in chat under a `retro` header, add no new ACQ, and do not wait for the user. No evidence means `후보 없음` with its reason, not failure. On a retro failure print one line, `retro: 실행하지 못함 — <이유>. finalize 결과는 그대로임`; never alter the rendered output, `closed`, or the pointer.
+   Auto retro: after that output is rendered, only when finalize closed and `release-main` returned `ok:true` (also after the PR was declined or skipped), check the step 1 digest's `drive_issues`. If every counter is 0, print one line `retro 생략 — 수정 문제 없음` and stop. Otherwise read `${BOUNCER_ROOT}/skills/bouncer-retro/SKILL.md` and run it in finalize-call mode. Evidence is this conversation only: no transcript search, no file reopen. Print the result in chat under a `retro` header, add no new ACQ, and do not wait for the user. No evidence means `후보 없음` with its reason, not failure. On a retro failure print one line, `retro: 실행하지 못함 — <이유>. finalize 결과는 그대로임`; never alter the rendered output, `closed`, or the pointer.
 
 ## ACQ (AskUserQuestion) gates
 

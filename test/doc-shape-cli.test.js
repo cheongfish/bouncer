@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
+  checkDocShape,
   runCli,
   workflowSkillContract,
   agentContract,
@@ -219,5 +220,39 @@ for (const card of ['implement', 'verify', 'review']) {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+}
+
+// dispatch 공통 규칙을 agent-dispatch로 넘긴 카드는 그 정본을 실행 분기에서 읽어야 한다.
+// 경로 계약 표(scripts/check-doc-shape.js)에 아직 없는 카드라 같은 link 계약을
+// checkDocShape에 직접 넣어, 링크 실재·대상 preamble·조건부 적재 문장을 함께 본다.
+const AGENT_DISPATCH_HREF = '../../skills/bouncer-run/references/agent-dispatch.md';
+const MIGRATED_CARD_TRIGGERS = {
+  dispatch: ['dispatch', 'model'],
+  verify: ['dispatch', 'fallback'],
+  final_review: ['dispatch', 'model'],
+  report: ['dispatch', 'stale'],
+  record: ['dispatch', 'stale'],
+};
+for (const [card, triggers] of Object.entries(MIGRATED_CARD_TRIGGERS)) {
+  test(`coordinator ${card} card agent-dispatch link without a load condition → reported as a link error`, () => {
+    const rel = `references/coordinator-cards/${card}.md`;
+    const markdown = fs.readFileSync(path.join(root, rel), 'utf8');
+    const contract = {
+      filePath: path.join(root, rel),
+      links: [{
+        href: AGENT_DISPATCH_HREF,
+        resolve: true,
+        referencePreamble: true,
+        conditionalLoad: { triggers },
+      }],
+    };
+    assert.deepStrictEqual(checkDocShape(markdown, contract).errors, []);
+    // 조건·적재 동사를 지운 무조건 링크는 실행 분기에서 읽히지 않으므로 거절된다.
+    const unconditional = checkDocShape(markdown.replace(/\b(?:read|when|if)\b/gi, 'see'), contract).errors;
+    assert.ok(
+      unconditional.some((error) => error.includes(AGENT_DISPATCH_HREF)),
+      JSON.stringify(unconditional),
+    );
   });
 }

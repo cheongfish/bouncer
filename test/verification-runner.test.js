@@ -2028,3 +2028,169 @@ test('runVerification reuse hit with markTaskVerified still → promotes a ready
   assert.strictEqual(second.ok, true);
   assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'verified');
 });
+
+// scoped_terminal 정책 fixture: blueprint index에 표식을 쓰고 task 문서를 만든다.
+function writeBlueprintIndex(repo, policyYaml) {
+  const abs = path.join(repo, BP_REL, 'index.md');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---
+type: bouncer.blueprint
+title: Login
+description: d
+resource: ${BP_REL}/index.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: '001'
+  epic_id: '001'
+  blueprint_id: '001'
+  status: approved
+${policyYaml}---
+# Login
+`);
+}
+
+function writeTaskDoc(repo, nnn, { verify, kind } = {}) {
+  const abs = path.join(repo, BP_REL, `tasks/${nnn}/tasks.md`);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---
+type: bouncer.tasks
+title: t${nnn}
+description: d
+resource: ${BP_REL}/tasks/${nnn}/tasks.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-${nnn}
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ready
+${kind === 'verification' ? '  execution_kind: verification\n  depends_on:\n    - TASKS-001\n  affected_paths: []\n' : '  affected_paths:\n    - src/auth/\n'}${verify === undefined ? '' : `  verify: ${JSON.stringify(verify)}\n`}---
+# Tasks
+`);
+}
+
+test('readVerifyCommand scoped_terminal → refuses to fall back to config.verify when the task has no command', () => {
+  const repo = setupRepo('npm test');
+  writeBlueprintIndex(repo, '  verification_policy: scoped_terminal\n');
+  writeTaskDoc(repo, '001');
+  assert.throws(
+    () => readVerifyCommand(repo, BP_REL, '001'),
+    (error) => error.code === 'VERIFY_COMMAND_INVALID',
+  );
+  // 문서 자체가 사라져도 config 전체 명령으로 접히지 않는다.
+  const noDocs = setupRepo('npm test');
+  writeBlueprintIndex(noDocs, '  verification_policy: scoped_terminal\n');
+  assert.throws(
+    () => readVerifyCommand(noDocs, BP_REL),
+    (error) => error.code === 'VERIFY_COMMAND_INVALID',
+  );
+});
+
+test('readVerifyCommand scoped_terminal → returns the task-owned command per task and the terminal command without a task id', () => {
+  const repo = setupRepo('npm run full');
+  writeBlueprintIndex(repo, '  verification_policy: scoped_terminal\n');
+  writeTaskDoc(repo, '001', { verify: 'node --test test/a.test.js' });
+  writeTaskDoc(repo, '002', { verify: 'npm test', kind: 'verification' });
+  assert.strictEqual(readVerifyCommand(repo, BP_REL, '001'), 'node --test test/a.test.js');
+  assert.strictEqual(readVerifyCommand(repo, BP_REL, '002'), 'npm test');
+  // taskId 없는 listing 폴백(finalize remainder)은 earliest 구현 명령이 아니라 종단 전체 명령이다.
+  assert.strictEqual(readVerifyCommand(repo, BP_REL), 'npm test');
+});
+
+test('readVerifyCommand without a verification_policy marker → keeps the config.verify fallback', () => {
+  const repo = setupRepo('npm test');
+  writeBlueprintIndex(repo, '');
+  writeTaskDoc(repo, '001');
+  assert.strictEqual(readVerifyCommand(repo, BP_REL, '001'), 'npm test');
+  assert.strictEqual(readVerifyCommand(repo, BP_REL), 'npm test');
+});
+
+// --- npm terminal 사전조건 -----------------------------------------------------------
+
+const TERMINAL_SCOPE = { kind: 'terminal', key: 'EPIC-001/BP-001:abc123head' };
+
+// 직접 의존성 하나를 선언한 repo. installed=true면 그 metadata까지 설치된 상태다.
+function setupNpmRepo({ installed }) {
+  const repo = setupRepo();
+  fs.writeFileSync(path.join(repo, 'package.json'), '{"devDependencies":{"left-pad":"1.0.0"}}\n');
+  if (installed) {
+    fs.mkdirSync(path.join(repo, 'node_modules/left-pad'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'node_modules/left-pad/package.json'), '{}\n');
+  }
+  return repo;
+}
+
+function runTerminal(repo, exec) {
+  return runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    scope: TERMINAL_SCOPE,
+    deps: fixedDeps(),
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec,
+  });
+}
+
+function evidenceBytes(repo, evidenceId) {
+  const rel = `${BP_REL}/tasks/001/verification.md`;
+  const { ledgerFile } = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel, evidenceId });
+  return {
+    doc: fs.readFileSync(path.join(repo, rel)),
+    ledger: fs.readFileSync(ledgerFile),
+  };
+}
+
+test('terminal npm verification when a direct dependency is missing → rejects before running or reusing and keeps evidence bytes', () => {
+  const repo = setupNpmRepo({ installed: true });
+  const first = runTerminal(repo, () => ({ status: 0, stdout: 'ok\n', stderr: '' }));
+  assert.strictEqual(first.ok, true);
+  const before = evidenceBytes(repo, first.evidenceId);
+  const idBefore = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md')).data.bouncer.verification;
+  fs.rmSync(path.join(repo, 'node_modules/left-pad'), { recursive: true });
+
+  // 같은 identity라 의존성이 있었다면 재사용 hit였을 호출이다. 실행도 재사용도 없어야 한다.
+  let executed = false;
+  assert.throws(
+    () => runTerminal(repo, () => { executed = true; return { status: 0, stdout: '', stderr: '' }; }),
+    { code: 'VERIFY_DEPENDENCIES_MISSING' },
+  );
+
+  assert.strictEqual(executed, false);
+  const after = evidenceBytes(repo, first.evidenceId);
+  assert.ok(before.doc.equals(after.doc));
+  assert.ok(before.ledger.equals(after.ledger));
+  const idAfter = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md')).data.bouncer.verification;
+  assert.strictEqual(idAfter.ran_at, idBefore.ran_at);
+  assert.strictEqual(idAfter.evidence_id, idBefore.evidence_id);
+});
+
+test('terminal npm verification with all direct dependencies installed and a failing test → records failed evidence', () => {
+  const repo = setupNpmRepo({ installed: true });
+  const failure = new Error('assertion failed');
+  failure.status = 1;
+  failure.stdout = 'not ok 1 - expected 1 to equal 2\n';
+
+  const result = runTerminal(repo, () => { throw failure; });
+
+  assertRunOk(result, { command: 'npm test', exitCode: 1 });
+  const doc = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
+  assert.strictEqual(doc.data.bouncer.status, 'failed');
+  assert.strictEqual(doc.data.bouncer.verification.evidence_id, result.evidenceId);
+  assert.match(doc.data.bouncer.verification.output_tail, /expected 1 to equal 2/);
+});
+
+test('npm verification outside terminal scope or without package.json metadata rules → keeps the current path', () => {
+  const repo = setupNpmRepo({ installed: false });
+  const taskScoped = runVerification({
+    repoRoot: repo, blueprintDir: BP_REL, deps: fixedDeps(),
+    scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(taskScoped.ok, true);
+
+  fs.writeFileSync(path.join(repo, 'package.json'), '{"workspaces":["a"],"devDependencies":{"left-pad":"1"}}\n');
+  assert.strictEqual(runTerminal(repo, () => ({ status: 0, stdout: 'ok\n', stderr: '' })).ok, true);
+});

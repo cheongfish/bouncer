@@ -9,6 +9,7 @@ const { NAMED_AGENTS } = require('../scripts/lib/codex-agents');
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'intent',
+  'ontology',
   'graphify-bin',
   'project-root',
   'subagent-model',
@@ -56,6 +57,10 @@ test('usage → retention dry-run과 apply 형식을 나열한다', () => {
   assert.match(out, /migrate\s+retention\b/);
   assert.match(out, /Audit closed blueprints for retention \(dry-run/);
   assert.match(out, /retention --apply --blueprint <dir>/);
+});
+
+test('usage → review-scope migration 형식을 나열한다', () => {
+  assert.match(capture([]).out, /migrate\s+review-scope --blueprint <dir>/);
 });
 
 test('모든 subcommand가 → usage 텍스트에 나열된다', () => {
@@ -141,9 +146,14 @@ test('usage → run preflight --blueprint를 나열한다', () => {
   assert.match(r.out, /run\s+preflight --blueprint <dir>/);
 });
 
-test('usage → current --replace를 나열한다', () => {
+test('usage → run detach --blueprint --yes를 나열한다', () => {
   const r = capture([]);
-  assert.match(r.out, /current\s+\[--set <blueprint dir>.*\[--replace\]/s);
+  assert.match(r.out, /detach --blueprint <dir> --yes \[--reason <text>\]/);
+});
+
+test('usage → current --replace와 --keep-others를 나열한다', () => {
+  const r = capture([]);
+  assert.match(r.out, /current\s+\[--set <blueprint dir>.*\[--replace\].*\[--keep-others\]/s);
 });
 
 test('usage → intent --symbol [--candidate] [--limit]를 나열한다', () => {
@@ -151,6 +161,13 @@ test('usage → intent --symbol [--candidate] [--limit]를 나열한다', () => 
   assert.match(r.out, /intent\s+--symbol <function-name>/);
   assert.match(r.out, /\[--candidate <qualified-ref>\]/);
   assert.match(r.out, /\[--limit <1\.\.5>\]/);
+});
+
+test('usage → ontology의 세 질의 signature를 나열한다', () => {
+  const out = capture([]).out;
+  assert.match(out, /ontology\s+entity --entity <token> \[--repo <dir>\] \[--limit <1\.\.100>\]/);
+  assert.match(out, /file --file <path>/);
+  assert.match(out, /impact --file <path>/);
 });
 
 test('intent가 공개된 뒤 알 수 없는 명령 → 여전히 거부된다', () => {
@@ -190,6 +207,31 @@ test('usage → review record 형식을 나열한다', () => {
     out,
     /review record --blueprint <dir> \[--task <ddd>\] --round <json-file> \[--status <requested\|addressed\|accepted>\]/,
   );
+});
+
+test('usage → review accept-risk 형식을 나열한다', () => {
+  const out = capture([]).out;
+  assert.match(
+    out,
+    /review accept-risk --blueprint <dir> --finding <id> --note <text> --yes/,
+  );
+});
+
+test('review accept-risk에 --finding 누락, --task, 알 수 없는 동사가 있으면 → exit 2로 거부한다', () => {
+  const missing = capture(['review', 'accept-risk', '--blueprint', 'bp', '--note', 'n', '--yes']);
+  assert.strictEqual(missing.code, 2);
+  assert.match(missing.err, /finding/i);
+  assert.strictEqual(missing.out, '');
+
+  const withTask = capture([
+    'review', 'accept-risk', '--blueprint', 'bp', '--finding', 'F1', '--note', 'n', '--task', '001', '--yes',
+  ]);
+  assert.strictEqual(withTask.code, 2);
+  assert.strictEqual(withTask.out, '');
+
+  const verb = capture(['review', 'bogus', '--blueprint', 'bp']);
+  assert.strictEqual(verb.code, 2);
+  assert.strictEqual(verb.out, '');
 });
 
 test('review record에 --status pending, non-ddd --task, --round 누락이 있으면 → 거부한다', () => {
@@ -272,6 +314,12 @@ test('coordinate <sub> --help와 -h → 그 subcommand usage를 stdout에 출력
       );
     }
   }
+});
+
+test('coordinate bootstrap --help → documents light promotion flag', () => {
+  const r = capture(['coordinate', 'bootstrap', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /--promote-light/);
 });
 
 test('coordinate next --help → 플래그, action, 응답 필드를 나열한다', () => {

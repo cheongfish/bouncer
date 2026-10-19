@@ -493,23 +493,82 @@ test('pointer가 있는 bare current → JSON에 task 키가 포함된다', () =
   });
 });
 
-test('--replace 없이 다른 blueprint를 current --set 하면 → parallel 키를 추가한다', () => {
+function pointersSnapshot(repo) {
+  const root = path.join(repo, '.git', 'bouncer', 'pointers');
+  const out = {};
+  if (!fs.existsSync(root)) return out;
+  for (const epic of fs.readdirSync(root)) {
+    for (const f of fs.readdirSync(path.join(root, epic))) {
+      out[`${epic}/${f}`] = fs.readFileSync(path.join(root, epic, f), 'utf8');
+    }
+  }
+  return out;
+}
+
+test('base에 다른 key가 있을 때 current --set → CURRENT_WOULD_BE_AMBIGUOUS로 거절하고 포인터를 바꾸지 않는다', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  const before = pointersSnapshot(repo);
+  const r = capture(['current', '--repo', repo, '--set', BP_OTHER]);
+  assert.strictEqual(r.code, 1);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'CURRENT_WOULD_BE_AMBIGUOUS');
+  assert.strictEqual(typeof parsed.cause, 'string');
+  assert.ok(parsed.cause.length > 0);
+  assert.deepStrictEqual(parsed.candidates, [storedPointer(BP_REL, 'develop', null)]);
+  assert.strictEqual(parsed.next.some((c) => c.includes('--replace')), true);
+  assert.strictEqual(parsed.next.some((c) => c.includes('--keep-others')), true);
+  assert.deepStrictEqual(pointersSnapshot(repo), before);
+});
+
+test('base에 key가 둘 이상일 때 새 key를 current --set → next에 --replace 없이 --keep-others만 낸다', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  writeCurrent({ repoRoot: repo, blueprint: BP_OTHER, base: 'main' });
+  const third = '.bouncer/context/epics/003-extra/blueprints/001-x';
+  const r = capture(['current', '--repo', repo, '--set', third]);
+  assert.strictEqual(r.code, 1);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.reason, 'CURRENT_WOULD_BE_AMBIGUOUS');
+  assert.strictEqual(parsed.next.some((c) => c.includes('--replace')), false);
+  assert.strictEqual(parsed.next.some((c) => c.includes('--keep-others')), true);
+});
+
+test('base에서 current --set --keep-others → key를 더하고 others를 보고한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
   writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
   const before = readCurrent({ repoRoot: repo });
-  const r = capture(['current', '--repo', repo, '--set', BP_OTHER]);
+  const r = capture(['current', '--repo', repo, '--set', BP_OTHER, '--keep-others']);
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
   assert.strictEqual(parsed.current.blueprint, BP_OTHER);
+  assert.deepStrictEqual(parsed.others, [{ blueprint: BP_REL }]);
   assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
   assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
   assert.deepStrictEqual(
     JSON.parse(fs.readFileSync(nsFile(repo, '001', '001'), 'utf8')),
     { blueprint: before.blueprint, base: before.base },
   );
+});
+
+test('current --keep-others를 --replace 또는 --clear와 쓰거나 --set 없이 쓰면 → exit 2', () => {
+  const repo = tmpGitRepo();
+  for (const argv of [
+    ['--set', BP_REL, '--keep-others', '--replace'],
+    ['--clear', '--keep-others'],
+    ['--keep-others'],
+  ]) {
+    const r = capture(['current', '--repo', repo, ...argv]);
+    assert.strictEqual(r.code, 2, argv.join(' '));
+  }
 });
 
 test('current --set --replace로 다른 blueprint를 지정하면 → 전환하고 previous를 보고한다', () => {
@@ -610,16 +669,29 @@ function storedPointer(blueprint, base, task) {
   return { blueprint, base, task: task == null ? null : task };
 }
 
-test('current --set → parallel namespace 키를 추가하고 다른 키를 보존한다', () => {
+test('current --set --keep-others → parallel namespace 키를 추가하고 다른 키를 보존한다', () => {
   const repo = tmpGitRepo();
   writePlanPassingBlueprint(repo);
   writeOtherPlanPassingBlueprint(repo);
   writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
-  const r = capture(['current', '--repo', repo, '--set', BP_OTHER]);
+  const r = capture(['current', '--repo', repo, '--set', BP_OTHER, '--keep-others']);
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
   assert.strictEqual(parsed.current.blueprint, BP_OTHER);
+  assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
+  assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
+});
+
+test('nested worktree에서 다른 key가 있는 current --set → 거절 없이 추가한다', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  gitCommit(repo, 'docs');
+  const nested = addWorktree(repo, '.worktrees/002/001');
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  const r = capture(['current', '--repo', nested, '--set', BP_OTHER, '--base', 'main']);
+  assert.strictEqual(r.code, 0);
   assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
   assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
 });
@@ -684,6 +756,7 @@ test('base에서 pointer가 둘이면 current → 정렬된 storage 형태 후�
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, false);
   assert.strictEqual(parsed.reason, 'CURRENT_AMBIGUOUS');
+  assert.strictEqual(Array.isArray(parsed.next) && parsed.next.length > 0, true);
   assert.deepStrictEqual(parsed.candidates, [
     storedPointer(BP_REL, 'develop', `${BP_REL}/tasks/001/tasks.md`),
     storedPointer(BP_OTHER, 'main', null),

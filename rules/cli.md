@@ -19,6 +19,7 @@ bouncer commit --blueprint <dir> [--yes]
 bouncer finalize --blueprint <dir> [--yes]
 bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
+bouncer run detach --blueprint <dir> --yes [--reason <text>]
 ```
 
 `run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
@@ -36,11 +37,42 @@ with `expected` (the pointer blueprint) and `actual` (the `--blueprint` input,
 no trailing slash, differs from the normalized pointer blueprint, resolves
 outside the repo, or (when it exists) its realpath is outside the repo realpath,
 (4) `delegable:false` from the ledger status: `promotion-stopped`,
-`awaiting-confirmation`, `partial-closed`, (5) `delegable:false` from the
+`awaiting-confirmation`, `partial-closed`, `run-detached`, (5) `delegable:false` from the
 blueprint document status when it is not `approved`: `blueprint-closed`,
 `blueprint-partial-closed`, `blueprint-draft`, `blueprint-superseded`,
 `blueprint-imported`, `blueprint-status-unknown`, (6) `delegable:false`
 `no-open-task`. Every `delegable:false` refusal also has `direct_eligible:false`.
+
+`run detach` closes out a drive whose implementation was already merged by Git
+but whose integration ledger still blocks main-checkout commits with
+`main-worktree-source-write`. Run it in the main checkout only after the user
+approves. It keeps the ledger file, integration and worker worktrees, and
+branches; appends one `detached` decision (`at`, `reason`, `integration_head`,
+`main_head`, `previous_status`; heads are observations, not merge proof) and sets
+ledger `status: detached`; and removes only this blueprint's pointer key.
+Success prints `{ ok, ledger, pointer_removed, next }`; a second run is a
+no-op with `already: true`. It writes no verification, review, or task status
+and is not a finalize. Refusals (exit 1, ledger and pointers unchanged, except
+`ledger-lock-lost` below): `detach-confirmation-required` (no `--yes`), `no-ledger`,
+`unreadable-ledger`,
+`detach-worker-in-flight` (lists task ids whose status is not `integrated` and
+whose dispatch is `active`/`reported` or whose status is `prepared`/`recorded`;
+an `integrated` task never counts, even though its dispatch stays `reported`),
+`detach-awaiting-confirmation`, `ledger-locked` (the ledger lock is held by
+another process), and `ledger-lock-lost` (the lock was taken over during the
+write). When the lock is lost before the write, nothing changed. When releasing
+the lock fails after the write, the ledger and pointer may already be written:
+rerun `run detach` and confirm it reports `already: true`. Every refusal is
+`{ ok: false, reason, cause, next }`.
+A missing `--blueprint` or unknown `run` subcommand exits 2. On a detached
+ledger `coordinate next` and every fenced mutation (`prepare`, `dispatch`,
+`report`, `record`, `integrate`, `repair`, `revise`, supplement, `session-open`)
+refuse with `run-detached`, and worker `revise` write boundaries do too. To
+finalize, set the pointer with `bouncer current --set <dir>` and run
+`/bouncer-finalize`; finalize rules are unchanged. The
+`main-worktree-source-write` refusal (hook message and `commit` `recovery.next`)
+carries a `next`: `run detach` when every commit task is `integrated`,
+otherwise "work in the execution worktree or continue `/bouncer-run`".
 
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
 `plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
@@ -100,7 +132,7 @@ Do not scaffold tasks into a closed blueprint.
 ## Pointer, worktree, and coordinator commands
 
 ```sh
-bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
+bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
 bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
@@ -109,7 +141,13 @@ bouncer coordinate promote-stop --blueprint <dir> \
   --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
   --summary <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
-  --summary <text> --paths <p> --decision <reason>
+  --summary <text> --paths <p> --decision <reason> [--verify <argv>] [--new-path <p>]...
+bouncer coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--new-path <p>]... \
+  --reason <text>
+bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
+  --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
+bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
+  --summary <text> --paths <p> --decision <reason> --disposition outside_scope
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
   [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> --kind supplement --review-finding <id> \
@@ -162,12 +200,26 @@ non-empty regular file, otherwise `absent` (missing, empty, directory, an older
 attempt's file, or a stat error). It is computed at projection time and never
 stored in the ledger.
 
+At the base checkout, `current --set` that would add a new key beside an
+existing one is refused with `CURRENT_WOULD_BE_AMBIGUOUS` (exit 1, pointer
+unchanged, `cause` explains why the pointer would be ambiguous, `next` lists the commands); pass `--replace` to swap the uniquely
+selected key or `--keep-others` to keep parallel keys deliberately.
+`prepare` refuses with `unassigned-worker-worktree` (`workerPath`) when a worker
+path exists on disk but is not a registered worktree, before creating anything.
+
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, and repair.
 `coordinate` stdout is one-line JSON; a success response carries `checkpoint`
 (and prepare also `opened[]`) instead of ledger copies of `tasks` or
 `decisions`.
+When `prepare` recreates a revoked worker it first preserves uncommitted
+changes (patch under integration `.bouncer/runtime/salvage/`) and unintegrated
+commits (`refs/bouncer/salvage/<task>/g<gen>-<short>`), records a
+`worker-salvage` decision, and lists them in the output `salvage` array
+(`task`, `patch`, `ref`). A clean worker adds no `salvage` key. If preserving
+fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
+unchanged.
 `coordinate bootstrap` sets ledger `mode: light` only when blueprint
 `bouncer.scale` is `light` and the blueprint has exactly one commit task with
 an empty `depends_on`; otherwise a light scale is refused with
@@ -176,7 +228,13 @@ integration worktree (no worker worktree), `coordinate next` implement carries
 `payload.inline: true`, and integrate records fan-in verified without
 cherry-pick. Light `report --outcome accepted` requires blueprint-root
 `review.md` rounds from `bouncer review record` and document status `accepted`
-(`light-review-required` otherwise). A resume bootstrap against the opposite
+(`light-review-required` otherwise). `report --outcome accepted` and `record`
+refuse, before any ledger write, a worker without a confirmed task commit:
+`worker-commit-missing` (HEAD is `integrationHead` or its ancestor),
+`worker-commit-stamp-mismatch` (`commit_sha` absent or not HEAD's first 8
+characters), `worker-scope-dirty` (a dirty path inside the current scope, even
+if dirty at dispatch); the output carries `head`, `integration_head`, `stamp`,
+`dirty_paths`, and `next` points at `coordinate advance`. A resume bootstrap against the opposite
 mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
 `coordinate promote-stop` (light only) records `status: promotion_stopped` and
 a `promotion` snapshot (`reason`, `summary`, open task, `diff_sha`, optional
@@ -185,6 +243,7 @@ evidence ids). Reasons are `security-risk`, `out-of-scope`, `task-split`,
 idempotent; afterward `prepare`/`dispatch`/`report`/`record`/`integrate` and
 `run preflight` delegation fail with `promotion-stopped`. There is no resume —
 full replan needs a new `bootstrap` and `current --set`.
+After the main checkout has an approved full blueprint, `coordinate bootstrap --promote-light` archives a promotion-stopped light ledger and saves integration dirty changes to `.bouncer/runtime/light-promoted.patch`. It resets those changes, seeds the full plan, and creates a full ledger on the same integration branch. The response and ledger include `promoted_from`; `coordinate next` passes its patch path as `promoted_patch` in the implement payload. Rejections are `promote-light-requires-stopped`, `promote-light-scale-light`, `promote-light-archive-exists`, and `promotion-diff-drift`. A failed partial promotion reports `promote-light-incomplete` and whether rollback completed.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
@@ -203,6 +262,26 @@ and returns a fresh checkpoint (`ok: false` with `ledger-mode-mismatch` or
 per session (`docs/configuration.md`).
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
+`coordinate repair` and `coordinate revise` accept only paths tracked at the
+integration HEAD: an untracked `--paths` entry is refused with
+`scope-path-untracked` (the output lists it in `paths`), and a `--new-path` file
+to create needs a tracked parent directory or it is refused with
+`scope-new-path-parent-missing`. The tracked-path check treats each value as a
+literal pathspec: glob characters and pathspec magic (for example `:(...)`) are
+matched as plain text, never expanded. On a `scoped_terminal` blueprint `repair`
+also needs `--verify <argv>`, one command that checks only the failing files:
+`repair-verify-required` when missing, `repair-verify-not-single-argv` for shell
+operators or an empty value, `repair-verify-is-terminal` when it equals the
+terminal command. A legacy blueprint keeps the terminal verify unless `--verify`
+is given (then only the single-argv check applies). `--verify` cannot be
+combined with `--resume-task`, and a valueless `--verify` or `--new-path`
+exits 2. All of these refuse before the ledger or task documents change.
+A `coordinate revise` refusal is written to stdout as JSON
+`{ ok: false, reason, paths?, cause, next }` with exit 1 (`paths` only when the
+reason lists paths, such as `scope-path-untracked`).
+`coordinate next` returns `commit` when the task worktree has scope changes to
+commit; on a clean tree whose commit stamp is stale it returns a `blocked`
+action with reason `worker-commit-stamp-mismatch` instead.
 Use `coordinate revise` only from the assigned worker worktree with a reason
 and explicit source paths. A `partial-close` requires the workflow's explicit
 user confirmation and is unresolved handoff, not ordinary completion.
@@ -241,7 +320,12 @@ Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
 `intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. `intent sections` is
-read-only: it projects role-specific section bodies from that cache. On
+read-only: it projects role-specific section bodies from that cache. Successful
+implementer responses also include `symbol_locations`, copied in bundle order
+from resolved (including historical) and unlinked entries; unresolved and
+unselected ambiguous entries have no location. Reviewer and debugger responses
+retain their existing shape without this field. The projection preserves the
+bundle ID, revision, brief hash, and existing `functions` data. On
 `{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`,
 `intent-sections-drift`, or `intent-task-invalid` (exit 1). For the first three,
 follow `next` and run `bouncer intent bundle --task <path> --symbol <name>...`
@@ -257,9 +341,9 @@ prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
 
-`review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
-clustered`) or Execute (`single | parallel`, with `security` when
-`review_risk` is non-empty). Plan `single` / `clustered` also include
+`review-dispatch` is read-only. It returns JSON for Plan (`skip | single`;
+older stored `clustered` payloads are still read) or Execute (`single | parallel`, with `security` when
+`review_risk` is non-empty). Plan `single` also includes
 `snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
 (per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
 `structure_parts` (per-document structure sha256; the `follow_up` input),
@@ -322,6 +406,25 @@ duplicate options, `--task` not three digits, `--status` outside
 `requested|addressed|accepted` including `pending`) is exit 2.
 
 ```sh
+bouncer review accept-risk --blueprint <dir> --finding <id> --note <text> --yes
+```
+
+`review accept-risk` closes one `open` finding of a blueprint-scope final review
+as a user-accepted risk, because the final review is a single round and cannot
+take another. Run it only after the user explicitly approves accepting that
+risk; `--yes` carries that approval. It changes only the target finding
+(`status: accepted`, `accepted_risk: true`, `note`) and leaves `rounds`
+unchanged; the document status becomes `accepted` only when no finding stays
+`open`. Success is `{ ok: true, path, finding, status, open_remaining }`
+(exit 0). Failure is `{ ok: false, reason, cause, next }` (exit 1) with
+`reason` `review-accept-risk-confirmation-required` (no `--yes`, checked before
+any file read), `review-accept-risk-task-scope` (the review is not
+`review_scope: blueprint`), `review-target-missing`, `review-finding-missing`,
+`review-finding-not-open`, `review-note-required` (blank `--note`), or
+`review-ledger-invalid`. A missing or duplicate `--blueprint`/`--finding`/
+`--note`, or any `--task`, is exit 2.
+
+```sh
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
@@ -334,6 +437,28 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it, and the next final review is the one delta round.
 `--kind` accepts only `product` (default) or `supplement`.
+
+Terminal CI failures add two mutually exclusive forms of `coordinate repair`
+(both need `--task <terminal>`, the recorded `--failure-command`, `--summary`,
+`--paths`, `--decision`, and the ledger path/hash fence; both without a value, or
+together, exit 2). `--resume-task <ddd>` reassigns an already integrated
+implementation task of the same blueprint: no task is added, IDs, DAG, and
+approved scope stay unchanged, `--paths` must lie inside that task's scope, the
+lease is revoked so `prepare` hands it to a worker cut from the current
+integration HEAD with a new generation, and the terminal re-verifies after
+reintegration (one repair wave). `--disposition outside_scope` records that the
+cause, the failing test, and the needed change are outside every approved task
+scope. It binds the original evidence id and source digest recorded at the
+failure; the failure and the `verifying` status stay, and `next`, `validate
+--gate finalize`, the finalize digest, and the PR treat it as a separate
+warning, never as passed or integrated. Refused before any write: both options,
+a command or task other than the recorded failure
+(`failure-evidence-mismatch`), missing evidence or source identity
+(`disposition-evidence-required`), a changed source (`disposition-stale-source`),
+a path owned by any task scope (`disposition-scope-mixed`), a non-integrated or
+foreign resume task (`resume-task-invalid`), a path outside the chosen task's
+scope (`repair-scope-out-of-bounds`). Review-caused repair and supplement are
+unchanged.
 
 ## Controlled migrations
 

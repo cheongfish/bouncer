@@ -851,6 +851,45 @@ test('plan gate G18 with a non-string last round digest when an earlier round ha
   assert.strictEqual(stale[0].file, rels.contextReview);
 });
 
+const HEX_A = 'a'.repeat(64);
+const HEX_B = 'b'.repeat(64);
+
+test('plan gate G18 when the closure digest matches though the last round digest is old → passes', () => {
+  const run = freshnessRun({
+    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_B },
+    current: { ok: true, digest: HEX_B, documents: [] },
+  });
+  assert.strictEqual(run.calls, 1);
+  assert.deepStrictEqual(run.g18, []);
+});
+
+test('plan gate G18 when the body changed after the closure digest → reports stale against the closure', () => {
+  const run = freshnessRun({
+    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_A },
+    current: { ok: true, digest: HEX_B, documents: [] },
+  });
+  assert.strictEqual(run.g18.length, 1);
+  assert.match(run.g18[0].message, /^context review is stale: closure digest a{64} != current b{64}/);
+});
+
+test('plan gate G18 when the closure digest is absent → falls back to the last round digest', () => {
+  const stale = freshnessRun({ current: { ok: true, digest: 'digest-2', documents: [] } });
+  assert.match(stale.g18[0].message, /last round digest digest-1 != current digest-2/);
+  assert.deepStrictEqual(freshnessRun().g18, []);
+});
+
+test('plan gate G18 when the closure digest is malformed → rejects without certifying the current content', () => {
+  for (const bad of ['A'.repeat(64), 'abc', 42, '']) {
+    const run = freshnessRun({
+      contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: bad },
+      current: { ok: true, digest: 'digest-1', documents: [] },
+    });
+    assert.strictEqual(run.g18.length, 1, JSON.stringify(bad));
+    assert.match(run.g18[0].message, /closure_target_digest must be 64 lowercase hex/);
+    assert.strictEqual(run.calls, 0);
+  }
+});
+
 test('plan gate G18 when the snapshot fails → reports unavailable freshness', () => {
   const { g18 } = freshnessRun({ current: { ok: false, error: 'boom' } });
   assert.strictEqual(g18.length, 1);
@@ -1226,6 +1265,30 @@ test('execute gate G14 stored target.snapshot_id → absent passes and malformed
   }
 });
 
+// 입력 보정은 record/close 경계에만 있다. 자동 id 형식이어도 수기로 틀린 fingerprint는 게이트가 거절한다.
+test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14·G18이 계속 mismatch로 거절한다', () => {
+  const { normalizeFinding } = require('../scripts/lib/validate-sections');
+  const withoutId = (f) => {
+    const copy = { ...f };
+    delete copy.id;
+    return copy;
+  };
+  const autoExecute = normalizeFinding(withoutId(convergenceFinding()));
+  assert.match(autoExecute.id, /^F-[0-9a-f]{8}$/);
+  assert.deepStrictEqual(executeReviewFailures({ findings: [autoExecute], rounds: [convergenceRound()] }), []);
+  const tamperedExecute = executeReviewFailures({
+    findings: [{ ...autoExecute, fingerprint: 'correctness:interface:src/a.ts#other' }], rounds: [convergenceRound()],
+  });
+  assert.ok(tamperedExecute.some((f) => f.message === `review finding ${autoExecute.id} fingerprint mismatch`));
+
+  const autoContext = normalizeFinding(withoutId(contextFinding()), 'context');
+  assert.match(autoContext.id, /^CR-[0-9a-f]{8}$/);
+  const tamperedContext = contextReviewFailures({
+    findings: [{ ...autoContext, fingerprint: 'context:scope:other#x' }], rounds: [contextRound()],
+  });
+  assert.ok(tamperedContext.some((f) => f.message === `context-review finding ${autoContext.id} fingerprint mismatch`));
+});
+
 test('findingFingerprint identity components → are normalized', () => {
   assert.strictEqual(
     findingFingerprint({ category: ' Spec ', brief_clause: 'Interface.거부', file: './a/b.ts', symbol: 'f' }),
@@ -1297,6 +1360,13 @@ test('execute gate G14 → enforces the mode convergence contract', () => {
     findings: [convergenceFinding({ status: 'accepted', note: 'not fixed' })], rounds: [convergenceRound()],
   });
   assert.ok(openMustFix.some((f) => /accepted with open must_fix F1/.test(f.message)));
+});
+
+test('execute gate G14 task review with deferred must_fix and note in accepted → is accepted with open must_fix', () => {
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ status: 'deferred', note: 'carry forward' })], rounds: [convergenceRound()],
+  });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
 });
 
 test('execute gate G14 → leaves mode-less legacy rounds unchanged', () => {
@@ -1498,6 +1568,35 @@ test('finalize gate G16 when explain sections are unwritten → fails', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
+test('finalize gate G16 when explain has no Intuition but other sections are written → passes', () => {
+  const failures = [];
+  const body = EXPLAIN_BODY_OK.replace('## Intuition\nValidate at the edge.\n\n', '');
+  assert.ok(!body.includes('Intuition'));
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()], body),
+  }, rels, failures, G16_CTX);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('finalize gate G16 when a remaining required section is missing → fails naming it', () => {
+  const failures = [];
+  const body = EXPLAIN_BODY_OK.replace('## Quiz\nQ1: where is validation?\n\n', '');
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()], body),
+  }, rels, failures, G16_CTX);
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G16']);
+  assert.match(failures[0].message, /quiz/);
+});
+
+test('legacy explain with Intuition → still parsed as its own section without leaking into neighbors', () => {
+  const sections = parseExplainSections(EXPLAIN_BODY_OK);
+  assert.ok(/Validate at the edge/.test(sections.intuition));
+  assert.ok(!/Validate at the edge/.test(sections.background));
+  assert.ok(!/Validate at the edge/.test(sections.code));
+});
+
 test('finalize gate G16 when comprehension record is missing for a task → fails', () => {
   const failures = [];
   checkGate('finalize', {
@@ -1538,6 +1637,72 @@ test('finalize → treats integrated verification nodes as closed while commit t
     explain: explainDoc([compEntry()]),
   }, rels, failures, G16_CTX);
   assert.deepStrictEqual(failures, []);
+});
+
+/** 범위 밖 분류가 유효한 terminal 실패 원장. mutate로 identity·분류를 깨 거절 경로를 만든다. */
+function outsideScopeLedger(mutate = () => {}) {
+  const ledger = {
+    integrationHead: 'h'.repeat(40),
+    tasks: [
+      { id: '001', status: 'integrated' },
+      { id: '002', execution_kind: 'verification', status: 'verifying' },
+    ],
+    terminalFailure: {
+      task: '002', command: 'npm test', summary: 'exit code 1', paths: [], exitCode: 1, repairWave: 0,
+      evidence_id: 'e'.repeat(64), source_digest: 'h'.repeat(40),
+      disposition: {
+        kind: 'outside_scope', reason: 'outside every task scope', evidence_id: 'e'.repeat(64),
+        source_digest: 'h'.repeat(40), paths: ['vendor/lock.json'],
+      },
+    },
+  };
+  mutate(ledger);
+  return ledger;
+}
+
+function g16WithTerminal(docStatus, ledger) {
+  const failures = [];
+  const warnings = [];
+  checkGate('finalize', {
+    tasksDocs: [
+      doc('verified', { id: 'TASKS-001' }),
+      doc(docStatus, { id: 'TASKS-002', execution_kind: 'verification' }),
+    ],
+    explain: explainDoc([compEntry()]),
+  }, rels, failures, {
+    ...G16_CTX, warnings,
+    deps: { ...G16_CTX.deps, coordinatorLedgerFor: () => ledger },
+  });
+  return { failures, warnings };
+}
+
+test('finalize gate G16 with a verifying terminal and a proven outside_scope classification → passes with a warning', () => {
+  const { failures, warnings } = g16WithTerminal('verifying', outsideScopeLedger());
+  assert.deepStrictEqual(failures, []);
+  assert.deepStrictEqual(warnings.map((w) => w.code), ['G16']);
+});
+
+test('finalize gate G16 with a verifying terminal and no valid classification → keeps the open-task failure', () => {
+  const cases = [
+    ['no ledger', null],
+    ['no classification', outsideScopeLedger((l) => { delete l.terminalFailure.disposition; })],
+    ['source moved', outsideScopeLedger((l) => { l.integrationHead = 'x'.repeat(40); })],
+    ['evidence mismatch', outsideScopeLedger((l) => { l.terminalFailure.disposition.evidence_id = 'd'.repeat(64); })],
+    ['empty reason', outsideScopeLedger((l) => { l.terminalFailure.disposition.reason = ''; })],
+    ['failure of another task', outsideScopeLedger((l) => { l.terminalFailure.task = '001'; })],
+  ];
+  for (const [label, ledger] of cases) {
+    const { failures } = g16WithTerminal('verifying', ledger);
+    assert.deepStrictEqual(failures.map((f) => f.code), ['G16'], label);
+    assert.match(failures[0].message, /open tasks remain.*TASKS-002/, label);
+  }
+});
+
+test('finalize gate G16 with a classified failure but a terminal document that is not verifying → keeps failing', () => {
+  for (const status of ['pending', 'ready', 'draft']) {
+    const { failures } = g16WithTerminal(status, outsideScopeLedger());
+    assert.deepStrictEqual(failures.map((f) => f.code), ['G16'], status);
+  }
 });
 
 test('finalize gate G16 when explain.md is absent → fails', () => {
@@ -2641,6 +2806,124 @@ test('plan gate → accepts terminal verification fan-in and rejects source scop
   assert.ok(invalid.some((f) => f.code === 'G20' && f.message.endsWith(': npm run ci')));
 });
 
+// scoped_terminal 정책: 구현 task 전용 명령 + 단일 마지막 verification.
+function scopedPlanDocs(taskDocs, { scale, policy = 'scoped_terminal', noPolicy = false } = {}) {
+  return {
+    ...planDocsWithTasks(taskDocs),
+    blueprintIndex: doc('approved', {
+      ...(noPolicy ? {} : { verification_policy: policy }),
+      ...(scale === undefined ? {} : { scale }),
+    }),
+  };
+}
+
+function scopedCommit(nnn, extra = {}) {
+  return planTaskDoc(nnn, { verify: 'node --test test/a.test.js', ...extra });
+}
+
+function scopedTerminal(nnn, dependsOn, extra = {}) {
+  return planTaskDoc(nnn, {
+    execution_kind: 'verification', affected_paths: [], scope_evidence: undefined,
+    graph: undefined, depends_on: dependsOn, parallel_safe: false,
+    dependency_gate: 'integrated', verify: 'npm test', ...extra,
+  }, READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\nSource 변경 경로 없음.\n\n## Do not touch',
+  ));
+}
+
+function g20Messages(docs) {
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  return failures.filter((f) => f.code === 'G20').map((f) => f.message);
+}
+
+test('plan gate scoped_terminal → accepts per-task commands with one terminal that waits for every commit', () => {
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    scopedCommit('001'),
+    scopedCommit('002', { verify: 'node --test test/b.test.js' }),
+    scopedTerminal('003', ['TASKS-001', 'TASKS-002']),
+  ])), []);
+  // 간접 선행도 기다리는 것으로 본다.
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    scopedCommit('001'),
+    scopedCommit('002', { depends_on: ['TASKS-001'] }),
+    scopedTerminal('003', ['TASKS-002']),
+  ])), []);
+});
+
+test('plan gate scoped_terminal → rejects missing, empty, shell-operator and full-suite commands on commit tasks', () => {
+  const missing = g20Messages(scopedPlanDocs([
+    planTaskDoc('001'), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(missing.some((m) => /requires its own non-empty bouncer\.verify/.test(m)), JSON.stringify(missing));
+  const empty = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { verify: '   ' }), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(empty.some((m) => /non-empty/.test(m)), JSON.stringify(empty));
+  const shell = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { verify: 'node --test a && node --test b' }), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(shell.some((m) => /single executable command/.test(m)), JSON.stringify(shell));
+  const fullSuite = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { verify: 'npm   test' }), scopedTerminal('002', ['TASKS-001']),
+  ]));
+  assert.ok(fullSuite.some((m) => /terminal full-suite command/.test(m)), JSON.stringify(fullSuite));
+});
+
+test('plan gate scoped_terminal → rejects no terminal, two terminals and a terminal that skips a commit task', () => {
+  const none = g20Messages(scopedPlanDocs([scopedCommit('001')]));
+  assert.ok(none.some((m) => /exactly one terminal verification task, found none/.test(m)), JSON.stringify(none));
+  const two = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedTerminal('002', ['TASKS-001']), scopedTerminal('003', ['TASKS-001']),
+  ]));
+  assert.ok(two.some((m) => /found 2/.test(m)), JSON.stringify(two));
+  const skip = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedCommit('002'), scopedTerminal('003', ['TASKS-001']),
+  ]));
+  assert.ok(skip.some((m) => /must wait for commit task: TASKS-002/.test(m)), JSON.stringify(skip));
+  // 검증 뒤 구현 node는 기존 topology 거절이 그대로 맡는다.
+  const after = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedTerminal('002', ['TASKS-001']), scopedCommit('003', { depends_on: ['TASKS-002'] }),
+  ]));
+  assert.ok(after.some((m) => /cannot precede commit task/.test(m)), JSON.stringify(after));
+});
+
+test('plan gate scoped_terminal light → needs one independent commit task plus the terminal', () => {
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedTerminal('002', ['TASKS-001']),
+  ], { scale: 'light' })), []);
+  const two = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedCommit('002'), scopedTerminal('003', ['TASKS-001', 'TASKS-002']),
+  ], { scale: 'light' }));
+  assert.ok(two.some((m) => /one independent commit task/.test(m)), JSON.stringify(two));
+  const dependent = g20Messages(scopedPlanDocs([
+    scopedCommit('001', { depends_on: ['TASKS-002'] }), scopedCommit('002'),
+    scopedTerminal('003', ['TASKS-001']),
+  ], { scale: 'light' }));
+  assert.ok(dependent.some((m) => /one independent commit task/.test(m)), JSON.stringify(dependent));
+});
+
+test('plan gate verification_policy → absent stays legacy and an unknown value is rejected', () => {
+  // 표식 없는 기존 계획: 명령 없는 단일 task도 topology 변경 없이 통과한다.
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([planTaskDoc('001')], { noPolicy: true })), []);
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs([
+    planTaskDoc('001'), planTaskDoc('002'),
+  ], { noPolicy: true, scale: 'light' })), []);
+  for (const policy of ['legacy', 'scoped', null]) {
+    const messages = g20Messages(scopedPlanDocs([scopedCommit('001'), scopedTerminal('002', ['TASKS-001'])], { policy }));
+    assert.ok(messages.some((m) => /verification_policy must be/.test(m)), `${policy}: ${JSON.stringify(messages)}`);
+  }
+});
+
+test('checkPlanDraft with scoped_terminal → reports the same G20 as the plan gate', () => {
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const failures = [];
+  checkPlanDraft(scopedPlanDocs([planTaskDoc('001', { status: 'draft' })]), rels, failures, {});
+  assert.ok(failures.some((f) => f.code === 'G20' && /bouncer\.verify/.test(f.message)), JSON.stringify(failures));
+  assert.ok(failures.some((f) => f.code === 'G20' && /terminal verification/.test(f.message)));
+});
+
 // --- plan draft 검사: context review 전 status 무관 task 검사 ---
 function draftPlanDocs(taskDocs, blueprintExtra = {}) {
   return {
@@ -2843,6 +3126,38 @@ test('finalize G21 with rounds discovery,delta,delta,critical_recovery,delta →
   assert.equal(
     g21SequenceFailures(['discovery', 'delta', 'delta', 'critical_recovery', 'delta']).length, 1,
   );
+});
+
+function g21FindingFailures(finding) {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ModeRounds(['discovery']), findings: [finding] }),
+  });
+  return failures.filter((f) => f.code === 'G21');
+}
+
+test('finalize G21 with deferred must_fix and note in accepted review → has no G21', () => {
+  assert.deepEqual(g21FindingFailures(convergenceFinding({ status: 'deferred', note: 'carry forward' })), []);
+});
+
+test('finalize G21 with deferred must_fix without note in accepted review → is deferred without note', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'deferred' }));
+  assert.ok(failures.some((f) => /finding F1 deferred without note/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with accepted_risk must_fix and note in accepted review → has no G21', () => {
+  assert.deepEqual(g21FindingFailures(convergenceFinding({
+    status: 'accepted', accepted_risk: true, note: 'user accepted the risk',
+  })), []);
+});
+
+test('finalize G21 with accepted must_fix without accepted_risk → is accepted with open must_fix', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'accepted', note: 'n' }));
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with open must_fix in accepted review → is accepted with open must_fix', () => {
+  const failures = g21FindingFailures(convergenceFinding({ status: 'open' }));
+  assert.ok(failures.some((f) => /accepted with open must_fix F1|open in accepted review/.test(f.message)), JSON.stringify(failures));
 });
 
 test('execute gate G14 with task rounds discovery,delta,delta → is rounds sequence invalid', () => {

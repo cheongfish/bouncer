@@ -54,3 +54,12 @@ test('context reviewer rubric → judges two scopes with storage ownership and r
   const index = fs.readFileSync(path.join(root, 'references', 'context-review', 'index.md'), 'utf8');
   assert.ok(!index.includes('four rubrics'));
 });
+
+// route 도움말의 next_action 목록은 controller가 읽는 계약이다: close가 빠지면 본문 수정 경로를 못 찾는다.
+test('context-review help → lists close among the route next_action values', () => {
+  const { runCli } = require('../scripts/lib/cli');
+  let out = '';
+  const code = runCli(['context-review', '--help'], { out: (s) => { out += s; }, err: () => {} });
+  assert.strictEqual(code, 0);
+  assert.ok(out.includes('reuse | close | delta | restart | user'));
+});

@@ -63,10 +63,31 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+repair의 `--paths`는 실패 증거·debugger 보고에 나온 integration HEAD 추적 파일에서만
+가져오고(없는 파일은 `--new-path`, 부모 디렉터리가 추적돼야 한다), `scoped_terminal`에서는
+원인 파일만 검사하는 단일 명령을 `--verify`로 넘긴다. 어긋나면 CLI가 쓰기 전에 거절한다.
+
+terminal 실패는 새 repair task를 만들기 전에 원인을 먼저 가른다. 원인이 이미 통합된 task의
+코드이면 `coordinate repair --task <terminal> --resume-task <ddd>`로 그 기존 task를 승인
+scope 안에서 재배정한다(task 수·ID·DAG·scope 불변, lease generation 갱신, 현재 integration
+HEAD에서 재작업·재통합 뒤 terminal 재검증, 이전 lease의 report·commit 거부, repair wave 1회
+소모). 원인·실패 테스트·필요 변경이 모든 승인 task scope 밖임이 입증되면
+`--disposition outside_scope`로 원본 evidence/source identity에 묶어 기록한다. 이 분류는
+실패를 passed나 integrated로 바꾸지 않고 terminal을 `verifying`에 둔 채 `next`가 최종 리뷰와
+완료로 진행하게 하며, 최종 보고·finalize·PR에 별도 경고로 남긴다. 원인 불명, scope 안팎 혼합,
+소스 변경(stale)은 계속 `blocked`다. 두 옵션은 상호배타다.
+
+`verification_policy: scoped_terminal` blueprint(새 계획)는 책임을 나눈다. 구현
+worker는 자기 task 전용 `bouncer.verify`만 실행하고 보고 `## Tests`에 그 명령과
+결과를 적는다. 다른 명령·누락·실패 결과면 fan-in이 `worker-test-report-mismatch`로
+거절한다. 정상 경로의 첫 전체 검증은 모든 구현이 통합된 뒤 종단 verification node에서
+한 번이며, 실패 복구 재검증과 finalize remainder 검증은 따로 돈다. 표식이 없는
+legacy 계획은 현행 동작을 유지한다.
+
 When `review_scope` is `blueprint`, the coordinator owns the one final review
 after that verification node (and every commit task) is `integrated`; this
-root session does not open it. When `review_scope` is absent, per-task reviews
-stay on the task's review round.
+root session does not open it. A blueprint without `review_scope` is blocked at
+preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts it.
 
 1. **Preflight.** Load runtime state from the CLI only:
    ```bash
@@ -76,7 +97,10 @@ stay on the task's review round.
    holds the pointer, remaining-task fields (including `affected_paths`), DAG,
    reporting cadence, and `direct_eligible`. Follow its status and `delegable` result; read
    `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
-   pointer return values. When nothing to delegate,
+   pointer return values. When preflight returns `ok: false` with `reason:
+   legacy-review-scope`, the blueprint has no `review_scope`: show its `next`
+   command to the user and stop. Run it only when the user explicitly asks, then
+   rerun preflight; never convert the scope yourself. When nothing to delegate,
    tell the user to run `/bouncer-finalize` themselves and stop. Finalize
    consent stays with the user; this session and the coordinator never run
    `/bouncer-finalize` or any part of it.
@@ -86,18 +110,33 @@ stay on the task's review round.
    to delegate the drive. Option order: recommended proceed → revise → cancel.
    This is the only gate.
 
+   When preflight reports `direct_eligible: true`:
    **AskUserQuestion — run.start_drive**
-   <!-- acq {"gate":"run.start_drive","options":["A","B","C","D"],"recommended":"A"} -->
+   <!-- acq {"gate":"run.start_drive","options":["D","A","B","C"],"recommended":"D"} -->
    1. **Re-ground**: Start the drive for the remaining tasks?
-   2. **Recommend-why**: Delegating now covers each ready wave until
-      the blueprint is done. This
-      approval covers the whole drive: neither autonomy value asks again per
-      task; `interactive` only reports progress at each task boundary.
+   2. **Recommend-why**: This short, serial commit-task chain qualifies for
+      direct execution. Root can carry the normal finish and one first
+      rework; workers still implement and review. This approval covers the
+      whole drive: neither autonomy value asks again per task; `interactive`
+      only reports progress at each task boundary.
    3. **Options**:
-      - A) Start drive (Recommended)
+      - D) 직접 실행(coordinator 없음) (Recommended)
+      - A) Start delegated drive
       - B) Revise list/scope and reconfirm
       - C) Cancel
-      - D) 직접 실행(coordinator 없음) — only when `direct_eligible`
+
+   When preflight reports `direct_eligible: false`:
+   **AskUserQuestion — run.start_drive**
+   <!-- acq {"gate":"run.start_drive","options":["A","B","C"],"recommended":"A"} -->
+   1. **Re-ground**: Start the drive for the remaining tasks?
+   2. **Recommend-why**: This drive needs coordinator handling. Delegating
+      covers each ready wave until the blueprint is done. This approval
+      covers the whole drive: neither autonomy value asks again per task;
+      `interactive` only reports progress at each task boundary.
+   3. **Options**:
+      - A) Start delegated drive (Recommended)
+      - B) Revise list/scope and reconfirm
+      - C) Cancel
 
    Stop unless A or D.
 
@@ -115,8 +154,10 @@ stay on the task's review round.
    `bouncer subagent-model --agent bouncer-coordinator` and report its output
    to the user (`inherit` omits the model argument). Dispatch named `bouncer-coordinator` singly
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
-   one generic subagent with the same coordinator brief and the same worktree
-   guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
+   one generic subagent per item 5 of that rule: its payload carries the entire
+   body of `${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — every section from
+   Authority through Output contract, verbatim, with its worktree write
+   boundary — plus the step 4 payload below. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
    "print"`), the coordinator is a `bouncer dispatch print --role coordinator`
    process per `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` instead; never without the
    step 2 approval.
@@ -139,7 +180,7 @@ stay on the task's review round.
      per task boundary, `auto` batches), so no per-task ACQ under either value
 
    Take `completed_tasks.length` immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
-   Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); `metrics end` not right after the hand-back but after the agent's `<task-notification>` usage (`subagent_tokens`).
+   Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); when to call `metrics end` and which usage to pass are fixed per host by its host usage table.
    Wait in the foreground per `${BOUNCER_ROOT}/rules/subagent-model.md` item 6 until the
    coordinator returns its outcome; never end the turn or render step 5 while the coordinator still runs.
    On `continue`, do not go to step 5. `interactive` emits the
@@ -181,10 +222,21 @@ stay on the task's review round.
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
-   not as your own re-judgment, plus the `metrics summary` totals. This skill does not enter finalize.
+   not as your own re-judgment, plus the `metrics summary` token and time table: coordinator and each worker role
+   side by side (never summed together), real wall time apart from host duration, a `null` total
+   shown as unreported and every missing count shown, never as 0. This skill does not enter finalize.
    `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.
+
+   **병합 뒤 남은 실행 상태.** 구현을 Git으로 이미 병합했는데 integration ledger가 남아
+   메인 커밋이 `main-worktree-source-write`로 막히면, 사용자에게 상태를 보고하고
+   `bouncer run detach --blueprint <dir> --yes`를 실행해도 되는지 먼저 묻는다.
+   사용자가 명시적으로 승인한 뒤에만 실행한다. detach는 ledger·worktree·branch를
+   지우지 않고 이 blueprint의 포인터 key 하나만 지우며, 검증 성공이나 finalize가
+   아니다. 병합 여부는 detach의 조건도 증거도 아니다. 이후 finalize하려면
+   `bouncer current --set <dir>` 뒤 `/bouncer-finalize`를 쓴다. 이 스킬은 승인 없이
+   detach를 실행하지 않는다.
 
 ## ACQ (AskUserQuestion) gates
 

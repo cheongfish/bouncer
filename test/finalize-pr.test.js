@@ -805,3 +805,99 @@ test('tasks with worker_notes → review_points lists them after findings and be
     'finding note', '구현 선택(TASKS-001): a', '알려진 약점(TASKS-001): weak', 'terminal-missing',
   ]);
 });
+
+test('blueprint root deferred must_fix → buildPrDraft lists it under unresolved_must_fix and drops only that finding from review_points', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [{
+      id: 'TASKS-001',
+      // task 범위 must_fix deferred는 경고 대상이 아니다 — 기존 리뷰 포인트로 남는다.
+      review: { required: true, findings: [
+        { id: 'F-MF', actionability: 'must_fix', status: 'deferred', note: 'task deferred' },
+      ] },
+      worker_notes: { open_choices: ['a'], known_weaknesses: [] },
+    }],
+    out_of_scope: ['payments'],
+    unverified: [
+      { kind: 'finding-deferred', task: null, detail: 'root must fix' },
+      { kind: 'terminal-missing' },
+    ],
+    blueprint_review: {
+      findings: [
+        { id: 'F-ROOT', actionability: 'must_fix', status: 'deferred', note: 'root must fix' },
+        { id: 'F-ADV', actionability: 'advisory', status: 'deferred', note: 'root advisory' },
+        { id: 'F-RISK', actionability: 'must_fix', status: 'accepted', note: 'root accepted' },
+        { id: 'F-LEGACY', severity: 'blocker', status: 'deferred', note: 'root legacy' },
+      ],
+    },
+  };
+  const draft = buildPrDraft(digest, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.unresolved_must_fix, ['F-ROOT: root must fix']);
+  assert.deepStrictEqual(draft.sections.review_points, [
+    'payments',
+    'task deferred',
+    'root advisory',
+    'root accepted',
+    'root legacy',
+    '구현 선택(TASKS-001): a',
+    'terminal-missing',
+  ]);
+});
+
+test('no blueprint_review → buildPrDraft unresolved_must_fix is empty', () => {
+  const draft = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [],
+    out_of_scope: [],
+    unverified: [],
+    blueprint_review: null,
+  }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.unresolved_must_fix, []);
+});
+
+test('outside_scope terminal failure in the digest → PR keeps the failed line with its evidence id and a separate warning, never passed', () => {
+  const evidence = 'e'.repeat(64);
+  const draft = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [
+      { id: 'TASKS-001', verification: { status: 'passed', command: 'node --test test/a.test.js' } },
+      {
+        id: 'TASKS-002',
+        verification: {
+          status: 'failed', command: 'npm test',
+          outside_scope: { kind: 'outside_scope', reason: 'vendor drift', evidence_id: evidence },
+        },
+      },
+    ],
+    out_of_scope: [],
+    unverified: [{ kind: 'terminal-outside-scope', task: 'EPIC-1/BP-1/TASK-2', detail: `vendor drift (evidence ${evidence})` }],
+  }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.verification, [
+    'node --test test/a.test.js — passed',
+    `npm test — failed (outside_scope, evidence ${evidence})`,
+  ]);
+  assert.ok(draft.sections.review_points.includes(`terminal-outside-scope: vendor drift (evidence ${evidence})`));
+  assert.ok(!draft.sections.verification.some((line) => line === 'npm test — passed'));
+});
+
+test('failed verification without a classification → PR line carries no outside_scope suffix', () => {
+  const draft = buildPrDraft({
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [{ id: 'TASKS-002', verification: { status: 'failed', command: 'npm test' } }],
+    out_of_scope: [],
+    unverified: [{ kind: 'terminal-missing' }],
+  }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
+  assert.deepStrictEqual(draft.sections.verification, ['npm test — failed']);
+});
