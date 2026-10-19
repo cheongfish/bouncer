@@ -219,16 +219,16 @@ function readEvidenceFile(filePath: string): { sha256: string } | null {
 }
 
 /**
- * 후보 경로가 worker 루트 안(또는 루트 자체)인지 본다. 밖으로 나가면 포인터에
+ * 후보 경로가 지정한 루트 안(또는 루트 자체)인지 본다. 밖으로 나가면 포인터에
  * 넣지 않는다 — 증거 포인터는 읽기 지침일 뿐 판단 범위를 넓히지 않는다.
  *
  * @param {string} candidatePath - 후보 절대/상대 경로
- * @param {string} workerPath - 할당 worker 루트
- * @returns {boolean} worker 안이면 true
+ * @param {string} rootPath - 허용할 worker 또는 integration 루트
+ * @returns {boolean} 지정한 루트 안이면 true
  */
-function isInsideWorkerPath(candidatePath: string, workerPath: string): boolean {
+function isInsideRootPath(candidatePath: string, rootPath: string): boolean {
   const resolved = path.resolve(candidatePath);
-  const root = path.resolve(workerPath);
+  const root = path.resolve(rootPath);
   return resolved === root || resolved.startsWith(`${root}${path.sep}`);
 }
 
@@ -265,7 +265,7 @@ function attachJudgeContext(result: NextOk, ctx: JudgeContext): NextOk {
   // "없음"과 빈 목록을 구분하지 않고 응답을 작게 유지한다.
   const evidence: EvidencePointer[] = [];
   for (const candidate of ctx.candidates) {
-    if (!isInsideWorkerPath(candidate.path, ctx.workerPath)) continue;
+    if (!isInsideRootPath(candidate.path, ctx.workerPath)) continue;
     const read = ctx.readEvidence(candidate.path);
     if (!read) continue;
     evidence.push({ kind: candidate.kind, path: candidate.path, sha256: read.sha256 });
@@ -282,6 +282,39 @@ function attachJudgeContext(result: NextOk, ctx: JudgeContext): NextOk {
     return rest as NextOk;
   }
   return { ...result, payload };
+}
+
+/**
+ * 실패한 terminal verification 문서를 integration 루트 안에서만 증거 포인터로 싣는다.
+ * 원장 본문이나 로그를 복사하지 않고, 현재 파일의 경로와 바이트 SHA256만 제공한다.
+ *
+ * @param {NextOk} result - terminal 실패 응답
+ * @param {string} integrationPath - 할당된 integration 루트
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 실패한 verification task id
+ * @param {ReadEvidence} readEvidence - 증거 파일 SHA256 reader
+ * @returns {NextOk} 해시 포인터가 추가된 응답, 읽기 실패 시 원래 응답
+ */
+function attachTerminalVerificationEvidence(
+  result: NextOk, integrationPath: string, blueprint: string, taskId: string,
+  readEvidence: ReadEvidence,
+): NextOk {
+  if (result.action !== 'blocked' || result.reason !== 'terminal-verification-failed') return result;
+
+  const verificationPath = path.resolve(
+    integrationPath, blueprint.replaceAll('\\', '/'), 'tasks', taskId, 'verification.md',
+  );
+  if (!isInsideRootPath(verificationPath, integrationPath)) return result;
+  const file = readEvidence(verificationPath);
+  if (!file) return result;
+
+  return {
+    ...result,
+    payload: {
+      ...(result.payload || {}),
+      evidence: [{ kind: 'verification', path: verificationPath, sha256: file.sha256 }],
+    },
+  };
 }
 
 /**
@@ -530,7 +563,7 @@ function decideNext(opts: {
     });
   }
   return blueprintNext({
-    blueprint, exec, ledger, ledgerRef, checkpoint, integrationCwd,
+    blueprint, exec, ledger, ledgerRef, checkpoint, integrationCwd, readEvidence,
   });
 }
 
@@ -602,13 +635,14 @@ function sessionYieldReason(
  * @param {LedgerRef} ctx.ledgerRef - fence
  * @param {{ ready: string[] }} ctx.checkpoint - status checkpoint의 ready wave
  * @param {string} ctx.integrationCwd - integration 절대 경로
+ * @param {ReadEvidence} ctx.readEvidence - 증거 파일 읽기 seam
  * @returns {NextOk | NextErr} 판정
  */
 function blueprintNext(ctx: {
   blueprint: string; exec: Exec; ledger: Ledger; ledgerRef: LedgerRef;
-  checkpoint: { ready: string[] }; integrationCwd: string;
+  checkpoint: { ready: string[] }; integrationCwd: string; readEvidence: ReadEvidence;
 }): NextOk | NextErr {
-  const { blueprint, exec, ledger, ledgerRef, checkpoint, integrationCwd } = ctx;
+  const { blueprint, exec, ledger, ledgerRef, checkpoint, integrationCwd, readEvidence } = ctx;
   const ok = (body: Built) => succeed(body, body.cwd, ledgerRef);
 
   if (ledger.status === 'partial_closed') {
@@ -635,10 +669,13 @@ function blueprintNext(ctx: {
     // 분류가 없거나 stale이면(소스 변경·identity 불일치·미완성) 기존 blocked를 그대로 유지한다.
     if (failed && failed.execution_kind === 'verification' && failed.status === 'verifying'
       && validOutsideScope(ledger, failed.id) === null) {
-      return ok({
+      const blocked = ok({
         scope: 'blueprint', action: 'blocked', reason: 'terminal-verification-failed',
         cwd: integrationCwd,
       });
+      return attachTerminalVerificationEvidence(
+        blocked, integrationCwd, blueprint, failed.id, readEvidence,
+      );
     }
   }
   if (ledger.fanin != null) {

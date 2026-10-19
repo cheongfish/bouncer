@@ -372,12 +372,22 @@ test('blueprint next에서 verifying 중 terminalFailure → blocked', () => {
     task: verify.id, command: 'true', summary: 'failed', paths: ['src/'], exitCode: 1, repairWave: 0,
   };
   writeLedger(ledgerFile, ledger);
+  const verificationPath = path.join(
+    boot.integrationPath, blueprint, 'tasks', verify.id, 'verification.md',
+  );
+  fs.mkdirSync(path.dirname(verificationPath), { recursive: true });
+  fs.writeFileSync(verificationPath, '# Verification\n\nterminal failure\n');
+  const verificationSha = crypto.createHash('sha256')
+    .update(fs.readFileSync(verificationPath)).digest('hex');
   const drive = { repo, blueprint, integrationPath: boot.integrationPath, ledgerFile };
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'blocked');
   assertCardFor(r);
   assert.strictEqual(r.reason, 'terminal-verification-failed');
   assert.match(r.next, /coordinate repair/);
+  assert.deepStrictEqual(r.payload.evidence, [{
+    kind: 'verification', path: verificationPath, sha256: verificationSha,
+  }]);
 });
 
 test('blueprint next에서 fanin이 null이 아님 → integrate', () => {
