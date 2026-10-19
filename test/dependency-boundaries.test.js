@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 const { loadModuleGraph, findCycles, reachable } = require('./helpers/module-graph');
+const { FEATURE_AREAS } = require('./helpers/feature-areas');
 
 const LIB_DIR = path.join(__dirname, '..', 'scripts', 'src', 'lib');
 const graph = loadModuleGraph(LIB_DIR);
@@ -42,6 +43,29 @@ test('coordinator I/O modules → never reach coordinator facade', () => {
     const offenders = [...reachable(graph, name)].filter((mod) => mod === 'coordinator');
     assert.deepEqual(offenders, [], `${name} reaches ${offenders.join(', ')}`);
   }
+});
+
+test('execution area → includes coordinator command implementation', () => {
+  assert.ok(FEATURE_AREAS.execution.includes('coordinator-commands'));
+});
+
+test('production modules outside execution area → do not import coordinator commands directly', () => {
+  const allowed = new Set(FEATURE_AREAS.execution);
+  const offenders = [...graph.entries()]
+    .filter(([name, imports]) => !allowed.has(name) && imports.has('coordinator-commands'))
+    .map(([name]) => name);
+  assert.deepEqual(offenders, []);
+});
+
+test('fake external consumer importing coordinator commands → boundary check flags the edge', () => {
+  const fake = new Map([
+    ['cli-project', new Set(['coordinator-commands'])],
+    ['coordinator-commands', new Set()],
+  ]);
+  const offenders = [...fake.entries()]
+    .filter(([name, imports]) => !FEATURE_AREAS.execution.includes(name) && imports.has('coordinator-commands'))
+    .map(([name]) => name);
+  assert.deepEqual(offenders, ['cli-project']);
 });
 
 test('fake coordinator I/O graph with facade import → boundary check flags the edge', () => {

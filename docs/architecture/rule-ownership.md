@@ -24,7 +24,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | --- | --- | --- | --- | --- | --- |
 | GOV-SIZING-ONE-COMMIT | `## Blueprint sizing rule` / `one reviewable commit` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · scripts/lib/templates.js | BP2 |
 | GOV-SIZING-VERIFY-SHAPE | `## Blueprint sizing rule` / `source diff` | `rules/planning.md` | shared rule | plan · scripts/lib/scaffold.js · test/validate-structural.test.js | BP2 |
-| GOV-SIZING-VERIFY-RUN | `function writeVerificationTaskStatus` / `integrated로 전이하지 않는다` | `scripts/src/lib/coordinator.ts` | docs/code | scripts/lib/coordinator.js | BP4 |
+| GOV-SIZING-VERIFY-RUN | `function writeVerificationTaskStatus` / `integrated로 전이하지 않는다` | `scripts/src/lib/coordinator-commands.ts` | docs/code | scripts/lib/coordinator-commands.js | BP4 |
 | GOV-SIZING-PATH-WARNING | `## Blueprint sizing rule` / `exceeds 20` | `rules/planning.md` | docs/code | plan · test/validate-gates.test.js | BP2 |
 | GOV-SIZING-COMMIT-UNIT | `## Commit unit and staging` / `does not commit` | `rules/commit-scope.md` | shared rule | run · finalize | BP3 |
 | GOV-SIZING-STAGE-TASK | `## Commit unit and staging` / `candidate set` | `rules/commit-scope.md` | shared rule | scripts/lib/scope.js | BP3 |
@@ -60,7 +60,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-COORD-G17 | `## Worktree and enforcement layers` / `weaker of the three` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js | BP3 |
 | GOV-COORD-NO-LEDGER | `## Approved and ledger scope` / `Without a coordinator ledger` | `rules/commit-scope.md` | shared rule | plan | BP3 |
 | GOV-COORD-REPAIR | `## Hard guards` / `at most two dynamic repair` | `agents/bouncer-coordinator.md` | agent | coordinator · run | BP3 |
-| GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `scripts/src/lib/coordinator.ts` | docs/code | scripts/lib/coordinator.js | BP4 |
+| GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `scripts/src/lib/coordinator-commands.ts` | docs/code | scripts/lib/coordinator-commands.js | BP4 |
 | GOV-COORD-PARTIAL-CLOSE | `## Hard guards` / `partial_closed` | `agents/bouncer-coordinator.md` | agent | coordinator · run · finalize | BP3 |
 | GOV-DISPATCH-PAYLOAD | `## Intent bundle` / `never document headings, item numbers, or test names` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · test/skill-bouncer-surface.test.js | BP3 |
 | GOV-DISPATCH-METADATA | `## Dispatch metadata and reports` / `Pass only the five metadata fields above` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · references/coordinator-cards/implement.md · test/coordinate-next.test.js | BP3 |
@@ -98,7 +98,7 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | `agents/bouncer-coordinator.md:75` | coordinator | step. scope revision (`rules/commit-scope.md`) |
 | `rules/commit-scope.md:4, 8` | 없음 | 없음. 새 정본이 run·coordinator의 pointer 경유와 coordinator mutation 절차를 `agents/bouncer-coordinator.md`로 가리킨다 |
 | `rules/planning.md:4-5` | 없음 | 없음. 머리말이 실행 범위를 `rules/commit-scope.md`, mutation 절차를 `agents/bouncer-coordinator.md`로 가리킨다 |
-| `rules/planning.md:21` | 없음 | 없음. 실패 상태 전이를 `scripts/src/lib/coordinator.ts`로 가리키는 pointer 문장이다 |
+| `rules/planning.md:21` | 없음 | 없음. 실패 상태 전이를 `scripts/src/lib/coordinator-commands.ts`로 가리키는 pointer 문장이다 |
 | `rules/planning.md:107-108` | 없음 | 없음. 승인 scope 이전분은 `rules/commit-scope.md`, 개정 절차는 `agents/bouncer-coordinator.md`를 가리킨다 |
 | `rules/plugin-root.md:37` | 없음 | 없음. 조건부 product rule의 예시 열거이며 적재가 아니다 |
 | `references/spec-authoring/index.md:26` | plan | step 3. spec-authoring step 1이 제품 규칙 위치를 `rules/planning.md`로 가리킨다 |
