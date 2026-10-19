@@ -907,6 +907,7 @@ type TerminalResolution =
   | {
     ok: true; kind: 'resume'; terminal: Task; target: Task; failure: FailureEvidence;
     repairDecision: RepairDecision; revision: string; previousHead: string | null;
+    resetDownstream: Task[]; salvage: SalvageEntry[];
   };
 
 /**
@@ -918,8 +919,8 @@ type TerminalResolution =
  * 결정 근거 누락(`decision-reason-required`), 소스 경로가 아닌 `--paths`(`repair-scope-out-of-bounds`),
  * 기록된 실패와 다른 task·command(`failure-evidence-mismatch`).
  * resume 거절: 형식 오류·terminal 자신·미통합 task(`resume-task-invalid`), 이 blueprint에 없는
- * task(`task-outside-blueprint`), 지정 task의 승인 범위 밖 경로(`repair-scope-out-of-bounds`),
- * wave 한도(`repair-wave-limit`).
+ * task(`task-outside-blueprint`), stale lease(`stale-lease`), stale failure identity, owner의
+ * 승인 범위 밖 경로(`repair-scope-out-of-bounds`), wave 한도(`repair-wave-limit`), salvage 실패.
  * disposition 거절: 알 수 없는 종류(`disposition-invalid`), 비활성 원장(`ledger-not-active`),
  * 원본 evidence/source identity 없음(`disposition-evidence-required`), 소스가 실패 뒤 바뀜
  * (`disposition-stale-source`), 어느 task 범위와 겹치는 경로(`disposition-scope-mixed`).
@@ -935,14 +936,18 @@ type TerminalResolution =
  * @param {unknown} opts.repairPaths - `--paths`
  * @param {string | undefined} opts.resumeTask - 재배정할 기존 task id
  * @param {string | undefined} opts.disposition - 분류 종류(`outside_scope`만 허용)
+ * @param {string | undefined} opts.leaseId - 재개 owner lease fence
+ * @param {number | undefined} opts.generation - 재개 owner generation fence
  * @returns {TerminalResolution} 거절 사유 또는 적용할 변경 계획
  */
 function resolveTerminalFailure({
-  ledger, exec, integrationPath, task, failureCommand, summary, decision, repairPaths, resumeTask, disposition,
+  ledger, exec, integrationPath, task, failureCommand, summary, decision, repairPaths, resumeTask,
+  disposition, leaseId, generation,
 }: {
   ledger: Ledger; exec: Exec; integrationPath: string; task: string | undefined;
   failureCommand: string | undefined; summary: string | undefined; decision: unknown; repairPaths: unknown;
   resumeTask: string | undefined; disposition: string | undefined;
+  leaseId?: string; generation?: number;
 }): TerminalResolution {
   if (disposition !== undefined && disposition !== 'outside_scope') {
     return { ok: false, reason: 'disposition-invalid' };
@@ -1012,6 +1017,12 @@ function resolveTerminalFailure({
   if (target.id === terminal.id || target.execution_kind === 'verification' || target.status !== 'integrated') {
     return { ok: false, reason: 'resume-task-invalid' };
   }
+  const leaseCheck = checkLease(target, {
+    ...(leaseId !== undefined ? { lease_id: leaseId } : {}),
+    ...(generation !== undefined ? { generation } : {}),
+  });
+  if (!leaseCheck.ok) return { ok: false, reason: leaseCheck.reason,
+    expected: leaseCheck.expected, received: leaseCheck.received };
   // 재작업 경로는 지정 task가 이미 승인받은 범위 안이어야 한다. 새 범위를 넓히는 통로가 아니다.
   const approved = currentScopePaths(target);
   if (approved.length === 0 || !paths.every((entry) => coveredByPaths(entry, approved))) {
@@ -1022,6 +1033,34 @@ function resolveTerminalFailure({
     return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
   }
   const dag = dagSnapshot(ledger.tasks);
+  const resetDownstream = downstreamTasks(ledger.tasks, target.id);
+  if (!resetDownstream.some((entry) => entry.id === terminal.id)) {
+    return { ok: false, reason: 'failure-evidence-mismatch' };
+  }
+  // Failure identity binds the retry to the exact integration snapshot that produced it.
+  // A stale source must not turn an old CI result into authority to invalidate newer work.
+  if (typeof recorded.evidence_id !== 'string' || recorded.evidence_id === ''
+    || typeof recorded.source_digest !== 'string' || recorded.source_digest === ''
+    || ledger.integrationHead !== recorded.source_digest
+    || git(exec, integrationPath, ['rev-parse', 'HEAD']) !== recorded.source_digest) {
+    return { ok: false, reason: 'failure-evidence-mismatch' };
+  }
+  const resetTasks = [target, ...resetDownstream.filter((entry) => entry.execution_kind !== 'verification')];
+  const salvage: SalvageEntry[] = [];
+  let ownerHead: string | null = null;
+  for (const item of resetTasks) {
+    let saved: SalvageResult;
+    try {
+      saved = salvageRevokedWorker(exec, integrationPath, item, recorded.source_digest);
+    } catch (error) {
+      const partial = (error as { salvage?: SalvageResult }).salvage;
+      return { ok: false, reason: 'worker-salvage-failed', task: item.id,
+        message: (error as Error).message,
+        salvage: [...salvage, ...(partial?.patch ? [{ ...partial, task: item.id }] : [])] };
+    }
+    if (item.id === target.id) ownerHead = saved.head || null;
+    if (saved.patch || saved.ref) salvage.push({ ...saved, task: item.id });
+  }
   const revision = nextLedgerRevision(ledger.revision);
   const failure: FailureEvidence = {
     ...recorded, summary, paths: [...paths], repairWave: waves.length,
@@ -1031,25 +1070,58 @@ function resolveTerminalFailure({
     task: target.id, kind: 'repair', wave: waves.length + 1, reason: decision.trim(), failure,
     previousDag: dag, nextDag: dagSnapshot(ledger.tasks), previousScope: approved, nextScope: [...paths],
     necessity: 'terminal CI failure is owned by an already approved integrated task', revision,
+    owner_generation: (target.lease?.generation || 0) + 1,
+    salvage_predecessor: {
+      head: ownerHead || target.sha || null, lease_id: target.lease?.id || null,
+      generation: target.lease?.generation ?? null,
+    },
+    reset_downstream: resetDownstream.map((entry) => entry.id),
+    salvaged: salvage.map(({ task: id, patch, ref, head, generation, dirty_paths }) => ({
+      task: id, patch, ref, head, generation, dirty_paths,
+    })),
   };
   return {
     ok: true, kind: 'resume', terminal, target, failure, repairDecision, revision,
-    previousHead: typeof target.sha === 'string' ? target.sha : null,
+    previousHead: typeof target.sha === 'string' ? target.sha : null, resetDownstream, salvage,
   };
 }
 
 /**
- * 재배정되는 기존 task와 terminal의 증적 문서를 재작업 시작 상태로 되돌린다.
+ * owner에서 의존 간선을 따라 도달하는 task를 topological 순서대로 찾는다.
+ *
+ * @param {Task[]} tasks - 원장의 DAG
+ * @param {string} ownerId - 재개 owner task id
+ * @returns {Task[]} owner의 모든 transitive downstream task
+ */
+function downstreamTasks(tasks: Task[], ownerId: string): Task[] {
+  const reached = new Set([ownerId]);
+  const downstream: Task[] = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const item of tasks) {
+      if (reached.has(item.id) || !(item.depends_on || []).some((id) => reached.has(id))) continue;
+      reached.add(item.id);
+      downstream.push(item);
+      changed = true;
+    }
+  }
+  return downstream;
+}
+
+/**
+ * owner부터 terminal까지 downstream DAG의 증적 문서를 재작업 시작 상태로 되돌린다.
  * 새 문서를 만들지 않고 이미 있는 tasks.md·verification.md·review.md의 status만 바꾼다
  * (verification의 harness metadata와 이전 commit_sha도 지운다). 이전 통합 때의 `verified`/`passed`
  * 증적이 남아 있으면 worker가 새 작업 없이도 integrate 증적 검사를 통과시킬 수 있기 때문이다.
  * terminal은 depends_on을 건드리지 않고 `ready`로만 돌린다. 반환한 함수는 쓰기 전 바이트로 되돌린다.
  *
- * @param {object} opts - integrationPath·blueprint·재배정 대상 task·terminal task
+ * @param {object} opts - integrationPath·blueprint·owner·downstream·terminal task
+ * @param {Task[]} opts.downstream - owner 이후 도달 가능한 task 목록
  * @returns {() => void} 원장 쓰기 실패 시 호출할 문서 롤백
  */
-function writeResumeDocuments({ integrationPath, blueprint, target, terminal }: {
-  integrationPath: string; blueprint: string; target: Task; terminal: Task;
+function writeResumeDocuments({ integrationPath, blueprint, target, downstream, terminal }: {
+  integrationPath: string; blueprint: string; target: Task; downstream: Task[]; terminal: Task;
 }): () => void {
   const dir = (id: string) => path.join(integrationPath, blueprint, 'tasks', id);
   const reset = (file: string, mutate: (bouncer: Record<string, unknown>) => void) => {
@@ -1063,21 +1135,24 @@ function writeResumeDocuments({ integrationPath, blueprint, target, terminal }: 
     return { file, before };
   };
   const written: Array<{ file: string; before: Buffer }> = [];
-  const rollback = () => { for (const entry of written) fs.writeFileSync(entry.file, entry.before); };
+  // terminal 문서는 downstream 순회와 terminal 보정에서 두 번 저장될 수 있어 LIFO로 원본 bytes까지 되돌린다.
+  const rollback = () => { for (const entry of [...written].reverse()) fs.writeFileSync(entry.file, entry.before); };
   const apply = (file: string, mutate: (bouncer: Record<string, unknown>) => void) => {
     const entry = reset(file, mutate);
     if (entry) written.push(entry);
   };
   try {
-    apply(path.join(dir(target.id), 'tasks.md'), (bouncer) => {
-      bouncer.status = 'ready';
-      delete bouncer.commit_sha;
-    });
-    apply(path.join(dir(target.id), 'verification.md'), (bouncer) => {
-      bouncer.status = 'pending';
-      delete bouncer.verification;
-    });
-    apply(path.join(dir(target.id), 'review.md'), (bouncer) => { bouncer.status = 'pending'; });
+    for (const item of [target, ...downstream]) {
+      apply(path.join(dir(item.id), 'tasks.md'), (bouncer) => {
+        bouncer.status = 'ready';
+        delete bouncer.commit_sha;
+      });
+      apply(path.join(dir(item.id), 'verification.md'), (bouncer) => {
+        bouncer.status = 'pending';
+        delete bouncer.verification;
+      });
+      apply(path.join(dir(item.id), 'review.md'), (bouncer) => { bouncer.status = 'pending'; });
+    }
     apply(path.join(dir(terminal.id), 'tasks.md'), (bouncer) => { bouncer.status = 'ready'; });
   } catch (error) {
     // 일부만 쓴 문서는 되돌린 뒤 원 예외를 그대로 올린다 — 흡수하지 않는다.
@@ -2414,6 +2489,23 @@ function shouldRemoveRevokedWorker(item: Task): boolean {
 }
 
 /**
+ * repair resume 단계에서 이미 보존한 동일 generation 산출물이 있는지 확인한다.
+ *
+ * @param {Ledger} ledger - salvage provenance가 기록된 원장
+ * @param {Task} item - prepare가 다시 배정할 task
+ * @returns {boolean} 같은 task·generation의 salvage 결정이 있으면 true
+ */
+function hasResumeSalvage(ledger: Ledger, item: Task): boolean {
+  const generation = item.lease?.generation ?? 0;
+  return ledger.decisions.some((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    const decision = entry as { kind?: string; task?: string; generation?: number };
+    return decision.kind === 'worker-salvage' && decision.task === item.id
+      && decision.generation === generation;
+  });
+}
+
+/**
  * 잠금 소유를 확인한 뒤 원장을 쓴다. owns가 거짓이면 쓰지 않고 ledger-lock-lost.
  *
  * @param {() => boolean} owns - withLedgerLock이 넘긴 소유 확인
@@ -2593,10 +2685,11 @@ function prepareCoordinator({
       // 지우기 전에 모든 대상의 보존을 끝낸다. 하나라도 실패하면 아무것도 지우지 않는다.
       const revokedItems = ready.map((id) => ledger.tasks.find((x) => x.id === id) as Task)
         .filter((item) => item.execution_kind !== 'verification' && shouldRemoveRevokedWorker(item));
+      const salvageItems = revokedItems.filter((item) => !hasResumeSalvage(ledger, item));
       if (revokedItems.length > 0) {
         const liveHead = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
         const baseHead = typeof ledger.integrationHead === 'string' ? ledger.integrationHead : liveHead;
-        for (const item of revokedItems) {
+        for (const item of salvageItems) {
           let saved: SalvageResult;
           try {
             saved = salvageRevokedWorker(exec, integration.integrationPath, item, baseHead);
@@ -4345,7 +4438,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         if (Array.isArray(reviewFindings)) return { ok: false, reason: 'repair-cause-ambiguous' };
         const resolved = resolveTerminalFailure({
           ledger, exec, integrationPath: integration.integrationPath, task,
-          failureCommand, summary, decision, repairPaths, resumeTask, disposition,
+          failureCommand, summary, decision, repairPaths, resumeTask, disposition, leaseId, generation,
         });
         if (!resolved.ok) return resolved;
         if (resolved.kind === 'disposition') {
@@ -4359,15 +4452,35 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             ok: true as const, command, kind: 'outside_scope', task: terminal, disposition: record.disposition,
           }, ledger, integration.ledgerFile);
         }
-        const { terminal, target, repairDecision, failure, revision } = resolved;
+        const { terminal, target, repairDecision, failure, revision, resetDownstream, salvage } = resolved;
         const waves = ledger.repairWaves || [];
         const rollbackDocuments = writeResumeDocuments({
-          integrationPath: integration.integrationPath, blueprint, target, terminal,
+          integrationPath: integration.integrationPath, blueprint, target, downstream: resetDownstream, terminal,
         });
-        revokeLease(ledger, target, { reason: String(decision).trim(), previousHead: resolved.previousHead });
-        target.resumed = true;
+        for (const item of [target, ...resetDownstream.filter((entry) => entry.execution_kind !== 'verification')]) {
+          // 모든 영향 task는 같은 새 integration 결과를 기준으로 다시 준비한다.
+          revokeLease(ledger, item, {
+            reason: String(decision).trim(), previousHead: typeof item.sha === 'string' ? item.sha : null,
+          });
+          item.resumed = true;
+          item.dependency_gate = 'integrated';
+        }
         target.decisions = [...(target.decisions || []), repairDecision];
+        for (const item of resetDownstream) {
+          if (item.execution_kind === 'verification') {
+            item.status = 'pending';
+            continue;
+          }
+          // 기존 DAG edge를 보존해 각 후속 task가 새 upstream 통합을 기다리게 한다.
+          item.status = 'pending';
+        }
         terminal.status = 'pending';
+        for (const entry of salvage) {
+          ledger.decisions.push({
+            task: entry.task, kind: 'worker-salvage', generation: entry.generation, head: entry.head,
+            patch: entry.patch, ref: entry.ref, dirty_paths: entry.dirty_paths,
+          } satisfies WorkerSalvageDecision);
+        }
         ledger.decisions.push(repairDecision);
         ledger.repairWaves = [...waves, repairDecision];
         ledger.revision = revision;
@@ -4386,6 +4499,10 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         return withCheckpoint({
           ok: true as const, command, kind: 'resume', wave: repairDecision.wave, resumedTask: target,
           terminalTask: terminal, decision: repairDecision,
+          owner_generation: repairDecision.owner_generation,
+          salvage_predecessor: repairDecision.salvage_predecessor,
+          reset_downstream: repairDecision.reset_downstream,
+          salvage: salvage.map(({ task: id, patch, ref }) => ({ task: id, patch, ref })),
         }, ledger, integration.ledgerFile);
       }
       const waves = ledger.repairWaves || [];

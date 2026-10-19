@@ -1418,9 +1418,18 @@ test('CLI coordinate repair --resume-task → reassigns the existing task throug
   const { code, buf } = coordinateCli(drive.integration, 'repair',
     terminalRepairArgs(drive, ['--paths', 'src/auth/login.js', '--resume-task', '001']));
   assert.strictEqual(code, 0, buf.err + buf.out);
+  const result = JSON.parse(buf.out);
   const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
   assert.deepStrictEqual(ledger.tasks.map((t) => [t.id, t.status]), [['001', 'pending'], ['002', 'pending']]);
   assert.strictEqual(ledger.repairWaves[0].task, '001');
+  assert.strictEqual(result.owner_generation, 2);
+  assert.deepStrictEqual(result.reset_downstream, ['002']);
+  assert.deepStrictEqual(result.salvage_predecessor, { head: drive.head, lease_id: ledger.tasks[0].lease.id, generation: 1 });
+  assert.deepStrictEqual(result.checkpoint.ledger, {
+    path: '.bouncer/runtime/coordinator.json',
+    sha256: require('node:crypto').createHash('sha256').update(fs.readFileSync(drive.ledgerFile)).digest('hex'),
+    revision: ledger.revision,
+  });
 });
 
 test('CLI coordinate repair --disposition outside_scope → records the classification and keeps the failure', () => {
