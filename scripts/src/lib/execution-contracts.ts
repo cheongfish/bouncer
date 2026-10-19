@@ -9,6 +9,20 @@
 /** report outcome 열거. coordinator의 REPORT_OUTCOMES가 `satisfies`로 이 합집합과 맞춰진다. */
 export type ReportOutcome = 'accepted' | 'rework' | 'scope_revision' | 'task_change' | 'blocked';
 
+export type Exec = (file: string, args?: readonly string[], options?: {
+  cwd?: unknown; encoding?: unknown; stdio?: unknown;
+}) => string | Buffer;
+
+export type VerificationRunner = (opts: {
+  repoRoot: string;
+  blueprintDir: string;
+  taskId?: string;
+  scope?: { kind: 'task' | 'wave' | 'terminal'; key: string };
+}) => {
+  ok: boolean; command: string; exitCode: number;
+  evidenceId?: string; reused?: boolean; reusedFrom?: string;
+};
+
 /** light 승격 정지 사유. coordinator의 PROMOTE_STOP_REASONS가 `satisfies`로 맞춰진다. */
 export type PromoteStopReason =
   'security-risk' | 'out-of-scope' | 'task-split' | 'interface-semantics' | 'reviewer-wider-scope';

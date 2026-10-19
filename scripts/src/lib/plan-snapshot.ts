@@ -12,15 +12,10 @@ import paths = require('./paths');
 const { toPosix, epicDirOf } = paths;
 import validateSections = require('./validate-sections');
 const { parseTasksSections } = validateSections;
-import schema = require('./schema');
+import snapshotContract = require('./plan-snapshot-contract');
 const {
-  executionKindOf, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
-  DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES,
-} = schema;
-
-// snapshot 형식 버전. digest 입력이 본문 단독에서 경로·본문·판단 구조로 바뀌었으므로
-// 옛 payload와는 digest가 호환되지 않는다 — payload가 이 값을 실어 읽는 쪽이 구분한다.
-const SNAPSHOT_VERSION = 2;
+  SNAPSHOT_VERSION, digestPlanContent, normalizeStructure, structureKindOf, hashBody, hashStructure,
+} = snapshotContract;
 
 // 계획 snapshot digest의 단일 구현. review-dispatch(frozen target)와 plan gate
 // G18이 같은 hex를 내야 하므로 둘 다 여기서 가져간다. review-dispatch는
@@ -31,7 +26,6 @@ const SNAPSHOT_VERSION = 2;
 
 type PlanStructure = Record<string, unknown>;
 type PlanDocContent = { body: string; structure: PlanStructure };
-type StructureKind = 'epic' | 'blueprint' | 'task';
 
 /**
  * epic·blueprint·tasks.md 상대 경로를 집계 digest와 같은 순서로 모은다.
@@ -54,94 +48,6 @@ function planDocumentRels(repoRoot: string, blueprintDir: string): string[] {
   return documents;
 }
 
-/**
- * 문서 경로가 판단 구조의 어느 종류인지 정한다. documents[0]은 epic, [1]은
- * blueprint index, 나머지는 tasks.md라는 문서 순서 계약과 같은 기준이다.
- *
- * @param {string} rel - 저장소 상대 문서 경로
- * @param {string} bp - blueprint 상대 경로(POSIX)
- * @returns {StructureKind} 구조 종류
- */
-function structureKindOf(rel: string, bp: string): StructureKind {
-  if (rel === `${epicDirOf(bp)}/index.md`) return 'epic';
-  if (rel === `${bp}/index.md`) return 'blueprint';
-  return 'task';
-}
-
-// 문자열 배열만 남겨 정렬한다. 중복은 지우지 않는다: DAG 중복 판정은 draft gate
-// 몫이고, 여기서 지우면 중복 추가가 같은 구조로 보여 gate 입력과 어긋난다.
-function sortedStrings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string').sort() : [];
-}
-
-/**
- * frontmatter `bouncer` 객체에서 실행 판단 구조만 뽑아 schema 기본값으로 정규화한다.
- * 이미 정규화한 구조를 다시 넣어도 같은 결과(멱등)여야 한다 — 이전 payload의
- * structure를 재검증할 때 같은 함수를 쓰기 때문이다. status/title/timestamp 같은
- * 승인·진행 필드는 의도적으로 제외한다(전이만으로 digest가 바뀌면 안 됨).
- *
- * @param {StructureKind} kind - epic | blueprint | task
- * @param {unknown} bouncer - 문서 frontmatter의 bouncer 객체(없거나 잘못되면 기본값으로 읽음)
- * @returns {PlanStructure} 키 순서가 고정된 정규화 구조(epic은 빈 객체)
- */
-function normalizeStructure(kind: StructureKind, bouncer: unknown): PlanStructure {
-  const b = (bouncer !== null && typeof bouncer === 'object' && !Array.isArray(bouncer)
-    ? bouncer : {}) as Record<string, unknown>;
-  if (kind === 'epic') return {};
-  if (kind === 'blueprint') {
-    return {
-      scale: b.scale === 'light' ? 'light' : 'full',
-      review_scope: b.review_scope === 'blueprint' ? 'blueprint' : null,
-    };
-  }
-  return {
-    affected_paths: sortedStrings(b.affected_paths),
-    depends_on: b.depends_on === undefined ? [...DEFAULT_DEPENDS_ON] : sortedStrings(b.depends_on),
-    parallel_safe: b.parallel_safe === undefined ? DEFAULT_PARALLEL_SAFE : b.parallel_safe === true,
-    dependency_gate: typeof b.dependency_gate === 'string' ? b.dependency_gate : DEFAULT_DEPENDENCY_GATE,
-    exclusive_resources: b.exclusive_resources === undefined
-      ? [...DEFAULT_EXCLUSIVE_RESOURCES] : sortedStrings(b.exclusive_resources),
-    // 잘못된 enum(null)은 draft gate가 거절한다. 여기서는 commit으로 읽어 digest 계산만 이어 간다.
-    execution_kind: executionKindOf(b) ?? 'commit',
-  };
-}
-
-/**
- * 본문 문자열의 sha256 hex.
- *
- * @param {string} body - 문서 본문(공백까지 byte 그대로)
- * @returns {string} hex digest
- */
-function hashBody(body: string): string {
-  return createHash('sha256').update(body).digest('hex');
-}
-
-/**
- * 정규화 구조의 sha256 hex. 정규화가 키 순서를 고정하므로 JSON 직렬화가 결정적이다.
- *
- * @param {PlanStructure} structure - normalizeStructure 결과
- * @returns {string} hex digest
- */
-function hashStructure(structure: PlanStructure): string {
-  return createHash('sha256').update(JSON.stringify(structure)).digest('hex');
-}
-
-/**
- * 문서 경로·본문·구조를 ordered 배열로 직렬화해 집계 digest를 만든다.
- * 문자열을 단순히 이어 붙이면 문서 경계가 사라져 한 문서의 끝이 다음 문서의
- * 앞으로 옮겨가도 같은 digest가 나오므로, 문서마다 {file,body,structure} 객체로 감싼다.
- * dispatcher 생성과 payload 검증이 같은 함수를 써야 두 경로의 digest가 갈라지지 않는다.
- *
- * @param {string[]} documents - 문서 순서(epic, blueprint, tasks 번호 순)
- * @param {Record<string, PlanDocContent>} content - 경로별 본문과 구조
- * @returns {string} hex digest
- */
-function digestPlanContent(documents: string[], content: Record<string, PlanDocContent>): string {
-  const ordered = documents.map((file) => ({
-    file, body: content[file].body, structure: content[file].structure,
-  }));
-  return createHash('sha256').update(JSON.stringify(ordered)).digest('hex');
-}
 
 type PlanContent = {
   ok: true;

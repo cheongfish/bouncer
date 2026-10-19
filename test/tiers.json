@@ -111,6 +111,7 @@
     "validate-gates.test.js",
     "verification-runner.test.js",
     "master-rules.test.js",
-    "symbol-index.test.js"
+    "symbol-index.test.js",
+    "source-boundary-measurement.test.js"
   ]
 }
