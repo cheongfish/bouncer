@@ -14,10 +14,13 @@ const {
 const { resolveVerificationTarget, runSelectedVerification, readVerifyCommand } = require('../scripts/lib/verification-target');
 const runVerification = (opts) => {
   if (opts.taskId !== undefined || opts.effectiveTask !== undefined) return runRawVerification(opts);
-  const { effectiveTask } = resolveVerificationTarget({
-    repoRoot: opts.repoRoot, blueprintDir: opts.blueprintDir, deps: opts.deps,
-  });
-  return runRawVerification({ ...opts, effectiveTask });
+  if (opts.exec !== undefined || opts.scope !== undefined || opts.now !== undefined) {
+    const { effectiveTask } = resolveVerificationTarget({
+      repoRoot: opts.repoRoot, blueprintDir: opts.blueprintDir, deps: opts.deps,
+    });
+    return runRawVerification({ ...opts, effectiveTask });
+  }
+  return runSelectedVerification(opts);
 };
 const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
 const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
