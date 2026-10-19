@@ -55,7 +55,8 @@ function summarizeInventory(files) {
  * @returns {string[]} 셸 없이 실행할 Node argv
  */
 function buildTestArgv(files, coverage) {
-  return ['--test', ...files.slice().sort().map((f) => `test/${f}`), ...(coverage ? COVERAGE_ARGS : [])];
+  const suite = ['--test', ...files.slice().sort().map((f) => `test/${f}`)];
+  return coverage ? [...COVERAGE_ARGS, '--test-reporter=tap', ...suite] : suite;
 }
 
 /** Node coverage의 단일 all-files 행을 검사한다.

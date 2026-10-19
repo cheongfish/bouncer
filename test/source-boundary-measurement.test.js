@@ -58,9 +58,10 @@ test('subprocess fixture → measures LF bytes and unique require targets from a
 test('test argv → uses sorted suite and shared coverage thresholds', () => {
   assert.deepEqual(buildTestArgv(['z.test.js', 'a.test.js'], false), ['--test', 'test/a.test.js', 'test/z.test.js']);
   assert.deepEqual(buildTestArgv(['b.test.js', 'a.test.js'], true), [
-    '--test', 'test/a.test.js', 'test/b.test.js', '--experimental-test-coverage',
-    '--test-coverage-include=scripts/lib/**', '--test-coverage-lines=94',
-    '--test-coverage-branches=82', '--test-coverage-functions=96',
+    '--experimental-test-coverage', '--test-coverage-include=scripts/lib/**',
+    '--test-coverage-lines=94', '--test-coverage-branches=82',
+    '--test-coverage-functions=96', '--test-reporter=tap', '--test',
+    'test/a.test.js', 'test/b.test.js',
   ]);
 });
 
