@@ -1,29 +1,6 @@
 'use strict';
 
-import guards = require('./guards');
-const { catchMessage } = guards;
-import cliFlags = require('./cli-flags');
-const { parseFlags } = cliFlags;
-import validate = require('./validate');
-const { validateBlueprint } = validate;
-import scaffold = require('./scaffold');
-const {
-  scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview,
-} = scaffold;
-import paths = require('./paths');
-const { isNumericContextId } = paths;
-import schema = require('./schema');
-const { SCALE_ENUM, DEFAULT_SCALE } = schema;
-import verification = require('./verification');
-const { runVerification } = verification;
-import config = require('./config');
-const { readVerifyPolicy } = config;
-import time = require('./time');
-const { nowIsoKst } = time;
-import planInspectMod = require('./plan-inspect');
-const { planInspect } = planInspectMod;
-import planApproveMod = require('./plan-approve');
-const { approvePlan } = planApproveMod;
+import cliUsage = require('./cli-usage');
 
 type CliIo = {
   out: (s: string) => void;
@@ -31,6 +8,10 @@ type CliIo = {
 };
 
 function cmdValidate(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { validateBlueprint } = require('./validate') as typeof import('./validate');
   const f = parseFlags(rest);
   // 게이트 실패(1)와 구분: 필수 플래그 누락은 호출 형식 오류(2). 없으면
   // validate가 빈 blueprint로 구조 실패를 내어 사용법 문제를 위장한다.
@@ -61,6 +42,12 @@ function cmdValidate(rest: string[], io: CliIo) {
  * @returns {number} 성공 0, 실행 실패 1, 플래그 누락 2
  */
 function cmdVerify(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { runSelectedVerification } = require('./verification-target') as typeof import('./verification-target');
   const f = parseFlags(rest);
   // validate와 같은 2: 대상 없이 돌리면 게이트 실패로 위장된다.
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -68,7 +55,7 @@ function cmdVerify(rest: string[], io: CliIo) {
     return 2;
   }
   try {
-    const result = runVerification({
+    const result = runSelectedVerification({
       repoRoot: (f.repo || process.cwd()) as string,
       blueprintDir: f.blueprint,
       markTaskVerified: true,
@@ -84,6 +71,21 @@ function cmdVerify(rest: string[], io: CliIo) {
 }
 
 function cmdScaffold(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } =
+    require('./scaffold') as typeof import('./scaffold');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { isNumericContextId } = require('./paths') as typeof import('./paths');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { SCALE_ENUM, DEFAULT_SCALE } = require('./schema') as typeof import('./schema');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { readVerifyPolicy } = require('./config') as typeof import('./config');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { nowIsoKst } = require('./time') as typeof import('./time');
   // kind는 위치 인자 — parseFlags에 rest 전체를 주면 epic이 플래그 키로 사라진다.
   const [kind, ...flagArgs] = rest;
   const f = parseFlags(flagArgs);
@@ -216,6 +218,12 @@ function cmdScaffold(rest: string[], io: CliIo) {
  * @returns {number} 성공 0, 거절 1, 사용법 2
  */
 function cmdPlan(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { planInspect } = require('./plan-inspect') as typeof import('./plan-inspect');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { approvePlan } = require('./plan-approve') as typeof import('./plan-approve');
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
   // inspect·approve만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
@@ -272,39 +280,18 @@ function cmdPlan(rest: string[], io: CliIo) {
 export = {
   validate: {
     run: cmdValidate,
-    usage: `  validate   --blueprint <dir> --gate <plan|execute|commit|finalize>
-             Run the structural checks and one gate. Reports failure codes.
-`,
+    usage: cliUsage.COMMAND_USAGE['validate'],
   },
   verify: {
     run: cmdVerify,
-    usage: `  verify     --blueprint <dir>
-             Run the configured verify command and record its evidence.
-`,
+    usage: cliUsage.COMMAND_USAGE['verify'],
   },
   scaffold: {
     run: cmdScaffold,
-    usage: `  scaffold   epic --id <ddd> --name <slug> --description <text>
-             blueprint --epic-dir <dir> --id <ddd> --name <slug> [--scale light|full]
-             task --blueprint <dir> --id <ddd> [--execution-kind commit|verification]
-                  [--depends-on TASKS-NNN[,TASKS-NNN...]] [--verify <command>]
-             explain --blueprint <dir>
-             context-review --blueprint <dir>
-             Create a document set with correct frontmatter.
-             blueprint writes index.md, review.md, and (full) context-review.md;
-             a new task writes tasks.md and verification.md (legacy blueprints
-             without review_scope still get task review.md).
-             (explain is for finalize; epic/blueprint scaffold omit it.)
-`,
+    usage: cliUsage.COMMAND_USAGE['scaffold'],
   },
   plan: {
     run: cmdPlan,
-    usage: `  plan       inspect [--epic-dir <dir>] [--blueprint <dir>]
-             Print next ids, maintenance epic, verify signals, pointer state,
-             and optional advisory light routing as JSON.
-  plan       approve --blueprint <dir> [--repo <dir>]
-             Move epic, blueprint, and task status to approved/ready in one
-             all-or-nothing step. Run only after the user approves the plan.
-`,
+    usage: cliUsage.COMMAND_USAGE['plan'],
   },
 };

@@ -8,7 +8,9 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { createGitTemplate } = require('./helpers/git-fixture');
-const { finalize, collectTaskCommits, writeExplainTaskCommits } = require('../scripts/lib/finalize');
+const { finalize } = require('../scripts/lib/finalize');
+const { collectTaskCommits } = require('../scripts/lib/finalize-collect');
+const { writeExplainTaskCommits } = require('../scripts/lib/finalize-explain');
 const { computeDiffSha } = require('../scripts/lib/comprehension');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 

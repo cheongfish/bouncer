@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 import commitHook = require('./commit-hook');
@@ -72,7 +74,5 @@ function cmdCommitGuard(rest: string[], io: CliIo): number {
 export = {
   runCommitGuard,
   run: cmdCommitGuard,
-  usage: `  commit-guard --staged [--repo <dir>]
-             Allow or block a commit from the current index (git pre-commit).
-`,
+  usage: cliUsage.COMMAND_USAGE['commit-guard'],
 };

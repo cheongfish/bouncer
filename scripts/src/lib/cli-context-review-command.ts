@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 // validate-sections는 의도적으로 가벼운 모듈이라 argv 검증 전에 context-review-state를
@@ -305,5 +307,5 @@ function cmdContextReview(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdContextReview,
-  usage: USAGE_BLOCK,
+  usage: cliUsage.COMMAND_USAGE['context-review'],
 };

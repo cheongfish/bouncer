@@ -1,115 +1,78 @@
 'use strict';
 
-import cliFlags = require('./cli-flags');
-const { parseFlags } = cliFlags;
-import docCommands = require('./cli-doc-commands');
-import gitCommands = require('./cli-git-commands');
-import projectCommands = require('./cli-project-commands');
-import currentCommand = require('./cli-current-command');
-import reviewDispatchCommand = require('./cli-review-dispatch-command');
-import reviewCommand = require('./cli-review-command');
-import contextReviewCommand = require('./cli-context-review-command');
-import dispatchCommand = require('./cli-dispatch-command');
-import commitGuardCommand = require('./cli-commit-guard-command');
-import configCommand = require('./cli-config-command');
-import retroCommand = require('./cli-retro-command');
-import metricsCommand = require('./cli-metrics-command');
+/* eslint-disable max-len -- Lazy handler registrations keep imports deferred until command selection. */
 
-// 핸들러 IO 타입은 각 명령 파일에 복제한다. ESM default import/export는
-// __esModule·__importDefault를 방출해 공개 require 표면이 바뀌므로 쓰지 않고,
-// 값 경계는 export = / import = require()만 사용한다.
+import cliFlags = require('./cli-flags');
+import cliUsage = require('./cli-usage');
+const { parseFlags } = cliFlags;
+const { COMMAND_USAGE, USAGE } = cliUsage;
+
 type CliIo = {
   out: (s: string) => void;
   err: (s: string) => void;
 };
 type CliHandler = (rest: string[], io: CliIo) => number;
 type CliCommand = {
-  run: CliHandler;
   usage: string;
+  load: () => CliHandler;
 };
 
-// 선언 순서 = 옛 USAGE 나열 순서. 디스패치는 키 조회라 이 순서에 의존하지
-// 않지만, help 문자열이 레지스트리에서 조립되므로 키를 빼먹으면 목록에서
-// 사라지고 usage를 빼먹으면 해당 블록이 비어 테스트가 실패한다.
+// help에서 핸들러 모듈을 읽지 않도록, 레지스트리는 선택 뒤에 실행할 로더만 보유한다.
 const COMMANDS: Record<string, CliCommand> = {
-  validate: docCommands.validate,
-  verify: docCommands.verify,
-  scaffold: docCommands.scaffold,
-  commit: gitCommands.commit,
-  // git pre-commit이 호출하는 staged 검사. PreToolUse와 같은 판정부라
-  // 레지스트리에서 commit 옆에 둔다 — 도움말 조립이 키 나열 순서를 쓴다.
-  'commit-guard': commitGuardCommand,
-  finalize: gitCommands.finalize,
-  'seed-worktree': gitCommands['seed-worktree'],
-  execute: gitCommands.execute,
-  plan: docCommands.plan,
-  run: projectCommands.run,
-  coordinate: gitCommands.coordinate,
-  init: projectCommands.init,
-  // --upgrade-graphify 는 init 핸들러(parseFlags)와 그 usage 문자열에만 있다.
-  // 여기 레지스트리는 도움말 조립이라 플래그를 다시 파싱하지 않는다.
-  'graph-sync': projectCommands['graph-sync'],
-  intent: projectCommands.intent,
-  ontology: projectCommands.ontology,
-  'graphify-bin': projectCommands['graphify-bin'],
-  'project-root': projectCommands['project-root'],
-  'subagent-model': projectCommands['subagent-model'],
-  'codex-agents': projectCommands['codex-agents'],
-  current: currentCommand.current,
-  migrate: projectCommands.migrate,
-  import: gitCommands.import,
-  // read-only 분류기. Plan/Execute controller가 reviewer 수를 같은 JSON으로
-  // 고르도록 registry에만 등록하고, 구현은 cli-review-dispatch-command에 둔다.
-  'review-dispatch': reviewDispatchCommand,
-  // 라운드 원장 기록. 분류기(review-dispatch)와 키를 분리해, 기록 실패가
-  // 읽기 전용 분류 exit와 섞이지 않게 한다.
-  review: reviewCommand,
-  // 계획 리뷰 cycle 상태 기록. execute 원장(review)과 키·exit 의미를 분리한다.
-  'context-review': contextReviewCommand,
-  // Cursor print 실행. 역할 본문·argv 조립은 모듈이 맡고, 여기 레지스트리는
-  // help 목록과 키 조회만 담당한다.
-  dispatch: dispatchCommand,
-  // 읽기 전용 설정 키 도움말. docs/가 배포물에 없어 init 세션이 소스를 읽던 틈을 메운다.
-  config: configCommand,
-  // transcript 후보 탐색(읽기 전용). host별 저장 위치 추측을 명령 한 곳에 모은다.
-  retro: retroCommand,
-  // drive 계측 기록. coordinator 세션과 plan 리뷰 호출의 토큰·진행을 main worktree runtime에 남긴다.
-  metrics: metricsCommand,
+  validate: { usage: COMMAND_USAGE.validate, load: () => (require('./cli-doc-commands') as typeof import('./cli-doc-commands')).validate.run },
+  verify: { usage: COMMAND_USAGE.verify, load: () => (require('./cli-doc-commands') as typeof import('./cli-doc-commands')).verify.run },
+  scaffold: { usage: COMMAND_USAGE.scaffold, load: () => (require('./cli-doc-commands') as typeof import('./cli-doc-commands')).scaffold.run },
+  commit: { usage: COMMAND_USAGE.commit, load: () => (require('./cli-git-commands') as typeof import('./cli-git-commands')).commit.run },
+  'commit-guard': { usage: COMMAND_USAGE['commit-guard'], load: () => (require('./cli-commit-guard-command') as typeof import('./cli-commit-guard-command')).run },
+  finalize: { usage: COMMAND_USAGE.finalize, load: () => (require('./cli-git-commands') as typeof import('./cli-git-commands')).finalize.run },
+  'seed-worktree': { usage: COMMAND_USAGE['seed-worktree'], load: () => (require('./cli-git-commands') as typeof import('./cli-git-commands'))['seed-worktree'].run },
+  execute: { usage: COMMAND_USAGE.execute, load: () => (require('./cli-git-commands') as typeof import('./cli-git-commands')).execute.run },
+  plan: { usage: COMMAND_USAGE.plan, load: () => (require('./cli-doc-commands') as typeof import('./cli-doc-commands')).plan.run },
+  run: { usage: COMMAND_USAGE.run, load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands')).run.run },
+  coordinate: { usage: COMMAND_USAGE.coordinate, load: () => (require('./cli-git-commands') as typeof import('./cli-git-commands')).coordinate.run },
+  init: { usage: COMMAND_USAGE.init, load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands')).init.run },
+  'graph-sync': { usage: COMMAND_USAGE['graph-sync'], load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands'))['graph-sync'].run },
+  intent: { usage: COMMAND_USAGE.intent, load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands')).intent.run },
+  'graphify-bin': { usage: COMMAND_USAGE['graphify-bin'], load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands'))['graphify-bin'].run },
+  'project-root': { usage: COMMAND_USAGE['project-root'], load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands'))['project-root'].run },
+  'subagent-model': { usage: COMMAND_USAGE['subagent-model'], load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands'))['subagent-model'].run },
+  'codex-agents': { usage: COMMAND_USAGE['codex-agents'], load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands'))['codex-agents'].run },
+  current: { usage: COMMAND_USAGE.current, load: () => (require('./cli-current-command') as typeof import('./cli-current-command')).current.run },
+  migrate: { usage: COMMAND_USAGE.migrate, load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands')).migrate.run },
+  import: { usage: COMMAND_USAGE.import, load: () => (require('./cli-git-commands') as typeof import('./cli-git-commands')).import.run },
+  'review-dispatch': { usage: COMMAND_USAGE['review-dispatch'], load: () => (require('./cli-review-dispatch-command') as typeof import('./cli-review-dispatch-command')).run },
+  review: { usage: COMMAND_USAGE.review, load: () => (require('./cli-review-command') as typeof import('./cli-review-command')).run },
+  'context-review': { usage: COMMAND_USAGE['context-review'], load: () => (require('./cli-context-review-command') as typeof import('./cli-context-review-command')).run },
+  dispatch: { usage: COMMAND_USAGE.dispatch, load: () => (require('./cli-dispatch-command') as typeof import('./cli-dispatch-command')).run },
+  config: { usage: COMMAND_USAGE.config, load: () => (require('./cli-config-command') as typeof import('./cli-config-command')).run },
+  retro: { usage: COMMAND_USAGE.retro, load: () => (require('./cli-retro-command') as typeof import('./cli-retro-command')).run },
+  metrics: { usage: COMMAND_USAGE.metrics, load: () => (require('./cli-metrics-command') as typeof import('./cli-metrics-command')).run },
+  ontology: { usage: COMMAND_USAGE.ontology, load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands')).ontology.run },
 };
 
-const USAGE_HEADER = `usage: bouncer <command> [options]
-
-`;
-const USAGE_FOOTER = `Every command accepts --repo <dir> to run against another repository.
-`;
-
-// join('') — 각 usage가 이미 개행으로 끝난다. 개행으로 이으면 명령 사이에
-// 빈 줄이 생겨 바이트가 달라진다. 꼬리말 앞 빈 줄은 여기서 한 번만 넣는다.
-const USAGE = USAGE_HEADER
-  + Object.values(COMMANDS).map((c) => c.usage).join('')
-  + '\n'
-  + USAGE_FOOTER;
-
-function runCli(argv: string[], io?: Partial<CliIo> | null) {
-  // 테스트가 io를 주입한다. 없으면 프로세스 스트림 — stdout은 파이프용.
+/**
+ * CLI argv를 처리하고 선택한 명령의 handler만 적재한다.
+ * help와 unknown 경로는 static usage만 출력하며, 주입된 IO가 있으면 프로세스 스트림을 쓰지 않는다.
+ *
+ * @param {string[]} argv - bouncer 명령과 인자
+ * @param {Partial<CliIo> | null} [io] - 선택적 stdout/stderr 싱크
+ * @returns {number} handler 또는 help/unknown 경로의 종료 코드
+ */
+function runCli(argv: string[], io?: Partial<CliIo> | null): number {
   const out = io && io.out ? io.out : (s: string) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s: string) => process.stderr.write(s);
   const sink = { out, err };
   const [cmd, ...rest] = argv;
-  // help는 stdout. 알 수 없는 명령만 stderr로 보내 stdout을 pipe-clean으로 둔다.
   if (cmd === undefined || cmd === 'help' || cmd === '--help' || cmd === '-h') {
     out(USAGE);
     return 0;
   }
-  // 일반 객체 조회는 toString/constructor 같은 prototype 키를 참 값으로 잡는다.
-  // 그때 entry.run이 없어 TypeError가 나고, 미등록 거절(unknown command, exit 2)이
-  // 깨진다. own key만 보면 그 이름들도 예전 거절 경로로 간다.
   const entry = Object.hasOwn(COMMANDS, cmd) ? COMMANDS[cmd] : undefined;
   if (!entry) {
     err(`unknown command: ${cmd}\n\n${USAGE}`);
     return 2;
   }
-  return entry.run(rest, sink);
+  return entry.load()(rest, sink);
 }
 
 export = { runCli, parseFlags };

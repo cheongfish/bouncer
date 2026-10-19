@@ -7,8 +7,10 @@ import paths = require('./paths');
 const { toPosix } = paths;
 import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
-import finalizeMod = require('./finalize');
-const { resolveCheckoutBranch, collectMustFixWarnings, isDeferredMustFix } = finalizeMod;
+import gitOps = require('./git-ops');
+const { resolveCheckoutBranch } = gitOps;
+import finalizeChecks = require('./finalize-checks');
+const { collectMustFixWarnings, isDeferredMustFix } = finalizeChecks;
 
 type GitExecResult = { status: number; stdout: string };
 type GitExec = (args: string[]) => GitExecResult;

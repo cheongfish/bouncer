@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import codexAgents = require('./codex-agents');
 const { NAMED_AGENTS } = codexAgents;
 import subagents = require('./subagents');
@@ -10,9 +12,6 @@ type CliIo = {
   out: (s: string) => void;
   err: (s: string) => void;
 };
-
-const USAGE_BLOCK = '  config --help\n'
-  + '             Show .bouncer/config.json "subagents" keys, allowed values, and defaults (read-only).\n';
 
 const USAGE = 'usage: bouncer config --help\n';
 
@@ -57,5 +56,5 @@ function cmdConfig(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdConfig,
-  usage: USAGE_BLOCK,
+  usage: cliUsage.COMMAND_USAGE['config'],
 };

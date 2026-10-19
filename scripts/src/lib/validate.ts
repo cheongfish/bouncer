@@ -10,9 +10,9 @@ const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
 import paths = require('./paths');
 const { toPosix } = paths;
 import verification = require('./verification');
-const {
-  runVerification, entriesForVerify,
-} = verification;
+const { runVerification } = verification;
+import verificationTarget = require('./verification-target');
+const { resolveVerificationTarget } = verificationTarget;
 import epicIndex = require('./epic-index');
 const { checkEpicIndexConsistency } = epicIndex;
 import validateDocs = require('./validate-docs');
@@ -224,12 +224,12 @@ function validateBlueprint({
     // tasks/<NNN>/ 레이아웃에서 실패 위치가 엉킨다.
     let verificationFile = `${toPosix(blueprintDir)}/verification.md`;
     try {
-      const entries = entriesForVerify(repoRoot, blueprintDir);
+      const { effectiveTask, entries } = resolveVerificationTarget({ repoRoot, blueprintDir });
       if (entries[0] && entries[0].verification && entries[0].verification.rel) {
         verificationFile = entries[0].verification.rel;
       }
       const verification = runVerification({
-        repoRoot, blueprintDir, markTaskVerified: true,
+        repoRoot, blueprintDir, effectiveTask, markTaskVerified: true,
       });
       if (!verification.ok) {
         executionFailures.push({

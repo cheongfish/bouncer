@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 
@@ -156,5 +158,5 @@ function cmdDispatch(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdDispatch,
-  usage: USAGE_BLOCK,
+  usage: cliUsage.COMMAND_USAGE['dispatch'],
 };

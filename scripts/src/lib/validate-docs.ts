@@ -6,10 +6,8 @@ import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import paths = require('./paths');
 const { epicDirOf, toPosix } = paths;
-import verification = require('./verification');
-const { entriesForVerify } = verification;
-import current = require('./current');
-const { resolveEffectiveTask } = current;
+import verificationTarget = require('./verification-target');
+const { resolveVerificationTarget } = verificationTarget;
 import tasksDocs = require('./tasks-docs');
 const {
   listTasksDocs, TASK_UNIT_BASENAMES, taskExecutionKind,
@@ -224,7 +222,7 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }: {
 
 /**
  * execute / finalize 가 쓸 대상 묶음.
- * entriesForVerify와 같은 effective-task 해석: 매칭되면 그 엔트리만, 아니면
+ * verification-target과 같은 effective-task 해석: 매칭되면 그 엔트리만, 아니면
  * 번호 순 첫 묶음. worker에서 lease를 확인하지 못하면 null — gate가 task
  * 문서 부재로 실패하게 한다. 단위 테스트처럼 repoRoot가 없으면
  * docs.tasks·verification·review 평탄 필드로 합성.
@@ -234,23 +232,22 @@ function resolveTaskUnit(docs: BlueprintDocs, { repoRoot, blueprintDir }: {
   blueprintDir?: string;
 } = {}): TaskUnit | null {
   if (repoRoot && blueprintDir) {
-    const effective = resolveEffectiveTask({ repoRoot });
+    const { effectiveTask: effective, entries } = resolveVerificationTarget({ repoRoot, blueprintDir });
     // worker fail-closed: 빈 entries로 flat docs에 떨어지면 G6 부재를 숨긴다.
     if (effective && effective.source === null) return null;
-    const entries = entriesForVerify(repoRoot, blueprintDir);
     const entry = entries[0];
     if (entry) {
       const units = Array.isArray(docs.taskUnits) ? docs.taskUnits : [];
       const match = units.find((u) => (
         (entry.dir && u.dir === entry.dir)
         || (entry.number != null && u.number === entry.number)
-        || (u.tasks && u.tasks.rel === entry.tasks.rel)
+        || (u.tasks && entry.tasks && u.tasks.rel === entry.tasks.rel)
       ));
       if (match) return match;
       // listing에는 있으나 파싱 누락 — 빈 leaf로라도 경로를 유지해 G6 file을 살린다.
       return {
-        number: entry.number,
-        dir: entry.dir,
+        number: entry.number ?? null,
+        dir: entry.dir ?? null,
         tasks: undefined,
         verification: undefined,
         review: undefined,

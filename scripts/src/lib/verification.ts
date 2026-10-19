@@ -17,10 +17,16 @@ import time = require('./time');
 const { nowIsoKst } = time;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
+type VerificationTaskEntry = {
+  rel: string;
+  dir?: string | null;
+  number?: number | null;
+  tasks?: { rel: string };
+  verification?: { rel: string };
+};
 // current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
 // 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
-import current = require('./current');
-const { resolveEffectiveTask } = current;
+import type { EffectiveTask } from './execution-contracts';
 import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
 import runtimeState = require('./runtime-state');
@@ -125,7 +131,11 @@ function errorCode(error: unknown): unknown {
  * @param {string} [taskId] - 세 자리 task id. 없으면 lease/pointer effective로 해석
  * @returns {Array<{rel: string, verification?: {rel: string}}>} 대상 문서 엔트리
  */
-function entriesForVerify(repoRoot: string, blueprintDir: string, taskId?: string) {
+function selectVerificationEntries(
+  repoRoot: string,
+  blueprintDir: string,
+  { taskId, effectiveTask }: { taskId?: string; effectiveTask: EffectiveTask | null },
+): VerificationTaskEntry[] {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   if (listing.mixed) return [];
   // 명시 taskId는 pointer/lease effective보다 우선한다. wave·terminal integrate가
@@ -156,7 +166,7 @@ function entriesForVerify(repoRoot: string, blueprintDir: string, taskId?: strin
   // 그 문서만. worker에서 lease를 못 확인하면 빈 목록 — pointer로 폴백하지
   // 않아 다른 task 선언을 끌어오지 않는다. 문서가 사라진 경우에만 미지정
   // (전체 walk)으로 폴백한다.
-  const effective = resolveEffectiveTask({ repoRoot });
+  const effective = effectiveTask;
   if (effective && effective.source === null) return [];
   const bp = toPosix(blueprintDir);
   if (effective && typeof effective.path === 'string' && toPosix(effective.blueprint) === bp) {
@@ -206,26 +216,30 @@ function isVerificationKindDoc(repoRoot: string, rel: string): boolean {
  * `VERIFY_COMMAND_INVALID`로 거절한다.
  *
  * @param {string} repoRoot - 저장소 루트 절대 경로
- * @param {string} [blueprintDir] - 있으면 그 blueprint의 task 선언을 먼저 본다
- * @param {string} [taskId] - 세 자리 task. 있으면 effective 대신 그 묶음만 본다
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {Array<{rel: string}>} entries - 이미 선택된 task 문서 목록
  * @returns {string} 실행할 단일 argv 문자열
  */
-function readVerifyCommand(repoRoot: string, blueprintDir?: string, taskId?: string): string {
+function readVerifyCommandFor(
+  repoRoot: string,
+  entries: Array<{ rel: string }>,
+  blueprintDir?: string,
+): string {
   const configPath = path.join(repoRoot, '.bouncer', 'config.json');
   // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
   // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
   // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
   const scoped = Boolean(blueprintDir) && isScopedTerminal(repoRoot, blueprintDir as string);
+  let selectedEntries = entries;
   if (blueprintDir) {
-    let entries = entriesForVerify(repoRoot, blueprintDir, taskId);
     // scoped_terminal에서 task를 특정하지 못한 listing 폴백(finalize remainder 등)은
     // earliest 구현 task의 좁은 명령이 아니라 종단 verification의 전체 명령을 골라야
     // 한다. sort는 안정 정렬이라 같은 종류끼리는 기존 번호 순서를 유지한다.
-    if (scoped && entries.length > 1) {
+    if (scoped && selectedEntries.length > 1) {
       const rank = (entry: { rel: string }) => (isVerificationKindDoc(repoRoot, entry.rel) ? 0 : 1);
-      entries = [...entries].sort((a, b) => rank(a) - rank(b));
+      selectedEntries = [...selectedEntries].sort((a, b) => rank(a) - rank(b));
     }
-    for (const entry of entries) {
+    for (const entry of selectedEntries) {
       try {
         const { data } = readDoc(path.join(repoRoot, entry.rel));
         // `data && data.bouncer && data.bouncer.verify`와 같다. bouncer가 null이면
@@ -501,15 +515,18 @@ function assertVerificationScope(scope: unknown): VerificationScope {
  * @param {string} blueprintDir - blueprint 상대 경로
  * @returns {VerificationScope} `{ kind: 'task', key: 'EPIC-…/BP-…/TASK-…' }`
  */
-function resolveDefaultTaskScope(repoRoot: string, blueprintDir: string): VerificationScope {
-  const effective = resolveEffectiveTask({ repoRoot });
+function resolveDefaultTaskScope(
+  repoRoot: string,
+  blueprintDir: string,
+  effective: EffectiveTask | null,
+  entries: Array<{ rel: string; tasks?: { rel: string } }>,
+): VerificationScope {
   if (effective && effective.source === null) {
     throw verificationError(
       'VERIFY_IDENTITY_INVALID',
       'no active lease for worker worktree',
     );
   }
-  const entries = entriesForVerify(repoRoot, blueprintDir);
   const bp = toPosix(blueprintDir);
   let tasksRel: string | null = null;
   if (effective && typeof effective.path === 'string' && toPosix(effective.blueprint) === bp) {
@@ -992,7 +1009,12 @@ function recordVerificationResult({
     const blueprintGuess = blueprintDir
       || rel.replace(/\/tasks\/\d{3}\/verification\.md$/, '')
       || rel.replace(/\/verification\.md$/, '');
-    resolvedScope = resolvedScope || resolveDefaultTaskScope(repoRoot, blueprintGuess);
+    resolvedScope = resolvedScope || resolveDefaultTaskScope(
+      repoRoot,
+      blueprintGuess,
+      null,
+      listTasksDocs({ repoRoot, blueprintDir: blueprintGuess }).entries,
+    );
     const computed = computeEvidenceIdentity({
       repoRoot,
       command,
@@ -1101,23 +1123,20 @@ ${evidence}`;
  * @param {string} repoRoot - 저장소 루트 절대 경로
  * @param {string} blueprintDir - 이번 실행 blueprint 상대 경로
  * @param {string} entryRel - 이번 실행이 고른 tasks.md 상대 경로
- * @param {VerificationDeps} [deps] - `resolveEffectiveTask`에 넘기는 주입 의존성
+ * @param {EffectiveTask | null} effectiveTask - 호출자가 선택한 현재 task
  * @returns {void} 조건을 만족하면 상태를 쓰고, 아니면 파일을 바꾸지 않는다
  */
 function maybeMarkCommitTaskVerified({
-  repoRoot, blueprintDir, entryRel, deps,
+  repoRoot, blueprintDir, entryRel, effectiveTask,
 }: {
   repoRoot: string;
   blueprintDir: string;
   entryRel: string;
-  deps?: VerificationDeps;
+  effectiveTask: EffectiveTask | null;
 }): void {
   // listing fallback을 전환 대상으로 쓰지 않는다. 묶음이 하나여도 lease·pointer가
   // 없으면 이번 실행이 “정해진 task”가 아니다.
-  const effective = resolveEffectiveTask({
-    repoRoot,
-    deps: deps as Parameters<typeof resolveEffectiveTask>[0]['deps'],
-  });
+  const effective = effectiveTask;
   if (!effective || effective.source === null || typeof effective.path !== 'string') return;
   if (toPosix(effective.blueprint) !== toPosix(blueprintDir)) return;
   if (toPosix(effective.path) !== toPosix(entryRel)) return;
@@ -1134,10 +1153,12 @@ function maybeMarkCommitTaskVerified({
   fs.writeFileSync(file, renderDoc(data, document.body));
 }
 
-function resolveVerificationRel(repoRoot: string, blueprintDir: string, taskId?: string): string {
-  // readVerifyCommand와 동일 entriesForVerify 폴백: 명시 taskId → 포인터 매칭 →
-  // 번호 순 첫 묶음. listing이 비면 레거시 루트 경로.
-  const entries = entriesForVerify(repoRoot, blueprintDir, taskId);
+function resolveVerificationRel(
+  repoRoot: string,
+  blueprintDir: string,
+  entries: Array<{ rel: string; verification?: { rel: string } }>,
+): string {
+  // 호출자가 이미 고른 목록을 따르며, 목록이 비면 레거시 루트 경로를 쓴다.
   if (entries[0] && entries[0].verification && entries[0].verification.rel) {
     return entries[0].verification.rel;
   }
@@ -1165,13 +1186,14 @@ function resolveVerificationRel(repoRoot: string, blueprintDir: string, taskId?:
  * }}
  */
 function runVerification({
-  repoRoot, blueprintDir, scope: scopeInput, taskId, exec, now = () => new Date(), deps,
+  repoRoot, blueprintDir, scope: scopeInput, taskId, effectiveTask, exec, now = () => new Date(), deps,
   markTaskVerified = false,
 }: {
   repoRoot: string;
   blueprintDir: string;
   scope?: VerificationScope;
   taskId?: string;
+  effectiveTask?: EffectiveTask | null;
   exec?: VerifyExec;
   now?: () => Date;
   deps?: VerificationDeps;
@@ -1191,8 +1213,16 @@ function runVerification({
       'blueprintDir must be under .bouncer/context/epics',
     );
   }
-  const command = readVerifyCommand(repoRoot, blueprintDir, taskId);
-  const verificationRel = resolveVerificationRel(repoRoot, blueprintDir, taskId);
+  if (taskId === undefined && effectiveTask === undefined) {
+    throw verificationError('VERIFY_TARGET_REQUIRED', 'runVerification requires taskId or effectiveTask');
+  }
+  const selectedEntries = selectVerificationEntries(
+    repoRoot,
+    blueprintDir,
+    { taskId, effectiveTask: effectiveTask ?? null },
+  );
+  const command = readVerifyCommandFor(repoRoot, selectedEntries, blueprintDir);
+  const verificationRel = resolveVerificationRel(repoRoot, blueprintDir, selectedEntries);
   const verificationPath = path.join(repoRoot, verificationRel);
   if (!fs.existsSync(verificationPath)) {
     throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
@@ -1210,7 +1240,7 @@ function runVerification({
   // 2. scope·identity는 spawn 전에 확정한다. 실패는 전용 오류.
   const scope = scopeInput
     ? assertVerificationScope(scopeInput)
-    : resolveDefaultTaskScope(repoRoot, blueprintDir);
+    : resolveDefaultTaskScope(repoRoot, blueprintDir, effectiveTask ?? null, selectedEntries);
   const { identity, evidenceId } = computeEvidenceIdentity({
     repoRoot, command, scope, deps,
   });
@@ -1235,7 +1265,7 @@ function runVerification({
     verificationRel,
     evidenceId,
   });
-  const selected = entriesForVerify(repoRoot, blueprintDir, taskId)[0];
+  const selected = selectedEntries[0];
   /**
    * 증적 기록이 끝난 뒤에만 상태를 쓴다. 다음 dirty_digest는 달라져 재사용을 놓친다.
    *
@@ -1248,7 +1278,7 @@ function runVerification({
         repoRoot,
         blueprintDir,
         entryRel: selected.rel,
-        deps,
+        effectiveTask: effectiveTask ?? null,
       });
     }
     return result;
@@ -1324,8 +1354,8 @@ export = {
   MAX_VERIFY_OUTPUT_BYTES,
   parseVerifyArgv,
   isValidVerifyCommand,
-  entriesForVerify,
-  readVerifyCommand,
+  selectVerificationEntries,
+  readVerifyCommandFor,
   executeVerify,
   recordVerificationResult,
   runVerification,

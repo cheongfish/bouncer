@@ -101,6 +101,12 @@ export type Ledger = {
 
 export type LedgerRef = { path: string; sha256: string; revision: string | null };
 
+/** current pointer 또는 worker lease로 해석된 실행 대상 task. */
+export type EffectiveTask =
+  | { source: 'lease'; blueprint: string; path: string; id: string; lease_id: string | null; generation: number | null }
+  | { source: 'pointer'; blueprint: string; path: string; id: string | null }
+  | { source: null; blueprint: string; reason: 'no-active-lease' | 'unreadable-ledger'; path: null; id: null };
+
 const nonEmptyText = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
 
 /**

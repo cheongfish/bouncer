@@ -1,5 +1,7 @@
 'use strict';
 
+import cliUsage = require('./cli-usage');
+
 const fs = require('node:fs');
 
 import cliFlags = require('./cli-flags');
@@ -348,14 +350,5 @@ function cmdReviewDispatch(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdReviewDispatch,
-  usage: `  review-dispatch plan --blueprint <dir> [--previous <file>]
-             Classify plan context-review strategy (read-only JSON).
-  review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
-             Classify execute review strategy from the frozen final worktree state
-             (JSON). Writes only the snapshot artifact under .bouncer/runtime/
-             review-snapshots/ and returns target.snapshot_id/snapshot_path; --head
-             must be the current HEAD. On failure it prints reason/cause/next, exit 1.
-             When that blueprint's scale is light, returns single/combined
-             regardless of diff size.
-`,
+  usage: cliUsage.COMMAND_USAGE['review-dispatch'],
 };

@@ -2,14 +2,35 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const {
-  buildCommitMessage,
-  buildFinalizeCommitMessage,
-  buildTaskContext,
-} = require('../scripts/lib/finalize');
+const path = require('node:path');
+const { loadModuleGraph, reachable } = require('./helpers/module-graph');
+const { buildCommitMessage, buildFinalizeCommitMessage } = require('../scripts/lib/commit-message');
+const { buildTaskContext } = require('../scripts/lib/finalize-explain');
 const { summarizeDrive, summarizeDriveIssues } = require('../scripts/lib/finalize-digest');
 const { makeAllowed, isUnder } = require('../scripts/lib/scope');
 const { buildStableProvenance, COMMIT_SHA_LEN } = require('../scripts/lib/commit-sha');
+
+const graph = loadModuleGraph(path.join(__dirname, '..', 'scripts', 'src', 'lib'));
+const NEW = ['git-ops', 'commit-message', 'finalize-collect', 'finalize-checks', 'finalize-explain'];
+
+test('delivery consumers and new modules → never reach finalize', () => {
+  for (const mod of ['commit', 'finalize-digest', 'finalize-pr', 'retention-migration', ...NEW]) {
+    assert.ok(!reachable(graph, mod).has('finalize'), mod);
+  }
+});
+
+test('new delivery modules → never import cli, validate or coordinator directly', () => {
+  for (const mod of NEW) {
+    assert.deepEqual([...(graph.get(mod) || [])].filter((m) => /^(cli|validate)|^coordinator$/.test(m)), [], mod);
+  }
+});
+
+test('fake graph where finalize-collect imports finalize → commit reach check flags it', () => {
+  const fake = new Map(graph);
+  fake.set('finalize-collect', new Set([...(graph.get('finalize-collect') || []), 'finalize']));
+  fake.set('commit', new Set([...graph.get('commit'), 'finalize-collect']));
+  assert.ok(reachable(fake, 'commit').has('finalize'));
+});
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 const TASK_IDS = { id: 'TASKS-001', epic_id: '001', blueprint_id: '001' };
@@ -890,7 +911,7 @@ test('an absent or malformed blueprint Intent → finalize rejects it', () => {
 
 // --- coordinator provenance -------------------------------------------------
 
-const { buildCoordinatorProvenance } = require('../scripts/lib/finalize');
+const { buildCoordinatorProvenance } = require('../scripts/lib/finalize-collect');
 
 const LEDGER = {
   version: 1,

@@ -1,31 +1,6 @@
 'use strict';
 
-import guards = require('./guards');
-const { catchMessage } = guards;
-import cliFlags = require('./cli-flags');
-const { parseFlags } = cliFlags;
-import finalizeMod = require('./finalize');
-const { finalize } = finalizeMod;
-import finalizeDigestMod = require('./finalize-digest');
-const { prepareFinalizeDigest } = finalizeDigestMod;
-import finalizePrMod = require('./finalize-pr');
-const { resolveExplainLinks } = finalizePrMod;
-import commit = require('./commit');
-const { commitTask, commitExceptionResult } = commit;
-import seedWorktreeMod = require('./seed-worktree');
-const { seedWorktree } = seedWorktreeMod;
-import importHistory = require('./import-history');
-const { planImport, applyImport } = importHistory;
-import coordinatorMod = require('./coordinator');
-const { coordinate } = coordinatorMod;
-import scopeMod = require('./scope');
-const { reviseTaskScope } = scopeMod;
-import executePrepareMod = require('./execute-prepare');
-const { executePrepare } = executePrepareMod;
-import coordinateOutputMod = require('./coordinate-output');
-const { compactCoordinateOutput } = coordinateOutputMod;
-import releaseMainMod = require('./finalize-release-main');
-const { releaseMain } = releaseMainMod;
+import cliUsage = require('./cli-usage');
 
 type CliIo = {
   out: (s: string) => void;
@@ -33,6 +8,10 @@ type CliIo = {
 };
 
 function cmdCommit(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { commitTask, commitExceptionResult } = require('./commit') as typeof import('./commit');
   const f = parseFlags(rest);
   // 커밋 대상이 없으면 commit-safety가 빈 범위를 검사하게 되므로 형식(2)으로 거절.
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -73,6 +52,16 @@ function cmdCommit(rest: string[], io: CliIo) {
  * @returns {number} 0 성공, 1 실행 거절, 2 사용법(`--blueprint` 누락)
  */
 function cmdFinalize(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { finalize } = require('./finalize') as typeof import('./finalize');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { prepareFinalizeDigest } = require('./finalize-digest') as typeof import('./finalize-digest');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { resolveExplainLinks } = require('./finalize-pr') as typeof import('./finalize-pr');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { releaseMain } = require('./finalize-release-main') as typeof import('./finalize-release-main');
   // prepare는 읽기 전용 digest. 기존 finalize --yes 경로와 인자를 섞지 않는다.
   if (rest[0] === 'prepare') {
     const f = parseFlags(rest.slice(1));
@@ -143,6 +132,12 @@ function cmdFinalize(rest: string[], io: CliIo) {
 }
 
 function cmdSeedWorktree(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { seedWorktree } = require('./seed-worktree') as typeof import('./seed-worktree');
   const f = parseFlags(rest);
   // blueprint를 먼저 묻는다. help 나열 순서와 같고, 대상 없이 --to만 있으면
   // 빈 worktree로 문서를 옮기려다 실패 원인을 숨긴다.
@@ -172,6 +167,10 @@ function cmdSeedWorktree(rest: string[], io: CliIo) {
 }
 
 function cmdImport(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { planImport, applyImport } = require('./import-history') as typeof import('./import-history');
   const f = parseFlags(rest);
   // `--repo`(boolean true)를 경로로 쓰지 않는다. 다른 명령의 `f.repo || cwd`와
   // 달리 여기만 문자열을 요구해 온 동작을 유지한다.
@@ -282,6 +281,12 @@ function collectReviewFindingValues(rest: string[]): string[] | undefined {
 }
 
 function cmdExecute(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { executePrepare } = require('./execute-prepare') as typeof import('./execute-prepare');
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
   // prepare만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
@@ -315,324 +320,13 @@ const COORDINATE_COMMANDS = [
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
 
-type CoordinateUsageBlock = {
-  // 전역 `bouncer --help`에만 이어 붙인다. bootstrap·prepare·ready·status는
-  // 예전 overview 한 덩어리에만 있어서 여기 없으면 전역 바이트가 늘어난다.
-  registry?: string;
-  help: string;
-};
-
-const COORDINATE_USAGE_OVERVIEW = '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord'
-  + '|integrate|status|revoke> --blueprint <dir>\n'
-  + '             [--task <ddd>] [--sha <sha>] [--lease-id <id>] [--generation <n>]\n'
-  + '             Operate the coordinator ledger and isolated integration worktrees.\n';
-
-const COORDINATE_USAGE_MUTATIONS =
-  '  Mutations (except bootstrap/status) require --ledger-path and --ledger-hash from\n'
-  + '  the latest status checkpoint so stale ledger writes are rejected before mutation.\n';
-
-// fence 값은 status checkpoint.ledger다. usage에 path/hash를 반복해
-// coordinator가 plugin 소스를 열어 형식을 역산하지 않게 한다.
-const COORDINATE_FENCE = '--ledger-path <path> --ledger-hash <sha256>';
-const COORDINATE_FENCE_NOTE = `${COORDINATE_FENCE} (from coordinate status checkpoint.ledger)`;
-
 /**
- * 서브커맨드 → usage 블록 맵. 핸들러 `--help`와 registry `usage`가 같은 맵을
- * 읽어 문구가 갈라지지 않게 한다. registry 문자열은 이어 붙여 예전과 같아야
- * 전역 help 바이트 테스트가 유지된다.
- */
-const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> = {
-  bootstrap: {
-    help: `usage: bouncer coordinate bootstrap
-  --blueprint <dir> [--repo <dir>] [--promote-light]
-  Seed the integration worktree and ledger. Not ledger-fenced.
-  --promote-light archives a promotion_stopped light ledger and starts a full ledger.
-`,
-  },
-  prepare: {
-    help: `usage: bouncer coordinate prepare
-  --blueprint <dir> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Create or reuse assigned worker worktrees and refresh leases.
-`,
-  },
-  ready: {
-    help: `usage: bouncer coordinate ready
-  --blueprint <dir> [--repo <dir>]
-  Alias of coordinate status. Prints the checkpoint; not ledger-fenced.
-`,
-  },
-  dispatch: {
-    registry: '  coordinate dispatch --blueprint <dir> --task <ddd> --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             [--repo <main>] [--lease-id <id> --generation <n>] [--model <value>]\n'
-      + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n',
-    help: `usage: bouncer coordinate dispatch
-  --blueprint <dir> --task <ddd> ${COORDINATE_FENCE_NOTE}
-  [--repo <main>] [--lease-id <id>] [--generation <n>] [--model <value>]
-  Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.
-  --model records the dispatch model argument (\`bouncer subagent-model\` output) on the ledger.
-`,
-  },
-  report: {
-    registry: '  coordinate report --blueprint <dir> --task <ddd> --attempt <n>\n'
-      + '             --task-brief-hash <sha256> --outcome <accepted|rework|scope_revision|task_change|blocked>\n'
-      + '             --summary <text> --ledger-path <path> --ledger-hash <sha256> [--repo <main>]\n'
-      + '             [--lease-id <id> --generation <n>]\n'
-      + '             Record a worker report against the active attempt, or append stale-report evidence.\n',
-    help: `usage: bouncer coordinate report
-  --blueprint <dir> --task <ddd> --attempt <n> --task-brief-hash <sha256>
-  --outcome <accepted|rework|scope_revision|task_change|blocked> --summary <text>
-  ${COORDINATE_FENCE_NOTE} [--repo <main>] [--lease-id <id>] [--generation <n>]
-  Record a worker report against the active attempt, or append stale-report evidence.
-  \`--outcome accepted\` is refused (ledger unchanged) until the worker task commit exists, its commit_sha
-  stamp matches HEAD, and no file inside the approved scope is dirty: worker-commit-missing,
-  worker-commit-stamp-mismatch, worker-scope-dirty. Run \`coordinate advance\` to commit first.
-`,
-  },
-  record: {
-    help: `usage: bouncer coordinate record
-  --blueprint <dir> --task <ddd> ${COORDINATE_FENCE_NOTE}
-  [--sha <sha>] [--repo <dir>] [--lease-id <id>] [--generation <n>]
-  Record the worker HEAD after an accepted report. Refused with worker-commit-missing,
-  worker-commit-stamp-mismatch, or worker-scope-dirty (ledger unchanged) unless the worker task commit
-  and its commit_sha stamp match HEAD and the approved scope is clean; run \`coordinate advance\` first.
-`,
-  },
-  rerecord: {
-    registry: '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256> [--sha <sha>]\n'
-      + '             Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.\n',
-    help: `usage: bouncer coordinate rerecord
-  --blueprint <dir> --task <ddd> --reason <text> ${COORDINATE_FENCE_NOTE} [--sha <sha>] [--repo <dir>]
-  Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.
-`,
-  },
-  integrate: {
-    registry: '  coordinate integrate --blueprint <dir> [--task <ddd>]\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Fan-in recorded commit tasks via a candidate worktree (omit --task for the wave).\n',
-    help: `usage: bouncer coordinate integrate
-  --blueprint <dir> [--task <ddd>] ${COORDINATE_FENCE_NOTE}
-  [--sha <sha>] [--repo <dir>] [--lease-id <id>] [--generation <n>]
-  Fan-in recorded commit tasks via a candidate worktree (omit --task for the wave).
-`,
-  },
-  status: {
-    help: `usage: bouncer coordinate status
-  --blueprint <dir> [--repo <dir>] [--write-input <file>]
-  Print the checkpoint (including checkpoint.ledger). Not ledger-fenced.
-  --write-input writes the coordinator print-dispatch input text to <file>
-  (status only; reports input_file) for \`dispatch print --role coordinator --input\`.
-`,
-  },
-  revise: {
-    registry: '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... [--new-path <p>]...\n'
-      + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Record one scope decision in the task document and ledger.\n'
-      + '             --paths replaces the whole scope with exactly the given set.\n'
-      + '             --paths must be tracked at integration HEAD; --new-path adds a file to\n'
-      + '             create (its parent directory must be tracked).\n'
-      + '             Takes no --repo: the write boundary is the current directory, so\n'
-      + '             run it from the assigned task worktree, not the main checkout.\n',
-    help: `usage: bouncer coordinate revise
-  --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... [--new-path <p>]... --reason <text>
-  ${COORDINATE_FENCE_NOTE}
-  Record one scope decision in the task document and ledger.
-  --paths replaces the whole scope with exactly the given set; pass every path
-  the task still needs, not only new ones (dropped paths are reported as warnings).
-  --paths entries must be tracked at integration HEAD (scope-path-untracked otherwise).
-  --new-path <p> adds a file to be created; its parent directory must be tracked
-  (scope-new-path-parent-missing otherwise). Final scope is --paths plus --new-path.
-  Takes no --repo: the write boundary is the current directory, so
-  run it from the assigned task worktree, not the main checkout.
-`,
-  },
-  repair: {
-    registry: '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>\n'
-      + '             --summary <text> --paths <p> --decision <reason>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Add one audited repair task and move the terminal CI dependency.\n'
-      + '             [--verify <argv>] [--new-path <p>]...  (--verify is required on scoped_terminal:\n'
-      + '             one command that checks only the failing files; --paths must be tracked files)\n'
-      + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>\n'
-      + '             --paths <p> --decision <reason> --resume-task <ddd>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Rework an existing integrated task inside its approved scope (no new task).\n'
-      + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>\n'
-      + '             --paths <p> --decision <reason> --disposition outside_scope\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Record a proven outside-scope terminal failure; the failure itself stays failed.\n'
-      + '  coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>\n'
-      + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Open a repair task from final-review must_fix findings (omit --task\n'
-      + '             when the blueprint has no terminal verification).\n'
-      + '  coordinate repair --blueprint <dir> --kind supplement --review-finding <id>\n'
-      + '             [--review-finding <id>]... --summary <text> --paths <test-path>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Accept an in-scope test-evidence gap in place (no new task or wave).\n'
-      + '  coordinate repair --blueprint <dir> --kind supplement --done --summary <text>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Verify the finished supplement; then run the one delta review.\n',
-    help: `usage: bouncer coordinate repair
-  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
-  --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Add one audited repair task and move the terminal CI dependency.
-  [--verify <argv>] [--new-path <p>]...: --verify is the repair task's own single command
-  (required on scoped_terminal blueprints; must not be the terminal command or chain shell
-  operators). --paths must be tracked at integration HEAD; --new-path adds a file to create
-  whose parent directory is tracked. --verify cannot be used with --resume-task.
-  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
-  --paths <p> --decision <reason> --resume-task <ddd> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Rework an existing integrated task inside its approved scope: no new task, DAG unchanged.
-  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
-  --paths <p> --decision <reason> --disposition outside_scope ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Record a proven outside-scope terminal failure (cause, failing test and needed change judged outside
-  every task scope). The failure stays failed; --resume-task and --disposition are mutually exclusive.
-  --blueprint <dir> [--task <ddd>] --review-finding <id> [--review-finding <id>]...
-  --summary <text> --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Open a repair task from final-review must_fix findings (omit --task
-  when the blueprint has no terminal verification).
-  --kind <product|supplement> (default product, the forms above)
-  --blueprint <dir> --kind supplement --review-finding <id> [--review-finding <id>]...
-  --summary <text> --paths <test-path> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Accept an in-scope test-evidence gap in place: no new task, no repair wave.
-  --blueprint <dir> --kind supplement --done --summary <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Verify the finished supplement; the next final review is the one delta round.
-  Product-behavior fixes, new dependencies, and public interfaces are not supplements.
-`,
-  },
-  'partial-close': {
-    registry: '  coordinate partial-close --blueprint <dir> --user-confirmed\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Preserve the failed drive and mark it partial_closed after two repair waves.\n',
-    help: `usage: bouncer coordinate partial-close
-  --blueprint <dir> --user-confirmed ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Preserve the failed drive and mark it partial_closed after two repair waves.
-`,
-  },
-  'critical-recovery': {
-    registry: '  coordinate critical-recovery --blueprint <dir> --task <ddd> --findings <id>\n'
-      + '             [--findings <id>]... --reason <text>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Record the one permitted blocker or major recovery for a prepared task.\n'
-      + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked>\n'
-      + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Record the outcome without permitting another recovery.\n',
-    help: `usage: bouncer coordinate critical-recovery
-  --blueprint <dir> --task <ddd> --findings <id> [--findings <id>]... --reason <text>
-  ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Record the one permitted blocker or major recovery for a prepared task.
-  --blueprint <dir> --task <ddd> --outcome <resolved|blocked> --reason <text>
-  ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Record the outcome without permitting another recovery.
-`,
-  },
-  revoke: {
-    registry: '  coordinate revoke --blueprint <dir> --task <ddd> --reason <text>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Revoke an active lease, clear dispatch/sha, and return the task to pending.\n',
-    help: `usage: bouncer coordinate revoke
-  --blueprint <dir> --task <ddd> --reason <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Revoke an active lease, clear dispatch/sha, and return the task to pending.
-`,
-  },
-  next: {
-    registry: '  coordinate next --blueprint <dir> [--task <ddd>] [--repo <dir>]\n'
-      + '             Print the next coordinator action and filled argv without mutating the ledger.\n',
-    help: `usage: bouncer coordinate next
-  --blueprint <dir> [--task <ddd>] [--repo <dir>]
-  Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
-  Blueprint actions: prepare, yield, drive_tasks, integrate, verification_node, supplement, final_review, done, blocked
-  Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
-  Response fields: action, cwd, argv, judge, task_ids, payload, card, checkpoint
-  card {id,body} only on: dispatch, implement, verify, review, report, revise, record, supplement, final_review, blocked
-`,
-  },
-  advance: {
-    registry: '  coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]\n'
-      + '             Run deterministic next argv actions until judge, worker, terminal, or error.\n',
-    help: `usage: bouncer coordinate advance
-  --blueprint <dir> [--task <ddd>] [--max-steps <n>] [--repo <dir>]
-  Not ledger-fenced. Calls coordinate next and runs argv for prepare, integrate,
-  verification_node, verify, and commit until a stop or failure.
-  Stop reasons (ok: true): judge, worker, blocked, done, none, max-steps, yield
-  Failure reasons (ok: false): repeated-failure, unclear-result, advance-argv-invalid,
-  or the automatic action's failure reason.
-  Response fields: executed, stop.next (success) or reason, cause, next, executed (failure)
-`,
-  },
-  'session-open': {
-    registry: '  coordinate session-open --blueprint <dir> --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Record a coordinator session boundary before dispatching a new coordinator.\n',
-    help: `usage: bouncer coordinate session-open
-  --blueprint <dir> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Run by the root before dispatching a coordinator session. Appends a session decision
-  (opened_at, integration_head, waves_cap) so coordinate next can count this session's waves.
-  Refused without changing the ledger on a light, promotion_stopped, partial_closed, or
-  awaiting_confirmation ledger.
-`,
-  },
-  'worker-model': {
-    registry: '  coordinate worker-model --blueprint <dir> --role <implementer|reviewer|debugger> --model <value>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256> [--task <ddd>] [--perspective <name>]\n'
-      + '             [--tokens <n>]\n'
-      + '             Record the model argument (and host-reported tokens) of a worker dispatch.\n',
-    help: `usage: bouncer coordinate worker-model
-  --blueprint <dir> --role <implementer|reviewer|debugger> --model <value> ${COORDINATE_FENCE_NOTE}
-  [--task <ddd>] [--perspective <name>] [--tokens <n>] [--repo <dir>]
-  Run from the integration worktree. Appends a worker-model decision (role, model, task,
-  perspective, tokens) to the ledger; --task also appends it to that task. The model is the one-line
-  \`bouncer subagent-model --agent <name>\` output (slug or inherit); it records what the
-  coordinator passed, not proof of what the host ran. --perspective is reviewer-only.
-  --tokens is the host-reported subagent token count (non-negative integer); omit it when the
-  completion notice has not arrived, then add it later with coordinate worker-tokens.
-  Does not change dispatch, lease, status, or attempt state.
-`,
-  },
-  'worker-tokens': {
-    registry: '  coordinate worker-tokens --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256> [--task <ddd>] [--perspective <name>]\n'
-      + '             Append host-reported subagent tokens that arrived after the worker-model record.\n',
-    help: `usage: bouncer coordinate worker-tokens
-  --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n> ${COORDINATE_FENCE_NOTE}
-  [--task <ddd>] [--perspective <name>] [--repo <dir>]
-  Run from the integration worktree. Appends a worker-tokens decision (role, tokens, task,
-  perspective) to the ledger; --task also appends it to that task. Use it when the host's
-  completion notice arrives after the worker-model record. \`metrics summary\` adds it to
-  worker_tokens, never to the coordinator-session total. --perspective is reviewer-only.
-  Does not change dispatch, lease, status, or attempt state.
-`,
-  },
-  'promote-stop': {
-    registry: '  coordinate promote-stop --blueprint <dir> --reason <enum> --summary <text>\n'
-      + '             --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             Stop a light ledger for promotion; records reason and state (no resume).\n',
-    help: `usage: bouncer coordinate promote-stop
-  --blueprint <dir> --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope>
-  --summary <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
-  Record promotion_stopped on a light ledger with the open task's diff and evidence ids.
-  Same reason+summary is idempotent; other mutations then fail with promotion-stopped.
-`,
-  },
-};
-
-// 전역 help 조립 순서. 키를 빼거나 재정렬하면 전역 usage 바이트가 바뀐다.
-const COORDINATE_REGISTRY_ORDER: CoordinateCommand[] = [
-  'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
-  'partial-close', 'critical-recovery', 'revise', 'next', 'advance', 'promote-stop',
-  'session-open', 'worker-model', 'worker-tokens',
-];
-
-/**
- * 전역·`coordinate --help`에 쓰는 registry usage. 맵의 registry 조각을
- * 예전 순서로 이어 붙여 바이트를 고정한다.
+ * 전역 help는 static usage 표를 이용해 핸들러 선택 전에 출력 가능하게 한다.
  *
- * @returns {string} 예전 coordinate.usage와 같은 문자열
+ * @returns {string} 전역 coordinate usage
  */
 function coordinateRegistryUsage(): string {
-  return COORDINATE_USAGE_OVERVIEW
-    + COORDINATE_REGISTRY_ORDER.map((name) => COORDINATE_USAGE_BLOCKS[name].registry || '').join('')
-    + COORDINATE_USAGE_MUTATIONS;
+  return cliUsage.COMMAND_USAGE.coordinate;
 }
 
 /**
@@ -665,8 +359,8 @@ function argvRequestsHelp(tokens: string[]): boolean {
  */
 function failCoordinateUsage(io: CliIo, message: string, command?: string): 2 {
   io.err(message);
-  if (command && Object.prototype.hasOwnProperty.call(COORDINATE_USAGE_BLOCKS, command)) {
-    io.err(COORDINATE_USAGE_BLOCKS[command as CoordinateCommand].help);
+  if (command && COORDINATE_COMMANDS.includes(command as CoordinateCommand)) {
+    io.err(cliUsage.coordinateUsage(command));
   } else {
     io.err(coordinateRegistryUsage());
   }
@@ -725,12 +419,23 @@ function writeCoordinatorInput(args: {
  * @returns {number} 성공 0, 런타임 거절 1, usage 오류 2
  */
 function cmdCoordinate(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const coordinatorMod = require('./coordinator') as typeof import('./coordinator');
+  const { coordinate } = coordinatorMod;
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { reviseTaskScope } = require('./scope') as typeof import('./scope');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { compactCoordinateOutput } = require('./coordinate-output') as typeof import('./coordinate-output');
   // 1. 도움말은 잘못된 플래그보다 앞. 소스 역산 대신 --help를 보게 한다.
   if (argvRequestsHelp(rest)) {
     const helpTarget = rest[0];
     if (typeof helpTarget === 'string'
-      && Object.prototype.hasOwnProperty.call(COORDINATE_USAGE_BLOCKS, helpTarget)) {
-      io.out(COORDINATE_USAGE_BLOCKS[helpTarget as CoordinateCommand].help);
+      && COORDINATE_COMMANDS.includes(helpTarget as CoordinateCommand)) {
+      io.out(cliUsage.coordinateUsage(helpTarget));
     } else {
       io.out(coordinateRegistryUsage());
     }
@@ -1088,43 +793,26 @@ function cmdCoordinate(rest: string[], io: CliIo) {
 export = {
   commit: {
     run: cmdCommit,
-    usage: `  commit     --blueprint <dir> [--yes]
-             Check task commit scope and, with --yes, commit one task.
-`,
+    usage: cliUsage.COMMAND_USAGE['commit'],
   },
   finalize: {
     run: cmdFinalize,
-    usage: `  finalize   prepare --blueprint <dir>
-             Print a read-only finalize digest JSON for Explain, Quiz, and PR.
-  finalize   links --blueprint <dir>
-             Print Explain URL candidates for a pushed GitHub head (read-only).
-  finalize   release-main --blueprint <dir>
-             Run from the main checkout after finalize --yes; removes the closed blueprint's main plan copies.
-  finalize   --blueprint <dir> [--yes]
-             Check the commit scope and, with --yes, commit the blueprint.
-`,
+    usage: cliUsage.COMMAND_USAGE['finalize'],
   },
   'seed-worktree': {
     run: cmdSeedWorktree,
-    usage: `  seed-worktree --blueprint <dir> --to <worktree>
-             Move the plan context documents into a freshly created worktree.
-`,
+    usage: cliUsage.COMMAND_USAGE['seed-worktree'],
   },
   execute: {
     run: cmdExecute,
-    usage: `  execute    prepare --blueprint <dir>
-             Create or reuse the execute worktree, seed plan documents, and print JSON.
-`,
+    usage: cliUsage.COMMAND_USAGE['execute'],
   },
   coordinate: {
     run: cmdCoordinate,
-    usage: coordinateRegistryUsage(),
+    usage: cliUsage.COMMAND_USAGE['coordinate'],
   },
   import: {
     run: cmdImport,
-    usage: `  import     [--source merges|commits] [--since <ref>] [--limit <n>]
-             [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]
-             Transcribe git history into imported epic/blueprint documents.
-`,
+    usage: cliUsage.COMMAND_USAGE['import'],
   },
 };

@@ -1,33 +1,6 @@
 'use strict';
 
-import guards = require('./guards');
-const { catchMessage } = guards;
-import cliFlags = require('./cli-flags');
-const { parseFlags } = cliFlags;
-import initMod = require('./init');
-const { init } = initMod;
-import time = require('./time');
-const { nowIsoKst } = time;
-import sessionGraph = require('./session-graph');
-const { syncSessionGraphs } = sessionGraph;
-import graphify = require('./graphify');
-const { resolveGraphifyBin } = graphify;
-import migrateTaskLayoutMod = require('./migrate-task-layout');
-const { migrateTaskLayout } = migrateTaskLayoutMod;
-import migrateReviewScopeMod = require('./migrate-review-scope');
-const { migrateReviewScope } = migrateReviewScopeMod;
-import retentionMigration = require('./retention-migration');
-const { auditRetention, migrateRetention } = retentionMigration;
-import runtimeState = require('./runtime-state');
-const { runtimePaths } = runtimeState;
-import runPreflightMod = require('./run-preflight');
-const { runPreflight } = runPreflightMod;
-import runDetachMod = require('./run-detach');
-const { detachRun } = runDetachMod;
-import subagents = require('./subagents');
-const { resolveSubagentModel } = subagents;
-import codexAgents = require('./codex-agents');
-const { NAMED_AGENTS, checkCodexAgent } = codexAgents;
+import cliUsage = require('./cli-usage');
 
 type CliIo = {
   out: (s: string) => void;
@@ -35,6 +8,14 @@ type CliIo = {
 };
 
 function cmdInit(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { init } = require('./init') as typeof import('./init');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { nowIsoKst } = require('./time') as typeof import('./time');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { syncSessionGraphs } = require('./session-graph') as typeof import('./session-graph');
   const f = parseFlags(rest);
   const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
   // CLI 기본은 설치 on — 라이브러리 init() 기본(install:false)과 의도적으로 다르다.
@@ -64,6 +45,10 @@ function cmdInit(rest: string[], io: CliIo) {
 }
 
 function cmdGraphSync(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { syncSessionGraphs } = require('./session-graph') as typeof import('./session-graph');
   const f = parseFlags(rest);
   const result = syncSessionGraphs({ repoRoot: (f.repo || process.cwd()) as string });
   // missing은 상태가 아니라 오류가 아니다(그래프 부재). failed만 종료 코드를 가른다.
@@ -101,6 +86,10 @@ function cmdOntologyLazy(rest: string[], io: CliIo): number {
 }
 
 function cmdGraphifyBin(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { resolveGraphifyBin } = require('./graphify') as typeof import('./graphify');
   const f = parseFlags(rest);
   const repoRoot = (f.repo || process.cwd()) as string;
   const { bin } = resolveGraphifyBin({ repoRoot });
@@ -126,6 +115,8 @@ function requireNamedAgent(
   flags: Record<string, string | boolean>,
   command: string,
 ): { error: string } | { agent: string } {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { NAMED_AGENTS } = require('./codex-agents') as typeof import('./codex-agents');
   const allowed = NAMED_AGENTS.join(', ');
   const agent = flags.agent;
   // parseFlags는 값 없는 --agent를 true로 둔다. 빈 문자열과 같이 누락으로 본다.
@@ -147,6 +138,10 @@ function requireNamedAgent(
  * @returns {number} 성공 0, 사용법 2
  */
 function cmdSubagentModel(rest: string[], io: CliIo): number {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { resolveSubagentModel } = require('./subagents') as typeof import('./subagents');
   const f = parseFlags(rest);
   const named = requireNamedAgent(f, 'subagent-model');
   if ('error' in named) {
@@ -176,6 +171,10 @@ function cmdSubagentModel(rest: string[], io: CliIo): number {
  * @returns {number} 동기 0, 불일치 1, 사용법 2
  */
 function cmdCodexAgents(rest: string[], io: CliIo): number {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { checkCodexAgent } = require('./codex-agents') as typeof import('./codex-agents');
   const command = rest[0];
   // seed는 init --seed-codex-agents가 소유한다. 여기서 받으면 읽기 명령이
   // 쓰기로 오해되고, 사용자 소유 TOML을 덮을 우회가 생긴다.
@@ -214,6 +213,10 @@ function cmdCodexAgents(rest: string[], io: CliIo): number {
 }
 
 function cmdProjectRoot(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { runtimePaths } = require('./runtime-state') as typeof import('./runtime-state');
   const f = parseFlags(rest);
   const repoRoot = (f.repo || process.cwd()) as string;
   // 현재 워크플로가 소비하는 정본은 main worktree다. linked cwd나
@@ -238,6 +241,12 @@ function cmdProjectRoot(rest: string[], io: CliIo) {
  * @returns {number} 성공 0, 거절 1, 사용법 2
  */
 function cmdRun(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { runPreflight } = require('./run-preflight') as typeof import('./run-preflight');
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
   // preflight·detach만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
@@ -252,6 +261,7 @@ function cmdRun(rest: string[], io: CliIo) {
   }
   if (command === 'detach') {
     try {
+      const { detachRun } = require('./run-detach') as typeof import('./run-detach');
       const result = detachRun({
         repoRoot: (f.repo || process.cwd()) as string,
         blueprint: f.blueprint,
@@ -386,6 +396,13 @@ function parseReviewScopeMigrateArgs(flagArgs: string[]): {
 }
 
 function cmdMigrate(rest: string[], io: CliIo) {
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { migrateTaskLayout } = require('./migrate-task-layout') as typeof import('./migrate-task-layout');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { auditRetention, migrateRetention } = require('./retention-migration') as
+    typeof import('./retention-migration');
   const [kind, ...flagArgs] = rest;
   // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
   // task-layout으로 떨어지면 안 된다.
@@ -409,6 +426,7 @@ function cmdMigrate(rest: string[], io: CliIo) {
     return result.ok ? 0 : 1;
   }
   if (kind === 'review-scope') {
+    const { migrateReviewScope } = require('./migrate-review-scope') as typeof import('./migrate-review-scope');
     const parsed = parseReviewScopeMigrateArgs(flagArgs);
     if (parsed.error) {
       io.err(parsed.error);
@@ -436,26 +454,15 @@ function cmdMigrate(rest: string[], io: CliIo) {
 export = {
   init: {
     run: cmdInit,
-    usage: `  init       [--upgrade-graphify] [--pre-commit-hook]
-             Bootstrap .bouncer/ for this project. Never overwrites.
-`,
+    usage: cliUsage.COMMAND_USAGE['init'],
   },
   'graph-sync': {
     run: cmdGraphSync,
-    usage: `  graph-sync Rebuild stale graphify source + test graphs (SessionStart / plan).
-`,
+    usage: cliUsage.COMMAND_USAGE['graph-sync'],
   },
   intent: {
     run: cmdIntentLazy,
-    usage: `  intent     --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
-             Print function intent provenance JSON (read-only).
-  intent     bundle --task <tasks.md> --symbol <name> [--candidate <qualified-ref>]...
-             Create or reuse a task intent bundle JSON (read/write cache).
-  intent     bundle --task <tasks.md> --no-symbols
-             Same, with an empty function list for tasks without function symbols.
-  intent     sections --task <tasks.md> --role <implementer|reviewer|debugger>
-             Print role-specific intent section bodies JSON (read-only).
-`,
+    usage: cliUsage.COMMAND_USAGE['intent'],
   },
   ontology: {
     run: cmdOntologyLazy,
@@ -467,47 +474,26 @@ export = {
   },
   'graphify-bin': {
     run: cmdGraphifyBin,
-    usage: `  graphify-bin
-             Print the resolved graphify executable path (one line).
-`,
+    usage: cliUsage.COMMAND_USAGE['graphify-bin'],
   },
   'project-root': {
     run: cmdProjectRoot,
-    usage: `  project-root
-             Print the consuming project's main worktree absolute path (one line).
-`,
+    usage: cliUsage.COMMAND_USAGE['project-root'],
   },
   'subagent-model': {
     run: cmdSubagentModel,
-    usage: `  subagent-model --agent <name> [--provider <name>]
-             Print the named agent's model slug, or inherit (one line).
-`,
+    usage: cliUsage.COMMAND_USAGE['subagent-model'],
   },
   'codex-agents': {
     run: cmdCodexAgents,
-    usage: `  codex-agents check --agent <name>
-             Compare local Codex TOML to generated bytes (read-only JSON).
-`,
+    usage: cliUsage.COMMAND_USAGE['codex-agents'],
   },
   migrate: {
     run: cmdMigrate,
-    usage: `  migrate    task-layout [--dry-run]
-             Move legacy task files into tasks/<NNN>/ units.
-  migrate    review-scope --blueprint <dir>
-             Set review_scope: blueprint and create the root pending review.md (idempotent).
-  migrate    retention
-             Audit closed blueprints for retention (dry-run, JSON, no writes).
-  migrate    retention --apply --blueprint <dir>
-             Promote Explain then delete transients for one eligible closed blueprint.
-`,
+    usage: cliUsage.COMMAND_USAGE['migrate'],
   },
   run: {
     run: cmdRun,
-    usage: `  run        preflight --blueprint <dir>
-             Print pointer, open tasks, DAG, ready wave, and autonomy as JSON.
-             detach --blueprint <dir> --yes [--reason <text>]
-             After the user approves, keep the ledger, mark the run detached, and remove only this
-             blueprint's pointer key. Refused while a worker is in flight or awaiting confirmation.
-`,
+    usage: cliUsage.COMMAND_USAGE['run'],
   },
 };
