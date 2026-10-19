@@ -56,7 +56,7 @@ function runSelectedVerification({ repoRoot, blueprintDir, markTaskVerified, dep
 function readVerifyCommand(repoRoot: string, blueprintDir?: string, taskId?: string): string {
   if (!blueprintDir) return readVerifyCommandFor(repoRoot, []);
   const { entries } = resolveVerificationTarget({ repoRoot, blueprintDir, taskId });
-  return readVerifyCommandFor(repoRoot, entries);
+  return readVerifyCommandFor(repoRoot, entries, blueprintDir);
 }
 
 export = { resolveVerificationTarget, runSelectedVerification, readVerifyCommand };
