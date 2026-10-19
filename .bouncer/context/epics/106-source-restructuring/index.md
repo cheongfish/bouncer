@@ -46,3 +46,4 @@ bouncer:
 
 ## Blueprints
 * [001 공유 계약 정본과 DAG·경로 규칙 추출](blueprints/001-foundation-cleanup/index.md) - 리뷰 정책·실행 타입 정본, `execution-dag`·`path-overlap` 추출로 순환 제거, 구현 고정 테스트 전환, 소비자·경계 inventory 문서 (`scripts/src/lib`, `test/`, `docs/architecture/`)
+* [002 검증 대상 선택·finalize 분리와 CLI 지연 로딩](blueprints/002-boundary-introduction/index.md) - 검증 대상 선택 모듈, 공통 Git·커밋 메시지와 finalize 단계 모듈, CLI 정적 usage·명령별 지연 로딩, 영역 배치 inventory (`scripts/src/lib`, `test/`, `docs/architecture/`)
