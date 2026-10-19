@@ -1384,6 +1384,57 @@ function writePartialCloseBlueprint(integrationPath: string, blueprint: string):
   return () => fs.writeFileSync(file, before);
 }
 
+/**
+ * partial-close용 main checkout handoff를 append하고 원래 bytes를 복구할 함수를 돌려준다.
+ * 심볼릭 링크와 directory는 main checkout 밖으로 쓰기가 새지 않도록 거절한다.
+ *
+ * @param {string} mainRoot - canonical main checkout
+ * @param {string} file - main checkout 기준 handoff 경로
+ * @param {string} record - 이번 실패의 재현 가능한 record
+ * @returns {() => void} 후속 ledger/index 쓰기가 실패했을 때 bytes 복구 함수
+ */
+function appendMainHandoff(mainRoot: string, file: string, record: string): () => void {
+  const target = path.join(mainRoot, file);
+  let before: Buffer | null = null;
+  let mode = 0o666;
+  try {
+    const stat = fs.lstatSync(target);
+    if (!stat.isFile()) throw new Error('next-plan-must-be-regular-file');
+    mode = stat.mode & 0o777;
+    before = fs.readFileSync(target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  const separator = before && before.length > 0 && before[before.length - 1] !== 0x0a ? '\n' : '';
+  const appended = Buffer.concat([before || Buffer.alloc(0), Buffer.from(`${separator}---\n${record}`)]);
+  const temporary = `${target}.partial-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  try {
+    fs.writeFileSync(temporary, appended, { flag: 'wx', mode });
+    // 같은 디렉터리의 임시 파일을 rename해 append I/O 실패가 원본을 비우지 않게 한다.
+    fs.renameSync(temporary, target);
+  } catch (error) {
+    try { fs.rmSync(temporary, { force: true }); } catch (cleanupError) {
+      if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') throw cleanupError;
+    }
+    throw error;
+  }
+  return () => {
+    if (before === null) fs.rmSync(target, { force: true });
+    else {
+      const rollback = `${target}.rollback-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      try {
+        fs.writeFileSync(rollback, before, { flag: 'wx', mode });
+        fs.renameSync(rollback, target);
+      } catch (error) {
+        try { fs.rmSync(rollback, { force: true }); } catch (cleanupError) {
+          if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') throw cleanupError;
+        }
+        throw error;
+      }
+    }
+  };
+}
+
 function taskList(repoRoot: string, blueprint: string): Task[] {
   const listing = listTasksDocs({ repoRoot, blueprintDir: blueprint });
   return listing.entries.map((entry) => {
@@ -2932,11 +2983,6 @@ function integrateVerificationTask({
       const exhausted = (ledger.repairWaves || []).length >= 2;
       if (exhausted) {
         ledger.status = 'awaiting_confirmation';
-        const nextPlan = path.join(integration.integrationPath, 'NEXT_PLAN.md');
-        const remaining = evidence.paths.length > 0 ? evidence.paths.join(', ') : 'none recorded';
-        const nextPlanBody = `# Next plan\n\n- Failed command: \`${result.command}\`\n`
-          + `- Exit code: ${result.exitCode}\n- Remaining paths: ${remaining}\n`;
-        fs.writeFileSync(nextPlan, nextPlanBody);
       }
       if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
       writeLedger(integration.ledgerFile, ledger);
@@ -3856,7 +3902,7 @@ function finishFaninAfterFf({
  * @param {string} [opts.ledgerHash] - fence sha256
  * @param {boolean} [opts.userConfirmed] - partial-close 사용자 확인
  * @param {boolean} [opts.promoteLight] - promotion_stopped light 원장을 full로 전환
- * @param {object} [opts.deps] - exec·verify·원장 쓰기 주입
+ * @param {object} [opts.deps] - exec·verify·원장·handoff 쓰기 주입
  * @returns {object} 성공 시 ok:true와 명령별 필드, 실패 시 ok:false와 reason
  *   prepare는 worktree 생성·seed를 원장 잠금 밖에서 돌리고, 실패하면 이번 호출이
  *   만든 worker만 되돌린다.
@@ -3879,6 +3925,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   deps?: {
     execFileSync?: Exec; runVerification?: VerificationRunner; writeLedger?: typeof atomicWrite;
     makeLeaseId?: () => string;
+    appendHandoff?: typeof appendMainHandoff;
   };
 }) {
   const exec = deps.execFileSync || realExecFileSync as unknown as Exec;
@@ -4191,24 +4238,52 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       if (ledger.status !== 'awaiting_confirmation') {
         return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
       }
-      const checked = runtime.validateCoordinatorLedger({ ...ledger, status: 'partial_closed', userConfirmed });
-      if (!checked.ok) return { ok: false, reason: checked.reason };
-      const nextPlan = path.join(integration.integrationPath, 'NEXT_PLAN.md');
-      if (!fs.existsSync(nextPlan)) return { ok: false, reason: 'next-plan-required' };
-      if (!fs.lstatSync(nextPlan).isFile()) return { ok: false, reason: 'next-plan-must-be-regular-file' };
-      if (git(exec, integration.integrationPath, ['ls-files', '--', 'NEXT_PLAN.md']) !== '') {
+      if (!main.projectRoot || fs.realpathSync(repoRoot) !== fs.realpathSync(main.projectRoot)) {
+        return { ok: false, reason: 'main-checkout-root-required' };
+      }
+      const { epicId, blueprintId } = parsePathIds(blueprint);
+      const handoffPath = `${epicId}_${blueprintId}_NEXT_PLAN.md`;
+      const handoffAbs = path.join(main.projectRoot, handoffPath);
+      let handoffStat: ReturnType<typeof fs.lstatSync> | null = null;
+      try { handoffStat = fs.lstatSync(handoffAbs); } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      if (handoffStat && !handoffStat.isFile()) return { ok: false, reason: 'next-plan-must-be-regular-file' };
+      if (git(exec, main.projectRoot, ['ls-files', '--', handoffPath]) !== '') {
         return { ok: false, reason: 'next-plan-must-be-untracked' };
       }
-      ledger.status = 'partial_closed';
-      ledger.userConfirmed = true;
+      if (userConfirmed !== true) return { ok: false, reason: 'partial-close-user-confirmation-required' };
+      const timestamp = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('Z', '+09:00');
+      const failure = ledger.terminalFailure as FailureEvidence;
+      const handoff = { path: handoffPath, timestamp, source_digest: failure.source_digest || '' };
+      const candidate = { ...ledger, status: 'partial_closed', userConfirmed: true, handoff };
+      const validPartialClose = runtime.validateCoordinatorLedger(candidate);
+      if (!validPartialClose.ok) return validPartialClose;
+      Object.assign(ledger, candidate);
+      const remaining = failure.paths.length ? failure.paths.join(', ') : 'none recorded';
+      const record = `# Partial-close handoff\n\n- Timestamp: ${timestamp}\n`
+        + `- Failed command: \`${failure.command}\`\n- Exit code: ${failure.exitCode}\n`
+        + `- Source identity: ${handoff.source_digest}\n- Owner: ${failure.task}\n`
+        + `- Recovery scope: ${remaining}\n- Preserved paths: ${integration.integrationPath}\n`;
+      let rollbackHandoff: (() => void) | undefined;
       const rollbackBlueprint = writePartialCloseBlueprint(integration.integrationPath, blueprint);
       try {
-        { const lost = commitWrite(); if (lost) return lost; }
+        const appendHandoff = typeof deps.appendHandoff === 'function'
+          ? deps.appendHandoff as typeof appendMainHandoff
+          : appendMainHandoff;
+        rollbackHandoff = appendHandoff(main.projectRoot, handoffPath, record);
+        const lost = commitWrite();
+        if (lost) {
+          rollbackHandoff();
+          rollbackBlueprint();
+          return lost;
+        }
       } catch (error) {
+        rollbackHandoff?.();
         rollbackBlueprint();
         throw error;
       }
-      return withCheckpoint({ ok: true as const, command, status: 'partial_closed', nextPlan,
+      return withCheckpoint({ ok: true as const, command, status: 'partial_closed', nextPlan: handoffAbs, handoff,
         message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
         preserved: [integration.integrationPath, ...ledger.tasks.map((entry) => entry.workerPath).filter(Boolean)] },
       ledger, integration.ledgerFile);
@@ -4921,6 +4996,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'The worker is missing the verification task bundle required for fan-in.',
     next: 'Restore the task bundle on the worker, then retry `bouncer coordinate integrate`.',
   },
+  'main-checkout-root-required': {
+    cause: 'Partial-close can write handoff only when repoRoot resolves to the canonical main checkout.',
+    next: 'Run `bouncer coordinate partial-close` from the main checkout while keeping the assigned integration cwd.',
+  },
   'next-plan-must-be-regular-file': {
     cause: 'NEXT_PLAN.md exists but is not a regular file.',
     next: 'Replace it with a regular NEXT_PLAN.md on the integration worktree, then '
@@ -4958,6 +5037,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'Partial-close is allowed only while the drive is awaiting confirmation.',
     next: 'Run `bouncer coordinate status` and wait for awaiting_confirmation before '
       + '`bouncer coordinate partial-close`.',
+  },
+  'partial-close-user-confirmation-required': {
+    cause: 'Partial-close records a terminal failure and requires explicit user confirmation.',
+    next: 'Review the main-checkout handoff, then retry `bouncer coordinate partial-close --user-confirmed`.',
   },
   'promote-reason-invalid': {
     cause: 'promote-stop reason must be one of the five light promotion enums.',

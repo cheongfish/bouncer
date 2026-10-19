@@ -619,7 +619,8 @@ test('verification integrate with a passing and a failing CI → runs CI without
     deps: { runVerification: () => ({ ok: false, command: 'node --test', exitCode: 1 }) },
   });
   assert.strictEqual(thirdFailure.stopped, true);
-  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, 'NEXT_PLAN.md')), true);
+  const handoffPath = path.join(repo, '011_012_NEXT_PLAN.md');
+  assert.strictEqual(fs.existsSync(handoffPath), false);
   assert.strictEqual(coordinate({
     command: 'partial-close', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   }).reason, 'partial-close-user-confirmation-required');
@@ -628,6 +629,9 @@ test('verification integrate with a passing and a failing CI → runs CI without
   });
   assert.strictEqual(partial.ok, true, JSON.stringify(partial));
   assert.strictEqual(partial.status, 'partial_closed');
+  assert.strictEqual(partial.handoff.path, '011_012_NEXT_PLAN.md');
+  assert.strictEqual(fs.existsSync(handoffPath), true);
+  assert.match(fs.readFileSync(handoffPath, 'utf8'), /Source identity:/);
   assert.strictEqual(partial.message, 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.');
 });
 

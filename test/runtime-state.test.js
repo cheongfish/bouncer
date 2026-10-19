@@ -66,19 +66,21 @@ test('repair ledger validation for partial close → requires two waves and the 
     decisions: [], repairWaves: [], status: 'active',
   };
   assert.strictEqual(validateCoordinatorLedger(base).ok, true);
-  assert.match(validateCoordinatorLedger({ ...base, status: 'partial_closed' }).reason, /repair-waves/);
+  assert.match(validateCoordinatorLedger({ ...base, status: 'partial_closed', handoff: { path: '011_012_NEXT_PLAN.md', timestamp: '2026-10-19T16:08:26.068+09:00', source_digest: 'source-1' } }).reason, /repair-waves/);
   const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
   const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
   const waves = [wave1, wave2];
   assert.match(validateCoordinatorLedger({
     ...base, status: 'partial_closed', repairWaves: waves, decisions: copy(waves),
+    handoff: { path: '011_012_NEXT_PLAN.md', timestamp: '2026-10-19T16:08:26.068+09:00', source_digest: 'source-1' },
     tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
       { id: '003', status: 'integrated', decisions: [copy(wave1)] },
       { id: '004', status: 'integrated', decisions: [copy(wave2)] }],
   }).reason, /failure-evidence/);
-  const evidence = { task: '002', command: 'npm test', summary: 'one failed', paths: ['test/a.js'], exitCode: 1, repairWave: 2 };
+  const evidence = { task: '002', command: 'npm test', summary: 'one failed', paths: ['test/a.js'], exitCode: 1, repairWave: 2, source_digest: 'source-1' };
   const valid = {
     ...base, status: 'partial_closed', repairWaves: waves,
+    handoff: { path: '011_012_NEXT_PLAN.md', timestamp: '2026-10-19T16:08:26.068+09:00', source_digest: 'source-1' },
     terminalFailure: evidence, userConfirmed: true, decisions: copy(waves),
     tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
       { id: '003', status: 'integrated', decisions: [copy(wave1)] },
@@ -110,9 +112,10 @@ test('partial-close repair decisions → require complete canonical task and glo
   const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
   const valid = {
     status: 'partial_closed', repairWaves: [wave1, wave2], decisions: copy([wave1, wave2]),
+    handoff: { path: '011_012_NEXT_PLAN.md', timestamp: '2026-10-19T16:08:26.068+09:00', source_digest: 'source-1' },
     terminalFailure: {
       task: '002', command: 'npm test', summary: 'still failing', paths: ['src/b.js'],
-      exitCode: 1, repairWave: 2,
+      exitCode: 1, repairWave: 2, source_digest: 'source-1',
     },
     userConfirmed: true,
     tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
@@ -149,9 +152,10 @@ test('repair failure findings when present → must be a non-empty string array'
   const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
   const valid = {
     status: 'partial_closed', repairWaves: [wave1, wave2], decisions: copy([wave1, wave2]),
+    handoff: { path: '011_012_NEXT_PLAN.md', timestamp: '2026-10-19T16:08:26.068+09:00', source_digest: 'source-1' },
     terminalFailure: {
       task: '002', command: 'npm test', summary: 'still failing', paths: ['src/b.js'],
-      exitCode: 1, repairWave: 2,
+      exitCode: 1, repairWave: 2, source_digest: 'source-1',
     },
     userConfirmed: true,
     tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },

@@ -151,7 +151,7 @@ type GateContext = {
   parseErrors?: FailureEntry[];
   // plan task 분해 보조 신호. failures와 분리 — 호출부가 배열을 넘길 때만 채운다.
   warnings?: FailureEntry[];
-  partialClose?: { ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean };
+  partialClose?: { ledger?: unknown; handoff?: unknown; userConfirmed?: boolean };
 };
 
 type CheckGateOpts = {
@@ -163,18 +163,18 @@ type CheckGateOpts = {
   deps?: GateDeps;
   taskUnit?: TaskUnit | null;
   parseErrors?: FailureEntry[];
-  partialClose?: { ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean };
+  partialClose?: { ledger?: unknown; handoff?: unknown; userConfirmed?: boolean };
 };
 
 /**
  * partial close의 네 증적을 한 경계에서 판정한다. 일반 finalize와 섞지 않아
  * 실패한 drive가 `closed` 성공 조건을 빌려 통과하지 못하게 한다.
  *
- * @param {object} input - 원장, NEXT_PLAN 상태, 사용자 확인
+ * @param {object} input - 원장, main-worktree handoff reference, 사용자 확인
  * @returns {{ok: true} | {ok: false, reason: string}} gate 결과
  */
 function checkPartialCloseEvidence(input: {
-  ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean;
+  ledger?: unknown; handoff?: unknown; userConfirmed?: boolean;
 }): { ok: true } | { ok: false; reason: string } {
   if (!input.ledger || typeof input.ledger !== 'object'
     || (input.ledger as Record<string, unknown>).status !== 'awaiting_confirmation') {
@@ -185,8 +185,10 @@ function checkPartialCloseEvidence(input: {
     status: 'partial_closed', userConfirmed: input.userConfirmed,
   });
   if (!checked.ok) return checked;
-  if (!input.nextPlanExists) return { ok: false, reason: 'next-plan-required' };
-  if (input.nextPlanTracked) return { ok: false, reason: 'next-plan-must-be-untracked' };
+  const ledgerHandoff = (input.ledger as Record<string, unknown>).handoff;
+  if (!input.handoff || JSON.stringify(input.handoff) !== JSON.stringify(ledgerHandoff)) {
+    return { ok: false, reason: 'partial-close-handoff-reference-required' };
+  }
   return { ok: true };
 }
 

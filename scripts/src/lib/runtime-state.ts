@@ -326,6 +326,15 @@ function validateCoordinatorLedger(
   const waves = ledger.repairWaves === undefined ? [] : ledger.repairWaves;
   if (!Array.isArray(waves) || waves.length > REPAIR_WAVE_LIMIT) return { ok: false, reason: 'repair-wave-limit' };
   if (ledger.status !== 'partial_closed') return { ok: true };
+  const handoff = ledger.handoff;
+  if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff)) {
+    return { ok: false, reason: 'partial-close-handoff-required' };
+  }
+  const handoffRef = handoff as Record<string, unknown>;
+  if (!nonEmptyString(handoffRef.path) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+09:00$/.test(handoffRef.timestamp as string)
+    || !nonEmptyString(handoffRef.source_digest)) {
+    return { ok: false, reason: 'partial-close-handoff-invalid' };
+  }
   if (waves.length !== REPAIR_WAVE_LIMIT) return { ok: false, reason: 'partial-close-repair-waves-required' };
   const repairs = waves as Array<Record<string, unknown>>;
   if (repairs.some((entry, index) => !validRepairDecision(entry, index + 1))) {
@@ -368,6 +377,9 @@ function validateCoordinatorLedger(
   const terminal = tasks.find((entry) => entry && entry.id === evidence.task);
   if (!terminal || terminal.execution_kind !== 'verification' || terminal.status !== 'verifying') {
     return { ok: false, reason: 'partial-close-terminal-failure-state-required' };
+  }
+  if (handoffRef.source_digest !== evidence.source_digest) {
+    return { ok: false, reason: 'partial-close-handoff-source-mismatch' };
   }
   if (ledger.userConfirmed !== true) return { ok: false, reason: 'partial-close-user-confirmation-required' };
   return { ok: true };
