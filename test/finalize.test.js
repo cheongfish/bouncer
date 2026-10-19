@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const { finalize } = require('../scripts/lib/finalize');
+const { readCurrent, writeCurrent } = require('../scripts/lib/current');
 const { collectTaskCommits } = require('../scripts/lib/finalize-collect');
 const { writeExplainTaskCommits } = require('../scripts/lib/finalize-explain');
 const { computeDiffSha } = require('../scripts/lib/comprehension');
@@ -1580,7 +1581,7 @@ test('verification-task integration → finalize integration headVerified follow
   assert.strictEqual(closed.integration.headVerified, true);
 });
 
-test('a partial-closed drive → finalize preserves it and refuses ordinary cleanup', () => {
+test('a partial-closed drive → finalize returns a reviewable partial state before cleanup', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const index = path.join(repo, `${BP_REL}/index.md`);
@@ -1590,11 +1591,76 @@ test('a partial-closed drive → finalize preserves it and refuses ordinary clea
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'partial-closed');
+  assert.strictEqual(res.state, 'partial-finalize');
+  assert.strictEqual(res.action, 'awaiting-confirmation');
+  assert.ok(res.digest);
   assert.strictEqual(res.preserved, true);
   assert.strictEqual(res.nextPlan, path.join(repo, 'NEXT_PLAN.md'));
   assert.match(res.message, /NEXT_PLAN\.md를 확인하고/);
   assert.deepStrictEqual(g.calls, { staged: null, committed: null });
   assert.strictEqual('coordinator' in res, false);
+});
+
+test('partial finalize without its handoff → refuses cleanup and preserves the drive', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const drive = drivenBlueprint(repo);
+  const index = path.join(drive.integration, `${BP_REL}/index.md`);
+  fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('status: approved', 'status: partial_closed'));
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  const pointerBefore = readCurrent({ repoRoot: repo });
+  const statusBefore = execFileSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8' });
+  const result = finalize({
+    repoRoot: repo, cwd: repo, blueprintDir: BP_REL, partialFinalize: true,
+    yes: true, confirmPartial: true, git: fakeGit([], []).api,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'partial-evidence-missing');
+  assert.equal(fs.existsSync(drive.integration), true);
+  assert.equal(fs.existsSync(drive.worker), true);
+  assert.deepEqual(readCurrent({ repoRoot: repo }), pointerBefore);
+  assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8' }), statusBefore);
+});
+
+test('partial finalize with handoff and decision → requires separate confirmation, then clears pointer and worktrees', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const drive = drivenBlueprint(repo);
+  const index = path.join(drive.integration, `${BP_REL}/index.md`);
+  fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('status: approved', 'status: partial_closed'));
+  const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  const handoff = '001_001_NEXT_PLAN.md';
+  ledger.status = 'partial_closed';
+  ledger.userConfirmed = true;
+  ledger.handoff = { path: handoff, source_digest: 'failure-digest' };
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger)}\n`);
+  fs.writeFileSync(path.join(repo, handoff), '# Partial handoff\n');
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+
+  const awaiting = finalize({
+    repoRoot: repo, cwd: repo, blueprintDir: BP_REL, partialFinalize: true, yes: true,
+    git: fakeGit([], []).api,
+  });
+  assert.equal(awaiting.reason, 'partial-confirmation-required');
+  assert.equal(awaiting.digest.handoff.path, handoff);
+  assert.equal(awaiting.digest.worktrees.length, 2);
+  assert.ok(awaiting.digest.tasks[0]?.verification, JSON.stringify(awaiting.digest));
+  assert.equal(awaiting.digest.tasks[0].verification.status, 'passed');
+  assert.ok(awaiting.digest.tasks[0].review);
+  assert.ok(readCurrent({ repoRoot: repo }));
+  assert.equal(fs.existsSync(drive.integration), true);
+
+  const result = finalize({
+    repoRoot: repo, cwd: repo, blueprintDir: BP_REL, partialFinalize: true, yes: true,
+    confirmPartial: true, git: fakeGit([], []).api,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 'partial_closed');
+  assert.equal(result.digest.merge, false);
+  assert.equal(result.pointerCleared, true);
+  assert.equal(readCurrent({ repoRoot: repo }), null);
+  assert.equal(fs.existsSync(drive.integration), false);
+  assert.equal(fs.existsSync(drive.worker), false);
+  assert.equal(fs.existsSync(path.join(repo, handoff)), true);
 });
 
 // 읽히지 않는 원장을 null로 접으면 비-drive finalize와 구분되지 않는다.

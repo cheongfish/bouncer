@@ -150,6 +150,8 @@ function runRelease(fx, overrides = {}) {
     repoRoot: overrides.repoRoot ?? fx.main,
     cwd: overrides.cwd ?? fx.main,
     blueprintDir: overrides.blueprintDir ?? fx.bp,
+    allowPartialMerge: overrides.allowPartialMerge,
+    confirmPartialMerge: overrides.confirmPartialMerge,
     deps: overrides.deps,
   });
 }
@@ -226,6 +228,41 @@ test('rejection reasons → leave the main tree and porcelain unchanged', () => 
     assert.deepEqual(snapshot(fx.main), before, reason);
     assert.equal(porcelain(fx.main), beforeStatus, reason);
   }
+});
+
+test('partial merge without two independent confirmations → preserves main, then merges only integration HEAD with a handoff marker', () => {
+  const fx = makeFixture();
+  git(fx.main, ['add', '--', BP]);
+  git(fx.main, ['commit', '-qm', 'main plan copy']);
+  git(fx.main, ['worktree', 'remove', '--force', fx.integration]);
+  git(fx.main, ['worktree', 'add', '-q', '-B', 'bouncer/084-001-int', fx.integration, 'HEAD']);
+  const handoff = '084_001_NEXT_PLAN.md';
+  fs.writeFileSync(path.join(fx.main, handoff), '# Partial handoff\n');
+  writeDoc(fx.integration, `${BP}/index.md`, 'bouncer.blueprint', {
+    id: '001', epic_id: '084', blueprint_id: '001', status: 'partial_closed', commit_type: 'feat',
+  }, '# Blueprint\n\n## Intent\n- partial\n');
+  fs.writeFileSync(path.join(fx.integration, 'integration-only.txt'), 'integration head\n');
+  git(fx.integration, ['add', '--', BP, 'integration-only.txt']);
+  git(fx.integration, ['commit', '-qm', 'partial integration']);
+  const integrationHead = git(fx.integration, ['rev-parse', 'HEAD']);
+  writeLedger(fx.ledgerFile, { status: 'partial_closed', userConfirmed: true, handoff: { path: handoff } });
+
+  const before = git(fx.main, ['rev-parse', 'HEAD']);
+  const ordinary = runRelease(fx);
+  assert.equal(ordinary.reason, 'drive-not-closed');
+  const oneFlag = runRelease(fx, { allowPartialMerge: true });
+  assert.equal(oneFlag.reason, 'partial-merge-confirmation-required');
+  assert.equal(git(fx.main, ['rev-parse', 'HEAD']), before);
+
+  const merged = runRelease(fx, { allowPartialMerge: true, confirmPartialMerge: true });
+  assert.equal(merged.ok, true, JSON.stringify(merged));
+  assert.equal(merged.merged, integrationHead);
+  assert.equal(merged.handoff, handoff);
+  assert.equal(fs.readFileSync(path.join(fx.main, 'integration-only.txt'), 'utf8'), 'integration head\n');
+  assert.match(git(fx.main, ['log', '-1', '--format=%B']), /^\[partial\]/);
+  assert.match(git(fx.main, ['log', '-1', '--format=%B']), new RegExp(`Handoff: ${handoff}`));
+  assert.match(fs.readFileSync(path.join(fx.main, `${BP}/index.md`), 'utf8'), /status: partial_closed/);
+  assert.equal(JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8')).status, 'partial_closed');
 });
 
 test('staged new files under the blueprint → are unstaged and deleted', () => {
