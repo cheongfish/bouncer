@@ -116,8 +116,6 @@ function requireNamedAgent(
   command: string,
 ): { error: string } | { agent: string } {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
-  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { NAMED_AGENTS } = require('./codex-agents') as typeof import('./codex-agents');
   const allowed = NAMED_AGENTS.join(', ');
   const agent = flags.agent;
@@ -175,8 +173,6 @@ function cmdSubagentModel(rest: string[], io: CliIo): number {
 function cmdCodexAgents(rest: string[], io: CliIo): number {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
-  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { init } = require('./init') as typeof import('./init');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { checkCodexAgent } = require('./codex-agents') as typeof import('./codex-agents');
   const command = rest[0];
@@ -405,7 +401,8 @@ function cmdMigrate(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { migrateTaskLayout } = require('./migrate-task-layout') as typeof import('./migrate-task-layout');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { auditRetention, migrateRetention } = require('./retention-migration') as typeof import('./retention-migration');
+  const { auditRetention, migrateRetention } = require('./retention-migration') as
+    typeof import('./retention-migration');
   const [kind, ...flagArgs] = rest;
   // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
   // task-layout으로 떨어지면 안 된다.
@@ -457,15 +454,15 @@ function cmdMigrate(rest: string[], io: CliIo) {
 export = {
   init: {
     run: cmdInit,
-    usage: cliUsage.COMMAND_USAGE["init"],
+    usage: cliUsage.COMMAND_USAGE['init'],
   },
   'graph-sync': {
     run: cmdGraphSync,
-    usage: cliUsage.COMMAND_USAGE["graph-sync"],
+    usage: cliUsage.COMMAND_USAGE['graph-sync'],
   },
   intent: {
     run: cmdIntentLazy,
-    usage: cliUsage.COMMAND_USAGE["intent"],
+    usage: cliUsage.COMMAND_USAGE['intent'],
   },
   ontology: {
     run: cmdOntologyLazy,
@@ -477,26 +474,26 @@ export = {
   },
   'graphify-bin': {
     run: cmdGraphifyBin,
-    usage: cliUsage.COMMAND_USAGE["graphify-bin"],
+    usage: cliUsage.COMMAND_USAGE['graphify-bin'],
   },
   'project-root': {
     run: cmdProjectRoot,
-    usage: cliUsage.COMMAND_USAGE["project-root"],
+    usage: cliUsage.COMMAND_USAGE['project-root'],
   },
   'subagent-model': {
     run: cmdSubagentModel,
-    usage: cliUsage.COMMAND_USAGE["subagent-model"],
+    usage: cliUsage.COMMAND_USAGE['subagent-model'],
   },
   'codex-agents': {
     run: cmdCodexAgents,
-    usage: cliUsage.COMMAND_USAGE["codex-agents"],
+    usage: cliUsage.COMMAND_USAGE['codex-agents'],
   },
   migrate: {
     run: cmdMigrate,
-    usage: cliUsage.COMMAND_USAGE["migrate"],
+    usage: cliUsage.COMMAND_USAGE['migrate'],
   },
   run: {
     run: cmdRun,
-    usage: cliUsage.COMMAND_USAGE["run"],
+    usage: cliUsage.COMMAND_USAGE['run'],
   },
 };

@@ -297,5 +297,5 @@ function cmdReview(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdReview,
-  usage: cliUsage.COMMAND_USAGE["review"],
+  usage: cliUsage.COMMAND_USAGE['review'],
 };

@@ -13,9 +13,6 @@ type CliIo = {
   err: (s: string) => void;
 };
 
-const USAGE_BLOCK = '  config --help\n'
-  + '             Show .bouncer/config.json "subagents" keys, allowed values, and defaults (read-only).\n';
-
 const USAGE = 'usage: bouncer config --help\n';
 
 // 출력 한 줄이 max-len(120)을 넘어 템플릿 밖 상수로 뺀다. 출력 바이트는 그대로다.
@@ -59,5 +56,5 @@ function cmdConfig(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdConfig,
-  usage: cliUsage.COMMAND_USAGE["config"],
+  usage: cliUsage.COMMAND_USAGE['config'],
 };

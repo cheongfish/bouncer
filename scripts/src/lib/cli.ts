@@ -1,5 +1,7 @@
 'use strict';
 
+/* eslint-disable max-len -- Lazy handler registrations keep imports deferred until command selection. */
+
 import cliFlags = require('./cli-flags');
 import cliUsage = require('./cli-usage');
 const { parseFlags } = cliFlags;

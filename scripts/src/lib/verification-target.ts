@@ -2,11 +2,21 @@
 import current = require('./current');
 const { resolveEffectiveTask } = current;
 import verification = require('./verification');
-const { selectVerificationEntries, readVerifyCommandFor, runVerification } = verification;
+const {
+  selectVerificationEntries,
+  readVerifyCommandFor,
+  runVerification,
+} = verification;
 import type { EffectiveTask } from './execution-contracts';
 
 type VerificationDeps = { [key: string]: unknown };
-type TaskDocsEntry = { rel: string; dir?: string | null; number?: number | null; tasks?: { rel: string }; verification?: { rel: string } };
+type TaskDocsEntry = {
+  rel: string;
+  dir?: string | null;
+  number?: number | null;
+  tasks?: { rel: string };
+  verification?: { rel: string };
+};
 
 /**
  * 기본 검증 대상을 한 번 해석하고 실행 계층에 넘길 task 목록을 반환한다.

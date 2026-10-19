@@ -13,11 +13,9 @@ const { clearCurrent, nextBlueprint, readCurrent } = current;
 import taskCommits = require('./task-commits');
 const { resolveTaskCommits } = taskCommits;
 import frontmatter = require('./frontmatter');
-const { parseFrontmatter, readDoc } = frontmatter;
+const { parseFrontmatter } = frontmatter;
 import render = require('./render');
 const { renderDoc } = render;
-import commitSha = require('./commit-sha');
-const { normalizeCommitSha, buildStableProvenance } = commitSha;
 import scope = require('./scope');
 const { makeFinalizeAllowed, isRuntimeArtifact, readCoordinatorLedger } = scope;
 import verification = require('./verification');
@@ -35,11 +33,11 @@ type GitApi = {
   headSha?: () => string;
 };
 import commitMessage = require('./commit-message');
-const { buildCommitMessage, buildFinalizeCommitMessage } = commitMessage;
+const { buildFinalizeCommitMessage } = commitMessage;
 import finalizeCollect = require('./finalize-collect');
 const {
   collectTransientRels, collectTaskCommits, collectCoordinatorProvenance,
-  buildCoordinatorProvenance, provenanceFromLedgerRead, stableIdFromTaskData,
+  provenanceFromLedgerRead, stableIdFromTaskData,
 } = finalizeCollect;
 import finalizeChecks = require('./finalize-checks');
 const {
@@ -48,26 +46,12 @@ const {
 import finalizeExplain = require('./finalize-explain');
 const { writeExplainTaskCommits, buildTaskContext, writeExplainTaskContext } = finalizeExplain;
 
-import tasksDocs = require('./tasks-docs');
-const { listTasksDocs } = tasksDocs;
-import validateSections = require('./validate-sections');
-const { parseTasksSections } = validateSections;
-import templates = require('./templates');
-import preCommitHook = require('./pre-commit-hook');
-const { internalCommitEnv } = preCommitHook;
-// finalize → current → coordinator 경로가 이미 있으므로 직접 import해도 새 순환은
-// 없다(coordinator의 import 닫힘에는 finalize가 없다).
-import coordinatorLib = require('./coordinator');
 import { validOutsideScope } from './execution-contracts';
 import type { OutsideScopeDisposition } from './execution-contracts';
 // seed-worktree는 paths·layout·scope만 import하므로 finalize를 끌어와 순환을 만들지 않는다.
 // 설치 판정(lockfile·marker)과 npm ci 인자를 seed/fan-in과 한 구현으로 공유하려는 import.
 import seedWorktree = require('./seed-worktree');
 const { prepareDependencies } = seedWorktree;
-const { readBouncerBlock } = coordinatorLib;
-const { normalizeAuthoredLines, parseIntentBody } = templates;
-
-type TaskCommitEntry = { task: string; sha: string; intent_anchor: string };
 type TrailerCommit = { sha?: string; sha8: string };
 
 /**
@@ -151,22 +135,6 @@ function codedErrorCode(error: unknown): string | undefined {
   return undefined;
 }
 
-type DocLeafLike = { data?: unknown; body?: string; rel?: string };
-type TaskUnitLike = {
-  number?: number | null;
-  tasks?: DocLeafLike;
-  verification?: DocLeafLike;
-  review?: DocLeafLike;
-  [key: string]: unknown;
-};
-type DocsLike = {
-  // loadBlueprintDocs는 파싱 실패 시 blueprintIndex를 비울 수 있다. 필수 단언은
-  // 소비자 캐스트가 가리던 불일치였고, 런타임은 asRecord(undefined)로 빈 subject 경로를 탄다.
-  blueprintIndex?: { data: unknown; body?: string };
-  tasks?: DocLeafLike;
-  taskUnits?: TaskUnitLike[];
-  [key: string]: unknown;
-};
 type LockTarget = { rel: string; data: unknown; body: string | null };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -231,19 +199,6 @@ function mergeLocked(list: string[], lockPath: string | null): string[] {
   if (!lockPath) return list;
   return list.includes(lockPath) ? list : [...list, lockPath];
 }
-
-type LedgerTaskLike = {
-  workerPath?: unknown;
-};
-type CoordinatorLedgerLike = {
-  base?: unknown; integrationBranch?: unknown; tasks?: unknown;
-};
-
-type CoordinatorProvenance = ReturnType<typeof buildCoordinatorProvenance>;
-type UnreadableProvenance = {
-  status: 'unreadable'; ledgerFile: string | null; integrationPath: string | null;
-  base: null; integrationBranch: null; worktrees: never[];
-};
 
 type LedgerReadLike = ReturnType<typeof readCoordinatorLedger>;
 /**
@@ -317,8 +272,6 @@ function remainderOutsideScope(
     note: `범위 밖 실패 evidence ${disposition.evidence_id}는 id로만 PR에 싣고 로컬 경로는 공유 링크에 넣지 않는다.`,
   };
 }
-
-type EvidenceMismatch = { id: string | null; expected: string; actual: string | null };
 
 // prepareDependencies의 기본 stdio는 inherit이다. finalize 결과는 CLI가 stdout에
 // JSON으로 그대로 쓰므로, npm 출력이 같은 stdout에 섞이면 소비자가 결과를 파싱하지

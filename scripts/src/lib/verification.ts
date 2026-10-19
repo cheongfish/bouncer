@@ -17,6 +17,13 @@ import time = require('./time');
 const { nowIsoKst } = time;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
+type VerificationTaskEntry = {
+  rel: string;
+  dir?: string | null;
+  number?: number | null;
+  tasks?: { rel: string };
+  verification?: { rel: string };
+};
 // current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
 // 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
 import type { EffectiveTask } from './execution-contracts';
@@ -124,7 +131,11 @@ function errorCode(error: unknown): unknown {
  * @param {string} [taskId] - 세 자리 task id. 없으면 lease/pointer effective로 해석
  * @returns {Array<{rel: string, verification?: {rel: string}}>} 대상 문서 엔트리
  */
-function selectVerificationEntries(repoRoot: string, blueprintDir: string, { taskId, effectiveTask }: { taskId?: string; effectiveTask: EffectiveTask | null }): Array<{ rel: string; dir?: string | null; number?: number | null; tasks?: { rel: string }; verification?: { rel: string } }> {
+function selectVerificationEntries(
+  repoRoot: string,
+  blueprintDir: string,
+  { taskId, effectiveTask }: { taskId?: string; effectiveTask: EffectiveTask | null },
+): VerificationTaskEntry[] {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   if (listing.mixed) return [];
   // 명시 taskId는 pointer/lease effective보다 우선한다. wave·terminal integrate가
@@ -504,7 +515,12 @@ function assertVerificationScope(scope: unknown): VerificationScope {
  * @param {string} blueprintDir - blueprint 상대 경로
  * @returns {VerificationScope} `{ kind: 'task', key: 'EPIC-…/BP-…/TASK-…' }`
  */
-function resolveDefaultTaskScope(repoRoot: string, blueprintDir: string, effective: EffectiveTask | null, entries: Array<{ rel: string; tasks?: { rel: string } }>): VerificationScope {
+function resolveDefaultTaskScope(
+  repoRoot: string,
+  blueprintDir: string,
+  effective: EffectiveTask | null,
+  entries: Array<{ rel: string; tasks?: { rel: string } }>,
+): VerificationScope {
   if (effective && effective.source === null) {
     throw verificationError(
       'VERIFY_IDENTITY_INVALID',
@@ -993,7 +1009,12 @@ function recordVerificationResult({
     const blueprintGuess = blueprintDir
       || rel.replace(/\/tasks\/\d{3}\/verification\.md$/, '')
       || rel.replace(/\/verification\.md$/, '');
-    resolvedScope = resolvedScope || resolveDefaultTaskScope(repoRoot, blueprintGuess, null, listTasksDocs({ repoRoot, blueprintDir: blueprintGuess }).entries);
+    resolvedScope = resolvedScope || resolveDefaultTaskScope(
+      repoRoot,
+      blueprintGuess,
+      null,
+      listTasksDocs({ repoRoot, blueprintDir: blueprintGuess }).entries,
+    );
     const computed = computeEvidenceIdentity({
       repoRoot,
       command,
@@ -1132,7 +1153,11 @@ function maybeMarkCommitTaskVerified({
   fs.writeFileSync(file, renderDoc(data, document.body));
 }
 
-function resolveVerificationRel(repoRoot: string, blueprintDir: string, entries: Array<{ rel: string; verification?: { rel: string } }>): string {
+function resolveVerificationRel(
+  repoRoot: string,
+  blueprintDir: string,
+  entries: Array<{ rel: string; verification?: { rel: string } }>,
+): string {
   // 호출자가 이미 고른 목록을 따르며, 목록이 비면 레거시 루트 경로를 쓴다.
   if (entries[0] && entries[0].verification && entries[0].verification.rel) {
     return entries[0].verification.rel;
@@ -1191,7 +1216,11 @@ function runVerification({
   if (taskId === undefined && effectiveTask === undefined) {
     throw verificationError('VERIFY_TARGET_REQUIRED', 'runVerification requires taskId or effectiveTask');
   }
-  const selectedEntries = selectVerificationEntries(repoRoot, blueprintDir, { taskId, effectiveTask: effectiveTask ?? null });
+  const selectedEntries = selectVerificationEntries(
+    repoRoot,
+    blueprintDir,
+    { taskId, effectiveTask: effectiveTask ?? null },
+  );
   const command = readVerifyCommandFor(repoRoot, selectedEntries, blueprintDir);
   const verificationRel = resolveVerificationRel(repoRoot, blueprintDir, selectedEntries);
   const verificationPath = path.join(repoRoot, verificationRel);

@@ -413,6 +413,6 @@ function cmdCurrent(rest: string[], io: CliIo) {
 export = {
   current: {
     run: cmdCurrent,
-    usage: cliUsage.COMMAND_USAGE["current"],
+    usage: cliUsage.COMMAND_USAGE['current'],
   },
 };

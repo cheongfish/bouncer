@@ -793,26 +793,26 @@ function cmdCoordinate(rest: string[], io: CliIo) {
 export = {
   commit: {
     run: cmdCommit,
-    usage: cliUsage.COMMAND_USAGE["commit"],
+    usage: cliUsage.COMMAND_USAGE['commit'],
   },
   finalize: {
     run: cmdFinalize,
-    usage: cliUsage.COMMAND_USAGE["finalize"],
+    usage: cliUsage.COMMAND_USAGE['finalize'],
   },
   'seed-worktree': {
     run: cmdSeedWorktree,
-    usage: cliUsage.COMMAND_USAGE["seed-worktree"],
+    usage: cliUsage.COMMAND_USAGE['seed-worktree'],
   },
   execute: {
     run: cmdExecute,
-    usage: cliUsage.COMMAND_USAGE["execute"],
+    usage: cliUsage.COMMAND_USAGE['execute'],
   },
   coordinate: {
     run: cmdCoordinate,
-    usage: cliUsage.COMMAND_USAGE["coordinate"],
+    usage: cliUsage.COMMAND_USAGE['coordinate'],
   },
   import: {
     run: cmdImport,
-    usage: cliUsage.COMMAND_USAGE["import"],
+    usage: cliUsage.COMMAND_USAGE['import'],
   },
 };

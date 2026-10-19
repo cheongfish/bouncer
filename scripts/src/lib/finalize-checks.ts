@@ -5,14 +5,12 @@ import paths = require('./paths');
 const { toPosix } = paths;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
-import scope = require('./scope');
-const { readCoordinatorLedger } = scope;
 import { validOutsideScope } from './execution-contracts';
 import type { OutsideScopeDisposition } from './execution-contracts';
 function asRecord(value: unknown): Record<string, unknown> { return value as Record<string, unknown>; }
 
 
-type LedgerReadLike = ReturnType<typeof readCoordinatorLedger>;
+type LedgerReadLike = ReturnType<typeof import('./scope').readCoordinatorLedger>;
 
 
 type IntegrationReport = {

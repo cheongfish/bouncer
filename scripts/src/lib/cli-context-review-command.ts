@@ -307,5 +307,5 @@ function cmdContextReview(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdContextReview,
-  usage: cliUsage.COMMAND_USAGE["context-review"],
+  usage: cliUsage.COMMAND_USAGE['context-review'],
 };

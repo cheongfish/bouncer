@@ -74,5 +74,5 @@ function cmdCommitGuard(rest: string[], io: CliIo): number {
 export = {
   runCommitGuard,
   run: cmdCommitGuard,
-  usage: cliUsage.COMMAND_USAGE["commit-guard"],
+  usage: cliUsage.COMMAND_USAGE['commit-guard'],
 };

@@ -158,5 +158,5 @@ function cmdDispatch(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdDispatch,
-  usage: cliUsage.COMMAND_USAGE["dispatch"],
+  usage: cliUsage.COMMAND_USAGE['dispatch'],
 };

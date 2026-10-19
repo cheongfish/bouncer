@@ -350,5 +350,5 @@ function cmdReviewDispatch(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdReviewDispatch,
-  usage: cliUsage.COMMAND_USAGE["review-dispatch"],
+  usage: cliUsage.COMMAND_USAGE['review-dispatch'],
 };

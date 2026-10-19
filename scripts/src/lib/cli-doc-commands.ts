@@ -76,7 +76,8 @@ function cmdScaffold(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } = require('./scaffold') as typeof import('./scaffold');
+  const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } =
+    require('./scaffold') as typeof import('./scaffold');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { isNumericContextId } = require('./paths') as typeof import('./paths');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
@@ -279,18 +280,18 @@ function cmdPlan(rest: string[], io: CliIo) {
 export = {
   validate: {
     run: cmdValidate,
-    usage: cliUsage.COMMAND_USAGE["validate"],
+    usage: cliUsage.COMMAND_USAGE['validate'],
   },
   verify: {
     run: cmdVerify,
-    usage: cliUsage.COMMAND_USAGE["verify"],
+    usage: cliUsage.COMMAND_USAGE['verify'],
   },
   scaffold: {
     run: cmdScaffold,
-    usage: cliUsage.COMMAND_USAGE["scaffold"],
+    usage: cliUsage.COMMAND_USAGE['scaffold'],
   },
   plan: {
     run: cmdPlan,
-    usage: cliUsage.COMMAND_USAGE["plan"],
+    usage: cliUsage.COMMAND_USAGE['plan'],
   },
 };

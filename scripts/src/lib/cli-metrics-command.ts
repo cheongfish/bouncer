@@ -18,16 +18,6 @@ type CliIo = {
 
 const KINDS = 'coordinator-session|context-review|root-direct-session';
 
-const USAGE_BLOCK = `  metrics start --kind <${KINDS}> --blueprint <dir> [--label <text>]\n`
-  + '             [--target-digest <64hex>]\n'
-  + '             Record a coordinator, root-direct, or plan context-review session start in drive-metrics.json.\n'
-  + '  metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>]\n'
-  + '             [--cache-read-tokens <n>] [--cache-write-tokens <n>] [--model <slug>] [--host-duration-ms <n>]\n'
-  + '             Record host-reported tokens and time; missing values are stored as null with a reason.\n'
-  + '  metrics summary --blueprint <dir>\n'
-  + '             Sum sessions per kind (null tokens, durations, and costs are counted as missing,\n'
-  + '             never as 0; a total with no observed value is null).\n';
-
 const USAGE = `usage: bouncer metrics start --kind <${KINDS}> --blueprint <dir> `
   + '[--label <text>] [--target-digest <64hex>]\n'
   + '       bouncer metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>] '
@@ -134,4 +124,4 @@ function cmdMetrics(rest: string[], io: CliIo): number {
   }));
 }
 
-export = { run: cmdMetrics, usage: cliUsage.COMMAND_USAGE["metrics"] };
+export = { run: cmdMetrics, usage: cliUsage.COMMAND_USAGE['metrics'] };

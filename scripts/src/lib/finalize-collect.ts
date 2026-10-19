@@ -8,7 +8,7 @@ const { readDoc } = frontmatter;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import scope = require('./scope');
-const { isRuntimeArtifact, readCoordinatorLedger } = scope;
+const { readCoordinatorLedger } = scope;
 import commitSha = require('./commit-sha');
 const { buildStableProvenance, normalizeCommitSha } = commitSha;
 import gitOps = require('./git-ops');
@@ -383,4 +383,12 @@ function collectTaskCommits({ repoRoot, blueprintDir, commits }: {
 }
 
 
-export = { STABLE_TASK_RE, stableIdFromTaskData, buildCoordinatorProvenance, provenanceFromLedgerRead, collectCoordinatorProvenance, collectTransientRels, collectTaskCommits };
+export = {
+  STABLE_TASK_RE,
+  stableIdFromTaskData,
+  buildCoordinatorProvenance,
+  provenanceFromLedgerRead,
+  collectCoordinatorProvenance,
+  collectTransientRels,
+  collectTaskCommits,
+};

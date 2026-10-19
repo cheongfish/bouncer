@@ -28,12 +28,6 @@ type RetroDeps = {
   env?: Record<string, string | undefined>;
 };
 
-const USAGE_BLOCK = '  retro sources [--repo <dir>] [--limit <1..200>] [--claude-root <dir>]\n'
-  + '             [--codex-root <dir>] [--cursor-root <dir>]\n'
-  + '             List Claude Code, Codex, and Cursor transcript candidates for this project (read-only JSON).\n'
-  + '  retro read --path <file> [--max-chars <n>]\n'
-  + '             Normalize one transcript into role/text messages with a character cap (read-only JSON).\n';
-
 const USAGE = 'usage: bouncer retro sources [--repo <dir>] [--limit <1..200>] '
   + '[--claude-root <dir>] [--codex-root <dir>] [--cursor-root <dir>]\n'
   + '       bouncer retro read --path <file> [--max-chars <n>]\n';
@@ -164,4 +158,4 @@ function cmdRetro(rest: string[], io: CliIo, deps: RetroDeps = {}): number {
   return 0;
 }
 
-export = { run: cmdRetro, usage: cliUsage.COMMAND_USAGE["retro"] };
+export = { run: cmdRetro, usage: cliUsage.COMMAND_USAGE['retro'] };
