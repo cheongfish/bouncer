@@ -6,7 +6,6 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import runtime = require('./runtime-state');
 const {
   coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch,
-  COORDINATOR_LEDGER_REL,
 } = runtime;
 import seed = require('./seed-worktree');
 const { seedCoordinatorWorker, seedIntegration, prepareDependencies } = seed;
@@ -41,14 +40,22 @@ import reviewPolicy = require('./review-policy');
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 import type {
   ReportOutcome, PromoteStopReason, PromotionRecord, DispatchState, Task, Ledger,
-  FailureEvidence, RepairDecision, LedgerRef, OutsideScopeDisposition,
+  FailureEvidence, RepairDecision, LedgerRef, OutsideScopeDisposition, Exec, VerificationRunner,
 } from './execution-contracts';
+import coordinatorLedger = require('./coordinator-ledger');
+import coordinatorGit = require('./coordinator-git');
+import coordinatorVerification = require('./coordinator-verification');
 import driveMetrics = require('./drive-metrics');
 const { issueLease, revokeLease, checkLease } = leaseMod;
 const { randomUUID } = require('node:crypto');
 
-// runtime-state가 정본. 여기서 다시 문자열을 쓰면 fence path와 validator가 갈라진다.
-const LEDGER_REL = COORDINATOR_LEDGER_REL;
+// 경로 상수와 원장 I/O는 한 모듈에서 공유해 fence와 저장 동작이 갈라지지 않게 한다.
+const { atomicWrite, loadLedgerBytes, loadLedger, ledgerBytesHash, assertLedgerFence, writeOwnedLedger } = coordinatorLedger;
+const { git, initialWorktreeState, sourceStatus, workerOwnsSha, directParent, registeredWorker, registeredIntegration } = coordinatorGit;
+const {
+  withInstallStdioToStderr, prepareVerificationDependencies, selectVerificationRunner, runTargetVerification,
+} = coordinatorVerification;
+const LEDGER_REL = coordinatorLedger.LEDGER_REL;
 
 /**
  * status/bootstrap을 제외한 원장 쓰기 명령. path/hash 쌍이 없거나 어긋나면
@@ -155,34 +162,6 @@ type WorkerSalvageDecision = {
 // git·lease에서 다시 계산하지 않도록 결과에 싣는다. 등록되지 않은 worker는 head가 빈 문자열이다.
 type SalvageResult = { patch?: string; ref?: string; dirty_paths: string[]; head: string; generation: number };
 type SalvageEntry = SalvageResult & { task: string };
-type Exec = (file: string, args?: readonly string[], options?: {
-  cwd?: unknown; encoding?: unknown; stdio?: unknown;
-}) => string | Buffer;
-/**
- * npm ci 출력이 CLI stdout에 섞이지 않도록 exec의 stdio를 고정한 wrapper를 만든다.
- * `bouncer coordinate advance`는 자식 CLI의 stdout 전체를 JSON 한 개로 파싱하므로
- * 손자 프로세스(npm)의 `inherit` 출력이 섞이면 unclear-result가 반복된다. 출력을
- * 버리지 않고 stderr(fd 2)로 보내 사용자가 설치 진행을 계속 볼 수 있게 한다.
- * prepareDependencies/seedCoordinatorWorker는 이 exec를 npm 호출에만 쓰므로
- * stdio 덮어쓰기가 다른 캡처 호출을 깨지 않는다.
- *
- * @param {Exec} exec - 감쌀 execFileSync 호환 함수
- * @returns {Exec} options.stdio를 ['ignore', 2, 2]로 덮어 exec를 호출하는 함수
- */
-function withInstallStdioToStderr(exec: Exec): Exec {
-  return (file, args, options) => exec(file, args, { ...options, stdio: ['ignore', 2, 2] });
-}
-
-type VerificationRunner = (opts: {
-  repoRoot: string;
-  blueprintDir: string;
-  taskId?: string;
-  scope?: { kind: 'task' | 'wave' | 'terminal'; key: string };
-}) => {
-  ok: boolean; command: string; exitCode: number;
-  evidenceId?: string; reused?: boolean; reusedFrom?: string;
-};
-
 type CompletedTaskSummary = {
   id: string; status: string; attempt?: number; commit_sha?: string;
   changed_paths?: string[]; scope_revision?: string;
@@ -365,88 +344,6 @@ function integrationRootFromLedger(ledgerFile: string): string {
   return path.resolve(path.dirname(ledgerFile), '..', '..');
 }
 
-function atomicWrite(file: string, data: unknown): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
-  fs.renameSync(temporary, file);
-}
-
-/**
- * 원장 파일 bytes와 파싱 결과를 한 번에 읽는다. fence hash는 이 bytes에만 묶여야
- * load 직후 재read로 다른 내용이 검증되는 TOCTOU가 생기지 않는다.
- *
- * @param {string} file - 원장 절대 경로
- * @returns {{ ledger: Ledger, bytes: Buffer } | null} 없거나 파싱 실패 전 부재면 null
- */
-function loadLedgerBytes(file: string): { ledger: Ledger; bytes: Buffer } | null {
-  if (!fs.existsSync(file)) return null;
-  const bytes = fs.readFileSync(file);
-  return { ledger: JSON.parse(bytes.toString('utf8')) as Ledger, bytes };
-}
-
-function loadLedger(file: string): Ledger | null {
-  const loaded = loadLedgerBytes(file);
-  return loaded ? loaded.ledger : null;
-}
-
-/**
- * 이미 읽은 원장 bytes의 SHA-256. trim·재직렬화 없이 status token과 mutation fence가
- * 같은 메모리 bytes를 쓰게 한다 — 디스크를 다시 읽으면 load와 fence 사이에 내용이
- * 바뀌어도 통과할 수 있다.
- *
- * @param {Buffer} bytes - load 시점에 고정한 원장 bytes
- * @returns {string} 64자리 소문자 hex
- */
-function ledgerBytesHash(bytes: Buffer): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}
-
-/**
- * mutation이 들고 온 ledger path/hash 쌍을 쓰기 전에 검사한다. 절대·escaping·
- * 잘못된 상대경로·비 64-hex는 invalid, 이미 로드한 bytes hash 불일치는 stale로 구분한다.
- * hash는 `ledgerBytes`에만 묶는다 — 호출자가 load한 내용과 다른 디스크 snapshot을
- * 다시 읽어 fencing하면 토큰이 곧 변조될 bytes와 어긋난다.
- *
- * @param {{ ledgerPath?: string, ledgerHash?: string, ledgerBytes: Buffer }} opts
- * @returns {{ok: true} | {ok: false, reason: string}}
- */
-function assertLedgerFence(opts: {
-  ledgerPath?: string; ledgerHash?: string; ledgerBytes: Buffer;
-}): { ok: true } | { ok: false; reason: string } {
-  const { ledgerPath, ledgerHash, ledgerBytes } = opts;
-  if (typeof ledgerPath !== 'string' || ledgerPath === ''
-    || typeof ledgerHash !== 'string' || ledgerHash === '') {
-    return { ok: false, reason: 'ledger-checkpoint-invalid' };
-  }
-  // 절대 경로는 integration-relative 계약을 깨뜨려 다른 worktree 원장을 가리킬 수 있다.
-  if (path.isAbsolute(ledgerPath)) {
-    return { ok: false, reason: 'ledger-checkpoint-invalid' };
-  }
-  if (ledgerPath.includes('\\') || ledgerPath.split('/').includes('..')
-    || ledgerPath.split('/').includes('')
-    || ledgerPath !== LEDGER_REL) {
-    return { ok: false, reason: 'ledger-checkpoint-invalid' };
-  }
-  if (!/^[a-f0-9]{64}$/.test(ledgerHash)) {
-    return { ok: false, reason: 'ledger-checkpoint-invalid' };
-  }
-  if (!Buffer.isBuffer(ledgerBytes) || ledgerBytes.length === 0) {
-    return { ok: false, reason: 'ledger-checkpoint-invalid' };
-  }
-  if (ledgerBytesHash(ledgerBytes) !== ledgerHash) {
-    return { ok: false, reason: 'stale-ledger-checkpoint' };
-  }
-  // 분리된(`run detach`) 실행은 모든 fenced mutation(prepare·dispatch·report·record·
-  // integrate·repair·revise·supplement·session-open)에서 거절한다. mutation마다 검사를
-  // 복제하면 새 명령이 빠뜨리기 쉬워, 모든 쓰기가 반드시 지나는 fence 끝에 둔다.
-  // hash가 맞은 bytes만 여기까지 오므로 호출자가 본 원장과 같은 내용을 판정한다.
-  // 파싱 실패는 흡수하지 않는다 — 호출자가 이미 같은 bytes를 JSON.parse했다.
-  const parsed = JSON.parse(ledgerBytes.toString('utf8')) as { status?: unknown };
-  if (parsed && parsed.status === 'detached') return { ok: false, reason: 'run-detached' };
-  return { ok: true };
-}
-
 /**
  * 완료 task를 status에 실을 요약만 고른다. dispatch·decisions 본문은 상세 원장에
  * 남기고, 없는 선택 필드는 키 자체를 생략해 응답이 커지지 않게 한다.
@@ -576,10 +473,6 @@ function withCheckpoint<T extends { ok: true }>(
   return { ...result, checkpoint: projectCheckpoint(ledger, ledgerFile) };
 }
 
-function git(exec: Exec, cwd: string, args: string[]): string {
-  return String(exec('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).trim();
-}
-
 /**
  * 커밋 메시지 끝에 `Bouncer-Worker-Commit` trailer 한 줄을 붙인 새 메시지를 만든다.
  * 마지막 문단이 전부 `Key: value` 줄이고 제목 문단이 아니면 기존 trailer 블록의 마지막 줄
@@ -615,58 +508,6 @@ function taskBriefHashOf(workerRoot: string, blueprint: string, taskId: string):
     'utf8',
   );
   return taskBriefHash(markdown);
-}
-
-/**
- * dispatch 직전 working-tree 원문. trim하지 않는다 — clean은 빈 문자열, dirty는
- * porcelain=v1 stdout 그대로여야 재개 시 baseline과 바이트 비교가 가능하다.
- *
- * @param {Exec} exec - 주입 가능한 Git 실행기
- * @param {string} cwd - worker worktree
- * @returns {string} `git status --porcelain=v1` stdout 원문
- */
-function initialWorktreeState(exec: Exec, cwd: string): string {
-  return String(exec('git', ['status', '--porcelain=v1'], {
-    cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-  }));
-}
-
-function sourceStatus(exec: Exec, cwd: string): string {
-  // worktree 등록 대상은 source가 아니며, 프로젝트 .gitignore가 아직 없는
-  // bootstrap fixture에서도 porcelain에 나타난다. 그 한 경로만 제외한다.
-  return git(exec, cwd, ['status', '--porcelain']).split('\n')
-    .filter((line) => !line.slice(3).startsWith('.worktrees/')).join('\n');
-}
-
-function workerOwnsSha(exec: Exec, workerPath: string, sha: string): boolean {
-  try {
-    // SHA 문자열만 ledger에 넣으면 다른 worktree commit도 fan-in될 수 있다. worker
-    // HEAD의 조상인지 Git에 묻고, 얕은 clone/삭제된 object 같은 오류도 거절한다.
-    git(exec, workerPath, ['merge-base', '--is-ancestor', sha, 'HEAD']);
-    return true;
-  } catch (_error) {
-    return false;
-  }
-}
-
-/**
- * 교체 SHA가 integration HEAD의 단 하나짜리 직계 자식인지 판정한다.
- * merge commit은 부모가 둘이므로 거절하며, 조회할 수 없는 object도 provenance를
- * 추측하지 않고 null로 접어 rerecord 경계에서 거절한다.
- *
- * @param {Exec} exec - 주입 가능한 Git 실행기
- * @param {string} cwd - 할당된 worker worktree
- * @param {string} sha - 검사할 worker HEAD
- * @returns {string | null} 유일한 부모 SHA 또는 null
- */
-function directParent(exec: Exec, cwd: string, sha: string): string | null {
-  try {
-    const fields = git(exec, cwd, ['rev-list', '--parents', '-n', '1', sha]).split(/\s+/);
-    return fields.length === 2 ? fields[1] : null;
-  } catch (_error) {
-    // 존재하지 않는 object와 Git 조회 실패만 흡수한다. 둘 다 안전한 답은 거절이다.
-    return null;
-  }
 }
 
 function sourceRepairPaths(paths: unknown): paths is string[] {
@@ -1001,15 +842,14 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
 
   // 잠금 밖: 의존성 준비 후 verify 실행. integration checkout은 추적 파일만 받아
   // node_modules가 비어 있을 수 있다.
-  const prepared = prepareDependencies(integrationPath, { execFileSync: withInstallStdioToStderr(exec) });
+  const prepared = prepareVerificationDependencies(integrationPath, exec);
   if (!prepared.ok) return { ok: false, reason: 'dependency-install-failed', message: prepared.message };
-  const runner = deps.runVerification
-    || (require('./verification').runVerification as VerificationRunner);
+  const runner = selectVerificationRunner(deps.runVerification);
   const { epicId, blueprintId } = parsePathIds(blueprint);
   const head = git(exec, integrationPath, ['rev-parse', 'HEAD']);
   const evidenceIds: string[] = [];
   for (const step of plan) {
-    const result = runner({
+    const result = runTargetVerification(runner, {
       repoRoot: integrationPath,
       blueprintDir: blueprint,
       taskId: step.taskId,
@@ -2289,36 +2129,6 @@ function copyEvidenceBundle(
   return restore;
 }
 
-function registeredWorker(exec: Exec, integrationPath: string, workerPath: string): boolean {
-  try {
-    const canonicalWorker = fs.realpathSync(workerPath);
-    // direct symlink worktree paths are not stable assignment boundaries even
-    // when their eventual target happens to be a registered checkout.
-    if (canonicalWorker !== path.resolve(workerPath)) return false;
-    const workerRoot = fs.realpathSync(path.dirname(workerPath));
-    const relative = path.relative(workerRoot, canonicalWorker);
-    if (relative === '' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return false;
-    const registered = git(exec, integrationPath, ['worktree', 'list', '--porcelain'])
-      .split('\n').filter((line) => line.startsWith('worktree ')).map((line) => line.slice('worktree '.length));
-    return registered.some((entry) => fs.realpathSync(entry) === canonicalWorker);
-  } catch (_error) { return false; }
-}
-
-function registeredIntegration(exec: Exec, repoRoot: string, integrationPath: string): boolean {
-  try {
-    const canonicalIntegration = fs.realpathSync(integrationPath);
-    // integration은 ledger와 fan-in Git 명령의 기준 경계다. 경로 자체나 상위
-    // 할당 경로가 symlink면 realpath 비교만으로 외부 checkout을 허용하게 된다.
-    if (canonicalIntegration !== path.resolve(integrationPath)) return false;
-    const integrationRoot = fs.realpathSync(path.dirname(integrationPath));
-    const relative = path.relative(integrationRoot, canonicalIntegration);
-    if (relative === '' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return false;
-    const registered = git(exec, repoRoot, ['worktree', 'list', '--porcelain'])
-      .split('\n').filter((line) => line.startsWith('worktree ')).map((line) => line.slice('worktree '.length));
-    return registered.some((entry) => fs.realpathSync(entry) === canonicalIntegration);
-  } catch (_error) { return false; }
-}
-
 
 /**
  * 원장 lease 필드만 검사한다. 전체 validateCoordinatorLedger는 partial-close
@@ -2561,17 +2371,6 @@ function shouldRemoveRevokedWorker(item: Task): boolean {
  * @param {Ledger} ledger - 기록할 원장
  * @returns {{ok: false, reason: 'ledger-lock-lost'} | null} 실패 시 거절, 성공 시 null
  */
-function writeOwnedLedger(
-  owns: () => boolean,
-  writeLedger: (file: string, data: unknown) => void,
-  file: string,
-  ledger: Ledger,
-): { ok: false; reason: 'ledger-lock-lost' } | null {
-  if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
-  writeLedger(file, ledger);
-  return null;
-}
-
 type PlannedWorker = { worker: string; branch: string; action: 'reuse' | 'create' };
 type CreatedWorker = { worker: string; branch: string };
 
@@ -3080,20 +2879,19 @@ function integrateVerificationTask({
   // seedCoordinatorWorker는 candidate에 npm ci를 하지만 integration worktree는
   // git이 추적한 파일만 받아 node_modules가 비어 있다. 잠금을 잡은 채 설치하면
   // 원장이 오래 막히므로, 이미 푼 검증 phase에서만 같은 계약을 적용한다.
-  const prepared = prepareDependencies(integration.integrationPath, { execFileSync: withInstallStdioToStderr(exec) });
+  const prepared = prepareVerificationDependencies(integration.integrationPath, exec);
   if (!prepared.ok) {
     return { ok: false, reason: 'dependency-install-failed', message: prepared.message };
   }
 
-  const runner = deps.runVerification
-    || (require('./verification').runVerification as VerificationRunner);
+  const runner = selectVerificationRunner(deps.runVerification);
   const { epicId, blueprintId } = parsePathIds(blueprint);
   const headForKey = (() => {
     const live = loadLedger(integration.ledgerFile);
     if (live && typeof live.integrationHead === 'string') return live.integrationHead;
     return git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
   })();
-  const result = runner({
+  const result = runTargetVerification(runner, {
     repoRoot: integration.integrationPath,
     blueprintDir: blueprint,
     // pointer를 옮기지 않으므로 자기 task id로 verify·문서를 고른다.
@@ -3536,8 +3334,7 @@ function integrateCommitWave({
   }
 
   const faninPath = integration.faninPath;
-  const runner = deps.runVerification
-    || (require('./verification').runVerification as VerificationRunner);
+  const runner = selectVerificationRunner(deps.runVerification);
   // scoped_terminal이면 구현 wave fan-in은 전체 검증을 돌리지 않는다. 검증은 task별
   // 지정 명령(worker, 보고로 확인)과 마지막 terminal node가 나눠 맡는다. 정책은
   // integration 사본에서 읽는다 — worker 사본은 worker가 바꿀 수 있다.
@@ -3837,7 +3634,7 @@ function integrateCommitWave({
 
   // gitignore 대상 빌드 산출물은 cherry-pick한 소스로 만들어야 한다. seed 시점의 setup은
   // baseHead 소스를 빌드하므로, 검증 직전에 한 번 더 돌려 wave 변경이 산출물에 반영되게 한다.
-  const rebuilt = prepareDependencies(faninPath, { execFileSync: withInstallStdioToStderr(exec) });
+  const rebuilt = prepareVerificationDependencies(faninPath, exec);
   if (!rebuilt.ok) {
     removeFaninWorktree(exec, repoRoot, faninPath);
     return withLedgerLock(integration.ledgerFile, (owns) => {
@@ -3855,7 +3652,7 @@ function integrateCommitWave({
   const lastTask = waveTasks[waveTasks.length - 1];
   // scoped_terminal은 wave 전체 검증을 생략한다(null). 실패 복구 재검증과 finalize
   // remainder는 각자 별도 경로라 이 생략의 영향을 받지 않는다.
-  const verification = scopedTerminal ? null : runner({
+  const verification = scopedTerminal ? null : runTargetVerification(runner, {
     repoRoot: faninPath,
     blueprintDir: blueprint,
     taskId: lastTask,

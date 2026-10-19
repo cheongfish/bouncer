@@ -37,6 +37,22 @@ test('low-layer modules → never reach cli, validate, coordinator, current, ver
   }
 });
 
+test('coordinator I/O modules → never reach coordinator facade', () => {
+  for (const name of ['coordinator-ledger', 'coordinator-git', 'coordinator-verification']) {
+    const offenders = [...reachable(graph, name)].filter((mod) => mod === 'coordinator');
+    assert.deepEqual(offenders, [], `${name} reaches ${offenders.join(', ')}`);
+  }
+});
+
+test('fake coordinator I/O graph with facade import → boundary check flags the edge', () => {
+  const fake = new Map([
+    ['coordinator-ledger', new Set(['coordinator'])],
+    ['coordinator', new Set()],
+  ]);
+  const offenders = [...reachable(fake, 'coordinator-ledger')].filter((mod) => mod === 'coordinator');
+  assert.deepEqual(offenders, ['coordinator']);
+});
+
 test('execution-dag → direct runtime imports stay within config and path-overlap', () => {
   const direct = [...graph.get('execution-dag')];
   assert.deepEqual(direct.filter((mod) => !['config', 'path-overlap'].includes(mod)), []);
