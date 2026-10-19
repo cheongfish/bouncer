@@ -424,7 +424,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { coordinate } = require('./coordinator') as typeof import('./coordinator');
+  const coordinatorMod = require('./coordinator') as typeof import('./coordinator');
+  const { coordinate } = coordinatorMod;
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { reviseTaskScope } = require('./scope') as typeof import('./scope');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.

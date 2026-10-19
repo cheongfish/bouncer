@@ -265,6 +265,7 @@ function cmdRun(rest: string[], io: CliIo) {
   }
   if (command === 'detach') {
     try {
+      const { detachRun } = require('./run-detach') as typeof import('./run-detach');
       const result = detachRun({
         repoRoot: (f.repo || process.cwd()) as string,
         blueprint: f.blueprint,
@@ -428,6 +429,7 @@ function cmdMigrate(rest: string[], io: CliIo) {
     return result.ok ? 0 : 1;
   }
   if (kind === 'review-scope') {
+    const { migrateReviewScope } = require('./migrate-review-scope') as typeof import('./migrate-review-scope');
     const parsed = parseReviewScopeMigrateArgs(flagArgs);
     if (parsed.error) {
       io.err(parsed.error);
