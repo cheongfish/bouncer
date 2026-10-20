@@ -9,7 +9,10 @@ const registryLib = require('../scripts/lib/epic-registry');
 const { validateBlueprint } = require('../scripts/lib/validate');
 const { writeEpicRegistry, COMMON_SLUGS } = require('./helpers/epic-registry');
 
-const { expandProfile, planRegistry, readEpicRegistry, serializeEpicRegistry } = registryLib;
+const {
+  expandProfile, planRegistry, readEpicRegistry, serializeEpicRegistry, parseEpicRegistry,
+  resolveBlueprintAlias, epicByLegacyId,
+} = registryLib;
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function mkRepo() {
@@ -127,7 +130,7 @@ const BAD = {
   'duplicate area': { areas: ['ordering', 'ordering'] },
   'areaPromotionThreshold 0': { areaPromotionThreshold: 0 },
   'areaPromotionThreshold 1.5': { areaPromotionThreshold: 1.5 },
-  'version 2': { version: 2 },
+  'version 3': { version: 3 },
   'epics key missing': { epics: undefined },
   'domainEpicLimit string': { domainEpicLimit: '1' },
   'identical (slug,id) row twice': {
@@ -189,4 +192,96 @@ test('COMMON_EPICS include/exclude text → matches the requirements table text'
   assert.strictEqual(bySlug.features.include, '도메인 업무 규칙, 워크플로, 해당 기능 전용 화면·API·스키마·테스트');
   assert.strictEqual(bySlug.features.exclude, '공통 계층 자체의 변경 → 해당 공통 epic');
   assert.strictEqual(bySlug.data.exclude, '한 도메인 기능에만 쓰는 테이블·필드 → `features`');
+});
+
+// v2 등록부 fixture. 구현의 expandProfile을 쓰지 않고 손으로 쓴다.
+function v2Registry(epics, extra = {}) {
+  return { version: 2, profile: 'standard', domainEpicLimit: 3, areas: [], epics, ...extra };
+}
+
+test('epics.example.json → parseEpicRegistry accepts it as v2', () => {
+  const parsed = parseEpicRegistry(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'epics.example.json'), 'utf8')));
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.registry.version, 2);
+  assert.deepStrictEqual([...new Set(parsed.registry.epics.map((e) => e.kind))].sort(), ['common', 'domain', 'legacy']);
+});
+
+test('v2 registry with legacy_id and blueprint_aliases → parses and resolves them', () => {
+  const parsed = parseEpicRegistry(v2Registry([
+    { slug: 'consumer-epic-registry', kind: 'domain', active: true, legacy_id: '114',
+      blueprint_aliases: { '003': 'registry-gates', 'old-name': 'registry-gates' } },
+    { slug: 'features', kind: 'common', active: true },
+  ]));
+  assert.equal(parsed.ok, true);
+  assert.equal(resolveBlueprintAlias(parsed.registry, 'consumer-epic-registry', '003'), 'registry-gates');
+  assert.equal(resolveBlueprintAlias(parsed.registry, 'consumer-epic-registry', 'old-name'), 'registry-gates');
+  assert.equal(resolveBlueprintAlias(parsed.registry, 'consumer-epic-registry', '004'), null);
+  assert.equal(resolveBlueprintAlias(parsed.registry, 'features', '003'), null);
+  assert.equal(resolveBlueprintAlias(parsed.registry, 'missing', '003'), null);
+  assert.equal(epicByLegacyId(parsed.registry, '114').slug, 'consumer-epic-registry');
+  assert.equal(epicByLegacyId(parsed.registry, '999'), null);
+});
+
+test('v1 registry → still parses and its id is the legacy id', () => {
+  const v1 = { version: 1, profile: 'standard', domainEpicLimit: 0, areas: [],
+    epics: [{ slug: 'core', id: '002', kind: 'common', active: true }] };
+  const parsed = parseEpicRegistry(v1);
+  assert.equal(parsed.ok, true);
+  assert.equal(epicByLegacyId(parsed.registry, '002').slug, 'core');
+});
+
+test('v1 registry epic without id → rejected', () => {
+  const v1 = { version: 1, profile: 'standard', domainEpicLimit: 0, areas: [],
+    epics: [{ slug: 'core', kind: 'common', active: true }] };
+  assert.equal(parseEpicRegistry(v1).ok, false);
+});
+
+test('epic slug of 41 characters → rejected', () => {
+  const long = 'a'.repeat(41);
+  assert.equal(parseEpicRegistry(v2Registry([{ slug: long, kind: 'domain', active: true }])).ok, false);
+  assert.equal(parseEpicRegistry(v2Registry([{ slug: 'a'.repeat(40), kind: 'domain', active: true }])).ok, true);
+});
+
+test('epic slug of digits only or with a three-digit prefix → rejected', () => {
+  assert.equal(parseEpicRegistry(v2Registry([{ slug: '123', kind: 'domain', active: true }])).ok, false);
+  assert.equal(parseEpicRegistry(v2Registry([{ slug: '114-foo', kind: 'domain', active: true }])).ok, false);
+});
+
+test('blueprint_aliases key that is neither three digits nor a slug → rejected', () => {
+  const bad = parseEpicRegistry(v2Registry([
+    { slug: 'billing', kind: 'domain', active: true, blueprint_aliases: { 'Bad_Key': 'registry-gates' } },
+  ]));
+  assert.equal(bad.ok, false);
+  const numberKey = parseEpicRegistry(v2Registry([
+    { slug: 'billing', kind: 'domain', active: true, blueprint_aliases: { '12': 'registry-gates' } },
+  ]));
+  assert.equal(numberKey.ok, false);
+});
+
+test('blueprint_aliases value that is not a slug → rejected', () => {
+  const badValue = parseEpicRegistry(v2Registry([
+    { slug: 'billing', kind: 'domain', active: true, blueprint_aliases: { '003': 'Not A Slug' } },
+  ]));
+  assert.equal(badValue.ok, false);
+  const nonString = parseEpicRegistry(v2Registry([
+    { slug: 'billing', kind: 'domain', active: true, blueprint_aliases: { '003': 5 } },
+  ]));
+  assert.equal(nonString.ok, false);
+});
+
+test('two alias keys pointing at one value → accepted', () => {
+  const parsed = parseEpicRegistry(v2Registry([
+    { slug: 'billing', kind: 'domain', active: true, blueprint_aliases: { '003': 'gates', '004': 'gates' } },
+  ]));
+  assert.equal(parsed.ok, true);
+});
+
+test('v2 registry written by writeEpicRegistry → keeps version 2 on read back', () => {
+  const repo = mkRepo();
+  const registry = v2Registry([{ slug: 'billing', kind: 'domain', active: true, legacy_id: '009' }]);
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  registryLib.writeEpicRegistry(repo, registry);
+  const read = readEpicRegistry(repo);
+  assert.equal(read.status, 'ok');
+  assert.deepStrictEqual(read.registry, registry);
 });

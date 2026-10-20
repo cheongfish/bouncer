@@ -2,9 +2,11 @@
 
 import tasksDocs = require('./tasks-docs');
 import posixPath = require('./posix-path');
+import contextIds = require('./context-ids');
 const { unitDocKind } = tasksDocs;
 // 기존 31개 import 호환을 위해 posix-path 정본을 그대로 re-export한다.
 const { toPosix } = posixPath;
+const { parseContextPath } = contextIds;
 
 const FILE_KIND: Record<string, string> = {
   // verification.md / review.md / tasks.md 는 tasks-docs.unitDocKind 로만 판정.
@@ -13,10 +15,6 @@ const FILE_KIND: Record<string, string> = {
   // BP 루트 문서. task 묶음 basename이 아니므로 tasks-docs에 넣지 않는다.
   'context-review.md': 'context_review',
 };
-
-// 정본 epic/bp id는 접두 없는 zero-pad 세 자리다.
-const EPIC_SEG_RE = /(?:^|\/)epics\/(\d{3})(?=-|\/|$)/;
-const BP_SEG_RE = /(?:^|\/)blueprints\/(\d{3})(?=-|\/|$)/;
 
 function isNumericContextId(id: unknown): id is string {
   return typeof id === 'string' && /^\d{3}$/.test(id);
@@ -30,10 +28,11 @@ type PathIds = {
 
 function parsePathIds(resourcePath: unknown): PathIds {
   const norm = toPosix(resourcePath);
-  const epicM = EPIC_SEG_RE.exec(norm);
-  const bpM = BP_SEG_RE.exec(norm);
-  const epicId = epicM ? epicM[1] : null;
-  const blueprintId = bpM ? bpM[1] : null;
+  // 세그먼트 해석은 context-ids 한 곳에서 한다. 번호 경로는 예전과 같은 key를,
+  // slug 경로는 slug key를 epicId/blueprintId 자리에 담는다.
+  const ids = parseContextPath(norm);
+  const epicId = ids ? ids.epicKey : null;
+  const blueprintId = ids ? ids.blueprintKey : null;
   // pop()은 string | undefined라 인덱스에 바로 못 쓴다. split 결과는 항상
   // 한 칸 이상이라 마지막 칸을 쓰면 런타임 값이 같고 타입만 닫힌다.
   const segments = norm.split('/');
