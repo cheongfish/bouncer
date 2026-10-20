@@ -1,7 +1,7 @@
 # 인계 문서: 119/001-slug-identifiers 드라이브 중단
 
 - 작성일: 2026-10-20
-- 블루프린트: `.bouncer/context/epics/119-context-search/blueprints/001-slug-identifiers`
+- 블루프린트: `.bouncer/context/epics/context-search/blueprints/slug-identifiers`
 - 브랜치: `feat/119-001-slug-identifiers` (base `develop`)
 - integration worktree: `.worktrees/119/001/integration`
 - integration HEAD: `80a13168` (태스크 001~006 통합 내용 포함)
@@ -41,7 +41,7 @@
 
 - ledger: `.bouncer/runtime/coordinator.json` (revision `r3`, sha256 `3e99db5e…7653`)
 - 포인터: `bouncer current` 기준 blueprint 그대로
-- 터미널 실패 증적: `.bouncer/context/epics/119-context-search/blueprints/001-slug-identifiers/tasks/007/verification.md` (evidence id `656283670eb0…`, source digest `80a131686126…`)
+- 터미널 실패 증적: `.bouncer/context/epics/context-search/blueprints/slug-identifiers/tasks/007/verification.md` (evidence id `656283670eb0…`, source digest `80a131686126…`)
 - salvage patch: `.bouncer/runtime/salvage/{001..006}-g1-*.patch`
 - salvage ref: `refs/bouncer/salvage/<task>/g1-*`
 - worker 브랜치: `bouncer/119-001-001` ~ `bouncer/119-001-006`

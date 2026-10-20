@@ -30,7 +30,7 @@ In-scope error paths identified during the investigation:
 - Ledger: `.bouncer/runtime/coordinator.json` in the integration worktree
 - Ledger SHA256 at handoff: `b8342a648a3e9363e12a01161beab3ccda991604182dd582d801264c3f81e0c8` (revision `null`)
 - Worker worktrees: `/home/cheongwoon/workspace/Chunjae/bouncer/.worktrees/113/001/workers/{001,002,003}`
-- Verification evidence: `.bouncer/context/epics/113-partial-finalize-recovery/blueprints/001-partial-finalize-recovery/tasks/004/verification.md`
+- Verification evidence: `.bouncer/context/epics/partial-finalize-recovery/blueprints/partial-finalize-recovery/tasks/004/verification.md`
 - Verification evidence SHA256: `3d6bc92b2eb7a1c4abfaadd7be967ac1b63efe35d9a3a63b57bc34822dfcd149`
 - Evidence ID: `ac754e0c3d4ebcf3e66eeda0fddb800046f693fbad7f8678c39372b3ec23207a`
 

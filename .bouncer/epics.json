@@ -1,466 +1,822 @@
 {
-  "version": 1,
+  "version": 2,
   "profile": "domain-only",
   "domainEpicLimit": 8,
   "areas": [],
   "epics": [
     {
       "slug": "product-surface-hosts",
-      "id": "001",
+      "legacy_id": "001",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "cli-help",
+        "002": "cursor-codex-manifests",
+        "003": "commands-to-skills",
+        "004": "venv-install-bin-resolution",
+        "005": "antigravity-plugin-surface",
+        "006": "host-candidate-launcher",
+        "007": "install-first-five-minutes",
+        "008": "instruction-layers",
+        "009": "debt-items"
+      }
     },
     {
       "slug": "planning-quality-governance",
-      "id": "004",
+      "legacy_id": "004",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "spec-authoring-guardrails",
+        "002": "init-rules-scaffold",
+        "003": "per-task-verify-command",
+        "004": "discovery-depth",
+        "005": "reviewer-prompt",
+        "006": "plan-verify-detection",
+        "007": "context-review-guard",
+        "008": "plan-explain-execute-fixes"
+      }
     },
     {
       "slug": "platform-architecture",
-      "id": "006",
+      "legacy_id": "006",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "tsc-cjs-migrate",
+        "002": "skill-structure",
+        "003": "core-module-split",
+        "004": "skill-body-shape",
+        "005": "implementation-doc-comments",
+        "006": "catalog-hide"
+      }
     },
     {
       "slug": "project-distill",
-      "id": "007",
+      "legacy_id": "007",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "global-distill-runtime",
+        "002": "project-root-distill",
+        "003": "path-routed-distill",
+        "004": "promotion-proposal-acq",
+        "005": "checkout-relative-distill",
+        "006": "brief-injection-slim",
+        "007": "distill-shard-discipline",
+        "008": "for-union-single-call",
+        "009": "master-distill-compaction"
+      }
     },
     {
       "slug": "agent-orchestration",
-      "id": "009",
+      "legacy_id": "009",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "subagent-model-config-contract",
+        "002": "named-agent-routing",
+        "003": "adaptive-quiz",
+        "004": "graph-basis-record",
+        "005": "pr-single-confirm",
+        "006": "debugger-agent",
+        "007": "ponytail-advisor-removal",
+        "008": "run-loop",
+        "009": "execute-review-cap",
+        "010": "finalize-pointer-scope",
+        "011": "distill-read-scope",
+        "012": "plugin-arm-benchmark",
+        "013": "structured-pr-body"
+      }
     },
     {
       "slug": "numeric-context-ids",
-      "id": "014",
+      "legacy_id": "014",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "id-contract",
+        "002": "migrate-ids-cli",
+        "003": "dogfood-context",
+        "004": "corpus-consolidation",
+        "005": "history-import-cli",
+        "006": "schema-cutover",
+        "007": "context-digest-grain",
+        "008": "supersedes-field",
+        "009": "derived-summary-regeneration"
+      }
     },
     {
       "slug": "task-unit-commits",
-      "id": "018",
+      "legacy_id": "018",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "evidence-and-message",
+        "002": "seed-plan-artifacts",
+        "003": "current-command",
+        "004": "next-blueprint-handoff",
+        "005": "explain-doc-contract",
+        "006": "explain-diff-skill",
+        "007": "promotion-pr-body",
+        "008": "tasks-doc-resolver",
+        "009": "pointer-task-field",
+        "010": "task-dir-layout",
+        "011": "commit-stage",
+        "012": "closed-status",
+        "013": "nested-worktree-path",
+        "014": "scale-light-convention",
+        "015": "lightweight-cycle-guidance",
+        "016": "comprehension-gate-move",
+        "017": "mermaid-authoring-convention",
+        "018": "gate-integrity",
+        "019": "promotion-verify",
+        "020": "completed-context-retention"
+      }
     },
     {
       "slug": "evaluation-benchmarking",
-      "id": "034",
+      "legacy_id": "034",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "benchmark-skill",
+        "002": "deepswe-run-path",
+        "003": "deepswe-run-plumbing",
+        "004": "checkout-arms-comparison"
+      }
     },
     {
       "slug": "release-security",
-      "id": "039",
+      "legacy_id": "039",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "security-legal-baseline",
+        "002": "public-contract-freeze",
+        "003": "one-zero-release"
+      }
     },
     {
       "slug": "bouncer-cost-improvement",
-      "id": "043",
+      "legacy_id": "043",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "measured-cost-reduction",
+        "002": "light-plan-contract",
+        "004": "baseline-measurement",
+        "005": "agent-rubric-ssot",
+        "006": "conditional-reference-split",
+        "007": "shared-rule-blocks",
+        "008": "description-budget-lock",
+        "009": "execution-baseline",
+        "010": "workflow-output-and-implementer-payload"
+      }
     },
     {
       "slug": "graphify-search-quality",
-      "id": "060",
+      "legacy_id": "060",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "context-first-ranking",
+        "002": "silent-skip-signal",
+        "003": "graph-path-contract",
+        "004": "context-section-digest",
+        "005": "scope-evidence-contract",
+        "006": "english-search-contract",
+        "007": "derived-anchors-and-coverage",
+        "008": "scope-separation-and-reporting",
+        "009": "function-label-lookup-key"
+      }
     },
     {
       "slug": "structural-audit-remediation",
-      "id": "061",
+      "legacy_id": "061",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "security-boundary-enforcement",
+        "002": "run-rule-reload-elimination",
+        "003": "correctness-contracts",
+        "004": "maintenance-distribution",
+        "005": "doc-lint-cli"
+      }
     },
     {
       "slug": "document-commit-contracts",
-      "id": "062",
+      "legacy_id": "062",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "scaffold-template-comment-lint",
+        "002": "task-split-threshold",
+        "003": "migrate-ids-removal",
+        "004": "benchmark-skill-removal",
+        "005": "explain-task-context"
+      }
     },
     {
       "slug": "maintenance",
-      "id": "063",
+      "legacy_id": "063",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "graphify-query-guidance",
+        "002": "pending-task-comment-lint",
+        "003": "context-discovery-review-followup",
+        "004": "context-review-close",
+        "005": "codex-subagent-model-fork"
+      }
     },
     {
       "slug": "runtime-policy-pointer-safety",
-      "id": "064",
+      "legacy_id": "064",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "verify-policy-consistency",
+        "002": "active-pointer-namespace"
+      }
     },
     {
       "slug": "workflow-reliability",
-      "id": "065",
+      "legacy_id": "065",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "task-lifecycle-hardening"
+      }
     },
     {
       "slug": "workflow-contract-followup",
-      "id": "066",
+      "legacy_id": "066",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "contract-maintenance-evaluation"
+      }
     },
     {
       "slug": "task-dag-coordinator",
-      "id": "067",
+      "legacy_id": "067",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "delegated-parallel-execution"
+      }
     },
     {
       "slug": "context-runtime-rearchitecture",
-      "id": "068",
+      "legacy_id": "068",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "distill-removal-search-ci-recovery"
+      }
     },
     {
       "slug": "workflow-improvement",
-      "id": "069",
+      "legacy_id": "069",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "entry-skill-runtime-context",
+        "002": "review-convergence",
+        "003": "worktree-branch-naming",
+        "004": "drive-document-flow",
+        "005": "workflow-prompt-runtime-contract"
+      }
     },
     {
       "slug": "task-brief-specificity",
-      "id": "070",
+      "legacy_id": "070",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "task-brief-contract"
+      }
     },
     {
       "slug": "code-grounded-intent-provenance",
-      "id": "071",
+      "legacy_id": "071",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "task-commit-provenance",
+        "002": "function-intent-resolver",
+        "003": "code-first-plan-cutover",
+        "004": "context-graph-removal",
+        "005": "terminal-verification"
+      }
     },
     {
       "slug": "search-payload-context-retention",
-      "id": "072",
+      "legacy_id": "072",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "graphify-compact-payload",
+        "002": "lazy-intent-runtime-boundary",
+        "003": "retention-audit-migration",
+        "004": "legacy-context-compaction"
+      }
     },
     {
       "slug": "task-intent-bundle-reuse",
-      "id": "073",
+      "legacy_id": "073",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "task-intent-bundle-reuse"
+      }
     },
     {
       "slug": "plan-context-quality-efficiency",
-      "id": "074",
+      "legacy_id": "074",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "task-brief-contract-precision",
+        "002": "dispatch-revision-attempt-evidence",
+        "003": "plan-context-efficiency"
+      }
     },
     {
       "slug": "adaptive-review-dispatch",
-      "id": "075",
+      "legacy_id": "075",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "adaptive-review-dispatch"
+      }
     },
     {
       "slug": "verification-reuse-checkpoint-compaction",
-      "id": "076",
+      "legacy_id": "076",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "verification-reuse-checkpoint-compaction"
+      }
     },
     {
       "slug": "rules-reorganization",
-      "id": "077",
+      "legacy_id": "077",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "ownership-map-migration-safety",
+        "002": "planning-rule-vertical-migration",
+        "003": "execution-rule-vertical-migration"
+      }
     },
     {
       "slug": "parallel-run-finalize-digest",
-      "id": "078",
+      "legacy_id": "078",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "pointer-independent-parallel-run",
+        "002": "finalize-digest"
+      }
     },
     {
       "slug": "roadmap-closeout",
-      "id": "079",
+      "legacy_id": "079",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "release-artifact-governance-removal"
+      }
     },
     {
       "slug": "execution-token-cost",
-      "id": "080",
+      "legacy_id": "080",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "contract-gaps-final-review"
+      }
     },
     {
       "slug": "cli-deterministic-procedures",
-      "id": "081",
+      "legacy_id": "081",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "role-projection-print-dispatch-review"
+      }
     },
     {
       "slug": "explain-index-intent-exit",
-      "id": "082",
+      "legacy_id": "082",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "coordinator-index-sections-exit"
+      }
     },
     {
       "slug": "drive-context-reduction",
-      "id": "083",
+      "legacy_id": "083",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "coordinate-output-compaction",
+        "002": "instruction-read-scope",
+        "003": "wave-session-split"
+      }
     },
     {
       "slug": "drive-plan-copy-hygiene",
-      "id": "084",
+      "legacy_id": "084",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "finalize-main-release",
+        "002": "template-guidance-migration"
+      }
     },
     {
       "slug": "finalize-runtime-slimming",
-      "id": "085",
+      "legacy_id": "085",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "quiz-explain-pr-drive-record",
+        "002": "coordinator-task-round",
+        "003": "gate-failure-hints",
+        "004": "plan-evidence-dispatch"
+      }
     },
     {
       "slug": "finalize-output-cleanup",
-      "id": "086",
+      "legacy_id": "086",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "pr-base-and-result-provenance"
+      }
     },
     {
       "slug": "v153-evaluation-remediation",
-      "id": "087",
+      "legacy_id": "087",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "commit-enforcement",
+        "002": "prepare-lock-split"
+      }
     },
     {
       "slug": "drive-token-reduction",
-      "id": "088",
+      "legacy_id": "088",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "coordinator-recovery-fixes",
+        "002": "coordinator-next-action",
+        "003": "coordinator-contract-cards",
+        "004": "coordinator-lookup-removal",
+        "005": "review-format-finalize-policy",
+        "006": "print-dispatch-contract-gaps",
+        "007": "plugin-root-resolution",
+        "008": "delta-single-reviewer"
+      }
     },
     {
       "slug": "workflow-cost-and-light-path",
-      "id": "089",
+      "legacy_id": "089",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "coordinator-auto-advance",
+        "002": "plan-roundtrip-reduction",
+        "003": "light-run-path",
+        "004": "rework-finalize-slimming"
+      }
     },
     {
       "slug": "drive-reliability",
-      "id": "090",
+      "legacy_id": "090",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "coordinator-return-contract",
+        "002": "early-handback-recovery",
+        "003": "finalize-dependency-readiness",
+        "004": "drive-gap-closure"
+      }
     },
     {
       "slug": "drive-observation-cleanup",
-      "id": "091",
+      "legacy_id": "091",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "digest-pr-input"
+      }
     },
     {
       "slug": "source-test-hygiene",
-      "id": "092",
+      "legacy_id": "092",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "shared-helpers",
+        "002": "behavior-tests"
+      }
     },
     {
       "slug": "benchmark-contract-stability",
-      "id": "093",
+      "legacy_id": "093",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "acq-machine-contract",
+        "002": "responder-contract-rewrite"
+      }
     },
     {
       "slug": "deepswe-benchmark",
-      "id": "094",
+      "legacy_id": "094",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "ledger-removal",
+        "002": "deepswe-adapter"
+      }
     },
     {
       "slug": "coding-standards-pr-retro",
-      "id": "095",
+      "legacy_id": "095",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "coding-standards",
+        "002": "test-name-lint",
+        "003": "pr-visual-evidence",
+        "004": "retro"
+      }
     },
     {
       "slug": "plan-review-convergence",
-      "id": "096",
+      "legacy_id": "096",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "review-cycle-control",
+        "002": "delta-certification"
+      }
     },
     {
       "slug": "intent-fence-guard",
-      "id": "097",
+      "legacy_id": "097",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "intent-fence-guard"
+      }
     },
     {
       "slug": "drive-plan-cost-control",
-      "id": "098",
+      "legacy_id": "098",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "drive-foundation-provenance",
+        "002": "serial-drive-shape",
+        "003": "plan-review-focus"
+      }
     },
     {
       "slug": "bouncer-improvements-2026-10-14",
-      "id": "099",
+      "legacy_id": "099",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "review-input-consistency",
+        "003": "repair-integrate-path",
+        "004": "cli-execution-scope-contract",
+        "005": "dispatch-execution-record"
+      }
     },
     {
       "slug": "graphify-raw-query",
-      "id": "100",
+      "legacy_id": "100",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "graph-suggest-removal"
+      }
     },
     {
       "slug": "plan-review-call-reduction",
-      "id": "101",
+      "legacy_id": "101",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "review-cli-closure",
+        "002": "retro-guards",
+        "003": "intent-bundle-no-symbols"
+      }
     },
     {
       "slug": "plan-review-loop-guard",
-      "id": "102",
+      "legacy_id": "102",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "draft-validation-review-freshness"
+      }
     },
     {
       "slug": "drive-repair-integrity",
-      "id": "103",
+      "legacy_id": "103",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "fanin-rounds-repair-brief"
+      }
     },
     {
       "slug": "drive-retro-103-followups",
-      "id": "104",
+      "legacy_id": "104",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "record-guard-and-token-metrics"
+      }
     },
     {
       "slug": "drive-retro-104-followups",
-      "id": "105",
+      "legacy_id": "105",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "verify-tail-and-plan-guides"
+      }
     },
     {
       "slug": "source-restructuring",
-      "id": "106",
+      "legacy_id": "106",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "foundation-cleanup",
+        "002": "boundary-introduction",
+        "003": "execution-planning-boundaries"
+      }
     },
     {
       "slug": "workflow-cost-reduction",
-      "id": "107",
+      "legacy_id": "107",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "002": "review-report-finalize"
+      }
     },
     {
       "slug": "implementer-navigation",
-      "id": "109",
+      "legacy_id": "109",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "implementer-symbol-locations"
+      }
     },
     {
       "slug": "context-ontology",
-      "id": "111",
+      "legacy_id": "111",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "002": "context-ontology-cli"
+      }
     },
     {
       "slug": "workflow-transition-guards",
-      "id": "112",
+      "legacy_id": "112",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "transition-guards",
+        "002": "transition-guard-followups"
+      }
     },
     {
       "slug": "partial-finalize-recovery",
-      "id": "113",
+      "legacy_id": "113",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "partial-finalize-recovery",
+        "002": "lint-baseline-cleanup"
+      }
     },
     {
       "slug": "consumer-epic-registry",
-      "id": "114",
+      "legacy_id": "114",
       "kind": "legacy",
-      "active": true
+      "active": true,
+      "blueprint_aliases": {
+        "001": "registry-foundation",
+        "002": "plan-path",
+        "003": "registry-gates"
+      }
     },
     {
       "slug": "host-distribution",
-      "id": "115",
+      "legacy_id": "115",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "호스트 배포 표면과 릴리스: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:34.789+09:00"
-      }
+      },
+      "blueprint_aliases": {}
     },
     {
       "slug": "plan-workflow",
-      "id": "116",
+      "legacy_id": "116",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "bouncer-plan 단계 동작: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:34.892+09:00"
-      }
+      },
+      "blueprint_aliases": {}
     },
     {
       "slug": "drive-execution",
-      "id": "117",
+      "legacy_id": "117",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "bouncer-run 단계 동작: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:34.976+09:00"
-      }
+      },
+      "blueprint_aliases": {}
     },
     {
       "slug": "finalize-closeout",
-      "id": "118",
+      "legacy_id": "118",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "bouncer-finalize 단계 동작: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:35.062+09:00"
-      }
+      },
+      "blueprint_aliases": {}
     },
     {
       "slug": "context-search",
-      "id": "119",
+      "legacy_id": "119",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "컨텍스트 문서 모델과 검색: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:35.146+09:00"
+      },
+      "blueprint_aliases": {
+        "001": "slug-identifiers"
       }
     },
     {
       "slug": "gates-review",
-      "id": "120",
+      "legacy_id": "120",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "gate·검증·리뷰 판정: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:35.229+09:00"
-      }
+      },
+      "blueprint_aliases": {}
     },
     {
       "slug": "runtime-architecture",
-      "id": "121",
+      "legacy_id": "121",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "CLI·런타임 기반 구조: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:35.314+09:00"
-      }
+      },
+      "blueprint_aliases": {}
     },
     {
       "slug": "benchmark-cost",
-      "id": "122",
+      "legacy_id": "122",
       "kind": "domain",
       "active": true,
       "approval": {
         "reason": "평가와 비용 측정: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
         "approvedAt": "2026-10-20T16:04:35.397+09:00"
-      }
+      },
+      "blueprint_aliases": {}
     }
   ]
 }
