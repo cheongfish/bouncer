@@ -160,8 +160,22 @@ asset root가 독립적이어야 한다는 경계는 바꾸지 않는다.
 - Node 지원 범위는 현재 `>=24`를 유지한다. npm 설치만으로 별도 런타임 의존성 설치가
   필요하지 않게 vendoring 정책을 유지하거나, runtime dependencies를 명시적으로
   선언하고 clean install smoke로 증명한다.
+- 지원 운영체제는 Windows, Linux, macOS이다. 순수 JavaScript/Node 런타임만으로
+  동작해야 하며, 네이티브 addon·특정 CPU·특정 libc가 새로 필요해지는 경우에는
+  `os`/`cpu`/`libc` 제약과 대체 설치 경로를 package metadata와 설치 문서에 명시한다.
 - resolver와 hook adapter는 Windows, macOS, Linux의 path delimiter·`.cmd` wrapper
-  차이를 고려한다.
+  차이를 고려한다. npm의 `bin` shim으로 `bouncer`와 `bouncer-root`를 호출할 수
+  있어야 하며, `bin-links=false`로 shim이 만들어지지 않은 환경에서는 원인과 복구
+  방법을 명확히 출력한다.
+- 최소 실행 전제는 Node `>=24` 및 Git이다. graphify를 켠 프로젝트에는 Python과
+  graphify 실행 파일도 필요하다. 런타임은 누락된 외부 실행 파일을 OS별 "command not
+  found" 오류로 방치하지 말고, 필요한 도구·검사 명령·복구 방법을 오류로 알려야 한다.
+- 플러그인 훅이 로컬 npm 설치를 쓸 때에는 호스트 프로세스의 PATH에
+  `node_modules/.bin`이 없을 수 있음을 고려한다. 전역 설치를 필수 계약으로 하거나,
+  검증된 로컬 bin 경로/명시적 `BOUNCER_BIN` 설정 중 하나를 지원하고, 전자를 기본
+  설치 문서에서 분명히 선택해야 한다.
+- 사람이 실행하는 설치·복구 문서는 Bash 전용 문법만 제공해서는 안 된다. Windows
+  PowerShell 예시를 함께 제공하거나 Git Bash/WSL을 명시적 필수 조건으로 선언한다.
 - npm auth token은 저장소·문서·release tree에 기록하지 않는다. CI는 npm trusted
   publishing을 우선 검토하고, 불가능할 때에만 최소 권한 automation token을 CI secret으로
   사용한다. provenance 사용 여부는 CI 권한과 registry 정책 검증 후 결정한다.
@@ -196,6 +210,12 @@ asset root가 독립적이어야 한다는 경계는 바꾸지 않는다.
 - npm tarball을 전역 설치와 소비 프로젝트 local install 두 방식으로 설치하여
   `bouncer --help`, `bouncer-root --auto`, init/current/graph sync 및 agent seed의
   plugin-root 동작을 검증한다.
+- Windows, Linux, macOS 각각에서 전역 및 local npm 설치 smoke를 실행한다. Windows는
+  PowerShell에서 npm `.cmd` shim과 hook adapter를, Unix 계열은 POSIX PATH/실행 권한과
+  hook adapter를 검증한다. 최소 검증 조합은 Node 24와 지원 대상의 최신 LTS Node다.
+- 각 운영체제에서 Git만 있는 기본 경로와 graphify가 활성화된 경로를 분리 검증한다.
+  외부 의존성 누락 시에는 문서화된 복구 안내가 출력되고, commit guard의 fail-closed 및
+  SessionStart의 non-blocking 계약이 각각 유지되어야 한다.
 - 구 릴리스 형식에서 새 조합으로 갱신할 때 실패 원인과 복구 방법이 문서화되어 있고,
   내부 `scripts/lib` 경로를 실행하는 배포 자산은 0건이다.
 
