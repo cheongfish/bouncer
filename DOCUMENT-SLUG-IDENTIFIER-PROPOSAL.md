@@ -12,12 +12,13 @@ blueprint 식별자에서 번호를 빼고 slug로 식별하며, 정렬은 front
 - 적용 대상은 새 epic(115~122)과 기존 legacy epic 모두다.
 - task 커밋은 `epic slug - bp slug - task order`로 저장한다.
 - epic 링크 텍스트의 번호는 이미 뺐다(`2003c955`).
+- epic 디렉터리의 번호도 뺀다(`epics/<ddd>-<slug>/` → `epics/<slug>/`). 적용 범위는 blueprint와 같이 새 epic과 legacy epic 모두다.
 
 ## 현재 구조
 
 | 대상 | 현재 형식 | 예 |
 | --- | --- | --- |
-| epic 디렉터리 | `epics/<ddd>-<slug>/` | `epics/114-consumer-epic-registry/` |
+| epic 디렉터리 | `epics/<ddd>-<slug>/` (새 형식: `epics/<slug>/`) | `epics/114-consumer-epic-registry/` |
 | blueprint 디렉터리 | `blueprints/<ddd>-<slug>/` | `blueprints/003-registry-gates/` |
 | task 디렉터리 | `tasks/<ddd>/` | `tasks/001/` |
 | stable ID | `EPIC-ddd/BP-ddd/TASK-ddd` | `EPIC-114/BP-003/TASK-001` |
@@ -44,7 +45,7 @@ blueprint 식별자에서 번호를 빼고 slug로 식별하며, 정렬은 front
 ## 결정이 필요한 사항
 
 1. **구분자.** 요청에는 `epic slug - bp slug - task order`로 적혀 있다. 하이픈으로 이으면 slug 안의 하이픈과 구분되지 않아 역파싱이 모호하다(`plan-workflow-task-split-3`의 epic 경계를 알 수 없음). `/`를 권한다. 하이픈을 꼭 써야 하면 epic·bp slug에서 하이픈을 금지하거나, 이름을 구분자 앞에서 등록부와 대조해 해석해야 한다.
-2. **epic 디렉터리의 번호.** 현재 `epics/115-host-distribution/`이다. blueprint만 번호를 빼면 경로가 `epics/115-host-distribution/blueprints/registry-gates/`가 된다. epic 디렉터리도 `epics/host-distribution/`으로 바꾸면 등록부 `id`(115)는 내부 키로만 남고 경로에서 사라진다. 등록부 `id`를 유지할지, 아예 없앨지 정해야 한다. 요청에서 번호를 뺀 범위는 blueprint와 stable ID, trailer이므로 epic 디렉터리는 확인이 필요하다.
+2. **epic 디렉터리의 번호 (결정됨: 뺀다).** 남은 결정은 등록부 `id`를 내부 키로 유지할지, 없앨지다. 아래는 결정 전 검토 내용이다. 현재 `epics/115-host-distribution/`이다. blueprint만 번호를 빼면 경로가 `epics/115-host-distribution/blueprints/registry-gates/`가 된다. epic 디렉터리도 `epics/host-distribution/`으로 바꾸면 등록부 `id`(115)는 내부 키로만 남고 경로에서 사라진다. 등록부 `id`를 유지할지, 아예 없앨지 정해야 한다. 요청에서 번호를 뺀 범위는 blueprint와 stable ID, trailer이므로 epic 디렉터리는 확인이 필요하다.
 3. **legacy 처리 방식.** legacy까지 포함하면 `blueprints/001-cli-help/` 같은 디렉터리 222개와 그 참조를 바꿔야 한다. 이는 앞서 "논리적 병합"으로 정한 범위를 넘고, 요구사항 REQ-13~15의 이관 도구가 필요해진다. 선택지는 둘이다.
    - **물리 이관:** 디렉터리를 새 이름으로 옮기고 문서 안 링크, pointer, 원장, 브랜치 이름을 맞춘다. 승인 스냅샷과 검증 증적이 경로·ID를 키로 쓰면 해시가 깨질 수 있어 먼저 확인이 필요하다.
    - **별칭 표:** 디렉터리는 그대로 두고 `이전 ID → 새 ID` 대응 표를 읽기 전용으로 둔다. 코드는 새 형식을 쓰고, 조회는 별칭 표로 이전 ID를 해석한다. 이전 이력은 바꾸지 않는다.
