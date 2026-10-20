@@ -12,13 +12,14 @@ import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
+import epicRegistry = require('./epic-registry');
+const { readEpicRegistry, COMMON_EPICS } = epicRegistry;
 
 const BOUNCER_DIR = '.bouncer';
 const EPICS_REL = '.bouncer/context/epics';
 // 정본 id만 센다. EPIC-/BP- 접두는 최댓값에 넣지 않아 구형 디렉터리가
 // 다음 번호를 건너뛰게 하지 않는다.
 const ID_DIR_RE = /^\d{3}-.+$/;
-const MAINTENANCE_DIR_RE = /^\d{3}-maintenance$/;
 const VERIFY_FILES = [
   'docker-compose.yml',
   'docker-compose.yaml',
@@ -83,11 +84,25 @@ type Routing = {
   reasons: string[];
 };
 
+type InspectRegistry =
+  | { status: 'missing'; next: string }
+  | { status: 'invalid'; code: 'S35'; message: string; next: string }
+  | {
+    status: 'ok';
+    profile: string;
+    epics: {
+      slug: string; id: string; dir: string | null; kind: 'common' | 'domain';
+      description: string | null; include: string; exclude: string;
+    }[];
+    legacy: { slug: string; id: string; dir: string }[];
+    areas: string[];
+  };
+
 type InspectOk = {
   ok: true;
-  nextEpicId: string;
+  nextEpicId: string | null;
+  registry: InspectRegistry;
   epic: EpicInfo | null;
-  maintenanceEpic: (EpicInfo & { id: string }) | null;
   verifySignals: string[];
   current: CurrentInfo;
   routing: Routing | null;
@@ -100,7 +115,7 @@ type RoutingTask = { paths: string[]; dependsOn: string[] };
 /**
  * `\d{3}-<slug>` 디렉터리 이름만 모아 최댓값 + 1을 세 자리로 채운다.
  * 구형 `EPIC-009` / `BP-001` 이름은 정규식에서 빠지므로 번호가 그 쪽으로
- * 점프하지 않는다. 후보가 없으면 `001` — 빈 트리의 첫 id.
+ * 점프하지 않는다. 후보가 없으면 `001` — 빈 트리의 첫 id. blueprint id 제안에 쓴다.
  *
  * @param {string[]} names - 한 부모 아래의 디렉터리 이름
  * @returns {string} zero-pad 세 자리 다음 id
@@ -113,6 +128,76 @@ function nextNumericId(names: string[]): string {
     if (Number.isFinite(n) && n > max) max = n;
   }
   return String(max + 1).padStart(3, '0');
+}
+
+/**
+ * 등록부(`.bouncer/epics.json`)를 한 번 읽어 inspect용 후보 목록으로 바꾼다.
+ * 귀속은 판단하지 않고 사실(활성 epic, 디렉터리 유무, legacy, area)만 낸다.
+ * 형식 위반도 실패로 올리지 않고 `invalid`로 접어 plan이 안내를 이어가게 한다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string[]} dirNames - epics 디렉터리 직계 이름(`<id>-<slug>`)
+ * @returns {{ registry: InspectRegistry, nextEpicId: string | null }} 등록부 요약과
+ *   승인됐으나 디렉터리가 없는 도메인 epic 중 가장 작은 id(없거나 등록부 불량이면 null)
+ */
+function summarizeRegistry(repoRoot: string, dirNames: string[]): {
+  registry: InspectRegistry;
+  nextEpicId: string | null;
+} {
+  const read = readEpicRegistry(repoRoot);
+  if (read.status === 'missing') {
+    return {
+      registry: { status: 'missing', next: 'Run `bouncer init` to create .bouncer/epics.json.' },
+      nextEpicId: null,
+    };
+  }
+  if (read.status === 'invalid') {
+    return {
+      registry: {
+        status: 'invalid',
+        code: 'S35',
+        message: `epic registry is invalid: ${read.message}`,
+        next: 'Fix .bouncer/epics.json so `bouncer validate` no longer reports S35.',
+      },
+      nextEpicId: null,
+    };
+  }
+  const { registry } = read;
+  const dirOf = (id: string, slug: string): string | null => (
+    dirNames.includes(`${id}-${slug}`) ? `${EPICS_REL}/${id}-${slug}` : null
+  );
+  const epics: Extract<InspectRegistry, { status: 'ok' }>['epics'] = [];
+  const legacy: { slug: string; id: string; dir: string }[] = [];
+  const pendingDomainIds: string[] = [];
+  for (const entry of registry.epics) {
+    if (!entry.active) continue;
+    const dir = dirOf(entry.id, entry.slug);
+    if (entry.kind === 'legacy') {
+      // legacy는 디렉터리가 있어야 의미가 있다. 없는 항목은 후보로 내지 않는다.
+      if (dir !== null) legacy.push({ slug: entry.slug, id: entry.id, dir });
+      continue;
+    }
+    if (entry.kind === 'domain') {
+      if (dir === null) pendingDomainIds.push(entry.id);
+      epics.push({
+        slug: entry.slug, id: entry.id, dir, kind: 'domain',
+        description: null, include: entry.approval ? entry.approval.reason : '', exclude: '',
+      });
+      continue;
+    }
+    const common = COMMON_EPICS.find((c) => c.slug === entry.slug);
+    epics.push({
+      slug: entry.slug, id: entry.id, dir, kind: 'common',
+      description: common ? common.description : null,
+      include: common ? common.include : '',
+      exclude: common ? common.exclude : '',
+    });
+  }
+  pendingDomainIds.sort();
+  return {
+    registry: { status: 'ok', profile: registry.profile, epics, legacy, areas: registry.areas },
+    nextEpicId: pendingDomainIds.length > 0 ? pendingDomainIds[0] : null,
+  };
 }
 
 /**
@@ -425,7 +510,7 @@ function loadRoutingTasks(repoRoot: string, blueprintDir: string): RoutingTask[]
 }
 
 /**
- * 계획 스킬이 본문에서 반복하던 id·maintenance·verify 신호·포인터 상태와
+ * 계획 스킬이 본문에서 반복하던 등록부 후보·다음 도메인 id·verify 신호·포인터 상태와
  * (선택) light 추천 근거를 한 번 계산한다. 추천값만 반환하며 어떤 경로에도
  * 파일을 쓰지 않는다. `--blueprint`가 없으면 `routing: null`.
  *
@@ -485,19 +570,13 @@ function planInspect({ repoRoot, epicDir, blueprintDir }: {
   }
 
   const epicNames = listDirNames(path.join(repoRoot, EPICS_REL));
-  const maintenanceName = epicNames.find((name) => MAINTENANCE_DIR_RE.test(name));
-  const maintenanceEpic = maintenanceName
-    ? {
-      ...epicInfo(repoRoot, `${EPICS_REL}/${maintenanceName}`),
-      id: maintenanceName.slice(0, 3),
-    }
-    : null;
+  const { registry, nextEpicId } = summarizeRegistry(repoRoot, epicNames);
 
   return {
     ok: true,
-    nextEpicId: nextNumericId(epicNames),
+    nextEpicId,
+    registry,
     epic,
-    maintenanceEpic,
     verifySignals: collectVerifySignals(repoRoot),
     current: presentCurrent(repoRoot),
     routing,
