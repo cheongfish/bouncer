@@ -68,3 +68,11 @@ bouncer_schema: '0.1'
 * [112 workflow-transition-guards](epics/112-workflow-transition-guards/index.md) - Reject invalid Bouncer workflow state transitions in the CLI before mutation and align skill contracts.
 * [113 partial-finalize-recovery](epics/113-partial-finalize-recovery/index.md) - Adds partial finalization and owner task recovery for failed Bouncer drives.
 * [114 consumer-epic-registry](epics/114-consumer-epic-registry/index.md) - Fix consumer project epics to a registry of common epics with area tags and plan gate checks
+* [115 host-distribution](epics/115-host-distribution/index.md) - Plugin distribution surface: host manifests, init and install, release and public contract
+* [116 plan-workflow](epics/116-plan-workflow/index.md) - Plan workflow: discovery, scaffold, task briefs, light plans and plan gate rules
+* [117 drive-execution](epics/117-drive-execution/index.md) - Run workflow: coordinator, DAG, worktrees, worker dispatch, repair and drive cost
+* [118 finalize-closeout](epics/118-finalize-closeout/index.md) - Finalize workflow: explain, quiz, comprehension, PR body, partial finalize and recovery
+* [119 context-search](epics/119-context-search/index.md) - Context document model: ids, schema, epic registry, Distill, Graphify and ontology search
+* [120 gates-review](epics/120-gates-review/index.md) - Judgement: gate codes, verification evidence, review dispatch and coding standards
+* [121 runtime-architecture](epics/121-runtime-architecture/index.md) - CLI and runtime base: modules, rule structure, pointer, state transition guards
+* [122 benchmark-cost](epics/122-benchmark-cost/index.md) - Evaluation and cost: benchmark harness, DeepSWE, token and time baselines
