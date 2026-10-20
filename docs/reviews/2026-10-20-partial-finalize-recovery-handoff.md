@@ -34,12 +34,18 @@ In-scope error paths identified during the investigation:
 - Verification evidence SHA256: `3d6bc92b2eb7a1c4abfaadd7be967ac1b63efe35d9a3a63b57bc34822dfcd149`
 - Evidence ID: `ac754e0c3d4ebcf3e66eeda0fddb800046f693fbad7f8678c39372b3ec23207a`
 
-The integration worktree also contains a user-authorized, uncommitted change to `scripts/src/lib/coordinate-next.ts` that exposes the hash-bound terminal verification evidence pointer. It is not in the integration HEAD and was not committed or discarded. The last coordinator review found no documented full-drive CLI path for transferring this integration-local change into an assigned worker worktree. Preserve it until a valid task/plan path is established.
+At the time this handoff was first written, the integration worktree contained a user-authorized, uncommitted change to `scripts/src/lib/coordinate-next.ts` that exposes the hash-bound terminal verification evidence pointer. Its subsequent disposition is recorded below.
+
+## Follow-up (2026-10-20)
+
+- At the user's request, `bouncer run detach` removed the blueprint pointer and marked the ledger `detached`. The ledger and worktrees remain preserved. Detach is not verification success or finalize, and this drive cannot be resumed through its former pointer.
+- The evidence-pointer change was committed as `af8c3b07` with a regression assertion in `test/coordinate-next.test.js`, and pushed in [PR #238](https://github.com/cheongfish/bouncer/pull/238). `npm run build` and `node --test test/coordinate-next.test.js` passed (84 tests). Full `npm run ci` has not been rerun after that commit.
+- Epic/Blueprint indexes and a draft `explain.md` were added to PR #238. Explain remains `draft`; no quiz/comprehension record or published status was created.
 
 ## Required next work
 
-1. Establish an approved Bouncer workflow for the mixed lint failures so in-scope and out-of-scope causes can be addressed without misclassifying the original terminal evidence.
-2. Establish a valid worker/task path for the uncommitted `coordinate-next.ts` evidence-pointer change, or obtain an explicit decision to handle it separately. Do not hand-commit it from integration.
-3. Re-run the required verification only after the source identity and repair scope are valid. Do not mark task `004` passed or finalize based on this handoff.
+1. Resolve the mixed lint failures under an approved workflow; do not classify the mixed cause as one owner or `outside_scope` without new valid evidence.
+2. Review the evidence-pointer code and draft blueprint documents in PR #238. The Explain quiz/comprehension and publication remain part of the separate finalize workflow.
+3. Re-run the required full verification only after the repair scope and source identity are valid. Do not mark task `004` passed or finalize based on this handoff.
 
 No source code, task status, repair disposition, or verification status is changed by this document. The main worktree had pre-existing modified/untracked files when this handoff was prepared; they are intentionally excluded from the handoff commit.
