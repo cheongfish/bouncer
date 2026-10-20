@@ -1056,8 +1056,8 @@ function resolveTerminalFailure({
     return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
   }
   const dag = dagSnapshot(ledger.tasks);
-  const resetDownstream = downstreamTasks(ledger.tasks, target.id);
-  if (!resetDownstream.some((entry) => entry.id === terminal.id)) {
+  const downstream = downstreamTasks(ledger.tasks, target.id);
+  if (!downstream.some((entry) => entry.id === terminal.id)) {
     return { ok: false, reason: 'failure-evidence-mismatch' };
   }
   // Failure identity binds the retry to the exact integration snapshot that produced it.
@@ -1068,7 +1068,11 @@ function resolveTerminalFailure({
     || git(exec, integrationPath, ['rev-parse', 'HEAD']) !== recorded.source_digest) {
     return { ok: false, reason: 'failure-evidence-mismatch' };
   }
-  const resetTasks = [target, ...resetDownstream.filter((entry) => entry.execution_kind !== 'verification')];
+  // 이미 통합된 하위 commit task는 target 수정과 무관하게 결과가 유효하므로 건드리지 않는다.
+  // 되돌릴 대상은 target과, 새 통합 결과를 다시 검증해야 하는 downstream verification task뿐이다
+  // (failure-evidence-mismatch 판정은 위의 전체 downstream 폐포를 그대로 쓴다).
+  const resetDownstream = downstream.filter((entry) => entry.execution_kind === 'verification');
+  const resetTasks = [target];
   const salvage: SalvageEntry[] = [];
   let ownerHead: string | null = null;
   for (const item of resetTasks) {
@@ -4481,23 +4485,15 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         const rollbackDocuments = writeResumeDocuments({
           integrationPath: integration.integrationPath, blueprint, target, downstream: resetDownstream, terminal,
         });
-        for (const item of [target, ...resetDownstream.filter((entry) => entry.execution_kind !== 'verification')]) {
-          // 모든 영향 task는 같은 새 integration 결과를 기준으로 다시 준비한다.
-          revokeLease(ledger, item, {
-            reason: String(decision).trim(), previousHead: typeof item.sha === 'string' ? item.sha : null,
-          });
-          item.resumed = true;
-          item.dependency_gate = 'integrated';
-        }
+        // 통합된 하위 commit task는 lease·sha·status를 유지하고 target만 새 integration 결과로 다시 준비한다.
+        revokeLease(ledger, target, {
+          reason: String(decision).trim(), previousHead: typeof target.sha === 'string' ? target.sha : null,
+        });
+        target.resumed = true;
+        target.dependency_gate = 'integrated';
         target.decisions = [...(target.decisions || []), repairDecision];
-        for (const item of resetDownstream) {
-          if (item.execution_kind === 'verification') {
-            item.status = 'pending';
-            continue;
-          }
-          // 기존 DAG edge를 보존해 각 후속 task가 새 upstream 통합을 기다리게 한다.
-          item.status = 'pending';
-        }
+        // downstream verification은 기존 DAG edge를 보존한 채 target 재통합을 기다리게 한다.
+        for (const item of resetDownstream) item.status = 'pending';
         terminal.status = 'pending';
         for (const entry of salvage) {
           ledger.decisions.push({
