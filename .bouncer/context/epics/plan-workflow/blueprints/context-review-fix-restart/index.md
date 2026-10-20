@@ -14,7 +14,7 @@ bouncer:
   id: context-review-fix-restart
   epic_id: plan-workflow
   blueprint_id: context-review-fix-restart
-  status: approved
+  status: closed
   order: 1
   commit_type: fix
   scale: full
