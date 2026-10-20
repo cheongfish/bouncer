@@ -82,6 +82,10 @@ plan. Success prints `{ ok: true, changed, unchanged }` (exit 1 on refusal:
 `plan-approve-write` refusal (an I/O failure mid-write) also carries `changed`,
 the files already written; rerunning completes the rest. A missing or repeated
 `--blueprint` or `--repo` is exit 2.
+When `.bouncer/epics.json` is valid and lists the blueprint's epic as `legacy`,
+approving a `draft` blueprint is refused with `plan-approve-legacy-epic` (exit 1,
+no file changed); plan the blueprint under a registry epic instead. An already
+approved blueprint is unaffected.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag
 `routing` is `null`. The signal does not select or approve light.
@@ -127,6 +131,9 @@ IDs are zero-padded three digits. A verification task is terminal: it creates
 only `tasks.md` and `verification.md`, runs its declared command in the
 integration checkout, and creates neither a source commit nor `review.md`.
 Do not scaffold tasks into a closed blueprint.
+`scaffold blueprint` under an epic that a valid `.bouncer/epics.json` lists as
+`legacy` fails with exit 2 (`legacy epic <id>-<slug> takes no new blueprints;
+plan under a registry epic`) before writing any file.
 `scaffold epic` accepts only printable ASCII (0x20-0x7E) in the new epic's description and rejects anything else with exit 2.
 
 ## Pointer, worktree, and coordinator commands

@@ -25,6 +25,8 @@ const {
   DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE,
   EXECUTION_KIND_ENUM, isValidDependsOn,
 } = schema;
+import epicRegistry = require('./epic-registry');
+const { readEpicRegistry } = epicRegistry;
 import config = require('./config');
 const { readVerifyPolicy } = config;
 
@@ -401,6 +403,15 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
   const isLight = bpScale === 'light';
   const canonicalEpicDir = normalizeRepoPath(epicDir);
   const epicId = epicIdFromDir(canonicalEpicDir);
+  // legacy epic에는 새 blueprint를 만들지 않는다. 등록부를 한 번 읽고 첫 파일을 쓰기 전에 거절한다.
+  // 등록부 부재·invalid(형식 위반은 S35 소관)와 미등록 epic은 기존 동작을 유지한다.
+  const registryRead = readEpicRegistry(repoRoot);
+  if (registryRead.status === 'ok'
+    && registryRead.registry.epics.some((e) => e.id === epicId && e.kind === 'legacy')) {
+    throw new Error(
+      `legacy epic ${canonicalEpicDir.split('/').pop()} takes no new blueprints; plan under a registry epic`,
+    );
+  }
   const dir = `${canonicalEpicDir}/blueprints/${blueprintId}-${name}`;
   const created: string[] = [];
   const body = (templateName: string) => templateBody(
