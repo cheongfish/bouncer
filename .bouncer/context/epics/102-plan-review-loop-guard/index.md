@@ -2,7 +2,7 @@
 type: bouncer.epic
 title: 계획 리뷰 반복 루프 차단
 description: 계획 문서가 context review 전에 G19·G20과 Touch 정합성을 통과하고, 리뷰 뒤 문서 변경을 G18이 stale로 거절하게 해 plan 리뷰 반복 루프를 끊는다.
-resource: .bouncer/context/epics/078-plan-review-loop-guard/index.md
+resource: .bouncer/context/epics/102-plan-review-loop-guard/index.md
 tags:
   - bouncer
   - epic
@@ -11,8 +11,8 @@ tags:
   - review-dispatch
 timestamp: '2026-09-23T09:51:35.438+09:00'
 bouncer:
-  id: '078'
-  epic_id: '078'
+  id: '102'
+  epic_id: '102'
   status: approved
   supersedes: []
 ---
