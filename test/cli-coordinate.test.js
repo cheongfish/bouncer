@@ -329,10 +329,12 @@ test('coordinate partial-close → requires confirmation and prints the follow-u
     { id: '003', status: 'integrated', decisions: [wave2] });
   ledger.terminalFailure = {
     task: '001', command: 'npm test', summary: 'failed', paths: ['src/auth/'], exitCode: 1, repairWave: 2,
+    source_digest: 'source-001',
   };
   ledger.status = 'awaiting_confirmation';
   fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
-  fs.writeFileSync(path.join(drive.integration, 'NEXT_PLAN.md'), '# Next plan\n');
+  const handoff = path.join(drive.repo, '001_001_NEXT_PLAN.md');
+  fs.writeFileSync(handoff, '# Existing plan\n');
 
   const refused = coordinateCli(drive.integration, 'partial-close', ['--repo', drive.repo]);
   assert.strictEqual(refused.code, 1);
@@ -343,11 +345,18 @@ test('coordinate partial-close → requires confirmation and prints the follow-u
   assert.strictEqual(accepted.code, 0, accepted.buf.err);
   const result = JSON.parse(accepted.buf.out);
   assert.strictEqual(result.status, 'partial_closed');
+  assert.strictEqual(result.handoff.path, '001_001_NEXT_PLAN.md');
+  assert.match(result.handoff.timestamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+09:00$/);
+  assert.match(fs.readFileSync(handoff, 'utf8'), /^# Existing plan\n---\n/m);
+  assert.match(fs.readFileSync(handoff, 'utf8'), /- Failed command: `npm test`/);
+  assert.match(fs.readFileSync(handoff, 'utf8'), /- Owner: 001/);
+  assert.match(fs.readFileSync(handoff, 'utf8'), /- Recovery scope: src\/auth\//);
+  assert.match(fs.readFileSync(handoff, 'utf8'), /- Preserved paths:/);
   assert.strictEqual(result.message, 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.');
   assert.match(fs.readFileSync(path.join(drive.integration, `${BP_REL}/index.md`), 'utf8'), /status: partial_closed/);
-  assert.match(execFileSync('git', ['status', '--porcelain', '--', 'NEXT_PLAN.md'], {
-    cwd: drive.integration, encoding: 'utf8',
-  }), /^\?\? NEXT_PLAN\.md/m);
+  assert.match(execFileSync('git', ['status', '--porcelain', '--', '001_001_NEXT_PLAN.md'], {
+    cwd: drive.repo, encoding: 'utf8',
+  }), /^\?\? 001_001_NEXT_PLAN\.md/m);
 });
 
 test('coordinate partial-close with a directory NEXT_PLAN or ledger failure → rejects and rolls back index', () => {
@@ -358,29 +367,50 @@ test('coordinate partial-close with a directory NEXT_PLAN or ledger failure → 
   const wave2 = repairDecision('003', 2);
   Object.assign(ledger, {
     repairWaves: [wave1, wave2], decisions: [wave1, wave2], status: 'awaiting_confirmation',
-    terminalFailure: { task: '001', command: 'npm test', summary: 'failed', paths: ['src/auth/'], exitCode: 1, repairWave: 2 },
+    terminalFailure: { task: '001', command: 'npm test', summary: 'failed', paths: ['src/auth/'], exitCode: 1, repairWave: 2, source_digest: 'source-001' },
   });
   ledger.tasks[0].execution_kind = 'verification';
   ledger.tasks[0].status = 'verifying';
   ledger.tasks.push({ id: '002', status: 'integrated', decisions: [wave1] },
     { id: '003', status: 'integrated', decisions: [wave2] });
   fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
-  fs.mkdirSync(path.join(drive.integration, 'NEXT_PLAN.md'));
+  fs.mkdirSync(path.join(drive.repo, '001_001_NEXT_PLAN.md'));
   const directory = coordinate({
     command: 'partial-close', repoRoot: drive.repo, blueprint: BP_REL,
     cwd: drive.integration, userConfirmed: true,
   });
   assert.strictEqual(directory.reason, 'next-plan-must-be-regular-file');
-  fs.rmSync(path.join(drive.integration, 'NEXT_PLAN.md'), { recursive: true });
-  fs.writeFileSync(path.join(drive.integration, 'NEXT_PLAN.md'), '# next\n');
+  fs.rmSync(path.join(drive.repo, '001_001_NEXT_PLAN.md'), { recursive: true });
+  const outside = path.join(drive.repo, 'outside-handoff-target.md');
+  fs.writeFileSync(outside, 'outside bytes\n');
+  fs.symlinkSync(outside, path.join(drive.repo, '001_001_NEXT_PLAN.md'));
+  const symlink = coordinate({
+    command: 'partial-close', repoRoot: drive.repo, blueprint: BP_REL,
+    cwd: drive.integration, userConfirmed: true,
+  });
+  assert.strictEqual(symlink.reason, 'next-plan-must-be-regular-file');
+  assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'outside bytes\n');
+  fs.unlinkSync(path.join(drive.repo, '001_001_NEXT_PLAN.md'));
+  fs.writeFileSync(path.join(drive.repo, '001_001_NEXT_PLAN.md'), '# next\n');
   const index = path.join(drive.integration, BP_REL, 'index.md');
   const before = fs.readFileSync(index, 'utf8');
+  const handoff = path.join(drive.repo, '001_001_NEXT_PLAN.md');
+  const handoffBefore = fs.readFileSync(handoff);
   assert.throws(() => coordinate({
     command: 'partial-close', repoRoot: drive.repo, blueprint: BP_REL,
     cwd: drive.integration, userConfirmed: true,
     deps: { writeLedger: () => { throw new Error('ledger write failed'); } },
   }), /ledger write failed/);
   assert.strictEqual(fs.readFileSync(index, 'utf8'), before);
+  assert.deepStrictEqual(fs.readFileSync(handoff), handoffBefore);
+  assert.strictEqual(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).status, 'awaiting_confirmation');
+  assert.throws(() => coordinate({
+    command: 'partial-close', repoRoot: drive.repo, blueprint: BP_REL,
+    cwd: drive.integration, userConfirmed: true,
+    deps: { appendHandoff: () => { throw new Error('handoff append failed'); } },
+  }), /handoff append failed/);
+  assert.strictEqual(fs.readFileSync(index, 'utf8'), before);
+  assert.deepStrictEqual(fs.readFileSync(handoff), handoffBefore);
   assert.strictEqual(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).status, 'awaiting_confirmation');
 });
 
@@ -1388,9 +1418,18 @@ test('CLI coordinate repair --resume-task → reassigns the existing task throug
   const { code, buf } = coordinateCli(drive.integration, 'repair',
     terminalRepairArgs(drive, ['--paths', 'src/auth/login.js', '--resume-task', '001']));
   assert.strictEqual(code, 0, buf.err + buf.out);
+  const result = JSON.parse(buf.out);
   const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
   assert.deepStrictEqual(ledger.tasks.map((t) => [t.id, t.status]), [['001', 'pending'], ['002', 'pending']]);
   assert.strictEqual(ledger.repairWaves[0].task, '001');
+  assert.strictEqual(result.owner_generation, 2);
+  assert.deepStrictEqual(result.reset_downstream, ['002']);
+  assert.deepStrictEqual(result.salvage_predecessor, { head: drive.head, lease_id: ledger.tasks[0].lease.id, generation: 1 });
+  assert.deepStrictEqual(result.checkpoint.ledger, {
+    path: '.bouncer/runtime/coordinator.json',
+    sha256: require('node:crypto').createHash('sha256').update(fs.readFileSync(drive.ledgerFile)).digest('hex'),
+    revision: ledger.revision,
+  });
 });
 
 test('CLI coordinate repair --disposition outside_scope → records the classification and keeps the failure', () => {

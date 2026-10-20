@@ -619,7 +619,8 @@ test('verification integrate with a passing and a failing CI → runs CI without
     deps: { runVerification: () => ({ ok: false, command: 'node --test', exitCode: 1 }) },
   });
   assert.strictEqual(thirdFailure.stopped, true);
-  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, 'NEXT_PLAN.md')), true);
+  const handoffPath = path.join(repo, '011_012_NEXT_PLAN.md');
+  assert.strictEqual(fs.existsSync(handoffPath), false);
   assert.strictEqual(coordinate({
     command: 'partial-close', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   }).reason, 'partial-close-user-confirmation-required');
@@ -628,6 +629,9 @@ test('verification integrate with a passing and a failing CI → runs CI without
   });
   assert.strictEqual(partial.ok, true, JSON.stringify(partial));
   assert.strictEqual(partial.status, 'partial_closed');
+  assert.strictEqual(partial.handoff.path, '011_012_NEXT_PLAN.md');
+  assert.strictEqual(fs.existsSync(handoffPath), true);
+  assert.match(fs.readFileSync(handoffPath, 'utf8'), /Source identity:/);
   assert.strictEqual(partial.message, 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.');
 });
 
@@ -5460,7 +5464,63 @@ function terminalFailedDrive(prefix, opts = {}) {
   return { repo, blueprint, integration, ledgerFile, integrationHead };
 }
 
+/**
+ * 001→002→003→004 DAG에서 마지막 verification이 실패한 drive를 만든다.
+ * 각 중간 task가 이미 통합되어 있어 resume이 전체 downstream을 다시 여는지 검증한다.
+ *
+ * @param {string} prefix - 임시 저장소 접두
+ * @returns {object} terminalFailedDrive와 같은 fixture 정보
+ */
+function multiLevelTerminalFailedDrive(prefix) {
+  const blueprint = '.bouncer/context/epics/108-resume/blueprints/001-multi';
+  const repo = uncommittedPlanRepo(prefix, blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: false\n  dependency_gate: integrated\n  affected_paths:\n    - src/\n'],
+    ['002', '  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  affected_paths:\n    - src/\n'],
+    ['003', '  depends_on: [TASKS-002]\n  parallel_safe: false\n  dependency_gate: integrated\n  affected_paths:\n    - src/\n'],
+    ['004', '  execution_kind: verification\n  depends_on: [TASKS-003]\n  parallel_safe: false\n'
+      + '  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integration = boot.integrationPath;
+  const integrationHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: integration, encoding: 'utf8' }).trim();
+  const ledgerFile = path.join(integration, '.bouncer/runtime/coordinator.json');
+  const ledger = readLedgerFile(ledgerFile);
+  for (const [index, item] of ledger.tasks.entries()) {
+    if (item.execution_kind === 'verification') continue;
+    item.status = 'integrated';
+    item.sha = integrationHead;
+    item.lease = { id: `lease-${item.id}`, generation: 1, seq: index + 1, status: 'active' };
+  }
+  ledger.leaseSeq = 3;
+  ledger.integrationHead = integrationHead;
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integration }).ok, true);
+  const failed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integration, task: '004',
+    deps: { runVerification: () => ({ ok: false, command: 'node --test', exitCode: 1, evidenceId: RESUME_EVIDENCE }) },
+  });
+  assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
+  return { repo, blueprint, integration, ledgerFile, integrationHead };
+}
+
 const readLedgerFile = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
+
+test('resume owner in a multi-level DAG → resets every transitive downstream task', () => {
+  const drive = multiLevelTerminalFailedDrive('bouncer-resume-multi-level-');
+  const resumed = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '004',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'src/a.js regression',
+    paths: ['src/a.js'], decision: 'the failing test is owned by task 001',
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.deepStrictEqual(after.tasks.map((item) => item.status), ['pending', 'pending', 'pending', 'pending']);
+  assert.deepStrictEqual(after.tasks.slice(1, 3).map((item) => item.depends_on), [['001'], ['002']]);
+  const prepared = coordinate({ command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.ready, ['001']);
+});
 
 test('terminal failure with --resume-task of an integrated task → reassigns it without adding a task or changing scope and DAG', () => {
   const drive = terminalFailedDrive('bouncer-resume-task-');
@@ -5565,6 +5625,76 @@ test('resume ledger write fails → task documents and ledger keep their previou
   assert.deepStrictEqual(fs.readFileSync(taskDoc), docsBefore[0]);
   assert.deepStrictEqual(fs.readFileSync(terminalDoc), docsBefore[1]);
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+});
+
+test('resume with a stale owner lease → rejects without changing ledger or task documents', () => {
+  const drive = terminalFailedDrive('bouncer-resume-stale-lease-');
+  const taskDoc = path.join(drive.integration, drive.blueprint, 'tasks/001/tasks.md');
+  const terminalDoc = path.join(drive.integration, drive.blueprint, 'tasks/002/tasks.md');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  const docsBefore = [fs.readFileSync(taskDoc), fs.readFileSync(terminalDoc)];
+  const rejected = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'regression', paths: ['src/a.js'],
+    decision: 'owned by 001', leaseId: 'stale-owner-lease', generation: 1,
+  });
+  assert.strictEqual(rejected.reason, 'stale-lease');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+  assert.deepStrictEqual(fs.readFileSync(taskDoc), docsBefore[0]);
+  assert.deepStrictEqual(fs.readFileSync(terminalDoc), docsBefore[1]);
+});
+
+test('resume with a stale ledger fence → rejects without changing ledger or task documents', () => {
+  const drive = terminalFailedDrive('bouncer-resume-stale-fence-');
+  const taskDoc = path.join(drive.integration, drive.blueprint, 'tasks/001/tasks.md');
+  const terminalDoc = path.join(drive.integration, drive.blueprint, 'tasks/002/tasks.md');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  const docsBefore = [fs.readFileSync(taskDoc), fs.readFileSync(terminalDoc)];
+  const rejected = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'regression', paths: ['src/a.js'],
+    decision: 'owned by 001', ledgerPath: '.bouncer/runtime/coordinator.json', ledgerHash: '0'.repeat(64),
+  });
+  assert.strictEqual(rejected.reason, 'stale-ledger-checkpoint');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+  assert.deepStrictEqual(fs.readFileSync(taskDoc), docsBefore[0]);
+  assert.deepStrictEqual(fs.readFileSync(terminalDoc), docsBefore[1]);
+});
+
+test('resume salvage failure → preserves ledger, worktree, and task documents', () => {
+  const drive = terminalFailedDrive('bouncer-resume-salvage-failure-');
+  const worker = path.join(drive.repo, 'workers/resume-001');
+  execFileSync('git', ['worktree', 'add', '--detach', worker, 'HEAD'], { cwd: drive.integration, stdio: 'ignore' });
+  fs.writeFileSync(path.join(worker, 'src/a.js'), 'uncommitted owner change\n');
+  const ledger = readLedgerFile(drive.ledgerFile);
+  ledger.tasks[0].workerPath = worker;
+  ledger.tasks[0].branch = 'resume-owner';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  const taskDoc = path.join(drive.integration, drive.blueprint, 'tasks/001/tasks.md');
+  const terminalDoc = path.join(drive.integration, drive.blueprint, 'tasks/002/tasks.md');
+  const docsBefore = [fs.readFileSync(taskDoc), fs.readFileSync(terminalDoc)];
+  const workerBefore = execFileSync('git', ['status', '--porcelain'], { cwd: worker, encoding: 'utf8' });
+  const realExec = execFileSync;
+  const failedExec = (file, args, options) => {
+    if (file === 'git' && args.includes('--porcelain') && options?.cwd === worker) {
+      const error = new Error('salvage status failed');
+      error.code = 'EIO';
+      throw error;
+    }
+    return realExec(file, args, options);
+  };
+  const rejected = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'regression', paths: ['src/a.js'],
+    decision: 'owned by 001', deps: { execFileSync: failedExec },
+  });
+  assert.strictEqual(rejected.reason, 'worker-salvage-failed');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+  assert.deepStrictEqual(fs.readFileSync(taskDoc), docsBefore[0]);
+  assert.deepStrictEqual(fs.readFileSync(terminalDoc), docsBefore[1]);
+  assert.strictEqual(execFileSync('git', ['status', '--porcelain'], { cwd: worker, encoding: 'utf8' }), workerBefore);
+  assert.ok(execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: drive.integration, encoding: 'utf8' }).includes(worker));
 });
 
 test('terminal failure records its evidence and source identity → disposition can bind to them', () => {

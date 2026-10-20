@@ -319,6 +319,7 @@ function prepareFinalizeDependencies(
 
 /**
  * blueprint를 닫는다. dry-run은 계획만 보고, `--yes`는 검증·잠금·커밋까지 간다.
+ * partial-finalize는 별도 main checkout action이며 일반 `--yes`와 별도 확인 없이는 쓰지 않는다.
  * drive면 원장에서 읽은 정리 목록을 top-level `worktrees`에 싣고 cleanup이
  * 읽게 한다. explain frontmatter에는 쓰지 않는다 — drive 실행 기록은 원장이
  * 살아있는 동안에만 의미가 있고, 이미 있는 옛 `bouncer.coordinator`는
@@ -327,6 +328,7 @@ function prepareFinalizeDependencies(
  * @param {object} opts
  * @param {string} opts.repoRoot - 저장소 루트 절대 경로
  * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @param {string} [opts.cwd] - 실제 호출 cwd. partial-finalize는 main checkout과 일치해야 한다
  * @param {boolean} [opts.yes=false] - true면 잠금·커밋을 수행한다
  * @param {GitApi} [opts.git] - git seam. 없으면 `realGit(repoRoot)`
  * @param {(opts: { repoRoot: string }) => boolean} [opts.clearPointer] - pointer 삭제 seam
@@ -341,33 +343,140 @@ function prepareFinalizeDependencies(
  *   (설정 오류·설치 실패 응답에는 이 키가 없다)
  */
 function finalize({
-  repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent,
+  repoRoot, blueprintDir, cwd = process.cwd(), yes = false, git, clearPointer = clearCurrent,
   next = nextBlueprint, verifyExec, dependencyExec = execFileSync,
+  partialFinalize = false, confirmPartial = false,
 }: {
   repoRoot: string;
   blueprintDir: string;
+  cwd?: string;
   yes?: boolean;
   git?: GitApi;
   clearPointer?: (opts: { repoRoot: string }) => boolean;
   next?: (opts: { repoRoot: string; blueprintDir: unknown }) => unknown;
   verifyExec?: VerifyExec;
   dependencyExec?: DependencyExec;
+  partialFinalize?: boolean;
+  confirmPartial?: boolean;
 }) {
   const gitApi = git || realGit(repoRoot);
 
-  const preflightTarget = resolveLockTarget({ repoRoot, blueprintDir });
+  let partialLedgerRead: ReturnType<typeof readCoordinatorLedger> | null = null;
+  if (partialFinalize) {
+    const runtime = require('./runtime-state') as typeof import('./runtime-state');
+    const main = runtime.runtimePaths({ repoRoot });
+    if (!main.projectRoot || fs.realpathSync(repoRoot) !== fs.realpathSync(main.projectRoot)
+      || fs.realpathSync(cwd) !== fs.realpathSync(main.projectRoot)) {
+      return { ok: false, reason: 'partial-finalize-requires-main-checkout', state: 'partial-finalize', preserved: true };
+    }
+    partialLedgerRead = readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
+    if (!partialLedgerRead.ok || !partialLedgerRead.integrationPath) {
+      return { ok: false, reason: 'partial-evidence-missing', state: 'partial-finalize', preserved: true };
+    }
+  }
+
+  const inspectRoot = partialLedgerRead && partialLedgerRead.ok
+    ? partialLedgerRead.integrationPath : repoRoot;
+  const preflightTarget = resolveLockTarget({ repoRoot: inspectRoot, blueprintDir });
   const preflightBouncer = preflightTarget.data && typeof preflightTarget.data === 'object'
     ? asRecord(asRecord(preflightTarget.data).bouncer) : {};
   if (preflightBouncer.status === 'partial_closed') {
     const collected = collectCoordinatorProvenance({ repoRoot, blueprintDir });
-    const nextPlan = path.join(repoRoot, 'NEXT_PLAN.md');
+    if (partialFinalize) {
+      const runtime = require('./runtime-state') as typeof import('./runtime-state');
+      const main = runtime.runtimePaths({ repoRoot });
+      if (!main.projectRoot || fs.realpathSync(repoRoot) !== fs.realpathSync(main.projectRoot)
+        || fs.realpathSync(cwd) !== fs.realpathSync(main.projectRoot)) {
+        return { ok: false, reason: 'partial-finalize-requires-main-checkout', state: 'partial-finalize', preserved: true };
+      }
+    }
+    const partialRead = partialLedgerRead || readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
+    if (!partialRead.ok || !partialRead.ledger) {
+      const digest = { state: 'partial-finalize', status: 'partial_closed', tasks: [],
+        terminalFailure: null, decision: null, handoff: null,
+        worktrees: collected ? collected.worktrees : [], merge: false };
+      if (partialFinalize) {
+        return { ok: false, reason: 'partial-evidence-missing', state: 'partial-finalize', digest, preserved: true };
+      }
+      const nextPlan = path.join(repoRoot, 'NEXT_PLAN.md');
+      return { ok: false, reason: 'partial-closed', status: 'partial_closed', state: 'partial-finalize',
+        action: 'awaiting-confirmation', digest, worktrees: digest.worktrees,
+        nextPlan: fs.existsSync(nextPlan) ? nextPlan : null, preserved: true,
+        message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.' };
+    }
+    const ledger = partialRead.ledger as Record<string, unknown>;
+    const handoff = ledger.handoff && typeof ledger.handoff === 'object'
+      ? ledger.handoff as Record<string, unknown> : null;
+    const handoffPath = handoff && typeof handoff.path === 'string'
+      ? path.join(repoRoot, handoff.path) : null;
+    const nextPlan = handoffPath && fs.existsSync(handoffPath)
+      ? handoffPath : path.join(repoRoot, 'NEXT_PLAN.md');
+    const decision = ledger.userConfirmed === true && ledger.status === 'partial_closed';
+    // 기존 read-only digest가 task verification/review 문서를 해석하는 정본이다.
+    // partial ledger 자체의 상태 집계는 아래에 남겨, 일반 digest가 불완전해도 handoff를 잃지 않는다.
+    const partialDigestModule = require('./finalize-digest') as typeof import('./finalize-digest');
+    const fullDigest = partialDigestModule.prepareFinalizeDigest({ repoRoot, blueprintDir });
+    const digestTasks = fullDigest.ok ? fullDigest.tasks : [];
+    const digest = {
+      state: 'partial-finalize', status: 'partial_closed',
+      tasks: (Array.isArray(ledger.tasks) ? ledger.tasks : []).map((task) => {
+        const item = task as Record<string, unknown>;
+        const details = digestTasks.find((entry) => (
+          entry.id === item.id || entry.id === `TASKS-${String(item.id).padStart(3, '0')}`
+        ));
+        return {
+          id: item.id ?? null, status: item.status ?? null, sha: item.sha ?? null,
+          verification: details ? details.verification : null,
+          review: details ? details.review : null,
+        };
+      }),
+      terminalFailure: ledger.terminalFailure ?? null,
+      decision: decision ? 'partial-close-user-confirmed' : null,
+      handoff: handoff && handoffPath && fs.existsSync(handoffPath)
+        ? { ...handoff, absolutePath: handoffPath } : null,
+      worktrees: collected ? collected.worktrees : [],
+      digestFailure: fullDigest.ok ? null : fullDigest.reason,
+      merge: false,
+    };
+    if (partialFinalize && (!decision || !digest.handoff)) {
+      return { ok: false, reason: 'partial-evidence-missing', state: 'partial-finalize', digest, preserved: true };
+    }
+    if (partialFinalize && !confirmPartial) {
+      return { ok: false, reason: 'partial-confirmation-required', state: 'partial-finalize',
+        action: 'awaiting-confirmation', digest, preserved: true };
+    }
+    if (partialFinalize && yes && confirmPartial) {
+      // 부분 종료는 성공/closed 전이가 아니다. main checkout에서 근거를 먼저 확인한
+      // 뒤에만 pointer와 명시된 drive worktree를 정리한다.
+      const removed: string[] = [];
+      try {
+        // 원장이 들어 있는 integration을 마지막에 지워야 worker 정리 실패 시
+        // 다음 호출이 같은 증거와 handoff를 다시 확인할 수 있다.
+        for (const worktree of [...digest.worktrees].reverse()) {
+          if (fs.existsSync(worktree)) {
+            execFileSync('git', ['worktree', 'remove', '--force', worktree], { cwd: repoRoot, stdio: 'ignore' });
+            removed.push(worktree);
+          }
+        }
+        const pointerCleared = clearPointer({ repoRoot });
+        return { ok: true, state: 'partial-finalize', status: 'partial_closed', digest,
+          pointerCleared, cleanup: { removed }, preserved: false };
+      } catch (error) {
+        return { ok: false, reason: 'partial-cleanup-failed', state: 'partial-finalize', digest,
+          cleanup: { removed }, preserved: true, cause: (error as Error).message };
+      }
+    }
     return {
       ok: false, reason: 'partial-closed', status: 'partial_closed',
+      state: 'partial-finalize', action: 'awaiting-confirmation', digest,
       worktrees: collected ? collected.worktrees : [],
       nextPlan: fs.existsSync(nextPlan) ? nextPlan : null,
       preserved: true,
       message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
     };
+  }
+  if (partialFinalize) {
+    return { ok: false, reason: 'partial-not-closed', state: 'partial-finalize', preserved: true };
   }
 
   // 원장은 G16보다 먼저 한 번만 읽는다. 증적 대조와 아래 provenance·integration이

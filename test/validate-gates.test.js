@@ -62,17 +62,18 @@ test('partial-close gate → requires two waves, failure evidence, untracked pla
     tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
       { id: '003', status: 'integrated', decisions: [wave1] },
       { id: '004', status: 'integrated', decisions: [wave2] }],
-    terminalFailure: { task: '002', command: 'npm test', summary: 'failed', paths: ['test/a.js'], exitCode: 1, repairWave: 2 },
+    terminalFailure: { task: '002', command: 'npm test', summary: 'failed', paths: ['test/a.js'], exitCode: 1, repairWave: 2, source_digest: 'abc123' },
+    handoff: { path: '113_001_NEXT_PLAN.md', timestamp: '2026-10-19T16:08:26.068+09:00', source_digest: 'abc123' },
   };
   assert.match(checkPartialCloseEvidence({ ledger: {}, userConfirmed: true }).reason, /awaiting/);
-  assert.match(checkPartialCloseEvidence({ ledger: evidence, userConfirmed: true }).reason, /next-plan/);
-  assert.match(checkPartialCloseEvidence({ ledger: evidence, nextPlanExists: true }).reason, /confirmation/);
-  assert.match(checkPartialCloseEvidence({
-    ledger: evidence, nextPlanExists: true, nextPlanTracked: true, userConfirmed: true,
-  }).reason, /untracked/);
+  assert.match(checkPartialCloseEvidence({ ledger: { ...evidence, handoff: undefined }, userConfirmed: true }).reason, /handoff/);
+  assert.match(checkPartialCloseEvidence({ ledger: evidence, handoff: evidence.handoff }).reason, /confirmation/);
   assert.strictEqual(checkPartialCloseEvidence({
-    ledger: evidence, nextPlanExists: true, nextPlanTracked: false, userConfirmed: true,
+    ledger: evidence, handoff: evidence.handoff, userConfirmed: true,
   }).ok, true);
+  assert.strictEqual(checkPartialCloseEvidence({
+    ledger: evidence, handoff: { ...evidence.handoff, path: 'different.md' }, userConfirmed: true,
+  }).reason, 'partial-close-handoff-reference-required');
 });
 
 const rels = {

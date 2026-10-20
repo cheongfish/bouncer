@@ -183,6 +183,8 @@ test('usage → finalize prepare --blueprint를 나열한다', () => {
   assert.match(r.out, /finalize\s+prepare --blueprint <dir>/);
   assert.match(r.out, /finalize\s+links --blueprint <dir>/);
   assert.match(r.out, /finalize\s+release-main --blueprint <dir>/);
+  assert.match(r.out, /finalize\s+partial-finalize --blueprint <dir>/);
+  assert.match(r.out, /--allow-partial-merge --confirm-partial-merge/);
   assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
 });
 

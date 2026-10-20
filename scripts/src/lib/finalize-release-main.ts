@@ -248,11 +248,13 @@ function sortedUnique(values: string[]): string[] {
  * @param {object} [opts.deps] - 테스트 seam. 생략하면 runtime/ledger/next/git 기본값
  * @returns {ReleaseMainResult} 성공 payload 또는 `{ ok: false, reason }`
  */
-function releaseMain({ repoRoot, cwd, blueprintDir, deps }: {
+function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = false, confirmPartialMerge = false }: {
   repoRoot: string;
   cwd: string;
   blueprintDir: string;
   deps?: Partial<ReleaseMainDeps>;
+  allowPartialMerge?: boolean;
+  confirmPartialMerge?: boolean;
 }): ReleaseMainResult {
   const gitDefault = (args: string[]): string => execFileSync('git', args, {
     cwd: repoRoot,
@@ -358,7 +360,44 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps }: {
   if (hasLedger) {
     const ledger = ledgerRead.ledger;
     const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
-    if (ledger.status === 'awaiting_confirmation' || ledger.status === 'partial_closed'
+    if (ledger.status === 'partial_closed') {
+      if (!allowPartialMerge && !confirmPartialMerge) return { ok: false, reason: 'drive-not-closed' };
+      if (!allowPartialMerge || !confirmPartialMerge) return { ok: false, reason: 'partial-merge-confirmation-required' };
+      const handoff = (ledger as Record<string, unknown>).handoff as { path?: unknown } | undefined;
+      if ((ledger as Record<string, unknown>).userConfirmed !== true || !handoff
+        || typeof handoff.path !== 'string' || !fs.existsSync(path.join(root, handoff.path))) {
+        return { ok: false, reason: 'partial-evidence-missing' };
+      }
+      // Partial merge는 worker tree를 절대 합치지 않는다. integration HEAD 하나만
+      // 병합하고 커밋 메시지에 handoff를 남겨 terminal 성공으로 오인되지 않게 한다.
+      const integrationHead = git(['-C', ledgerRead.integrationPath, 'rev-parse', 'HEAD']).trim();
+      const currentHead = git(['rev-parse', 'HEAD']).trim();
+      if (!integrationHead || integrationHead === currentHead) return { ok: false, reason: 'partial-merge-empty' };
+      const dirty = git(['status', '--porcelain', '--untracked-files=all']).split('\n').filter(Boolean);
+      // partial-close handoff와 integration worktree 디렉터리만 untracked 예외다.
+      // 다른 변경은 merge commit에 섞이거나 덮일 수 있으므로 index를 그대로 둔다.
+      const integrationRel = toPosix(path.relative(root, ledgerRead.integrationPath));
+      if (dirty.some((line) => !(line.startsWith('?? ')
+        && [handoff.path, `${integrationRel}/`].includes(line.slice(3))))) {
+        return { ok: false, reason: 'partial-merge-main-dirty', paths: dirty.map((line) => line.slice(3)) } as ReleaseMainResult;
+      }
+      try {
+        git(['merge', '--no-commit', '--no-ff', integrationHead]);
+        git(['commit', '-m', `[partial] ${bp}`, '-m', `Handoff: ${handoff.path}`]);
+      } catch (error) {
+        let abortError: string | null = null;
+        try {
+          git(['merge', '--abort']);
+        } catch (error) {
+          abortError = (error as Error).message;
+        }
+        return { ok: false, reason: 'partial-merge-failed', cause: (error as Error).message,
+          ...(abortError ? { recoveryError: abortError } : {}) } as ReleaseMainResult;
+      }
+      return { ok: true, blueprint: bp, partial: true, merged: integrationHead,
+        handoff: handoff.path, removed: [], restored: [], preserved: [], next: null } as ReleaseMainResult;
+    }
+    if (ledger.status === 'awaiting_confirmation'
         || tasks.some((entry) => entry.status !== 'integrated')) {
       return { ok: false, reason: 'drive-not-closed' };
     }

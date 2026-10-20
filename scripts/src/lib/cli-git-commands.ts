@@ -94,6 +94,26 @@ function cmdFinalize(rest: string[], io: CliIo) {
       repoRoot,
       cwd: process.cwd(),
       blueprintDir: f.blueprint,
+      allowPartialMerge: f['allow-partial-merge'] === true,
+      confirmPartialMerge: f['confirm-partial-merge'] === true,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  }
+  if (rest[0] === 'partial-finalize') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+      io.err('finalize: --blueprint is required\n');
+      return 2;
+    }
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    const result = finalize({
+      repoRoot,
+      cwd: process.cwd(),
+      blueprintDir: f.blueprint,
+      yes: f.yes === true,
+      partialFinalize: true,
+      confirmPartial: f['confirm-partial-finalize'] === true,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;

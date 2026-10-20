@@ -372,12 +372,22 @@ test('blueprint next에서 verifying 중 terminalFailure → blocked', () => {
     task: verify.id, command: 'true', summary: 'failed', paths: ['src/'], exitCode: 1, repairWave: 0,
   };
   writeLedger(ledgerFile, ledger);
+  const verificationPath = path.join(
+    boot.integrationPath, blueprint, 'tasks', verify.id, 'verification.md',
+  );
+  fs.mkdirSync(path.dirname(verificationPath), { recursive: true });
+  fs.writeFileSync(verificationPath, '# Verification\n\nterminal failure\n');
+  const verificationSha = crypto.createHash('sha256')
+    .update(fs.readFileSync(verificationPath)).digest('hex');
   const drive = { repo, blueprint, integrationPath: boot.integrationPath, ledgerFile };
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'blocked');
   assertCardFor(r);
   assert.strictEqual(r.reason, 'terminal-verification-failed');
   assert.match(r.next, /coordinate repair/);
+  assert.deepStrictEqual(r.payload.evidence, [{
+    kind: 'verification', path: verificationPath, sha256: verificationSha,
+  }]);
 });
 
 test('blueprint next에서 fanin이 null이 아님 → integrate', () => {
@@ -659,6 +669,45 @@ test('task next에서 dispatch 없음 → dispatch', () => {
   assert.ok(r.argv.includes('dispatch'));
   assert.ok(r.argv.includes('--lease-id'));
   assert.strictEqual(r.judge.kind, 'intent-symbols');
+});
+
+test('resumed DAG owner→downstream→terminal → next exposes fresh fences and generations in order', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/014-resume-order';
+  const drive = preparedCommitDrive('bouncer-next-resume-order-', blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.tasks[0].lease = { id: 'owner-new', generation: 2, seq: 2, status: 'active' };
+  ledger.tasks.push(
+    { id: '002', execution_kind: 'commit', status: 'prepared', depends_on: ['001'], dependency_gate: 'integrated',
+      workerPath: drive.worker, lease: { id: 'downstream-new', generation: 2, seq: 3, status: 'active' } },
+    { id: '003', execution_kind: 'commit', status: 'prepared', depends_on: ['002'], dependency_gate: 'integrated',
+      workerPath: drive.worker, lease: { id: 'leaf-new', generation: 2, seq: 4, status: 'active' } },
+    { id: '004', execution_kind: 'verification', status: 'pending', depends_on: ['003'], dependency_gate: 'integrated' },
+  );
+  writeLedger(drive.ledgerFile, ledger);
+
+  for (const [id, leaseId, generation] of [
+    ['001', 'owner-new', '2'], ['002', 'downstream-new', '2'], ['003', 'leaf-new', '2'],
+  ]) {
+    const result = assertNoWrite(drive, () => nextOf(drive, { task: id }));
+    assert.strictEqual(result.action, 'dispatch');
+    assert.strictEqual(result.checkpoint.ledger.sha256,
+      crypto.createHash('sha256').update(fs.readFileSync(drive.ledgerFile)).digest('hex'));
+    const leaseAt = result.argv.indexOf('--lease-id');
+    const taskAt = result.argv.indexOf('--task');
+    const ledgerAt = result.argv.indexOf('--ledger-path');
+    assert.ok(ledgerAt < taskAt && taskAt < leaseAt);
+    assert.deepStrictEqual(result.argv.slice(leaseAt), ['--lease-id', leaseId, '--generation', generation]);
+  }
+  const afterLeaf = loadLedger(drive.ledgerFile);
+  afterLeaf.tasks.slice(0, 3).forEach((item) => { item.status = 'integrated'; });
+  afterLeaf.tasks[3].status = 'ready';
+  writeLedger(drive.ledgerFile, afterLeaf);
+  const terminal = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(terminal.action, 'verification_node');
+  const taskAt = terminal.argv.indexOf('--task');
+  const ledgerAt = terminal.argv.indexOf('--ledger-path');
+  assert.ok(ledgerAt < taskAt);
+  assert.strictEqual(terminal.argv[taskAt + 1], '004');
 });
 
 test('task next에서 accepted report → record', () => {
