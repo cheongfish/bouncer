@@ -8,6 +8,8 @@ const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 const { writeCurrent } = require('../scripts/lib/current');
+const { COMMON_EPICS } = require('../scripts/lib/epic-registry');
+const { writeEpicRegistry } = require('./helpers/epic-registry');
 
 const EPICS = '.bouncer/context/epics';
 
@@ -87,9 +89,10 @@ test('plan inspect with epic dirs → allocates the next epic id from \\d{3}-slu
 
   assert.strictEqual(result.code, 0);
   assert.strictEqual(payload.ok, true);
-  assert.strictEqual(payload.nextEpicId, '004');
+  assert.strictEqual(payload.nextEpicId, null);
+  assert.strictEqual(payload.registry.status, 'missing');
   assert.strictEqual(payload.epic, null);
-  assert.strictEqual(payload.maintenanceEpic, null);
+  assert.strictEqual('maintenanceEpic' in payload, false);
   assert.deepStrictEqual(payload.verifySignals, ['Makefile', 'package.json#scripts']);
   assert.strictEqual(payload.current.status, 'empty');
   assert.strictEqual(payload.current.blueprint, null);
@@ -157,32 +160,104 @@ test('plan inspect with --epic-dir → fills epic.nextBlueprintId and ignores BP
 
   assert.strictEqual(result.code, 0);
   assert.strictEqual(payload.ok, true);
-  assert.strictEqual(payload.nextEpicId, '004');
+  assert.strictEqual(payload.nextEpicId, null);
   assert.strictEqual(payload.epic.dir, epicDir);
   assert.strictEqual(payload.epic.status, 'approved');
   assert.strictEqual(payload.epic.nextBlueprintId, '003');
 });
 
-test('plan inspect with a maintenance slug → reports maintenanceEpic.id', () => {
+test('plan inspect with a maintenance dir and no registry → has no maintenanceEpic key', () => {
   const repo = makeRepo();
   writeIdTree(repo);
   mkdirp(repo, `${EPICS}/063-maintenance/blueprints/003-z`);
-  writeDoc(repo, `${EPICS}/063-maintenance/index.md`, {
-    type: 'bouncer.epic', title: 'Maintenance', description: 'd',
-    resource: `${EPICS}/063-maintenance/index.md`,
-    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: '063', epic_id: '063', status: 'approved' },
+
+  const payload = parsePayload(inspect(repo));
+
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual('maintenanceEpic' in payload, false);
+});
+
+test('plan inspect with a standard registry and only 001-foundation → lists 8 active epics', () => {
+  const repo = makeRepo();
+  writeEpicRegistry(repo);
+  mkdirp(repo, `${EPICS}/001-foundation`);
+
+  const payload = parsePayload(inspect(repo));
+
+  assert.strictEqual(payload.registry.status, 'ok');
+  assert.strictEqual(payload.registry.profile, 'standard');
+  assert.strictEqual(payload.registry.epics.length, 8);
+  assert.strictEqual(payload.registry.epics[0].slug, 'foundation');
+  assert.strictEqual(payload.registry.epics[0].dir, `${EPICS}/001-foundation`);
+  assert.strictEqual(payload.registry.epics[1].dir, null);
+  assert.strictEqual(payload.registry.epics[1].description, COMMON_EPICS[1].description);
+  assert.strictEqual(payload.registry.epics[1].include, COMMON_EPICS[1].include);
+  assert.strictEqual(payload.registry.epics[1].exclude, COMMON_EPICS[1].exclude);
+  assert.deepStrictEqual(payload.registry.areas, []);
+  assert.strictEqual(payload.nextEpicId, null);
+  assert.strictEqual('maintenanceEpic' in payload, false);
+});
+
+test('plan inspect with an approved domain epic lacking a dir → nextEpicId is the smallest such id', () => {
+  const repo = makeRepo();
+  const base = writeEpicRegistry(repo).epics;
+  const domain = (slug, id) => ({
+    slug, id, kind: 'domain', active: true, approval: { reason: `${slug} reason`, approvedAt: '2026-10-20' },
   });
+  writeEpicRegistry(repo, { domainEpicLimit: 3, epics: [...base, domain('shipping', '021'), domain('billing', '020')] });
+  mkdirp(repo, `${EPICS}/021-shipping`);
+
+  const payload = parsePayload(inspect(repo));
+  const billing = payload.registry.epics.find((e) => e.slug === 'billing');
+
+  assert.strictEqual(payload.nextEpicId, '020');
+  assert.strictEqual(billing.dir, null);
+  assert.strictEqual(billing.description, null);
+  assert.strictEqual(billing.include, 'billing reason');
+  assert.strictEqual(billing.exclude, '');
+});
+
+test('plan inspect with a legacy epic and an inactive common epic → legacy listed, inactive hidden', () => {
+  const repo = makeRepo();
+  const base = writeEpicRegistry(repo).epics.map((e) => (e.slug === 'data' ? { ...e, active: false } : e));
+  writeEpicRegistry(repo, { epics: [...base, { slug: 'maintenance', id: '063', kind: 'legacy', active: true }] });
+  mkdirp(repo, `${EPICS}/063-maintenance`);
+
+  const payload = parsePayload(inspect(repo));
+
+  assert.deepStrictEqual(payload.registry.legacy, [
+    { slug: 'maintenance', id: '063', dir: `${EPICS}/063-maintenance` },
+  ]);
+  assert.strictEqual(payload.registry.epics.length, 7);
+  assert.strictEqual(payload.registry.epics.some((e) => e.slug === 'maintenance' || e.slug === 'data'), false);
+});
+
+test('plan inspect without a registry → registry missing and nextEpicId null', () => {
+  const repo = makeRepo();
+  mkdirp(repo, '.bouncer');
+
+  const payload = parsePayload(inspect(repo));
+
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.registry.status, 'missing');
+  assert.strictEqual(typeof payload.registry.next, 'string');
+  assert.strictEqual(payload.nextEpicId, null);
+});
+
+test('plan inspect with a broken registry JSON → ok true with registry invalid S35', () => {
+  const repo = makeRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer', 'epics.json'), '{ not json');
 
   const result = inspect(repo);
   const payload = parsePayload(result);
 
   assert.strictEqual(result.code, 0);
   assert.strictEqual(payload.ok, true);
-  assert.strictEqual(payload.maintenanceEpic.id, '063');
-  assert.strictEqual(payload.maintenanceEpic.dir, `${EPICS}/063-maintenance`);
-  assert.strictEqual(payload.maintenanceEpic.status, 'approved');
-  assert.strictEqual(payload.maintenanceEpic.nextBlueprintId, '004');
+  assert.strictEqual(payload.registry.status, 'invalid');
+  assert.strictEqual(payload.registry.code, 'S35');
+  assert.strictEqual(typeof payload.registry.message, 'string');
+  assert.strictEqual(payload.nextEpicId, null);
 });
 
 test('plan inspect run → is read-only: git status is unchanged', () => {
@@ -399,9 +474,10 @@ test('plan inspect without --blueprint → keeps prior fields and sets routing n
 
   assert.strictEqual(result.code, 0);
   assert.strictEqual(payload.ok, true);
-  assert.strictEqual(payload.nextEpicId, '004');
+  assert.strictEqual(payload.nextEpicId, null);
+  assert.strictEqual(payload.registry.status, 'missing');
   assert.strictEqual(payload.epic, null);
-  assert.strictEqual(payload.maintenanceEpic, null);
+  assert.strictEqual('maintenanceEpic' in payload, false);
   assert.deepStrictEqual(payload.verifySignals, ['Makefile', 'package.json#scripts']);
   assert.strictEqual(payload.current.status, 'empty');
   assert.strictEqual(payload.routing, null);

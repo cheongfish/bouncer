@@ -33,7 +33,6 @@ bouncer_schema: '0.1'
 * [075 adaptive-review-dispatch](epics/075-adaptive-review-dispatch/index.md) - Selects plan and execute review perspectives from deterministic size and risk signals while preserving review convergence contracts.
 * [076 verification-reuse-checkpoint-compaction](epics/076-verification-reuse-checkpoint-compaction/index.md) - Reuses successful verification evidence and compacts completed coordinator state without weakening auditability.
 * [077 rules-reorganization](epics/077-rules-reorganization/index.md) - Maps Bouncer rule ownership and preserves current workflow loading and behavior during reorganization.
-* [078 plan-review-loop-guard](epics/078-plan-review-loop-guard/index.md) - 계획 문서가 context review 전에 G19·G20과 Touch 정합성을 통과하고, 리뷰 뒤 문서 변경을 G18이 stale로 거절하게 해 plan 리뷰 반복 루프를 끊는다.
 * [078 parallel-run-finalize-digest](epics/078-parallel-run-finalize-digest/index.md) - Runs independent Bouncer tasks in parallel under coordinator leases and compresses finalize input into one CLI digest.
 * [079 roadmap-closeout](epics/079-roadmap-closeout/index.md) - Closes the remaining roadmap items by shipping built CommonJS through a release branch and removing the leftover governance rule file.
 * [080 execution-token-cost](epics/080-execution-token-cost/index.md) - Close execution-contract gaps and run review once at final verification to cut drive token cost
@@ -58,6 +57,7 @@ bouncer_schema: '0.1'
 * [099 bouncer-improvements-2026-10-14](epics/099-bouncer-improvements-2026-10-14/index.md) - Plans and verifies prioritized Bouncer backlog improvements in independent blueprints.
 * [100 graphify-raw-query](epics/100-graphify-raw-query/index.md) - Replaces the plan-time graph-suggest file estimation with raw Graphify queries plus grep and removes graph-suggest.
 * [101 plan-review-call-reduction](epics/101-plan-review-call-reduction/index.md) - Cut plan context-review model calls by making review CLI help complete, writing context-review.md on close, and approving plan status in one command.
+* [102 plan-review-loop-guard](epics/102-plan-review-loop-guard/index.md) - 계획 문서가 context review 전에 G19·G20과 Touch 정합성을 통과하고, 리뷰 뒤 문서 변경을 G18이 stale로 거절하게 해 plan 리뷰 반복 루프를 끊는다.
 * [103 drive-repair-integrity](epics/103-drive-repair-integrity/index.md) - drive의 다중 attempt fan-in 누락, 리뷰 라운드 순서와 repair wave 상한 불일치, repair brief의 finding 누락을 고친다.
 * [104 drive-retro-103-followups](epics/104-drive-retro-103-followups/index.md) - RETRO-103-001 follow-ups: reject duplicate fingerprints at context-review record and record subagent token usage
 * [105 drive-retro-104-followups](epics/105-drive-retro-104-followups/index.md) - RETRO-104 follow-ups: verify failure output tail, ASCII epic description guard, and plan discovery and review guides
@@ -67,3 +67,4 @@ bouncer_schema: '0.1'
 * [111 context-ontology](epics/111-context-ontology/index.md) - Tracks deterministic context ontology retrieval and CLI delivery with source evidence and remaining verification work.
 * [112 workflow-transition-guards](epics/112-workflow-transition-guards/index.md) - Reject invalid Bouncer workflow state transitions in the CLI before mutation and align skill contracts.
 * [113 partial-finalize-recovery](epics/113-partial-finalize-recovery/index.md) - Adds partial finalization and owner task recovery for failed Bouncer drives.
+* [114 consumer-epic-registry](epics/114-consumer-epic-registry/index.md) - Fix consumer project epics to a registry of common epics with area tags and plan gate checks

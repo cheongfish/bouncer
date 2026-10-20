@@ -94,8 +94,8 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) runs `--set` from `release-main` `next` without asking.
    Read `${BOUNCER_ROOT}/rules/current-pointer.md` for that pointer change.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
-   work plans a sibling Blueprint in the same Epic or a new Epic via
-   `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
+   work plans a sibling Blueprint in the same Epic or the registry epic chosen by
+   the attribution rules via `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
    by the cleanup-handoff contract — do not arbitrarily `--set` an open sibling.
    Render through `${BOUNCER_ROOT}/rules/output.md`: explain/quiz outcome, remainder commit and
    resulting `closed` state, `integration` (`complete`, `openTasks`,
