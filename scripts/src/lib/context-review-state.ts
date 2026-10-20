@@ -1304,6 +1304,89 @@ function closeCycle(input: {
   }) as Record<string, unknown>;
 }
 
+/** payload의 documents_content에서 경로별 본문만 꺼낸다. 없거나 모양이 다르면 undefined. */
+function contentOf(payload: Record<string, unknown>): Record<string, { body: string }> | undefined {
+  const raw = payload.documents_content;
+  if (!isRecord(raw)) return undefined;
+  const out: Record<string, { body: string }> = {};
+  for (const [file, doc] of Object.entries(raw)) {
+    if (isRecord(doc) && typeof doc.body === 'string') out[file] = { body: doc.body };
+  }
+  return out;
+}
+
+/**
+ * finding symbol과 heading 텍스트를 같은 꼴로 줄인다: 소문자로 바꾸고 영숫자(한글 포함)가 아닌 문자를 지운다.
+ * 예: `goal-intent`와 `Goal & intent`는 모두 `goalintent`.
+ */
+function sectionKey(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+/**
+ * 본문에서 symbol과 일치하는 첫 heading의 섹션 본문을 뽑는다. 섹션은 그 heading 줄부터 같은 단계 이상
+ * (# 개수가 같거나 적은)의 다음 heading 직전까지다. 코드 펜스 안의 `#`은 heading이 아니다.
+ *
+ * @param {string} body - 문서 본문
+ * @param {string} symbol - finding symbol(heading slug)
+ * @returns {string | undefined} 섹션 본문, heading을 못 찾으면 undefined
+ */
+function extractSection(body: string, symbol: string): string | undefined {
+  const want = sectionKey(symbol);
+  if (want === '') return undefined;
+  const lines = body.split('\n');
+  let fenced = false;
+  let start = -1;
+  let level = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^\s*(```|~~~)/.test(lines[i])) { fenced = !fenced; continue; }
+    if (fenced) continue;
+    const m = /^(#{1,6})\s+(.*)$/.exec(lines[i]);
+    if (!m) continue;
+    if (start >= 0) {
+      if (m[1].length <= level) return lines.slice(start, i).join('\n');
+    } else if (sectionKey(m[2]) === want) {
+      start = i;
+      level = m[1].length;
+    }
+  }
+  return start >= 0 ? lines.slice(start).join('\n') : undefined;
+}
+
+/**
+ * 열린 must_fix 모두의 대상이 기준 대비 고쳐졌는지 판정한다. payload의 changed_documents·revision_diff는
+ * loadDispatch가 대조하지 않아 위조될 수 있으므로 입력으로 쓰지 않고, 재계산 대조를 통과한
+ * documents_content 본문만 비교한다. 파일을 읽지 않는다.
+ *
+ * @param {Finding[]} findings - 판정할 finding. open must_fix만 본다
+ * @param {Record<string, {body: string}> | undefined} baseline - 기준(latest 저장본) 문서 본문. 없으면 false
+ * @param {Record<string, {body: string}> | undefined} current - 이번 dispatch의 문서 본문
+ * @returns {boolean} 모든 대상이 고쳐졌으면 true. 하나라도 그대로이거나 file/섹션을 한쪽에서
+ *   못 찾으면 false
+ */
+function openMustFixesFixed(
+  findings: Finding[],
+  baseline: Record<string, { body: string }> | undefined,
+  current: Record<string, { body: string }> | undefined,
+): boolean {
+  if (!baseline || !current) return false;
+  return findings
+    .filter((f) => f.status === 'open' && f.actionability === 'must_fix')
+    .every((f) => {
+      const file = f.file;
+      const symbol = f.symbol;
+      if (typeof file !== 'string' || typeof symbol !== 'string') return false;
+      if (!Object.hasOwn(baseline, file) || !Object.hasOwn(current, file)) return false;
+      const before = baseline[file].body;
+      const after = current[file].body;
+      // symbol `-`는 섹션 지정이 없는 finding이라 file 본문 전체를 비교한다.
+      if (symbol === '-') return before !== after;
+      const a = extractSection(before, symbol);
+      const b = extractSection(after, symbol);
+      return a !== undefined && b !== undefined && a !== b;
+    });
+}
+
 /**
  * cycle을 전체 재시작한다. 누적 1회만 허용하며 active 증거(rounds·findings·보고·dispatch)는
  * history로 보관한다. 직전 certified target과 현재 snapshot이 같으면 거절하고, delta 뒤
@@ -1373,14 +1456,18 @@ function restartCycle(input: {
       const findingsToCheck = (state.closed && state.projection)
         ? state.projection.findings
         : folded.findings;
-      if (state.cycle.active_reports.length >= 2
-        && findingsToCheck.some((f) => f.status === 'open' && f.actionability === 'must_fix')) {
-        return fail('context-review-unresolved-findings', 'must_fix remains open after the delta round',
-          'record explicit user-approved accepted-risk with context-review close, or fix open findings; '
-          + 'restart cannot resolve findings');
-      }
       const latest = readRef(ctx, repoRoot, state.cycle.latest_dispatch);
       if (isFail(latest)) return latest;
+      // delta 뒤 열린 must_fix는 대상 섹션이 실제로 고쳐졌을 때만 restart를 받아들인다.
+      // 기준은 이미 읽은 latest 저장본이고 새 내용은 loadDispatch가 재계산 대조한 payload다.
+      if (state.cycle.active_reports.length >= 2
+        && findingsToCheck.some((f) => f.status === 'open' && f.actionability === 'must_fix')
+        && !openMustFixesFixed(findingsToCheck, contentOf(JSON.parse(latest)),
+          contentOf(JSON.parse(dispatch.text)))) {
+        return fail('context-review-unresolved-findings', 'must_fix remains open after the delta round',
+          'record explicit user-approved accepted-risk with context-review close, or fix the target section '
+          + 'of every open must_fix: route then guides close or restart');
+      }
       // 닫힌 cycle은 close가 인증한 digest가 마지막 certified target이다(본문 재close가 latest_dispatch를
       // 바꾸지 않으므로 round digest만 보면 이미 인증된 snapshot으로 restart할 수 있다).
       const previousDigest = state.closure?.closure_target_digest
@@ -1553,10 +1640,12 @@ function routeFollowUp(input: {
   if (!state.closed && rounds >= ROUND_MODES.length) {
     const folded = foldReports(ctx, repoRoot, cycle.active_reports);
     if (isFail(folded)) return folded;
-    if (folded.findings.some((f) => f.status === 'open' && f.actionability === 'must_fix')) {
+    // 대상 섹션을 모두 고쳤다면 멈추지 않고 4(close) 또는 6(restart)으로 내려간다.
+    if (folded.findings.some((f) => f.status === 'open' && f.actionability === 'must_fix')
+      && !openMustFixesFixed(folded.findings, contentOf(baseline), contentOf(newPayload))) {
       return route('user', 'context-review-unresolved-findings', 'must_fix remains open after the delta round',
-        'record explicit user-approved accepted-risk with context-review close, or fix open findings; '
-        + 'restart cannot resolve findings', cycle);
+        'record explicit user-approved accepted-risk with context-review close, or fix the target section '
+        + 'of every open must_fix: route then guides close or restart', cycle);
     }
   }
   // 4. 구조·계약이 baseline과 같은 본문 수정은 새 round 없이 close로 현재 digest를 인증한다.

@@ -102,9 +102,23 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    `first_seen_round` is 2. Update `last_seen_round` on returning findings.
 6. **Close** — Delta runs once; context review has no third round and no
    critical recovery. Mark findings the delta certified as `resolved`. When a
-   `must_fix` finding stays open after the delta, leave `context-review`
-   unaccepted and bring the open finding to the user; only the user's
-   accepted-risk note may record it `accepted`. Run `bouncer context-review close`
+   `must_fix` finding stays open after the delta, fix its target section
+   (the finding's `file` and `symbol`) if the user approves, then rerun
+   `bouncer review-dispatch plan --previous <stored-latest.json>` and
+   `bouncer context-review route`, and follow only its `next_action`:
+   - body-only edit of the target section → `close`: set the fixed finding to
+     `resolved` and run `bouncer context-review close`;
+   - the edit also changed the contract or structure (Interface/Touch) →
+     `restart` while `restart_count` is below 1: run
+     `bouncer context-review restart`, rerun discovery, and re-approve the
+     changed plan;
+   - the target section was not fixed, or only unrelated sections changed →
+     `user`: offer the user only an accepted-risk close (restore the reviewed
+     baseline documents, then close with `--accept-risk`, and edit after
+     approval) or stopping. Only the user's accepted-risk note may record the
+     finding `accepted`.
+
+   Leave `context-review` unaccepted until then. Run `bouncer context-review close`
    only after explicit user approval. `close` and `record --status accepted`
    certify the current snapshot: they store `closure_target_digest` in the
    runtime closure and in `context-review.md`, which plan gate G18 compares
@@ -123,7 +137,9 @@ It is read-only, derives `follow_up` from the payload and prints `next_action`
 - the new target equals the last reviewed target → `reuse` the recorded result;
   add no round and overwrite no recorded report;
 - no round is recorded yet, or a `must_fix` finding is still open after the
-  delta → `user`: stop and report. A restart does not resolve findings;
+  delta and its target section was not fixed → `user`: stop and report; offer
+  only an accepted-risk close (then edit after approval) or stopping. A fixed
+  target section routes to `close` or `restart` by the items below;
 - the structure and the Interface/Touch contract equal the reviewed baseline
   and only a body changed → `close`: run `bouncer context-review close` again
   (new `closure_target_digest`, no new round), even on an already closed cycle.
