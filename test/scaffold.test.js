@@ -7,6 +7,7 @@ const path = require('node:path');
 const { CONTEXT_ROOT, scaffoldEpic: scaffoldEpicImpl, scaffoldBlueprint, scaffoldTask } = require('../scripts/lib/scaffold');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { runCli } = require('../scripts/lib/cli');
+const { writeEpicRegistry } = require('./helpers/epic-registry');
 
 const TS = '2026-07-01T00:00:00+09:00';
 
@@ -1024,4 +1025,26 @@ test('legacy blueprint without verification_policy → plan gate raises no G20 f
   assert.strictEqual(readDoc(idx).data.bouncer.verification_policy, undefined);
   const result = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
   assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G20'), []);
+});
+
+test('legacy 등록 epic에 scaffoldBlueprint → legacy 메시지로 throw하고 blueprint 디렉터리를 만들지 않음', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '063', name: 'old', timestamp: TS });
+  writeEpicRegistry(repo, { epics: [{ slug: 'old', id: '063', kind: 'legacy', active: true }] });
+  const args = {
+    repoRoot: repo, epicDir: '.bouncer/context/epics/063-old', blueprintId: '001', name: 'x', timestamp: TS,
+  };
+  assert.throws(() => scaffoldBlueprint(args), /legacy epic 063-old takes no new blueprints; plan under a registry epic/);
+  assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context/epics/063-old/blueprints/001-x')), false);
+});
+
+test('등록부 없음 또는 대상이 common → 같은 scaffoldBlueprint 호출이 성공', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '063', name: 'old', timestamp: TS });
+  const args = {
+    repoRoot: repo, epicDir: '.bouncer/context/epics/063-old', blueprintId: '001', name: 'x', timestamp: TS,
+  };
+  assert.ok(scaffoldBlueprint(args).length > 0);
+  writeEpicRegistry(repo, { epics: [{ slug: 'old', id: '063', kind: 'common', active: true }] });
+  assert.ok(scaffoldBlueprint({ ...args, blueprintId: '002' }).length > 0);
 });

@@ -11,6 +11,8 @@ import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import render = require('./render');
 const { renderDoc } = render;
+import epicRegistry = require('./epic-registry');
+const { readEpicRegistry } = epicRegistry;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 
@@ -153,6 +155,21 @@ function approvePlan({ repoRoot, blueprintDir, deps = {} }: {
   // 3. 문서별 계획. blueprint를 먼저 읽어야 scale을 알고 context-review 검사를 가른다.
   const bpPlan = planDoc(repoRoot, `${bp}/index.md`, 'approved');
   if ('ok' in bpPlan) return bpPlan;
+  // legacy epic의 draft blueprint는 승인하지 않는다(쓰기 전 거절). 이미 approved인 blueprint의
+  // 재승인은 진행 중 실행을 막지 않으려고 통과시킨다. 등록부 부재·invalid·미등록 epic은 기존 동작.
+  if (bpPlan.needsWrite) {
+    const epicLeaf = epicDirOf(bp).split('/').pop() || '';
+    const epicId = /^(\d{3})-/.exec(epicLeaf)?.[1];
+    const registryRead = readEpicRegistry(repoRoot);
+    if (epicId && registryRead.status === 'ok'
+      && registryRead.registry.epics.some((e) => e.id === epicId && e.kind === 'legacy')) {
+      return fail(
+        'plan-approve-legacy-epic',
+        `${epicLeaf}: legacy epic takes no new blueprints`,
+        'plan the new blueprint under a registry epic (common or domain in .bouncer/epics.json)',
+      );
+    }
+  }
   const epicPlan = planDoc(repoRoot, `${epicDirOf(bp)}/index.md`, 'approved');
   if ('ok' in epicPlan) return epicPlan;
   const taskPlans: Plan[] = [];

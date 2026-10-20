@@ -14,6 +14,7 @@ const { runVerification } = verification;
 import verificationTarget = require('./verification-target');
 const { resolveVerificationTarget } = verificationTarget;
 import epicIndex = require('./epic-index');
+import epicRegistry = require('./epic-registry');
 const { checkEpicIndexConsistency } = epicIndex;
 import validateDocs = require('./validate-docs');
 const {
@@ -109,6 +110,10 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     // 말하므로 next는 두 필드 공통 문구로 둔다.
     next: 'Rewrite each failing commit_intent/commit_summary item as one Korean '
       + 'terminal sentence (e.g. …함, …임, …됨, …다), then rerun the plan gate.',
+  },
+  {
+    code: 'S35',
+    next: 'Fix the `.bouncer/epics.json` format, or recreate it with `bouncer init`.',
   },
 ]);
 
@@ -402,6 +407,8 @@ function validateBlueprint({
   }
 
   failures.push(...checkEpicIndexConsistency({ repoRoot }));
+  // 등록부가 있을 때만 형식을 본다. 부재는 이 BP에서 차단하지 않아 기존 결과가 그대로다.
+  failures.push(...epicRegistry.checkEpicRegistry({ repoRoot }));
 
   // imported blueprint는 게이트·작업 대상이 아니다. 구조·에픽목록 검사는 유지하되
   // checkGate를 건너뛰고 S18 하나로 거절한다 — ok:true/gateSkipped로 통과시키면

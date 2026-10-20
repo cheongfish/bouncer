@@ -124,3 +124,14 @@ test('cli init --pre-commit-hook → hook을 쓰고 result 필드를 낸다', ()
   const hook = path.join(path.resolve(repo, common), 'hooks', 'pre-commit');
   assert.match(fs.readFileSync(hook, 'utf8'), /^#!\/bin\/sh\n# bouncer-pre-commit v1\n/);
 });
+
+test('cli init with unknown profile or negative limit → exit 2 and no registry written', () => {
+  for (const flags of [['--profile', 'nope'], ['--domain-epic-limit', '-1'], ['--domain-epic-limit', '1.5']]) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
+    const { io } = capture();
+    const code = runCli(['init', '--repo', repo, '--no-graphify', ...flags], io);
+    assert.strictEqual(code, 2, flags.join(' '));
+    assert.ok(!fs.existsSync(path.join(repo, '.bouncer/epics.json')));
+    assert.ok(!fs.existsSync(path.join(repo, '.bouncer')));
+  }
+});

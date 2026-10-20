@@ -31,8 +31,11 @@ Bootstrap this project for Bouncer.
    `${BOUNCER_ROOT}/rules/output.md`.
 3. **Bootstrap commit.** Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
-   git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
+   git add .bouncer/config.json .bouncer/epics.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
    ```
+   `.bouncer/epics.json` is the epic registry. `bouncer init` writes it from a profile
+   (`standard` scaffolds the 8 common epics; `domain-only` registers existing epics as
+   `legacy` and scaffolds none) and never rewrites an existing one.
    If init actually created `.codex/agents`, include that directory in the same
    commit (`git add .codex/agents` in addition to the paths above). Omit it
    when the directory does not exist.

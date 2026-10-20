@@ -20,6 +20,14 @@ const {
 } = config;
 import preCommitHook = require('./pre-commit-hook');
 const { installPreCommitHook } = preCommitHook;
+import epicRegistry = require('./epic-registry');
+const {
+  REGISTRY_REL, COMMON_EPICS, readEpicRegistry, expandProfile, planRegistry, serializeEpicRegistry,
+} = epicRegistry;
+import epicIndex = require('./epic-index');
+const { listEpicDirNames } = epicIndex;
+import scaffold = require('./scaffold');
+const { scaffoldEpic } = scaffold;
 
 type GraphifySetupResult = {
   status: string;
@@ -318,6 +326,54 @@ function lockNeedsUpgrade(repoRoot: string): boolean {
     || (expectedPkg !== '' && lock.value.package_version !== expectedPkg);
 }
 
+type RegistryPlan = ReturnType<typeof planRegistry>;
+
+/**
+ * init이 쓸 등록부 계획을 파일을 쓰기 전에 만든다. 등록부가 이미 있으면(깨진 것 포함)
+ * null을 돌려 건드리지 않는다 — 프로필 변경은 사용자 승인 행위라 init 재실행의 몫이 아니다.
+ * 공통 slug 중복 디렉터리는 실패로 접어 호출자가 아무것도 쓰지 않고 멈추게 한다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} profile - 프로필 이름(standard | domain-only)
+ * @param {number} domainEpicLimit - 도메인 epic 상한
+ * @returns {null | {ok: true, plan: RegistryPlan} | {ok: false, cause: string}} 계획 / 실패 / 건드리지 않음
+ * @throws {Error} 알 수 없는 프로필·잘못된 상한(expandProfile)이거나 ID가 부족할 때
+ */
+function planRegistryForInit(repoRoot: string, profile: string, domainEpicLimit: number) {
+  if (readEpicRegistry(repoRoot).status !== 'missing') return null;
+  const base = expandProfile(profile as 'standard' | 'domain-only', { domainEpicLimit });
+  try {
+    return { ok: true as const, plan: planRegistry(base, listEpicDirNames(repoRoot)) };
+  } catch (error) {
+    // planRegistry가 던지는 중복 디렉터리 오류만 실패 보고로 흡수한다. ID 소진 같은
+    // 다른 오류는 숨기면 안 되므로 다시 던진다.
+    const message = (error as Error).message;
+    if (message.startsWith('more than one existing directory')) return { ok: false as const, cause: message };
+    throw error;
+  }
+}
+
+/**
+ * 계획한 등록부를 쓰고 새 공통 epic만 scaffold한다. 기존 epic 파일은 건드리지 않는다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {RegistryPlan} plan - planRegistryForInit 결과
+ * @param {string} timestamp - scaffold 시각
+ * @param {string[]} created - 만든 상대 경로 누적 목록
+ * @returns {void}
+ */
+function applyRegistryPlan(repoRoot: string, plan: RegistryPlan, timestamp: string, created: string[]) {
+  writeFile(repoRoot, REGISTRY_REL, serializeEpicRegistry(plan.registry), created);
+  for (const { slug, id } of plan.scaffold) {
+    // 공통 epic 설명은 scaffoldEpic이 요구하는 ASCII 문장을 그대로 쓴다.
+    const common = COMMON_EPICS.find((c) => c.slug === slug) as { description: string };
+    const made = scaffoldEpic({ repoRoot, epicId: id, name: slug, timestamp, description: common.description });
+    for (const rel of made) {
+      if (!created.includes(rel)) created.push(rel);
+    }
+  }
+}
+
 function defaultLauncherPath() {
   // 빌드된 init.js 기준 scripts/bouncer. source ts의 __dirname이 아니라
   // emit 위치라야 설치 hook이 테스트·패키지 런처와 같은 파일을 가리킨다.
@@ -364,6 +420,8 @@ function init({
   upgradeGraphify: wantUpgradeGraphify,
   preCommitHook: wantPreCommitHook,
   launcherPath,
+  profile = 'standard',
+  domainEpicLimit = 0,
 } = {} as {
   repoRoot?: string;
   timestamp?: string;
@@ -379,6 +437,8 @@ function init({
   upgradeGraphify?: boolean;
   preCommitHook?: boolean;
   launcherPath?: string;
+  profile?: string;
+  domainEpicLimit?: number;
 }) {
   const bootstrap = inspectBootstrap({ repoRoot });
   // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
@@ -388,6 +448,15 @@ function init({
   }
   if (bootstrap === 'partial') {
     return { ok: false, created: [], skipped: true, reason: 'partial-bouncer-state' };
+  }
+
+  // 등록부 계획은 어떤 파일을 쓰기 전에 끝낸다 — 중복 slug 실패가 반쯤 쓴 상태를 남기지 않게.
+  const registryPlan = planRegistryForInit(repoRoot as string, profile, domainEpicLimit);
+  if (registryPlan && !registryPlan.ok) {
+    return {
+      ok: false, created: [], skipped: true,
+      reason: 'epic-registry-duplicate-common-slug', cause: registryPlan.cause,
+    };
   }
 
   // 라이브러리 기본 install:false — 테스트가 실제 pip을 타지 않게 한다.
@@ -419,6 +488,9 @@ function init({
     // 파생 memory·config seed는 하지 않는다. 이미 있는 파일은 그대로 두고
     // context bundle과 Graphify 상태만 다룬다.
     const created: string[] = [];
+    if (registryPlan) {
+      applyRegistryPlan(repoRoot as string, registryPlan.plan, timestamp as string, created);
+    }
     if (wantSeedCodex) {
       ensureCodexAgents({ repoRoot: repoRoot as string, created });
     }
@@ -495,7 +567,8 @@ function init({
       ok: true,
       created,
       skipped: created.length === 0,
-      reason: created.length ? 'codex-agents-seeded' : 'already-initialized',
+      reason: registryPlan ? 'epic-registry-added'
+        : (created.length ? 'codex-agents-seeded' : 'already-initialized'),
       gitignoreSuggestions: suggestions,
       gitignoreWritten,
       ...(graphifyPromotion ? { graphifyPromotion } : {}),
@@ -556,6 +629,9 @@ function init({
 
   writeFile(repoRoot as string, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot as string, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
+  if (registryPlan) {
+    applyRegistryPlan(repoRoot as string, registryPlan.plan, timestamp as string, created);
+  }
   if (wantSeedCodex) {
     ensureCodexAgents({ repoRoot: repoRoot as string, created });
   }

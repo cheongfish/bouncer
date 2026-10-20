@@ -7,6 +7,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 const { readDoc } = require('../scripts/lib/frontmatter');
+const { writeEpicRegistry } = require('./helpers/epic-registry');
 
 const EPIC = '.bouncer/context/epics/001-e';
 const BP = `${EPIC}/blueprints/001-b`;
@@ -237,4 +238,38 @@ test('plan approve 성공 → current pointer 출력(bouncer current) 실행 전
   const before = cur();
   assert.strictEqual(approve(repo).code, 0);
   assert.deepEqual(cur(), before);
+});
+
+const legacyRegistry = (id) => ({ epics: [{ slug: 'old', id, kind: 'legacy', active: true }] });
+
+test('legacy 등록 epic 아래 draft blueprint → plan-approve-legacy-epic으로 거절하고 파일 무변경', () => {
+  const repo = makeRepo();
+  writeEpicRegistry(repo, legacyRegistry('001'));
+  const before = snapshot(repo);
+  const r = approve(repo);
+  assert.strictEqual(r.code, 1, r.err + r.out);
+  const res = JSON.parse(r.out);
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'plan-approve-legacy-epic');
+  assert.deepEqual(snapshot(repo), before);
+});
+
+test('legacy 등록 epic 아래 이미 approved인 blueprint → 재승인이 그대로 성공', () => {
+  const repo = makeRepo({ epic: 'approved' });
+  writeDoc(repo, BP_REL, { status: 'approved' });
+  writeEpicRegistry(repo, legacyRegistry('001'));
+  const res = JSON.parse(approve(repo).out);
+  assert.strictEqual(res.ok, true);
+  assert.ok(res.unchanged.includes(BP_REL));
+});
+
+test('등록부가 없거나 해당 epic이 domain이거나 미등록 → draft 승인이 그대로 성공', () => {
+  const noRegistry = makeRepo();
+  assert.strictEqual(approve(noRegistry).code, 0);
+  const domain = makeRepo();
+  writeEpicRegistry(domain, { epics: [{ slug: 'e', id: '001', kind: 'domain', active: true }] });
+  assert.strictEqual(approve(domain).code, 0);
+  const unlisted = makeRepo();
+  writeEpicRegistry(unlisted, legacyRegistry('063'));
+  assert.strictEqual(approve(unlisted).code, 0);
 });

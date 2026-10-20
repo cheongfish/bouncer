@@ -974,3 +974,79 @@ test('init with preCommitHook on a git repo → installs a marked hook', () => {
   const hook = path.join(path.resolve(repo, common), 'hooks', 'pre-commit');
   assert.match(fs.readFileSync(hook, 'utf8'), /^#!\/bin\/sh\n# bouncer-pre-commit v1\n/);
 });
+
+// ---- epic 등록부 bootstrap ----
+const TS = '2026-07-01T00:00:00.000Z';
+const COMMON_SLUGS = [
+  'foundation', 'core', 'data', 'integration', 'identity-access', 'interface', 'features', 'quality-ops',
+];
+
+// 등록부만 없는 ready 저장소: config를 직접 쓰고 기존 epic 디렉터리를 심는다.
+function readyRepoWithEpics(dirs) {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'),
+    `${JSON.stringify({ source_dirs: [], verify: 'true' })}\n`);
+  for (const dir of dirs) {
+    const abs = path.join(repo, '.bouncer/context/epics', dir);
+    fs.mkdirSync(abs, { recursive: true });
+    fs.writeFileSync(path.join(abs, 'index.md'), `existing ${dir}\n`);
+  }
+  return repo;
+}
+
+test('fresh repo init → writes registry and 8 common epics, rerun created is empty', () => {
+  const repo = tmpRepo();
+  const res = init({ repoRoot: repo, timestamp: TS });
+  assert.ok(res.created.includes('.bouncer/epics.json'));
+  COMMON_SLUGS.forEach((slug, i) => {
+    const rel = `.bouncer/context/epics/${String(i + 1).padStart(3, '0')}-${slug}/index.md`;
+    assert.ok(res.created.includes(rel), rel);
+    assert.strictEqual(parseFrontmatter(read(repo, rel)).data.bouncer.status, 'draft');
+  });
+  const registry = JSON.parse(read(repo, '.bouncer/epics.json'));
+  assert.strictEqual(registry.profile, 'standard');
+  assert.strictEqual(registry.domainEpicLimit, 0);
+  assert.deepStrictEqual(init({ repoRoot: repo, timestamp: TS }).created, []);
+});
+
+test('ready repo with 005-core and 010-misc → core keeps id 005, misc is legacy, new commons follow 010', () => {
+  const repo = readyRepoWithEpics(['005-core', '010-misc']);
+  const res = init({ repoRoot: repo, timestamp: TS });
+  assert.strictEqual(res.ok, true);
+  const { epics } = JSON.parse(read(repo, '.bouncer/epics.json'));
+  const byId = Object.fromEntries(epics.map((e) => [e.slug, e]));
+  assert.deepStrictEqual([byId.core.id, byId.core.kind], ['005', 'common']);
+  assert.deepStrictEqual([byId.misc.id, byId.misc.kind], ['010', 'legacy']);
+  const fresh = COMMON_SLUGS.filter((s) => s !== 'core').map((s) => byId[s].id);
+  assert.deepStrictEqual(fresh, ['011', '012', '013', '014', '015', '016', '017']);
+  assert.ok(exists(repo, '.bouncer/context/epics/011-foundation/index.md'));
+});
+
+test('ready repo with existing epic files → contents unchanged after init', () => {
+  const repo = readyRepoWithEpics(['005-core', '010-misc']);
+  const before = [read(repo, '.bouncer/context/epics/005-core/index.md'),
+    read(repo, '.bouncer/context/epics/010-misc/index.md')];
+  init({ repoRoot: repo, timestamp: TS });
+  assert.deepStrictEqual([read(repo, '.bouncer/context/epics/005-core/index.md'),
+    read(repo, '.bouncer/context/epics/010-misc/index.md')], before);
+});
+
+test('profile domain-only with limit 8 → every epic legacy and no common directories', () => {
+  const repo = readyRepoWithEpics(['005-core', '010-misc']);
+  const res = init({ repoRoot: repo, timestamp: TS, profile: 'domain-only', domainEpicLimit: 8 });
+  assert.strictEqual(res.ok, true);
+  const registry = JSON.parse(read(repo, '.bouncer/epics.json'));
+  assert.strictEqual(registry.profile, 'domain-only');
+  assert.strictEqual(registry.domainEpicLimit, 8);
+  assert.deepStrictEqual(registry.epics.map((e) => e.kind), ['legacy', 'legacy']);
+  assert.ok(!exists(repo, '.bouncer/context/epics/011-foundation'));
+});
+
+test('ready repo with two core directories → fails with duplicate reason and writes no registry', () => {
+  const repo = readyRepoWithEpics(['002-core', '009-core']);
+  const res = init({ repoRoot: repo, timestamp: TS });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'epic-registry-duplicate-common-slug');
+  assert.ok(!exists(repo, '.bouncer/epics.json'));
+});
