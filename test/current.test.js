@@ -1298,6 +1298,65 @@ test('later lease with path overlap → reviseTaskScope revokes it', () => {
   assert.strictEqual(ledger.tasks.find((t) => t.id === '002').lease.status, 'revoked');
 });
 
+// 승인 scope에 이미 있던 `.bouncer/` 경로는 revise가 유지할 수 있어야 한다. 성공 사례가 쓰는
+// 경로는 integration HEAD에 커밋돼 있어야 한다 — 아니면 scope-path-untracked가 먼저 막아
+// 면제 판정을 검증하지 못한다.
+function preparedApprovedBouncerPath(epicSlug, epicId) {
+  const repo = committedGitRepo();
+  const bpDir = writeBp(repo, {
+    epicSlug, bpSlug: '001-y', epicId, bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+    affectedPaths: ['.bouncer/epics.json', 'src/a/'],
+  });
+  fs.writeFileSync(path.join(repo, '.bouncer/epics.json'), '[]\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '--quiet', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: bpDir });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: bpDir, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  return {
+    bpDir,
+    worker: prepared.tasks.find((t) => t.id === '001').workerPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+}
+
+test('approved .bouncer path kept in next paths → reviseTaskScope succeeds', () => {
+  const { bpDir, worker } = preparedApprovedBouncerPath('092-keep', '092');
+  const revised = reviseTaskScope({
+    repoRoot: worker,
+    blueprint: bpDir,
+    task: '001',
+    paths: ['.bouncer/epics.json', 'src/a/', 'src/b/'],
+    reason: 'src/b helper discovered',
+  });
+  assert.strictEqual(revised.ok, true, JSON.stringify(revised));
+  assert.deepStrictEqual(revised.paths, ['.bouncer/epics.json', 'src/a/', 'src/b/']);
+});
+
+test('new .bouncer path or child of approved .bouncer path → out-of-bounds and bytes unchanged', () => {
+  const { bpDir, worker, ledgerFile } = preparedApprovedBouncerPath('093-reject', '093');
+  const docFile = path.join(worker, bpDir, 'tasks/001/tasks.md');
+  const before = [fs.readFileSync(ledgerFile, 'utf8'), fs.readFileSync(docFile, 'utf8')];
+  for (const added of ['.bouncer/context/x.md', '.bouncer/epics.json/child']) {
+    const revised = reviseTaskScope({
+      repoRoot: worker,
+      blueprint: bpDir,
+      task: '001',
+      paths: ['.bouncer/epics.json', 'src/a/', added],
+      reason: 'must not widen into .bouncer',
+    });
+    assert.strictEqual(revised.ok, false, added);
+    assert.strictEqual(revised.reason, 'scope-path-out-of-bounds', added);
+    assert.deepStrictEqual(revised.paths, [added]);
+  }
+  assert.deepStrictEqual(
+    [fs.readFileSync(ledgerFile, 'utf8'), fs.readFileSync(docFile, 'utf8')], before,
+  );
+});
+
 // RD-002: revise도 손상 lease 원장을 lease-invalid로 거절한다.
 test('ledger with malformed lease → reviseTaskScope refuses it', () => {
   const repo = committedGitRepo();

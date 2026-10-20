@@ -449,8 +449,21 @@ function globScopePaths(entries: string[]): string[] {
   return entries.filter((entry) => toPosix(entry).includes('*'));
 }
 
-function outOfBoundsScopePaths(entries: string[]): string[] {
+// 범위 밖 경로를 골라낸다. `approved`는 직전 승인 scope의 경로다: plan이 승인한
+// `.bouncer/epics.json` 같은 경로를 가진 task도 scope를 개정할 수 있도록, 정규화 값
+// (앞 `./`·뒤 `/` 제거, POSIX 구분자)이 승인 경로와 정확히 같은 항목만 면제한다.
+// `isUnder` 접두 비교로 넓히지 않는다 — 승인 경로의 하위 경로나 새 `.bouncer/`·`.git/`
+// 경로까지 열면 coordinator가 규칙·원장 영역으로 scope를 넓히는 길이 된다.
+function outOfBoundsScopePaths(entries: string[], approved: string[] = []): string[] {
+  const canonical = (raw: string): string => {
+    let p = toPosix(raw).trim();
+    while (p.startsWith('./')) p = p.slice(2);
+    if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+    return p;
+  };
+  const exempt = new Set(approved.map(canonical));
   return entries.filter((entry) => {
+    if (exempt.has(canonical(entry))) return false;
     const p = toPosix(entry).trim();
     if (!p || SCOPE_WHOLE_TREE.has(p)) return true;
     if (path.isAbsolute(p) || p.startsWith('~')) return true;
@@ -749,7 +762,8 @@ function trackedScopeViolations(
 /**
  * coordinator가 실행 중 발견한 필수 경로로 task scope를 갱신한다.
  * task 문서와 ledger를 같은 revision으로 옮기고, 이유 없는 변경은 거절한다.
- * 저장소 밖·`.bouncer/`·`.git/`·트리 전체 표기는 scope로 받지 않는다.
+ * 저장소 밖·`.bouncer/`·`.git/`·트리 전체 표기는 scope로 받지 않는다. 단 직전 승인
+ * scope에 정확히 같은 경로로 이미 있던 항목은 유지할 수 있다(하위·새 경로는 아니다).
  *
  * `paths`는 task scope를 전달한 집합 전체로 교체한다(추가가 아니다). 이전 범위에서
  * 빠졌는데 새 집합이 덮지 못한 경로가 있으면 성공 결과에 `warnings`로 알린다.
@@ -779,11 +793,6 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths
   if (globs.length > 0) {
     return { ok: false, reason: 'scope-path-glob', paths: globs };
   }
-  const outOfBounds = outOfBoundsScopePaths(next);
-  if (outOfBounds.length > 0) {
-    return { ok: false, reason: 'scope-path-out-of-bounds', paths: outOfBounds };
-  }
-
   return lockedTaskWrite(repoRoot, blueprint, taskId, ({
     ledger, entry, ledgerFile, owns,
   }) => {
@@ -810,6 +819,14 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths
       : [];
     const previous = entry.scope ? entry.scope.paths : declared;
     const revision = nextRevision(ledger.revision);
+
+    // 범위 밖 검사는 직전 승인 scope(`previous`)를 알아야 하므로 lock 안에서, 추적 검사보다
+    // 앞서 한다. 그래야 새 `.bouncer/` 경로가 scope-path-untracked로 위장되지 않고
+    // scope-path-out-of-bounds로 거절된다. 쓰기 전이라 거절 시 바이트는 그대로다.
+    const outOfBounds = outOfBoundsScopePaths(next, previous);
+    if (outOfBounds.length > 0) {
+      return { ok: false, reason: 'scope-path-out-of-bounds', paths: outOfBounds };
+    }
 
     // 추적 검사는 task 문서·ledger 쓰기보다 앞선다: 거절된 revise가 바이트를
     // 바꾸면 안 된다. 기준은 worker가 아니라 integration HEAD다 — worker
