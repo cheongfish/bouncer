@@ -2,7 +2,7 @@
 import guards = require('./guards');
 import contextIds = require('./context-ids');
 const { isRecord, isEnoentError } = guards;
-const { validateSlug } = contextIds;
+const { validateSlug, parseNumericPrefix, parseNumericEpicDir } = contextIds;
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -267,8 +267,8 @@ function planRegistry(
 ): { registry: EpicRegistry; scaffold: { slug: string; id: string }[] } {
   const parsedDirs: { id: string; slug: string }[] = [];
   for (const name of existingEpicDirs) {
-    const match = /^(\d{3})-(.+)$/.exec(name);
-    if (match) parsedDirs.push({ id: match[1], slug: match[2] });
+    const parsed = parseNumericEpicDir(name);
+    if (parsed) parsedDirs.push(parsed);
   }
   const commonSlugs = new Set(base.epics.filter((e) => e.kind === 'common').map((e) => e.slug));
   for (const slug of commonSlugs) {
@@ -369,8 +369,8 @@ function addDomainEpic(
   // v2 항목은 id가 없을 수 있다(NaN 방지). 번호 공간은 v1 id와 v2 legacy_id가 같다.
   let max = registry.epics.reduce((m, e) => Math.max(m, Number(e.legacy_id ?? e.id ?? 0)), 0);
   for (const name of existingEpicDirs) {
-    const match = /^(\d{3})-/.exec(name);
-    if (match) max = Math.max(max, Number(match[1]));
+    const prefix = parseNumericPrefix(name);
+    if (prefix !== null) max = Math.max(max, Number(prefix));
   }
   if (max + 1 > 999) return fail('epic-registry-invalid', 'no free epic id left (max 999)');
   const id = String(max + 1).padStart(3, '0');

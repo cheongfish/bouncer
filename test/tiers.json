@@ -10,6 +10,7 @@
     "commit-guard.test.js",
     "comprehension.test.js",
     "config-help.test.js",
+    "context-id-guard.test.js",
     "context-ids.test.js",
     "coordinate-advance.test.js",
     "coordinate-output.test.js",

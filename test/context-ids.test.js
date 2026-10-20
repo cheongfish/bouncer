@@ -102,3 +102,30 @@ test('validateSlug with valid and invalid slugs → null or a reason', () => {
     assert.strictEqual(typeof ids.validateSlug(bad), 'string', String(bad));
   }
 });
+
+test('formatLegacyEpicId and formatLegacyBlueprintId → assemble old ids without validating keys', () => {
+  assert.strictEqual(ids.formatLegacyEpicId('114'), 'EPIC-114');
+  assert.strictEqual(ids.formatLegacyBlueprintId('114', '003'), 'EPIC-114/BP-003');
+  assert.strictEqual(ids.formatLegacyBlueprintId('x', 'y'), 'EPIC-x/BP-y');
+});
+
+test('parseNumericPrefix → returns the three-digit prefix or null', () => {
+  assert.strictEqual(ids.parseNumericPrefix('114-consumer'), '114');
+  assert.strictEqual(ids.parseNumericPrefix('114-'), '114');
+  assert.strictEqual(ids.parseNumericPrefix('consumer'), null);
+  assert.strictEqual(ids.parseNumericPrefix('1140-a'), null);
+});
+
+test('parseNumericEpicDir → splits id and rest, null without a non-empty rest', () => {
+  assert.deepStrictEqual(ids.parseNumericEpicDir('114-consumer-epic'), { id: '114', slug: 'consumer-epic' });
+  assert.strictEqual(ids.parseNumericEpicDir('114-'), null);
+  assert.strictEqual(ids.parseNumericEpicDir('consumer'), null);
+});
+
+test('replaceOldStableIds → rewrites every old stable id and repeats safely', () => {
+  const wrap = (hit) => `<${hit}>`;
+  const text = 'a EPIC-114/BP-003 b EPIC-114/BP-003/TASK-002 c EPIC-1/BP-2';
+  const want = 'a <EPIC-114/BP-003> b <EPIC-114/BP-003/TASK-002> c EPIC-1/BP-2';
+  assert.strictEqual(ids.replaceOldStableIds(text, wrap), want);
+  assert.strictEqual(ids.replaceOldStableIds(text, wrap), want);
+});

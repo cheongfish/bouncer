@@ -25,6 +25,11 @@ const SLUG_MAX = 40;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const NUMERIC_SEG_RE = /^(\d{3})-([a-z0-9-]+)$/;
 const THREE_DIGITS_RE = /^\d{3}$/;
+// 번호 epic 디렉터리 이름. 접두 번호만 읽는 형태와 번호·slug로 나누는 형태가 호출부마다 달라 둘을 둔다.
+const NUMERIC_PREFIX_RE = /^(\d{3})-/;
+const NUMERIC_DIR_RE = /^(\d{3})-(.+)$/;
+// 본문 어디서든 구형 stable ID를 찾는 전역 형태(앵커 없음). 전역 regex는 lastIndex 상태가 있어 호출마다 새로 만든다.
+const OLD_STABLE_SCAN_SRC = 'EPIC-\\d{3}\\/BP-\\d{3}(?:\\/TASK-\\d{3})?';
 const OLD_STABLE_RE = /^EPIC-(\d{3})\/BP-(\d{3})(?:\/TASK-(\d{3}))?$/;
 // epics/<seg> 뒤에 선택적으로 blueprints/<seg>가 바로 이어진다.
 const PATH_RE = /(?:^|\/)epics\/([^/]+)(?:\/blueprints\/([^/]+))?/;
@@ -182,7 +187,63 @@ function parsePointerKey(k: unknown): KeyPair | null {
   return null;
 }
 
+/**
+ * 번호 epic의 `bouncer.id`(`EPIC-ddd`)를 만든다. key 형식은 검증하지 않는다 — 읽기 쪽 비교용이다.
+ *
+ * @param {string} epicKey - 번호 epic key
+ * @returns {string} `EPIC-<epicKey>`
+ */
+function formatLegacyEpicId(epicKey: string): string {
+  return `EPIC-${epicKey}`;
+}
+
+/**
+ * 번호 blueprint의 구형 intent ID(`EPIC-ddd/BP-ddd`)를 key 검증 없이 조립한다.
+ * 호출부가 slug 규칙 불통과 값(번호 외 임의 문자열 포함)을 그대로 넘기므로 formatStableIntentId처럼 던지지 않는다.
+ *
+ * @param {string} epicKey - epic key
+ * @param {string} blueprintKey - blueprint key
+ * @returns {string} `EPIC-<epicKey>/BP-<blueprintKey>`
+ */
+function formatLegacyBlueprintId(epicKey: string, blueprintKey: string): string {
+  return `EPIC-${epicKey}/BP-${blueprintKey}`;
+}
+
+/**
+ * 디렉터리 이름 앞의 세 자리 번호(`ddd-`)만 읽는다.
+ *
+ * @param {string} name - 디렉터리 이름
+ * @returns {string | null} 번호 문자열, 접두가 없으면 null
+ */
+function parseNumericPrefix(name: string): string | null {
+  const match = NUMERIC_PREFIX_RE.exec(name);
+  return match ? match[1] : null;
+}
+
+/**
+ * 번호 epic 디렉터리 이름 `ddd-<rest>`를 번호와 나머지로 나눈다. rest는 slug 규칙을 검사하지 않는다.
+ *
+ * @param {string} name - 디렉터리 이름
+ * @returns {{id: string, slug: string} | null} 나눈 결과, 형식이 아니면 null
+ */
+function parseNumericEpicDir(name: string): { id: string; slug: string } | null {
+  const match = NUMERIC_DIR_RE.exec(name);
+  return match ? { id: match[1], slug: match[2] } : null;
+}
+
+/**
+ * 텍스트 안의 구형 stable ID(`EPIC-ddd/BP-ddd[/TASK-ddd]`)를 모두 `replacer` 결과로 바꾼다.
+ *
+ * @param {string} text - 원문
+ * @param {(hit: string) => string} replacer - 일치한 구형 ID를 받아 바꿀 문자열을 돌려준다
+ * @returns {string} 치환된 텍스트
+ */
+function replaceOldStableIds(text: string, replacer: (hit: string) => string): string {
+  return text.replace(new RegExp(OLD_STABLE_SCAN_SRC, 'g'), replacer);
+}
+
 export = {
+  formatLegacyEpicId, formatLegacyBlueprintId, parseNumericPrefix, parseNumericEpicDir, replaceOldStableIds,
   SLUG_MAX, validateSlug, parseContextPath, formatStableIntentId, formatStableTaskId,
   parseStableId, normalizeStableId, formatPointerKey, parsePointerKey,
 };

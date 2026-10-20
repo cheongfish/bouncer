@@ -80,8 +80,6 @@ type MigrationResult = MigrationSuccess | MigrationFailure;
 type Rewrite = { oldRel: string; newRel: string; original: string; text: string };
 
 const RESTORE_NEXT = 'git restore --staged --worktree .bouncer && git clean -fd .bouncer/context';
-// 구형 trailer·문서가 쓰던 `EPIC-ddd/BP-ddd[/TASK-ddd]` 안정 ID.
-const OLD_STABLE_RE = /EPIC-\d{3}\/BP-\d{3}(?:\/TASK-\d{3})?/g;
 const TASK_UNIT_DIR_RE = /\/tasks\/\d{3}\//;
 // blueprint 루트에 놓일 수 있는 증적 문서 type. 구형 루트 tasks 문서는 id 규칙이 달라 여기 넣지 않는다.
 const ROOT_DOC_TYPES = ['bouncer.review', 'bouncer.explain', 'bouncer.context_review'];
@@ -546,7 +544,7 @@ function computeRewrites({ repoRoot, plan, runGit, fsApi }: {
         `${open}${rewriteLinkTarget(target, oldRel, newRel, mapPath)}`));
     if (pathRe !== null) text = text.replace(pathRe, (hit) => mapPath(hit));
     if (oldRel.startsWith(`${CONTEXT_ROOT}/`)) {
-      text = text.replace(OLD_STABLE_RE, (hit) => normalizeStableId(hit, idRegistry) ?? hit);
+      text = contextIds.replaceOldStableIds(text, (hit) => normalizeStableId(hit, idRegistry) ?? hit);
     }
     staged.set(oldRel, { oldRel, newRel, original, text, ctx: contextOf(oldRel) });
   }

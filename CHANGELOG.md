@@ -24,6 +24,11 @@
 
 ### Added
 
+- **slug 식별자 전환과 이관 명령 (EPIC 119 BP 001)** — epic·blueprint 디렉터리와 stable ID, 브랜치, worktree가
+  번호 대신 slug를 쓰고, blueprint 순서는 `bouncer.order`(`scaffold blueprint --order`,
+  `plan inspect`의 `epic.nextBlueprintOrder`)가 맡는다. 등록부 v2는 `legacy_id`와 `blueprint_aliases`로 옛 번호를
+  잇고, slug 위반은 S37이다. `bouncer migrate context-slugs [--yes]`가 번호 문서를 slug로 옮기며, 옛 형식과
+  trailer는 읽기 호환으로만 남는다. `test/context-id-guard.test.js`가 resolver 밖의 번호 파싱 재도입을 막는다.
 - **area 승격 후보와 승인 명령 안내 (EPIC 114 BP 003)** — `bouncer plan inspect`가 `registry.promotions`로
   `areaPromotionThreshold` 이상 쌓인 `features` area를 낸다(도메인 epic 상한이 남았을 때만). `/bouncer-plan`은
   scaffold에 `--attribution`(`features`는 `--area`도)을 쓰고, 새 area·도메인 epic은 사용자 명시 승인 뒤

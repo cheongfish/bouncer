@@ -7,7 +7,7 @@ import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 
 import contextIds = require('./context-ids');
-const { parseContextPath, formatStableTaskId } = contextIds;
+const { parseContextPath, formatStableTaskId, formatLegacyEpicId, formatLegacyBlueprintId } = contextIds;
 
 // 경로 모양만 거른다. 세그먼트가 번호(`NNN-slug`)인지 slug인지, 두 세그먼트의 형식이 같은지는
 // parseContextPath 한 곳에서 판정한다(`layoutOf`). 정규식에 형식 규칙을 복제하면 두 곳이 갈라진다.
@@ -142,7 +142,7 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
     const at = layoutOf(source, EPIC_SHAPE)!;
     const id = at.epicKey;
     // 번호 epic의 bouncer.id는 `EPIC-NNN`, slug epic은 epic slug 자체다.
-    const expectedId = at.format === 'numeric' ? `EPIC-${id}` : id;
+    const expectedId = at.format === 'numeric' ? formatLegacyEpicId(id) : id;
     if (doc.data.type !== 'bouncer.epic' || nested(doc.data, 'bouncer', 'id') !== expectedId) {
       warn(index, 'document-invalid', source, 0, 'epic identity does not match canonical path'); continue;
     }
@@ -155,7 +155,7 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
     const epicId = at.epicKey;
     const bpId = at.blueprintKey!;
     // 번호 blueprint의 bouncer.id는 `EPIC-NNN/BP-NNN`, slug blueprint는 blueprint slug 자체다.
-    const expectedId = at.format === 'numeric' ? `EPIC-${epicId}/BP-${bpId}` : bpId;
+    const expectedId = at.format === 'numeric' ? formatLegacyBlueprintId(epicId, bpId) : bpId;
     if (
       doc.data.type !== 'bouncer.blueprint' ||
       nested(doc.data, 'bouncer', 'id') !== expectedId ||

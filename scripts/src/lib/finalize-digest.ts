@@ -36,7 +36,7 @@ const { readCurrent } = currentMod;
 import taskCommits = require('./task-commits');
 const { resolveTaskCommits } = taskCommits;
 import contextIds = require('./context-ids');
-const { validateSlug } = contextIds;
+const { validateSlug, formatLegacyBlueprintId } = contextIds;
 import epicRegistry = require('./epic-registry');
 const { readEpicRegistry } = epicRegistry;
 import finalizePr = require('./finalize-pr');
@@ -795,7 +795,7 @@ function prepareFinalizeDigest({
     // 거절되므로 구형 조립이 이전과 바이트까지 같게 남는다.
     stableBlueprint = validateSlug(bpEpicId) === null && validateSlug(bpBlueprintId) === null
       ? `${bpEpicId}/${bpBlueprintId}`
-      : `EPIC-${bpEpicId}/BP-${bpBlueprintId}`;
+      : formatLegacyBlueprintId(bpEpicId, bpBlueprintId);
   }
 
   // provenance는 git.branch 결정에만 쓴다. 결과 JSON에 싣지 않는 이유:

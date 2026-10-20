@@ -103,27 +103,28 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
      When no epic fits, create no epic and report to the user. When no `area`
      fits, only propose registering a new `area`.
    Scaffold an epic in two cases only. (1) The chosen registry epic has `dir` `null`:
-   run `scaffold epic --id <id> --name <slug> --description <description>` with the
+   run `scaffold epic --name <slug> --description <description>` with the
    epic's `description` for a common epic, or the English ASCII sentence confirmed in
-   discovery for a domain epic. (2) Inspect returned `nextEpicId` (an approved domain
-   epic not yet created): scaffold it with that id. Then run
-   `bouncer plan inspect --epic-dir <dir>` and use `epic.nextBlueprintId`
-   as the suggested blueprint id. Suggestions only; the user may override them.
-   Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
+   discovery for a domain epic. (2) Inspect returned an approved domain
+   epic not yet created: scaffold it with its registry slug. Then run
+   `bouncer plan inspect --epic-dir <dir>` and use `epic.nextBlueprintOrder`
+   as the suggested `--order`. Suggestions only; the user may override them.
+   Reject a slug that is digits only, starts with a three-digit prefix, or is
+   longer than 40 characters.
    **Light path.** **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
-   ID in the Re-ground and say it can be changed by replying with a new id.
+   order in the Re-ground and say it can be changed by replying with a new order.
    Recommend light only when one commit task is expected and no public interface, protected path, or cross-module state change is involved; otherwise recommend full.
    Base that recommendation only on the discovery handoff; the user still declares light or full.
    On a light declaration, create no new epic beyond case (1) or (2) above; pick the
-   target epic with the same attribution and allocate only a blueprint id under it.
-   Without a declaration, use the normal path for epic/blueprint ids.
+   target epic with the same attribution and allocate only a blueprint order under it.
+   Without a declaration, use the normal path for epic/blueprint slugs and order.
    Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
-   bouncer scaffold epic --id <ddd> --name <slug> \
+   bouncer scaffold epic --name <slug> \
      --description "<description>"
    bouncer scaffold blueprint \
-     --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug> \
+     --epic-dir <.bouncer/context/epics/epic-slug> --order <n> --name <slug> \
      --attribution "<one-line attribution reason>"
    ```
    Run the `scaffold epic` command only in the two cases above. Add
@@ -148,8 +149,8 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    outside `light`/`full` create no documents and exit with code 2. Do not attach
    `--scale light` by guess when there was no declaration.
    The epic and blueprint outputs must both remain under
-   `.bouncer/context/epics/...` (dirs like `014-slug` / `001-slug`, never
-   `EPIC-`/`BP-` prefixes on new scaffolds).
+   `.bouncer/context/epics/...` (slug dirs like `auth` / `signup`, never
+   `EPIC-`/`BP-` prefixes or number prefixes on new scaffolds).
    The discovery description is the epic frontmatter source of truth. After
    authoring the epic, re-run the same `scaffold epic` command so its OKF §6
    derived row is appended or replaced without overwriting the document; an
@@ -197,8 +198,8 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    (1–2 Korean terminal sentences) as its body and the blueprint `title` as
    subject.
    `commit_type` participates in the shared branch helper: standalone and
-   integration branches are `<type>/<epic-id>-<blueprint-id>-<slug>`; worker
-   branches are `bouncer/<epic-id>-<blueprint-id>-<task-id>`. Reused worktrees
+   integration branches are `<type>/<epic-slug>-<blueprint-slug>-<slug>`; worker
+   branches are `bouncer/<epic-slug>-<blueprint-slug>-<task-id>`. Reused worktrees
    retain their actual branch and are never renamed.
    **Light declaration.** When the user declared the light path, blueprint
    `index.md` frontmatter `bouncer.scale` must be `light`. Step 2 with
