@@ -1048,3 +1048,65 @@ test('등록부 없음 또는 대상이 common → 같은 scaffoldBlueprint 호�
   writeEpicRegistry(repo, { epics: [{ slug: 'old', id: '063', kind: 'common', active: true }] });
   assert.ok(scaffoldBlueprint({ ...args, blueprintId: '002' }).length > 0);
 });
+
+test('scaffoldBlueprint with area and attribution → frontmatter carries both keys before supersedes', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  const created = scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+    area: 'ordering', attribution: '주문 기능 동작이 중심',
+  });
+  const { data } = readDoc(path.join(repo, created[0]));
+  assert.strictEqual(data.bouncer.area, 'ordering');
+  assert.strictEqual(data.bouncer.attribution, '주문 기능 동작이 중심');
+  const keys = Object.keys(data.bouncer);
+  assert.ok(keys.indexOf('attribution') < keys.indexOf('supersedes'));
+});
+
+test('scaffoldBlueprint without area and attribution → frontmatter has neither key', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  const created = scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const { data } = readDoc(path.join(repo, created[0]));
+  assert.ok(!('area' in data.bouncer));
+  assert.ok(!('attribution' in data.bouncer));
+});
+
+test('scaffold blueprint with a bad --area or --attribution → exits 2 before writing anything', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  for (const bad of [
+    ['--area', 'Order_1'], ['--area'], ['--attribution'], ['--attribution', '   '],
+  ]) {
+    const r = captureScaffold([
+      'scaffold', 'blueprint', '--repo', repo,
+      '--epic-dir', '.bouncer/context/epics/001-auth',
+      '--id', '001', '--name', 'login', '--timestamp', TS, ...bad,
+    ]);
+    assert.strictEqual(r.code, 2, bad.join(' '));
+    assert.strictEqual(r.out, '');
+    assert.strictEqual(
+      fs.existsSync(path.join(repo, '.bouncer/context/epics/001-auth/blueprints')),
+      false,
+    );
+  }
+});
+
+test('scaffold blueprint with --area and --attribution → exits 0 and writes both keys', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  const r = captureScaffold([
+    'scaffold', 'blueprint', '--repo', repo,
+    '--epic-dir', '.bouncer/context/epics/001-auth',
+    '--id', '001', '--name', 'login', '--timestamp', TS,
+    '--area', 'ordering', '--attribution', '주문 기능 동작이 중심',
+  ]);
+  assert.strictEqual(r.code, 0);
+  const { data } = readDoc(path.join(repo, JSON.parse(r.out).created[0]));
+  assert.strictEqual(data.bouncer.area, 'ordering');
+  assert.strictEqual(data.bouncer.attribution, '주문 기능 동작이 중심');
+});

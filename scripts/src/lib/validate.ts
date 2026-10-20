@@ -115,6 +115,11 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     code: 'S35',
     next: 'Fix the `.bouncer/epics.json` format, or recreate it with `bouncer init`.',
   },
+  {
+    code: 'S36',
+    next: 'Set blueprint `area` to a lowercase slug and `attribution` to a non-empty single line, '
+      + 'or remove the key, then rerun the gate.',
+  },
 ]);
 
 /**

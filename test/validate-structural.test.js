@@ -1133,3 +1133,32 @@ test('S31: review_scope other than blueprint → is rejected', () => {
     f.code === 'S31' && f.message === 'review_scope must be blueprint'
   )), JSON.stringify(failures));
 });
+
+// S36: area·attribution은 선택 키다. 부재는 통과하고, 있는 값의 모양만 거절한다.
+function s36For(patch) {
+  const failures = [];
+  const data = {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, ...patch },
+  };
+  checkStructural({ data, rel: `${BP_REL}/index.md` }, failures);
+  return failures.filter((f) => f.code === 'S36');
+}
+
+test('S36: blueprint area or attribution with a wrong shape → is rejected', () => {
+  for (const patch of [
+    { area: 3 },
+    { area: 'A B' },
+    { area: '' },
+    { attribution: '  ' },
+    { attribution: 7 },
+    { attribution: 'a\nb' },
+  ]) {
+    assert.strictEqual(s36For(patch).length, 1, JSON.stringify(patch));
+  }
+});
+
+test('S36: valid area and attribution or neither key → is not reported', () => {
+  assert.deepStrictEqual(s36For({}), []);
+  assert.deepStrictEqual(s36For({ area: 'ordering', attribution: '주문 기능 동작이 중심' }), []);
+});

@@ -124,6 +124,9 @@ function blueprintScale(repoRoot: string, blueprintDirRel: string): string {
     : DEFAULT_SCALE;
 }
 
+// blueprint area slug 형식. epic-registry의 slug 규칙과 같은 모양이다.
+const AREA_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /** 알 수 없는 scale은 파일을 하나도 쓰기 전에 거절한다. */
 function requireScale(scale: unknown): string {
   if (scale === undefined) return DEFAULT_SCALE;
@@ -379,15 +382,19 @@ function scaffoldTask({
  * @param {string} options.name - blueprint slug
  * @param {string} options.timestamp - 생성 시각
  * @param {string} [options.scale] - light | full. 생략은 full
+ * @param {string} [options.area] - 귀속 area slug. 생략하면 frontmatter에 키를 두지 않는다
+ * @param {string} [options.attribution] - 귀속 근거 한 줄. 생략하면 키를 두지 않는다
  * @returns {string[]} 생성한 문서의 저장소 상대 경로
  */
-function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, scale }: {
+function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, scale, area, attribution }: {
   repoRoot: string;
   epicDir: string;
   blueprintId: string;
   name: string;
   timestamp: string;
   scale?: string;
+  area?: string;
+  attribution?: string;
 }): string[] {
   // scripts/가 scale을 읽는 네 곳: scaffoldBlueprint는 문서 집합을 고르고,
   // scaffoldTask는 이후 task에 blueprint가 선언한 scale을 상속하며, plan gate는
@@ -400,6 +407,14 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
   // 알 수 없는 scale은 첫 파일을 쓰기 전에 거절한다 — 반쯤 만들어진
   // blueprint 디렉터리를 남기지 않기 위함.
   const bpScale = requireScale(scale);
+  // area·attribution도 같은 이유로 첫 파일 전에 모양을 거절한다. 두 값은 선택이라
+  // 생략은 키 부재(기존 frontmatter와 동일)이고, 있는 값만 S36과 같은 규칙으로 검사한다.
+  if (area !== undefined && !AREA_SLUG_RE.test(area)) {
+    throw new Error(`area must be a lowercase slug, got ${JSON.stringify(area)}`);
+  }
+  if (attribution !== undefined && (attribution.trim() === '' || /[\r\n]/.test(attribution))) {
+    throw new Error('attribution must be a non-empty single line');
+  }
   const isLight = bpScale === 'light';
   const canonicalEpicDir = normalizeRepoPath(epicDir);
   const epicId = epicIdFromDir(canonicalEpicDir);
@@ -440,6 +455,9 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
         // 표식이 없는 기존 blueprint는 legacy로 남으므로 소급하지 않는다. 표식의
         // 의미(명령 누락 거절·terminal topology)는 plan gate가 판정한다.
         verification_policy: 'scoped_terminal',
+        // 귀속 기록은 선택 키다. 필수 판정은 plan gate가 맡고 여기서는 값을 쓰기만 한다.
+        ...(area === undefined ? {} : { area }),
+        ...(attribution === undefined ? {} : { attribution }),
         supersedes: [],
       }),
     body('blueprint.md')));
@@ -565,6 +583,6 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }: {
 }
 
 export = {
-  CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldTask, scaffoldExplain,
+  CONTEXT_ROOT, AREA_SLUG_RE, scaffoldEpic, scaffoldBlueprint, scaffoldTask, scaffoldExplain,
   scaffoldContextReview,
 };

@@ -76,7 +76,7 @@ function cmdScaffold(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } =
+  const { AREA_SLUG_RE, scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } =
     require('./scaffold') as typeof import('./scaffold');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { isNumericContextId } = require('./paths') as typeof import('./paths');
@@ -133,8 +133,21 @@ function cmdScaffold(rest: string[], io: CliIo) {
           );
           return 2;
         }
+        // area·attribution도 선택 인자다. 값 없이 온 플래그(true)와 잘못된 모양은
+        // 파일을 쓰기 전에 사용법 오류(2)로 거절한다.
+        const area = f.area;
+        if (area !== undefined && (typeof area !== 'string' || !AREA_SLUG_RE.test(area))) {
+          io.err(`scaffold blueprint: --area must be a lowercase slug, got ${JSON.stringify(area)}\n`);
+          return 2;
+        }
+        const attribution = f.attribution;
+        if (attribution !== undefined && (typeof attribution !== 'string'
+          || attribution.trim() === '' || /[\r\n]/.test(attribution))) {
+          io.err('scaffold blueprint: --attribution must be a non-empty single line\n');
+          return 2;
+        }
         created = scaffoldBlueprint({
-          repoRoot, epicDir: f['epic-dir'], blueprintId: id, name, timestamp, scale,
+          repoRoot, epicDir: f['epic-dir'], blueprintId: id, name, timestamp, scale, area, attribution,
         });
       }
     } else if (kind === 'task') {

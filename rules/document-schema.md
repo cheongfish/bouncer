@@ -63,6 +63,13 @@ task's acceptance criteria, not prose such as "run tests." Blueprint
 merely to make an implementation easier to fit. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
+Blueprint `bouncer.area` and `bouncer.attribution` are optional: `area` names the
+registry area the blueprint belongs to (a lowercase slug such as `ordering`) and
+`attribution` is one line saying why. `bouncer scaffold blueprint --area <a>
+--attribution <text>` writes them before `supersedes`. A present value of the
+wrong shape (non-string or non-slug `area`; non-string, blank, or multi-line
+`attribution`) is S36; absence passes, and the registry lookup is not a
+structural check.
 Graphify query candidates, `grep` results, and `bouncer intent` results are advisory input; do
 not store them in frontmatter. No code reads leftover `bouncer.scope_evidence`
 or `bouncer.graph` on older task documents.
