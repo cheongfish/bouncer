@@ -537,3 +537,9 @@ test('context-review --help → json 예시 블록 3개와 finding status open|r
   assert.equal([...out.matchAll(/```json\n/g)].length, 3);
   assert.match(out, /open\|resolved\|accepted/);
 });
+
+test('usage → scaffold blueprint --order <n>와 v2 scaffold epic --name만 쓰는 형태를 나열한다', () => {
+  const r = capture([]);
+  assert.match(r.out, /blueprint --epic-dir <slug-epic> --order <n> --name <slug>/);
+  assert.match(r.out, /epic --name <slug> --description <text>/);
+});

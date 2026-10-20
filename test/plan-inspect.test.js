@@ -560,3 +560,59 @@ test('plan inspect with an area below the threshold → promotions is empty', ()
 
   assert.deepStrictEqual(parsePayload(inspect(repo)).registry.promotions, []);
 });
+
+// --- slug epic: 다음 blueprint 번호는 디렉터리 이름이 아니라 frontmatter order의 최대값 + 1 ---
+function writeSlugBlueprint(repo, epicSlug, bpSlug, bouncer) {
+  const rel = `${EPICS}/${epicSlug}/blueprints/${bpSlug}/index.md`;
+  writeDoc(repo, rel, {
+    type: 'bouncer.blueprint', title: bpSlug, description: 'd', resource: rel,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: bpSlug, epic_id: epicSlug, blueprint_id: bpSlug, status: 'draft', ...bouncer },
+  });
+}
+
+test('plan inspect on a slug epic with orders 1, 2 and 5 → nextBlueprintOrder is 6', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/plan-workflow`);
+  writeSlugBlueprint(repo, 'plan-workflow', 'alpha', { order: 1 });
+  writeSlugBlueprint(repo, 'plan-workflow', 'beta', { order: 2 });
+  writeSlugBlueprint(repo, 'plan-workflow', 'gamma', { order: 5 });
+
+  const payload = parsePayload(inspect(repo, ['--epic-dir', `${EPICS}/plan-workflow`]));
+
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.epic.nextBlueprintOrder, 6);
+});
+
+test('plan inspect on a slug epic without blueprints → nextBlueprintOrder is 1', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/plan-workflow`);
+
+  const payload = parsePayload(inspect(repo, ['--epic-dir', `${EPICS}/plan-workflow`]));
+
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.epic.nextBlueprintOrder, 1);
+});
+
+test('plan inspect on a slug epic with unreadable or invalid orders → ignores them for the maximum', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/plan-workflow/blueprints/no-index`);
+  writeSlugBlueprint(repo, 'plan-workflow', 'alpha', { order: 3 });
+  writeSlugBlueprint(repo, 'plan-workflow', 'beta', { order: 'x' });
+  writeSlugBlueprint(repo, 'plan-workflow', 'gamma', { order: 2.5 });
+  writeSlugBlueprint(repo, 'plan-workflow', 'delta', {});
+
+  const payload = parsePayload(inspect(repo, ['--epic-dir', `${EPICS}/plan-workflow`]));
+
+  assert.strictEqual(payload.epic.nextBlueprintOrder, 4);
+});
+
+test('plan inspect on a numeric epic → keeps nextBlueprintId and adds the same value as an integer order', () => {
+  const repo = makeRepo();
+  writeIdTree(repo);
+
+  const payload = parsePayload(inspect(repo, ['--epic-dir', `${EPICS}/003-b`]));
+
+  assert.strictEqual(payload.epic.nextBlueprintId, '003');
+  assert.strictEqual(payload.epic.nextBlueprintOrder, 3);
+});

@@ -9,6 +9,7 @@ const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 import paths = require('./paths');
 import epicRegistry = require('./epic-registry');
+import contextIds = require('./context-ids');
 const { toPosix } = paths;
 import comprehension = require('./comprehension');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = comprehension;
@@ -1114,30 +1115,36 @@ function checkRegistryGates(opts: {
     return;
   }
   if (read.status !== 'ok' || typeof blueprintDir !== 'string') return;
-  const match = /(?:^|\/)epics\/(\d{3})-([^/]+)(?:\/|$)/.exec(blueprintDir.split(path.sep).join('/'));
-  if (!match) return;
-  const [, epicId, epicSlug] = match;
+  // epic 형식은 경로로 읽는다(번호 정규식을 여기 두지 않는다). 해석되지 않는 경로는 등록부 대조 대상이 아니다.
+  const ids = contextIds.parseContextPath(blueprintDir.split(path.sep).join('/'));
+  if (!ids) return;
+  // 사람에게 보이는 이름: 번호 epic은 `ddd-slug`, slug epic은 slug.
+  const epicName = ids.format === 'numeric' ? `${ids.epicKey}-${ids.epicSlug}` : ids.epicSlug;
+  const epicSlug = ids.epicSlug;
   const registry = read.registry;
-  const entry = registry.epics.find((e) => e.id === epicId);
+  // 번호 epic은 등록부의 옛 번호(v1 id, v2 legacy_id)와 slug가 둘 다 맞아야 한다. slug epic은 slug 하나로 찾는다.
+  const entry = ids.format === 'numeric'
+    ? registry.epics.find((e) => (e.legacy_id ?? e.id) === ids.epicKey)
+    : registry.epics.find((e) => e.slug === ids.epicSlug);
   if (!entry || entry.slug !== epicSlug) {
-    add('G27', `epic ${epicId}-${epicSlug} is not registered in ${epicRegistry.REGISTRY_REL}`, 'blueprintIndex');
+    add('G27', `epic ${epicName} is not registered in ${epicRegistry.REGISTRY_REL}`, 'blueprintIndex');
     return;
   }
   if (!entry.active) {
-    add('G28', `epic ${epicId}-${epicSlug} is inactive in the registry`, 'blueprintIndex');
+    add('G28', `epic ${epicName} is inactive in the registry`, 'blueprintIndex');
   }
   // legacy는 등록부 도입 전 epic이다. 새 draft는 막고, 이미 승인된 blueprint는
   // attribution·area 없이 통과시켜 기존 작업을 보존한다.
   if (entry.kind === 'legacy') {
     if (bpStatus === 'draft') {
-      add('G29', `legacy epic ${epicId}-${epicSlug} cannot take a new draft blueprint`, 'blueprintIndex');
+      add('G29', `legacy epic ${epicName} cannot take a new draft blueprint`, 'blueprintIndex');
     }
     return;
   }
   const data = asData(docs.blueprintIndex);
   const bp = data && data.bouncer ? data.bouncer as Record<string, unknown> : {};
   if (bp.attribution === undefined) {
-    add('G31', `blueprint attribution is missing for epic ${epicId}-${epicSlug}`, 'blueprintIndex');
+    add('G31', `blueprint attribution is missing for epic ${epicName}`, 'blueprintIndex');
   }
   if (entry.slug === 'features') {
     if (typeof bp.area !== 'string' || !registry.areas.includes(bp.area)) {

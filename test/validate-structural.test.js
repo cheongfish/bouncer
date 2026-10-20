@@ -1169,3 +1169,192 @@ test('S36: valid area and attribution or neither key → is not reported', () =>
   assert.deepStrictEqual(s36For({}), []);
   assert.deepStrictEqual(s36For({ area: 'ordering', attribution: '주문 기능 동작이 중심' }), []);
 });
+
+// --- slug 형식 경로: S5는 경로 slug와 비교하고, S37이 order·slug·형식 혼용을 본다 ---
+const SLUG_EPIC_REL = '.bouncer/context/epics/plan-workflow';
+const SLUG_BP_REL = `${SLUG_EPIC_REL}/blueprints/registry-gates`;
+
+function slugEpicDoc(slug = 'plan-workflow') {
+  const rel = `.bouncer/context/epics/${slug}/index.md`;
+  return {
+    type: 'bouncer.epic',
+    title: 'Plan workflow',
+    description: 'auth epic',
+    resource: rel,
+    tags: ['bouncer', 'epic'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: slug, epic_id: slug, status: 'draft' },
+  };
+}
+
+function slugBlueprintDoc(bpRel = SLUG_BP_REL, overrides = {}) {
+  const slug = bpRel.split('/').pop();
+  const doc = {
+    type: 'bouncer.blueprint',
+    title: 'Registry gates',
+    description: slug,
+    resource: `${bpRel}/index.md`,
+    tags: ['bouncer', 'blueprint'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: slug, epic_id: 'plan-workflow', blueprint_id: slug, status: 'draft', order: 1, ...overrides,
+    },
+  };
+  // 값이 undefined인 키는 YAML로 쓸 수 없으니 키 자체를 뺀다(부재를 만들기 위한 표기).
+  if (doc.bouncer.order === undefined) delete doc.bouncer.order;
+  return doc;
+}
+
+function slugTasksDoc(bpRel = SLUG_BP_REL) {
+  const slug = bpRel.split('/').pop();
+  const rel = `${bpRel}/tasks/001/tasks.md`;
+  return {
+    ...goodTasks(bpRel),
+    resource: rel,
+    bouncer: {
+      id: 'TASKS-001', epic_id: 'plan-workflow', blueprint_id: slug, status: 'ready', affected_paths: ['src/auth/'],
+    },
+  };
+}
+
+function writeSlugBundleIndex(repo, slugs = ['plan-workflow']) {
+  const lines = slugs.map((s) => `* [${s}](epics/${s}/index.md) - auth epic`);
+  writeRaw(repo, '.bouncer/context/index.md', `---\nokf_version: "0.1"\n---\n# Epics\n\n${lines.join('\n')}\n`);
+}
+
+function slugRepo(overrides = {}) {
+  const repo = mkRepo();
+  writeDoc(repo, `${SLUG_BP_REL}/tasks/001/tasks.md`, slugTasksDoc());
+  for (const [kind, id] of [['verification', 'VERIFY-001'], ['review', 'REVIEW-001']]) {
+    const leaf = `${SLUG_BP_REL}/tasks/001/${kind}.md`;
+    writeDoc(repo, leaf, {
+      type: `bouncer.${kind}`,
+      title: kind,
+      description: kind,
+      resource: leaf,
+      tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id, epic_id: 'plan-workflow', blueprint_id: 'registry-gates', status: 'pending',
+        ...(kind === 'review' ? { review: { required: true } } : {}),
+      },
+    });
+  }
+  writeDoc(repo, `${SLUG_BP_REL}/index.md`, slugBlueprintDoc(SLUG_BP_REL, overrides));
+  writeDoc(repo, `${SLUG_EPIC_REL}/index.md`, slugEpicDoc());
+  writeSlugBundleIndex(repo);
+  return repo;
+}
+
+function s37Kinds(res) {
+  return res.failures.filter((f) => f.code === 'S37').map((f) => /order-missing|order-invalid|order-duplicate|slug-invalid|slug-duplicate|format-mixed/.exec(f.message)?.[0]);
+}
+
+test('a fully valid slug blueprint → passes structural checks', () => {
+  const repo = slugRepo();
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.deepStrictEqual(res, { ok: true, failures: [] });
+});
+
+test('S5 on a slug path with a different blueprint_id → fails', () => {
+  const repo = slugRepo({ blueprint_id: 'other-gates' });
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S5' && /blueprint_id other-gates != path registry-gates/.test(f.message)));
+});
+
+test('S5 on a slug path with a numeric epic_id → fails', () => {
+  const repo = slugRepo({ epic_id: '001' });
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S5' && /epic_id 001 != path plan-workflow/.test(f.message)));
+});
+
+test('S37 on a slug blueprint without order → reports order-missing', () => {
+  const repo = slugRepo({ order: undefined });
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.deepStrictEqual(s37Kinds(res), ['order-missing']);
+});
+
+test('S37 on a slug blueprint with a non-positive-integer order → reports order-invalid', () => {
+  for (const order of [0, -2, 1.5, '2', true, null]) {
+    const repo = slugRepo({ order });
+    const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+    // null은 YAML에서 키는 있으나 값이 없는 형태라 부재가 아니라 잘못된 값이다.
+    assert.deepStrictEqual(s37Kinds(res), ['order-invalid'], String(order));
+  }
+});
+
+test('S37 on a slug blueprint sharing an order with a sibling → reports order-duplicate', () => {
+  const repo = slugRepo({ order: 2 });
+  writeDoc(repo, `${SLUG_EPIC_REL}/blueprints/other-one/index.md`, slugBlueprintDoc(`${SLUG_EPIC_REL}/blueprints/other-one`, { order: 2 }));
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.deepStrictEqual(s37Kinds(res), ['order-duplicate']);
+});
+
+test('S37 on a slug blueprint with gapped sibling orders → passes', () => {
+  const repo = slugRepo({ order: 2 });
+  writeDoc(repo, `${SLUG_EPIC_REL}/blueprints/other-one/index.md`, slugBlueprintDoc(`${SLUG_EPIC_REL}/blueprints/other-one`, { order: 7 }));
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.deepStrictEqual(s37Kinds(res), []);
+});
+
+test('S37 on a slug blueprint whose slug is used by a sibling document → reports slug-duplicate', () => {
+  const repo = slugRepo({ order: 1 });
+  writeDoc(repo, `${SLUG_EPIC_REL}/blueprints/copied-dir/index.md`, slugBlueprintDoc(
+    `${SLUG_EPIC_REL}/blueprints/copied-dir`,
+    { order: 2, id: 'registry-gates', blueprint_id: 'registry-gates' },
+  ));
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.ok(s37Kinds(res).includes('slug-duplicate'));
+});
+
+test('S37 on a slug epic with a blueprint directory that breaks the slug rule → reports slug-invalid instead of S10', () => {
+  const repo = mkRepo();
+  for (const name of ['a'.repeat(41), 'Bad_Name']) {
+    const res = validateBlueprint({ repoRoot: repo, blueprintDir: `${SLUG_EPIC_REL}/blueprints/${name}` });
+    assert.deepStrictEqual(res.failures.map((f) => f.code), ['S37'], name);
+    assert.match(res.failures[0].message, /slug-invalid/, name);
+  }
+});
+
+test('S37 on a slug epic with a numeric blueprint directory → reports format-mixed instead of S10', () => {
+  const repo = mkRepo();
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: `${SLUG_EPIC_REL}/blueprints/001-login` });
+  assert.deepStrictEqual(res.failures.map((f) => f.code), ['S37']);
+  assert.match(res.failures[0].message, /format-mixed/);
+});
+
+test('S37 on a numeric epic with a slug blueprint directory → reports format-mixed instead of S10', () => {
+  const repo = mkRepo();
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: '.bouncer/context/epics/001-auth/blueprints/login' });
+  assert.deepStrictEqual(res.failures.map((f) => f.code), ['S37']);
+  assert.match(res.failures[0].message, /format-mixed/);
+});
+
+test('S13 with a slug epic directory missing from the bundle index → reports it', () => {
+  const repo = slugRepo();
+  writeRaw(repo, '.bouncer/context/index.md', '---\nokf_version: "0.1"\n---\n# Epics\n\n');
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S13' && /not listed/.test(f.message)));
+});
+
+test('S13 with a bundle index linking a missing slug epic → reports it', () => {
+  const repo = slugRepo();
+  writeSlugBundleIndex(repo, ['plan-workflow', 'ghost-epic']);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: SLUG_BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S13' && /missing epic directory: ghost-epic/.test(f.message)));
+});
+
+test('numeric and slug epics side by side → both are listed and the numeric blueprint stays valid', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeDoc(repo, `${SLUG_EPIC_REL}/index.md`, slugEpicDoc());
+  writeRaw(repo, '.bouncer/context/index.md', [
+    '---', 'okf_version: "0.1"', '---', '# Epics', '',
+    '* [001 auth](epics/001-auth/index.md) - auth epic',
+    '* [plan-workflow](epics/plan-workflow/index.md) - auth epic', '',
+  ].join('\n'));
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.deepStrictEqual(res, { ok: true, failures: [] });
+});

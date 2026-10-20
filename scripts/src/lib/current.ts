@@ -4,7 +4,13 @@ const path = require('node:path');
 import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import paths = require('./paths');
-const { epicDirOf, toPosix } = paths;
+const { epicDirOf, toPosix, isNumericContextId } = paths;
+import contextIds = require('./context-ids');
+const { parseContextPath, parsePointerKey } = contextIds;
+import layout = require('./layout');
+const { isValidBlueprintOrder, listBlueprintOrders } = layout;
+import epicRegistry = require('./epic-registry');
+const { readEpicRegistry } = epicRegistry;
 import runtimeState = require('./runtime-state');
 const {
   readLegacyRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent,
@@ -116,10 +122,12 @@ function selectionLocation(
     return { kind: 'base' };
   }
   const parts = rel.split(/[\\/]/).filter(Boolean);
-  if (parts.length >= 2 && /^\d{3}$/.test(parts[0]) && /^\d{3}$/.test(parts[1])) {
+  // 중첩 키는 번호 쌍(`119/001`)과 slug 쌍(`plan-workflow/registry-gates`) 둘 다 받는다. 평면(`.worktrees/<bp>`)은
+  // 번호만 받는다 — slug 한 조각은 임의 디렉터리 이름과 구분되지 않아 base checkout을 flat으로 오인한다.
+  if (parts.length >= 2 && parsePointerKey(`${parts[0]}/${parts[1]}`) !== null) {
     return { kind: 'nested', key: `${parts[0]}/${parts[1]}` };
   }
-  if (parts.length >= 1 && /^\d{3}$/.test(parts[0])) {
+  if (parts.length >= 1 && isNumericContextId(parts[0])) {
     return { kind: 'flat', worktreeAbs: pathApi.join(paths.worktreeRoot, parts[0]) };
   }
   return { kind: 'base' };
@@ -151,10 +159,9 @@ function workerSlotOf(
   // 정확히 workers/<NNN> 루트만. 하위 cwd는 worker 소유로 보지 않는다.
   if (
     parts.length === 4
-    && /^\d{3}$/.test(parts[0])
-    && /^\d{3}$/.test(parts[1])
+    && parsePointerKey(`${parts[0]}/${parts[1]}`) !== null
     && parts[2] === 'workers'
-    && /^\d{3}$/.test(parts[3])
+    && isNumericContextId(parts[3])
   ) {
     return { epicId: parts[0], blueprintId: parts[1], taskId: parts[3] };
   }
@@ -432,9 +439,9 @@ function writeCurrent({
   // 삭제 실패 시 두 키가 공존하고 어느 쪽이 활성인지 진단이 안 된다.
   if (replace && replaceKey && replaceKey !== ids.key) {
     const pathApi = deps?.platform === 'win32' ? path.win32 : path;
-    const keyParts = /^(\d{3})\/(\d{3})$/.exec(replaceKey);
+    const keyParts = parsePointerKey(replaceKey);
     const replacePath = keyParts && paths.pointersRoot
-      ? pathApi.join(paths.pointersRoot, keyParts[1], `${keyParts[2]}.json`)
+      ? pathApi.join(paths.pointersRoot, keyParts.epicKey, `${keyParts.blueprintKey}.json`)
       : replaceKey;
     try {
       removeNamespacePointer({ repoRoot, key: replaceKey, deps });
@@ -1013,6 +1020,56 @@ function readAffectedPaths(repoRoot: string, blueprintDir: string): string[] {
   }
 }
 
+// slug epic의 blueprint 순서는 epic 본문 목록이 아니라 각 blueprint index의 frontmatter `order`가 정한다.
+// 번호 epic(과 `E-1` 같은 해석 불가 이름)은 지금 규칙을 그대로 쓰므로 이 판정이 true일 때만 새 규칙을 탄다.
+function isSlugEpicDir(epicRel: string): boolean {
+  const ids = parseContextPath(epicRel);
+  return ids !== null && ids.format === 'slug' && ids.blueprintKey === null;
+}
+
+/**
+ * slug epic 아래 blueprint 이름 → 쓸 수 있는 `order`. 정렬 전용 읽기라 실패하면 빈 표로 접는다 —
+ * order를 못 읽으면 모두 "order 없음"이 되어 경로순으로 떨어질 뿐, 후보 집합(별도 스캔)은 바뀌지 않으므로
+ * 닫힌 blueprint를 고르는 일은 생기지 않는다. 이 모듈의 정렬 계산은 throw하지 않는 계약이다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} epicRel - 저장소 상대 slug epic 디렉터리
+ * @returns {Map<string, number>} 양의 정수 order를 가진 blueprint만 담은 표
+ */
+function blueprintOrderTable(repoRoot: string, epicRel: string): Map<string, number> {
+  const table = new Map<string, number>();
+  let entries: ReturnType<typeof listBlueprintOrders>;
+  try {
+    entries = listBlueprintOrders(repoRoot, epicRel);
+  } catch (_e) {
+    // EACCES 등 열거 실패만 접는다(위 docstring 사유).
+    return table;
+  }
+  for (const entry of entries) {
+    if (isValidBlueprintOrder(entry.order)) table.set(entry.name, entry.order);
+  }
+  return table;
+}
+
+/**
+ * 같은 slug epic 안의 두 blueprint를 비교한다: order 오름차순, 같거나 order가 없으면(없는 쪽이 뒤) 경로순.
+ *
+ * @param {Map<string, number>} table - blueprintOrderTable 결과
+ * @param {{ bpName: string, blueprint: string }} a - 비교 대상
+ * @param {{ bpName: string, blueprint: string }} b - 비교 대상
+ * @returns {number} 정렬 비교 값
+ */
+function compareBySlugOrder(
+  table: Map<string, number>,
+  a: { bpName: string; blueprint: string },
+  b: { bpName: string; blueprint: string },
+): number {
+  const ao = table.get(a.bpName) ?? Number.POSITIVE_INFINITY;
+  const bo = table.get(b.bpName) ?? Number.POSITIVE_INFINITY;
+  if (ao !== bo) return ao < bo ? -1 : 1;
+  return a.blueprint.localeCompare(b.blueprint);
+}
+
 type SameEpicPendingEntry = {
   blueprint: string;
   blueprintStatus: string;
@@ -1083,15 +1140,26 @@ function listSameEpicPending({
     }
   }
 
-  pending.sort((a, b) => a.blueprint.localeCompare(b.blueprint));
+  if (isSlugEpicDir(selfEpic)) {
+    // slug epic의 형제 인계 목록은 order 순서를 따른다. 번호 epic은 지금처럼 경로 사전순.
+    const table = blueprintOrderTable(repoRoot, selfEpic);
+    const withName = (entry: SameEpicPendingEntry) => ({
+      blueprint: entry.blueprint, bpName: entry.blueprint.split('/').pop() as string,
+    });
+    pending.sort((a, b) => compareBySlugOrder(table, withName(a), withName(b)));
+  } else {
+    pending.sort((a, b) => a.blueprint.localeCompare(b.blueprint));
+  }
   return pending;
 }
 
 // finalize 대상 이후 다음 ready blueprint 계산 — 순수 계산, write/git/process
 // 없음. 후보는 listReadyBlueprints에서만; 정렬은 finalized epic 우선, 다음
 // ## Blueprints link order, epic 내 미등록은 path lexicographic, 그다음
-// 다른 epic은 epic dir name 순. sameEpicPending은 같은 epic의 미마감 형제
-// 보고용이며 후보 필터와 독립이다.
+// 다른 epic은 epic dir name 순. slug epic은 본문 목록 대신 frontmatter order를
+// 따르고(같으면 path), finalize 대상이 slug epic이고 등록부가 읽히면 다른 epic도
+// epics.json 배열 순이다(등록부에 없는 epic은 뒤, 이름순). sameEpicPending은
+// 같은 epic의 미마감 형제 보고용이며 후보 필터와 독립이다.
 function nextBlueprint({ repoRoot, blueprintDir }: {
   repoRoot: string;
   blueprintDir: unknown;
@@ -1136,11 +1204,36 @@ function nextBlueprint({ repoRoot, blueprintDir }: {
     orderCache.set(epicRel, names);
     return names;
   }
+  // slug epic의 frontmatter order 표도 epic마다 한 번만 읽는다.
+  const slugOrderCache = new Map<string, Map<string, number>>();
+  function slugOrderOf(epicRel: string): Map<string, number> {
+    const cached = slugOrderCache.get(epicRel);
+    if (cached) return cached;
+    const table = blueprintOrderTable(repoRoot, epicRel);
+    slugOrderCache.set(epicRel, table);
+    return table;
+  }
+
+  // epic 사이 순서: 현재 blueprint의 epic이 slug이고 등록부가 읽히면 `epics.json` 배열 위치를 따른다.
+  // 등록부에 없는(또는 해석 불가한) epic은 맨 뒤로 보내 이름순을 유지한다. 그 밖에는 지금처럼 epic 이름순이라
+  // 번호 epic 저장소와 등록부가 없는 저장소의 결과는 바뀌지 않는다. 등록부 invalid/missing은 이름순으로 접는다.
+  const registryRead = isSlugEpicDir(selfEpic) ? readEpicRegistry(repoRoot) : null;
+  const registrySlugs = registryRead !== null && registryRead.status === 'ok'
+    ? registryRead.registry.epics.map((entry) => entry.slug)
+    : null;
+  function registryRank(epicRel: string): number {
+    if (registrySlugs === null) return 0;
+    const ids = parseContextPath(epicRel);
+    const index = ids === null ? -1 : registrySlugs.indexOf(ids.epicSlug);
+    return index < 0 ? Number.POSITIVE_INFINITY : index;
+  }
 
   ranked.sort((a, b) => {
     // (1) finalize 대상과 같은 epic을 먼저
     if (a.sameEpic !== b.sameEpic) return a.sameEpic ? -1 : 1;
     if (a.sameEpic) {
+      // slug epic: frontmatter order → 경로 (본문 `## Blueprints` 목록은 보지 않는다)
+      if (isSlugEpicDir(a.epic)) return compareBySlugOrder(slugOrderOf(a.epic), a, b);
       // (2)/(3) ## Blueprints 등록 순, 미등록은 path 순
       const order = orderOf(a.epic);
       const ai = order.indexOf(a.bpName);
@@ -1151,9 +1244,14 @@ function nextBlueprint({ repoRoot, blueprintDir }: {
       if (aListed !== bListed) return aListed ? -1 : 1;
       return a.blueprint.localeCompare(b.blueprint);
     }
-    // (4) 다른 epic: epic directory name lexicographic, 다음 blueprint path
+    // (4) 다른 epic: slug 기준이면 등록부 위치, 그다음 epic directory name lexicographic
+    const ar = registryRank(a.epic);
+    const br = registryRank(b.epic);
+    if (ar !== br) return ar < br ? -1 : 1;
     const byEpic = a.epicName.localeCompare(b.epicName);
     if (byEpic !== 0) return byEpic;
+    // 같은 다른 epic 안: slug epic이면 order 순, 아니면 blueprint path
+    if (isSlugEpicDir(a.epic)) return compareBySlugOrder(slugOrderOf(a.epic), a, b);
     return a.blueprint.localeCompare(b.blueprint);
   });
 

@@ -36,7 +36,7 @@ test('GATE_FAILURE_HINTS when code and match agree → attaches next only', () =
   assert.deepStrictEqual(
     GATE_FAILURE_HINTS.map((h) => h.code).sort(),
     ['G13', 'G18', 'G20', 'G22', 'G23', 'G24', 'G25', 'G26', 'G27', 'G28', 'G29', 'G30', 'G31',
-      'S32', 'S33', 'S34', 'S35', 'S36'],
+      'S32', 'S33', 'S34', 'S35', 'S36', 'S37'],
   );
   const f = (code, message) => ({ code, message, file: 'x.md' });
   const out = withGateFailureHints({ ok: false, failures: [

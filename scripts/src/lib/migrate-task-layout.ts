@@ -3,7 +3,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import layout = require('./layout');
-const { CONTEXT_ROOT } = layout;
+const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
+import contextIds = require('./context-ids');
+const { parseContextPath } = contextIds;
 import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
 import frontmatter = require('./frontmatter');
@@ -60,7 +62,9 @@ function legacyUnits(repoRoot: string): LegacyUnit[] {
     const name = path.basename(abs); const matched = NUMBERED.exec(name);
     if (name !== 'tasks.md' && !matched) continue;
     const blueprint = toPosix(path.relative(repoRoot, path.dirname(abs)));
-    if (!/\/blueprints\/\d{3}-[^/]+$/.test(blueprint)) continue;
+    // 이 이관은 번호 형식(`ddd-slug`) blueprint의 구 레이아웃만 대상이다. slug 형식은 처음부터 새 레이아웃이라
+    // 이관할 것이 없으므로 범위 밖이다. 형식 판정은 context-ids 한 곳에 맡긴다.
+    if (!isCanonicalBlueprintDir(blueprint) || parseContextPath(blueprint)?.format !== 'numeric') continue;
     units.push({
       blueprint,
       number: name === 'tasks.md' ? '001' : matched![1],

@@ -543,3 +543,20 @@ test('migrateRetention when restoreSnapshots throws after apply failure → retu
   assert.match(applied.reason, /injected unlink failure/);
   assert.match(applied.reason, /restore also failed|injected restore failure/);
 });
+
+test('auditRetention and migrateRetention with a closed slug blueprint → leave it out of the numbered scope', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-retention-'));
+  const slugBp = '.bouncer/context/epics/retention-slug/blueprints/alpha';
+  writeClosedIndex(repo, slugBp, { epicId: 'retention-slug', blueprintId: 'alpha' });
+  writeExplain(repo, slugBp, { epicId: 'retention-slug', blueprintId: 'alpha' });
+  writeClosedIndex(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
+  writeExplain(repo, BP_A, { epicId: EPIC, blueprintId: '001' });
+  const before = hashTree(repo);
+
+  const audited = auditRetention({ repoRoot: repo });
+  const migrated = migrateRetention({ repoRoot: repo, blueprintDir: slugBp });
+
+  assert.deepStrictEqual(audited.results.map((row) => row.blueprint), [BP_A]);
+  assert.strictEqual(migrated.ok, false);
+  assert.deepStrictEqual(hashTree(repo), before);
+});

@@ -669,3 +669,125 @@ test('bouncer import dry-run → exits 0; limit exceeded and --yes without messa
   assert.ok(Array.isArray(msgOnlyPlan.entries));
   assert.ok(!fs.existsSync(path.join(repo, msgOnlyPlan.epicDir)));
 });
+
+// --- slug 형식: 새 epic은 등록부 버전으로 형식을 정하고, apply는 epicDir 경로로 형식을 읽는다 ---
+function writeV2Registry(repo) {
+  const abs = path.join(repo, '.bouncer', 'epics.json');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `${JSON.stringify({
+    version: 2, profile: 'domain-only', domainEpicLimit: 8, areas: [], epics: [],
+  }, null, 2)}\n`);
+}
+
+test('planImport on a v2 registry without epicId → plans a slug epic with unique slug blueprint dirs', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  writeV2Registry(repo);
+  const shas = ['1', '2', '3', '4'].map((n) => n.repeat(40));
+  const merges = [
+    logLine({ sha: shas[0], subject: 'same-title' }),
+    logLine({ sha: shas[1], subject: 'same-title' }),
+    logLine({ sha: shas[2], subject: '123 numeric prefix' }),
+    logLine({ sha: shas[3], subject: 'x'.repeat(60) }),
+  ].join('\n');
+  const plan = planImport({
+    repoRoot: repo,
+    deps: { execFileSync: makeExec({ merges, filesBySha: Object.fromEntries(shas.map((s) => [s, ''])) }) },
+  });
+  assert.strictEqual(plan.ok, true);
+  assert.strictEqual(plan.epicId, 'imported-history');
+  assert.strictEqual(plan.epicDir, '.bouncer/context/epics/imported-history');
+  const { validateSlug } = require('../scripts/lib/context-ids');
+  const dirs = plan.entries.map((e) => e.blueprintDir);
+  assert.strictEqual(new Set(dirs).size, dirs.length);
+  for (const entry of plan.entries) {
+    assert.strictEqual(validateSlug(entry.blueprintDir), null, entry.blueprintDir);
+    assert.strictEqual(entry.blueprintId, entry.blueprintDir);
+  }
+});
+
+test('planImport on a v2 registry with an explicit epicId → keeps the numbered epic', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  writeV2Registry(repo);
+  const sha = 'a'.repeat(40);
+  const plan = planImport({
+    repoRoot: repo,
+    epicId: '105',
+    deps: { execFileSync: makeExec({ merges: logLine({ sha, subject: 'one' }), filesBySha: { [sha]: '' } }) },
+  });
+  assert.strictEqual(plan.epicDir, '.bouncer/context/epics/105-imported-history');
+  assert.strictEqual(plan.entries[0].blueprintDir, '001-one');
+});
+
+test('planImport on a v1 registry without epicId → keeps allocating a numbered epic', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  seedEpicDir(repo, '001');
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/epics.json'), `${JSON.stringify({
+    version: 1, profile: 'domain-only', domainEpicLimit: 8, areas: [], epics: [],
+  })}\n`);
+  const sha = 'b'.repeat(40);
+  const plan = planImport({
+    repoRoot: repo,
+    deps: { execFileSync: makeExec({ merges: logLine({ sha, subject: 'one' }), filesBySha: { [sha]: '' } }) },
+  });
+  assert.strictEqual(plan.epicId, '002');
+});
+
+test('planImport numbering after slug epics exist → ignores slug directories when picking a number', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  seedEpicDir(repo, '001');
+  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/plan-workflow'), { recursive: true });
+  const sha = 'c'.repeat(40);
+  const plan = planImport({
+    repoRoot: repo,
+    deps: { execFileSync: makeExec({ merges: logLine({ sha, subject: 'one' }), filesBySha: { [sha]: '' } }) },
+  });
+  assert.strictEqual(plan.epicId, '002');
+});
+
+test('applyImport with a slug epicDir → writes slug ids with ascending order and a slug index row', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  const plan = twoEntryPlan(repo, {
+    epicId: 'imported-history',
+    entries: [
+      {
+        sha: 'a'.repeat(40), subject: 'first change', date: '2026-01-01T00:00:00+09:00', author: 'Dev A',
+        files: ['a.ts'], blueprintId: 'first-change', slug: 'first-change', blueprintDir: 'first-change',
+      },
+      {
+        sha: 'b'.repeat(40), subject: 'second change', date: '2026-02-01T00:00:00+09:00', author: 'Dev B',
+        files: ['b.ts'], blueprintId: 'second-change', slug: 'second-change', blueprintDir: 'second-change',
+      },
+    ],
+  });
+  // twoEntryPlan은 번호 형식 경로를 조립하므로 slug 계획의 epicDir을 직접 지정한다.
+  plan.epicDir = '.bouncer/context/epics/imported-history';
+  const { execFileSync, commits } = makeApplyExec();
+
+  const r = applyImport({ repoRoot: repo, plan, message: 'chore: import', deps: { execFileSync } });
+
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(commits, ['chore: import']);
+  const epic = readDoc(path.join(repo, r.created[0])).data.bouncer;
+  assert.strictEqual(epic.id, 'imported-history');
+  assert.strictEqual(epic.epic_id, 'imported-history');
+  const orders = plan.entries.map((entry) => {
+    const bp = readDoc(path.join(repo, `${plan.epicDir}/blueprints/${entry.blueprintDir}/index.md`)).data.bouncer;
+    assert.strictEqual(bp.id, entry.blueprintDir);
+    assert.strictEqual(bp.epic_id, 'imported-history');
+    assert.strictEqual(bp.blueprint_id, entry.blueprintDir);
+    return bp.order;
+  });
+  assert.deepStrictEqual(orders, [1, 2]);
+  const bundle = fs.readFileSync(path.join(repo, '.bouncer/context/index.md'), 'utf8');
+  assert.match(bundle, /\]\(epics\/imported-history\/index\.md\)/);
+  const v = validateBlueprint({
+    repoRoot: repo, blueprintDir: `${plan.epicDir}/blueprints/first-change`, gate: 'plan',
+  });
+  assert.deepStrictEqual(v.failures.map((f) => f.code), ['S18']);
+});

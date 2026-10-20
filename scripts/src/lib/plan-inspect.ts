@@ -3,7 +3,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 import layout = require('./layout');
-const { isCanonicalEpicDir, isCanonicalBlueprintDir } = layout;
+const {
+  isCanonicalEpicDir, isCanonicalBlueprintDir, isValidBlueprintOrder, listBlueprintOrders,
+} = layout;
+import contextIds = require('./context-ids');
+const { parseContextPath } = contextIds;
 import paths = require('./paths');
 const { toPosix } = paths;
 import current = require('./current');
@@ -17,9 +21,6 @@ const { readEpicRegistry, COMMON_EPICS } = epicRegistry;
 
 const BOUNCER_DIR = '.bouncer';
 const EPICS_REL = '.bouncer/context/epics';
-// 정본 id만 센다. EPIC-/BP- 접두는 최댓값에 넣지 않아 구형 디렉터리가
-// 다음 번호를 건너뛰게 하지 않는다.
-const ID_DIR_RE = /^\d{3}-.+$/;
 const VERIFY_FILES = [
   'docker-compose.yml',
   'docker-compose.yaml',
@@ -57,10 +58,13 @@ type InspectFail = {
   reason: 'not-initialized' | 'invalid-epic-dir' | 'invalid-blueprint-dir';
 };
 
+// nextBlueprintId는 번호 epic 전용이다. slug epic은 디렉터리에 번호가 없어 null이고, 다음 순서는
+// 두 형식 모두 nextBlueprintOrder가 낸다(번호 epic은 nextBlueprintId와 같은 값의 정수).
 type EpicInfo = {
   dir: string;
   status: string | null;
-  nextBlueprintId: string;
+  nextBlueprintId: string | null;
+  nextBlueprintOrder: number;
 };
 
 type CurrentInfo = {
@@ -124,8 +128,12 @@ type RoutingTask = { paths: string[]; dependsOn: string[] };
 function nextNumericId(names: string[]): string {
   let max = 0;
   for (const name of names) {
-    if (!ID_DIR_RE.test(name)) continue;
-    const n = Number(name.slice(0, 3));
+    // 정본 번호 이름(`ddd-slug`)만 센다. EPIC-/BP- 접두와 slug 이름은 최댓값에 넣지 않아 구형 디렉터리가
+    // 다음 번호를 건너뛰게 하지 않는다. 세그먼트 해석은 context-ids 한 곳에 맡기고, blueprint 이름도
+    // epic 자리에 끼워 같은 규칙으로 읽는다.
+    const parsed = parseContextPath(`epics/${name}`);
+    if (!parsed || parsed.format !== 'numeric') continue;
+    const n = Number(parsed.epicKey);
     if (Number.isFinite(n) && n > max) max = n;
   }
   return String(max + 1).padStart(3, '0');
@@ -288,13 +296,32 @@ function readStatus(absIndex: string): string | null {
   }
 }
 
+/**
+ * slug epic의 다음 blueprint 순서를 구한다. 쓸 수 있는 `order`(양의 정수)의 최댓값 + 1이다.
+ * 간격은 메우지 않는다(1·2·5 → 6) — 순서는 디렉터리 이름이 아니라 frontmatter가 가지므로
+ * 중간 값을 비워 둔 채 계속 추가해도 기존 순서가 흔들리지 않는다. 읽을 수 없거나 모양이 틀린 값은
+ * 최댓값에서 뺀다(그 문서의 오류는 S37이 따로 보고한다). 후보가 없으면 1이다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} dirRel - 저장소 상대 epic 디렉터리
+ * @returns {number} 다음 순서(양의 정수)
+ */
+function nextBlueprintOrder(repoRoot: string, dirRel: string): number {
+  let max = 0;
+  for (const entry of listBlueprintOrders(repoRoot, dirRel)) {
+    if (isValidBlueprintOrder(entry.order) && entry.order > max) max = entry.order;
+  }
+  return max + 1;
+}
+
 function epicInfo(repoRoot: string, dirRel: string): EpicInfo {
-  const blueprintsAbs = path.join(repoRoot, dirRel, 'blueprints');
-  return {
-    dir: dirRel,
-    status: readStatus(path.join(repoRoot, dirRel, 'index.md')),
-    nextBlueprintId: nextNumericId(listDirNames(blueprintsAbs)),
-  };
+  const status = readStatus(path.join(repoRoot, dirRel, 'index.md'));
+  // 형식은 경로로 판정한다(호출자가 정본 검사를 통과시켰다).
+  if (parseContextPath(dirRel)?.format === 'slug') {
+    return { dir: dirRel, status, nextBlueprintId: null, nextBlueprintOrder: nextBlueprintOrder(repoRoot, dirRel) };
+  }
+  const nextBlueprintId = nextNumericId(listDirNames(path.join(repoRoot, dirRel, 'blueprints')));
+  return { dir: dirRel, status, nextBlueprintId, nextBlueprintOrder: Number(nextBlueprintId) };
 }
 
 function presentCurrent(repoRoot: string): CurrentInfo {

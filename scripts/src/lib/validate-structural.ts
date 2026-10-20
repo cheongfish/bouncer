@@ -11,6 +11,10 @@ import paths = require('./paths');
 const {
   parsePathIds, toPosix, isNumericContextId,
 } = paths;
+import contextIds = require('./context-ids');
+const { parseContextPath, validateSlug } = contextIds;
+import layout = require('./layout');
+const { isValidBlueprintOrder, listBlueprintOrders } = layout;
 import verification = require('./verification');
 const { isValidVerifyCommand } = verification;
 import tasksDocs = require('./tasks-docs');
@@ -130,15 +134,21 @@ function checkStructural(
   // migration 이후에는 검증기가 구형 접두를 보정하지 않는다. 정본 형태가 아니면
   // S4/S5에서 그대로 거절해 일부만 migrate된 저장소가 통과하지 못하게 한다.
   const id = bouncer.id;
+  // 문서 경로의 형식(번호/slug)이 id 모양을 정한다. slug 경로의 epic·blueprint 문서는 id가 경로 slug이고
+  // (값 일치는 아래 S5가 본다), 루트 review·explain·context-review는 접두 뒤가 blueprint slug다.
+  // task 묶음 문서(TASKS-NNN 등)는 형식과 무관하게 task 번호라 숫자 판정을 그대로 쓴다.
+  const slugPath = parseContextPath(rel)?.format === 'slug';
   if (docType === 'bouncer.epic' || docType === 'bouncer.blueprint') {
-    if (!isNumericContextId(id)) {
-      add('S4', `id "${bouncer.id}" must be a zero-padded three-digit id`);
+    if (slugPath ? validateSlug(id) !== null : !isNumericContextId(id)) {
+      add('S4', slugPath
+        ? `id "${bouncer.id}" must be a valid slug`
+        : `id "${bouncer.id}" must be a zero-padded three-digit id`);
     }
   } else if (
     typeof prefix !== 'string'
     || typeof id !== 'string'
     || !id.startsWith(prefix)
-    || !isNumericContextId(id.slice(prefix.length))
+    || !(isNumericContextId(id.slice(prefix.length)) || (slugPath && validateSlug(id.slice(prefix.length)) === null))
   ) {
     add('S4', `id "${bouncer.id}" missing prefix ${prefix} or invalid digits`);
   }
@@ -305,7 +315,49 @@ function checkStructural(
   }
 }
 
+/**
+ * slug 형식 blueprint의 S37을 판정한다. 대상은 blueprint 디렉터리 경로가 slug 형식으로 읽히는 경우뿐이며
+ * 번호 형식은 건드리지 않는다. 보는 것은 `order` 존재·양의 정수·epic 안 유일성, 그리고 같은 epic 안에서
+ * 같은 slug를 id로 쓰는 다른 문서(복사된 문서)다. 경로 자체의 형식 혼용·slug 규칙 위반은 경로가 읽히지 않아
+ * 이 함수에 오기 전에 validate가 S37로 보고한다. 승인 뒤 slug 불변은 gate가 판정하지 않고(`order`도 닫힌
+ * blueprint에서 바꿀 수 있다), 여기서도 값 모양과 유일성만 본다.
+ *
+ * @param {object} opts - 판정 입력
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {string} opts.blueprintDir - 저장소 상대 blueprint 디렉터리
+ * @param {unknown} opts.blueprintIndex - 로드된 blueprint index 문서(`{ data, rel }`). 없으면 판정하지 않는다
+ * @returns {FailureEntry[]} S37 실패 목록(없으면 빈 배열). 메시지는 위반 종류로 시작한다
+ */
+function checkSlugBlueprint({ repoRoot, blueprintDir, blueprintIndex }: {
+  repoRoot: string;
+  blueprintDir: string;
+  blueprintIndex: unknown;
+}): FailureEntry[] {
+  const ids = parseContextPath(blueprintDir);
+  if (!ids || ids.format !== 'slug' || ids.blueprintKey === null || !blueprintIndex) return [];
+  const { data, rel } = blueprintIndex as { data: unknown; rel: string };
+  const failures: FailureEntry[] = [];
+  const add = (kind: string, message: string) => {
+    failures.push({ code: 'S37', message: `${kind}: ${message}`, file: rel });
+  };
+  const bouncer = ((data as { bouncer?: unknown } | null)?.bouncer ?? {}) as Record<string, unknown>;
+  const epicDir = toPosix(blueprintDir).split('/blueprints/')[0];
+  const siblings = listBlueprintOrders(repoRoot, epicDir).filter((entry) => entry.name !== ids.blueprintKey);
+  if (bouncer.order === undefined) {
+    add('order-missing', 'a slug blueprint needs a positive integer bouncer.order');
+  } else if (!isValidBlueprintOrder(bouncer.order)) {
+    add('order-invalid', `bouncer.order must be a positive integer, got ${JSON.stringify(bouncer.order)}`);
+  } else {
+    const clash = siblings.find((entry) => entry.order === bouncer.order);
+    if (clash) add('order-duplicate', `order ${bouncer.order} is also used by ${clash.name}`);
+  }
+  const copy = siblings.find((entry) => entry.id === ids.blueprintKey);
+  if (copy) add('slug-duplicate', `slug ${ids.blueprintKey} is also the id of ${copy.name}`);
+  return failures;
+}
+
 export = {
   expectedTypeForPath,
   checkStructural,
+  checkSlugBlueprint,
 };

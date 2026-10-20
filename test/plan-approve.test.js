@@ -273,3 +273,57 @@ test('등록부가 없거나 해당 epic이 domain이거나 미등록 → draft 
   writeEpicRegistry(unlisted, legacyRegistry('063'));
   assert.strictEqual(approve(unlisted).code, 0);
 });
+
+// --- slug 경로: 승인 대상 판정과 legacy epic 거절이 번호가 아니라 epic slug를 따른다 ---
+const SLUG_EPIC = '.bouncer/context/epics/plan-workflow';
+const SLUG_BP = `${SLUG_EPIC}/blueprints/registry-gates`;
+
+function makeSlugRepo() {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-approve-')));
+  writeDoc(repo, `${SLUG_EPIC}/index.md`, { status: 'draft' });
+  writeDoc(repo, `${SLUG_BP}/index.md`, { status: 'draft', scale: 'light' });
+  writeDoc(repo, `${SLUG_BP}/tasks/001/tasks.md`, { status: 'draft', execution_kind: 'commit' });
+  return repo;
+}
+
+function writeV2Registry(repo, kind) {
+  const abs = path.join(repo, '.bouncer', 'epics.json');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `${JSON.stringify({
+    version: 2, profile: 'domain-only', domainEpicLimit: 8, areas: [],
+    epics: [{ slug: 'plan-workflow', kind, active: true }],
+  }, null, 2)}\n`);
+}
+
+test('slug epic 아래 draft blueprint → 승인이 성공하고 epic·blueprint·task가 전이', () => {
+  const repo = makeSlugRepo();
+  const r = approve(repo, SLUG_BP);
+  assert.strictEqual(r.code, 0, r.err + r.out);
+  assert.strictEqual(statusOf(repo, `${SLUG_BP}/index.md`), 'approved');
+  assert.strictEqual(statusOf(repo, `${SLUG_EPIC}/index.md`), 'approved');
+  assert.strictEqual(statusOf(repo, `${SLUG_BP}/tasks/001/tasks.md`), 'ready');
+});
+
+test('legacy로 등록된 slug epic 아래 draft blueprint → plan-approve-legacy-epic으로 거절하고 파일 무변경', () => {
+  const repo = makeSlugRepo();
+  writeV2Registry(repo, 'legacy');
+  const rels = [`${SLUG_EPIC}/index.md`, `${SLUG_BP}/index.md`, `${SLUG_BP}/tasks/001/tasks.md`];
+  const before = rels.map((rel) => fs.readFileSync(path.join(repo, rel), 'utf8'));
+  const r = approve(repo, SLUG_BP);
+  assert.strictEqual(r.code, 1, r.err + r.out);
+  assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-legacy-epic');
+  assert.deepEqual(rels.map((rel) => fs.readFileSync(path.join(repo, rel), 'utf8')), before);
+});
+
+test('domain으로 등록된 slug epic 아래 draft blueprint → 승인이 그대로 성공', () => {
+  const repo = makeSlugRepo();
+  writeV2Registry(repo, 'domain');
+  assert.strictEqual(approve(repo, SLUG_BP).code, 0);
+});
+
+test('epic은 slug이고 blueprint 디렉터리는 번호 접두 → plan-approve-target으로 거절', () => {
+  const repo = makeSlugRepo();
+  const r = approve(repo, `${SLUG_EPIC}/blueprints/001-registry-gates`);
+  assert.strictEqual(r.code, 1);
+  assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-target');
+});
