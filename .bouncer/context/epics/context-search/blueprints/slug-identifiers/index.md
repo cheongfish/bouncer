@@ -33,7 +33,7 @@ Epic: [119](../../index.md)
 epic·blueprint를 번호 대신 slug로 식별하고 blueprint 순서는 frontmatter `order`로 정하도록 식별자 해석·쓰기·실행 키·추적 경로를 한 resolver로 모은다. 구형 번호 ID와 trailer는 별칭 표로 계속 읽고, legacy 디렉터리를 새 형식으로 옮기는 이관 명령을 함께 제공한다.
 
 ## Contract
-- 근거 요구사항: [DOCUMENT-SLUG-IDENTIFIER-PROPOSAL.md](../../../../../../DOCUMENT-SLUG-IDENTIFIER-PROPOSAL.md) 결정 1~10과 plan 질의 답변 11~18.
+- 근거 요구사항: slug 식별자 결정 1~10과 plan 질의 답변 11~18.
 - 인터페이스:
   - 새 모듈 `scripts/src/lib/context-ids.ts`가 경로·stable ID·trailer 값·pointer 키를 구형(`numeric`)과 새 형식(`slug`) 모두 해석한다. 다른 모듈은 epic·blueprint 번호 정규식을 직접 갖지 않는다.
   - 형식은 경로가 정한다. epic 디렉터리가 `^\d{3}-`로 시작하면 `numeric`, 아니면 `slug`다. 새 형식 쓰기 스위치는 따로 없다.

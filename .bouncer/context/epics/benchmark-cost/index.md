@@ -29,7 +29,7 @@ bouncer:
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
 
 ## Legacy epic 귀속
-[Epic 기능 분류와 재배치 제안](../../../../EPIC-CLASSIFICATION-PROPOSAL.md)의 매핑이다. △는 일부 blueprint가 다른 영역에 귀속된다는 뜻이다.
+Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 귀속된다는 뜻이다.
 
 - [evaluation-benchmarking](../evaluation-benchmarking/index.md)
 - [bouncer-cost-improvement](../bouncer-cost-improvement/index.md) △

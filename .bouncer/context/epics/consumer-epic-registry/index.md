@@ -40,7 +40,7 @@ bouncer:
 
 ## Out of scope
 - `legacy` epic의 물리적 이관 도구와 trailer·runtime 참조 이관 (REQ-13~15). BP001 뒤 이 저장소에서 epic 114도 `legacy`가 되므로, 필요하면 `bouncer epic add-domain`으로 등록한 도메인 epic 아래에 계획한다.
-- 플러그인 저장소의 기능 영역 재배치와 도메인 epic 실제 등록 (`EPIC-CONSOLIDATION-FOLLOWUP.md`)
+- 플러그인 저장소의 기능 영역 재배치와 도메인 epic 실제 등록
 - 소스코드 책임 분해 (`SOURCE-RESTRUCTURING-PROPOSAL.md`)
 - 도메인 epic 이름과 `area` 이름의 자동 추천, CLI 휴리스틱 귀속 판단
 
