@@ -7,6 +7,9 @@
  */
 const COMMIT_SHA_LEN = 8;
 
+import contextIds = require('./context-ids');
+const { validateSlug, formatStableIntentId, formatStableTaskId } = contextIds;
+
 const THREE_DIGIT_ID = /^\d{3}$/;
 const TASKS_ID = /^TASKS-(\d{3})$/;
 
@@ -37,19 +40,28 @@ function normalizeCommitSha(value: unknown): string | null {
 }
 
 /**
- * frontmatter 값을 정본 세 자리 숫자 문자열로만 받는다.
+ * epic·blueprint key 한 쌍의 형식(번호 / slug)을 키 모양으로 판정한다.
  * 한 자리·네 자리·number는 패딩하거나 잘라 맞추지 않는다 — 잘못된 ID를
  * 추측해 고치면 다른 Epic·Blueprint의 커밋이 같은 ref로 묶인다.
+ * 형식이 섞인 쌍(번호 epic + slug blueprint)은 한 문서가 두 체계에 걸치므로 거절한다.
  *
- * @param {unknown} value - epic_id 또는 blueprint_id
- * @param {string} field - 오류 메시지에 넣을 필드 이름
- * @returns {string} `\d{3}` 문자열
+ * @param {unknown} epicId - epic_id (`ddd` 또는 epic slug)
+ * @param {unknown} blueprintId - blueprint_id (`ddd` 또는 blueprint slug)
+ * @returns {'numeric' | 'slug'} 판정한 형식
+ * @throws {Error} 어느 쪽 형식도 아니거나 두 key의 형식이 다를 때
  */
-function requireThreeDigitId(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !THREE_DIGIT_ID.test(value)) {
-    throw new Error(`${field} must be a three-digit id`);
+function detectKeyFormat(epicId: unknown, blueprintId: unknown): 'numeric' | 'slug' {
+  const isDigits = (v: unknown): boolean => typeof v === 'string' && THREE_DIGIT_ID.test(v);
+  const isSlug = (v: unknown): boolean => typeof v === 'string' && validateSlug(v) === null;
+  if (isDigits(epicId)) {
+    if (!isDigits(blueprintId)) throw new Error('blueprint_id must be a three-digit id');
+    return 'numeric';
   }
-  return value;
+  if (isSlug(epicId)) {
+    if (!isSlug(blueprintId)) throw new Error('blueprint_id must be a slug');
+    return 'slug';
+  }
+  throw new Error('epic_id must be a three-digit id or a slug');
 }
 
 /**
@@ -71,32 +83,34 @@ function requireTasksDigits(value: unknown): string {
 }
 
 /**
- * Epic·Blueprint·Task 번호로 stable Task/Intent ref와 Git trailer 두 줄을 만든다.
- * 세 입력이 모두 정본 형식일 때만 성공하고, 하나라도 아니면 커밋 전에 거절한다.
+ * Epic·Blueprint·Task 식별자로 stable Task/Intent ref와 Git trailer 두 줄을 만든다.
+ * 형식은 key 모양으로 판정한다(번호 `ddd` 또는 slug). 구형 입력의 출력은 이전과 바이트까지 같다.
+ * 입력이 정본 형식이 아니거나 형식이 섞이면 커밋 전에 거절한다.
  *
  * @param {object} ids - task frontmatter에서 읽은 식별자
- * @param {unknown} ids.epicId - `bouncer.epic_id` (`ddd`)
- * @param {unknown} ids.blueprintId - `bouncer.blueprint_id` (`ddd`)
+ * @param {unknown} ids.epicId - `bouncer.epic_id` (`ddd` 또는 epic slug)
+ * @param {unknown} ids.blueprintId - `bouncer.blueprint_id` (`ddd` 또는 blueprint slug)
  * @param {unknown} ids.taskId - `bouncer.id` (`TASKS-NNN`)
  * @returns {{task: string, intent: string, trailers: [string, string]}}
- *   task는 `EPIC-ddd/BP-ddd/TASK-ddd`, intent는 `EPIC-ddd/BP-ddd`,
+ *   task는 `EPIC-ddd/BP-ddd/TASK-ddd` 또는 `<epic>/<bp>/ddd`, intent는 task와 같은 형식의 blueprint ID,
  *   trailers는 `Bouncer-Task` 다음 `Bouncer-Intent` 한 줄씩
+ * @throws {Error} key 형식 위반·혼합, `TASKS-NNN`이 아닌 task id
  */
 function buildStableProvenance({ epicId, blueprintId, taskId }: {
   epicId: unknown;
   blueprintId: unknown;
   taskId: unknown;
 }): StableProvenance {
-  const epic = requireThreeDigitId(epicId, 'epic_id');
-  const blueprint = requireThreeDigitId(blueprintId, 'blueprint_id');
-  const taskDigits = requireTasksDigits(taskId);
-  const intent = `EPIC-${epic}/BP-${blueprint}`;
-  const task = `${intent}/TASK-${taskDigits}`;
+  const format = detectKeyFormat(epicId, blueprintId);
+  const task = requireTasksDigits(taskId);
+  const keys = { format, epicKey: epicId as string, blueprintKey: blueprintId as string };
+  const intent = formatStableIntentId(keys);
+  const taskRef = formatStableTaskId({ ...keys, task });
   return {
-    task,
+    task: taskRef,
     intent,
     trailers: [
-      `Bouncer-Task: ${task}`,
+      `Bouncer-Task: ${taskRef}`,
       `Bouncer-Intent: ${intent}`,
     ],
   };

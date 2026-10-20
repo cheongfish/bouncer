@@ -21,11 +21,11 @@ bouncer:
 
 ## Success criteria
 1. `context-search` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
-2. 아래 legacy epic은 `legacy`로 그대로 두고 조회·이력에만 쓴다. 승인·검증 해시와 trailer 연결을 바꾸지 않는다.
+2. 아래 legacy epic은 `legacy`로 두고 조회·이력에만 쓴다. 번호 식별자를 slug로 바꾸는 이관([DOCUMENT-SLUG-IDENTIFIER-PROPOSAL.md](../../../../DOCUMENT-SLUG-IDENTIFIER-PROPOSAL.md) 결정 3)은 디렉터리·문서 안 ID·경로를 새 형식으로 옮기고 파생 해시를 다시 계산하되, 과거 커밋 trailer는 별칭 표로 계속 연결한다.
 
 ## Out of scope
 - 문서를 쓰는 워크플로 단계 동작 → 해당 단계 영역
-- legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
+- legacy epic 사이의 blueprint 재배치. 귀속은 논리적 병합으로만 하고, 물리 이관은 식별자 형식 전환(번호 → slug)에 한한다.
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
 
 ## Legacy epic 귀속
@@ -48,4 +48,4 @@ bouncer:
 | 063 | 001 graphify-query-guidance | 검색 안내 |
 
 ## Blueprints
-없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.
+- [slug-identifiers](blueprints/001-slug-identifiers/index.md) — epic·blueprint 식별자를 번호에서 slug와 `order`로 바꾸고 trailer·실행 키·이관 명령을 새 형식으로 맞춘다.

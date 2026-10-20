@@ -165,3 +165,23 @@ test('the active pointer → follows its task document, and other blueprints do 
   assert.equal(untouched.pointer, null);
   assert.equal(readCurrent({ repoRoot: other }).task, `${BP}/tasks-001.md`);
 });
+
+test('a slug blueprint with root task files → is left out of the numbered layout plan', () => {
+  const repoRoot = fixture();
+  const slugBp = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates';
+  write(repoRoot, `${slugBp}/tasks-001.md`, {
+    type: 'bouncer.tasks',
+    title: '001',
+    description: '001',
+    resource: `${slugBp}/tasks-001.md`,
+    tags: [],
+    timestamp: '2026-01-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: 'plan-workflow', blueprint_id: 'registry-gates', status: 'ready',
+    },
+  });
+  const r = migrateTaskLayout({ repoRoot, dryRun: true, deps: { isWorktreeDirty: () => false } });
+  assert.equal(r.ok, true);
+  assert.ok(r.plan.every((step) => !step.from.includes('plan-workflow') && !step.to.includes('plan-workflow')));
+  assert.ok(fs.existsSync(path.join(repoRoot, `${slugBp}/tasks-001.md`)));
+});

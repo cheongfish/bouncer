@@ -15,6 +15,8 @@ import epicRegistry = require('./epic-registry');
 const { readEpicRegistry } = epicRegistry;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
+import contextIds = require('./context-ids');
+const { parseContextPath } = contextIds;
 
 type ApproveOk = { ok: true; changed: string[]; unchanged: string[] };
 type ApproveFail = {
@@ -159,10 +161,13 @@ function approvePlan({ repoRoot, blueprintDir, deps = {} }: {
   // 재승인은 진행 중 실행을 막지 않으려고 통과시킨다. 등록부 부재·invalid·미등록 epic은 기존 동작.
   if (bpPlan.needsWrite) {
     const epicLeaf = epicDirOf(bp).split('/').pop() || '';
-    const epicId = /^(\d{3})-/.exec(epicLeaf)?.[1];
+    // 번호 epic은 옛 번호(v1 id, v2 legacy_id)로, slug epic은 slug로 등록부 항목을 찾는다.
+    // 경로가 해석되지 않으면(비정규 이름) 등록부 대조를 건너뛰는 기존 동작을 유지한다.
+    const ids = parseContextPath(bp);
     const registryRead = readEpicRegistry(repoRoot);
-    if (epicId && registryRead.status === 'ok'
-      && registryRead.registry.epics.some((e) => e.id === epicId && e.kind === 'legacy')) {
+    if (ids && registryRead.status === 'ok'
+      && registryRead.registry.epics.some((e) => e.kind === 'legacy'
+        && (ids.format === 'slug' ? e.slug === ids.epicKey : (e.legacy_id ?? e.id) === ids.epicKey))) {
       return fail(
         'plan-approve-legacy-epic',
         `${epicLeaf}: legacy epic takes no new blueprints`,

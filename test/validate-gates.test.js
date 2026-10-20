@@ -4153,3 +4153,76 @@ test('plan gate without ctx repoRoot → no registry codes', () => {
   checkGate('plan', {}, {}, failures);
   assert.ok(!failures.some((f) => REGISTRY_GATE_CODES.includes(f.code)));
 });
+
+// ---- slug 경로 epic: 등록부는 slug로 대조하고 번호 id는 보지 않는다 ----
+
+function slugGateRepo({ epicSlug = 'plan-workflow', registryEpics, areas = [], bpData = {} }) {
+  const repo = mkRepo();
+  const epicRel = `.bouncer/context/epics/${epicSlug}`;
+  const bpRel = `${epicRel}/blueprints/registry-gates`;
+  writeDoc(repo, `${epicRel}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicRel}/index.md`,
+    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: epicSlug, epic_id: epicSlug, status: 'approved' },
+  });
+  writeDoc(repo, `${bpRel}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpRel}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'registry-gates', epic_id: epicSlug, blueprint_id: 'registry-gates', status: 'approved', order: 1, ...bpData,
+    },
+  });
+  writeEpicRegistry(repo, { version: 2, profile: 'domain-only', domainEpicLimit: 99, areas, epics: registryEpics });
+  return { repo, bpRel };
+}
+
+const slugEnt = (slug, kind = 'common', active = true) => ({ slug, kind, active });
+
+test('plan gate with a slug epic registered by slug → no G26–G31', () => {
+  const { repo, bpRel } = slugGateRepo({
+    registryEpics: [slugEnt('plan-workflow')], bpData: { attribution: 'a' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
+});
+
+test('plan gate with a slug epic missing from the registry → G27 naming the slug', () => {
+  const { repo, bpRel } = slugGateRepo({ registryEpics: [slugEnt('other-epic')] });
+  const { res, codes } = registryCodes(repo, bpRel);
+  assert.deepStrictEqual(codes, ['G27']);
+  assert.match(res.failures.find((f) => f.code === 'G27').message, /epic plan-workflow is not registered/);
+});
+
+test('plan gate with an inactive slug epic → G28', () => {
+  const { repo, bpRel } = slugGateRepo({
+    registryEpics: [slugEnt('plan-workflow', 'domain', false)], bpData: { attribution: 'a' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G28']);
+});
+
+test('plan gate with a slug epic and no attribution → G31', () => {
+  const { repo, bpRel } = slugGateRepo({ registryEpics: [slugEnt('plan-workflow', 'domain')] });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G31']);
+});
+
+test('plan gate with a slug features epic and a registered area → no G26–G31', () => {
+  const { repo, bpRel } = slugGateRepo({
+    epicSlug: 'features', registryEpics: [slugEnt('features')], areas: ['ordering'],
+    bpData: { attribution: 'a', area: 'ordering' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
+});
+
+test('plan gate with a legacy slug epic and an approved blueprint → no G26–G31', () => {
+  const { repo, bpRel } = slugGateRepo({ registryEpics: [slugEnt('plan-workflow', 'legacy')] });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
+});
+
+test('plan gate with a numbered epic that a v2 registry keeps under legacy_id → no G26–G31', () => {
+  const { repo, bpRel } = registryGateRepo({
+    registry: {
+      version: 2, ...reg([{ slug: 'auth', kind: 'domain', active: true, legacy_id: '001' }]),
+    },
+    bpData: { attribution: 'a' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
+});

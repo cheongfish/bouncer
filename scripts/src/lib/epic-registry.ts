@@ -1,6 +1,8 @@
 'use strict';
 import guards = require('./guards');
+import contextIds = require('./context-ids');
 const { isRecord, isEnoentError } = guards;
+const { validateSlug, parseNumericPrefix, parseNumericEpicDir } = contextIds;
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -9,12 +11,17 @@ const path = require('node:path');
 // reader 하나로 두고, repoRoot 아래 파일 하나만 읽으며 캐시를 두지 않는다.
 
 type EpicKind = 'common' | 'domain' | 'legacy';
+// v1은 번호 `id`를, v2는 선택 `legacy_id`(옛 번호)와 `blueprint_aliases`(옛 blueprint 번호·이름 → 현재 slug)를
+// 쓴다. v1 `id`는 v2의 `legacy_id`와 같은 뜻이라 읽을 때 둘을 같은 값으로 본다.
+// 주의: 타입의 `id`는 기존 소비자(plan-inspect 등)가 컴파일되도록 필수로 남겼지만, v2 항목에는 없을 수 있다.
+// v2 소비자는 `epicByLegacyId`·`legacy_id`를 써야 하며, 소비자 전환은 후속 task 소관이다.
 type RegistryEpic = {
-  slug: string; id: string; kind: EpicKind; active: boolean;
+  slug: string; id: string; legacy_id?: string; kind: EpicKind; active: boolean;
   approval?: { reason: string; approvedAt: string };
+  blueprint_aliases?: Record<string, string>;
 };
 type EpicRegistry = {
-  version: 1; profile: string; domainEpicLimit: number; areas: string[];
+  version: 1 | 2; profile: string; domainEpicLimit: number; areas: string[];
   areaPromotionThreshold?: number; epics: RegistryEpic[];
 };
 type RegistryRead = { status: 'ok'; registry: EpicRegistry } | { status: 'missing' }
@@ -23,7 +30,6 @@ type ParseResult = { ok: true; registry: EpicRegistry } | { ok: false; message: 
 type RegistryFailure = { code: 'S35'; message: string; file: string };
 
 const REGISTRY_REL = '.bouncer/epics.json';
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ID_RE = /^\d{3}$/;
 const KINDS: ReadonlyArray<string> = ['common', 'domain', 'legacy'];
 
@@ -85,6 +91,24 @@ const PURPOSE_NAMES: ReadonlyArray<string> = [
 ];
 
 /**
+ * `blueprint_aliases` 형식을 검사한다. 키는 옛 세 자리 번호나 옛 slug, 값은 현재 slug여야 한다.
+ * 두 키가 같은 값을 가리키는 것은 옛 이름 여러 개를 한 blueprint로 모으는 정상 사용이라 검사하지 않는다.
+ *
+ * @param {unknown} aliases - epic 항목의 `blueprint_aliases` 값
+ * @returns {string | null} 위반 사유(없거나 통과하면 null)
+ */
+function aliasViolationOf(aliases: unknown): string | null {
+  if (aliases === undefined) return null;
+  if (!isRecord(aliases)) return 'must be an object';
+  for (const [key, target] of Object.entries(aliases)) {
+    if (!ID_RE.test(key) && validateSlug(key) !== null) return `key is neither three digits nor a slug: ${key}`;
+    const targetViolation = validateSlug(target);
+    if (targetViolation !== null) return `value for ${key}: ${targetViolation}`;
+  }
+  return null;
+}
+
+/**
  * 등록부 JSON 값을 검사해 EpicRegistry로 돌려준다. 형식 위반은 throw하지 않고
  * 첫 위반의 message를 돌려줘 호출자가 S35로 접게 한다.
  *
@@ -94,7 +118,7 @@ const PURPOSE_NAMES: ReadonlyArray<string> = [
 function parseEpicRegistry(value: unknown): ParseResult {
   const fail = (message: string): ParseResult => ({ ok: false, message });
   if (!isRecord(value)) return fail('registry must be a JSON object');
-  if (value.version !== 1) return fail('version must be 1');
+  if (value.version !== 1 && value.version !== 2) return fail('version must be 1 or 2');
   if (typeof value.profile !== 'string' || value.profile === '') return fail('profile must be a non-empty string');
   const limit = value.domainEpicLimit;
   if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 0) {
@@ -103,7 +127,9 @@ function parseEpicRegistry(value: unknown): ParseResult {
   if (!Array.isArray(value.areas)) return fail('areas must be an array');
   const seenAreas = new Set<string>();
   for (const area of value.areas) {
-    if (typeof area !== 'string' || !SLUG_RE.test(area)) return fail(`area is not a valid slug: ${String(area)}`);
+    if (typeof area !== 'string' || validateSlug(area) !== null) {
+      return fail(`area is not a valid slug: ${String(area)}`);
+    }
     if (seenAreas.has(area)) return fail(`area is duplicated: ${area}`);
     seenAreas.add(area);
   }
@@ -116,9 +142,19 @@ function parseEpicRegistry(value: unknown): ParseResult {
   const slugById = new Map<string, string>();
   for (const epic of value.epics) {
     if (!isRecord(epic)) return fail('epics entries must be objects');
-    const { slug, id, kind, active, approval } = epic;
-    if (typeof slug !== 'string' || slug === '') return fail('epic slug must be a non-empty string');
-    if (typeof id !== 'string' || !ID_RE.test(id)) return fail(`epic id must be 3 digits: ${slug}`);
+    const { kind, active, approval } = epic;
+    const slugViolation = validateSlug(epic.slug);
+    if (slugViolation !== null) return fail(`epic slug is invalid: ${slugViolation}`);
+    const slug = epic.slug as string;
+    // v1은 id가 필수이고, v2는 옛 번호가 있는 epic만 legacy_id를 가진다. 둘은 같은 번호 공간이라
+    // 아래 중복 검사를 한 변수로 한다. v2에서 id 없는 epic은 번호 중복 검사에서 빠진다.
+    const rawId = value.version === 1 ? epic.id : epic.legacy_id;
+    if ((value.version === 1 || rawId !== undefined) && (typeof rawId !== 'string' || !ID_RE.test(rawId))) {
+      return fail(`epic id must be 3 digits: ${slug}`);
+    }
+    const id = rawId ?? '';
+    const aliasViolation = aliasViolationOf(epic.blueprint_aliases);
+    if (aliasViolation !== null) return fail(`blueprint_aliases is invalid: ${slug}: ${aliasViolation}`);
     if (typeof kind !== 'string' || !KINDS.includes(kind)) return fail(`epic kind is invalid: ${slug}`);
     if (typeof active !== 'boolean') return fail(`epic active must be a boolean: ${slug}`);
     if (approval !== undefined
@@ -126,13 +162,41 @@ function parseEpicRegistry(value: unknown): ParseResult {
       return fail(`epic approval needs string reason and approvedAt: ${slug}`);
     }
     if (idBySlug.has(slug) && idBySlug.get(slug) !== id) return fail(`slug has more than one id: ${slug}`);
-    if (slugById.has(id) && slugById.get(id) !== slug) return fail(`id has more than one slug: ${id}`);
+    if (rawId !== undefined && slugById.has(id) && slugById.get(id) !== slug) {
+      return fail(`id has more than one slug: ${id}`);
+    }
     // 같은 (slug,id) 행이 두 번 있으면 위 두 검사를 모두 통과하므로 따로 거절한다.
     if (idBySlug.has(slug)) return fail(`epic row is duplicated: ${slug} ${id}`);
     idBySlug.set(slug, id);
-    slugById.set(id, slug);
+    if (rawId !== undefined) slugById.set(id, slug);
   }
   return { ok: true, registry: value as unknown as EpicRegistry };
+}
+
+/**
+ * 옛 번호(v1 `id`, v2 `legacy_id`)로 epic 항목을 찾는다.
+ *
+ * @param {EpicRegistry} registry - 등록부
+ * @param {string} id - 옛 epic 번호(세 자리)
+ * @returns {RegistryEpic | null} 항목. 없으면 null
+ */
+function epicByLegacyId(registry: EpicRegistry, id: string): RegistryEpic | null {
+  return registry.epics.find((e) => (e.legacy_id ?? e.id) === id) ?? null;
+}
+
+/**
+ * epic의 `blueprint_aliases`로 옛 blueprint 번호·이름을 현재 slug로 바꾼다.
+ *
+ * @param {EpicRegistry} registry - 등록부
+ * @param {string} epicSlug - epic slug
+ * @param {string} key - 옛 blueprint 번호(세 자리) 또는 옛 slug
+ * @returns {string | null} 현재 blueprint slug. epic이나 별칭이 없으면 null
+ */
+function resolveBlueprintAlias(registry: EpicRegistry, epicSlug: string, key: string): string | null {
+  const epic = registry.epics.find((e) => e.slug === epicSlug);
+  const aliases = epic?.blueprint_aliases;
+  // 상속 키(`constructor` 등)가 별칭으로 새지 않도록 own property만 본다.
+  return aliases && Object.prototype.hasOwnProperty.call(aliases, key) ? aliases[key] : null;
 }
 
 /**
@@ -203,8 +267,8 @@ function planRegistry(
 ): { registry: EpicRegistry; scaffold: { slug: string; id: string }[] } {
   const parsedDirs: { id: string; slug: string }[] = [];
   for (const name of existingEpicDirs) {
-    const match = /^(\d{3})-(.+)$/.exec(name);
-    if (match) parsedDirs.push({ id: match[1], slug: match[2] });
+    const parsed = parseNumericEpicDir(name);
+    if (parsed) parsedDirs.push(parsed);
   }
   const commonSlugs = new Set(base.epics.filter((e) => e.kind === 'common').map((e) => e.slug));
   for (const slug of commonSlugs) {
@@ -268,7 +332,8 @@ type AddFailure = { ok: false; reason: string; cause: string };
  * @returns {string | null} 위반 사유(통과하면 null)
  */
 function nameViolation(name: string): string | null {
-  if (!SLUG_RE.test(name)) return `"${name}" is not a lowercase kebab-case slug`;
+  const slugViolation = validateSlug(name);
+  if (slugViolation !== null) return `"${name}" is not a valid slug: ${slugViolation}`;
   if (COMMON_EPICS.some((c) => c.slug === name)) return `"${name}" is a common epic slug`;
   if (PURPOSE_NAMES.includes(name)) return `"${name}" is a purpose-style name, not a domain name`;
   return null;
@@ -301,15 +366,17 @@ function addDomainEpic(
     const limit = registry.domainEpicLimit;
     return fail('epic-registry-domain-limit', `domain epics ${domainCount} reached domainEpicLimit ${limit}`);
   }
-  let max = registry.epics.reduce((m, e) => Math.max(m, Number(e.id)), 0);
+  // v2 항목은 id가 없을 수 있다(NaN 방지). 번호 공간은 v1 id와 v2 legacy_id가 같다.
+  let max = registry.epics.reduce((m, e) => Math.max(m, Number(e.legacy_id ?? e.id ?? 0)), 0);
   for (const name of existingEpicDirs) {
-    const match = /^(\d{3})-/.exec(name);
-    if (match) max = Math.max(max, Number(match[1]));
+    const prefix = parseNumericPrefix(name);
+    if (prefix !== null) max = Math.max(max, Number(prefix));
   }
   if (max + 1 > 999) return fail('epic-registry-invalid', 'no free epic id left (max 999)');
   const id = String(max + 1).padStart(3, '0');
+  // v2는 번호를 경로·키로 쓰지 않으므로 새 항목에 id를 쓰지 않는다(호출자 응답용 id만 돌려준다).
   const epic: RegistryEpic = {
-    slug: input.slug, id, kind: 'domain', active: true,
+    slug: input.slug, ...(registry.version === 1 ? { id } : ({} as { id: string })), kind: 'domain', active: true,
     approval: { reason: input.reason, approvedAt: input.approvedAt },
   };
   return { ok: true, registry: { ...registry, epics: [...registry.epics, epic] }, epic: { slug: input.slug, id } };
@@ -355,6 +422,8 @@ export = {
   PURPOSE_NAMES,
   parseEpicRegistry,
   readEpicRegistry,
+  epicByLegacyId,
+  resolveBlueprintAlias,
   expandProfile,
   planRegistry,
   checkEpicRegistry,

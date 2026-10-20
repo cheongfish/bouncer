@@ -119,7 +119,7 @@ test('add-area 이름이 공통 epic slug이면 → name-invalid로 거절한다
 test('등록부가 없으면 → missing, 형식 위반이면 invalid로 거절한다', () => {
   const none = mkRepo(null);
   assert.strictEqual(exec(none, ['add-area', '--name', 'ordering', '--yes']).json.reason, 'epic-registry-missing');
-  const bad = mkRepo({ version: 2 });
+  const bad = mkRepo({ version: 3 });
   assert.strictEqual(exec(bad, ['add-area', '--name', 'ordering', '--yes']).json.reason, 'epic-registry-invalid');
 });
 
@@ -148,4 +148,33 @@ test('알 수 없는 하위 명령·필수 플래그 누락·중복·알 수 없
     assert.strictEqual(r.code, 2, JSON.stringify(args));
     assert.strictEqual(r.out, '', JSON.stringify(args));
   }
+});
+
+test('41자 slug와 숫자 slug → name-invalid로 거절한다', () => {
+  const repo = mkRepo({ domainEpicLimit: 3 });
+  const tooLong = exec(repo, ['add-domain', '--slug', 'a'.repeat(41), '--reason', 'x', '--yes']);
+  assert.strictEqual(tooLong.code, 1);
+  assert.strictEqual(tooLong.json.reason, 'epic-registry-name-invalid');
+  const digits = exec(repo, ['add-domain', '--slug', '123', '--reason', 'x', '--yes']);
+  assert.strictEqual(digits.json.reason, 'epic-registry-name-invalid');
+  const prefixed = exec(repo, ['add-domain', '--slug', '114-foo', '--reason', 'x', '--yes']);
+  assert.strictEqual(prefixed.json.reason, 'epic-registry-name-invalid');
+});
+
+test('40자 slug → add-domain이 받아들인다', () => {
+  const repo = mkRepo({ domainEpicLimit: 3 });
+  const r = exec(repo, ['add-domain', '--slug', 'a'.repeat(40), '--reason', 'x', '--yes', '--timestamp', TS]);
+  assert.strictEqual(r.code, 0);
+});
+
+test('v2 등록부에 add-domain → 읽은 버전 2를 유지하고 id 필드를 쓰지 않는다', () => {
+  const repo = mkRepo({
+    version: 2, domainEpicLimit: 3,
+    epics: [{ slug: 'core', kind: 'common', active: true, legacy_id: '002' }],
+  });
+  const r = exec(repo, ADD);
+  assert.strictEqual(r.code, 0);
+  const written = JSON.parse(fs.readFileSync(regPath(repo), 'utf8'));
+  assert.strictEqual(written.version, 2);
+  assert.deepStrictEqual(written.epics[1].id, undefined);
 });

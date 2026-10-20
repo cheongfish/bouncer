@@ -81,6 +81,12 @@ function cmdScaffold(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { isNumericContextId } = require('./paths') as typeof import('./paths');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { isCanonicalEpicDir, isValidBlueprintOrder } = require('./layout') as typeof import('./layout');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { parseContextPath, validateSlug } = require('./context-ids') as typeof import('./context-ids');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { readEpicRegistry } = require('./epic-registry') as typeof import('./epic-registry');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { SCALE_ENUM, DEFAULT_SCALE } = require('./schema') as typeof import('./schema');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { readVerifyPolicy } = require('./config') as typeof import('./config');
@@ -95,8 +101,31 @@ function cmdScaffold(rest: string[], io: CliIo) {
   let created: unknown;
   try {
     if (kind === 'epic' || kind === 'blueprint') {
-      // EPIC-001 / 1 / 01 거절 — 정본은 zero-pad 세 자리만. 라이브러리 throw와 메시지를 맞춤.
-      if (!isNumericContextId(f.id)) {
+      // 새 문서의 형식을 정한다. blueprint는 부모 epic 경로가, 경로가 아직 없는 새 epic은 등록부 버전(v2)이
+      // 정한다 — 플래그·환경 변수로 형식을 켜지 않아야 같은 저장소에서 epic마다 형식이 흔들리지 않는다.
+      // 등록부 부재·invalid는 번호 형식(기존 동작)으로 둔다. invalid의 보고는 S35 소관이다.
+      const epicDirFlag = f['epic-dir'];
+      const parentFormat = kind === 'blueprint' && typeof epicDirFlag === 'string' && isCanonicalEpicDir(epicDirFlag)
+        ? parseContextPath(epicDirFlag)?.format
+        : undefined;
+      const registryRead = kind === 'epic' ? readEpicRegistry(repoRoot) : null;
+      const slugForm = parentFormat === 'slug'
+        || (registryRead !== null && registryRead.status === 'ok' && registryRead.registry.version === 2);
+      if (slugForm) {
+        // slug 형식은 번호를 받지 않는다. 조용히 무시하면 번호 디렉터리를 만든 줄 오해하므로 거절한다.
+        if (f.id !== undefined) {
+          io.err(
+            kind === 'epic'
+              ? 'scaffold epic: the v2 registry names epics by slug; drop --id and pass --name <slug>\n'
+              : 'scaffold blueprint: a slug epic orders blueprints with --order <n>; drop --id\n',
+          );
+          return 2;
+        }
+      } else if (parentFormat === 'numeric' && f.order !== undefined) {
+        io.err('scaffold blueprint: a numbered epic takes --id <ddd>, not --order\n');
+        return 2;
+      } else if (!isNumericContextId(f.id)) {
+        // EPIC-001 / 1 / 01 거절 — 정본은 zero-pad 세 자리만. 라이브러리 throw와 메시지를 맞춤.
         io.err(`scaffold: --id must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(f.id)}\n`);
         return 2;
       }
@@ -107,12 +136,11 @@ function cmdScaffold(rest: string[], io: CliIo) {
       }
       // 위 가드 뒤의 좁힌 값을 지역에 고정한다. 이후 `if (kind === 'epic')`로
       // 갈라지면 TS가 epic|blueprint 가드 좁히기를 유지하지 않는다.
-      const id = f.id;
       const name = f.name;
       const description = typeof f.description === 'string' ? f.description : undefined;
       if (kind === 'epic') {
         created = scaffoldEpic({
-          repoRoot, epicId: id, name, timestamp, description,
+          repoRoot, epicId: slugForm ? undefined : (f.id as string), name, timestamp, description,
         });
       } else {
         // id/name 통과 뒤에만 epic-dir을 묻는다. 형식 오류를 부모 경로 누락과
@@ -120,6 +148,22 @@ function cmdScaffold(rest: string[], io: CliIo) {
         if (typeof f['epic-dir'] !== 'string' || f['epic-dir'] === '') {
           io.err('scaffold blueprint: --epic-dir is required\n');
           return 2;
+        }
+        // slug blueprint의 순서. `--order` 뒤에 값이 없으면 parseFlags가 true를 주므로 문자열 검사가
+        // 그 형태도 거른다. 되돌려 문자열화한 값이 입력과 같아야 해 `1.5`·`03`·`1e2` 같은 모호한 표기를 막는다.
+        let order: number | undefined;
+        if (parentFormat === 'slug') {
+          const parsed = typeof f.order === 'string' ? Number(f.order) : Number.NaN;
+          if (!isValidBlueprintOrder(parsed) || String(parsed) !== f.order) {
+            io.err(`scaffold blueprint: --order must be a positive integer, got ${JSON.stringify(f.order)}\n`);
+            return 2;
+          }
+          const slugViolation = validateSlug(name);
+          if (slugViolation !== null) {
+            io.err(`scaffold blueprint: --name must be a valid slug: ${slugViolation}\n`);
+            return 2;
+          }
+          order = parsed;
         }
         // scale은 선택 인자다. 생략은 기존 계약(full)이고, 알 수 없는 값은
         // 라이브러리에 닿기 전에 사용법 오류(2)로 거절해 파일을 하나도 만들지
@@ -147,7 +191,14 @@ function cmdScaffold(rest: string[], io: CliIo) {
           return 2;
         }
         created = scaffoldBlueprint({
-          repoRoot, epicDir: f['epic-dir'], blueprintId: id, name, timestamp, scale, area, attribution,
+          repoRoot,
+          epicDir: f['epic-dir'],
+          ...(order === undefined ? { blueprintId: f.id as string } : { order }),
+          name,
+          timestamp,
+          scale,
+          area,
+          attribution,
         });
       }
     } else if (kind === 'task') {

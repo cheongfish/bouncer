@@ -37,7 +37,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
      rule below: whole flow here, with the chart fence in this body.
    - **blueprint**: what this unit delivers as one review / PR. Set `title`
      (and `bouncer.commit_type` if not `feat`) for the finalize remainder
-     subject and shared standalone/integration branch (`<type>/<epic-id>-<blueprint-id>-<slug>`). Write the
+     subject and shared standalone/integration branch (`<type>/<epic-slug>-<blueprint-slug>-<slug>`). Write the
      blueprint `## Intent` as 1–2 Korean terminal sentences; finalize uses it
      as the remainder body. Do **not** set task-only authored fields on the
      blueprint. The Contract is contract only — no implementation code.

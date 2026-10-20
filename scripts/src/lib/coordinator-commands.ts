@@ -21,6 +21,8 @@ import commitShaMod = require('./commit-sha');
 const { normalizeCommitSha } = commitShaMod;
 import pathsMod = require('./paths');
 const { parsePathIds } = pathsMod;
+import contextIdsMod = require('./context-ids');
+const { parseContextPath, formatStableIntentId } = contextIdsMod;
 import legacyComments = require('./legacy-comments');
 const { scanLegacyScaffoldComments } = legacyComments;
 import validateSections = require('./validate-sections');
@@ -110,6 +112,23 @@ type WorkerTokensDecision = {
  * @param {unknown} raw - 호스트가 준 토큰 값
  * @returns {number | null} 검증된 정수, 유효하지 않으면 null
  */
+
+/**
+ * lease·evidence scope 키의 접두가 되는 blueprint stable intent ID를 만든다.
+ * 번호 경로는 `EPIC-ddd/BP-ddd`(예전 조립과 바이트 동일), slug 경로는 `<epic>/<bp>`다.
+ *
+ * @param {string} blueprint - blueprint 디렉터리 상대 경로
+ * @returns {string} stable intent ID
+ * @throws {Error} epic·blueprint 세그먼트를 해석할 수 없을 때
+ */
+function intentIdFor(blueprint: string): string {
+  const ids = parseContextPath(blueprint);
+  if (!ids || ids.blueprintKey === null) {
+    throw new Error(`Cannot derive epic/blueprint ids from blueprint path: ${blueprint}`);
+  }
+  return formatStableIntentId({ format: ids.format, epicKey: ids.epicKey, blueprintKey: ids.blueprintKey });
+}
+
 function parseWorkerTokens(raw: unknown): number | null {
   if (typeof raw === 'string') {
     if (!/^\d+$/.test(raw)) return null;
@@ -849,7 +868,7 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
   const prepared = prepareVerificationDependencies(integrationPath, exec);
   if (!prepared.ok) return { ok: false, reason: 'dependency-install-failed', message: prepared.message };
   const runner = selectVerificationRunner(deps.runVerification);
-  const { epicId, blueprintId } = parsePathIds(blueprint);
+  const intentId = intentIdFor(blueprint);
   const head = git(exec, integrationPath, ['rev-parse', 'HEAD']);
   const evidenceIds: string[] = [];
   for (const step of plan) {
@@ -857,7 +876,7 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
       repoRoot: integrationPath,
       blueprintDir: blueprint,
       taskId: step.taskId,
-      scope: { kind: 'wave', key: `EPIC-${epicId}/BP-${blueprintId}:supplement:${head}` },
+      scope: { kind: 'wave', key: `${intentId}:supplement:${head}` },
     });
     if (!result.ok) {
       return { ok: false, reason: 'supplement-verify-failed', verification: result };
@@ -1344,9 +1363,10 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal, re
     terminalBouncer.status = 'ready';
   }
   const repairFile = path.join(integrationPath, blueprint, 'tasks', repair.id, 'tasks.md');
-  const idMatch = /(?:^|\/)epics\/(\d{3})[^/]*\/blueprints\/(\d{3})[^/]*$/.exec(blueprint.replaceAll('\\', '/'));
-  const epicId = idMatch ? idMatch[1] : '';
-  const bpId = idMatch ? idMatch[2] : '';
+  // 번호·slug 두 형식을 context-ids로 읽는다. 해석 불가는 예전처럼 빈 id를 심는다.
+  const repairIds = parseContextPath(blueprint);
+  const epicId = repairIds && repairIds.blueprintKey !== null ? repairIds.epicKey : '';
+  const bpId = repairIds && repairIds.blueprintKey !== null ? repairIds.blueprintKey : '';
   // 호출자가 검사를 통과시킨 --verify가 있으면 그 값이 우선한다. 없을 때만(legacy)
   // 기존 종단·선행 leaf 해석을 쓰므로 --verify 없는 legacy 결과는 바이트 단위로 같다.
   const repairVerify = verify !== undefined
@@ -3033,7 +3053,7 @@ function integrateVerificationTask({
   }
 
   const runner = selectVerificationRunner(deps.runVerification);
-  const { epicId, blueprintId } = parsePathIds(blueprint);
+  const intentId = intentIdFor(blueprint);
   const headForKey = (() => {
     const live = loadLedger(integration.ledgerFile);
     if (live && typeof live.integrationHead === 'string') return live.integrationHead;
@@ -3046,7 +3066,7 @@ function integrateVerificationTask({
     taskId: task,
     scope: {
       kind: 'terminal',
-      key: `EPIC-${epicId}/BP-${blueprintId}:${headForKey}`,
+      key: `${intentId}:${headForKey}`,
     },
   });
 
@@ -3791,7 +3811,7 @@ function integrateCommitWave({
   }
 
   const candidateHead = git(exec, faninPath, ['rev-parse', 'HEAD']);
-  const { epicId, blueprintId } = parsePathIds(blueprint);
+  const intentId = intentIdFor(blueprint);
   const lastTask = waveTasks[waveTasks.length - 1];
   // scoped_terminal은 wave 전체 검증을 생략한다(null). 실패 복구 재검증과 finalize
   // remainder는 각자 별도 경로라 이 생략의 영향을 받지 않는다.
@@ -3801,7 +3821,7 @@ function integrateCommitWave({
     taskId: lastTask,
     scope: {
       kind: 'wave',
-      key: `EPIC-${epicId}/BP-${blueprintId}:wave:${candidateHead}`,
+      key: `${intentId}:wave:${candidateHead}`,
     },
   });
 

@@ -1,5 +1,7 @@
 'use strict';
 import type { RawCommit } from './import-types';
+import contextIds = require('./context-ids');
+const { parseContextPath } = contextIds;
 
 // git 로그를 읽고 파싱하는 층. 실제 spawn 은 주입된 execFileSync 만 —
 // 이 파일이 child_process 를 require 하면 테스트가 주입 없이 실제 git 을
@@ -8,7 +10,18 @@ import type { RawCommit } from './import-types';
 type ExecFileSyncFn = typeof import('node:child_process').execFileSync;
 
 const LOG_FORMAT = '%H%x1f%s%x1f%aI%x1f%an';
-const EPIC_ID_PREFIX_RE = /^(\d{3})-/;
+
+/**
+ * epic 디렉터리 이름에서 번호 형식의 세 자리 id를 꺼낸다. slug 형식 이름과 해석 불가 이름은 번호가 없다.
+ * 세그먼트 해석은 context-ids 한 곳에 맡긴다.
+ *
+ * @param {string} dirName - `epics/` 바로 아래 디렉터리 이름
+ * @returns {string | null} 번호 형식이면 세 자리 id, 아니면 null
+ */
+function numericEpicIdOf(dirName: string): string | null {
+  const ids = parseContextPath(`epics/${dirName}`);
+  return ids !== null && ids.format === 'numeric' ? ids.epicKey : null;
+}
 
 /** 제목에서 ASCII 슬러그를 뽑고, 한글·기호만 남으면 축약 sha로 떨어뜨린다. */
 function slugFromSubject(subject: string, sha: string): string {
@@ -72,7 +85,7 @@ function listChangedFiles(
 
 export = {
   LOG_FORMAT,
-  EPIC_ID_PREFIX_RE,
+  numericEpicIdOf,
   slugFromSubject,
   parseLogOutput,
   gitLogArgs,

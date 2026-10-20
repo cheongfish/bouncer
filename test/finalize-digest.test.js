@@ -8,6 +8,7 @@ const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { prepareFinalizeDigest } = require('../scripts/lib/finalize-digest');
+const { resolveTaskCommits } = require('../scripts/lib/task-commits');
 const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
 const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
 const { runCli } = require('../scripts/lib/cli');
@@ -1184,4 +1185,46 @@ test('failed terminal without a valid classification → digest keeps terminal-m
     const terminal = d.tasks.find((t) => t.execution_kind === 'verification');
     assert.strictEqual('outside_scope' in terminal.verification, false, label);
   }
+});
+
+// --- resolveTaskCommits: 구형·새 형식 trailer 묶음 -------------------------------
+
+const SHA_A = 'a'.repeat(40);
+const SHA_B = 'b'.repeat(40);
+const ALIAS_REGISTRY = {
+  epics: [{ slug: 'consumer-epic-registry', legacy_id: '114', blueprint_aliases: { '003': 'registry-gates' } }],
+};
+
+// git log 출력(최신순)을 흉내 낸다. 커밋 사이 구분 NUL이 없는 실제 포맷과 같다.
+function fakeLog(entries) {
+  const stdout = entries.map(([sha, trailer]) => `${sha}\0subject\n\nBouncer-Task: ${trailer}\n`).join('');
+  return () => ({ status: 0, stdout });
+}
+
+test('old and slug trailers of one task → grouped under one key and the newest commit wins', () => {
+  const exec = fakeLog([[SHA_B, 'consumer-epic-registry/registry-gates/001'], [SHA_A, 'EPIC-114/BP-003/TASK-001']]);
+  const map = resolveTaskCommits({
+    repoRoot: '.', base: 'x', head: 'y', exec, registry: ALIAS_REGISTRY,
+    stableIds: ['consumer-epic-registry/registry-gates/001'],
+  });
+  assert.equal(map.get('consumer-epic-registry/registry-gates/001').sha, SHA_B);
+});
+
+test('old trailer only with alias registry → found under the caller slug id', () => {
+  const exec = fakeLog([[SHA_A, 'EPIC-114/BP-003/TASK-001']]);
+  const map = resolveTaskCommits({
+    repoRoot: '.', base: 'x', head: 'y', exec, registry: ALIAS_REGISTRY,
+    stableIds: ['consumer-epic-registry/registry-gates/001'],
+  });
+  assert.equal(map.get('consumer-epic-registry/registry-gates/001').sha, SHA_A);
+});
+
+test('old trailer without registry → exact match behaves as before', () => {
+  const exec = fakeLog([[SHA_A, 'EPIC-114/BP-003/TASK-001']]);
+  const found = resolveTaskCommits({ repoRoot: '.', base: 'x', head: 'y', exec, stableIds: ['EPIC-114/BP-003/TASK-001'] });
+  assert.equal(found.get('EPIC-114/BP-003/TASK-001').sha, SHA_A);
+  const missed = resolveTaskCommits({
+    repoRoot: '.', base: 'x', head: 'y', exec, stableIds: ['consumer-epic-registry/registry-gates/001'],
+  });
+  assert.equal(missed.size, 0);
 });

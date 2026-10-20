@@ -150,9 +150,20 @@ or single task. A general title does not widen approved scope — concrete chang
 scope, acceptance criteria, affected paths, and task breakdown live in the
 Blueprint and task documents.
 
-Epic and blueprint directories stay under `.bouncer/context/epics/` as
-`ddd-slug` (for example `014-auth` / `001-signup`). New scaffolds never use
-`EPIC-` or `BP-` prefixes on directory names.
+Epic and blueprint directories stay under `.bouncer/context/epics/` as a plain
+slug (for example `auth` / `signup`): lowercase kebab-case, at most 40
+characters, never digits only and never starting with a three-digit prefix.
+A blueprint's position among its siblings is the frontmatter `bouncer.order`
+(a positive integer unique within the epic), not a directory prefix.
+`bouncer plan inspect --epic-dir <dir>` reports `epic.nextBlueprintOrder` as the
+suggested value. The stable IDs are `<epic-slug>/<bp-slug>` and
+`<epic-slug>/<bp-slug>/<ddd>` (task number stays three digits); branches are
+`<type>/<epic-slug>-<bp-slug>-<slug>` and worktrees are
+`.worktrees/<epic-slug>/<bp-slug>`. The registry (v2) keeps `legacy_id` and
+`blueprint_aliases` for old numbers. New scaffolds never use `EPIC-` or `BP-`
+prefixes. The numbered form (`014-auth` / `001-signup`, `EPIC-<ddd>/BP-<ddd>`) is
+only read in a repository that has not run `bouncer migrate context-slugs [--yes]`
+yet and in old commit trailers.
 
 ## Epic attribution
 

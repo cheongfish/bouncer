@@ -204,3 +204,50 @@ test('Git executable unavailable → throws an I/O error', () => {
     assert.equal(caught.code, 'ontology-io-failed');
   } finally { process.env.PATH = oldPath; }
 });
+
+// slug 경로 fixture: epic의 bouncer.id는 epic slug, blueprint는 blueprint slug다.
+function slugContext(root, { rows = [], epicDocId = 'plan-workflow' } = {}) {
+  const epic = '.bouncer/context/epics/plan-workflow/';
+  const base = `${epic}blueprints/registry-gates/`;
+  write(root, `${epic}index.md`, `---\ntype: bouncer.epic\ntitle: E\nresource: ${epic}index.md\nbouncer:\n  id: ${epicDocId}\n  status: draft\n---\n`);
+  write(root, `${base}index.md`, `---\ntype: bouncer.blueprint\ntitle: B\nresource: ${base}index.md\nbouncer:\n  id: registry-gates\n  epic_id: plan-workflow\n  status: draft\n---\n## Contract\n\nUse \`SlugThing\`.\n`);
+  write(root, `${base}tasks/001/tasks.md`, `---\ntype: bouncer.tasks\ntitle: T\nresource: ${base}tasks/001/tasks.md\nbouncer:\n  id: TASKS-001\n  epic_id: plan-workflow\n  blueprint_id: registry-gates\n  status: ready\n  affected_paths:\n    - src/a.ts\n---\n#### Touch\n\n- \`src/b.ts\`\n`);
+  const rowYaml = rows.map((row) => `    - task: '${row.task}'\n      sha: '${row.sha}'\n      intent_anchor: '${row.intent_anchor}'`).join('\n');
+  write(root, `${base}explain.md`, `---\ntype: bouncer.explain\ntitle: X\nresource: ${base}explain.md\nbouncer:\n  epic_id: plan-workflow\n  blueprint_id: registry-gates\n  status: published\n  task_commits:${rowYaml ? `\n${rowYaml}` : ' []'}\n---\n## Code\n\n- \`src/c.ts\`\n`);
+  return base;
+}
+
+test('slug paths and slug frontmatter ids → documents, touches and commit rows are indexed', () => {
+  const root = repo();
+  write(root, 'src/c.ts', 'x');
+  const sha = commit(root, 'change');
+  const blueprint = slugContext(root, {
+    rows: [{ task: 'plan-workflow/registry-gates/001', sha, intent_anchor: 'task-001' }],
+  });
+  const index = loadContextOntology({ repoRoot: root });
+  assert.deepEqual(index.warnings, []);
+  assert.deepEqual(
+    index.documents.map((doc) => doc.kind).sort(),
+    ['blueprint', 'epic', 'task'],
+  );
+  assert.ok(index.relationships.some((item) => item.kind === 'touches' && item.to === 'src/b.ts'));
+  assert.ok(index.files.get('src/c.ts').has(`${blueprint}index.md`));
+  const result = queryContextOntology(index, { mode: 'entity', value: 'SlugThing' });
+  assert.equal(result.results[0].blueprint, `${blueprint}index.md`);
+});
+
+test('slug epic whose bouncer.id is not the epic slug → is reported as invalid identity', () => {
+  const root = repo();
+  slugContext(root, { epicDocId: 'EPIC-114' });
+  const index = loadContextOntology({ repoRoot: root });
+  assert.ok(index.warnings.some((item) => item.code === 'document-invalid' && item.detail.includes('epic identity')));
+});
+
+test('slug explain row with an old-format task id → is reported as invalid identity', () => {
+  const root = repo();
+  write(root, 'src/c.ts', 'x');
+  const sha = commit(root, 'change');
+  slugContext(root, { rows: [{ task: 'EPIC-114/BP-003/TASK-001', sha, intent_anchor: 'task-001' }] });
+  const index = loadContextOntology({ repoRoot: root });
+  assert.ok(index.warnings.some((item) => item.code === 'document-invalid' && item.detail.includes('task identity')));
+});

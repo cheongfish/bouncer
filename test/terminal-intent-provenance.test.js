@@ -395,3 +395,54 @@ test('terminal intent provenance with selection, commits, freshness, and graph s
   assert.ok(fs.existsSync(path.join(repo, 'graphify-out/source/graph.json')));
   assert.ok(fs.existsSync(path.join(repo, 'graphify-out/test/graph.json')));
 });
+
+test('old trailer commit and a migrated slug Explain → the intent CLI links them through registry aliases', () => {
+  const repo = tmpRepo();
+  initGit(repo);
+  writeFile(repo, 'src/one.ts', 'export function aliased() { return 1; }\n');
+  const sha = commit(
+    repo,
+    'feat: add aliased\n\nBouncer-Task: EPIC-071/BP-002/TASK-001\nBouncer-Intent: EPIC-071/BP-002\n',
+    '2026-01-01T00:00:00 +0900',
+  );
+  writeFile(repo, '.bouncer/epics.json', JSON.stringify({
+    version: 2,
+    profile: 'domain-only',
+    domainEpicLimit: 3,
+    areas: [],
+    epics: [{
+      slug: 'plan-workflow', legacy_id: '071', kind: 'domain', active: true,
+      blueprint_aliases: { '002': 'registry-gates' },
+    }],
+  }));
+  const explainRel = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates/explain.md';
+  writeFile(repo, explainRel, [
+    '---',
+    'type: bouncer.explain',
+    'title: fixture',
+    'description: fixture',
+    `resource: ${explainRel}`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-14T00:00:00+09:00'",
+    'bouncer:',
+    '  id: EXPLAIN-001',
+    '  epic_id: plan-workflow',
+    '  blueprint_id: registry-gates',
+    '  status: published',
+    '  task_commits: []',
+    '---',
+    '# Explain',
+    '',
+    '## Background',
+    '',
+    'migrated explain background',
+    '',
+  ].join('\n'));
+
+  const result = capture(['intent', '--repo', repo, '--symbol', 'aliased']);
+  assert.equal(result.code, 0, result.err);
+  const payload = JSON.parse(result.out);
+  assert.equal(payload.status, 'resolved');
+  assert.equal(payload.candidates[0].commit, sha);
+  assert.equal(payload.candidates[0].explain, explainRel);
+});

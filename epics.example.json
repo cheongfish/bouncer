@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "profile": "standard",
+  "domainEpicLimit": 8,
+  "areas": [],
+  "epics": [
+    { "slug": "foundation", "kind": "common", "active": true },
+    {
+      "slug": "consumer-epic-registry",
+      "kind": "domain",
+      "active": true,
+      "approval": { "reason": "등록부 소비자 경계를 하나의 도메인으로 관리한다", "approvedAt": "2026-10-20T00:00:00.000+09:00" },
+      "legacy_id": "114",
+      "blueprint_aliases": { "001": "registry-foundation", "003": "registry-gates" }
+    },
+    { "slug": "plan-workflow", "kind": "legacy", "active": true, "legacy_id": "042" }
+  ]
+}

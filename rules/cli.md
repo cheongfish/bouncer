@@ -118,8 +118,8 @@ main plan copies after a closed drive.
 ## Context and task creation
 
 ```sh
-bouncer scaffold epic --id <ddd> --name <slug> --description <text>
-bouncer scaffold blueprint --epic-dir <dir> --id <ddd> --name <slug> [--scale light|full] \
+bouncer scaffold epic --name <slug> --description <text>
+bouncer scaffold blueprint --epic-dir <dir> --order <n> --name <slug> [--scale light|full] \
   [--area <a>] [--attribution <text>]
 bouncer scaffold task --blueprint <dir> --id <NNN> [--execution-kind commit|verification]
 bouncer scaffold task --blueprint <dir> --id <NNN> --execution-kind verification \
@@ -499,13 +499,18 @@ unchanged.
 
 ```sh
 bouncer migrate task-layout [--dry-run]
+bouncer migrate context-slugs [--yes]
 bouncer migrate retention
 bouncer migrate retention --apply --blueprint <dir>
 bouncer import [--source merges|commits] [--since <ref>] [--limit <n>] \
-  [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]
+  [--epic-name <slug>] [--yes --message <msg>]
 ```
 
-Inspect dry-run output before any write. Retention's default is an audit;
+Inspect dry-run output before any write. `migrate context-slugs` prints its plan
+without `--yes` and, with `--yes`, moves numbered epic and blueprint directories to
+slug directories, rewrites ids and hashes, and records `legacy_id` and
+`blueprint_aliases` in the v2 registry; it refuses a dirty tree or an in-progress
+run. Retention's default is an audit;
 `--apply` modifies one eligible closed blueprint and deletes transient files.
 `import` is dry-run unless both `--yes` and `--message` are present.
 

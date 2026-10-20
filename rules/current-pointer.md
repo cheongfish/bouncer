@@ -10,7 +10,7 @@ that the CLI did not return.
 Run `node "${BOUNCER_ROOT}/scripts/bouncer" current`. Selection is location-based
 and uses only that CLI result:
 
-- From a nested execute worktree (`.worktrees/<epic-id>/<blueprint-id>`), or from
+- From a nested execute worktree (`.worktrees/<epic-slug>/<blueprint-slug>`), or from
   a uniquely corresponding legacy flat worktree (`.worktrees/<blueprint-id>`),
   the CLI returns the worktree-local namespace pointer.
 - From the base checkout, the CLI returns the pointer only when exactly one

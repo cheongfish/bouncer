@@ -1349,3 +1349,136 @@ test('base 위치와 nested worktree → baseNamespaceKeys는 base에서만 name
   assert.deepStrictEqual(baseNamespaceKeys({ repoRoot: repo, deps }), ['001/001', '002/003']);
   assert.strictEqual(baseNamespaceKeys({ repoRoot: nested, deps }), null);
 });
+
+// --- slug epic: 순서는 epic 본문 목록이 아니라 blueprint frontmatter order, epic 사이는 등록부 배열 순서 ---
+function writeSlugBp(repo, epicSlug, bpSlug, { order, bpStatus = 'approved', epicBody } = {}) {
+  const epicDir = `.bouncer/context/epics/${epicSlug}`;
+  const bpDir = `${epicDir}/blueprints/${bpSlug}`;
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: epicSlug, epic_id: epicSlug, status: 'approved' },
+  }, epicBody);
+  writeDoc(repo, `${bpDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: bpSlug, epic_id: epicSlug, blueprint_id: bpSlug, status: bpStatus,
+      ...(order === undefined ? {} : { order }),
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${bpDir}/tasks/001/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: epicSlug, blueprint_id: bpSlug, status: 'ready', affected_paths: [],
+    },
+  });
+  return bpDir;
+}
+
+function writeRegistryOrder(repo, slugs) {
+  const abs = path.join(repo, '.bouncer', 'epics.json');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `${JSON.stringify({
+    version: 2,
+    profile: 'domain-only',
+    domainEpicLimit: 8,
+    areas: [],
+    epics: slugs.map((slug) => ({ slug, kind: 'common', active: true })),
+  }, null, 2)}\n`);
+}
+
+test('slug epic with gapped orders 1, 2 and 5 → nextBlueprint follows order ascending regardless of names', () => {
+  const repo = tmpRepo();
+  const self = writeSlugBp(repo, 'plan-workflow', 'zeta', { order: 1 });
+  const second = writeSlugBp(repo, 'plan-workflow', 'beta', { order: 2 });
+  const fifth = writeSlugBp(repo, 'plan-workflow', 'alpha', { order: 5 });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: self });
+
+  assert.strictEqual(res.next.blueprint, second);
+  assert.deepStrictEqual(res.remaining.map((r) => r.blueprint), [fifth]);
+});
+
+test('slug epic ignores the ## Blueprints list order → nextBlueprint still follows frontmatter order', () => {
+  const repo = tmpRepo();
+  const epicBody = '# Epic\n\n## Blueprints\n\n* [a](blueprints/alpha/index.md) - a\n* [b](blueprints/beta/index.md) - b\n';
+  const self = writeSlugBp(repo, 'plan-workflow', 'zeta', { order: 1, epicBody });
+  writeSlugBp(repo, 'plan-workflow', 'alpha', { order: 5, epicBody });
+  const second = writeSlugBp(repo, 'plan-workflow', 'beta', { order: 2, epicBody });
+
+  assert.strictEqual(nextBlueprint({ repoRoot: repo, blueprintDir: self }).next.blueprint, second);
+});
+
+test('slug epic blueprints with equal or missing order → ties break by path and missing order comes last', () => {
+  const repo = tmpRepo();
+  const self = writeSlugBp(repo, 'plan-workflow', 'zeta', { order: 1 });
+  const tieB = writeSlugBp(repo, 'plan-workflow', 'ccc', { order: 3 });
+  const tieA = writeSlugBp(repo, 'plan-workflow', 'bbb', { order: 3 });
+  const unordered = writeSlugBp(repo, 'plan-workflow', 'aaa', {});
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: self });
+
+  assert.deepStrictEqual(
+    [res.next.blueprint, ...res.remaining.map((r) => r.blueprint)],
+    [tieA, tieB, unordered],
+  );
+});
+
+test('slug epic siblings → sameEpicPending is sorted by order', () => {
+  const repo = tmpRepo();
+  const self = writeSlugBp(repo, 'plan-workflow', 'zeta', { order: 1 });
+  const late = writeSlugBp(repo, 'plan-workflow', 'alpha', { order: 9, bpStatus: 'draft' });
+  const early = writeSlugBp(repo, 'plan-workflow', 'beta', { order: 2, bpStatus: 'draft' });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: self });
+
+  assert.deepStrictEqual(res.sameEpicPending.map((p) => p.blueprint), [early, late]);
+});
+
+test('slug epics across a v2 registry → nextBlueprint orders other epics by registry array position', () => {
+  const repo = tmpRepo();
+  writeRegistryOrder(repo, ['zebra-epic', 'mango-epic', 'apple-epic']);
+  const self = writeSlugBp(repo, 'mango-epic', 'only', { order: 1 });
+  const first = writeSlugBp(repo, 'zebra-epic', 'only', { order: 1 });
+  const last = writeSlugBp(repo, 'apple-epic', 'only', { order: 1 });
+  const unregistered = writeSlugBp(repo, 'aaa-unregistered', 'only', { order: 1 });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: self });
+
+  // 등록부 순서(zebra → apple)가 이름순(aaa → apple → zebra)을 이기고, 미등록 epic은 뒤로 간다.
+  assert.deepStrictEqual(
+    [res.next.blueprint, ...res.remaining.map((r) => r.blueprint)],
+    [first, last, unregistered],
+  );
+});
+
+test('slug epics without a registry → nextBlueprint orders other epics by name', () => {
+  const repo = tmpRepo();
+  const self = writeSlugBp(repo, 'mango-epic', 'only', { order: 1 });
+  const zebra = writeSlugBp(repo, 'zebra-epic', 'only', { order: 1 });
+  const apple = writeSlugBp(repo, 'apple-epic', 'only', { order: 1 });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: self });
+
+  assert.deepStrictEqual([res.next.blueprint, ...res.remaining.map((r) => r.blueprint)], [apple, zebra]);
+});
+
+test('numbered epic with a v2 registry present → nextBlueprint keeps name order between epics', () => {
+  const repo = tmpRepo();
+  writeRegistryOrder(repo, ['zebra-epic', 'apple-epic']);
+  const self = writeBp(repo, {
+    epicSlug: '001-main', bpSlug: '001-a', epicId: '001', bpId: '001', bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const zebra = writeBp(repo, {
+    epicSlug: '003-zebra-epic', bpSlug: '001-x', epicId: '003', bpId: '001', bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const apple = writeBp(repo, {
+    epicSlug: '002-apple-epic', bpSlug: '001-x', epicId: '002', bpId: '001', bpStatus: 'approved', tasksStatus: 'ready',
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: self });
+
+  assert.deepStrictEqual([res.next.blueprint, ...res.remaining.map((r) => r.blueprint)], [apple, zebra]);
+});

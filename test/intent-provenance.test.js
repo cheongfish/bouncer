@@ -769,3 +769,92 @@ test('projectExplainSectionBodies → keeps hash projection names and body hashe
     );
   }
 });
+
+// --- slug 경로 Explain과 구형·slug trailer 연결 ----------------------------------
+
+const SLUG_EXPLAIN_REL = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates/explain.md';
+const ALIAS_REGISTRY_JSON = JSON.stringify({
+  version: 2,
+  profile: 'domain-only',
+  domainEpicLimit: 3,
+  areas: [],
+  epics: [{
+    slug: 'plan-workflow', legacy_id: '071', kind: 'domain', active: true,
+    blueprint_aliases: { '002': 'registry-gates' },
+  }],
+});
+
+// 이관 뒤의 slug 경로 Explain. 설계 절만 있으면 되므로 task_commits는 비운다.
+function writeSlugExplain(repo) {
+  writeFile(repo, SLUG_EXPLAIN_REL, [
+    '---',
+    'type: bouncer.explain',
+    'title: fixture',
+    'description: fixture',
+    `resource: ${SLUG_EXPLAIN_REL}`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-14T00:00:00+09:00'",
+    'bouncer:',
+    '  id: EXPLAIN-001',
+    '  epic_id: plan-workflow',
+    '  blueprint_id: registry-gates',
+    '  status: published',
+    '  task_commits: []',
+    '---',
+    '# Explain',
+    '',
+    '## Background',
+    '',
+    'slug explain background',
+    '',
+  ].join('\n'));
+}
+
+function repoWithTrailer(task, intent, { registry = true } = {}) {
+  const repo = tmpRepo();
+  initRepo(repo);
+  writeFile(repo, 'src/app.ts', targetSource(1));
+  const sha = commit(repo, trailerMessage('feat: add targetFn', task, intent), '2026-01-01T00:00:00 +0900');
+  writeSlugExplain(repo);
+  if (registry) writeFile(repo, '.bouncer/epics.json', ALIAS_REGISTRY_JSON);
+  return { repo, sha };
+}
+
+test('slug trailer on a slug Explain → links by the slug intent key', () => {
+  const { repo, sha } = repoWithTrailer('plan-workflow/registry-gates/001', 'plan-workflow/registry-gates', {
+    registry: false,
+  });
+  const result = resolveIntentProvenance({ repoRoot: repo, symbol: 'targetFn' });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.candidates[0].commit, sha);
+  assert.equal(result.candidates[0].task, 'plan-workflow/registry-gates/001');
+  assert.equal(result.candidates[0].explain, SLUG_EXPLAIN_REL);
+});
+
+test('old trailer and an alias registry → the commit links to the migrated slug Explain', () => {
+  const { repo, sha } = repoWithTrailer('EPIC-071/BP-002/TASK-001', 'EPIC-071/BP-002');
+  const result = resolveIntentProvenance({ repoRoot: repo, symbol: 'targetFn' });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.candidates[0].commit, sha);
+  assert.equal(result.candidates[0].task, 'EPIC-071/BP-002/TASK-001');
+  assert.equal(result.candidates[0].explain, SLUG_EXPLAIN_REL);
+});
+
+test('old trailer without a registry alias → stays unlinked as before the migration', () => {
+  const { repo } = repoWithTrailer('EPIC-071/BP-002/TASK-001', 'EPIC-071/BP-002', { registry: false });
+  const result = resolveIntentProvenance({ repoRoot: repo, symbol: 'targetFn' });
+  assert.equal(result.status, 'unlinked');
+});
+
+test('trailer pair of different formats → is rejected even with an alias registry', () => {
+  const { repo } = repoWithTrailer('EPIC-071/BP-002/TASK-001', 'plan-workflow/registry-gates');
+  const result = resolveIntentProvenance({ repoRoot: repo, symbol: 'targetFn' });
+  assert.equal(result.status, 'unlinked');
+  assert.equal(result.candidates.length, 0);
+});
+
+test('splitTaskChunks with a slug Explain task heading → recognizes the slug form', () => {
+  const body = '### plan-workflow/registry-gates/001 · `a1b2c3d4`\n\n#### Interface\nx\n';
+  assert.deepStrictEqual([...splitTaskChunks(body).keys()], ['001']);
+  assert.deepStrictEqual([...splitTaskChunks('### plan-workflow/registry-gates/1\n\n#### Interface\nx\n').keys()], []);
+});

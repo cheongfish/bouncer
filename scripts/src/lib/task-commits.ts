@@ -2,6 +2,9 @@
 const { spawnSync } = require('node:child_process');
 const commitSha = require('./commit-sha');
 const { normalizeCommitSha } = commitSha;
+import contextIds = require('./context-ids');
+const { normalizeStableId } = contextIds;
+type Registry = Parameters<typeof normalizeStableId>[1];
 
 type GitExecResult = { status: number; stdout: string };
 type GitExec = (args: string[]) => GitExecResult;
@@ -76,20 +79,31 @@ function parseShaBodyLog(stdout: string): Array<{ sha: string; body: string }> {
  * @param {string} opts.head - 범위 끝(포함). 보통 HEAD
  * @param {string[]} opts.stableIds - 찾을 `EPIC-…/BP-…/TASK-…` 목록
  * @param {(args: string[]) => { status: number, stdout: string }} [opts.exec] - `git` 뒤 argv seam
- * @returns {Map<string, { sha: string, sha8: string, workerSha: string | null }>} 매칭된 ID만 담은 맵
+ * @param {object | null} [opts.registry] - 등록부. 있으면 구형·slug trailer를 `normalizeStableId`로 같은 키에 묶는다.
+ *   없으면(또는 별칭이 없으면) 정확 일치로 비교해 이관 전 동작과 같다
+ * @returns {Map<string, { sha: string, sha8: string, workerSha: string | null }>} 매칭된 ID만 담은 맵.
+ *   키는 호출자가 넘긴 `stableIds` 원래 값이다
  */
 function resolveTaskCommits({
-  repoRoot, base, head, stableIds, exec,
+  repoRoot, base, head, stableIds, exec, registry,
 }: {
   repoRoot: string;
   base: string;
   head: string;
   stableIds: string[];
   exec?: GitExec;
+  registry?: Registry;
 }): Map<string, ResolvedCommit> {
-  const wanted = new Set(
-    (Array.isArray(stableIds) ? stableIds : []).filter((id) => typeof id === 'string' && id !== ''),
-  );
+  // 묶음 키: 별칭 표로 정규화한 ID. 정규화 불가(별칭 없음·해석 불가)면 원래 문자열로 비교한다.
+  // 같은 task의 구형·slug trailer가 한 키로 모여 "가장 최근 커밋" 규칙이 형식을 가로질러 적용된다.
+  const groupKey = (id: string): string => normalizeStableId(id, registry ?? null) ?? id;
+  // 묶음 키 → 호출자가 넘긴 원래 ID. 반환 Map은 호출자 값을 키로 써야 호출부 조회가 그대로 맞는다.
+  // 호출자가 같은 task를 두 형식으로 함께 넘겨도 둘 다 채우도록 목록으로 둔다.
+  const wanted = new Map<string, string[]>();
+  for (const id of Array.isArray(stableIds) ? stableIds : []) {
+    if (typeof id !== 'string' || id === '') continue;
+    wanted.set(groupKey(id), [...(wanted.get(groupKey(id)) ?? []), id]);
+  }
   const out = new Map<string, ResolvedCommit>();
   if (wanted.size === 0) return out;
 
@@ -109,11 +123,15 @@ function resolveTaskCommits({
       taskId = trailer[1];
       break;
     }
-    if (!taskId || !wanted.has(taskId) || out.has(taskId)) continue;
+    if (!taskId) continue;
+    const callerIds = wanted.get(groupKey(taskId));
+    if (callerIds === undefined || callerIds.every((id) => out.has(id))) continue;
     const sha8 = normalizeCommitSha(record.sha);
     if (!sha8) continue;
     const workerSha = WORKER_TRAILER_RE.exec(record.body)?.[1] ?? null;
-    out.set(taskId, { sha: record.sha, sha8, workerSha });
+    for (const id of callerIds) {
+      if (!out.has(id)) out.set(id, { sha: record.sha, sha8, workerSha });
+    }
   }
   return out;
 }

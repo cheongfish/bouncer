@@ -123,9 +123,10 @@ status published. Not a workflow entry point.
 
 `/bouncer-finalize` may add an optional `## Tasks` section immediately before
 deleting task documents. It writes one subsection per task. Headings use the
-stable Task ID form `` ### EPIC-ddd/BP-ddd/TASK-ddd · `sha8` `` when a trailer
-SHA is known, `` ### EPIC-ddd/BP-ddd/TASK-ddd `` when the ID exists without SHA,
-or legacy `### Task NNN` when a stable ID cannot be built. Each subsection
+stable Task ID form `` ### <epic-slug>/<bp-slug>/ddd · `sha8` `` when a trailer
+SHA is known, `` ### <epic-slug>/<bp-slug>/ddd `` when the ID exists without SHA
+(documents written before `bouncer migrate context-slugs` keep the old
+`EPIC-ddd/BP-ddd/TASK-ddd` form, which is only read), or legacy `### Task NNN` when a stable ID cannot be built. Each subsection
 copies the authored `Goal & intent`, `Current behavior`, `Target behavior`,
 `Interface`, `Touch`, and `Constraints` sections (Current/Target only when
 present). Do not touch is not preserved. The copied bodies retain the author's

@@ -6,10 +6,39 @@ import { spawnSync } from 'node:child_process';
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 
-const EPIC_RE = /^\.bouncer\/context\/epics\/(\d{3})-[^/]+\/index\.md$/;
-const BP_RE = /^\.bouncer\/context\/epics\/(\d{3})-[^/]+\/blueprints\/(\d{3})-[^/]+\/index\.md$/;
-const EXPLAIN_RE = /^\.bouncer\/context\/epics\/(\d{3})-[^/]+\/blueprints\/(\d{3})-[^/]+\/explain\.md$/;
-const TASK_RE = /^\.bouncer\/context\/epics\/(\d{3})-[^/]+\/blueprints\/(\d{3})-[^/]+\/tasks\/(\d{3})\/tasks\.md$/;
+import contextIds = require('./context-ids');
+const { parseContextPath, formatStableTaskId, formatLegacyEpicId, formatLegacyBlueprintId } = contextIds;
+
+// 경로 모양만 거른다. 세그먼트가 번호(`NNN-slug`)인지 slug인지, 두 세그먼트의 형식이 같은지는
+// parseContextPath 한 곳에서 판정한다(`layoutOf`). 정규식에 형식 규칙을 복제하면 두 곳이 갈라진다.
+const EPIC_SHAPE = /^\.bouncer\/context\/epics\/[^/]+\/index\.md$/;
+const BP_SHAPE = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/index\.md$/;
+const EXPLAIN_SHAPE = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/explain\.md$/;
+const TASK_SHAPE = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/(\d{3})\/tasks\.md$/;
+type Layout = {
+  format: 'numeric' | 'slug'; epicKey: string; blueprintKey: string | null; taskNum: string | null;
+};
+
+/**
+ * 경로가 모양 정규식과 세그먼트 규칙을 모두 만족하면 key와 형식을 돌려준다.
+ *
+ * @param {string} p - 저장소 상대 posix 경로
+ * @param {RegExp} shape - 문서 종류별 모양 정규식(task는 첫 캡처가 task 번호)
+ * @returns {Layout | null} 해석 결과. 모양이 다르거나 세그먼트 규칙을 어기면 null
+ */
+function layoutOf(p: string, shape: RegExp): Layout | null {
+  const match = shape.exec(p);
+  const ids = match ? parseContextPath(p) : null;
+  if (!match || !ids) return null;
+  return { format: ids.format, epicKey: ids.epicKey, blueprintKey: ids.blueprintKey, taskNum: match[1] ?? null };
+}
+
+// 문서 경로 목록에서 같은 epic·blueprint key를 가진 경로를 찾는다. 번호/slug 디렉터리 접두 비교 대신
+// 해석된 key로 비교해 두 형식이 같은 코드를 탄다.
+function sameBlueprint(p: string, epicKey: string, blueprintKey: string): boolean {
+  const ids = parseContextPath(p);
+  return ids !== null && ids.epicKey === epicKey && ids.blueprintKey === blueprintKey;
+}
 const SKIP = new Set(['.git', 'node_modules', '.worktrees', 'review', 'reviews', 'verification', 'verifications']);
 const TOKEN = /`([^`\n]+)`/g;
 
@@ -86,10 +115,10 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
     warnings: [],
   };
   const paths = walkContext(root, index.warnings);
-  const epicPaths = paths.filter((p) => EPIC_RE.test(p));
-  const bpPaths = paths.filter((p) => BP_RE.test(p));
-  const explainPaths = paths.filter((p) => EXPLAIN_RE.test(p));
-  const taskPaths = paths.filter((p) => TASK_RE.test(p));
+  const epicPaths = paths.filter((p) => layoutOf(p, EPIC_SHAPE));
+  const bpPaths = paths.filter((p) => layoutOf(p, BP_SHAPE));
+  const explainPaths = paths.filter((p) => layoutOf(p, EXPLAIN_SHAPE));
+  const taskPaths = paths.filter((p) => layoutOf(p, TASK_SHAPE));
   const acceptedPaths = new Set([...epicPaths, ...bpPaths, ...explainPaths, ...taskPaths]);
   for (const source of paths) {
     if (!acceptedPaths.has(source)) {
@@ -98,10 +127,8 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
   }
   const tasksByBp = new Map<string, string[]>();
   for (const taskPath of taskPaths) {
-    const match = TASK_RE.exec(taskPath)!;
-    const bp = bpPaths.find((p) =>
-      p.startsWith(`.bouncer/context/epics/${match[1]}-`) && p.includes(`/blueprints/${match[2]}-`),
-    );
+    const at = layoutOf(taskPath, TASK_SHAPE)!;
+    const bp = bpPaths.find((p) => sameBlueprint(p, at.epicKey, at.blueprintKey!));
     if (bp) tasksByBp.set(bp, [...(tasksByBp.get(bp) ?? []), taskPath]);
   }
   const docs = new Map<string, Doc>();
@@ -112,8 +139,11 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
   const epics = new Map<string, Doc>();
   for (const source of epicPaths) {
     const doc = docs.get(source); if (!doc) continue;
-    const id = EPIC_RE.exec(source)![1];
-    if (doc.data.type !== 'bouncer.epic' || nested(doc.data, 'bouncer', 'id') !== `EPIC-${id}`) {
+    const at = layoutOf(source, EPIC_SHAPE)!;
+    const id = at.epicKey;
+    // 번호 epic의 bouncer.id는 `EPIC-NNN`, slug epic은 epic slug 자체다.
+    const expectedId = at.format === 'numeric' ? formatLegacyEpicId(id) : id;
+    if (doc.data.type !== 'bouncer.epic' || nested(doc.data, 'bouncer', 'id') !== expectedId) {
       warn(index, 'document-invalid', source, 0, 'epic identity does not match canonical path'); continue;
     }
     epics.set(id, { ...doc, id: source, kind: 'epic' });
@@ -121,10 +151,14 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
   const blueprintDocs = new Map<string, Doc>();
   for (const source of bpPaths) {
     const doc = docs.get(source); if (!doc) continue;
-    const [, epicId, bpId] = BP_RE.exec(source)!;
+    const at = layoutOf(source, BP_SHAPE)!;
+    const epicId = at.epicKey;
+    const bpId = at.blueprintKey!;
+    // 번호 blueprint의 bouncer.id는 `EPIC-NNN/BP-NNN`, slug blueprint는 blueprint slug 자체다.
+    const expectedId = at.format === 'numeric' ? formatLegacyBlueprintId(epicId, bpId) : bpId;
     if (
       doc.data.type !== 'bouncer.blueprint' ||
-      nested(doc.data, 'bouncer', 'id') !== `EPIC-${epicId}/BP-${bpId}` ||
+      nested(doc.data, 'bouncer', 'id') !== expectedId ||
       !epics.has(epicId)
     ) {
       warn(index, 'document-invalid', source, 0, 'blueprint identity does not match canonical path or epic'); continue;
@@ -133,12 +167,13 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
     index.documents.push({ ...doc, id: source, kind: 'blueprint' });
   }
   index.documents.push(...epics.values());
-  for (const [source, doc] of docs) if (TASK_RE.test(source)) {
-    const [, epicId, bpId, taskNum] = TASK_RE.exec(source)!;
-    const parent = [...blueprintDocs.keys()].find((p) =>
-      p.startsWith(`.bouncer/context/epics/${epicId}-`) && p.includes(`/blueprints/${bpId}-`),
-    );
-    const stable = `EPIC-${epicId}/BP-${bpId}/TASK-${taskNum}`;
+  for (const [source, doc] of docs) if (layoutOf(source, TASK_SHAPE)) {
+    const at = layoutOf(source, TASK_SHAPE)!;
+    const epicId = at.epicKey;
+    const bpId = at.blueprintKey!;
+    const taskNum = at.taskNum!;
+    const parent = [...blueprintDocs.keys()].find((p) => sameBlueprint(p, epicId, bpId));
+    const stable = formatStableTaskId({ format: at.format, epicKey: epicId, blueprintKey: bpId, task: taskNum });
     if (
       !parent ||
       doc.data.type !== 'bouncer.tasks' ||
@@ -163,14 +198,14 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
   }
   for (const source of explainPaths) {
     const doc = docs.get(source); if (!doc) continue;
-    const [, epicId, bpId] = EXPLAIN_RE.exec(source)!;
-    const parent = [...blueprintDocs.keys()].find((p) =>
-      p.startsWith(`.bouncer/context/epics/${epicId}-`) && p.includes(`/blueprints/${bpId}-`),
-    );
+    const at = layoutOf(source, EXPLAIN_SHAPE)!;
+    const epicId = at.epicKey;
+    const bpId = at.blueprintKey!;
+    const parent = [...blueprintDocs.keys()].find((p) => sameBlueprint(p, epicId, bpId));
     if (!parent) continue;
     extractSectionPaths(index, parent, source, doc.body, '## Code', 'touch', doc.bodyLineOffset);
     extractContract(index, parent, source, doc.body, doc.bodyLineOffset);
-    parseCommitRows(index, parent, source, doc, epicId, bpId);
+    parseCommitRows(index, parent, source, doc, epicId, bpId, at.format);
   }
   for (const [bpPath, doc] of blueprintDocs) {
     extractContract(index, bpPath, bpPath, doc.body, doc.bodyLineOffset);
@@ -179,7 +214,7 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
   const relationships: NonNullable<Ontology['relationships']> = [];
   for (const doc of index.documents) {
     const parent = doc.kind === 'blueprint'
-      ? [...epics.entries()].find(([id]) => doc.id.includes(`/epics/${id}-`))?.[1].id
+      ? [...epics.entries()].find(([id]) => parseContextPath(doc.id)?.epicKey === id)?.[1].id
       : doc.kind === 'task'
         ? doc.id.replace(/\/tasks\/\d{3}\/tasks\.md$/, '/index.md')
         : undefined;
@@ -535,6 +570,7 @@ function extractSectionPaths(
  * @param {Doc} doc - 이미 파싱된 Explain
  * @param {string} epicId - 부모 epic 번호
  * @param {string} bpId - 부모 blueprint 번호
+ * @param {'numeric' | 'slug'} format - 부모 key 형식(행의 task ID 형식 기대값을 정한다)
  * @returns {void} 유효 diff 경로와 경고를 색인에 누적한다
  */
 function parseCommitRows(
@@ -544,6 +580,7 @@ function parseCommitRows(
   doc: Doc,
   epicId: string,
   bpId: string,
+  format: 'numeric' | 'slug',
 ): void {
   const rows = nested(doc.data, 'bouncer', 'task_commits'); if (rows === undefined) return;
   if (!Array.isArray(rows)) { warn(index, 'document-invalid', source, 0, 'task_commits must be an array'); return; }
@@ -560,8 +597,10 @@ function parseCommitRows(
     const line = rowLine < 0 ? 0 : rowLine + 1;
     const hasNew = Object.hasOwn(row, 'task') || Object.hasOwn(row, 'intent_anchor');
     const task = row.task;
-    const expectedPrefix = `EPIC-${epicId}/BP-${bpId}/TASK-`;
-    const taskPattern = new RegExp(`^EPIC-${epicId}/BP-${bpId}/TASK-\\d{3}$`);
+    // 접두는 형식별 task ID에서 끝 세 자리(번호)만 뗀 값이다. key는 번호 또는 kebab slug라 정규식 특수문자가 없다.
+    const expectedPrefix = formatStableTaskId({ format, epicKey: epicId, blueprintKey: bpId, task: '000' })
+      .slice(0, -3);
+    const taskPattern = new RegExp(`^${expectedPrefix}\\d{3}$`);
     const newValid = hasNew && typeof task === 'string' && taskPattern.test(task) &&
       typeof row.intent_anchor === 'string' && row.intent_anchor === `task-${task.slice(-3)}`;
     const oldValid = !hasNew && typeof row.id === 'string' &&

@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 import layout = require('./layout');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir, normalizeRepoPath } = layout;
+import contextIds = require('./context-ids');
+const { parseContextPath } = contextIds;
 import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
 import frontmatter = require('./frontmatter');
@@ -60,8 +62,17 @@ type MigrateDeps = {
   readFileSync?: (abs: string) => Buffer;
 };
 
-const EPIC_DIR_NAME_RE = /^\d{3}-.+$/;
-const BLUEPRINT_DIR_NAME_RE = /^\d{3}-.+$/;
+/**
+ * 디렉터리 이름이 번호 형식(`ddd-slug`)인지 본다. 보존 정책 이관은 번호 형식 Blueprint만 대상이다 —
+ * slug 형식은 새 형식이라 소급할 구형 산출물이 없다. 판정은 context-ids 한 곳에 맡기고, blueprint 이름도
+ * epic 자리에 끼워 같은 규칙으로 읽는다.
+ *
+ * @param {string} name - epic 또는 blueprint 디렉터리 이름
+ * @returns {boolean} 번호 형식이면 true
+ */
+function isNumberedDirName(name: string): boolean {
+  return parseContextPath(`epics/${name}`)?.format === 'numeric';
+}
 
 /**
  * context 트리에서 closed Blueprint 상대 경로를 경로순으로 모은다.
@@ -82,7 +93,7 @@ function listClosedBlueprintDirs(repoRoot: string): string[] {
     return found;
   }
   for (const epicName of epicNames) {
-    if (!EPIC_DIR_NAME_RE.test(epicName)) continue;
+    if (!isNumberedDirName(epicName)) continue;
     const blueprintsRoot = path.join(epicsRoot, epicName, 'blueprints');
     if (!fs.existsSync(blueprintsRoot)) continue;
     let bpNames: string[];
@@ -92,7 +103,7 @@ function listClosedBlueprintDirs(repoRoot: string): string[] {
       continue;
     }
     for (const bpName of bpNames) {
-      if (!BLUEPRINT_DIR_NAME_RE.test(bpName)) continue;
+      if (!isNumberedDirName(bpName)) continue;
       const bpAbs = path.join(blueprintsRoot, bpName);
       let st: ReturnType<typeof fs.statSync>;
       try {
@@ -165,7 +176,8 @@ function resolveBlueprintDir(repoRoot: string, blueprintDir: unknown):
   if (normalized.split('/').includes('..')) {
     return { ok: false, reason: 'blueprintDir must not contain ..', code: 'INVALID_PATH' };
   }
-  if (!isCanonicalBlueprintDir(normalized)) {
+  // 정본 경로여도 slug 형식은 이관 대상이 아니라 같은 INVALID_PATH로 거절한다(범위·출력 불변).
+  if (!isCanonicalBlueprintDir(normalized) || parseContextPath(normalized)?.format !== 'numeric') {
     return {
       ok: false,
       reason: `blueprintDir must be under ${CONTEXT_ROOT}/epics`,

@@ -2,6 +2,8 @@
 
 import guards = require('./guards');
 const { catchMessage } = guards;
+import contextIds = require('./context-ids');
+const { parseContextPath } = contextIds;
 type CliIo = {
   out: (s: string) => void;
   err: (s: string) => void;
@@ -56,7 +58,14 @@ const SECTIONS_FAIL_REASONS = new Set([
 
 // bundle argv만 이 정규식으로 거절한다. sections의 비정규 --task는
 // loadExecutionTask가 exit 1 intent-task-invalid로 내야 하므로 파서가 막지 않는다.
-const CANONICAL_TASK_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/tasks\/\d{3}\/tasks\.md$/;
+// 번호·slug 두 경로 형식을 받는다. 세그먼트 해석은 순수 모듈 context-ids에 맡겨 resolver를 적재하지 않는다.
+const TASK_SHAPE_RE = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/\d{3}\/tasks\.md$/;
+
+function isCanonicalTaskPath(rel: string): boolean {
+  if (!TASK_SHAPE_RE.test(rel)) return false;
+  const ids = parseContextPath(rel);
+  return ids !== null && ids.blueprintKey !== null;
+}
 
 /**
  * intent argv를 query·bundle·sections로 분기한다. `bundle`과 `sections`
@@ -213,7 +222,7 @@ function parseBundleArgs(rest: string[]): BundleArgs {
       if (
         trimmed.startsWith('/')
         || trimmed.includes('..')
-        || !CANONICAL_TASK_RE.test(trimmed)
+        || !isCanonicalTaskPath(trimmed)
       ) {
         return fail('--task must be a repo-relative canonical tasks.md path');
       }

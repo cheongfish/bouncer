@@ -2194,3 +2194,47 @@ test('npm verification outside terminal scope or without package.json metadata r
   fs.writeFileSync(path.join(repo, 'package.json'), '{"workspaces":["a"],"devDependencies":{"left-pad":"1"}}\n');
   assert.strictEqual(runTerminal(repo, () => ({ status: 0, stdout: 'ok\n', stderr: '' })).ok, true);
 });
+
+test('slug blueprint path → the default task scope key is the slug stable id in the ledger record', () => {
+  const slugBp = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-slug-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '--allow-empty', '-m', 'init',
+  ], { cwd: repo });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'npm test' }));
+  const unit = `${slugBp}/tasks/001`;
+  fs.mkdirSync(path.join(repo, unit), { recursive: true });
+  const header = (kind, id, extra = '') => `---
+type: bouncer.${kind}
+title: ${kind} 001
+description: fixture
+resource: ${unit}/${kind === 'tasks' ? 'tasks' : 'verification'}.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: ${id}
+  epic_id: plan-workflow
+  blueprint_id: registry-gates
+  status: ${kind === 'tasks' ? 'ready' : 'pending'}
+${extra}---
+# ${kind}
+`;
+  fs.writeFileSync(path.join(repo, unit, 'tasks.md'), header('tasks', 'TASKS-001', '  affected_paths:\n    - src/\n'));
+  fs.writeFileSync(path.join(repo, unit, 'verification.md'), header('verification', 'VERIFY-001'));
+
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: slugBp,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(result.ok, true);
+  const rel = `${unit}/verification.md`;
+  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel, evidenceId: result.evidenceId });
+  const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(record.scope, { kind: 'task', key: 'plan-workflow/registry-gates/001' });
+});

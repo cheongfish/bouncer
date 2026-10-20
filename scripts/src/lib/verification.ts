@@ -27,6 +27,8 @@ type VerificationTaskEntry = {
 // current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
 // 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
 import type { EffectiveTask } from './execution-contracts';
+import contextIds = require('./context-ids');
+const { parsePointerKey, formatStableTaskId } = contextIds;
 import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
 import runtimeState = require('./runtime-state');
@@ -513,7 +515,7 @@ function assertVerificationScope(scope: unknown): VerificationScope {
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} blueprintDir - blueprint 상대 경로
- * @returns {VerificationScope} `{ kind: 'task', key: 'EPIC-…/BP-…/TASK-…' }`
+ * @returns {VerificationScope} `{ kind: 'task', key: 'EPIC-…/BP-…/TASK-…' }` 또는 slug 경로의 `<epic>/<bp>/NNN`
  */
 function resolveDefaultTaskScope(
   repoRoot: string,
@@ -569,7 +571,10 @@ function resolveDefaultTaskScope(
   }
   const ids = parsePathIds(tasksRel);
   const taskMatch = TASK_DIR_RE.exec(tasksRel);
-  if (!ids.epicId || !ids.blueprintId || !taskMatch) {
+  // 경로 key의 형식(번호/slug)을 모양으로 판정한다. 형식이 섞인 경로는 한 task를 두 체계로
+  // 식별하게 되므로 키를 만들지 않는다.
+  const keys = ids.epicId && ids.blueprintId ? parsePointerKey(`${ids.epicId}/${ids.blueprintId}`) : null;
+  if (!keys || !taskMatch) {
     throw verificationError(
       'VERIFY_IDENTITY_INVALID',
       'cannot derive stable task scope from pointer or task path',
@@ -577,7 +582,8 @@ function resolveDefaultTaskScope(
   }
   return {
     kind: 'task',
-    key: `EPIC-${ids.epicId}/BP-${ids.blueprintId}/TASK-${taskMatch[1]}`,
+    // 번호 경로는 예전과 같은 `EPIC-…/BP-…/TASK-…`(evidence_id 해시 입력)이고 slug 경로는 `<epic>/<bp>/NNN`이다.
+    key: formatStableTaskId({ ...keys, task: taskMatch[1] }),
   };
 }
 

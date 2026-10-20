@@ -1232,3 +1232,27 @@ test('summarizeDriveIssues: 원장 객체 → 입력을 바꾸지 않는다', ()
   summarizeDriveIssues(ledger, 0);
   assert.strictEqual(JSON.stringify(ledger), before);
 });
+
+test('slug epic and blueprint keys → the stable provenance helper builds slash-form refs', () => {
+  assert.deepStrictEqual(
+    buildStableProvenance({ epicId: 'plan-workflow', blueprintId: 'registry-gates', taskId: 'TASKS-001' }),
+    {
+      task: 'plan-workflow/registry-gates/001',
+      intent: 'plan-workflow/registry-gates',
+      trailers: [
+        'Bouncer-Task: plan-workflow/registry-gates/001',
+        'Bouncer-Intent: plan-workflow/registry-gates',
+      ],
+    },
+  );
+});
+
+test('mixed numeric epic and slug blueprint keys → the stable provenance helper rejects before commit', () => {
+  assert.throws(() => buildStableProvenance({ epicId: '114', blueprintId: 'registry-gates', taskId: 'TASKS-001' }));
+  assert.throws(() => buildStableProvenance({ epicId: 'plan-workflow', blueprintId: '003', taskId: 'TASKS-001' }));
+  assert.throws(() => buildStableProvenance({ epicId: 'Plan_Workflow', blueprintId: 'x', taskId: 'TASKS-001' }));
+  assert.throws(
+    () => buildStableProvenance({ epicId: 'plan-workflow', blueprintId: 'registry-gates', taskId: '001' }),
+    /TASKS-NNN/,
+  );
+});

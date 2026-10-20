@@ -14,19 +14,39 @@ import commitSha = require('./commit-sha');
 const { normalizeCommitSha, buildStableProvenance } = commitSha;
 import validateSections = require('./validate-sections');
 const { parseExplainSections } = validateSections;
+import contextIds = require('./context-ids');
+const {
+  parseStableId, parsePointerKey, parseContextPath, formatStableIntentId, formatStableTaskId, normalizeStableId,
+} = contextIds;
+import epicRegistryMod = require('./epic-registry');
+const { readEpicRegistry } = epicRegistryMod;
 import paths = require('./paths');
 const { toPosix } = paths;
 
 const DEFAULT_LIMIT = 3;
 const MAX_LIMIT = 5;
 const BODY_BUDGET_BYTES = 2000;
-const STABLE_TASK_RE = /^EPIC-(\d{3})\/BP-(\d{3})\/TASK-(\d{3})$/;
-const STABLE_INTENT_RE = /^EPIC-(\d{3})\/BP-(\d{3})$/;
 const INTENT_ANCHOR_RE = /^task-(\d{3})$/;
 const TASK_DIR_RE = /^(\d{3})$/;
 const TRAILER_RE = /^(Bouncer-Task|Bouncer-Intent)\s*:\s*(.*?)\s*$/;
 // loadExplainDocs가 걷는 경로와 같은 canonical Explain만 projection 입력이 된다.
-const CANONICAL_EXPLAIN_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/explain\.md$/;
+// 번호(`NNN-slug`)와 slug 두 경로 형식을 모두 받되 세그먼트 해석은 parseContextPath에 맡긴다.
+const EXPLAIN_SHAPE_RE = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/explain\.md$/;
+
+/** loadExplainDocs가 걷는 canonical Explain 경로(번호·slug 두 형식)인지 판정한다. */
+function isCanonicalExplainPath(rel: string): boolean {
+  if (!EXPLAIN_SHAPE_RE.test(rel)) return false;
+  const ids = parseContextPath(rel);
+  return ids !== null && ids.blueprintKey !== null;
+}
+
+// 등록부를 읽는 쪽은 진입점 한 곳이다. 없음·깨짐(S35)은 null — 정규화 없이 정확 일치로 비교해
+// 이관 전 동작과 같다. 깨진 등록부의 거절은 검증 gate 소관이고 이 조회는 읽기 전용이다.
+type Registry = Parameters<typeof normalizeStableId>[1];
+function readRegistryOrNull(repoRoot: string): Registry {
+  const read = readEpicRegistry(repoRoot);
+  return read.status === 'ok' ? read.registry : null;
+}
 const SKIP_DIR_NAMES = new Set(['.git', 'node_modules', '.worktrees', 'graphify-out']);
 const FRESHNESS_RANK: Record<Freshness, number> = {
   current: 0,
@@ -103,6 +123,8 @@ type ExplainDoc = {
   rel: string;
   epicId: string;
   bpId: string;
+  // 두 key를 형식별 intent stable ID로 만든 값. 별칭 정규화 비교의 한쪽이다.
+  intentId: string;
   body: string;
   rows: ExplainRow[];
   sections: SelectedSection[];
@@ -183,11 +205,12 @@ function resolveIntentProvenance(input: ResolveIntentInput): IntentResult {
   }
 
   const metas = collectCommitMetas(repoReal, symbolRef, symbol);
+  const registry = readRegistryOrNull(repoReal);
   const explains = loadExplainDocs(repoReal);
   const shaIndex = buildShaIndex(repoReal, explains);
   const linked: LinkedDraft[] = [];
   for (const meta of metas) {
-    const hit = linkCommit(repoReal, meta.sha, explains, shaIndex);
+    const hit = linkCommit(repoReal, meta.sha, explains, shaIndex, registry);
     if (!hit) continue;
     const doc = explains.find((item) => item.rel === hit.explain);
     const taskDigits = taskDigitsOf(hit.task);
@@ -449,6 +472,7 @@ function freshnessOf(item: LinkedDraft, linked: LinkedDraft[], currentSha: strin
  * @param {string} sha - 40자리 commit
  * @param {ExplainDoc[]} explains - 저장소 안 canonical Explain
  * @param {Map<string, LinkHit[]>} shaIndex - full SHA → task·explain
+ * @param {object | null} registry - 등록부(구형 trailer 정규화용). null이면 정확 일치
  * @returns {LinkHit | null} 하나면 hit, 없거나 모호·거절이면 null
  */
 function linkCommit(
@@ -456,6 +480,7 @@ function linkCommit(
   sha: string,
   explains: ExplainDoc[],
   shaIndex: Map<string, LinkHit[]>,
+  registry: Registry,
 ): LinkHit | null {
   const message = runGit(repoRoot, ['log', '-1', '--format=%B', sha]);
   if (message.status !== 0) {
@@ -463,7 +488,7 @@ function linkCommit(
   }
   const trailer = parseTrailers(message.stdout);
   if (trailer.status === 'ok') {
-    return uniqueHit(explainsForTask(explains, trailer.task));
+    return uniqueHit(explainsForTask(explains, trailer.task, registry));
   }
   // reject는 연결 증거가 아니다. SHA 역색인은 trailer가 전혀 없을 때만 쓴다 —
   // 상충 Task 값을 두고 Explain이 그 SHA를 유일하게 찍으면 잘못된 쪽을 승격한다.
@@ -492,24 +517,39 @@ function parseTrailers(message: string): TrailerParse {
   if (tasks.size === 0 && intents.size === 0) return { status: 'absent' };
   if (tasks.size !== 1) return { status: 'reject' };
   const task = [...tasks][0];
-  const parsed = STABLE_TASK_RE.exec(task);
-  if (!parsed) return { status: 'reject' };
+  const parsed = parseStableId(task);
+  if (!parsed || parsed.task === null) return { status: 'reject' };
   if (intents.size > 1) return { status: 'reject' };
   if (intents.size === 1) {
-    const intent = [...intents][0];
-    if (!STABLE_INTENT_RE.test(intent)) return { status: 'reject' };
-    if (intent !== `EPIC-${parsed[1]}/BP-${parsed[2]}`) return { status: 'reject' };
+    // intent는 task와 같은 형식·같은 key여야 한다. 형식이 다른 쌍은 한 커밋이 두 체계를 주장하므로 reject.
+    const intent = parseStableId([...intents][0]);
+    if (!intent || intent.task !== null || intent.format !== parsed.format
+      || intent.epicKey !== parsed.epicKey || intent.blueprintKey !== parsed.blueprintKey) {
+      return { status: 'reject' };
+    }
   }
   return { status: 'ok', task };
 }
 
-function explainsForTask(explains: ExplainDoc[], task: string): LinkHit[] {
-  const parsed = STABLE_TASK_RE.exec(task);
-  if (!parsed) return [];
+/**
+ * trailer의 task가 속한 blueprint의 Explain을 찾는다. trailer와 Explain 경로의 intent를 각각
+ * 등록부 별칭으로 정규화해 비교하므로, 구형 trailer 커밋도 이관 뒤의 slug Explain에 연결된다.
+ * 별칭이 없거나 등록부가 null이면 원래 문자열끼리 비교한다(이관 전 동작).
+ *
+ * @param {ExplainDoc[]} explains - 저장소 안 canonical Explain
+ * @param {string} task - trailer의 stable Task ID(번호 또는 slug 형식)
+ * @param {object | null} registry - 등록부 또는 null
+ * @returns {LinkHit[]} 같은 blueprint의 Explain hit
+ */
+function explainsForTask(explains: ExplainDoc[], task: string, registry: Registry): LinkHit[] {
+  const parsed = parseStableId(task);
+  if (!parsed || parsed.task === null) return [];
+  const intent = formatStableIntentId(parsed);
+  const wanted = normalizeStableId(intent, registry) ?? intent;
   const hits: LinkHit[] = [];
   const seen = new Set<string>();
   for (const doc of explains) {
-    if (doc.epicId !== parsed[1] || doc.bpId !== parsed[2]) continue;
+    if ((normalizeStableId(doc.intentId, registry) ?? doc.intentId) !== wanted) continue;
     const key = `${task}\0${doc.rel}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -633,15 +673,17 @@ function parseExplainDoc(abs: string, repoReal: string): ExplainDoc | null {
   const rec = bouncer as Record<string, unknown>;
   const epicId = String(rec.epic_id || '');
   const bpId = String(rec.blueprint_id || '');
-  if (!/^\d{3}$/.test(epicId) || !/^\d{3}$/.test(bpId)) return null;
+  // 번호 쌍이거나 slug 쌍일 때만 증거다. 형식이 섞이거나 어느 쪽도 아니면 이 파일은 버린다.
+  const keys = parsePointerKey(`${epicId}/${bpId}`);
+  if (!keys) return null;
   const rel = toPosix(path.relative(repoReal, abs));
-  const rows = parseTaskCommitRows(rec.task_commits, epicId, bpId);
+  const rows = parseTaskCommitRows(rec.task_commits, epicId, bpId, keys.format);
   const explainSections = parseExplainSections(parsed.body);
   const sections: SelectedSection[] = [];
   pushSection(sections, 'Background', stripExcludedHeadings(explainSections.background));
   pushSection(sections, 'Intuition', stripExcludedHeadings(explainSections.intuition));
   pushSection(sections, 'Code', stripExcludedHeadings(explainSections.code));
-  return { rel, epicId, bpId, body: parsed.body, rows, sections };
+  return { rel, epicId, bpId, intentId: formatStableIntentId(keys), body: parsed.body, rows, sections };
 }
 
 /**
@@ -651,9 +693,15 @@ function parseExplainDoc(abs: string, repoReal: string): ExplainDoc | null {
  * @param {unknown} value - task_commits
  * @param {string} epicId - Explain 부모 epic
  * @param {string} bpId - Explain 부모 blueprint
+ * @param {'numeric' | 'slug'} format - 부모 key 형식(legacy `{id}` 행의 task ID 조립에 쓴다)
  * @returns {ExplainRow[]} 검증된 행
  */
-function parseTaskCommitRows(value: unknown, epicId: string, bpId: string): ExplainRow[] {
+function parseTaskCommitRows(
+  value: unknown,
+  epicId: string,
+  bpId: string,
+  format: 'numeric' | 'slug',
+): ExplainRow[] {
   if (!Array.isArray(value)) return [];
   const rows: ExplainRow[] = [];
   for (const row of value) {
@@ -670,7 +718,7 @@ function parseTaskCommitRows(value: unknown, epicId: string, bpId: string): Expl
     if (!TASK_DIR_RE.test(id)) continue;
     const sha8 = normalizeCommitSha(record.sha);
     if (!sha8) continue;
-    rows.push({ task: `EPIC-${epicId}/BP-${bpId}/TASK-${id}`, sha8 });
+    rows.push({ task: formatStableTaskId({ format, epicKey: epicId, blueprintKey: bpId, task: id }), sha8 });
   }
   return rows;
 }
@@ -724,8 +772,7 @@ function stripExcludedHeadings(body: string | null | undefined): string | null {
 }
 
 function taskDigitsOf(task: string): string | null {
-  const match = STABLE_TASK_RE.exec(task);
-  return match ? match[3] : null;
+  return parseStableId(task)?.task ?? null;
 }
 
 /**
@@ -775,7 +822,7 @@ function loadCanonicalExplainDoc(input: {
   const explainRel = toPosix(input.explainRel);
   // cache body가 지시하는 경로는 live walkExplain과 같은 canonical만 연다.
   if (path.isAbsolute(explainRel) || explainRel.includes('..')) return null;
-  if (!CANONICAL_EXPLAIN_RE.test(explainRel)) return null;
+  if (!isCanonicalExplainPath(explainRel)) return null;
   let repoReal: string;
   try {
     repoReal = fs.realpathSync(input.repoRoot);
@@ -867,7 +914,7 @@ function parseTaskDesign(body: string, taskDigits: string): SelectedSection[] {
 
 /**
  * Explain `## Tasks` 본문을 task 번호 → 절 본문 맵으로 나눈다.
- * 새 제목(`### EPIC-ddd/BP-ddd/TASK-ddd · \`sha8\``)과 기존 `### Task NNN`을
+ * 새 제목(`### EPIC-ddd/BP-ddd/TASK-ddd · \`sha8\`` 또는 `### <epic>/<bp>/ddd · \`sha8\``)과 기존 `### Task NNN`을
  * 같은 NNN 키로 묶는다. 세 자리가 아니거나 SHA가 대문자·비-8자리면 인식하지
  * 않는다 — 잘못된 제목을 추측해 올리면 다른 task 절이 섞인다.
  *
@@ -885,9 +932,10 @@ function splitTaskChunks(tasksBody: string): Map<string, string> {
       continue;
     }
     // SHA는 소문자 8자리만. 대문자·짧은 hex는 Interface 거절 계약과 같다.
-    const stable = /^###\s+EPIC-\d{3}\/BP-\d{3}\/TASK-(\d{3})(?:\s+·\s+`[0-9a-f]{8}`)?\s*$/
-      .exec(trimmed);
-    if (stable) starts.push({ id: stable[1], line: i });
+    // 번호(`EPIC-…/TASK-NNN`)와 slug(`<epic>/<bp>/NNN`) 제목을 같은 파서로 읽는다.
+    const stable = /^###\s+(\S+)(?:\s+·\s+`[0-9a-f]{8}`)?\s*$/.exec(trimmed);
+    const stableTask = stable ? parseStableId(stable[1])?.task : null;
+    if (stableTask) starts.push({ id: stableTask, line: i });
   }
   const out = new Map<string, string>();
   for (let i = 0; i < starts.length; i += 1) {
@@ -978,6 +1026,7 @@ function isInsideRepo(absPath: string, repoReal: string): boolean {
 }
 
 export = {
+  isCanonicalExplainPath,
   resolveIntentProvenance,
   projectSectionHashes,
   projectExplainSectionHashes,

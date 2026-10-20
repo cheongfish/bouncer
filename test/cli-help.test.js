@@ -64,6 +64,10 @@ test('usage → review-scope migration 형식을 나열한다', () => {
   assert.match(capture([]).out, /migrate\s+review-scope --blueprint <dir>/);
 });
 
+test('usage → context-slugs migration 형식을 나열한다', () => {
+  assert.match(capture([]).out, /migrate\s+context-slugs \[--yes\]/);
+});
+
 test('모든 subcommand가 → usage 텍스트에 나열된다', () => {
   const r = capture([]);
   for (const name of SUBCOMMANDS) {
@@ -536,4 +540,10 @@ test('context-review --help → json 예시 블록 3개와 finding status open|r
   const out = capture(['context-review', '--help']).out;
   assert.equal([...out.matchAll(/```json\n/g)].length, 3);
   assert.match(out, /open\|resolved\|accepted/);
+});
+
+test('usage → scaffold blueprint --order <n>와 v2 scaffold epic --name만 쓰는 형태를 나열한다', () => {
+  const r = capture([]);
+  assert.match(r.out, /blueprint --epic-dir <slug-epic> --order <n> --name <slug>/);
+  assert.match(r.out, /epic --name <slug> --description <text>/);
 });

@@ -70,6 +70,12 @@ registry area the blueprint belongs to (a lowercase slug such as `ordering`) and
 wrong shape (non-string or non-slug `area`; non-string, blank, or multi-line
 `attribution`) is S36; absence passes, and the registry lookup is not a
 structural check.
+A blueprint in a slug-format directory carries `bouncer.order`, a positive
+integer unique within its epic (`bouncer scaffold blueprint --order <n>`).
+A missing or invalid `order`, a duplicate `order`, a path that mixes number and
+slug segments or breaks the slug rule (lowercase kebab-case, at most 40
+characters, not digits only, no three-digit prefix), and a copied document that
+reuses a sibling's id are S37. Numbered-format blueprints are not checked by S37.
 Graphify query candidates, `grep` results, and `bouncer intent` results are advisory input; do
 not store them in frontmatter. No code reads leftover `bouncer.scope_evidence`
 or `bouncer.graph` on older task documents.
@@ -181,8 +187,9 @@ bundle: `explain.md` (written at finalize), `context-review.md` (plan
 document consistency), and `review.md` (final review in blueprint review
 mode). After finalize deletes task leaves, `explain.md`
 `bouncer.task_commits` writes `{ task, sha, intent_anchor }` rows:
-`task` is `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`,
-and `sha` stays 8-char hex. Leftover `bouncer.coordinator`, `## 이해 상태`,
+`task` is `<epic-slug>/<bp-slug>/<ddd>`, `intent_anchor` is `task-<ddd>`,
+and `sha` stays 8-char hex. Rows written before `bouncer migrate context-slugs`
+keep the old `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>` form, which readers still accept. Leftover `bouncer.coordinator`, `## 이해 상태`,
 `quiz_score`, and `disposition` on older explain documents are ignored when
 reading.
 

@@ -1110,3 +1110,183 @@ test('scaffold blueprint with --area and --attribution → exits 0 and writes bo
   assert.strictEqual(data.bouncer.area, 'ordering');
   assert.strictEqual(data.bouncer.attribution, '주문 기능 동작이 중심');
 });
+
+// --- slug 형식 epic: 번호 없이 `epics/<slug>/blueprints/<slug>/`로 쓰고 order로 순서를 정한다 ---
+const SLUG_EPIC_DIR = '.bouncer/context/epics/plan-workflow';
+
+// v2 등록부는 helpers/epic-registry.js의 v1 fixture와 모양이 달라 테스트 안에서 직접 쓴다.
+function writeV2Registry(repo) {
+  const abs = path.join(repo, '.bouncer', 'epics.json');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `${JSON.stringify({
+    version: 2,
+    profile: 'domain-only',
+    domainEpicLimit: 8,
+    areas: [],
+    epics: [{ slug: 'plan-workflow', kind: 'common', active: true }],
+  }, null, 2)}\n`);
+}
+
+function slugEpicRepo() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  writeV2Registry(repo);
+  scaffoldEpicImpl({ repoRoot: repo, name: 'plan-workflow', timestamp: TS, description: 'Plan workflow epic' });
+  return repo;
+}
+
+test('scaffoldEpic without epicId on a v2 registry → writes epics/<slug>/ with id equal to the slug', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  writeV2Registry(repo);
+  const created = scaffoldEpicImpl({
+    repoRoot: repo, name: 'plan-workflow', timestamp: TS, description: 'Plan workflow epic',
+  });
+  assert.deepStrictEqual(created, [`${SLUG_EPIC_DIR}/index.md`, '.bouncer/context/index.md']);
+  const { data } = readDoc(path.join(repo, created[0]));
+  assert.strictEqual(data.bouncer.id, 'plan-workflow');
+  assert.strictEqual(data.bouncer.epic_id, 'plan-workflow');
+  const bundle = fs.readFileSync(path.join(repo, '.bouncer/context/index.md'), 'utf8');
+  assert.match(bundle, /\]\(epics\/plan-workflow\/index\.md\)/);
+});
+
+test('scaffoldBlueprint under a slug epic → writes slug ids and order in every document', () => {
+  const repo = slugEpicRepo();
+  const created = scaffoldBlueprint({
+    repoRoot: repo, epicDir: SLUG_EPIC_DIR, order: 3, name: 'registry-gates', timestamp: TS,
+  });
+  const bpDir = `${SLUG_EPIC_DIR}/blueprints/registry-gates`;
+  assert.ok(created.includes(`${bpDir}/index.md`));
+  const { data } = readDoc(path.join(repo, `${bpDir}/index.md`));
+  assert.strictEqual(data.bouncer.id, 'registry-gates');
+  assert.strictEqual(data.bouncer.epic_id, 'plan-workflow');
+  assert.strictEqual(data.bouncer.blueprint_id, 'registry-gates');
+  assert.strictEqual(data.bouncer.order, 3);
+  for (const rel of created.filter((p) => p.endsWith('.md') && p !== `${bpDir}/index.md`)) {
+    const doc = readDoc(path.join(repo, rel)).data;
+    assert.strictEqual(doc.bouncer.epic_id, 'plan-workflow', rel);
+    assert.strictEqual(doc.bouncer.blueprint_id, 'registry-gates', rel);
+  }
+});
+
+test('scaffoldBlueprint under a slug epic → the new documents pass the structural check', () => {
+  const repo = slugEpicRepo();
+  scaffoldBlueprint({ repoRoot: repo, epicDir: SLUG_EPIC_DIR, order: 1, name: 'registry-gates', timestamp: TS });
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: `${SLUG_EPIC_DIR}/blueprints/registry-gates` });
+  // 새로 scaffold한 tasks.md는 affected_paths가 비어 있어 S7이 나는 것이 정상(작성 전 자리표시)이다.
+  assert.deepStrictEqual(result.failures.filter((f) => f.code !== 'S7'), []);
+});
+
+test('scaffoldBlueprint under a slug epic with a rejected input → throws before writing anything', () => {
+  const repo = slugEpicRepo();
+  const base = { repoRoot: repo, epicDir: SLUG_EPIC_DIR, name: 'registry-gates', timestamp: TS };
+  scaffoldBlueprint({ ...base, order: 1, name: 'first-one' });
+  const cases = [
+    [{ blueprintId: '002', order: 2 }, /--order/],
+    [{ order: 0 }, /order/],
+    [{ order: -1 }, /order/],
+    [{ order: 1.5 }, /order/],
+    [{ order: '2' }, /order/],
+    [{}, /order/],
+    [{ order: 1 }, /already used/],
+    [{ order: 2, name: '001-numeric' }, /slug/],
+    [{ order: 2, name: 'Upper' }, /slug/],
+  ];
+  for (const [extra, pattern] of cases) {
+    assert.throws(() => scaffoldBlueprint({ ...base, ...extra }), pattern, JSON.stringify(extra));
+  }
+  assert.deepStrictEqual(fs.readdirSync(path.join(repo, SLUG_EPIC_DIR, 'blueprints')), ['first-one']);
+});
+
+test('scaffoldBlueprint under a numeric epic with order → throws and asks for --id', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  assert.throws(() => scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth', order: 1, name: 'login', timestamp: TS,
+  }), /--id/);
+  assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context/epics/001-auth/blueprints')), false);
+});
+
+test('scaffold blueprint CLI under a slug epic → --order writes the slug blueprint', () => {
+  const repo = slugEpicRepo();
+  const r = captureScaffold([
+    'scaffold', 'blueprint', '--repo', repo, '--epic-dir', SLUG_EPIC_DIR,
+    '--order', '3', '--name', 'registry-gates', '--timestamp', TS,
+  ]);
+  assert.strictEqual(r.code, 0, r.err);
+  const created = JSON.parse(r.out).created;
+  assert.ok(created.includes(`${SLUG_EPIC_DIR}/blueprints/registry-gates/index.md`));
+});
+
+test('scaffold blueprint CLI with a format-mismatched or invalid flag → exits 2 and writes nothing', () => {
+  const slugRepo = slugEpicRepo();
+  const numericRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: numericRepo, epicId: '001', name: 'auth', timestamp: TS });
+  const run = (repo, epicDir, flags) => captureScaffold([
+    'scaffold', 'blueprint', '--repo', repo, '--epic-dir', epicDir, '--timestamp', TS, ...flags,
+  ]);
+  const slugBlueprints = path.join(slugRepo, SLUG_EPIC_DIR, 'blueprints');
+  const cases = [
+    [slugRepo, SLUG_EPIC_DIR, ['--id', '001', '--name', 'login'], /--order/],
+    [slugRepo, SLUG_EPIC_DIR, ['--order', '0', '--name', 'login'], /--order/],
+    [slugRepo, SLUG_EPIC_DIR, ['--order', 'abc', '--name', 'login'], /--order/],
+    [slugRepo, SLUG_EPIC_DIR, ['--order', '1.5', '--name', 'login'], /--order/],
+    [slugRepo, SLUG_EPIC_DIR, ['--order', '--name', 'login'], /--order/],
+    [slugRepo, SLUG_EPIC_DIR, ['--order', '1', '--name', '001-login'], /slug/],
+    [numericRepo, '.bouncer/context/epics/001-auth', ['--order', '1', '--name', 'login'], /--id <ddd>/],
+  ];
+  for (const [repo, epicDir, flags, pattern] of cases) {
+    const r = run(repo, epicDir, flags);
+    assert.strictEqual(r.code, 2, flags.join(' '));
+    assert.match(r.err, pattern, flags.join(' '));
+    assert.strictEqual(r.out, '');
+  }
+  assert.strictEqual(fs.existsSync(slugBlueprints), false);
+  assert.strictEqual(fs.existsSync(path.join(numericRepo, '.bouncer/context/epics/001-auth/blueprints')), false);
+});
+
+test('scaffold blueprint CLI reusing an order → exits 2 and writes nothing', () => {
+  const repo = slugEpicRepo();
+  const flags = ['scaffold', 'blueprint', '--repo', repo, '--epic-dir', SLUG_EPIC_DIR, '--timestamp', TS];
+  assert.strictEqual(captureScaffold([...flags, '--order', '2', '--name', 'first-one']).code, 0);
+  const again = captureScaffold([...flags, '--order', '2', '--name', 'second-one']);
+  assert.strictEqual(again.code, 2);
+  assert.deepStrictEqual(fs.readdirSync(path.join(repo, SLUG_EPIC_DIR, 'blueprints')), ['first-one']);
+});
+
+test('scaffold epic CLI on a v2 registry → --name alone creates epics/<slug>/ and --id is refused', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  writeV2Registry(repo);
+  const refused = captureScaffold([
+    'scaffold', 'epic', '--repo', repo, '--id', '001', '--name', 'plan-workflow',
+    '--description', 'Plan workflow epic', '--timestamp', TS,
+  ]);
+  assert.strictEqual(refused.code, 2);
+  assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context/epics')), false);
+  const ok = captureScaffold([
+    'scaffold', 'epic', '--repo', repo, '--name', 'plan-workflow',
+    '--description', 'Plan workflow epic', '--timestamp', TS,
+  ]);
+  assert.strictEqual(ok.code, 0, ok.err);
+  assert.ok(fs.existsSync(path.join(repo, SLUG_EPIC_DIR, 'index.md')));
+  const bad = captureScaffold([
+    'scaffold', 'epic', '--repo', repo, '--name', '001-bad',
+    '--description', 'Bad epic', '--timestamp', TS,
+  ]);
+  assert.strictEqual(bad.code, 2);
+});
+
+test('scaffold epic CLI on a v1 registry → keeps --id <ddd> and refuses a missing --id', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  writeEpicRegistry(repo, { epics: [] });
+  const missing = captureScaffold([
+    'scaffold', 'epic', '--repo', repo, '--name', 'auth', '--description', 'Auth epic', '--timestamp', TS,
+  ]);
+  assert.strictEqual(missing.code, 2);
+  assert.match(missing.err, /--id/);
+  const ok = captureScaffold([
+    'scaffold', 'epic', '--repo', repo, '--id', '001', '--name', 'auth',
+    '--description', 'Auth epic', '--timestamp', TS,
+  ]);
+  assert.strictEqual(ok.code, 0, ok.err);
+  assert.ok(fs.existsSync(path.join(repo, '.bouncer/context/epics/001-auth/index.md')));
+});

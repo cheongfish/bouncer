@@ -66,3 +66,18 @@ test('toPosix → 단일 정의이며 백슬래시와 비문자열 입력을 처
   assert.strictEqual(toPosix(undefined), 'undefined');
   assert.strictEqual(require('../scripts/lib/paths').toPosix, toPosix);
 });
+
+test('parsePathIds with slug paths → returns slug keys and kind', () => {
+  const unit = '.bouncer/context/epics/consumer-epic-registry/blueprints/registry-gates';
+  assert.deepStrictEqual(parsePathIds(`${unit}/tasks/001/tasks.md`),
+    { epicId: 'consumer-epic-registry', blueprintId: 'registry-gates', kind: 'tasks' });
+  assert.deepStrictEqual(parsePathIds(`${unit}/index.md`),
+    { epicId: 'consumer-epic-registry', blueprintId: 'registry-gates', kind: 'blueprint' });
+  assert.deepStrictEqual(parsePathIds('.bouncer/context/epics/consumer-epic-registry/index.md'),
+    { epicId: 'consumer-epic-registry', blueprintId: null, kind: 'epic' });
+});
+
+test('parsePathIds with mixed numeric epic and slug blueprint → ids are null', () => {
+  assert.deepStrictEqual(parsePathIds('epics/014-numeric/blueprints/registry-gates/tasks.md'),
+    { epicId: null, blueprintId: null, kind: 'tasks' });
+});

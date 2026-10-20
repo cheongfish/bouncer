@@ -4,7 +4,10 @@ const path = require('node:path');
 import layout = require('./layout');
 const {
   CONTEXT_ROOT, normalizeRepoPath, isCanonicalEpicDir, isCanonicalBlueprintDir,
+  isValidBlueprintOrder, listBlueprintOrders,
 } = layout;
+import contextIds = require('./context-ids');
+const { parseContextPath, validateSlug } = contextIds;
 import paths = require('./paths');
 const { parsePathIds, isNumericContextId } = paths;
 import render = require('./render');
@@ -55,14 +58,20 @@ function requireNumericId(id: unknown, label: string): asserts id is string {
   }
 }
 
-/** 정본 epic 디렉터리의 zero-pad 세 자리 id를 꺼낸다. */
-function epicIdFromDir(canonicalEpicDir: string): string {
-  const leaf = canonicalEpicDir.split('/').pop() || '';
-  const m = /^(\d{3})-/.exec(leaf);
-  if (!m) {
-    throw new Error(`cannot derive numeric epic id from ${canonicalEpicDir}`);
+/**
+ * 정본 epic 디렉터리의 key(번호 epic은 세 자리 id, slug epic은 slug)와 형식을 꺼낸다.
+ * 형식은 경로로만 판정한다 — 플래그나 등록부 버전으로 기존 epic의 형식을 바꾸지 않기 위함이다.
+ *
+ * @param {string} canonicalEpicDir - isCanonicalEpicDir를 통과한 epic 디렉터리
+ * @returns {{ key: string, format: 'numeric' | 'slug' }} epic key와 형식
+ * @throws {Error} 경로를 해석하지 못할 때(호출자가 정본 검사를 건너뛴 경우)
+ */
+function epicKeyFromDir(canonicalEpicDir: string): { key: string; format: 'numeric' | 'slug' } {
+  const ids = parseContextPath(canonicalEpicDir);
+  if (!ids) {
+    throw new Error(`cannot derive epic id from ${canonicalEpicDir}`);
   }
-  return m[1];
+  return { key: ids.epicKey, format: ids.format };
 }
 
 /**
@@ -153,27 +162,39 @@ function templateNameFor(base: string, scale: string): string {
  * 새 epic 문서를 만들거나 기존 canonical epic의 파생 색인만 동기화한다.
  * 신규 호출은 유효한 description 없이는 첫 파일도 쓰지 않으며, 재진입 시
  * 전달된 description을 무시하고 기존 frontmatter를 정본으로 사용한다.
+ * `epicId`가 있으면 번호 epic(`epics/<ddd>-<name>/`), 없으면 slug epic(`epics/<name>/`)이다.
+ * 어느 형식으로 만들지는 호출자(CLI)가 등록부 버전으로 정해 넘긴다 — 이 함수는 입력대로만 쓴다.
  *
  * @param {object} options - 저장소·식별자·저술 description
  * @param {string} options.repoRoot - 저장소 루트 절대 경로
- * @param {string} options.epicId - zero-padded epic id
+ * @param {string} [options.epicId] - zero-padded epic id. 생략하면 slug epic
  * @param {string} options.name - epic slug
  * @param {string} options.timestamp - 생성 시각
  * @param {unknown} options.description - 신규 epic의 필수 저술 description
  * @returns {string[]} 생성·갱신한 상대 경로; 완전한 no-op이면 빈 배열
+ * @throws {Error} epicId 형식 오류, slug epic의 name이 slug 규칙을 어길 때, description 거절, 번호 충돌
  */
 function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }: {
   repoRoot: string;
-  epicId: string;
+  epicId?: string;
   name: string;
   timestamp: string;
   description?: unknown;
 }): string[] {
-  requireNumericId(epicId, 'epicId');
-  const epicAbs = path.join(repoRoot, CONTEXT_ROOT, 'epics', `${epicId}-${name}`, 'index.md');
+  const isSlugEpic = epicId === undefined;
+  if (isSlugEpic) {
+    const violation = validateSlug(name);
+    if (violation !== null) throw new Error(`epic name must be a valid slug: ${violation}`);
+  } else {
+    requireNumericId(epicId, 'epicId');
+  }
+  // 아래 메시지·placeholder 판정이 쓰는 이름표: 번호 epic은 id, slug epic은 slug 자체.
+  const epicKey = isSlugEpic ? name : (epicId as string);
+  const dirName = isSlugEpic ? name : `${epicId}-${name}`;
+  const epicAbs = path.join(repoRoot, CONTEXT_ROOT, 'epics', dirName, 'index.md');
   if (!fs.existsSync(epicAbs)
-    && (typeof description !== 'string' || !description.trim() || description.trim() === `Epic ${epicId}`)) {
-    throw new Error(`epic description must be a non-placeholder string for ${epicId}`);
+    && (typeof description !== 'string' || !description.trim() || description.trim() === `Epic ${epicKey}`)) {
+    throw new Error(`epic description must be a non-placeholder string for ${epicKey}`);
   }
   // 규칙 출처는 references/spec-authoring의 "description in English ASCII"다. 문서에만
   // 있으면 한국어로 scaffold한 뒤에야 고치게 되므로 생성 시점에 거부한다. 새 epic 블록
@@ -181,30 +202,33 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }: {
   // 않고, trim 전 원문을 검사해 탭·개행·NBSP 같은 공백류도 잡는다. 위 placeholder
   // 검사 뒤에 두어 기존 거부 문구와 순서를 보존한다.
   if (!fs.existsSync(epicAbs) && /[^\x20-\x7E]/.test(description as string)) {
-    throw new Error(`epic description must be printable ASCII (0x20-0x7E) for ${epicId}`);
+    throw new Error(`epic description must be printable ASCII (0x20-0x7E) for ${epicKey}`);
   }
-  const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
+  const dir = `${CONTEXT_ROOT}/epics/${dirName}`;
   // 번호는 다른 slug로 다시 쓰면 새 디렉터리에 그대로 써지고, 경로에서 id를
   // 파생하는 S5도 통과한다. 그래서 같은 번호를 쓰는 epic이 둘 생겨도 아무
   // 단계에서 걸리지 않는다(024가 그랬다). 같은 이름의 재실행은 종전대로 두고,
-  // 다른 slug가 번호를 재사용하는 경우만 쓰기 전에 거절한다.
-  const conflicting = listEpicDirNames(repoRoot)
-    .filter((entry) => entry.slice(0, 3) === epicId && entry !== `${epicId}-${name}`);
-  if (conflicting.length > 0) {
-    throw new Error(
-      `epic id ${epicId} is already used by ${conflicting.join(', ')} — pick an unused id`,
-    );
+  // 다른 slug가 번호를 재사용하는 경우만 쓰기 전에 거절한다. slug epic은 디렉터리 이름 자체가
+  // 식별자라 같은 이름이면 곧 재진입이고 충돌이 없다.
+  if (!isSlugEpic) {
+    const conflicting = listEpicDirNames(repoRoot)
+      .filter((entry) => entry.slice(0, 3) === epicId && entry !== dirName);
+    if (conflicting.length > 0) {
+      throw new Error(
+        `epic id ${epicId} is already used by ${conflicting.join(', ')} — pick an unused id`,
+      );
+    }
   }
   const rel = `${dir}/index.md`;
   const canonicalEpicAbs = path.join(repoRoot, rel);
   const authoredDescription = typeof description === 'string' ? description.trim() : '';
   const created: string[] = [];
   if (!fs.existsSync(canonicalEpicAbs)) {
-    const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, authoredDescription, rel,
+    const data = bouncerDoc('bouncer.epic', isSlugEpic ? name : `${epicId} ${name}`, authoredDescription, rel,
       ['bouncer', 'epic'], timestamp,
       // supersedes는 epic·blueprint 전용. 빈 배열은 "자리만" — 값은 사람이 채운다.
-      { id: epicId, epic_id: epicId, status: 'draft', supersedes: [] });
-    const body = templateBody('epic.md', { epicId, name });
+      { id: epicKey, epic_id: epicKey, status: 'draft', supersedes: [] });
+    const body = templateBody('epic.md', { epicId: epicKey, name });
     created.push(writeRel(repoRoot, rel, data, body));
   }
   // OKF §6 번들 루트 목록 — scaffold가 소유. 이미 있으면 no-op.
@@ -374,22 +398,31 @@ function scaffoldTask({
  * 루트 `review.md` 하나를 쓰고, 첫 task 묶음은 tasks.md·verification.md만
  * 갖는다. 이미 있는 루트 `review.md`는 덮어쓰지 않는다.
  * 알 수 없는 scale은 첫 파일도 쓰기 전에 거절한다.
+ * 형식은 epicDir 경로로 정한다. 번호 epic은 `blueprintId`(세 자리)로 `<ddd>-<name>/`을 만들고,
+ * slug epic은 `order`(양의 정수, epic 안에서 유일)로 순서를 정해 `<name>/`을 만든다.
+ * 형식에 맞지 않는 입력(`--id`/`--order` 뒤바뀜 포함)은 파일을 쓰기 전에 거절한다.
  *
  * @param {object} options - 저장소·식별자·scale 입력
  * @param {string} options.repoRoot - 저장소 루트 절대 경로
  * @param {string} options.epicDir - canonical epic 상대 경로
- * @param {string} options.blueprintId - zero-padded blueprint 번호
+ * @param {string} [options.blueprintId] - zero-padded blueprint 번호. 번호 epic에서만 쓴다
+ * @param {number} [options.order] - blueprint 순서. slug epic에서만 쓴다
  * @param {string} options.name - blueprint slug
  * @param {string} options.timestamp - 생성 시각
  * @param {string} [options.scale] - light | full. 생략은 full
  * @param {string} [options.area] - 귀속 area slug. 생략하면 frontmatter에 키를 두지 않는다
  * @param {string} [options.attribution] - 귀속 근거 한 줄. 생략하면 키를 두지 않는다
  * @returns {string[]} 생성한 문서의 저장소 상대 경로
+ * @throws {Error} 정본이 아닌 epicDir, 형식과 맞지 않는 id/order, 잘못된 order·slug·scale·area·attribution,
+ *   이미 쓰인 order·blueprint, legacy epic
  */
-function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, scale, area, attribution }: {
+function scaffoldBlueprint({
+  repoRoot, epicDir, blueprintId, order, name, timestamp, scale, area, attribution,
+}: {
   repoRoot: string;
   epicDir: string;
-  blueprintId: string;
+  blueprintId?: string;
+  order?: number;
   name: string;
   timestamp: string;
   scale?: string;
@@ -403,7 +436,37 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
   if (!isCanonicalEpicDir(epicDir)) {
     throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
   }
-  requireNumericId(blueprintId, 'blueprintId');
+  const canonicalEpicDir = normalizeRepoPath(epicDir);
+  const { key: epicId, format } = epicKeyFromDir(canonicalEpicDir);
+  // 형식별 식별자 검사. 번호 epic은 --id(세 자리), slug epic은 --order(양의 정수)만 받고 서로를 거절해
+  // 한쪽 형식의 입력이 다른 형식의 디렉터리를 조용히 만드는 일이 없게 한다.
+  let blueprintKey: string;
+  if (format === 'slug') {
+    if (blueprintId !== undefined) {
+      throw new Error(`slug epic ${epicId} takes --order <n> instead of --id; got id ${JSON.stringify(blueprintId)}`);
+    }
+    if (!isValidBlueprintOrder(order)) {
+      throw new Error(`order must be a positive integer, got ${JSON.stringify(order)}`);
+    }
+    const violation = validateSlug(name);
+    if (violation !== null) throw new Error(`blueprint name must be a valid slug: ${violation}`);
+    const taken = listBlueprintOrders(repoRoot, canonicalEpicDir).find((entry) => entry.order === order);
+    if (taken) {
+      throw new Error(`order ${order} is already used by ${taken.name} in ${epicId}; pick an unused order`);
+    }
+    if (fs.existsSync(path.join(repoRoot, canonicalEpicDir, 'blueprints', name))) {
+      throw new Error(`blueprint already exists: ${canonicalEpicDir}/blueprints/${name}`);
+    }
+    blueprintKey = name;
+  } else {
+    if (order !== undefined) {
+      throw new Error(
+        `numbered epic ${epicId} takes --id <ddd> instead of --order; got order ${JSON.stringify(order)}`,
+      );
+    }
+    requireNumericId(blueprintId, 'blueprintId');
+    blueprintKey = blueprintId;
+  }
   // 알 수 없는 scale은 첫 파일을 쓰기 전에 거절한다 — 반쯤 만들어진
   // blueprint 디렉터리를 남기지 않기 위함.
   const bpScale = requireScale(scale);
@@ -416,21 +479,24 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
     throw new Error('attribution must be a non-empty single line');
   }
   const isLight = bpScale === 'light';
-  const canonicalEpicDir = normalizeRepoPath(epicDir);
-  const epicId = epicIdFromDir(canonicalEpicDir);
   // legacy epic에는 새 blueprint를 만들지 않는다. 등록부를 한 번 읽고 첫 파일을 쓰기 전에 거절한다.
   // 등록부 부재·invalid(형식 위반은 S35 소관)와 미등록 epic은 기존 동작을 유지한다.
+  // 번호 epic은 옛 번호(v1 id, v2 legacy_id)로, slug epic은 slug로 항목을 찾는다.
   const registryRead = readEpicRegistry(repoRoot);
   if (registryRead.status === 'ok'
-    && registryRead.registry.epics.some((e) => e.id === epicId && e.kind === 'legacy')) {
+    && registryRead.registry.epics.some((e) => e.kind === 'legacy'
+      && (format === 'slug' ? e.slug === epicId : (e.legacy_id ?? e.id) === epicId))) {
     throw new Error(
       `legacy epic ${canonicalEpicDir.split('/').pop()} takes no new blueprints; plan under a registry epic`,
     );
   }
-  const dir = `${canonicalEpicDir}/blueprints/${blueprintId}-${name}`;
+  const dir = format === 'slug'
+    ? `${canonicalEpicDir}/blueprints/${name}`
+    : `${canonicalEpicDir}/blueprints/${blueprintKey}-${name}`;
   const created: string[] = [];
+  // 템플릿 자리표시자 <BP-id>는 형식의 blueprint key(번호 또는 slug)로 채운다.
   const body = (templateName: string) => templateBody(
-    templateNameFor(templateName, bpScale), { epicId, blueprintId, name },
+    templateNameFor(templateName, bpScale), { epicId, blueprintId: blueprintKey, name },
   );
 
   const idx = `${dir}/index.md`;
@@ -439,13 +505,17 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
   // status 뒤에 두어 frontmatter 키 순서를 고정한다. 경량 선언은 plan이
   // scale을 light로 바꾸고, 되돌릴 때는 full로 되돌린다(키 삭제 아님).
   created.push(writeRel(repoRoot, idx,
-    bouncerDoc('bouncer.blueprint', `${blueprintId} ${name}`, `Blueprint ${blueprintId}`, idx,
+    bouncerDoc('bouncer.blueprint', format === 'slug' ? name : `${blueprintKey} ${name}`,
+      `Blueprint ${blueprintKey}`, idx,
       ['bouncer', 'blueprint'], timestamp,
       {
-        id: blueprintId,
+        id: blueprintKey,
         epic_id: epicId,
-        blueprint_id: blueprintId,
+        blueprint_id: blueprintKey,
         status: 'draft',
+        // slug 형식은 디렉터리에 번호가 없으므로 순서를 frontmatter가 가진다. status 바로 뒤에 둬
+        // 사람이 읽을 때 식별자 묶음 다음에 순서가 오게 한다.
+        ...(format === 'slug' ? { order } : {}),
         commit_type: DEFAULT_COMMIT_TYPE,
         scale: bpScale,
         // 새 blueprint는 task별 리뷰 대신 루트 review.md 하나다.
@@ -475,12 +545,12 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
   // 이미 있는 루트 리뷰는 사람이 쓴 findings를 지울 수 있어 재작성하지 않는다.
   if (!fs.existsSync(path.join(repoRoot, reviewRel))) {
     created.push(writeRel(repoRoot, reviewRel,
-      bouncerDoc('bouncer.review', `${blueprintId} review`, `Review for ${blueprintId}`, reviewRel,
+      bouncerDoc('bouncer.review', `${blueprintKey} review`, `Review for ${blueprintKey}`, reviewRel,
         ['bouncer', 'review'], timestamp,
         {
-          id: `REVIEW-${blueprintId}`,
+          id: `REVIEW-${blueprintKey}`,
           epic_id: epicId,
-          blueprint_id: blueprintId,
+          blueprint_id: blueprintKey,
           status: 'pending',
           review: { required: true },
         }),

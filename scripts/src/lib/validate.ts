@@ -6,7 +6,9 @@ const path = require('node:path');
 import schema = require('./schema');
 const { detectLegacyFormat, isValidAuthoredLineList } = schema;
 import layout = require('./layout');
-const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
+const { CONTEXT_ROOT, isCanonicalBlueprintDir, blueprintPathProblem } = layout;
+import contextIds = require('./context-ids');
+const { validateSlug } = contextIds;
 import paths = require('./paths');
 const { toPosix } = paths;
 import verification = require('./verification');
@@ -22,7 +24,7 @@ const {
   isBlueprintReviewMode,
 } = validateDocs;
 import validateStructural = require('./validate-structural');
-const { checkStructural } = validateStructural;
+const { checkStructural, checkSlugBlueprint } = validateStructural;
 import config = require('./config');
 const { readVerifyPolicy } = config;
 import validateGates = require('./validate-gates');
@@ -146,6 +148,11 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     next: 'Set blueprint `area` to a lowercase slug and `attribution` to a non-empty single line, '
       + 'or remove the key, then rerun the gate.',
   },
+  {
+    code: 'S37',
+    next: 'Give a slug blueprint a unique positive integer `order`, keep its slug unique in the epic, and use '
+      + 'the same format (numbered or slug) for the epic and blueprint directories, then rerun the gate.',
+  },
 ]);
 
 /**
@@ -220,6 +227,19 @@ function validateBlueprint({
     throw new Error('planDraft cannot be combined with gate');
   }
   if (!isCanonicalBlueprintDir(blueprintDir)) {
+    // slug 체계를 쓰는 epic 아래의 경로 오류(형식 혼용·slug 규칙 위반)는 일반 경로 오류 S10 대신
+    // 어디를 고쳐야 하는지 알려 주는 S37로 보고한다. 그 밖의 비정본 경로는 S10 그대로다.
+    const problem = blueprintPathProblem(blueprintDir);
+    if (problem !== null) {
+      const leaf = toPosix(blueprintDir).split('/').pop() as string;
+      const detail = problem === 'format-mixed'
+        ? 'the epic and blueprint directories must both be numbered (ddd-name) or both be slugs'
+        : `blueprint directory name is not a valid slug: ${validateSlug(leaf)}`;
+      return withGateFailureHints({
+        ok: false,
+        failures: [{ code: 'S37', message: `${problem}: ${detail}`, file: toPosix(blueprintDir) }],
+      });
+    }
     return withGateFailureHints({
       ok: false,
       failures: [{
@@ -437,6 +457,9 @@ function validateBlueprint({
     checkStructural(docs[key], failures, verifyAllowlist);
   }
 
+  // S37: slug 형식 blueprint의 order·slug 판정은 형제 문서를 읽어야 해서 문서 하나만 보는 checkStructural
+  // 밖에서, blueprint index 하나에 대해 한 번만 돈다. 번호 형식 경로는 아무것도 내지 않는다.
+  failures.push(...checkSlugBlueprint({ repoRoot, blueprintDir, blueprintIndex: docs.blueprintIndex }));
   failures.push(...checkEpicIndexConsistency({ repoRoot }));
   // 등록부가 있을 때만 형식을 본다. 부재는 이 BP에서 차단하지 않아 기존 결과가 그대로다.
   failures.push(...epicRegistry.checkEpicRegistry({ repoRoot }));

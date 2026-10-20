@@ -6,6 +6,10 @@ const path = require('node:path');
 import layout = require('./layout');
 const { CONTEXT_ROOT } = layout;
 import frontmatter = require('./frontmatter');
+import contextIds = require('./context-ids');
+const { parseContextPath } = contextIds;
+import paths = require('./paths');
+const { isNumericContextId } = paths;
 
 type StructuralFailure = { code: string; message: string; file: string };
 
@@ -20,13 +24,44 @@ bouncer_schema: "0.1"
 
 `;
 
-// OKF §6: bundle index와 실제 디렉터리 모두 숫자 정본 경로만 비교한다.
+// OKF §6: bundle index와 실제 디렉터리는 정본 경로(번호 `ddd-slug` 또는 slug)만 비교한다.
 // 구형 EPIC- 접두는 목록에서 조용히 빼지 않고 S13으로 거절한다 — 전이 종료 후
 // “구형만 남은 트리”가 빈 dirs로 통과하면 안 된다.
-const EPIC_LINK_RE = /\]\(epics\/(\d{3}-[^/)]+)\/index\.md\)/g;
-const LEGACY_EPIC_LINK_RE = /\]\(epics\/(EPIC-\d{3}-[^/)]+)\/index\.md\)/g;
-const EPIC_DIR_NAME_RE = /^\d{3}-.+$/;
-const LEGACY_EPIC_DIR_NAME_RE = /^EPIC-\d{3}-.+$/;
+const EPIC_LINK_RE = /\]\(epics\/([^/)]+)\/index\.md\)/g;
+
+/**
+ * epic 디렉터리 이름이 정본(번호 `ddd-slug` 또는 slug)인지 본다. 세그먼트 해석은 context-ids 한 곳에 맡긴다.
+ *
+ * @param {string} name - `epics/` 바로 아래 이름
+ * @returns {boolean} 정본 형식이면 true
+ */
+function isCanonicalEpicDirName(name: string): boolean {
+  return parseContextPath(`epics/${name}`) !== null;
+}
+
+/**
+ * 구형 `EPIC-ddd-<이름>` 접두 이름인지 본다. 이 접두는 번호 정본이 아니라 S13 거절 대상이다.
+ * context-ids에 접두 판정 함수가 없고 그 파일은 이 task의 쓰기 범위 밖이라, 새 정규식 대신
+ * paths의 세 자리 판정을 조합해 같은 모양(`EPIC-` + 세 자리 + `-` + 이름)만 읽는다.
+ *
+ * @param {string} name - `epics/` 바로 아래 이름
+ * @returns {boolean} 구형 접두 이름이면 true
+ */
+function isLegacyEpicDirName(name: string): boolean {
+  return name.startsWith('EPIC-') && isNumericContextId(name.slice(5, 8)) && name[8] === '-' && name.length > 9;
+}
+
+/**
+ * epic 디렉터리 이름에서 "placeholder description" 판정에 쓰는 키를 꺼낸다.
+ * 번호 epic은 세 자리 번호, slug epic은 slug 자체다(`Epic <키>`가 scaffold의 자리표시 문구).
+ *
+ * @param {string} dirName - canonical epic 디렉터리 이름
+ * @returns {string} 번호 또는 slug
+ */
+function epicKeyOfDirName(dirName: string): string {
+  const parsed = parseContextPath(`epics/${dirName}`);
+  return parsed ? parsed.epicKey : dirName;
+}
 
 /**
  * canonical epic 문서에서 색인 파생값인 description을 읽는다.
@@ -61,8 +96,7 @@ function readEpicDescription(repoRoot: string, dirName: string): string {
     throw new Error(`epic description must be a non-empty string: ${abs}`);
   }
   const trimmed = description.trim();
-  const id = dirName.slice(0, 3);
-  if (trimmed === `Epic ${id}`) {
+  if (trimmed === `Epic ${epicKeyOfDirName(dirName)}`) {
     throw new Error(`epic description must not be a placeholder: ${abs}`);
   }
   return trimmed;
@@ -98,7 +132,7 @@ function listEpicDirNames(repoRoot: string): string[] {
   }
   const dirs: string[] = [];
   for (const name of names) {
-    if (!EPIC_DIR_NAME_RE.test(name)) continue;
+    if (!isCanonicalEpicDirName(name)) continue;
     try {
       if (fs.statSync(path.join(epicsRoot, name)).isDirectory()) dirs.push(name);
     } catch (_e) {
@@ -121,7 +155,7 @@ function listLegacyEpicDirNames(repoRoot: string): string[] {
   }
   const dirs: string[] = [];
   for (const name of names) {
-    if (!LEGACY_EPIC_DIR_NAME_RE.test(name)) continue;
+    if (!isLegacyEpicDirName(name)) continue;
     try {
       if (fs.statSync(path.join(epicsRoot, name)).isDirectory()) dirs.push(name);
     } catch (_e) {
@@ -132,36 +166,47 @@ function listLegacyEpicDirNames(repoRoot: string): string[] {
   return dirs;
 }
 
-function parseIndexEpicDirs(text: string): Set<string> {
+/** 색인의 epic 링크 대상 이름 중 `keep`이 받아들이는 것만 모은다. */
+function collectIndexEpicDirs(text: string, keep: (name: string) => boolean): Set<string> {
   const listed = new Set<string>();
   EPIC_LINK_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = EPIC_LINK_RE.exec(text)) !== null) {
-    listed.add(m[1]);
+    if (keep(m[1])) listed.add(m[1]);
   }
   return listed;
+}
+
+function parseIndexEpicDirs(text: string): Set<string> {
+  return collectIndexEpicDirs(text, isCanonicalEpicDirName);
 }
 
 function parseLegacyIndexEpicDirs(text: string): Set<string> {
-  const listed = new Set<string>();
-  LEGACY_EPIC_LINK_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = LEGACY_EPIC_LINK_RE.exec(text)) !== null) {
-    listed.add(m[1]);
-  }
-  return listed;
+  return collectIndexEpicDirs(text, isLegacyEpicDirName);
 }
 
+/**
+ * 색인 한 행을 만든다. `epicId`가 있으면 번호 epic(`ddd-slug`), 없으면 slug epic(`slug`)이다 —
+ * 형식은 호출자가 이미 정했고 여기서는 디렉터리 이름과 라벨만 형식에 맞춘다.
+ *
+ * @param {object} options - epic 식별 정보
+ * @param {string} [options.epicId] - zero-padded epic id. slug epic이면 생략
+ * @param {string} options.name - epic slug
+ * @param {unknown} options.description - 비어 있지 않은 non-placeholder 문자열
+ * @returns {string} 색인 행
+ * @throws {Error} description이 비었거나 placeholder일 때
+ */
 function formatEpicIndexLine({ epicId, name, description }: {
-  epicId: string;
+  epicId?: string;
   name: string;
   description?: unknown;
 }): string {
-  const dirName = `${epicId}-${name}`;
-  if (typeof description !== 'string' || !description.trim() || description.trim() === `Epic ${epicId}`) {
+  const dirName = epicId === undefined ? name : `${epicId}-${name}`;
+  if (typeof description !== 'string' || !description.trim() || description.trim() === `Epic ${epicId ?? name}`) {
     throw new Error(`epic description must be a non-placeholder string for ${dirName}`);
   }
-  return `* [${epicId} ${name}](epics/${dirName}/index.md) - ${description.trim()}`;
+  const label = epicId === undefined ? name : `${epicId} ${name}`;
+  return `* [${label}](epics/${dirName}/index.md) - ${description.trim()}`;
 }
 
 /**
@@ -171,23 +216,23 @@ function formatEpicIndexLine({ epicId, name, description }: {
  *
  * @param {object} options - 저장소와 epic 식별 정보
  * @param {string} options.repoRoot - 저장소 루트 절대 경로
- * @param {string} options.epicId - zero-padded epic id
+ * @param {string} [options.epicId] - zero-padded epic id. slug epic이면 생략한다
  * @param {string} options.name - epic slug
  * @param {unknown} options.description - 신규 생성 시 사용할 description
  * @returns {string|null} 변경한 index 경로 또는 no-op이면 null
  */
 function ensureEpicIndexEntry({ repoRoot, epicId, name, description }: {
   repoRoot: string;
-  epicId: string;
+  epicId?: string;
   name: string;
   description?: unknown;
 }): string | null {
   const abs = path.join(repoRoot, CONTEXT_INDEX_REL);
-  const dirName = `${epicId}-${name}`;
+  const dirName = epicId === undefined ? name : `${epicId}-${name}`;
   const epicPath = path.join(repoRoot, CONTEXT_ROOT, 'epics', dirName, 'index.md');
   const canonicalDescription = fs.existsSync(epicPath)
     ? readEpicDescription(repoRoot, dirName)
-    : (typeof description === 'string' && description.trim() && description.trim() !== `Epic ${epicId}`
+    : (typeof description === 'string' && description.trim() && description.trim() !== `Epic ${epicId ?? name}`
       ? description.trim()
       : (() => { throw new Error(`epic description must be provided for ${dirName}`); })());
   let text: string;
