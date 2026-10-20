@@ -15,6 +15,7 @@ const { parseExplainSections } = require('../scripts/lib/validate-sections');
 const { findingFingerprint } = require('../scripts/lib/validate-sections');
 const { TEMPLATES } = require('../scripts/lib/templates');
 const { readDoc } = require('../scripts/lib/frontmatter');
+const { writeEpicRegistry, registerFixtureEpic } = require('./helpers/epic-registry');
 
 /**
  * verification/G13과 같은 키 정렬 canonical JSON.
@@ -1854,8 +1855,11 @@ function contextReviewFileData(status = 'accepted', findings = []) {
 }
 
 function writePlanBlueprint(repo, tasksBody) {
+  registerFixtureEpic(repo, '001-auth');
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
-  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    ...blueprintDoc(), bouncer: { ...blueprintDoc().bouncer, attribution: 'fixture' },
+  });
   writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, planReadyTasks(), tasksBody);
   // 구조 검사는 묶음의 세 문서를 모두 요구한다. plan 게이트만 보는 fixture라도
   // 짝 문서가 없으면 S17에 먼저 걸린다.
@@ -1900,8 +1904,11 @@ function nPaths(n) {
 function writePlanBlueprintWithPaths(repo, pathCount) {
   const tasks = planReadyTasks();
   tasks.bouncer.affected_paths = nPaths(pathCount);
+  registerFixtureEpic(repo, '001-auth');
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
-  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    ...blueprintDoc(), bouncer: { ...blueprintDoc().bouncer, attribution: 'fixture' },
+  });
   writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, tasks, planReadyTasksBody());
   writeDoc(
     repo,
@@ -2004,7 +2011,9 @@ y
 test('plan gate → applies per task document and reports the failing file', () => {
   const repo = mkRepo();
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
-  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    ...blueprintDoc(), bouncer: { ...blueprintDoc().bouncer, attribution: 'fixture' },
+  });
   const indexAbs = path.join(repo, '.bouncer/context/index.md');
   fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
   fs.writeFileSync(
@@ -2140,7 +2149,9 @@ function writeTaskDirExecuteFixture(repo, { verifyCommand = 'node -e "process.ex
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: verifyCommand }));
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
-  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    ...blueprintDoc(), bouncer: { ...blueprintDoc().bouncer, attribution: 'fixture' },
+  });
   writeOkfIndex(repo);
 
   const u1 = `${BP_REL}/tasks/001`;
@@ -3306,7 +3317,9 @@ test('blueprint review mode execute/commit with leftover task review.md → igno
 test('without review_scope, missing task review.md → is still S17 even with root review.md', () => {
   const repo = mkRepo();
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
-  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    ...blueprintDoc(), bouncer: { ...blueprintDoc().bouncer, attribution: 'fixture' },
+  });
   writeDoc(repo, `${BP_REL}/review.md`, {
     type: 'bouncer.review',
     title: 'Root review',
@@ -3990,4 +4003,153 @@ test('G25 escape failure → gets a repository-relative hint', () => {
     { code: 'G25', message: 'Touch path escapes repository: ../x.js', file: 'x.md' },
   ] });
   assert.match(out.failures[0].next, /repository-relative/);
+});
+
+// ---- 등록부 gate (G26–G31) ----
+
+const REGISTRY_GATE_CODES = ['G26', 'G27', 'G28', 'G29', 'G30', 'G31'];
+
+/**
+ * 기존 001-auth fixture를 epicDirName 아래로 옮기고 등록부 gate 입력을 구성한다.
+ * 다른 G/S 코드는 이 테스트의 관심사가 아니므로 결과는 G26–G31만 걸러 비교한다.
+ */
+function registryGateRepo({ epicDirName = '001-auth', bpData = {}, bpStatus = 'approved', registry }) {
+  const repo = mkRepo();
+  writePlanBlueprint(repo, planReadyTasksBody());
+  const epicsRoot = path.join(repo, '.bouncer/context/epics');
+  const from = path.join(epicsRoot, '001-auth');
+  const to = path.join(epicsRoot, epicDirName);
+  if (epicDirName !== '001-auth') fs.renameSync(from, to);
+  const bpRel = `.bouncer/context/epics/${epicDirName}/blueprints/001-login`;
+  const idx = readDoc(path.join(repo, bpRel, 'index.md'));
+  idx.data.bouncer = { ...idx.data.bouncer, status: bpStatus };
+  delete idx.data.bouncer.attribution;
+  Object.assign(idx.data.bouncer, bpData);
+  writeDoc(repo, `${bpRel}/index.md`, idx.data, idx.body);
+  fs.rmSync(path.join(repo, '.bouncer/epics.json'), { force: true });
+  if (registry) writeEpicRegistry(repo, registry);
+  return { repo, bpRel };
+}
+
+function registryCodes(repo, bpRel) {
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: bpRel, gate: 'plan' });
+  return { res, codes: res.failures.map((f) => f.code).filter((c) => REGISTRY_GATE_CODES.includes(c)) };
+}
+
+const reg = (epics, areas = []) => ({
+  profile: 'domain-only', domainEpicLimit: 99, areas, epics,
+});
+const ent = (slug, id, kind = 'common', active = true) => ({ slug, id, kind, active });
+
+test('plan gate with no registry → G26 with bouncer init next', () => {
+  const { repo, bpRel } = registryGateRepo({});
+  const { res, codes } = registryCodes(repo, bpRel);
+  assert.deepStrictEqual(codes, ['G26']);
+  assert.match(res.failures.find((f) => f.code === 'G26').message, /epic registry missing/);
+});
+
+test('plan gate with unregistered epic → only G27', () => {
+  const { repo, bpRel } = registryGateRepo({
+    epicDirName: '050-x', registry: reg([ent('auth', '001')]),
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G27']);
+});
+
+test('plan gate with registry slug differing from path slug → G27', () => {
+  const { repo, bpRel } = registryGateRepo({
+    epicDirName: '050-x', registry: reg([ent('y', '050')]),
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G27']);
+});
+
+test('plan gate with inactive epic → G28', () => {
+  const { repo, bpRel } = registryGateRepo({
+    registry: reg([ent('auth', '001', 'domain', false)]), bpData: { attribution: 'a' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G28']);
+});
+
+test('plan gate with legacy epic and draft blueprint → G29 alongside G2', () => {
+  const { repo, bpRel } = registryGateRepo({
+    registry: reg([ent('auth', '001', 'legacy')]), bpStatus: 'draft',
+  });
+  const { res, codes } = registryCodes(repo, bpRel);
+  assert.deepStrictEqual(codes, ['G29']);
+  assert.ok(res.failures.some((f) => f.code === 'G2'));
+});
+
+test('plan gate with legacy epic and approved blueprint without attribution → no G26–G31', () => {
+  const { repo, bpRel } = registryGateRepo({ registry: reg([ent('auth', '001', 'legacy')]) });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
+});
+
+test('plan gate with features epic and no area → G30', () => {
+  const { repo, bpRel } = registryGateRepo({
+    epicDirName: '031-features', registry: reg([ent('features', '031')], ['ordering']),
+    bpData: { attribution: 'a' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G30']);
+});
+
+test('plan gate with features area outside registry areas → G30', () => {
+  const { repo, bpRel } = registryGateRepo({
+    epicDirName: '031-features', registry: reg([ent('features', '031')], []),
+    bpData: { attribution: 'a', area: 'ordering' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G30']);
+});
+
+test('plan gate with features area inside registry areas → no G26–G31', () => {
+  const { repo, bpRel } = registryGateRepo({
+    epicDirName: '031-features', registry: reg([ent('features', '031')], ['ordering']),
+    bpData: { attribution: 'a', area: 'ordering' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
+});
+
+test('plan gate with features ID 007 and 031 → same verdict', () => {
+  for (const id of ['007', '031']) {
+    const { repo, bpRel } = registryGateRepo({
+      epicDirName: `${id}-features`, registry: reg([ent('features', id)], ['ordering']),
+      bpData: { attribution: 'a', area: 'ordering' },
+    });
+    assert.deepStrictEqual(registryCodes(repo, bpRel).codes, [], `id ${id}`);
+  }
+});
+
+test('plan gate with area on a non-features epic → G30', () => {
+  const { repo, bpRel } = registryGateRepo({
+    epicDirName: '002-core', registry: reg([ent('core', '002')], ['ordering']),
+    bpData: { attribution: 'a', area: 'ordering' },
+  });
+  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G30']);
+});
+
+test('plan gate with non-legacy epic and no attribution → G31', () => {
+  for (const kind of ['common', 'domain']) {
+    const { repo, bpRel } = registryGateRepo({ registry: reg([ent('auth', '001', kind)]) });
+    assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G31'], kind);
+  }
+});
+
+test('plan gate cwd with broken registry elsewhere → result follows repoRoot only', () => {
+  const { repo, bpRel } = registryGateRepo({
+    registry: reg([ent('auth', '001')]), bpData: { attribution: 'a' },
+  });
+  const other = mkRepo();
+  fs.mkdirSync(path.join(other, '.bouncer'));
+  fs.writeFileSync(path.join(other, '.bouncer/epics.json'), '{broken');
+  const before = process.cwd();
+  process.chdir(other);
+  try {
+    assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
+  } finally {
+    process.chdir(before);
+  }
+});
+
+test('plan gate without ctx repoRoot → no registry codes', () => {
+  const failures = [];
+  checkGate('plan', {}, {}, failures);
+  assert.ok(!failures.some((f) => REGISTRY_GATE_CODES.includes(f.code)));
 });

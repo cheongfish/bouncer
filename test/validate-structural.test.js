@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { validateBlueprint, checkStructural, loadBlueprintDocs } = require('../scripts/lib/validate');
+const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -19,6 +20,12 @@ function writeRaw(repo, rel, content) {
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
+  // plan gate가 등록부(G26–G31)를 보므로 blueprint index를 쓸 때 epic 등록과 attribution을 함께 채운다.
+  const bpIndex = /epics\/(\d{3}-[^/]+)\/blueprints\/[^/]+\/index\.md$/.exec(rel);
+  if (bpIndex && data && data.type === 'bouncer.blueprint') {
+    registerFixtureEpic(repo, bpIndex[1]);
+    data = { ...data, bouncer: { attribution: 'fixture', ...data.bouncer } };
+  }
   const yaml = require('js-yaml');
   // 레거시 경로로 쓰인 fixture만 새 묶음으로 접는다. 이미 tasks/<NNN>/tasks.md인
   // 경로는 그대로 둬야 레이아웃 자체를 검증하는 테스트가 왜곡되지 않는다.

@@ -32,4 +32,30 @@ function writeEpicRegistry(repoRoot, overrides = {}) {
   return registry;
 }
 
-module.exports = { writeEpicRegistry, COMMON_SLUGS };
+/**
+ * fixture epic 디렉터리(`<id>-<slug>`)를 등록부에 활성 항목으로 추가한다. 등록부가 없으면
+ * domainEpicLimit 99의 domain-only 등록부를 만든다. plan gate fixture가 G26~G27을 피하는 용도다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} epicDirName - `<id>-<slug>` 형식의 epic 디렉터리 이름
+ * @param {string} [kind] - 항목 kind (기본 domain)
+ * @returns {void}
+ */
+function registerFixtureEpic(repoRoot, epicDirName, kind = 'domain') {
+  const abs = path.join(repoRoot, '.bouncer', 'epics.json');
+  if (!fs.existsSync(abs)) {
+    writeEpicRegistry(repoRoot, { profile: 'domain-only', domainEpicLimit: 99, epics: [] });
+  }
+  const registry = JSON.parse(fs.readFileSync(abs, 'utf8'));
+  const id = epicDirName.slice(0, 3);
+  const slug = epicDirName.slice(4);
+  // 같은 fixture가 여러 문서를 쓰며 반복 등록해도 등록부가 중복 행으로 깨지지 않게 한다.
+  if (registry.epics.some((e) => e.id === id && e.slug === slug)) return;
+  registry.epics.push({
+    slug, id, kind, active: true,
+    approval: { reason: 'fixture', approvedAt: '2026-01-01T00:00:00.000Z' },
+  });
+  fs.writeFileSync(abs, `${JSON.stringify(registry, null, 2)}\n`);
+}
+
+module.exports = { writeEpicRegistry, registerFixtureEpic, COMMON_SLUGS };

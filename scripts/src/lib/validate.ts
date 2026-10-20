@@ -90,6 +90,32 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
       + 'repository-relative and stay inside the repository. Then rerun the plan gate.',
   },
   {
+    code: 'G26',
+    next: 'Run `bouncer init` to register existing epics as legacy, then plan under a registry epic.',
+  },
+  {
+    code: 'G27',
+    next: 'Plan under an epic listed in `.bouncer/epics.json` (matching id and slug), '
+      + 'or add a domain epic with `bouncer epic`.',
+  },
+  {
+    code: 'G28',
+    next: 'Plan under an active registry epic; this epic is marked `active: false`.',
+  },
+  {
+    code: 'G29',
+    next: 'Legacy epics take no new draft blueprints; open the blueprint under a registry epic instead.',
+  },
+  {
+    code: 'G30',
+    next: 'Set `area` to a registered area only on a `features` blueprint, and remove it elsewhere, '
+      + 'then rerun the plan gate.',
+  },
+  {
+    code: 'G31',
+    next: 'Add a non-empty single-line `attribution` to the blueprint frontmatter, then rerun the plan gate.',
+  },
+  {
     code: 'S32',
     match: /must be a YAML list/,
     next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '

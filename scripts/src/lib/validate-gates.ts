@@ -8,6 +8,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 import paths = require('./paths');
+import epicRegistry = require('./epic-registry');
 const { toPosix } = paths;
 import comprehension = require('./comprehension');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = comprehension;
@@ -1086,6 +1087,67 @@ function checkGate(
   return runCheckGate(gate, docs as BlueprintDocs, rels as BlueprintRels, failures as FailureEntry[], ctx || {});
 }
 
+/**
+ * plan gate의 등록부 검사(G26–G31)를 수행한다. 실패는 add로만 쌓고 throw하지 않는다.
+ * invalid 등록부는 S35가 이미 실패시키므로 G 코드를 더하지 않는다. 공통 epic 판정은
+ * 숫자 ID가 아니라 slug(`features`)로만 한다 — 저장소마다 ID가 달라도 같은 결과여야 한다.
+ *
+ * @param {object} opts - 검사 입력
+ * @param {string} opts.repoRoot - 등록부를 읽을 저장소 루트
+ * @param {string|undefined} opts.blueprintDir - blueprint 경로(epic 디렉터리 `<id>-<slug>` 포함)
+ * @param {BlueprintDocs} opts.docs - 로드된 blueprint 문서
+ * @param {unknown} opts.bpStatus - blueprint index 상태
+ * @param {Function} opts.add - 실패 적재 함수
+ * @returns {void}
+ */
+function checkRegistryGates(opts: {
+  repoRoot: string;
+  blueprintDir: string | undefined;
+  docs: BlueprintDocs;
+  bpStatus: unknown;
+  add: (code: string, message: string, fileKey: string) => void;
+}): void {
+  const { repoRoot, blueprintDir, docs, bpStatus, add } = opts;
+  const read = epicRegistry.readEpicRegistry(repoRoot);
+  if (read.status === 'missing') {
+    add('G26', `epic registry missing: ${epicRegistry.REGISTRY_REL}`, 'blueprintIndex');
+    return;
+  }
+  if (read.status !== 'ok' || typeof blueprintDir !== 'string') return;
+  const match = /(?:^|\/)epics\/(\d{3})-([^/]+)(?:\/|$)/.exec(blueprintDir.split(path.sep).join('/'));
+  if (!match) return;
+  const [, epicId, epicSlug] = match;
+  const registry = read.registry;
+  const entry = registry.epics.find((e) => e.id === epicId);
+  if (!entry || entry.slug !== epicSlug) {
+    add('G27', `epic ${epicId}-${epicSlug} is not registered in ${epicRegistry.REGISTRY_REL}`, 'blueprintIndex');
+    return;
+  }
+  if (!entry.active) {
+    add('G28', `epic ${epicId}-${epicSlug} is inactive in the registry`, 'blueprintIndex');
+  }
+  // legacy는 등록부 도입 전 epic이다. 새 draft는 막고, 이미 승인된 blueprint는
+  // attribution·area 없이 통과시켜 기존 작업을 보존한다.
+  if (entry.kind === 'legacy') {
+    if (bpStatus === 'draft') {
+      add('G29', `legacy epic ${epicId}-${epicSlug} cannot take a new draft blueprint`, 'blueprintIndex');
+    }
+    return;
+  }
+  const data = asData(docs.blueprintIndex);
+  const bp = data && data.bouncer ? data.bouncer as Record<string, unknown> : {};
+  if (bp.attribution === undefined) {
+    add('G31', `blueprint attribution is missing for epic ${epicId}-${epicSlug}`, 'blueprintIndex');
+  }
+  if (entry.slug === 'features') {
+    if (typeof bp.area !== 'string' || !registry.areas.includes(bp.area)) {
+      add('G30', 'features blueprint area is missing or not in registry areas', 'blueprintIndex');
+    }
+  } else if (bp.area !== undefined) {
+    add('G30', `blueprint area is only allowed in the features epic, not ${epicSlug}`, 'blueprintIndex');
+  }
+}
+
 function runCheckGate(
   gate: string,
   docs: BlueprintDocs,
@@ -1125,6 +1187,11 @@ function runCheckGate(
       );
     } else if (bpStatus !== 'approved') {
       add('G2', 'blueprint.status != approved', 'blueprintIndex');
+    }
+    // 등록부 검사(G26–G31)는 repoRoot가 있을 때만 한다 — ctx 없는 단위 호출은 디스크가
+    // 없으므로 이전과 같은 결과를 유지한다. 등록부는 gate 실행당 한 번, 넘겨받은 repoRoot에서만 읽는다.
+    if (typeof repoRoot === 'string') {
+      checkRegistryGates({ repoRoot, blueprintDir, docs, bpStatus, add });
     }
     const { isLight, sectionKeys } = planScaleOf(docs);
 

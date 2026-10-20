@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const { runCli } = require('../scripts/lib/cli');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
+const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 const BP_OTHER = '.bouncer/context/epics/002-billing/blueprints/001-invoices';
@@ -23,6 +24,12 @@ function capture(argv) {
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
+  // plan gate가 등록부(G26–G31)를 보므로 blueprint index를 쓸 때 epic 등록과 attribution을 함께 채운다.
+  const bpIndex = /epics\/(\d{3}-[^/]+)\/blueprints\/[^/]+\/index\.md$/.exec(rel);
+  if (bpIndex && data && data.type === 'bouncer.blueprint') {
+    registerFixtureEpic(repo, bpIndex[1]);
+    data = { ...data, bouncer: { attribution: 'fixture', ...data.bouncer } };
+  }
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
