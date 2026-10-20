@@ -2,7 +2,7 @@
 type: bouncer.explain
 title: 001 explain
 description: Explain for 001
-resource: .bouncer/context/epics/081-cli-deterministic-procedures/blueprints/001-role-projection-print-dispatch-review-record/explain.md
+resource: .bouncer/context/epics/081-cli-deterministic-procedures/blueprints/001-role-projection-print-dispatch-review/explain.md
 tags:
   - bouncer
   - explain

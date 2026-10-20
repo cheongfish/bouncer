@@ -2,7 +2,7 @@
 type: bouncer.blueprint
 title: Distill 제거와 컨텍스트 검색·CI 복구 전환
 description: Removes Distill runtime dependencies and introduces ranked context retrieval with bounded terminal CI recovery.
-resource: .bouncer/context/epics/068-context-runtime-rearchitecture/blueprints/001-distill-removal-context-search-ci-recovery/index.md
+resource: .bouncer/context/epics/068-context-runtime-rearchitecture/blueprints/001-distill-removal-search-ci-recovery/index.md
 tags:
   - bouncer
   - blueprint

@@ -2,7 +2,7 @@
 type: bouncer.blueprint
 title: 역할 projection·print 디스패치·리뷰 기록 CLI
 description: Add intent sections, dispatch print, and review record commands and point execution guidance at them
-resource: .bouncer/context/epics/081-cli-deterministic-procedures/blueprints/001-role-projection-print-dispatch-review-record/index.md
+resource: .bouncer/context/epics/081-cli-deterministic-procedures/blueprints/001-role-projection-print-dispatch-review/index.md
 tags:
   - bouncer
   - blueprint

@@ -2,7 +2,7 @@
 type: bouncer.explain
 title: 001 explain
 description: Explain for 001
-resource: .bouncer/context/epics/068-context-runtime-rearchitecture/blueprints/001-distill-removal-context-search-ci-recovery/explain.md
+resource: .bouncer/context/epics/068-context-runtime-rearchitecture/blueprints/001-distill-removal-search-ci-recovery/explain.md
 tags:
   - bouncer
   - explain
