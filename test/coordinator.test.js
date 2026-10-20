@@ -219,6 +219,12 @@ test('coordinator reason file set → includes coordinator.ts first', () => {
   assert.strictEqual(coordinatorReasonFiles()[0], path.join(COORDINATOR_SRC_DIR, 'coordinator.ts'));
 });
 
+test('integration-source-mutated hint → next names main pre-commit and coordinate repair', () => {
+  const hinted = withCoordinateFailureHints({ ok: false, reason: 'integration-source-mutated' });
+  assert.match(hinted.next, /\bmain\b/);
+  assert.ok(hinted.next.includes('`bouncer coordinate repair`'));
+});
+
 test('every coordinator reason literal exists → COORDINATE_FAILURE_HINTS covers each of them', () => {
   const reasons = reasonLiteralsOf(coordinatorReasonFiles());
   assert.ok(reasons.length > 0);
@@ -5549,7 +5555,7 @@ function multiLevelTerminalFailedDrive(prefix) {
 
 const readLedgerFile = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 
-test('resume owner in a multi-level DAG → resets every transitive downstream task', () => {
+test('resume owner in a multi-level DAG → keeps integrated downstream commit tasks and reopens only the verification', () => {
   const drive = multiLevelTerminalFailedDrive('bouncer-resume-multi-level-');
   const resumed = coordinate({
     command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '004',
@@ -5558,7 +5564,9 @@ test('resume owner in a multi-level DAG → resets every transitive downstream t
   });
   assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
   const after = readLedgerFile(drive.ledgerFile);
-  assert.deepStrictEqual(after.tasks.map((item) => item.status), ['pending', 'pending', 'pending', 'pending']);
+  // 하위 commit task(002, 003)는 integrated와 sha를 유지하고 terminal verification(004)만 다시 열린다.
+  assert.deepStrictEqual(after.tasks.map((item) => item.status), ['pending', 'integrated', 'integrated', 'pending']);
+  assert.deepStrictEqual(resumed.reset_downstream, ['004']);
   assert.deepStrictEqual(after.tasks.slice(1, 3).map((item) => item.depends_on), [['001'], ['002']]);
   const prepared = coordinate({ command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));

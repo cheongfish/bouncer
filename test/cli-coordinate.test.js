@@ -1432,6 +1432,35 @@ test('CLI coordinate repair --resume-task → reassigns the existing task throug
   });
 });
 
+test('CLI coordinate repair --resume-task with an integrated middle commit task → keeps it integrated and resets only the terminal', () => {
+  const drive = terminalFailedCliDrive();
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  // 001 -> 002(통합 완료 commit) -> 003(terminal) 모양으로 시드한다.
+  const before002Sha = 'a'.repeat(40);
+  const terminal = ledger.tasks[1];
+  terminal.id = '003';
+  terminal.depends_on = ['002'];
+  ledger.tasks.splice(1, 0, {
+    id: '002', depends_on: ['001'], dependency_gate: 'integrated', parallel_safe: false,
+    execution_kind: 'commit', status: 'integrated', sha: before002Sha, affected_paths: [], exclusive_resources: [],
+  });
+  ledger.terminalFailure.task = '003';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const { code, buf } = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo, '--task', '003', '--failure-command', 'npm test',
+    '--summary', 'cause judged', '--decision', 'owned by the login task',
+    '--paths', 'src/auth/login.js', '--resume-task', '001',
+  ]);
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const result = JSON.parse(buf.out);
+  const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(after.tasks.map((t) => [t.id, t.status]),
+    [['001', 'pending'], ['002', 'integrated'], ['003', 'pending']]);
+  assert.strictEqual(after.tasks[1].sha, before002Sha);
+  assert.strictEqual(after.tasks[1].resumed, undefined);
+  assert.deepStrictEqual(result.reset_downstream, ['003']);
+});
+
 test('CLI coordinate repair --disposition outside_scope → records the classification and keeps the failure', () => {
   const drive = terminalFailedCliDrive();
   const { code, buf } = coordinateCli(drive.integration, 'repair',

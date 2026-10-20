@@ -784,6 +784,31 @@ function blueprintNext(ctx: {
 }
 
 /**
+ * 현재 attempt의 implementer 보고 파일이 이미 있는지 읽기만으로 판정한다.
+ * 파일이 있고 비어 있지 않으며 `## Brief revision`의 `attempt:` 줄이 현재 attempt와 같을 때만 참이다.
+ * 기준(HEAD·porcelain)은 dirty 경로 목록이라 내용 변화를 못 보므로, rework 재시도가 같은
+ * 기준에서 끝나도 implement가 반복되지 않게 하는 보조 신호다.
+ *
+ * @param {string} workerPath - 보고 파일 경로 계산에 쓰는 worker cwd
+ * @param {string} task - task 번호(3자리)
+ * @param {number} attempt - 원장 dispatch의 현재 attempt
+ * @returns {boolean} 현재 attempt 보고가 있으면 true. 없음·빈 파일·읽기 오류·attempt 불일치는 false
+ */
+function currentAttemptReportExists(workerPath: string, task: string, attempt: number): boolean {
+  let text: string;
+  try {
+    text = fs.readFileSync(coordinator.reportPathFor(workerPath, task, attempt), 'utf8');
+  } catch (_error) {
+    // 읽기 오류는 모두 "보고 없음"으로 접는다. 판정을 못 하면 implement로 남는 쪽이
+    // 보수적이고(보고를 건너뛰어 미완성 구현을 verify로 넘기지 않는다), next는 읽기 전용이라
+    // 오류를 숨겨도 상태가 바뀌지 않는다.
+    return false;
+  }
+  const match = /^attempt:\s*(\d+)\s*$/m.exec(text);
+  return Boolean(match) && Number(match![1]) === attempt;
+}
+
+/**
  * task 범위. verification --task는 즉시 거절하고, prepared가 아닌 상태는 none이다.
  * reported `scope_revision`은 brief hash가 보고 때와 같으면 revise, 다르면
  * 개정이 반영된 것으로 보고 재디스패치한다. 판단·worker 행동에는
@@ -898,7 +923,9 @@ function taskNext(ctx: {
 
   const workerHead = git(exec, cwd, ['rev-parse', 'HEAD']);
   const porcelainText = initialWorktreeState(exec, cwd);
-  if (workerHead === item.dispatch.base_head
+  // 현재 attempt 보고가 있으면 기준이 같아도 구현이 끝난 것으로 보고 아래 판정으로 내려간다.
+  const reportDone = currentAttemptReportExists(cwd, task, item.dispatch.attempt);
+  if (!reportDone && workerHead === item.dispatch.base_head
     && porcelainText === item.dispatch.initial_worktree_state) {
     // dispatch metadata만 싣는다. 직전 보고는 attachJudgeContext가 payload.report로 붙인다
     // (옛 previous_outcome 키는 쓰지 않는다). light는 run 세션이 같은

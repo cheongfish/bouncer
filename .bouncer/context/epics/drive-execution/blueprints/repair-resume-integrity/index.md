@@ -15,7 +15,7 @@ bouncer:
   id: repair-resume-integrity
   epic_id: drive-execution
   blueprint_id: repair-resume-integrity
-  status: approved
+  status: closed
   order: 1
   commit_type: fix
   scale: full

@@ -1293,6 +1293,45 @@ test('judge payload에서 rework 뒤 implement → previous_outcome 없이 repor
   assert.strictEqual(out.payload.attempt, 2);
 });
 
+/** rework 보고 뒤 attempt 2를 다시 dispatch한 drive를 만든다. 기준(HEAD·porcelain)은 dispatch 직후와 같다. */
+function reworkRedispatchedDrive(prefix, blueprint) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  const first = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  writeWorkerReport(drive.worker, '001', first.metadata.attempt, first.metadata.task_brief_hash);
+  coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: first.metadata.attempt, taskBriefHash: first.metadata.task_brief_hash,
+    outcome: 'rework', summary: 'needs another pass',
+  });
+  const second = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  return { drive, second };
+}
+
+test('rework 뒤 재dispatch에서 현재 attempt 보고가 있고 기준이 같음 → implement가 아닌 verify', () => {
+  const blueprint = '.bouncer/context/epics/114-n/blueprints/001-report-skip-imp';
+  const { drive, second } = reworkRedispatchedDrive('bouncer-next-report-skip-', blueprint);
+  assert.strictEqual(second.metadata.attempt, 2);
+  writeWorkerReport(drive.worker, '001', 2, second.metadata.task_brief_hash);
+  const out = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.notStrictEqual(out.action, 'implement');
+  assert.strictEqual(out.action, 'verify');
+});
+
+test('rework 뒤 재dispatch에서 보고 파일이 attempt 1 번호임 → implement를 유지함', () => {
+  const blueprint = '.bouncer/context/epics/114-n/blueprints/002-report-stale-imp';
+  const { drive, second } = reworkRedispatchedDrive('bouncer-next-report-stale-', blueprint);
+  // <task>-2.md 안의 attempt 줄이 1이면 이전 attempt의 잔재라서 건너뛰면 안 된다.
+  writeWorkerReport(drive.worker, '001', 2, second.metadata.task_brief_hash, {
+    revision: `attempt: 1\ntask_brief_hash: ${second.metadata.task_brief_hash}`,
+  });
+  const out = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(out.action, 'implement');
+});
+
 test('judge payload에서 first dispatch와 first implement → report key를 생략함', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/036-judge-first';
   const drive = preparedCommitDrive('bouncer-next-judge-first-', blueprint);

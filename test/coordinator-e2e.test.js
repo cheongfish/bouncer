@@ -1546,10 +1546,12 @@ test('light single-task drive → worker worktree 없이 integration에서 prepa
  * 001(src/alpha.js)이 integrate된 뒤 terminal 002의 CI가 실패한 실제 git drive를 만든다.
  * 실패 결과에 evidenceId를 실어 범위 밖 분류가 묶일 원본 identity를 갖게 한다.
  */
-function terminalFailedE2eDrive(epicNo) {
+function terminalFailedE2eDrive(epicNo, { middle = false } = {}) {
+  // middle이면 001 -> 002(src/beta.js commit) -> 003(terminal) 모양으로 만든다.
+  const terminalId = middle ? '003' : '002';
   const epic = `.bouncer/context/epics/${epicNo}-resume`;
   const blueprint = `${epic}/blueprints/001-drive`;
-  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n', 'src/beta.js': 'beta base\n' });
   git(repo, ['add', '-A']);
   git(repo, ['commit', '-m', 'source']);
   const ids = { epic_id: epicNo, blueprint_id: '001' };
@@ -1565,11 +1567,18 @@ function terminalFailedE2eDrive(epicNo) {
     id: 'TASKS-001', ...ids, status: 'ready', depends_on: [], parallel_safe: false,
     dependency_gate: 'integrated', affected_paths: ['src/alpha.js'],
   }, body);
-  writePlanDoc(repo, `${blueprint}/tasks/002/tasks.md`, 'bouncer.tasks', {
-    id: 'TASKS-002', ...ids, status: 'ready', execution_kind: 'verification', depends_on: ['TASKS-001'],
+  if (middle) {
+    writePlanDoc(repo, `${blueprint}/tasks/002/tasks.md`, 'bouncer.tasks', {
+      id: 'TASKS-002', ...ids, status: 'ready', depends_on: ['TASKS-001'],
+      parallel_safe: false, dependency_gate: 'integrated', affected_paths: ['src/beta.js'],
+    }, body.replace('src/alpha.js', 'src/beta.js'));
+  }
+  writePlanDoc(repo, `${blueprint}/tasks/${terminalId}/tasks.md`, 'bouncer.tasks', {
+    id: `TASKS-${terminalId}`, ...ids, status: 'ready', execution_kind: 'verification',
+    depends_on: [middle ? 'TASKS-002' : 'TASKS-001'],
     parallel_safe: false, dependency_gate: 'integrated', affected_paths: [], verify: 'node --test',
   }, body);
-  for (const id of ['001', '002']) {
+  for (const id of middle ? ['001', '002', '003'] : ['001', '002']) {
     writePlanDoc(repo, `${blueprint}/tasks/${id}/verification.md`, 'bouncer.verification',
       { id: `VERIFY-${id}`, ...ids, status: 'pending' }, '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n');
     writePlanDoc(repo, `${blueprint}/tasks/${id}/review.md`, 'bouncer.review',
@@ -1589,8 +1598,17 @@ function terminalFailedE2eDrive(epicNo) {
     command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task, deps: { runVerification },
   });
   assert.strictEqual(integrate('001', verifyOk).ok, true);
-  assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
-  const failed = integrate('002', () => ({
+  const second = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(second.ok, true);
+  if (middle) {
+    const betaWorker = second.tasks.find((t) => t.id === '002').workerPath;
+    const betaSha = commitInWorker(betaWorker, 'src/beta.js', 'changed by 002\n', 'feat: task 002');
+    writeTerminalEvidence(betaWorker, blueprint, '002', betaSha);
+    assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, betaWorker, '002').ok, true);
+    assert.strictEqual(integrate('002', verifyOk).ok, true);
+    assert.strictEqual(coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath }).ok, true);
+  }
+  const failed = integrate(terminalId, () => ({
     ok: false, command: 'node --test', exitCode: 1, evidenceId: 'f'.repeat(64),
   }));
   assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
@@ -1639,6 +1657,40 @@ test('terminal CI failure resumed on the existing task → rework, reintegration
   const noGit = { changedFiles: () => [], untrackedFiles: () => [], stage: () => {}, commit: () => {} };
   const dry = finalize({ repoRoot: integrationPath, blueprintDir: blueprint, git: noGit });
   assert.notStrictEqual(dry.reason, 'coordinator-evidence-mismatch', JSON.stringify(dry));
+});
+
+test('terminal CI failure resumed past an integrated middle task → middle stays integrated and only the terminal reopens', () => {
+  const drive = terminalFailedE2eDrive('018', { middle: true });
+  const { repo, blueprint, integrationPath } = drive;
+  const ledgerFile = path.join(integrationPath, '.bouncer/runtime/coordinator.json');
+  const before002 = loadLedger(ledgerFile).tasks.find((t) => t.id === '002');
+  const resumed = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: integrationPath, task: '003', resumeTask: '001',
+    failureCommand: 'node --test', summary: 'alpha regression', paths: ['src/alpha.js'],
+    decision: 'task 001 owns the failing alpha code',
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  const ledgerAfterRepair = loadLedger(ledgerFile);
+  assert.strictEqual(ledgerAfterRepair.tasks.find((t) => t.id === '002').status, 'integrated');
+  assert.strictEqual(ledgerAfterRepair.tasks.find((t) => t.id === '002').sha, before002.sha);
+
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.ready, ['001']);
+  const task = prepared.tasks.find((t) => t.id === '001');
+  const fixSha = commitInWorker(task.workerPath, 'src/alpha.js', 'repaired by 001\n', 'fix: rework 001');
+  writeTerminalEvidence(task.workerPath, blueprint, '001', fixSha);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, task.workerPath, '001').ok, true);
+  assert.strictEqual(drive.integrate('001', drive.verifyOk).ok, true);
+
+  const next = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(next.ok, true, JSON.stringify(next));
+  const readyAfterReintegrate = next.ready;
+  assert.deepStrictEqual(readyAfterReintegrate, ['003']);
+  assert.strictEqual(drive.integrate('003', drive.verifyOk).ok, true);
+  const after = loadLedger(ledgerFile);
+  assert.deepStrictEqual(after.tasks.map((t) => [t.id, t.status]),
+    [['001', 'integrated'], ['002', 'integrated'], ['003', 'integrated']]);
 });
 
 test('terminal CI failure classified outside_scope → next proceeds to done and finalize reports the failure without calling it verified', () => {
