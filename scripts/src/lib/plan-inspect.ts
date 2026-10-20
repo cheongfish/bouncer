@@ -95,10 +95,10 @@ type InspectRegistry =
     status: 'ok';
     profile: string;
     epics: {
-      slug: string; id: string; dir: string | null; kind: 'common' | 'domain';
+      slug: string; id: string | null; dir: string | null; kind: 'common' | 'domain';
       description: string | null; include: string; exclude: string;
     }[];
-    legacy: { slug: string; id: string; dir: string }[];
+    legacy: { slug: string; id: string | null; dir: string }[];
     areas: string[];
     promotions: { area: string; count: number }[];
   };
@@ -181,9 +181,9 @@ function countAreaPromotions(
  * 형식 위반도 실패로 올리지 않고 `invalid`로 접어 plan이 안내를 이어가게 한다.
  *
  * @param {string} repoRoot - 저장소 루트 절대 경로
- * @param {string[]} dirNames - epics 디렉터리 직계 이름(`<id>-<slug>`)
+ * @param {string[]} dirNames - epics 디렉터리 직계 이름(v1 `<id>-<slug>`, v2 `<slug>`)
  * @returns {{ registry: InspectRegistry, nextEpicId: string | null }} 등록부 요약과
- *   승인됐으나 디렉터리가 없는 도메인 epic 중 가장 작은 id(없거나 등록부 불량이면 null)
+ *   승인됐으나 디렉터리가 없는 도메인 epic 중 가장 작은 id(없거나 등록부 불량이면 null, v2는 번호가 없어 항상 null)
  */
 function summarizeRegistry(repoRoot: string, dirNames: string[]): {
   registry: InspectRegistry;
@@ -208,31 +208,40 @@ function summarizeRegistry(repoRoot: string, dirNames: string[]): {
     };
   }
   const { registry } = read;
-  const dirOf = (id: string, slug: string): string | null => (
-    dirNames.includes(`${id}-${slug}`) ? `${EPICS_REL}/${id}-${slug}` : null
+  // v1은 `<id>-<slug>` 디렉터리와 `id`를, v2는 `<slug>` 디렉터리와 선택 `legacy_id`를 쓴다.
+  // 버전은 등록부 `version`으로만 가른다(디렉터리 이름 모양으로 추측하지 않는다).
+  const isV2 = registry.version === 2;
+  const idOf = (entry: { id: string; legacy_id?: string }): string | null => (
+    isV2 ? entry.legacy_id ?? null : entry.id
   );
+  const dirOf = (entry: { id: string; slug: string }): string | null => {
+    const name = isV2 ? entry.slug : `${entry.id}-${entry.slug}`;
+    return dirNames.includes(name) ? `${EPICS_REL}/${name}` : null;
+  };
   const epics: Extract<InspectRegistry, { status: 'ok' }>['epics'] = [];
-  const legacy: { slug: string; id: string; dir: string }[] = [];
+  const legacy: { slug: string; id: string | null; dir: string }[] = [];
   const pendingDomainIds: string[] = [];
   for (const entry of registry.epics) {
     if (!entry.active) continue;
-    const dir = dirOf(entry.id, entry.slug);
+    const dir = dirOf(entry);
+    const id = idOf(entry);
     if (entry.kind === 'legacy') {
       // legacy는 디렉터리가 있어야 의미가 있다. 없는 항목은 후보로 내지 않는다.
-      if (dir !== null) legacy.push({ slug: entry.slug, id: entry.id, dir });
+      if (dir !== null) legacy.push({ slug: entry.slug, id, dir });
       continue;
     }
     if (entry.kind === 'domain') {
-      if (dir === null) pendingDomainIds.push(entry.id);
+      // v2 slug epic은 번호가 없어 다음 번호 후보에 넣지 않는다.
+      if (dir === null && !isV2) pendingDomainIds.push(entry.id);
       epics.push({
-        slug: entry.slug, id: entry.id, dir, kind: 'domain',
+        slug: entry.slug, id, dir, kind: 'domain',
         description: null, include: entry.approval ? entry.approval.reason : '', exclude: '',
       });
       continue;
     }
     const common = COMMON_EPICS.find((c) => c.slug === entry.slug);
     epics.push({
-      slug: entry.slug, id: entry.id, dir, kind: 'common',
+      slug: entry.slug, id, dir, kind: 'common',
       description: common ? common.description : null,
       include: common ? common.include : '',
       exclude: common ? common.exclude : '',
