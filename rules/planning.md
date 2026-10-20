@@ -79,9 +79,8 @@ What shrinks (five things only):
    way when one is present — the light template ships none, so a light plan
    normally gives it nothing to judge.
 3. **Epic allocation** — do not open a new epic. Stack the blueprint under the
-   shared **maintenance epic** (slug `maintenance`). If that epic is missing,
-   create it once with normal numbering, then keep stacking blueprints under it.
-   Never close that epic.
+   registry epic by attribution, chosen with the rules in `## Epic attribution`
+   below. Never create or pick a shared catch-all epic for light work.
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
    by `skills/bouncer-run/references/agent-dispatch.md`. A light ledger
    `/bouncer-run` drive follows
@@ -154,3 +153,30 @@ Blueprint and task documents.
 Epic and blueprint directories stay under `.bouncer/context/epics/` as
 `ddd-slug` (for example `014-auth` / `001-signup`). New scaffolds never use
 `EPIC-` or `BP-` prefixes on directory names.
+
+## Epic attribution
+
+Every blueprint, full or light, joins one epic from the registry
+(`registry.epics` in `bouncer plan inspect`). Apply these rules in order and
+stop at the first that holds:
+
+1. When the acceptance criteria center on the behavior of one domain feature,
+   attribute to that domain epic if it exists, otherwise to `features` with an
+   `area`. This holds even when the change edits common-layer files.
+2. When it changes authentication, authorization, or the account model itself,
+   attribute to `identity-access`.
+3. When it changes the shared user-facing frame, design system,
+   internationalization, or accessibility, attribute to `interface`.
+4. When it changes a data foundation shared by two or more features, attribute
+   to `data`; an external boundary goes to `integration`; a shared module or
+   architecture boundary goes to `core`.
+5. When product behavior stays the same and only build, deploy, or environment
+   changes, attribute to `foundation`.
+6. When it changes testing, observability, or operations tooling itself,
+   attribute to `quality-ops`.
+7. When none applies, create no epic and report to the user.
+
+When a change touches several epics, pick the one the acceptance criteria center
+on as the primary epic. Security, performance, bug-fix, and refactoring work
+attributes by the target feature. Inactive epics and `legacy` epics are never
+candidates.

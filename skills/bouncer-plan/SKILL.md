@@ -8,7 +8,7 @@ description: "Use only when the user explicitly asks /bouncer-plan; it authors e
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
-Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
+Re-entrant planning: add a blueprint to a registry epic chosen by the attribution rules.
 Follow this sequence exactly.
 
 If the user supplied a description with this invocation, treat it as the request;
@@ -92,31 +92,40 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    are not scratch work: they become the numbered `## Success criteria` list
    in the epic body in step 3.
 
-2. **Scaffold.** IDs are auto-allocated from `plan inspect`; to change one, the user replies with the new id and you use it. Recommended ids come from the preflight `bouncer plan inspect`
-   payload — `nextEpicId`, and when `--epic-dir` was passed,
-   `epic.nextBlueprintId`. These are suggestions only; the user may override
-   them. If adding to an existing epic and preflight omitted `--epic-dir`,
-   re-run `bouncer plan inspect --epic-dir <dir>` for `nextBlueprintId`.
+2. **Scaffold.** IDs are auto-allocated from `plan inspect`; to change one, the user replies with the new id and you use it.
+   **Registry.** Read `registry` from the preflight `bouncer plan inspect` payload first:
+   - `registry.status` `missing`: stop and tell the user to run `bouncer init`.
+   - `registry.status` `invalid`: stop and show its `code`, `message`, and `next`.
+   - `registry.status` `ok`: pick exactly one epic from `registry.epics` using each
+     epic's `include`/`exclude` rules and the `## Epic attribution` rules in
+     `${BOUNCER_ROOT}/rules/planning.md`, and show the reasoning in the Discover
+     confirmation. For `features`, also pick an `area` from `registry.areas`.
+     When no epic fits, create no epic and report to the user. When no `area`
+     fits, only propose registering a new `area`.
+   Scaffold an epic in two cases only. (1) The chosen registry epic has `dir` `null`:
+   run `scaffold epic --id <id> --name <slug> --description <description>` with the
+   epic's `description` for a common epic, or the English ASCII sentence confirmed in
+   discovery for a domain epic. (2) Inspect returned `nextEpicId` (an approved domain
+   epic not yet created): scaffold it with that id. Then run
+   `bouncer plan inspect --epic-dir <dir>` and use `epic.nextBlueprintId`
+   as the suggested blueprint id. Suggestions only; the user may override them.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
    **Light path.** **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
    ID in the Re-ground and say it can be changed by replying with a new id.
    Recommend light only when one commit task is expected and no public interface, protected path, or cross-module state change is involved; otherwise recommend full.
    Base that recommendation only on the discovery handoff; the user still declares light or full.
-   On a light declaration, create no new epic; allocate only a
-   blueprint id under the epic whose slug is `maintenance` (`maintenanceEpic`
-   from inspect), creating that epic once with the next free `\d{3}` id if
-   `maintenanceEpic` is `null` (never assume a number such as
-   `024-maintenance`). Do not close the shared `maintenance` epic — a locked epic
-   (after epic 022) takes no more blueprints. Without a declaration, use the
-   normal path for epic/blueprint ids.
+   On a light declaration, create no new epic beyond case (1) or (2) above; pick the
+   target epic with the same attribution and allocate only a blueprint id under it.
+   Without a declaration, use the normal path for epic/blueprint ids.
    Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
    bouncer scaffold epic --id <ddd> --name <slug> \
-     --description "<one English ASCII sentence confirmed in discovery>"
+     --description "<description>"
    bouncer scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
    ```
+   Run the `scaffold epic` command only in the two cases above.
    **Light scaffold.** When this step received a light declaration, add
    `--scale light` to the blueprint command. That creates only four documents:
    blueprint `index.md`, `tasks/001/{tasks,verification}.md`, and root

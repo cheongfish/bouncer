@@ -35,7 +35,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-LIGHT-SHRINK-CLOSED | `## Lightweight cycle` / `five things only` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-DOC-SET | `## Lightweight cycle` / `100 lines or fewer` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · scripts/lib/templates.js · scripts/lib/scaffold.js · docs/workflow.md · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-G10 | `## Lightweight cycle` / `requires only` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · docs/workflow.md · test/lightweight-cycle.test.js | BP2 |
-| GOV-LIGHT-MAINTENANCE-EPIC | `## Lightweight cycle` / `maintenance epic` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
+| GOV-LIGHT-EPIC-ATTRIBUTION | `## Lightweight cycle` / `registry epic by attribution` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-INLINE-DISPATCH | `## Lightweight and implement dispatch` / `named agents are unavailable` | `skills/bouncer-run/references/agent-dispatch.md` | skill | run · test/workflow-safety-canon.test.js · test/lightweight-cycle.test.js | BP3 |
 | GOV-LIGHT-QUIZ | `## Steps` / `1로 고정한다(1문항)` | `references/explain-diff/index.md` | skill | finalize · references/explain-diff/index.md · test/lightweight-cycle.test.js | BP3 |
 | GOV-LIGHT-UNCHANGED-DOCS | `## Lightweight cycle` / `are still authored` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
@@ -154,7 +154,7 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | GOV-LIGHT-SHRINK-CLOSED | planning 43 |
 | GOV-LIGHT-DOC-SET | planning 45-49 |
 | GOV-LIGHT-G10 | planning 50-57 |
-| GOV-LIGHT-MAINTENANCE-EPIC | planning 58-61 |
+| GOV-LIGHT-EPIC-ATTRIBUTION | planning 58-61 |
 | GOV-LIGHT-INLINE-DISPATCH | dispatch 23-32 |
 | GOV-LIGHT-QUIZ | explain-diff 52-55 |
 | GOV-LIGHT-UNCHANGED-DOCS | planning 69-70 |

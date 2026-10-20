@@ -16,6 +16,12 @@
   깨끗한 tree의 낡은 stamp면 `worker-commit-stamp-mismatch` blocked를 낸다. `revise`·`repair`의 추적 경로
   검사는 literal pathspec으로 pathspec magic을 막는다.
 
+### Changed
+
+- **plan 등록부 epic 귀속 (EPIC 114 BP 002)** — `/bouncer-plan`이 `plan inspect`의 `registry`로 epic을 고르고,
+  `rules/planning.md`에 `Epic attribution` 규칙을 둔다. 경량 선언도 같은 귀속을 따르며 공유 `maintenance` epic
+  안내는 없앴다. `bouncer-finalize`의 후속 작업 안내도 귀속 규칙이 정한 등록부 epic을 가리킨다.
+
 ### Added
 
 - **epic 등록부 기반 (EPIC 114 BP 001)** — `bouncer init`이 `.bouncer/epics.json`이 없을 때 프로필 등록부를
