@@ -66,3 +66,4 @@ bouncer_schema: '0.1'
 * [109 implementer-navigation](epics/109-implementer-navigation/index.md) - Delivers task scoped source locations to implementers from the shared intent bundle.
 * [111 context-ontology](epics/111-context-ontology/index.md) - Tracks deterministic context ontology retrieval and CLI delivery with source evidence and remaining verification work.
 * [112 workflow-transition-guards](epics/112-workflow-transition-guards/index.md) - Reject invalid Bouncer workflow state transitions in the CLI before mutation and align skill contracts.
+* [113 partial-finalize-recovery](epics/113-partial-finalize-recovery/index.md) - Adds partial finalization and owner task recovery for failed Bouncer drives.
