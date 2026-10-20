@@ -119,7 +119,8 @@ main plan copies after a closed drive.
 
 ```sh
 bouncer scaffold epic --id <ddd> --name <slug> --description <text>
-bouncer scaffold blueprint --epic-dir <dir> --id <ddd> --name <slug> [--scale light|full]
+bouncer scaffold blueprint --epic-dir <dir> --id <ddd> --name <slug> [--scale light|full] \
+  [--area <a>] [--attribution <text>]
 bouncer scaffold task --blueprint <dir> --id <NNN> [--execution-kind commit|verification]
 bouncer scaffold task --blueprint <dir> --id <NNN> --execution-kind verification \
   --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>
@@ -135,6 +136,33 @@ Do not scaffold tasks into a closed blueprint.
 `legacy` fails with exit 2 (`legacy epic <id>-<slug> takes no new blueprints;
 plan under a registry epic`) before writing any file.
 `scaffold epic` accepts only printable ASCII (0x20-0x7E) in the new epic's description and rejects anything else with exit 2.
+`scaffold blueprint` takes optional `--area <a>` (an area registered in `.bouncer/epics.json`) and
+`--attribution <text>` (why the blueprint belongs to this epic).
+
+## Epic registry commands
+
+```sh
+bouncer epic add-domain --slug <s> --reason <text> --yes [--timestamp <iso>]
+bouncer epic add-area --name <a> --yes
+```
+
+These record a user-approved domain epic or area in `.bouncer/epics.json`.
+Run them only after the user explicitly approves; `--yes` carries that approval
+and is checked before the registry is read. `add-domain` appends
+`{ slug, id, kind: "domain", active: true, approval: { reason, approvedAt } }`
+where `id` is the larger of the registry ids and the `.bouncer/context/epics/`
+directory numbers plus one (three digits), and `approvedAt` is `--timestamp` or
+the current KST time. It creates no directory; the next `/bouncer-plan`
+scaffolds it from `plan inspect` `nextEpicId`. Success is
+`{ ok: true, path, epic: { slug, id } }` or `{ ok: true, path, area }` (exit 0).
+Failure is `{ ok: false, reason, cause, next }` (exit 1, file unchanged) with
+`reason` `epic-registry-confirmation-required` (no `--yes`),
+`epic-registry-missing`, `epic-registry-invalid`, `epic-registry-domain-limit`
+(domain epics already at `domainEpicLimit`), `epic-registry-name-invalid`
+(not a kebab-case slug, a common epic slug, or a purpose-style name such as
+`performance`), `epic-registry-name-taken`, or `epic-registry-reason-missing`
+(blank `--reason`). An unknown subcommand, a missing or duplicate required
+flag, or an unknown flag is exit 2.
 
 ## Pointer, worktree, and coordinator commands
 

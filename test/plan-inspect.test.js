@@ -509,3 +509,54 @@ test('plan inspect with valueless --blueprint → rejects with exit 2', () => {
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /blueprint/);
 });
+
+// 승격 후보 fixture: 007-features 아래 blueprint index.md에 bouncer.area를 쓴다.
+function writeAreaBlueprints(repo, areas) {
+  areas.forEach((area, i) => {
+    const id = String(i + 1).padStart(3, '0');
+    writeDoc(repo, `${EPICS}/007-features/blueprints/${id}-bp/index.md`, {
+      type: 'bouncer.blueprint', title: 'T', description: 'd', tags: ['bouncer'],
+      timestamp: '2026-10-20T00:00:00+09:00', bouncer: { id, status: 'draft', area },
+    });
+  });
+}
+
+test('plan inspect with an area at the promotion threshold → promotions lists that area', () => {
+  const repo = makeRepo();
+  writeEpicRegistry(repo, { domainEpicLimit: 1, areaPromotionThreshold: 2, areas: ['ordering', 'catalog'] });
+  writeAreaBlueprints(repo, ['ordering', 'ordering', 'catalog']);
+
+  const payload = parsePayload(inspect(repo));
+
+  assert.deepStrictEqual(payload.registry.promotions, [{ area: 'ordering', count: 2 }]);
+});
+
+test('plan inspect without areaPromotionThreshold → promotions is empty', () => {
+  const repo = makeRepo();
+  writeEpicRegistry(repo, { domainEpicLimit: 1, areas: ['ordering'] });
+  writeAreaBlueprints(repo, ['ordering', 'ordering']);
+
+  assert.deepStrictEqual(parsePayload(inspect(repo)).registry.promotions, []);
+});
+
+test('plan inspect with the domain epic limit exhausted → promotions is empty', () => {
+  const repo = makeRepo();
+  const base = writeEpicRegistry(repo).epics;
+  const domain = {
+    slug: 'billing', id: '020', kind: 'domain', active: true, approval: { reason: 'r', approvedAt: '2026-10-20' },
+  };
+  writeEpicRegistry(repo, {
+    domainEpicLimit: 1, areaPromotionThreshold: 2, areas: ['ordering'], epics: [...base, domain],
+  });
+  writeAreaBlueprints(repo, ['ordering', 'ordering']);
+
+  assert.deepStrictEqual(parsePayload(inspect(repo)).registry.promotions, []);
+});
+
+test('plan inspect with an area below the threshold → promotions is empty', () => {
+  const repo = makeRepo();
+  writeEpicRegistry(repo, { domainEpicLimit: 1, areaPromotionThreshold: 2, areas: ['ordering'] });
+  writeAreaBlueprints(repo, ['ordering']);
+
+  assert.deepStrictEqual(parsePayload(inspect(repo)).registry.promotions, []);
+});

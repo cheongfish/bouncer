@@ -96,6 +96,7 @@ type InspectRegistry =
     }[];
     legacy: { slug: string; id: string; dir: string }[];
     areas: string[];
+    promotions: { area: string; count: number }[];
   };
 
 type InspectOk = {
@@ -128,6 +129,42 @@ function nextNumericId(names: string[]): string {
     if (Number.isFinite(n) && n > max) max = n;
   }
   return String(max + 1).padStart(3, '0');
+}
+
+/**
+ * 활성 `features` epic의 blueprint를 `bouncer.area`별로 세어 승격 후보를 낸다.
+ * 읽기 전용이며 승격은 실행하지 않는다 — 사용자 승인 뒤 스킬이 명령을 돌린다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string | null} featuresDir - 활성 features epic의 repo-relative 디렉터리(없으면 null)
+ * @param {number | undefined} threshold - 등록부 `areaPromotionThreshold`
+ * @returns {{ area: string, count: number }[]} count가 threshold 이상인 area(이름순)
+ */
+function countAreaPromotions(
+  repoRoot: string,
+  featuresDir: string | null,
+  threshold: number | undefined,
+): { area: string; count: number }[] {
+  if (threshold === undefined || featuresDir === null) return [];
+  const bpRoot = path.join(repoRoot, featuresDir, 'blueprints');
+  const counts = new Map<string, number>();
+  for (const name of listDirNames(bpRoot)) {
+    try {
+      const doc = readDoc(path.join(bpRoot, name, 'index.md'));
+      const data = doc.data && typeof doc.data === 'object' ? doc.data as Record<string, unknown> : {};
+      const bouncer = data.bouncer && typeof data.bouncer === 'object'
+        ? data.bouncer as Record<string, unknown> : null;
+      const area = bouncer ? bouncer.area : undefined;
+      if (typeof area === 'string' && area !== '') counts.set(area, (counts.get(area) ?? 0) + 1);
+    } catch (_e) {
+      // index.md가 없거나 파싱 불가한 blueprint는 집계에서 뺀다. inspect는 읽기 전용이라
+      // 문서를 고치지 않고, 한 문서의 오류가 나머지 집계를 막지 않게 한다.
+    }
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count >= threshold)
+    .map(([area, count]) => ({ area, count }))
+    .sort((a, b) => (a.area < b.area ? -1 : a.area > b.area ? 1 : 0));
 }
 
 /**
@@ -194,8 +231,16 @@ function summarizeRegistry(repoRoot: string, dirNames: string[]): {
     });
   }
   pendingDomainIds.sort();
+  // 상한이 남아 있을 때만 후보를 낸다: 소진되면 add-domain이 어차피 거절된다.
+  const domainCount = registry.epics.filter((e) => e.kind === 'domain').length;
+  const features = epics.find((e) => e.slug === 'features');
+  const promotions = domainCount < registry.domainEpicLimit
+    ? countAreaPromotions(repoRoot, features ? features.dir : null, registry.areaPromotionThreshold)
+    : [];
   return {
-    registry: { status: 'ok', profile: registry.profile, epics, legacy, areas: registry.areas },
+    registry: {
+      status: 'ok', profile: registry.profile, epics, legacy, areas: registry.areas, promotions,
+    },
     nextEpicId: pendingDomainIds.length > 0 ? pendingDomainIds[0] : null,
   };
 }

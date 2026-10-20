@@ -24,6 +24,10 @@
 
 ### Added
 
+- **area 승격 후보와 승인 명령 안내 (EPIC 114 BP 003)** — `bouncer plan inspect`가 `registry.promotions`로
+  `areaPromotionThreshold` 이상 쌓인 `features` area를 낸다(도메인 epic 상한이 남았을 때만). `/bouncer-plan`은
+  scaffold에 `--attribution`(`features`는 `--area`도)을 쓰고, 새 area·도메인 epic은 사용자 명시 승인 뒤
+  `bouncer epic add-area|add-domain --yes`로만 추가한다.
 - **epic 등록부 기반 (EPIC 114 BP 001)** — `bouncer init`이 `.bouncer/epics.json`이 없을 때 프로필 등록부를
   쓰고 공통 epic 8개를 scaffold한다. 이미 초기화된 저장소는 재실행 시 기존 epic을 공통 또는 `legacy`로
   등록한다. `--profile <standard|domain-only>`와 `--domain-epic-limit <n>`을 받으며 잘못된 값은 exit 2로

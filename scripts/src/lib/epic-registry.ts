@@ -258,8 +258,99 @@ function serializeEpicRegistry(registry: EpicRegistry): string {
   return `${JSON.stringify(registry, null, 2)}\n`;
 }
 
+type AddFailure = { ok: false; reason: string; cause: string };
+
+/**
+ * epic slug·area 이름이 새 이름으로 쓸 수 있는 형식인지 본다. 공통 epic slug와
+ * 목적형 이름은 등록부가 막으려는 대상이라 도메인 epic과 area 모두에서 거절한다.
+ *
+ * @param {string} name - 검사할 이름
+ * @returns {string | null} 위반 사유(통과하면 null)
+ */
+function nameViolation(name: string): string | null {
+  if (!SLUG_RE.test(name)) return `"${name}" is not a lowercase kebab-case slug`;
+  if (COMMON_EPICS.some((c) => c.slug === name)) return `"${name}" is a common epic slug`;
+  if (PURPOSE_NAMES.includes(name)) return `"${name}" is a purpose-style name, not a domain name`;
+  return null;
+}
+
+/**
+ * 등록부에 도메인 epic 하나를 더한 새 등록부를 돌려준다. 입력 등록부는 바꾸지 않으며
+ * 검증을 모두 통과해야만 ok를 돌려줘 호출자가 쓰기를 한 번만 하게 한다.
+ * id는 등록부 id와 디렉터리 번호 중 최대값+1이다(디렉터리만 있는 번호를 재사용하지 않기 위함).
+ *
+ * @param {EpicRegistry} registry - 현재 등록부
+ * @param {{slug: string, reason: string, approvedAt: string}} input - 새 epic과 승인 근거
+ * @param {string[]} existingEpicDirs - epics 디렉터리 직계 이름(`NNN-slug`)
+ * @returns {{ok: true, registry: EpicRegistry, epic: {slug: string, id: string}} | AddFailure} 추가 결과
+ */
+function addDomainEpic(
+  registry: EpicRegistry,
+  input: { slug: string; reason: string; approvedAt: string },
+  existingEpicDirs: string[],
+): { ok: true; registry: EpicRegistry; epic: { slug: string; id: string } } | AddFailure {
+  const fail = (reason: string, cause: string): AddFailure => ({ ok: false, reason, cause });
+  if (input.reason.trim() === '') return fail('epic-registry-reason-missing', '--reason must not be blank');
+  const violation = nameViolation(input.slug);
+  if (violation !== null) return fail('epic-registry-name-invalid', violation);
+  if (registry.epics.some((e) => e.slug === input.slug)) {
+    return fail('epic-registry-name-taken', `epic slug already registered: ${input.slug}`);
+  }
+  const domainCount = registry.epics.filter((e) => e.kind === 'domain').length;
+  if (domainCount >= registry.domainEpicLimit) {
+    const limit = registry.domainEpicLimit;
+    return fail('epic-registry-domain-limit', `domain epics ${domainCount} reached domainEpicLimit ${limit}`);
+  }
+  let max = registry.epics.reduce((m, e) => Math.max(m, Number(e.id)), 0);
+  for (const name of existingEpicDirs) {
+    const match = /^(\d{3})-/.exec(name);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  if (max + 1 > 999) return fail('epic-registry-invalid', 'no free epic id left (max 999)');
+  const id = String(max + 1).padStart(3, '0');
+  const epic: RegistryEpic = {
+    slug: input.slug, id, kind: 'domain', active: true,
+    approval: { reason: input.reason, approvedAt: input.approvedAt },
+  };
+  return { ok: true, registry: { ...registry, epics: [...registry.epics, epic] }, epic: { slug: input.slug, id } };
+}
+
+/**
+ * 등록부 `areas`에 이름 하나를 더한 새 등록부를 돌려준다. 입력 등록부는 바꾸지 않는다.
+ *
+ * @param {EpicRegistry} registry - 현재 등록부
+ * @param {string} name - 추가할 area 이름
+ * @returns {{ok: true, registry: EpicRegistry, area: string} | AddFailure} 추가 결과
+ */
+function addArea(
+  registry: EpicRegistry,
+  name: string,
+): { ok: true; registry: EpicRegistry; area: string } | AddFailure {
+  const violation = nameViolation(name);
+  if (violation !== null) return { ok: false, reason: 'epic-registry-name-invalid', cause: violation };
+  if (registry.areas.includes(name)) {
+    return { ok: false, reason: 'epic-registry-name-taken', cause: `area already registered: ${name}` };
+  }
+  return { ok: true, registry: { ...registry, areas: [...registry.areas, name] }, area: name };
+}
+
+/**
+ * 등록부를 `.bouncer/epics.json`에 쓴다. 호출자가 검증을 끝낸 뒤 한 번만 부른다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {EpicRegistry} registry - 쓸 등록부
+ * @returns {void}
+ * @throws {Error} 파일 쓰기에 실패했을 때(호출자가 그대로 올린다)
+ */
+function writeEpicRegistry(repoRoot: string, registry: EpicRegistry): void {
+  fs.writeFileSync(path.join(repoRoot, REGISTRY_REL), serializeEpicRegistry(registry));
+}
+
 export = {
   REGISTRY_REL,
+  addDomainEpic,
+  addArea,
+  writeEpicRegistry,
   COMMON_EPICS,
   PURPOSE_NAMES,
   parseEpicRegistry,

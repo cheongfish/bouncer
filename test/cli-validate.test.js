@@ -7,10 +7,17 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 const { readDoc } = require('../scripts/lib/frontmatter');
+const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function writeDoc(repo, rel, data) {
+  // plan gate가 등록부(G26–G31)를 보므로 blueprint index를 쓸 때 epic 등록과 attribution을 함께 채운다.
+  const bpIndex = /epics\/(\d{3}-[^/]+)\/blueprints\/[^/]+\/index\.md$/.exec(rel);
+  if (bpIndex && data && data.type === 'bouncer.blueprint') {
+    registerFixtureEpic(repo, bpIndex[1]);
+    data = { ...data, bouncer: { attribution: 'fixture', ...data.bouncer } };
+  }
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n# x\n`);

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { validateBlueprint, checkStructural, loadBlueprintDocs } = require('../scripts/lib/validate');
+const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -19,6 +20,12 @@ function writeRaw(repo, rel, content) {
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
+  // plan gate가 등록부(G26–G31)를 보므로 blueprint index를 쓸 때 epic 등록과 attribution을 함께 채운다.
+  const bpIndex = /epics\/(\d{3}-[^/]+)\/blueprints\/[^/]+\/index\.md$/.exec(rel);
+  if (bpIndex && data && data.type === 'bouncer.blueprint') {
+    registerFixtureEpic(repo, bpIndex[1]);
+    data = { ...data, bouncer: { attribution: 'fixture', ...data.bouncer } };
+  }
   const yaml = require('js-yaml');
   // 레거시 경로로 쓰인 fixture만 새 묶음으로 접는다. 이미 tasks/<NNN>/tasks.md인
   // 경로는 그대로 둬야 레이아웃 자체를 검증하는 테스트가 왜곡되지 않는다.
@@ -1132,4 +1139,33 @@ test('S31: review_scope other than blueprint → is rejected', () => {
   assert.ok(failures.some((f) => (
     f.code === 'S31' && f.message === 'review_scope must be blueprint'
   )), JSON.stringify(failures));
+});
+
+// S36: area·attribution은 선택 키다. 부재는 통과하고, 있는 값의 모양만 거절한다.
+function s36For(patch) {
+  const failures = [];
+  const data = {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, ...patch },
+  };
+  checkStructural({ data, rel: `${BP_REL}/index.md` }, failures);
+  return failures.filter((f) => f.code === 'S36');
+}
+
+test('S36: blueprint area or attribution with a wrong shape → is rejected', () => {
+  for (const patch of [
+    { area: 3 },
+    { area: 'A B' },
+    { area: '' },
+    { attribution: '  ' },
+    { attribution: 7 },
+    { attribution: 'a\nb' },
+  ]) {
+    assert.strictEqual(s36For(patch).length, 1, JSON.stringify(patch));
+  }
+});
+
+test('S36: valid area and attribution or neither key → is not reported', () => {
+  assert.deepStrictEqual(s36For({}), []);
+  assert.deepStrictEqual(s36For({ area: 'ordering', attribution: '주문 기능 동작이 중심' }), []);
 });

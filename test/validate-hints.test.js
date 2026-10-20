@@ -7,10 +7,17 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { GATE_FAILURE_HINTS, withGateFailureHints } = require('../scripts/lib/validate');
 const { runCli } = require('../scripts/lib/cli');
+const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function writeDoc(repo, rel, data) {
+  // plan gate가 등록부(G26–G31)를 보므로 blueprint index를 쓸 때 epic 등록과 attribution을 함께 채운다.
+  const bpIndex = /epics\/(\d{3}-[^/]+)\/blueprints\/[^/]+\/index\.md$/.exec(rel);
+  if (bpIndex && data && data.type === 'bouncer.blueprint') {
+    registerFixtureEpic(repo, bpIndex[1]);
+    data = { ...data, bouncer: { attribution: 'fixture', ...data.bouncer } };
+  }
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n# x\n`);
@@ -28,7 +35,8 @@ test('GATE_FAILURE_HINTS when code and match agree → attaches next only', () =
   assert.ok(Array.isArray(GATE_FAILURE_HINTS));
   assert.deepStrictEqual(
     GATE_FAILURE_HINTS.map((h) => h.code).sort(),
-    ['G13', 'G18', 'G20', 'G22', 'G23', 'G24', 'G25', 'S32', 'S33', 'S34', 'S35'],
+    ['G13', 'G18', 'G20', 'G22', 'G23', 'G24', 'G25', 'G26', 'G27', 'G28', 'G29', 'G30', 'G31',
+      'S32', 'S33', 'S34', 'S35', 'S36'],
   );
   const f = (code, message) => ({ code, message, file: 'x.md' });
   const out = withGateFailureHints({ ok: false, failures: [
@@ -44,6 +52,7 @@ test('GATE_FAILURE_HINTS when code and match agree → attaches next only', () =
     f('S7', 'tasks.affected_paths missing or empty'),
     f('S32', 'commit_intent must be a YAML list of 0-2 strings'),
     f('S34', 'commit_summary invalid: commit_summary must contain 1-2 Korean terminal sentences (한국어 종결 문장)'),
+    f('G26', 'epic registry missing: .bouncer/epics.json'),
   ] }).failures;
   assert.match(out[0].next, /round 1 discovery[\s\S]*pending/);
   assert.match(out[2].next, /bouncer verify/);
@@ -52,6 +61,7 @@ test('GATE_FAILURE_HINTS when code and match agree → attaches next only', () =
   assert.match(out[8].next, /plan gate/);
   assert.match(out[10].next, /YAML list of 1-2/);
   assert.match(out[11].next, /commit_summary[\s\S]*plan gate/);
+  assert.match(out[12].next, /bouncer init/);
   for (const i of [1, 4, 5, 7, 9]) assert.strictEqual('next' in out[i], false, out[i].message);
 });
 

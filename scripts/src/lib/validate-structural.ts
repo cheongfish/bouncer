@@ -200,6 +200,19 @@ function checkStructural(
     add('S31', 'review_scope must be blueprint');
   }
 
+  // S36: area·attribution은 선택 키라 부재는 통과하고 있는 값의 모양만 거절한다.
+  // 등록부 대조와 필수 판정은 구조 검사가 아니라 gate 소관이다.
+  if (docType === 'bouncer.blueprint') {
+    const { area, attribution } = bouncer;
+    if (area !== undefined && !(typeof area === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(area))) {
+      add('S36', 'area must be a lowercase slug string');
+    }
+    if (attribution !== undefined
+      && !(typeof attribution === 'string' && attribution.trim() !== '' && !/[\r\n]/.test(attribution))) {
+      add('S36', 'attribution must be a non-empty single-line string');
+    }
+  }
+
   // S27: epic·blueprint만. 부재는 통과(소급 없음). 형식만 schema.isValidSupersedes —
   // 경로 존재·자기참조·순환·중복은 검사하지 않는다.
   if (

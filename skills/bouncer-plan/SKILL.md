@@ -123,9 +123,17 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    bouncer scaffold epic --id <ddd> --name <slug> \
      --description "<description>"
    bouncer scaffold blueprint \
-     --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
+     --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug> \
+     --attribution "<one-line attribution reason>"
    ```
-   Run the `scaffold epic` command only in the two cases above.
+   Run the `scaffold epic` command only in the two cases above. Add
+   `--attribution` for every non-legacy epic, and for `features` also add
+   `--area <area>` chosen from `registry.areas`.
+   When no `area` fits, or `registry.promotions` is non-empty, show it to the user.
+   Only after the user explicitly approves in chat (silence or an earlier choice is
+   not approval), run `bouncer epic add-area --name <a> --yes` or
+   `bouncer epic add-domain --slug <s> --reason <text> --yes`. Existing blueprints
+   are not moved after a promotion.
    **Light scaffold.** When this step received a light declaration, add
    `--scale light` to the blueprint command. That creates only four documents:
    blueprint `index.md`, `tasks/001/{tasks,verification}.md`, and root

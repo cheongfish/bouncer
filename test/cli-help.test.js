@@ -30,6 +30,7 @@ const SUBCOMMANDS = [
   'config',
   'retro',
   'metrics',
+  'epic',
 ];
 
 function capture(argv) {
