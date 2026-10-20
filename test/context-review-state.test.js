@@ -228,16 +228,124 @@ test('snapshot이 바뀌지 않은 restart → 상태 충돌로 거부한다', (
   assert.equal(r.json.reason, 'context-review-state-conflict');
 });
 
-test('delta 뒤 미해결 must_fix가 남은 상태의 restart → 해결 안 된 finding으로 거부한다', () => {
-  const repo = makeRepo();
+// 열린 must_fix의 대상을 blueprint index.md의 `## Intent` 섹션으로 옮긴 fixture.
+const INTENT_FIX = withFingerprint({ ...MUST_FIX, file: `${BP}/index.md`, symbol: 'intent' });
+
+/** index.md에서 지정한 heading 섹션 본문만 바꾼다. */
+function editSection(repo, heading, text) {
+  const abs = path.join(repo, BP, 'index.md');
+  const body = fs.readFileSync(abs, 'utf8');
+  const at = body.indexOf(`## ${heading}`);
+  assert.notEqual(at, -1, `${heading} heading must exist in the fixture`);
+  const end = body.indexOf('\n## ', at + 1);
+  const tail = end === -1 ? '' : body.slice(end);
+  fs.writeFileSync(abs, `${body.slice(0, at)}## ${heading}\n\n${text}\n${tail}`);
+}
+
+function intentCycle(repo) {
   const d = dispatchFile(repo);
   start(repo, d);
-  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [MUST_FIX]));
-  record(repo, d, roundFile(repo, 'r2.json', 2, 'delta', [MUST_FIX]));
-  changeDocs(repo);
-  const r = restart(repo, dispatchFile(repo, 'dispatch2.json'));
+  record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [INTENT_FIX]));
+  record(repo, d, roundFile(repo, 'r2.json', 2, 'delta', [INTENT_FIX]));
+}
+
+/** latest 저장본에서 documents_content를 지워 기준 내용이 없는 상태를 만든다(sha256도 맞춘다). */
+function stripBaselineContent(repo) {
+  const stateFile = findState(repo);
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  const ref = state.cycle.latest_dispatch;
+  const abs = path.join(repo, ref.path);
+  const payload = JSON.parse(fs.readFileSync(abs, 'utf8'));
+  delete payload.documents_content;
+  const text = `${JSON.stringify(payload)}\n`;
+  fs.writeFileSync(abs, text);
+  ref.sha256 = require('node:crypto').createHash('sha256').update(text).digest('hex');
+  fs.writeFileSync(stateFile, JSON.stringify(state));
+}
+
+test('delta 뒤 열린 must_fix와 무관한 섹션만 바뀐 restart → 해결 안 된 finding으로 거부한다', () => {
+  const repo = makeRepo();
+  intentCycle(repo);
+  editSection(repo, 'Contract', 'unrelated edit');
+  const d2 = dispatchFile(repo, 'dispatch2.json');
+  assert.equal(route(repo, d2, 'partial').next_action, 'user');
+  const r = restart(repo, d2);
   assert.equal(r.code, 1);
   assert.equal(r.json.reason, 'context-review-unresolved-findings');
+});
+
+test('delta 뒤 열린 must_fix의 대상 섹션 본문만 고침 → route가 close를 내고 resolved close가 성공한다', () => {
+  const repo = makeRepo();
+  intentCycle(repo);
+  editSection(repo, 'Intent', 'fixed intent text');
+  const d2 = dispatchFile(repo, 'dispatch2.json');
+  assert.equal(route(repo, d2, 'partial').next_action, 'close');
+  const disp = writeJson(repo, 'dispositions.json', [{ id: 'CR-1', status: 'resolved' }]);
+  const r = close(repo, disp);
+  assert.equal(r.code, 0, r.out + r.err);
+});
+
+test('delta 뒤 대상 섹션과 Interface를 함께 고침 → route가 restart를 내고 restart·discovery·close가 이어진다', () => {
+  const repo = makeRepo();
+  writeTask(repo);
+  intentCycle(repo);
+  editSection(repo, 'Intent', 'fixed intent text');
+  writeTask(repo, '- `fnB`\n');
+  const d2 = dispatchFile(repo, 'dispatch2.json');
+  assert.equal(route(repo, d2, 'full').next_action, 'restart');
+  const r = restart(repo, d2);
+  assert.equal(r.code, 0, r.out + r.err);
+  const disc = record(repo, d2, roundFile(repo, 'r3.json', 1, 'discovery', []));
+  assert.equal(disc.code, 0, disc.out + disc.err);
+  const c = close(repo, writeJson(repo, 'dispositions.json', []));
+  assert.equal(c.code, 0, c.out + c.err);
+});
+
+test('restart를 한 번 쓴 뒤 같은 조건의 delta → restart 한도로 거부한다', () => {
+  const repo = makeRepo();
+  writeTask(repo);
+  intentCycle(repo);
+  editSection(repo, 'Intent', 'fixed intent text');
+  writeTask(repo, '- `fnB`\n');
+  const d2 = dispatchFile(repo, 'dispatch2.json');
+  assert.equal(restart(repo, d2).code, 0);
+  record(repo, d2, roundFile(repo, 'r3.json', 1, 'discovery', [INTENT_FIX]));
+  record(repo, d2, roundFile(repo, 'r4.json', 2, 'delta', [INTENT_FIX]));
+  editSection(repo, 'Intent', 'fixed again');
+  writeTask(repo, '- `fnC`\n');
+  const d3 = dispatchFile(repo, 'dispatch3.json');
+  const out = route(repo, d3, 'full');
+  assert.equal(out.next_action, 'user');
+  assert.equal(out.reason, 'context-review-restart-limit');
+  const r = restart(repo, d3);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-restart-limit');
+});
+
+test('기준 저장본에 documents_content가 없음 → route는 user, restart는 해결 안 된 finding으로 거부한다', () => {
+  const repo = makeRepo();
+  intentCycle(repo);
+  stripBaselineContent(repo);
+  editSection(repo, 'Intent', 'fixed intent text');
+  const d2 = dispatchFile(repo, 'dispatch2.json');
+  assert.equal(route(repo, d2, 'partial').next_action, 'user');
+  const r = restart(repo, d2);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.reason, 'context-review-unresolved-findings');
+});
+
+test('symbol goal-intent → `## Goal & intent` 섹션을 찾아 고침으로 판정한다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  const f = withFingerprint({ ...INTENT_FIX, symbol: 'goal-intent' });
+  start(repo, d);
+  const abs = path.join(repo, BP, 'index.md');
+  fs.appendFileSync(abs, '\n## Goal & intent\n\nold goal\n');
+  const d1 = dispatchFile(repo, 'dispatch1.json');
+  record(repo, d1, roundFile(repo, 'r1.json', 1, 'discovery', [f]));
+  record(repo, d1, roundFile(repo, 'r2.json', 2, 'delta', [f]));
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('old goal', 'new goal'));
+  assert.equal(route(repo, dispatchFile(repo, 'dispatch2.json'), 'partial').next_action, 'close');
 });
 
 test('discovery open must_fix 저장 후 resolved closure → accepted로 닫히고 projection에 resolved만 남는다', () => {
