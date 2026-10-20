@@ -23,7 +23,8 @@ type RegistryLike = {
 
 const SLUG_MAX = 40;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const NUMERIC_SEG_RE = /^(\d{3})-([a-z0-9-]+)$/;
+// 구형 번호 세그먼트는 base `paths.ts`처럼 나머지 문자를 제한하지 않는다(공백 든 구형 이름도 번호 형식).
+const NUMERIC_SEG_RE = /^(\d{3})-([^/]+)$/;
 const THREE_DIGITS_RE = /^\d{3}$/;
 // 번호 epic 디렉터리 이름. 접두 번호만 읽는 형태와 번호·slug로 나누는 형태가 호출부마다 달라 둘을 둔다.
 const NUMERIC_PREFIX_RE = /^(\d{3})-/;

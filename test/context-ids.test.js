@@ -20,6 +20,13 @@ test('parseContextPath with numeric blueprint path → numeric keys and slugs', 
   });
 });
 
+test('parseContextPath with a legacy numeric name containing a space → numeric keys', () => {
+  assert.deepStrictEqual(ids.parseContextPath('.bouncer/context/epics/001-auth/blueprints/001-invalid branch'), {
+    format: 'numeric', epicKey: '001', blueprintKey: '001',
+    epicSlug: 'auth', blueprintSlug: 'invalid branch',
+  });
+});
+
 test('parseContextPath with slug task path → slug keys', () => {
   assert.deepStrictEqual(ids.parseContextPath(`${SLUG_BP}/tasks/001/tasks.md`), {
     format: 'slug', epicKey: 'consumer-epic-registry', blueprintKey: 'registry-gates',
