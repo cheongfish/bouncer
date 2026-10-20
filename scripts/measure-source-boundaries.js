@@ -2,7 +2,6 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
 const { spawnSync } = require('node:child_process');
 const { performance } = require('node:perf_hooks');
 
@@ -65,7 +64,9 @@ function buildTestArgv(files, coverage) {
  */
 function parseCoverage(output) {
   const rows = output.split(/\r?\n/).filter((line) => /^#\s*all files\s*\|/i.test(line));
-  if (rows.length !== 1) throw new Error(`coverage summary must contain exactly one all files row (found ${rows.length})`);
+  if (rows.length !== 1) {
+    throw new Error(`coverage summary must contain exactly one all files row (found ${rows.length})`);
+  }
   const values = rows[0].split('|').slice(1, 4).map((value) => Number(value.trim().replace(/%$/, '')));
   if (values.length !== 3 || values.some((v) => !Number.isFinite(v) || v < 0 || v > 100)
       || values[0] < 94 || values[1] < 82 || values[2] < 96) {
@@ -86,7 +87,7 @@ function runProbe(command, args, cwd) {
   if (result.signal) throw new Error(`probe terminated by signal ${result.signal}`);
   if (result.status !== 0) throw new Error(`probe exit ${result.status}: ${result.stderr || result.stdout}`);
   try { return JSON.parse(result.stdout); } catch (error) {
-    throw new Error(`probe returned invalid JSON: ${error.message}`);
+    throw new Error(`probe returned invalid JSON: ${error.message}`, { cause: error });
   }
 }
 
@@ -97,7 +98,10 @@ function runProbe(command, args, cwd) {
 function compareReport(report) {
   if (!report || !report.before || !report.after) throw new Error('report requires before and after snapshots');
   const { before, after } = report;
-  for (const key of ['schemaVersion', 'nodeMajor', 'nodePath', 'nodeVersion', 'npmVersion', 'platform', 'arch', 'definition']) {
+  const requiredKeys = [
+    'schemaVersion', 'nodeMajor', 'nodePath', 'nodeVersion', 'npmVersion', 'platform', 'arch', 'definition',
+  ];
+  for (const key of requiredKeys) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) throw new Error(`snapshot mismatch: ${key}`);
   }
   for (const snap of [before, after]) {
@@ -108,10 +112,12 @@ function compareReport(report) {
     if (!snap.inventory || !snap.coverage || !snap.probes || !snap.counts || !snap.durationsMs || !snap.exitStatus) {
       throw new Error('snapshot is missing measured inventory, probes, counts, coverage, or timings');
     }
-    if ([snap.exitStatus.build, snap.exitStatus.suite, snap.exitStatus.coverage, snap.exitStatus.npmTest].some((code) => code !== 0)) {
+    const exits = [snap.exitStatus.build, snap.exitStatus.suite, snap.exitStatus.coverage, snap.exitStatus.npmTest];
+    if (exits.some((code) => code !== 0)) {
       throw new Error('snapshot contains a failed command status');
     }
-    if ([snap.coverage.lines, snap.coverage.branches, snap.coverage.functions].some((n) => !Number.isFinite(n) || n < 0 || n > 100)) {
+    const pcts = [snap.coverage.lines, snap.coverage.branches, snap.coverage.functions];
+    if (pcts.some((n) => !Number.isFinite(n) || n < 0 || n > 100)) {
       throw new Error('snapshot contains invalid coverage values');
     }
   }
@@ -171,7 +177,12 @@ function probeModule(repo, mod) {
     if (mod === 'measure-source-boundaries') return { status: 'absent', exports: [] };
     throw new Error(`required probe module missing: ${rel}`);
   }
-  const code = `const p=require('node:path'); const m=require('./${rel}'); const keys=Object.keys(m).sort(); const cache=Object.keys(require.cache).filter(k=>k.includes(p.join('scripts','lib')+p.sep)).map(k=>p.relative(process.cwd(),k).split(p.sep).join('/')).sort(); console.log(JSON.stringify({keys,cache}));`;
+  const code = [
+    `const p=require('node:path'); const m=require('./${rel}'); const keys=Object.keys(m).sort();`,
+    " const cache=Object.keys(require.cache).filter(k=>k.includes(p.join('scripts','lib')+p.sep))",
+    ".map(k=>p.relative(process.cwd(),k).split(p.sep).join('/')).sort();",
+    ' console.log(JSON.stringify({keys,cache}));',
+  ].join('');
   return { status: 'present', ...runProbe(process.execPath, ['-e', code], repo) };
 }
 
@@ -199,7 +210,9 @@ function snapshot(repo, output) {
   const suite = files.map((f) => f.path).filter((f) => /^test\/[^/]+\.test\.js$/.test(f)).map((f) => path.posix.basename(f)).sort();
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   const nodePath = process.execPath;
-  const definition = { suite: 'sorted test/*.test.js', node: nodePath, coverage: COVERAGE_ARGS, thresholds: [94, 82, 96] };
+  const definition = {
+    suite: 'sorted test/*.test.js', node: nodePath, coverage: COVERAGE_ARGS, thresholds: [94, 82, 96],
+  };
 
   const build = run(npm, ['run', 'build'], repo);
   requireSuccess('build', build);
@@ -223,8 +236,14 @@ function snapshot(repo, output) {
     schemaVersion: 1, revision, nodePath, nodeVersion: process.version, nodeMajor,
     npmVersion, platform: process.platform, arch: process.arch, definition,
     inventory, suite, probes, counts, coverage,
-    durationsMs: { build: build.durationMs, suite: runSuite.durationMs, coverage: coverageRun.durationMs, npmTest: npmTest.durationMs },
-    exitStatus: { build: build.result.status, suite: runSuite.result.status, coverage: coverageRun.result.status, npmTest: npmTest.result.status },
+    durationsMs: {
+      build: build.durationMs, suite: runSuite.durationMs,
+      coverage: coverageRun.durationMs, npmTest: npmTest.durationMs,
+    },
+    exitStatus: {
+      build: build.result.status, suite: runSuite.result.status,
+      coverage: coverageRun.result.status, npmTest: npmTest.result.status,
+    },
     failures: [],
   };
   const temp = `${output}.${process.pid}.tmp`;
@@ -269,7 +288,9 @@ function validateInventory(report, inventory) {
     const cells = rows.get(label);
     if (!cells || cells.length < 4) throw new Error(`inventory measurement row missing: ${label}`);
     for (const [index, snap] of [[1, report.before], [2, report.after]]) {
-      if (String(cells[index]) !== String(valueOf(snap))) throw new Error(`inventory ${label} does not match ${snap.revision}`);
+      if (String(cells[index]) !== String(valueOf(snap))) {
+        throw new Error(`inventory ${label} does not match ${snap.revision}`);
+      }
     }
   }
   if (!inventory.includes(report.before.revision) || !inventory.includes(report.after.revision)) {
@@ -286,11 +307,15 @@ function main(argv) {
   try {
     if (argv[0] === 'snapshot') {
       const repoAt = argv.indexOf('--repo'); const outAt = argv.indexOf('--output');
-      if (repoAt < 0 || outAt < 0 || !argv[repoAt + 1] || !argv[outAt + 1]) throw new Error('usage: snapshot --repo <checkout> --output <json>');
+      if (repoAt < 0 || outAt < 0 || !argv[repoAt + 1] || !argv[outAt + 1]) {
+        throw new Error('usage: snapshot --repo <checkout> --output <json>');
+      }
       snapshot(path.resolve(argv[repoAt + 1]), path.resolve(argv[outAt + 1]));
     } else if (argv[0] === 'check-report') {
       const reportAt = argv.indexOf('--report'); const invAt = argv.indexOf('--inventory');
-      if (reportAt < 0 || invAt < 0 || !argv[reportAt + 1] || !argv[invAt + 1]) throw new Error('usage: check-report --report <comparison.json> --inventory <md>');
+      if (reportAt < 0 || invAt < 0 || !argv[reportAt + 1] || !argv[invAt + 1]) {
+        throw new Error('usage: check-report --report <comparison.json> --inventory <md>');
+      }
       checkReport(path.resolve(argv[reportAt + 1]), path.resolve(argv[invAt + 1]));
     } else throw new Error('usage: snapshot|check-report');
   } catch (error) {
@@ -301,4 +326,7 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { countLf, directRequires, buildTestArgv, parseCoverage, runProbe, probeModule, summarizeInventory, compareReport, validateInventory };
+module.exports = {
+  countLf, directRequires, buildTestArgv, parseCoverage, runProbe, probeModule,
+  summarizeInventory, compareReport, validateInventory,
+};
