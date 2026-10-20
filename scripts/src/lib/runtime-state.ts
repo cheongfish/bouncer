@@ -14,6 +14,8 @@ import schema = require('./schema');
 const { DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM } = schema;
 import validateSections = require('./validate-sections');
 const { REPAIR_WAVE_LIMIT } = validateSections;
+import contextIds = require('./context-ids');
+const { parseContextPath, parsePointerKey: parseContextPointerKey } = contextIds;
 import time = require('./time');
 const { nowIsoKst } = time;
 
@@ -104,6 +106,18 @@ function nonEmptyString(value: unknown): value is string {
 }
 
 /**
+ * blueprint 경로가 slug 형식(`epics/<slug>/blueprints/<slug>`)인지 본다.
+ * 번호 형식·해석 불가 경로는 false라 기존(구형) 이름 규칙이 그대로 적용된다.
+ *
+ * @param {unknown} blueprint - blueprint 디렉터리 상대 경로
+ * @returns {boolean} slug 형식이면 true
+ */
+function isSlugBlueprint(blueprint: unknown): boolean {
+  const ids = parseContextPath(blueprint);
+  return ids !== null && ids.blueprintKey !== null && ids.format === 'slug';
+}
+
+/**
  * blueprint 메타데이터와 경로에서 coordinator가 공유할 branch 이름을 만든다.
  * index.md가 없거나 읽히지 않으면 기존 fixture와 이전 blueprint를 보존하기 위해
  * DEFAULT_COMMIT_TYPE으로 계속 진행하지만, 명시된 잘못된 commit_type은 새 worktree
@@ -117,6 +131,7 @@ function branchNamesFor({ repoRoot, blueprint, task }: {
   repoRoot: string; blueprint: string; task?: string;
 }): BranchNames {
   const { epicId, blueprintId } = parsePathIds(blueprint);
+  const slugFormat = isSlugBlueprint(blueprint);
   const slug = path.basename(blueprint).replace(new RegExp(`^${blueprintId}-`), '');
   let commitType: unknown = DEFAULT_COMMIT_TYPE;
   try {
@@ -129,9 +144,18 @@ function branchNamesFor({ repoRoot, blueprint, task }: {
   if (typeof commitType !== 'string' || !COMMIT_TYPE_ENUM.includes(commitType)) {
     throw new BranchNameError('invalid-commit-type');
   }
-  const integration = `${commitType}/${epicId}-${blueprintId}-${slug}`;
+  // slug 형식은 구분자 `--`로 epic·bp slug를 잇는다. slug 규칙이 `--`를 막으므로 분해가 모호하지
+  // 않고, bp slug가 이미 이름이라 뒤에 다시 붙이지 않는다. 구형은 진행 중 drive가 옛 이름으로
+  // 끝나도록 번호 이름을 바이트까지 유지한다.
+  const integration = slugFormat
+    ? `${commitType}/${epicId}--${blueprintId}`
+    : `${commitType}/${epicId}-${blueprintId}-${slug}`;
   const result: BranchNames = { integration, standalone: integration };
-  if (task !== undefined) result.worker = `bouncer/${epicId}-${blueprintId}-${task}`;
+  if (task !== undefined) {
+    result.worker = slugFormat
+      ? `bouncer/${epicId}--${blueprintId}--${task}`
+      : `bouncer/${epicId}-${blueprintId}-${task}`;
+  }
   for (const branch of Object.values(result)) {
     if (!branch || branch.includes('..') || /[ ~^:?*\\[\\]/.test(branch)) {
       throw new BranchNameError('invalid-branch-name');
@@ -637,11 +661,11 @@ function namespacePointerPath(
   return pathApi.join(pointersRoot, epicId, `${blueprintId}.json`);
 }
 
+// 형식 판단은 context-ids 한 곳에 위임한다 — 번호 쌍과 slug 쌍만 받고 섞인 쌍은 null이다.
 function parsePointerKey(key: unknown): PointerKey | null {
-  if (typeof key !== 'string') return null;
-  const match = /^(\d{3})\/(\d{3})$/.exec(key);
-  if (!match) return null;
-  return { epicId: match[1], blueprintId: match[2], key };
+  const parsed = parseContextPointerKey(key);
+  if (!parsed) return null;
+  return { epicId: parsed.epicKey, blueprintId: parsed.blueprintKey, key: key as string };
 }
 
 function parsePointerBody(raw: string): { pointer: RuntimePointer } | { reason: string } {
@@ -691,7 +715,8 @@ function listNamespacePointers({ repoRoot, deps }: {
     return [];
   }
   for (const epicName of epicNames) {
-    if (!/^\d{3}$/.test(epicName)) continue;
+    // 번호·slug 어느 epic 디렉터리 이름이든 파일 단계에서 쌍을 검증한다.
+    if (!/^[a-z0-9-]+$/.test(epicName)) continue;
     const epicDir = pathApi.join(root, epicName);
     if (!isDir(d, epicDir)) continue;
     let files: string[];
@@ -701,11 +726,13 @@ function listNamespacePointers({ repoRoot, deps }: {
       continue;
     }
     for (const file of files) {
-      const idMatch = /^(\d{3})\.json$/.exec(file);
+      const idMatch = /^([a-z0-9-]+)\.json$/.exec(file);
       if (!idMatch) continue;
       const blueprintId = idMatch[1];
-      const filePath = pathApi.join(epicDir, file);
       const key = `${epicName}/${blueprintId}`;
+      // 두 이름이 같은 형식의 쌍이 아니면(예: `001/registry-gates`) 기존처럼 조용히 건너뛴다.
+      if (!parsePointerKey(key)) continue;
+      const filePath = pathApi.join(epicDir, file);
       try {
         const parsed = parsePointerBody(d.fs.readFileSync(filePath, 'utf8'));
         if ('pointer' in parsed) {
@@ -1005,7 +1032,9 @@ function worktreePathFor({ repoRoot, blueprint, deps }: {
   const flatIsDir = (() => {
     try { return d.fs.statSync(flat).isDirectory(); } catch (_e) { return false; }
   })();
-  if (!nestedIsDir && flatIsDir) return flat;
+  // 평면 fallback은 구형 번호 경로 전용이다. slug 경로는 bp slug만으로 다른 epic의 같은 이름
+  // 디렉터리를 잘못 재사용할 수 있어 항상 중첩 경로를 쓴다.
+  if (!nestedIsDir && flatIsDir && !isSlugBlueprint(blueprint)) return flat;
   return nested;
 }
 
@@ -1150,6 +1179,6 @@ export = {
   readApprovalSnapshot, writeApprovalSnapshot, approvalSnapshotPathFor,
   validateCoordinatorLedger,
   validateCoordinatorCheckpoint,
-  branchNamesFor, resolveWorktreeBranch,
+  branchNamesFor, resolveWorktreeBranch, parsePointerKey,
   COORDINATOR_LEDGER_REL,
 };

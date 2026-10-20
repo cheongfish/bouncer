@@ -9,7 +9,7 @@ const {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
   verifyLedgerPathFor, intentBundlePathFor, coordinatorPathsFor,
   listNamespacePointers, pointerKeyFromBlueprint, removeNamespacePointer, branchNamesFor, resolveWorktreeBranch,
-  validateCoordinatorLedger,
+  validateCoordinatorLedger, parsePointerKey, approvalSnapshotPathFor,
 } = require('../scripts/lib/runtime-state');
 
 function copy(value) {
@@ -35,6 +35,76 @@ test('branchNamesFor with blueprint metadata → derives commit and worker branc
   assert.throws(() => branchNamesFor({ repoRoot: repo, blueprint }), /invalid-commit-type/);
   assert.throws(() => branchNamesFor({ repoRoot: repo,
     blueprint: '.bouncer/context/epics/068-x/blueprints/001-bad..slug' }), /invalid-branch-name/);
+});
+
+const SLUG_BP = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates';
+
+test('branchNamesFor with a slug blueprint path → joins slugs with double hyphens', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-branch-names-slug-'));
+  fs.mkdirSync(path.join(repo, SLUG_BP), { recursive: true });
+  fs.writeFileSync(path.join(repo, SLUG_BP, 'index.md'), '---\nbouncer:\n  commit_type: feat\n---\n');
+  assert.deepStrictEqual(branchNamesFor({ repoRoot: repo, blueprint: SLUG_BP, task: '002' }), {
+    integration: 'feat/plan-workflow--registry-gates',
+    standalone: 'feat/plan-workflow--registry-gates',
+    worker: 'bouncer/plan-workflow--registry-gates--002',
+  });
+  assert.strictEqual(branchNamesFor({ repoRoot: repo, blueprint: SLUG_BP }).worker, undefined);
+});
+
+test('slug blueprint path → derives slug pointer, approval, worktree and coordinator paths', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const paths = runtimePaths({ repoRoot: primary, ...deps });
+  assert.deepStrictEqual(pointerKeyFromBlueprint(SLUG_BP), {
+    epicId: 'plan-workflow', blueprintId: 'registry-gates', key: 'plan-workflow/registry-gates',
+  });
+  assert.strictEqual(
+    writeRuntimeCurrent({ repoRoot: primary, blueprint: SLUG_BP, base: 'develop', deps }),
+    path.join(paths.pointersRoot, 'plan-workflow', 'registry-gates.json'),
+  );
+  assert.deepStrictEqual(
+    approvalSnapshotPathFor({ repoRoot: primary, blueprintDir: SLUG_BP, deps }),
+    { path: path.join(paths.approvalsRoot, 'plan-workflow', 'registry-gates.json') },
+  );
+  const root = path.join(primary, '.worktrees', 'plan-workflow', 'registry-gates');
+  assert.strictEqual(worktreePathFor({ repoRoot: primary, blueprint: SLUG_BP, deps }), root);
+  assert.deepStrictEqual(coordinatorPathsFor({ repoRoot: primary, blueprint: SLUG_BP, task: '002', deps }), {
+    integrationPath: path.join(root, 'integration'),
+    workerPath: path.join(root, 'workers', '002'),
+    faninPath: path.join(root, 'fanin'),
+    ledgerFile: path.join(root, 'integration', '.bouncer', 'runtime', 'coordinator.json'),
+  });
+});
+
+test('slug worktree with only a flat sibling directory → does not reuse the flat fallback', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  fs.mkdirSync(path.join(primary, '.worktrees', 'registry-gates'), { recursive: true });
+  assert.strictEqual(
+    worktreePathFor({ repoRoot: primary, blueprint: SLUG_BP, deps }),
+    path.join(primary, '.worktrees', 'plan-workflow', 'registry-gates'),
+  );
+});
+
+test('numeric and slug pointers together → lists both and parsePointerKey reads both', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  writeRuntimeCurrent({ repoRoot: primary, blueprint: SLUG_BP, base: 'develop', deps });
+  writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_A, base: 'develop', deps });
+  const paths = runtimePaths({ repoRoot: primary, ...deps });
+  // 구형·slug 어느 형식에도 맞지 않는 이름은 조용히 건너뛴다.
+  fs.mkdirSync(path.join(paths.pointersRoot, 'Bad_Dir'), { recursive: true });
+  fs.writeFileSync(path.join(paths.pointersRoot, 'Bad_Dir', 'x.json'), '{}');
+  fs.writeFileSync(path.join(paths.pointersRoot, 'plan-workflow', 'Bad_File.json'), '{}');
+  const listed = listNamespacePointers({ repoRoot: primary, deps });
+  assert.deepStrictEqual(listed.map((e) => e.key), ['001/001', 'plan-workflow/registry-gates']);
+  assert.deepStrictEqual(listed.map((e) => e.pointer.blueprint), [BP_A, SLUG_BP]);
+  assert.deepStrictEqual(parsePointerKey('plan-workflow/registry-gates'), {
+    epicId: 'plan-workflow', blueprintId: 'registry-gates', key: 'plan-workflow/registry-gates',
+  });
+  assert.deepStrictEqual(parsePointerKey('001/002'), { epicId: '001', blueprintId: '002', key: '001/002' });
+  assert.strictEqual(parsePointerKey('001/registry-gates'), null);
+  assert.strictEqual(removeNamespacePointer({ repoRoot: primary, key: 'plan-workflow/registry-gates', deps }), true);
 });
 
 test('coordinator ledger with malformed seed manifests or legacy ledgers → rejects the manifests and accepts legacy ledgers', () => {

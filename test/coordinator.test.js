@@ -635,6 +635,49 @@ test('verification integrate with a passing and a failing CI → runs CI without
   assert.strictEqual(partial.message, 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.');
 });
 
+test('verification integrate on a slug blueprint → keys evidence by slug id and repair keeps slug ids', () => {
+  const repo = repoTemplate.copy();
+  const blueprint = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates';
+  for (const [id, metadata] of [
+    ['001', 'depends_on: []\n'],
+    ['002', 'execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]) {
+    fs.mkdirSync(path.join(repo, blueprint, 'tasks', id), { recursive: true });
+    fs.writeFileSync(path.join(repo, blueprint, 'tasks', id, 'tasks.md'), `---\nbouncer:\n  ${metadata}---\n`);
+  }
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(boot.integrationPath,
+    path.join(repo, '.worktrees', 'plan-workflow', 'registry-gates', 'integration'));
+  const ledgerFile = __coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  const integrationHead = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).integrationHead
+    || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: boot.integrationPath, encoding: 'utf8' }).trim();
+  let seenScope = null;
+  coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: { runVerification: (opts) => { seenScope = opts.scope; return { ok: false, command: 'node --test', exitCode: 1 }; } },
+  });
+  assert.deepStrictEqual(seenScope, { kind: 'terminal', key: `plan-workflow/registry-gates:${integrationHead}` });
+
+  const repaired = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/fix.js'], decision: 'repair the failing source path',
+  });
+  assert.strictEqual(repaired.ok, true, JSON.stringify(repaired));
+  const repairDoc = fs.readFileSync(path.join(boot.integrationPath, blueprint, 'tasks/003/tasks.md'), 'utf8');
+  assert.strictEqual(readDoc(path.join(boot.integrationPath, blueprint, 'tasks/003/tasks.md')).data.bouncer.epic_id,
+    'plan-workflow', repairDoc);
+  assert.strictEqual(readDoc(path.join(boot.integrationPath, blueprint, 'tasks/003/tasks.md')).data.bouncer.blueprint_id,
+    'registry-gates');
+});
+
 test('verification integrate with a seeded terminal bundle → uses the real runner', () => {
   const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
