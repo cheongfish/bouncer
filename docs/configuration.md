@@ -156,6 +156,19 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 Graphify 설치와 오프라인 폴백은 [install.md](install.md#선택-graphify-경로-추천)에
 있습니다.
 
+## epic 등록부 `.bouncer/epics.json`
+
+config 키가 아니라 별도 파일입니다. `bouncer init`이 `.bouncer/epics.json`이 없을 때
+프로필에 맞춰 만들고, 이미 있으면 건드리지 않습니다.
+
+- `standard`(기본): 공통 epic 8개(`foundation`, `core`, `data`, `integration`,
+  `identity-access`, `interface`, `features`, `quality-ops`)를 `draft` 상태로 scaffold합니다.
+- `domain-only`: 공통 epic을 만들지 않습니다. 기존 epic은 모두 `legacy`로 등록합니다.
+- `--domain-epic-limit <n>`: 도메인 epic 상한(0 이상 정수, 기본 0).
+- 이미 초기화된 저장소에서 다시 실행하면 기존 epic 디렉터리를 등록합니다. 공통 slug와
+  같은 epic은 그 ID를 재사용하고 나머지는 `legacy`로 두며, 기존 파일 내용은 바꾸지 않습니다.
+  같은 공통 slug의 디렉터리가 둘 이상이면 등록부를 쓰지 않고 실패합니다.
+
 ---
 
 프로젝트 설정은 `.bouncer/config.json`에 둡니다. blueprint 크기·OKF 정렬 같은 제품

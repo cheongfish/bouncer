@@ -1,0 +1,386 @@
+{
+  "version": 1,
+  "profile": "domain-only",
+  "domainEpicLimit": 8,
+  "areas": [],
+  "epics": [
+    {
+      "slug": "product-surface-hosts",
+      "id": "001",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "planning-quality-governance",
+      "id": "004",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "platform-architecture",
+      "id": "006",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "project-distill",
+      "id": "007",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "agent-orchestration",
+      "id": "009",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "numeric-context-ids",
+      "id": "014",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "task-unit-commits",
+      "id": "018",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "evaluation-benchmarking",
+      "id": "034",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "release-security",
+      "id": "039",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "bouncer-cost-improvement",
+      "id": "043",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "graphify-search-quality",
+      "id": "060",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "structural-audit-remediation",
+      "id": "061",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "document-commit-contracts",
+      "id": "062",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "maintenance",
+      "id": "063",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "runtime-policy-pointer-safety",
+      "id": "064",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "workflow-reliability",
+      "id": "065",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "workflow-contract-followup",
+      "id": "066",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "task-dag-coordinator",
+      "id": "067",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "context-runtime-rearchitecture",
+      "id": "068",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "workflow-improvement",
+      "id": "069",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "task-brief-specificity",
+      "id": "070",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "code-grounded-intent-provenance",
+      "id": "071",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "search-payload-context-retention",
+      "id": "072",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "task-intent-bundle-reuse",
+      "id": "073",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "plan-context-quality-efficiency",
+      "id": "074",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "adaptive-review-dispatch",
+      "id": "075",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "verification-reuse-checkpoint-compaction",
+      "id": "076",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "rules-reorganization",
+      "id": "077",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "parallel-run-finalize-digest",
+      "id": "078",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "roadmap-closeout",
+      "id": "079",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "execution-token-cost",
+      "id": "080",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "cli-deterministic-procedures",
+      "id": "081",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "explain-index-intent-exit",
+      "id": "082",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-context-reduction",
+      "id": "083",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-plan-copy-hygiene",
+      "id": "084",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "finalize-runtime-slimming",
+      "id": "085",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "finalize-output-cleanup",
+      "id": "086",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "v153-evaluation-remediation",
+      "id": "087",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-token-reduction",
+      "id": "088",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "workflow-cost-and-light-path",
+      "id": "089",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-reliability",
+      "id": "090",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-observation-cleanup",
+      "id": "091",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "source-test-hygiene",
+      "id": "092",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "benchmark-contract-stability",
+      "id": "093",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "deepswe-benchmark",
+      "id": "094",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "coding-standards-pr-retro",
+      "id": "095",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "plan-review-convergence",
+      "id": "096",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "intent-fence-guard",
+      "id": "097",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-plan-cost-control",
+      "id": "098",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "bouncer-improvements-2026-10-14",
+      "id": "099",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "graphify-raw-query",
+      "id": "100",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "plan-review-call-reduction",
+      "id": "101",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "plan-review-loop-guard",
+      "id": "102",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-repair-integrity",
+      "id": "103",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-retro-103-followups",
+      "id": "104",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "drive-retro-104-followups",
+      "id": "105",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "source-restructuring",
+      "id": "106",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "workflow-cost-reduction",
+      "id": "107",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "implementer-navigation",
+      "id": "109",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "context-ontology",
+      "id": "111",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "workflow-transition-guards",
+      "id": "112",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "partial-finalize-recovery",
+      "id": "113",
+      "kind": "legacy",
+      "active": true
+    },
+    {
+      "slug": "consumer-epic-registry",
+      "id": "114",
+      "kind": "legacy",
+      "active": true
+    }
+  ]
+}

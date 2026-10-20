@@ -18,6 +18,10 @@
 
 ### Added
 
+- **epic 등록부 기반 (EPIC 114 BP 001)** — `bouncer init`이 `.bouncer/epics.json`이 없을 때 프로필 등록부를
+  쓰고 공통 epic 8개를 scaffold한다. 이미 초기화된 저장소는 재실행 시 기존 epic을 공통 또는 `legacy`로
+  등록한다. `--profile <standard|domain-only>`와 `--domain-epic-limit <n>`을 받으며 잘못된 값은 exit 2로
+  거절한다.
 - **최종 리뷰 위험 수용 명령 (EPIC 112 BP 002)** — `bouncer review accept-risk --blueprint <dir> --finding <id>
   --note <text> --yes`가 blueprint 최종 리뷰의 open finding 하나를 round 추가 없이 사용자 수용 위험으로 닫는다.
   `--yes`가 없으면 파일을 읽기 전에 거절한다.

@@ -22,9 +22,23 @@ function cmdInit(rest: string[], io: CliIo) {
   // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
   const install = f['no-graphify'] !== true;
   const repoRoot = (f.repo || process.cwd()) as string;
+  // 파일을 쓰기 전에 거절한다 — 잘못된 값이 반쯤 쓴 .bouncer/를 남기지 않게.
+  const profile = f.profile === undefined ? 'standard' : f.profile;
+  if (profile !== 'standard' && profile !== 'domain-only') {
+    io.err('init: --profile must be standard or domain-only\n');
+    return 2;
+  }
+  const limitRaw = f['domain-epic-limit'];
+  if (limitRaw !== undefined && (typeof limitRaw !== 'string' || !/^\d+$/.test(limitRaw))) {
+    io.err('init: --domain-epic-limit must be a non-negative integer\n');
+    return 2;
+  }
+  const domainEpicLimit = limitRaw === undefined ? 0 : Number(limitRaw);
   const result = init({
     repoRoot,
     timestamp,
+    profile,
+    domainEpicLimit,
     graphify: {
       install,
       // --upgrade-graphify만 이 rebuild를 탄다. 기본 sync는 mtime skip-fresh라
