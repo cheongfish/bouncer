@@ -409,6 +409,39 @@ function parseReviewScopeMigrateArgs(flagArgs: string[]): {
   return { blueprint, repo };
 }
 
+/**
+ * migrate context-slugs 전용 argv. parseFlags는 알 수 없는 option을 조용히 삼키는데, 이 명령은 쓰기
+ * 명령이라 `--yes` 오타가 dry-run으로 위장되면 안 되므로 여기서 엄격히 닫는다.
+ *
+ * @param {string[]} flagArgs - `migrate context-slugs` 뒤 argv
+ * @returns {{ error?: string, yes: boolean, repo?: string }}
+ */
+function parseContextSlugsMigrateArgs(flagArgs: string[]): { error?: string; yes: boolean; repo?: string } {
+  let yes = false;
+  let yesSeen = false;
+  let repo: string | undefined;
+  const fail = (message: string) => ({ error: `migrate context-slugs: ${message}\n`, yes, repo });
+  for (let i = 0; i < flagArgs.length; i += 1) {
+    const token = flagArgs[i];
+    if (token === '--yes') {
+      if (yesSeen) return fail('duplicate option: --yes');
+      yesSeen = true;
+      yes = true;
+      continue;
+    }
+    if (token === '--repo') {
+      if (repo !== undefined) return fail('duplicate option: --repo');
+      const value = flagArgs[++i];
+      if (!value || value.startsWith('--')) return fail('--repo requires a directory');
+      repo = value;
+      continue;
+    }
+    if (token.startsWith('--')) return fail(`unknown option: ${token}`);
+    return fail(`unexpected argument: ${token}`);
+  }
+  return { yes, repo };
+}
+
 function cmdMigrate(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
@@ -452,6 +485,26 @@ function cmdMigrate(rest: string[], io: CliIo) {
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
+  }
+  if (kind === 'context-slugs') {
+    const { migrateContextSlugs } = require('./migrate-context-slugs') as typeof import('./migrate-context-slugs');
+    const { catchMessage } = require('./guards') as typeof import('./guards');
+    const parsed = parseContextSlugsMigrateArgs(flagArgs);
+    if (parsed.error) {
+      io.err(parsed.error);
+      return 2;
+    }
+    try {
+      const result = migrateContextSlugs({ repoRoot: (parsed.repo || process.cwd()) as string, yes: parsed.yes });
+      io.out(`${JSON.stringify(result, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    } catch (error) {
+      // 계산 단계(쓰기 전)의 예외도 JSON 거절로 보고한다. 이 시점에는 디스크가 바뀌지 않았다.
+      io.out(`${JSON.stringify({
+        ok: false, code: 'migrate-failed', message: catchMessage(error), next: 'fix the cause, then retry',
+      }, null, 2)}\n`);
+      return 1;
+    }
   }
   if (kind !== 'task-layout') {
     io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);

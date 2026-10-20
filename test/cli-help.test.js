@@ -64,6 +64,10 @@ test('usage → review-scope migration 형식을 나열한다', () => {
   assert.match(capture([]).out, /migrate\s+review-scope --blueprint <dir>/);
 });
 
+test('usage → context-slugs migration 형식을 나열한다', () => {
+  assert.match(capture([]).out, /migrate\s+context-slugs \[--yes\]/);
+});
+
 test('모든 subcommand가 → usage 텍스트에 나열된다', () => {
   const r = capture([]);
   for (const name of SUBCOMMANDS) {
