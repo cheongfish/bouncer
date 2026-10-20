@@ -11,6 +11,8 @@ import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
 import commitSha = require('./commit-sha');
 const { buildStableProvenance, normalizeCommitSha } = commitSha;
+import contextIds = require('./context-ids');
+const { parseStableId } = contextIds;
 import gitOps = require('./git-ops');
 const { resolveCheckoutBranch } = gitOps;
 function asRecord(value: unknown): Record<string, unknown> { return value as Record<string, unknown>; }
@@ -22,7 +24,17 @@ type TaskCommitEntry = { task: string; sha: string; intent_anchor: string };
 type TrailerCommit = { sha?: string; sha8: string };
 
 
-const STABLE_TASK_RE = /^EPIC-(\d{3})\/BP-(\d{3})\/TASK-(\d{3})$/;
+// 번호·slug 두 형식의 task stable ID에서 epic·blueprint key와 task 번호를 꺼낸다. task가 없는 intent ID는 null이다.
+// 부모(Explain frontmatter) 비교는 형식별 key 문자열 그대로 한다 — 형식 간 변환을 여기서 하지 않는다.
+function taskStableParts(id: unknown): { epicKey: string; blueprintKey: string; task: string } | null {
+  const parsed = parseStableId(id);
+  return parsed && parsed.task !== null
+    ? { epicKey: parsed.epicKey, blueprintKey: parsed.blueprintKey, task: parsed.task }
+    : null;
+}
+
+// buildStableProvenance가 던지는 "입력 형식 위반" 메시지만 가린다(번호/slug key, TASKS-NNN).
+const PROVENANCE_INPUT_ERROR_RE = /must be a three-digit id|must be a slug|must be TASKS-NNN/;
 
 
 
@@ -31,7 +43,7 @@ const STABLE_TASK_RE = /^EPIC-(\d{3})\/BP-(\d{3})\/TASK-(\d{3})$/;
  * epic_id·blueprint_id·id가 정본이 아니면 null — 잘못된 값을 패딩하지 않는다.
  *
  * @param {unknown} data - tasks.md frontmatter 루트
- * @returns {string | null} `EPIC-ddd/BP-ddd/TASK-ddd` 또는 불가 시 null
+ * @returns {string | null} `EPIC-ddd/BP-ddd/TASK-ddd` 또는 `<epic>/<bp>/ddd`, 불가 시 null
  */
 function stableIdFromTaskData(data: unknown): string | null {
   // data·bouncer 부재는 legacy `### Task NNN` 폴백이다. asRecord만 쓰면
@@ -46,10 +58,10 @@ function stableIdFromTaskData(data: unknown): string | null {
       taskId: bouncer.id,
     }).task;
   } catch (error) {
-    // 세 자리·TASKS-NNN 계약 위반만 흡수한다. 그 외는 호출부에서 본다.
+    // 번호·slug key·TASKS-NNN 계약 위반만 흡수한다. 그 외는 호출부에서 본다.
     if (
       error instanceof Error
-      && /must be a three-digit id|must be TASKS-NNN/.test(error.message)
+      && PROVENANCE_INPUT_ERROR_RE.test(error.message)
     ) {
       return null;
     }
@@ -354,16 +366,16 @@ function collectTaskCommits({ repoRoot, blueprintDir, commits }: {
       // 건너뛴다. 잘못된 값을 패딩하면 다른 Blueprint 커밋과 같은 ref가 된다.
       if (
         error instanceof Error
-        && /must be a three-digit id|must be TASKS-NNN/.test(error.message)
+        && PROVENANCE_INPUT_ERROR_RE.test(error.message)
       ) {
         continue;
       }
       throw error;
     }
-    const parts = STABLE_TASK_RE.exec(provenance.task);
+    const parts = taskStableParts(provenance.task);
     // helper가 만든 문자열만 온다. 매칭 실패는 계약 파손이라 추측해서 채우지 않는다.
     if (!parts) continue;
-    if (parts[1] !== parent.epicId || parts[2] !== parent.blueprintId) {
+    if (parts.epicKey !== parent.epicId || parts.blueprintKey !== parent.blueprintId) {
       continue;
     }
     // trailer SHA가 있으면 worker worktree의 commit_sha보다 우선한다 —
@@ -376,7 +388,7 @@ function collectTaskCommits({ repoRoot, blueprintDir, commits }: {
     out.push({
       task: provenance.task,
       sha,
-      intent_anchor: `task-${parts[3]}`,
+      intent_anchor: `task-${parts.task}`,
     });
   }
   return out;
@@ -384,7 +396,7 @@ function collectTaskCommits({ repoRoot, blueprintDir, commits }: {
 
 
 export = {
-  STABLE_TASK_RE,
+  taskStableParts,
   stableIdFromTaskData,
   buildCoordinatorProvenance,
   provenanceFromLedgerRead,

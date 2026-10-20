@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const { commitTask } = require('../scripts/lib/commit');
+const { buildCommitMessage } = require('../scripts/lib/commit-message');
 const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
@@ -1408,4 +1409,27 @@ test('Bouncer pre-commit hook is installed → commitTask succeeds', () => {
   const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, yes: true });
   assert.strictEqual(res.ok, true, JSON.stringify(res.failures || res));
   assert.strictEqual(res.committed, true);
+});
+
+test('slug task frontmatter → the commit message carries slug Bouncer-Task and Bouncer-Intent trailers', () => {
+  const taskUnit = {
+    tasks: {
+      data: {
+        title: 'Impl registry gates',
+        bouncer: { id: 'TASKS-001', epic_id: 'plan-workflow', blueprint_id: 'registry-gates' },
+      },
+    },
+  };
+  const message = buildCommitMessage({ blueprintIndex: { data: { title: 'B' } } }, taskUnit);
+  assert.strictEqual(
+    message,
+    'feat: Impl registry gates\n\nBouncer-Task: plan-workflow/registry-gates/001\nBouncer-Intent: plan-workflow/registry-gates',
+  );
+});
+
+test('numeric epic with a slug blueprint in frontmatter → message generation aborts before commit', () => {
+  const taskUnit = {
+    tasks: { data: { title: 'T', bouncer: { id: 'TASKS-001', epic_id: '114', blueprint_id: 'registry-gates' } } },
+  };
+  assert.throws(() => buildCommitMessage({ blueprintIndex: { data: { title: 'B' } } }, taskUnit), /blueprint_id/);
 });

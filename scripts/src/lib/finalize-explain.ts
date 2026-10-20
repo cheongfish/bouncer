@@ -10,7 +10,7 @@ const { renderDoc } = render;
 import commitSha = require('./commit-sha');
 const { normalizeCommitSha } = commitSha;
 import collect = require('./finalize-collect');
-const { stableIdFromTaskData, STABLE_TASK_RE } = collect;
+const { stableIdFromTaskData, taskStableParts } = collect;
 function asRecord(value: unknown): Record<string, unknown> { return value as Record<string, unknown>; }
 
 const TASK_SECTIONS = [
@@ -101,8 +101,8 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
     bouncer.task_commits = [];
   } else {
     bouncer.task_commits = taskCommits.flatMap((entry) => {
-      const parts = STABLE_TASK_RE.exec(entry.task);
-      if (!parts || parts[1] !== epicId || parts[2] !== blueprintId) return [];
+      const parts = taskStableParts(entry.task);
+      if (!parts || parts.epicKey !== epicId || parts.blueprintKey !== blueprintId) return [];
       return [{
         task: entry.task,
         sha: entry.sha,
@@ -122,7 +122,8 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
  * 보존한다. Do not touch·Checklist·verification·review는 실행 시점 범위
  * 통제·절차라서 여기 넣지 않는다 — Git history와 삭제된 task 원문이 정본이다.
  * Current/Target은 값이 있을 때만 넣어 legacy task에 두 절을 요구하지 않는다.
- * 제목은 frontmatter로 stable ID를 만들 수 있으면 `### EPIC-…/BP-…/TASK-…`이고,
+ * 제목은 frontmatter로 stable ID를 만들 수 있으면 `### EPIC-…/BP-…/TASK-…`(번호 경로) 또는
+ * `### <epic-slug>/<bp-slug>/NNN`(slug 경로)이고,
  * `commits`에 그 ID의 sha8이 있으면 ` · \`sha8\``을 붙인다. 못 만들면 기존
  * `### Task NNN`으로 폴백한다.
  *
@@ -207,4 +208,4 @@ function writeExplainTaskContext({ repoRoot, blueprintDir, taskContext }: {
 }
 
 
-export = { STABLE_TASK_RE, writeExplainTaskCommits, buildTaskContext, writeExplainTaskContext };
+export = { writeExplainTaskCommits, buildTaskContext, writeExplainTaskContext };

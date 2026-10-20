@@ -35,6 +35,10 @@ import currentMod = require('./current');
 const { readCurrent } = currentMod;
 import taskCommits = require('./task-commits');
 const { resolveTaskCommits } = taskCommits;
+import contextIds = require('./context-ids');
+const { validateSlug } = contextIds;
+import epicRegistry = require('./epic-registry');
+const { readEpicRegistry } = epicRegistry;
 import finalizePr = require('./finalize-pr');
 const { buildPrDraft } = finalizePr;
 
@@ -787,7 +791,11 @@ function prepareFinalizeDigest({
 
   let stableBlueprint = '';
   if (bpEpicId && bpBlueprintId) {
-    stableBlueprint = `EPIC-${bpEpicId}/BP-${bpBlueprintId}`;
+    // 두 key가 모두 slug 규칙을 통과하면 slug 경로의 intent ID다. 번호('114')는 slug 규칙에서
+    // 거절되므로 구형 조립이 이전과 바이트까지 같게 남는다.
+    stableBlueprint = validateSlug(bpEpicId) === null && validateSlug(bpBlueprintId) === null
+      ? `${bpEpicId}/${bpBlueprintId}`
+      : `EPIC-${bpEpicId}/BP-${bpBlueprintId}`;
   }
 
   // provenance는 git.branch 결정에만 쓴다. 결과 JSON에 싣지 않는 이유:
@@ -878,12 +886,17 @@ function prepareFinalizeDigest({
     });
   }
 
+  // 등록부는 이 진입점에서 한 번만 읽는다. 없거나 깨졌으면 null — 정규화 없이 정확 일치로 조회해
+  // 이관 전 동작과 같다(깨진 등록부의 거절은 S35 검증 소관이고 digest는 읽기 전용이다).
+  const registryRead = readEpicRegistry(checkoutRoot);
+  const registry = registryRead.status === 'ok' ? registryRead.registry : null;
   const trailerMap = resolveTaskCommits({
     repoRoot: checkoutRoot,
     base,
     head,
     stableIds,
     exec: run,
+    registry,
   });
 
   for (const item of built) {

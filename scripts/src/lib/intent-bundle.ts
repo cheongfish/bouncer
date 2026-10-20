@@ -23,13 +23,28 @@ const {
   resolveIntentProvenance: defaultResolveIntentProvenance,
   projectExplainSectionHashes,
   projectExplainSectionBodies,
+  isCanonicalExplainPath,
 } = intentProvenance;
+import contextIds = require('./context-ids');
+const { parseContextPath, parseStableId } = contextIds;
 
-const CANONICAL_TASK_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/tasks\/\d{3}\/tasks\.md$/;
-// live resolve(loadExplainDocs)와 같은 canonical Explain만 cache가 읽기 경로로 쓸 수 있다.
-const CANONICAL_EXPLAIN_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/explain\.md$/;
+// 번호·slug 두 경로 형식을 모두 받되 세그먼트 해석은 parseContextPath 한 곳에 맡긴다.
+const TASK_SHAPE_RE = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/\d{3}\/tasks\.md$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
-const STABLE_TASK_RE = /^EPIC-\d{3}\/BP-\d{3}\/TASK-\d{3}$/;
+
+/** 번호·slug 형식의 canonical tasks.md 경로인지 판정한다. */
+function isCanonicalTaskPath(rel: string): boolean {
+  if (!TASK_SHAPE_RE.test(rel)) return false;
+  const ids = parseContextPath(rel);
+  return ids !== null && ids.blueprintKey !== null;
+}
+
+/** 번호·slug 형식의 task stable ID(`task` 번호까지 있는 것)인지 판정한다. */
+function isStableTaskId(value: unknown): boolean {
+  const parsed = parseStableId(value);
+  return parsed !== null && parsed.task !== null;
+}
+
 const COMMIT_RE = /^[0-9a-f]{40}$/;
 const FRESHNESS = new Set(['current', 'related', 'possibly-superseded', 'historical']);
 
@@ -369,7 +384,7 @@ function loadExecutionTask(input: {
   if (path.isAbsolute(taskRel) || taskRel.includes('..')) {
     throw new Error('taskFile must be a repo-relative canonical tasks.md path');
   }
-  if (!CANONICAL_TASK_RE.test(taskRel)) {
+  if (!isCanonicalTaskPath(taskRel)) {
     throw new Error('taskFile is not a canonical task layout path');
   }
   const repoReal = input.fs.realpathSync(input.repoRoot);
@@ -528,7 +543,7 @@ function isValidBundleRecord(value: unknown, expectedTask: string): value is Bun
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const rec = value as Record<string, unknown>;
   if (rec.version !== 1) return false;
-  if (rec.task !== expectedTask || !STABLE_TASK_RE.test(String(rec.task || ''))) return false;
+  if (rec.task !== expectedTask || !isStableTaskId(rec.task)) return false;
   if (typeof rec.task_brief_hash !== 'string' || !HASH_RE.test(rec.task_brief_hash)) return false;
   if (typeof rec.revision !== 'number' || !Number.isInteger(rec.revision) || rec.revision < 1) {
     return false;
@@ -582,7 +597,7 @@ function isValidSymbolRef(value: unknown): value is SymbolRef {
 function isValidProvenance(value: unknown): value is ProvenanceFields {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const prov = value as Record<string, unknown>;
-  if (!STABLE_TASK_RE.test(String(prov.task || ''))) return false;
+  if (!isStableTaskId(prov.task)) return false;
   if (!COMMIT_RE.test(String(prov.commit || ''))) return false;
   if (typeof prov.explain !== 'string' || prov.explain.length === 0) return false;
   // cache body는 data다. 임의 경로를 Explain 읽기로 승격하지 않도록 canonical만 받는다.
@@ -877,7 +892,8 @@ function isCanonicalExplainRel(explainRel: string): boolean {
   if (typeof explainRel !== 'string' || explainRel.length === 0) return false;
   const rel = toPosix(explainRel);
   if (path.isAbsolute(rel) || rel.includes('..')) return false;
-  if (!CANONICAL_EXPLAIN_RE.test(rel)) return false;
+  // live resolve(loadExplainDocs)와 같은 canonical Explain만 cache가 읽기 경로로 쓸 수 있다.
+  if (!isCanonicalExplainPath(rel)) return false;
   const ids = parsePathIds(rel);
   return ids.kind === 'explain' && Boolean(ids.epicId) && Boolean(ids.blueprintId);
 }

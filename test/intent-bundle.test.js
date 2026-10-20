@@ -906,3 +906,69 @@ test('mixed resolved unlinked and unresolved entries → preserves only original
   assert.equal(provenanceCalls, projectionCalls);
   assert.deepEqual(fs.readFileSync(located.intentFile), cacheBefore);
 });
+
+test('slug task path with slug trailers and a slug Explain → bundle is created and then reused', () => {
+  const repo = tmpRepo();
+  initRepo(repo);
+  writeFile(repo, 'src/app.ts', targetSource(1));
+  const sha = commit(
+    repo,
+    trailerMessage('feat: add targetFn', 'plan-workflow/registry-gates/001', 'plan-workflow/registry-gates'),
+    '2026-01-01T00:00:00 +0900',
+  );
+  const base = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates';
+  writeFile(repo, `${base}/explain.md`, [
+    '---',
+    'type: bouncer.explain',
+    'title: fixture',
+    'description: fixture',
+    `resource: ${base}/explain.md`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-17T00:00:00+09:00'",
+    'bouncer:',
+    '  id: EXPLAIN-001',
+    '  epic_id: plan-workflow',
+    '  blueprint_id: registry-gates',
+    '  status: published',
+    '  task_commits: []',
+    '---',
+    '# Explain',
+    '',
+    '## Background',
+    '',
+    'slug background',
+    '',
+  ].join('\n'));
+  const taskFile = `${base}/tasks/001/tasks.md`;
+  writeFile(repo, taskFile, [
+    '---',
+    'type: bouncer.tasks',
+    'title: fixture',
+    'description: fixture',
+    `resource: ${taskFile}`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-17T00:00:00+09:00'",
+    'bouncer:',
+    '  id: TASKS-001',
+    '  epic_id: plan-workflow',
+    '  blueprint_id: registry-gates',
+    '  status: ready',
+    '---',
+    '# Tasks',
+    '',
+    'Goal for targetFn provenance reuse.',
+    '',
+  ].join('\n'));
+
+  const counter = countingProvenance();
+  const deps = { resolveIntentProvenance: counter.resolve, execFileSync };
+  const input = { repoRoot: repo, taskFile, functions: [{ symbol: 'targetFn' }], deps };
+  const first = resolveTaskIntentBundle(input);
+  assert.equal(first.status, 'created');
+  assert.equal(first.task, 'plan-workflow/registry-gates/001');
+  assert.equal(first.functions[0].provenance.commit, sha);
+  assert.equal(first.functions[0].provenance.explain, `${base}/explain.md`);
+  const second = resolveTaskIntentBundle(input);
+  assert.equal(second.status, 'reused');
+  assert.equal(counter.calls, 1);
+});
