@@ -54,7 +54,9 @@ function assertLedgerFence(opts: {
     return { ok: false, reason: 'ledger-checkpoint-invalid' };
   }
   if (!/^[a-f0-9]{64}$/.test(ledgerHash)) return { ok: false, reason: 'ledger-checkpoint-invalid' };
-  if (!Buffer.isBuffer(ledgerBytes) || ledgerBytes.length === 0) return { ok: false, reason: 'ledger-checkpoint-invalid' };
+  if (!Buffer.isBuffer(ledgerBytes) || ledgerBytes.length === 0) {
+    return { ok: false, reason: 'ledger-checkpoint-invalid' };
+  }
   if (ledgerBytesHash(ledgerBytes) !== ledgerHash) return { ok: false, reason: 'stale-ledger-checkpoint' };
   // 모든 fenced mutation이 공유하는 끝단 검사라 새 명령도 detached 상태를 빠뜨리지 않는다.
   const parsed = JSON.parse(ledgerBytes.toString('utf8')) as { status?: unknown };

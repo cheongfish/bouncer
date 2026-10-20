@@ -8,7 +8,7 @@ const {
   coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch,
 } = runtime;
 import seed = require('./seed-worktree');
-const { seedCoordinatorWorker, seedIntegration, prepareDependencies } = seed;
+const { seedCoordinatorWorker, seedIntegration } = seed;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter, readDoc } = frontmatter;
 import render = require('./render');
@@ -50,8 +50,12 @@ const { issueLease, revokeLease, checkLease } = leaseMod;
 const { randomUUID } = require('node:crypto');
 
 // 경로 상수와 원장 I/O는 한 모듈에서 공유해 fence와 저장 동작이 갈라지지 않게 한다.
-const { atomicWrite, loadLedgerBytes, loadLedger, ledgerBytesHash, assertLedgerFence, writeOwnedLedger } = coordinatorLedger;
-const { git, initialWorktreeState, sourceStatus, workerOwnsSha, directParent, registeredWorker, registeredIntegration } = coordinatorGit;
+const {
+  atomicWrite, loadLedgerBytes, loadLedger, ledgerBytesHash, assertLedgerFence, writeOwnedLedger,
+} = coordinatorLedger;
+const {
+  git, initialWorktreeState, sourceStatus, workerOwnsSha, directParent, registeredWorker, registeredIntegration,
+} = coordinatorGit;
 const {
   withInstallStdioToStderr, prepareVerificationDependencies, selectVerificationRunner, runTargetVerification,
 } = coordinatorVerification;

@@ -128,6 +128,9 @@ read code/tests/repo context needed to implement.
   for one product, no config for a value that never changes, no scaffolding
   “for later.”
 - One logical change set at a time; avoid drive-by refactors.
+- In ts and js files, keep every line within 120 characters (the `max-len`
+  limit in `eslint.config.js`); wrap longer lines instead of letting them
+  through, and never bypass the rule with `eslint-disable`.
 - Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
   unfinished task, not a smaller diff.
 - Never simplify away: input validation at trust boundaries, error handling

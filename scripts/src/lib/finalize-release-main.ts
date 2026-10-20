@@ -362,7 +362,9 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
     const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
     if (ledger.status === 'partial_closed') {
       if (!allowPartialMerge && !confirmPartialMerge) return { ok: false, reason: 'drive-not-closed' };
-      if (!allowPartialMerge || !confirmPartialMerge) return { ok: false, reason: 'partial-merge-confirmation-required' };
+      if (!allowPartialMerge || !confirmPartialMerge) {
+        return { ok: false, reason: 'partial-merge-confirmation-required' };
+      }
       const handoff = (ledger as Record<string, unknown>).handoff as { path?: unknown } | undefined;
       if ((ledger as Record<string, unknown>).userConfirmed !== true || !handoff
         || typeof handoff.path !== 'string' || !fs.existsSync(path.join(root, handoff.path))) {
@@ -379,7 +381,9 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
       const integrationRel = toPosix(path.relative(root, ledgerRead.integrationPath));
       if (dirty.some((line) => !(line.startsWith('?? ')
         && [handoff.path, `${integrationRel}/`].includes(line.slice(3))))) {
-        return { ok: false, reason: 'partial-merge-main-dirty', paths: dirty.map((line) => line.slice(3)) } as ReleaseMainResult;
+        return {
+          ok: false, reason: 'partial-merge-main-dirty', paths: dirty.map((line) => line.slice(3)),
+        } as ReleaseMainResult;
       }
       try {
         git(['merge', '--no-commit', '--no-ff', integrationHead]);

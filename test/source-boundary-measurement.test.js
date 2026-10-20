@@ -5,7 +5,6 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 const {
   countLf,
   directRequires,
@@ -75,7 +74,7 @@ test('coverage summary → accepts one valid all-files row and rejects missing, 
 test('probe → isolates module cache and rejects spawn errors or nonzero exits', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boundary-probe-'));
   const child = path.join(dir, 'child.js');
-  fs.writeFileSync(child, "process.stdout.write(JSON.stringify({cache:Object.keys(require.cache).length}));");
+  fs.writeFileSync(child, 'process.stdout.write(JSON.stringify({cache:Object.keys(require.cache).length}));');
   assert.deepEqual(runProbe(process.execPath, [child], dir), { cache: 1 });
   assert.throws(() => runProbe(path.join(dir, 'missing'), [], dir), /spawn/);
   assert.throws(() => runProbe(process.execPath, ['-e', "process.kill(process.pid, 'SIGTERM')"], dir), /signal SIGTERM/);
@@ -104,13 +103,13 @@ test('comparison report → accepts matching snapshots and rejects altered measu
   assert.equal(compareReport(report), true);
   assert.throws(() => compareReport({ ...report, after: { ...report.after, definition: { suite: 'other' } } }));
   const md = [
-    `| scripts/src/lib/*.ts 모듈 수 | 2 | 2 | measured |`,
-    `| scripts/src/lib/*.ts 합계 줄 수 | 30 | 30 | measured |`,
-    `| test/*.test.js 파일 수 | 4 | 4 | measured |`,
-    `| test/*.test.js 합계 줄 수 | 50 | 50 | measured |`,
-    `| coverage lines | 95% | 95% | measured |`,
-    `| coverage branches | 85% | 85% | measured |`,
-    `| coverage functions | 98% | 98% | measured |`,
+    '| scripts/src/lib/*.ts 모듈 수 | 2 | 2 | measured |',
+    '| scripts/src/lib/*.ts 합계 줄 수 | 30 | 30 | measured |',
+    '| test/*.test.js 파일 수 | 4 | 4 | measured |',
+    '| test/*.test.js 합계 줄 수 | 50 | 50 | measured |',
+    '| coverage lines | 95% | 95% | measured |',
+    '| coverage branches | 85% | 85% | measured |',
+    '| coverage functions | 98% | 98% | measured |',
     snapshot.revision, report.after.revision,
   ].join('\n');
   assert.equal(validateInventory(report, md), true);

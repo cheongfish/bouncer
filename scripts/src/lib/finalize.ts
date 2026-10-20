@@ -367,7 +367,9 @@ function finalize({
     const main = runtime.runtimePaths({ repoRoot });
     if (!main.projectRoot || fs.realpathSync(repoRoot) !== fs.realpathSync(main.projectRoot)
       || fs.realpathSync(cwd) !== fs.realpathSync(main.projectRoot)) {
-      return { ok: false, reason: 'partial-finalize-requires-main-checkout', state: 'partial-finalize', preserved: true };
+      return {
+        ok: false, reason: 'partial-finalize-requires-main-checkout', state: 'partial-finalize', preserved: true,
+      };
     }
     partialLedgerRead = readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
     if (!partialLedgerRead.ok || !partialLedgerRead.integrationPath) {
@@ -387,7 +389,9 @@ function finalize({
       const main = runtime.runtimePaths({ repoRoot });
       if (!main.projectRoot || fs.realpathSync(repoRoot) !== fs.realpathSync(main.projectRoot)
         || fs.realpathSync(cwd) !== fs.realpathSync(main.projectRoot)) {
-        return { ok: false, reason: 'partial-finalize-requires-main-checkout', state: 'partial-finalize', preserved: true };
+        return {
+          ok: false, reason: 'partial-finalize-requires-main-checkout', state: 'partial-finalize', preserved: true,
+        };
       }
     }
     const partialRead = partialLedgerRead || readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });

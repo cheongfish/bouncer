@@ -3,7 +3,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 import type { Exec } from './execution-contracts';
 
-/** @param {Exec} exec - Git 실행기 @param {string} cwd - checkout @param {string[]} args - Git 인자 @returns {string} trim된 stdout */
+/**
+ * @param {Exec} exec - Git 실행기
+ * @param {string} cwd - checkout
+ * @param {string[]} args - Git 인자
+ * @returns {string} trim된 stdout
+ */
 function git(exec: Exec, cwd: string, args: string[]): string {
   return String(exec('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).trim();
 }
@@ -112,4 +117,6 @@ function registeredIntegration(exec: Exec, repoRoot: string, integrationPath: st
   }
 }
 
-export = { git, initialWorktreeState, sourceStatus, workerOwnsSha, directParent, registeredWorker, registeredIntegration };
+export = {
+  git, initialWorktreeState, sourceStatus, workerOwnsSha, directParent, registeredWorker, registeredIntegration,
+};

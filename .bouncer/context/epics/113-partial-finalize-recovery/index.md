@@ -37,3 +37,4 @@ bouncer:
 
 ## Blueprints
 * [부분 마감과 owner task 재개](blueprints/001-partial-finalize-recovery/index.md) - coordinator, finalize, gate와 CLI에 실패 인계·부분 마감·재개 계약을 연결한다.
+* [lint baseline 정리](blueprints/002-lint-baseline-cleanup/index.md) - `npm run ci`의 lint 단계를 막는 eslint 오류 35개를 동작 변경 없이 정리하고 implementer에 120자 한도 규칙을 추가한다.
