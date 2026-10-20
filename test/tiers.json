@@ -14,6 +14,7 @@
     "coordinate-output.test.js",
     "dependency-boundaries.test.js",
     "distill-decommission-audit.test.js",
+    "epic-command.test.js",
     "epic-registry.test.js",
     "execution-dag.test.js",
     "finalize-pure.test.js",
