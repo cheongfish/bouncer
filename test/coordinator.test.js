@@ -219,6 +219,12 @@ test('coordinator reason file set → includes coordinator.ts first', () => {
   assert.strictEqual(coordinatorReasonFiles()[0], path.join(COORDINATOR_SRC_DIR, 'coordinator.ts'));
 });
 
+test('integration-source-mutated hint → next names main pre-commit and coordinate repair', () => {
+  const hinted = withCoordinateFailureHints({ ok: false, reason: 'integration-source-mutated' });
+  assert.match(hinted.next, /\bmain\b/);
+  assert.ok(hinted.next.includes('`bouncer coordinate repair`'));
+});
+
 test('every coordinator reason literal exists → COORDINATE_FAILURE_HINTS covers each of them', () => {
   const reasons = reasonLiteralsOf(coordinatorReasonFiles());
   assert.ok(reasons.length > 0);

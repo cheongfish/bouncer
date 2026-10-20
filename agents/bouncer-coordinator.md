@@ -146,6 +146,8 @@ to your `Decision required` judgment, never a second brief.
   `coordinate repair` so a worker fixes it. `coordinate integrate` refuses
   uncommitted integration changes outside the seeded and evidence paths with
   `integration-source-mutated`: revert them and move the change to a worker task.
+  Governance changes such as an epic migration are committed on main before the
+  drive, never in the integration checkout.
 - A final-review `must_fix` that is only an in-scope gap in test evidence (test
   paths inside an integrated task's `affected_paths`; product behavior already
   correct) is closed in place with `bouncer coordinate repair --kind

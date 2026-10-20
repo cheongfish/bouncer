@@ -5393,9 +5393,11 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'integration-source-mutated': {
     cause: 'The integration checkout has uncommitted changes outside the seed manifest '
-      + 'and integrated or repair task evidence.',
-    next: 'Move the change into a worker task or `bouncer coordinate repair`, '
-      + 'revert the direct edits in the integration checkout, then call integrate again.',
+      + 'and integrated or repair task evidence, so the root or coordinator edited it directly.',
+    next: 'Commit governance changes (an epic migration, `.bouncer/epics.json`) on main before the drive '
+      + 'and prepare the drive again. During a drive, move source changes into a worker task or '
+      + '`bouncer coordinate repair`. Revert the direct edits in the integration checkout, '
+      + 'then call integrate again.',
   },
   'stale-integration-head': {
     cause: 'The integration worktree HEAD does not match the ledger integrationHead.',
