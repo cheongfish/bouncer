@@ -16,7 +16,7 @@ bouncer:
   id: slug-identifiers
   epic_id: context-search
   blueprint_id: slug-identifiers
-  status: approved
+  status: closed
   order: 1
   commit_type: feat
   scale: full

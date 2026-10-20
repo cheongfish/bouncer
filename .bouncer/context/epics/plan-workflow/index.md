@@ -50,4 +50,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 063 | 002, 003, 004 | context review·발견 안내 |
 
 ## Blueprints
-없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.
+- [context-review-fix-restart](blueprints/context-review-fix-restart/index.md) — delta 뒤 열린 `must_fix` 대상 섹션을 고치면 `context-review restart`·`route`가 restart를 허용하고 skill 안내를 맞춘다.

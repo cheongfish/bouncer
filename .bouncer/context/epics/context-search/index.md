@@ -21,12 +21,12 @@ bouncer:
 
 ## Success criteria
 1. `context-search` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
-2. 아래 legacy epic은 `legacy`로 두고 조회·이력에만 쓴다. 번호 식별자를 slug로 바꾸는 이관(slug 식별자 결정 3)은 디렉터리·문서 안 ID·경로를 새 형식으로 옮기고 파생 해시를 다시 계산하되, 과거 커밋 trailer는 별칭 표로 계속 연결한다.
+2. 아래 legacy epic의 blueprint는 `bouncer migrate merge-legacy-epics`로 귀속된 도메인 epic 아래로 물리 이관할 수 있다. 이관은 문서 안 ID·경로를 새 위치로 옮기고 원래 공식과 일치한 파생 해시만 다시 계산하며, legacy epic 디렉터리에는 `index.md`만 남는다. 등록부 legacy 항목은 `moved_to`를 더해 유지하고, 과거 커밋 trailer(번호·legacy slug)는 별칭 표와 `moved_to`로 새 위치에 계속 연결한다. 이 저장소에 실제로 적용하는 일은 병합 뒤 사용자 승인을 받는 별도 단계다.
 
 ## Out of scope
 - 문서를 쓰는 워크플로 단계 동작 → 해당 단계 영역
-- legacy epic 사이의 blueprint 재배치. 귀속은 논리적 병합으로만 하고, 물리 이관은 식별자 형식 전환(번호 → slug)에 한한다.
-- legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
+- legacy epic 디렉터리와 등록부 legacy 항목 삭제. 물리 이관 뒤에도 `index.md`와 항목을 이력용으로 남긴다.
+- legacy epic에 남은 미완료 blueprint의 상태 변경. 물리 이관도 상태를 바꾸지 않고 그대로 옮긴다.
 
 ## Legacy epic 귀속
 Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 귀속된다는 뜻이다.
@@ -49,3 +49,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 
 ## Blueprints
 - [slug-identifiers](blueprints/slug-identifiers/index.md) — epic·blueprint 식별자를 번호에서 slug와 `order`로 바꾸고 trailer·실행 키·이관 명령을 새 형식으로 맞춘다.
+- [legacy-epic-merge](blueprints/legacy-epic-merge/index.md) — legacy epic blueprint를 도메인 epic 아래로 옮기는 `migrate merge-legacy-epics`와 옛 trailer 해석(`moved_to`), v2 `plan inspect` 요약을 고친다.

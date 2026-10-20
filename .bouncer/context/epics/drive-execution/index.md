@@ -55,4 +55,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 099 | 003, 005, 006 | repair·dispatch·worker 정리 |
 
 ## Blueprints
-없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.
+- [repair-resume-integrity](blueprints/repair-resume-integrity/index.md): `coordinate repair --resume-task`가 통합된 하위 task를 유지하고, rework `next`·`revise` 승인 경로·integration 직접 수정 안내를 고친다.
