@@ -2,14 +2,14 @@
 type: bouncer.explain
 title: 001 explain
 description: Explain for 001
-resource: .bouncer/context/epics/078-plan-review-loop-guard/blueprints/001-draft-validation-review-freshness/explain.md
+resource: .bouncer/context/epics/102-plan-review-loop-guard/blueprints/001-draft-validation-review-freshness/explain.md
 tags:
   - bouncer
   - explain
 timestamp: '2026-09-23T10:52:11.075+09:00'
 bouncer:
   id: EXPLAIN-001
-  epic_id: '078'
+  epic_id: '102'
   blueprint_id: '001'
   status: published
   comprehension:
@@ -119,7 +119,7 @@ bouncer:
         task_brief_hash: 6a284157d7b4a231ec0c08ae93b78e70c213c94242523cb7df087f24984feb83
         base_head: 45735ae1422e9acbf27b8a4ff71c007c04dfc487
         initial_worktree_state: |
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '001'
         kind: report
         attempt: 1
@@ -133,7 +133,7 @@ bouncer:
         base_head: 9972fadbc020366ad5fc602805375ef39b9aa1cc
         initial_worktree_state: |2
            M .bouncer/context/index.md
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '001'
         kind: report
         attempt: 2
@@ -149,7 +149,7 @@ bouncer:
         base_head: 1cc426d764dc267c8adb411f0d671feeb5563bc7
         initial_worktree_state: |2
            M .bouncer/context/index.md
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '002'
         kind: report
         attempt: 1
@@ -173,7 +173,7 @@ bouncer:
            M test/cli-validate.test.js
            M test/review-dispatch.test.js
            M test/validate-gates.test.js
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
           ?? scripts/src/lib/plan-snapshot.ts
       - task: '002'
         kind: report
@@ -188,7 +188,7 @@ bouncer:
         base_head: 44ed142a0837397a669f1de2df7ae0e7b70ea968
         initial_worktree_state: |2
            M .bouncer/context/index.md
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '002'
         kind: report
         attempt: 3
@@ -204,7 +204,7 @@ bouncer:
         base_head: aa614b642c3b8e058849d028b731479358af194e
         initial_worktree_state: |2
            M .bouncer/context/index.md
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '003'
         kind: report
         attempt: 1
@@ -222,7 +222,7 @@ bouncer:
            M scripts/src/lib/validate-gates.ts
            M test/cli-validate.test.js
            M test/validate-gates.test.js
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '003'
         kind: report
         attempt: 2
@@ -236,7 +236,7 @@ bouncer:
         base_head: 0bd521aac85fac51cbedc08e36fad259cda1c118
         initial_worktree_state: |2
            M .bouncer/context/index.md
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '003'
         kind: report
         attempt: 3
@@ -252,7 +252,7 @@ bouncer:
         base_head: baf559257317c538ab197a52cc81198a38cbc61a
         initial_worktree_state: |2
            M .bouncer/context/index.md
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '004'
         kind: report
         attempt: 1
@@ -266,7 +266,7 @@ bouncer:
         base_head: b9898a60960b46059e3d5324571c463698852411
         initial_worktree_state: |2
            M .bouncer/context/index.md
-          ?? .bouncer/context/epics/078-plan-review-loop-guard/
+          ?? .bouncer/context/epics/102-plan-review-loop-guard/
       - task: '004'
         kind: report
         attempt: 2

@@ -2,7 +2,7 @@
 type: bouncer.blueprint
 title: 계획 draft 검증과 context review 신선도 판정 추가
 description: Catch G19/G20 and Touch scope failures before the context review snapshot is frozen, and reject stale reviews at the plan gate.
-resource: .bouncer/context/epics/078-plan-review-loop-guard/blueprints/001-draft-validation-review-freshness/index.md
+resource: .bouncer/context/epics/102-plan-review-loop-guard/blueprints/001-draft-validation-review-freshness/index.md
 tags:
   - bouncer
   - blueprint
@@ -12,7 +12,7 @@ tags:
 timestamp: '2026-09-23T09:51:35.524+09:00'
 bouncer:
   id: '001'
-  epic_id: '078'
+  epic_id: '102'
   blueprint_id: '001'
   status: closed
   commit_type: feat
@@ -21,7 +21,7 @@ bouncer:
 ---
 # 계획 draft 검증과 context review 신선도 판정 추가
 
-Epic: [078](../../index.md)
+Epic: [102](../../index.md)
 
 ## Intent
 - verification task 전용 본문과 review-dispatch plan의 draft 검증으로 G19·G20·Touch 정합성 오류를 context review 전에 거른다.
