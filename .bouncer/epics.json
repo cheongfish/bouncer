@@ -381,6 +381,86 @@
       "id": "114",
       "kind": "legacy",
       "active": true
+    },
+    {
+      "slug": "host-distribution",
+      "id": "115",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "호스트 배포 표면과 릴리스: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:34.789+09:00"
+      }
+    },
+    {
+      "slug": "plan-workflow",
+      "id": "116",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "bouncer-plan 단계 동작: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:34.892+09:00"
+      }
+    },
+    {
+      "slug": "drive-execution",
+      "id": "117",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "bouncer-run 단계 동작: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:34.976+09:00"
+      }
+    },
+    {
+      "slug": "finalize-closeout",
+      "id": "118",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "bouncer-finalize 단계 동작: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:35.062+09:00"
+      }
+    },
+    {
+      "slug": "context-search",
+      "id": "119",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "컨텍스트 문서 모델과 검색: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:35.146+09:00"
+      }
+    },
+    {
+      "slug": "gates-review",
+      "id": "120",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "gate·검증·리뷰 판정: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:35.229+09:00"
+      }
+    },
+    {
+      "slug": "runtime-architecture",
+      "id": "121",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "CLI·런타임 기반 구조: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:35.314+09:00"
+      }
+    },
+    {
+      "slug": "benchmark-cost",
+      "id": "122",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "평가와 비용 측정: 공통 epic이 없는 domain-only 프로필이며 Bouncer 워크플로의 기능 경계라 범용 공통 epic으로 귀속할 수 없다",
+        "approvedAt": "2026-10-20T16:04:35.397+09:00"
+      }
     }
   ]
 }
