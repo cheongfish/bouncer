@@ -179,7 +179,7 @@ test('cwd holds a broken epics.json but repo has none → no S35', () => {
 });
 
 // 요구사항 표(공통 epic 표)의 한국어 문구와 정확히 일치해야 한다. 구현 출력이 아닌 표 원문을 기대값으로 둔다.
-test('COMMON_EPICS include/exclude match the requirements table text', () => {
+test('COMMON_EPICS include/exclude text → matches the requirements table text', () => {
   const bySlug = Object.fromEntries(registryLib.COMMON_EPICS.map((c) => [c.slug, c]));
   assert.strictEqual(
     bySlug.foundation.include,
