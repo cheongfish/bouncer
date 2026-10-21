@@ -21,15 +21,15 @@ bouncer:
 
 ## Success criteria
 1. `context-search` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
-2. 아래 legacy epic의 blueprint는 `bouncer migrate merge-legacy-epics`로 귀속된 도메인 epic 아래로 물리 이관할 수 있다. 이관은 문서 안 ID·경로를 새 위치로 옮기고 원래 공식과 일치한 파생 해시만 다시 계산하며, legacy epic 디렉터리에는 `index.md`만 남는다. 등록부 legacy 항목은 `moved_to`를 더해 유지하고, 과거 커밋 trailer(번호·legacy slug)는 별칭 표와 `moved_to`로 새 위치에 계속 연결한다. 이 저장소에 실제로 적용하는 일은 병합 뒤 사용자 승인을 받는 별도 단계다.
+2. 아래 legacy epic의 blueprint는 `bouncer migrate merge-legacy-epics`로 귀속된 도메인 epic 아래로 물리 이관할 수 있다. 이관은 문서 안 ID·경로를 새 위치로 옮기고 원래 공식과 일치한 파생 해시만 다시 계산하며, 이관 뒤 legacy epic 디렉터리는 도메인 epic으로 흡수해 지운다. 등록부 legacy 항목은 `moved_to`를 더해 유지하고, 과거 커밋 trailer(번호·legacy slug)는 별칭 표와 `moved_to`로 새 위치에 계속 연결한다. 이 저장소에 실제로 적용하는 일은 병합 뒤 사용자 승인을 받는 별도 단계다.
 
 ## Out of scope
 - 문서를 쓰는 워크플로 단계 동작 → 해당 단계 영역
-- legacy epic 디렉터리와 등록부 legacy 항목 삭제. 물리 이관 뒤에도 `index.md`와 항목을 이력용으로 남긴다.
+- 등록부 legacy 항목 삭제. legacy epic 디렉터리는 흡수해 지웠지만 항목은 옛 trailer 해석을 위해 남긴다.
 - legacy epic에 남은 미완료 blueprint의 상태 변경. 물리 이관도 상태를 바꾸지 않고 그대로 옮긴다.
 
 ## Legacy epic 귀속
-Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 귀속된다는 뜻이다.
+Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 귀속된다는 뜻이다. legacy epic 디렉터리는 흡수해 지웠으므로 링크 대상 파일은 없고, 목록은 `bouncer migrate merge-legacy-epics`가 읽는 귀속 표로만 남는다. 원문은 git 이력에 있다.
 
 - [project-distill](../project-distill/index.md)
 - [numeric-context-ids](../numeric-context-ids/index.md) △
