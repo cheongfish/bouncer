@@ -409,11 +409,331 @@ function writeCoordinatorInput(args: {
   return target;
 }
 
+type CoordFlags = Record<string, string | boolean>;
+
+const hasFlag = (f: CoordFlags, name: string): boolean => Object.prototype.hasOwnProperty.call(f, name);
+const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v !== '';
+
+/**
+ * 단순 문자열 플래그 → `coordinate()` 인자 필드 대응 표. 값이 문자열일 때만 넘기고
+ * 아니면 undefined다. 명령에 따라 달라지는 필드(decision·reason·model·kind·done)와
+ * 반복 플래그(paths·findings)는 `coordinateCall`에서 따로 채운다.
+ */
+const COORDINATE_STRING_FLAG_FIELDS: Record<string, string> = {
+  task: 'task',
+  sha: 'sha',
+  failureCommand: 'failure-command',
+  summary: 'summary',
+  verify: 'verify',
+  resumeTask: 'resume-task',
+  disposition: 'disposition',
+  outcome: 'outcome',
+  reason: 'reason',
+  role: 'role',
+  perspective: 'perspective',
+  tokens: 'tokens',
+  taskBriefHash: 'task-brief-hash',
+};
+
+/** `--write-input`은 status 전용이고 값이 있어야 한다. 아니면 파일을 쓰기 전에 usage(2). */
+function checkWriteInput(f: CoordFlags, command: string, io: CliIo): number | undefined {
+  if (hasFlag(f, 'write-input') && (command !== 'status' || !nonEmpty(f['write-input']))) {
+    return failCoordinateUsage(
+      io, 'coordinate: --write-input <file> is accepted by status only and needs a value\n', command,
+    );
+  }
+  return undefined;
+}
+
+/**
+ * fence 플래그(--ledger-path·--ledger-hash) 누락 처리. worker-model·worker-tokens는
+ * usage(2), 나머지 fenced 명령은 다른 coordinate 거절과 같은 JSON reason + exit 1이다.
+ * argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
+ */
+function checkFenceFlags(f: CoordFlags, command: string, io: CliIo): number | undefined {
+  // bootstrap·status(ready 별칭)만 원장 fence 예외. 그 외 mutation은 path/hash 쌍이
+  // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
+  const fenced = [
+    'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
+    'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
+    'worker-model', 'worker-tokens',
+  ];
+  const missing = !nonEmpty(f['ledger-path']) || !nonEmpty(f['ledger-hash']);
+  if (!missing) return undefined;
+  if (command === 'worker-model' || command === 'worker-tokens') {
+    return failCoordinateUsage(
+      io, `coordinate ${command}: --ledger-path and --ledger-hash are required\n`, command,
+    );
+  }
+  if (!fenced.includes(command)) return undefined;
+  const coordinatorMod = require('./coordinator') as typeof import('./coordinator');
+  // 다른 coordinate 거절과 같이 hint 표를 거쳐 cause·next를 붙인다.
+  const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+  io.out(`${JSON.stringify(hinted)}\n`);
+  return 1;
+}
+
+/** 양의 정수 플래그(--generation·--max-steps)를 검사한다. 잘못되면 usage(2)용 메시지를 돌려준다. */
+function positiveIntFlag(f: CoordFlags, name: string): { value?: number; bad?: boolean } {
+  if (!hasFlag(f, name)) return {};
+  const raw = f[name];
+  if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return { bad: true };
+  return { value: Number(raw) };
+}
+
+/** report 필수 flag 부재는 usage(2)로 돌려 argv 누락과 stale mismatch(1)를 구분한다. */
+function checkReportFlags(f: CoordFlags, io: CliIo): number | undefined {
+  const required: Array<[string, string]> = [
+    ['attempt', '--attempt'], ['task-brief-hash', '--task-brief-hash'],
+    ['outcome', '--outcome'], ['summary', '--summary'],
+  ];
+  for (const [name, label] of required) {
+    if (!nonEmpty(f[name])) {
+      return failCoordinateUsage(io, `coordinate report: ${label} is required\n`, 'report');
+    }
+  }
+  return undefined;
+}
+
+/**
+ * repair 전용 플래그(--kind·--done·--resume-task·--disposition·--verify) 검사.
+ * 값이 잘못되면 core로 넘기지 않고 usage(2)로 끝내 오타가 조용히 기존 경로로 접히지 않게 한다.
+ */
+function checkRepairFlags(f: CoordFlags, io: CliIo): number | undefined {
+  const usage = (message: string) => failCoordinateUsage(io, `coordinate repair: ${message}\n`, 'repair');
+  if (hasFlag(f, 'kind') && f.kind !== 'product' && f.kind !== 'supplement') {
+    return usage('--kind must be product or supplement');
+  }
+  if (hasFlag(f, 'done') && (f.done !== true || f.kind !== 'supplement')) {
+    return usage('--done is a flag accepted only with --kind supplement');
+  }
+  // --resume-task/--disposition은 값이 필요하다. 값 없는 플래그(true)나 둘의 동시 입력이 조용히
+  // 기존 dynamic repair 경로로 접히면 새 task가 생기므로 core에 보내기 전에 usage(2)로 끝낸다.
+  for (const name of ['resume-task', 'disposition']) {
+    if (hasFlag(f, name) && !nonEmpty(f[name])) return usage(`--${name} requires a value`);
+  }
+  // --verify는 새 repair task 문서에 쓸 단일 argv다. 값 없는 플래그가 생략으로 접히면
+  // scoped_terminal 거절이 엉뚱한 사유로 보이므로 usage(2). --resume-task와는 함께 쓸 수 없다.
+  if (hasFlag(f, 'verify') && (typeof f.verify !== 'string' || f.verify.trim() === '')) {
+    return usage('--verify requires a value');
+  }
+  if (hasFlag(f, 'verify') && hasFlag(f, 'resume-task')) {
+    return usage('--verify cannot be combined with --resume-task');
+  }
+  if (hasFlag(f, 'resume-task') && hasFlag(f, 'disposition')) {
+    return usage('--resume-task and --disposition are mutually exclusive');
+  }
+  return undefined;
+}
+
+/** worker-model·worker-tokens 전용 플래그 검사. 값 형식은 core가 model-invalid·tokens-invalid(1)로 거절한다. */
+function checkWorkerFlags(f: CoordFlags, command: string, io: CliIo): number | undefined {
+  const usage = (message: string) => failCoordinateUsage(io, `coordinate ${command}: ${message}\n`, command);
+  // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
+  if (!nonEmpty(f.role)) return usage('--role is required');
+  if (command === 'worker-model' && !hasFlag(f, 'model')) return usage('--model is required');
+  // --tokens는 worker-tokens에서 필수, worker-model에서 선택이다.
+  if (command === 'worker-tokens' && !hasFlag(f, 'tokens')) return usage('--tokens is required');
+  // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
+  // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
+  for (const name of ['task', 'perspective', 'tokens']) {
+    if (hasFlag(f, name) && !nonEmpty(f[name])) return usage(`--${name} requires a value`);
+  }
+  return undefined;
+}
+
+/** 서브커맨드별 필수·형식 플래그 검사. 통과하면 undefined, 아니면 usage(2). */
+function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: CliIo): number | undefined {
+  if (command === 'report') {
+    const bad = checkReportFlags(f, io);
+    if (bad !== undefined) return bad;
+  }
+  if (command === 'repair') {
+    const bad = checkRepairFlags(f, io);
+    if (bad !== undefined) return bad;
+  }
+  // --new-path는 반복 플래그라 값 없는 occurrence가 유효한 다른 값 뒤에 숨을 수 있다.
+  // 발생 횟수와 수집된 값 수가 다르면 조용히 버리지 않고 usage(2)로 끝낸다.
+  if ((command === 'repair' || command === 'revise')
+    && rest.slice(1).filter((tok) => tok === '--new-path').length
+      !== collectPathValues(rest.slice(1), '--new-path').length) {
+    return failCoordinateUsage(io, `coordinate ${command}: --new-path requires a value\n`, command);
+  }
+  if (command === 'worker-model' || command === 'worker-tokens') {
+    const bad = checkWorkerFlags(f, command, io);
+    if (bad !== undefined) return bad;
+  }
+  if (command === 'revoke') {
+    if (!nonEmpty(f.task)) return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
+    if (!nonEmpty(f.reason)) return failCoordinateUsage(io, 'coordinate revoke: --reason is required\n', command);
+  }
+  if (command === 'promote-stop') {
+    // 빈 summary·reason은 usage(2). enum 밖 reason은 core가 promote-reason-invalid(1).
+    // whitespace-only는 core summary-required(1)로 가지 않게 trim 후 검사한다.
+    if (!nonEmpty(f.reason)) {
+      return failCoordinateUsage(io, 'coordinate promote-stop: --reason is required\n', command);
+    }
+    if (typeof f.summary !== 'string' || f.summary.trim() === '') {
+      return failCoordinateUsage(io, 'coordinate promote-stop: --summary is required\n', command);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * revise 갈래. `revise`는 `coordinate()`가 아니라 scope.reviseTaskScope가 처리하므로 CLI가
+ * `process.cwd()` 원장에 대해 fence를 직접 확인한다. scope 판정은 coordinator의 것이고 여기서는
+ * 인자만 모아 넘긴다. reviseTaskScope는 `repoRoot`를 write boundary로 쓰므로(main checkout·미할당
+ * worktree 거절) `--repo`를 받지 않고 실제 cwd만 넘긴다. fence도 같은 cwd 원장에 묶는다.
+ */
+function coordinateRevise(rest: string[], f: CoordFlags, io: CliIo): number {
+  const coordinatorMod = require('./coordinator') as typeof import('./coordinator');
+  const { reviseTaskScope } = require('./scope') as typeof import('./scope');
+  const { coordinatorPathsFor } = require('./runtime-state');
+  const { assertLedgerFence, projectCheckpoint, loadLedgerBytes } = require('./coordinator-ledger');
+  const reviseRoot = process.cwd();
+  const paths = coordinatorPathsFor({ repoRoot: reviseRoot, blueprint: f.blueprint as string });
+  // load bytes → fence → (이후 revise가 같은 경로를 씀). 디스크를 두 번 읽어
+  // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
+  const loaded = loadLedgerBytes(paths.ledgerFile);
+  if (!loaded) {
+    const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
+    io.out(`${JSON.stringify(hinted)}\n`);
+    return 1;
+  }
+  const fenced = assertLedgerFence({
+    ledgerPath: f['ledger-path'], ledgerHash: f['ledger-hash'], ledgerBytes: loaded.bytes,
+  });
+  if (!fenced.ok) {
+    io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(fenced))}\n`);
+    return 1;
+  }
+  const result = reviseTaskScope({
+    repoRoot: reviseRoot,
+    blueprint: f.blueprint as string,
+    task: typeof f.task === 'string' ? f.task : undefined,
+    paths: collectPathValues(rest.slice(1)),
+    newPaths: collectPathValues(rest.slice(1), '--new-path'),
+    reason: typeof f.reason === 'string' ? f.reason : undefined,
+  }) as { ok: boolean; reason?: string; paths?: string[] };
+  if (!result.ok) {
+    // 거절도 hint를 거친 stdout JSON(reason·paths·cause·next)으로 낸다. coordinator가 stderr
+    // 문자열을 파싱하지 않고 다음 행동을 고르게 하려는 것이다. stderr의 reason 한 줄은 기존 신호라 둔다.
+    io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(result))}\n`);
+    io.err(`coordinate revise: ${result.reason}\n`);
+    return 1;
+  }
+  // 성공 시 다음 fencing token이 될 checkpoint를 돌려 status→revise 루프를 잇는다.
+  const after = loadLedgerBytes(paths.ledgerFile);
+  const payload = after
+    ? { ...result, checkpoint: projectCheckpoint(after.ledger, paths.ledgerFile, after.bytes) }
+    : result;
+  io.out(`${JSON.stringify(payload)}\n`);
+  return 0;
+}
+
+/**
+ * next·advance 갈래 공통 실행. 둘 다 fence를 요구하지 않는 읽기 중심 명령이고, 값 없는
+ * `--task`(parseFlags가 true)를 undefined로 접으면 blueprint 전체가 열려 잘못된 범위가 되므로
+ * usage(2)로 막는다. `advance`는 `--max-steps`도 양의 정수만 받는다.
+ */
+function coordinateNextOrAdvance(command: 'next' | 'advance', f: CoordFlags, io: CliIo): number {
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  const { compactCoordinateOutput } = require('./coordinate-output') as typeof import('./coordinate-output');
+  if (hasFlag(f, 'task') && !nonEmpty(f.task)) {
+    return failCoordinateUsage(io, `coordinate ${command}: --task requires a ddd value\n`, command);
+  }
+  const task = typeof f.task === 'string' ? f.task : undefined;
+  const repoRoot = (f.repo || process.cwd()) as string;
+  let maxSteps: number | undefined;
+  if (command === 'advance') {
+    const steps = positiveIntFlag(f, 'max-steps');
+    if (steps.bad) {
+      return failCoordinateUsage(io, 'coordinate advance: --max-steps must be a positive integer\n', command);
+    }
+    maxSteps = steps.value;
+  }
+  try {
+    let result: { ok: boolean };
+    if (command === 'next') {
+      const { coordinateNext } = require('./coordinate-next') as typeof import('./coordinate-next');
+      result = coordinateNext({
+        repoRoot, blueprint: f.blueprint as string, cwd: process.cwd(), task,
+      }) as { ok: boolean };
+    } else {
+      const { advance } = require('./coordinate-advance') as typeof import('./coordinate-advance');
+      result = advance({ repoRoot, blueprint: f.blueprint as string, task, maxSteps }) as { ok: boolean };
+    }
+    io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) {
+    io.err(`coordinate: ${catchMessage(error)}\n`);
+    return 1;
+  }
+}
+
+/** 공통 `coordinate()` 호출 갈래. status의 `--write-input`은 성공 뒤에만 파일을 쓴다. */
+function coordinateCall(
+  command: string, rest: string[], f: CoordFlags, generation: number | undefined, io: CliIo,
+): number {
+  const { catchMessage } = require('./guards') as typeof import('./guards');
+  const { coordinate } = require('./coordinator') as typeof import('./coordinator');
+  const { compactCoordinateOutput } = require('./coordinate-output') as typeof import('./coordinate-output');
+  try {
+    // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.
+    const attemptRaw = typeof f.attempt === 'string' ? f.attempt : undefined;
+    const fields: Record<string, string | undefined> = {};
+    for (const [field, flag] of Object.entries(COORDINATE_STRING_FLAG_FIELDS)) {
+      fields[field] = typeof f[flag] === 'string' ? f[flag] as string : undefined;
+    }
+    const decisionFlag = command === 'rerecord' ? f.reason : f.decision;
+    const result = coordinate({
+      ...fields,
+      command: command === 'ready' ? 'status' : command,
+      repoRoot: (f.repo || process.cwd()) as string,
+      blueprint: f.blueprint as string,
+      cwd: process.cwd(),
+      decision: typeof decisionFlag === 'string' ? decisionFlag : undefined,
+      paths: collectPathValues(rest.slice(1)),
+      newPaths: collectPathValues(rest.slice(1), '--new-path'),
+      findings: collectFindingValues(rest.slice(1)),
+      reviewFindings: collectReviewFindingValues(rest.slice(1)),
+      kind: typeof f.kind === 'string' && command === 'repair' ? f.kind : undefined,
+      done: command === 'repair' && f.done === true,
+      attempt: attemptRaw !== undefined && /^\d+$/.test(attemptRaw) ? Number(attemptRaw) : undefined,
+      // 값 없는 --model(parseFlags가 true)은 ''로 넘겨 core가 model-invalid로 거절하게 한다.
+      // 플래그가 없으면 undefined라 기록하지 않는다.
+      model: hasFlag(f, 'model') ? (typeof f.model === 'string' ? f.model : '') : undefined,
+      leaseId: typeof f['lease-id'] === 'string' ? f['lease-id'] : undefined,
+      generation,
+      ledgerPath: typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined,
+      ledgerHash: typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined,
+      userConfirmed: f['user-confirmed'] === true,
+      promoteLight: f['promote-light'] === true,
+    }) as { ok: boolean };
+    const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
+    if (result.ok && hasFlag(f, 'write-input')) {
+      // status가 모든 검사를 통과한 뒤에만 쓴다. 쓰기 오류는 아래 catch가
+      // `coordinate: <msg>` exit 1로 옮기고, 이 시점에는 stdout이 비어 있다.
+      compact.input_file = writeCoordinatorInput({
+        file: f['write-input'] as string,
+        repoRoot: (f.repo || process.cwd()) as string,
+        blueprint: f.blueprint as string,
+        checkpoint: (result as unknown as { checkpoint: Record<string, unknown> }).checkpoint,
+      });
+    }
+    io.out(`${JSON.stringify(compact)}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) { io.err(`coordinate: ${catchMessage(error)}\n`); return 1; }
+}
+
 /**
  * coordinate 서브커맨드를 CLI 경계에서 해석한다.
  * `--help`/`-h`는 인자·fence·core보다 먼저 stdout으로 끝내고, 허용 목록 밖
  * 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은 알려진 명령의
  * 런타임 실패에만 쓴다. `next`의 값 없는 `--task`는 생략이 아니라 usage(2)다.
+ * 검사 순서(help → 명령명 → blueprint → write-input → fence → generation → 명령별)를
+ * 통과하면 revise·next·advance·공통 호출 갈래 중 하나에 위임한다.
  *
  * @param {string[]} rest - `coordinate` 뒤 argv
  * @param {CliIo} io - stdout/stderr
@@ -421,16 +741,7 @@ function writeCoordinatorInput(args: {
  */
 function cmdCoordinate(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { catchMessage } = require('./guards') as typeof import('./guards');
-  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags, argvRequestsHelp } = require('./cli-flags') as typeof import('./cli-flags');
-  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const coordinatorMod = require('./coordinator') as typeof import('./coordinator');
-  const { coordinate } = coordinatorMod;
-  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { reviseTaskScope } = require('./scope') as typeof import('./scope');
-  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { compactCoordinateOutput } = require('./coordinate-output') as typeof import('./coordinate-output');
   // 1. 도움말은 잘못된 플래그보다 앞. 소스 역산 대신 --help를 보게 한다.
   if (argvRequestsHelp(rest)) {
     const helpTarget = rest[0];
@@ -444,15 +755,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   }
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
-  const commands = COORDINATE_COMMANDS as readonly string[];
-  // bootstrap·status(ready 별칭)만 원장 fence 예외. 그 외 mutation은 path/hash 쌍이
-  // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
-  const fencedCommands = new Set([
-    'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-    'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
-    'worker-model', 'worker-tokens',
-  ]);
-  if (!commands.includes(command)) {
+  if (!(COORDINATE_COMMANDS as readonly string[]).includes(command)) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
@@ -463,332 +766,18 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
     return failCoordinateUsage(io, 'coordinate: --blueprint is required\n', command);
   }
-  // --write-input은 status 전용이다. 값 없는 플래그(true)와 다른 서브커맨드(ready 별칭
-  // 포함)는 파일을 쓰기 전에 usage(2)로 거절해 조용히 무시되지 않게 한다.
-  const hasWriteInput = Object.prototype.hasOwnProperty.call(f, 'write-input');
-  if (hasWriteInput && (command !== 'status' || typeof f['write-input'] !== 'string'
-    || f['write-input'] === '')) {
-    return failCoordinateUsage(
-      io, 'coordinate: --write-input <file> is accepted by status only and needs a value\n', command,
-    );
-  }
-  const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
-  const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
-  // worker-model은 fence 플래그 누락을 다른 fenced 명령과 달리 usage(2)로 막는다
-  // (task 002 Interface: --role·--model·fence 플래그 누락은 core 호출 전 exit 2).
-  if ((command === 'worker-model' || command === 'worker-tokens') && (ledgerPath === undefined || ledgerPath === ''
-    || ledgerHash === undefined || ledgerHash === '')) {
-    return failCoordinateUsage(
-      io, `coordinate ${command}: --ledger-path and --ledger-hash are required\n`, command,
-    );
-  }
-  if (fencedCommands.has(command)) {
-    // Interface: 누락은 usage(2)가 아니라 다른 coordinate 거절과 같은 JSON reason + exit 1.
-    // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
-    if (ledgerPath === undefined || ledgerPath === ''
-      || ledgerHash === undefined || ledgerHash === '') {
-      // 다른 coordinate 거절과 같이 hint 표를 거쳐 cause·next를 붙인다.
-      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
-      io.out(`${JSON.stringify(hinted)}\n`);
-      return 1;
-    }
-  }
   // --generation은 양의 정수만. abc·0은 usage(2) — core의 lease-required와 구분한다.
-  let generation: number | undefined;
-  if (Object.prototype.hasOwnProperty.call(f, 'generation')) {
-    const raw = f.generation;
-    if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) {
-      return failCoordinateUsage(io, 'coordinate: --generation must be a positive integer\n', command);
-    }
-    generation = Number(raw);
+  const generation = positiveIntFlag(f, 'generation');
+  const early = checkWriteInput(f, command, io) ?? checkFenceFlags(f, command, io);
+  if (early !== undefined) return early;
+  if (generation.bad) {
+    return failCoordinateUsage(io, 'coordinate: --generation must be a positive integer\n', command);
   }
-  const leaseId = typeof f['lease-id'] === 'string' ? f['lease-id'] : undefined;
-  if (command === 'report') {
-    // report metadata는 core가 다시 검사하지만, 필수 flag 부재는 usage(2)로
-    // 돌려 argv 누락과 stale mismatch(1)를 구분한다.
-    if (typeof f.attempt !== 'string' || f.attempt === '') {
-      return failCoordinateUsage(io, 'coordinate report: --attempt is required\n', command);
-    }
-    if (typeof f['task-brief-hash'] !== 'string' || f['task-brief-hash'] === '') {
-      return failCoordinateUsage(io, 'coordinate report: --task-brief-hash is required\n', command);
-    }
-    if (typeof f.outcome !== 'string' || f.outcome === '') {
-      return failCoordinateUsage(io, 'coordinate report: --outcome is required\n', command);
-    }
-    if (typeof f.summary !== 'string' || f.summary === '') {
-      return failCoordinateUsage(io, 'coordinate report: --summary is required\n', command);
-    }
-  }
-  // --kind/--done은 repair 전용이다. 값이 잘못되면 core로 넘기지 않고 usage(2)로 끝내
-  // 오타가 조용히 기존 wave 소모 경로(product)로 접히지 않게 한다.
-  let repairKind: string | undefined;
-  let repairDone = false;
-  if (command === 'repair') {
-    if (Object.prototype.hasOwnProperty.call(f, 'kind')) {
-      if (f.kind !== 'product' && f.kind !== 'supplement') {
-        return failCoordinateUsage(
-          io, 'coordinate repair: --kind must be product or supplement\n', command,
-        );
-      }
-      repairKind = f.kind;
-    }
-    if (Object.prototype.hasOwnProperty.call(f, 'done')) {
-      if (f.done !== true || repairKind !== 'supplement') {
-        return failCoordinateUsage(
-          io, 'coordinate repair: --done is a flag accepted only with --kind supplement\n', command,
-        );
-      }
-      repairDone = true;
-    }
-    // --resume-task/--disposition은 값이 필요하다. 값 없는 플래그(true)나 둘의 동시 입력이 조용히
-    // 기존 dynamic repair 경로로 접히면 새 task가 생기므로 core에 보내기 전에 usage(2)로 끝낸다.
-    for (const name of ['resume-task', 'disposition']) {
-      if (Object.prototype.hasOwnProperty.call(f, name)
-        && (typeof f[name] !== 'string' || f[name] === '')) {
-        return failCoordinateUsage(io, `coordinate repair: --${name} requires a value\n`, command);
-      }
-    }
-    // --verify는 새 repair task 문서에 쓸 단일 argv다. 값 없는 플래그가 조용히
-    // 생략으로 접히면 scoped_terminal 거절이 엉뚱한 사유로 보이므로 usage(2)로 끝낸다.
-    // --resume-task는 기존 task를 되살릴 뿐 새 verify를 쓰지 않아 함께 쓸 수 없다.
-    if (Object.prototype.hasOwnProperty.call(f, 'verify')
-      && (typeof f.verify !== 'string' || f.verify.trim() === '')) {
-      return failCoordinateUsage(io, 'coordinate repair: --verify requires a value\n', command);
-    }
-    if (Object.prototype.hasOwnProperty.call(f, 'verify')
-      && Object.prototype.hasOwnProperty.call(f, 'resume-task')) {
-      return failCoordinateUsage(
-        io, 'coordinate repair: --verify cannot be combined with --resume-task\n', command,
-      );
-    }
-    if (Object.prototype.hasOwnProperty.call(f, 'resume-task')
-      && Object.prototype.hasOwnProperty.call(f, 'disposition')) {
-      return failCoordinateUsage(
-        io, 'coordinate repair: --resume-task and --disposition are mutually exclusive\n', command,
-      );
-    }
-  }
-  // --new-path는 반복 플래그라 값 없는 occurrence가 유효한 다른 값 뒤에 숨을 수 있다.
-  // 발생 횟수와 수집된 값 수가 다르면 조용히 버리지 않고 usage(2)로 끝낸다.
-  if ((command === 'repair' || command === 'revise')
-    && rest.slice(1).filter((tok) => tok === '--new-path').length
-      !== collectPathValues(rest.slice(1), '--new-path').length) {
-    return failCoordinateUsage(io, `coordinate ${command}: --new-path requires a value\n`, command);
-  }
-  if (command === 'worker-model' || command === 'worker-tokens') {
-    // 플래그 자체가 없는 경우만 usage(2). 값 없는 --model(true)은 core가 model-invalid(1)로 거절한다.
-    if (typeof f.role !== 'string' || f.role === '') {
-      return failCoordinateUsage(io, `coordinate ${command}: --role is required\n`, command);
-    }
-    if (command === 'worker-model' && !Object.prototype.hasOwnProperty.call(f, 'model')) {
-      return failCoordinateUsage(io, 'coordinate worker-model: --model is required\n', command);
-    }
-    // --tokens는 worker-tokens에서 필수, worker-model에서 선택이다. 있는데 값이 없으면
-    // 조용히 누락으로 접히지 않게 usage(2)로 막는다. 값 형식은 core가 tokens-invalid(1)로 거절한다.
-    if (command === 'worker-tokens' && !Object.prototype.hasOwnProperty.call(f, 'tokens')) {
-      return failCoordinateUsage(io, 'coordinate worker-tokens: --tokens is required\n', command);
-    }
-    // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
-    // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
-    for (const name of ['task', 'perspective', 'tokens']) {
-      if (Object.prototype.hasOwnProperty.call(f, name)
-        && (typeof f[name] !== 'string' || f[name] === '')) {
-        return failCoordinateUsage(
-          io, `coordinate ${command}: --${name} requires a value\n`, command,
-        );
-      }
-    }
-  }
-  if (command === 'revoke') {
-    if (typeof f.task !== 'string' || f.task === '') {
-      return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
-    }
-    if (typeof f.reason !== 'string' || f.reason === '') {
-      return failCoordinateUsage(io, 'coordinate revoke: --reason is required\n', command);
-    }
-  }
-  if (command === 'promote-stop') {
-    // 빈 summary·reason은 usage(2). enum 밖 reason은 core가 promote-reason-invalid(1).
-    // CT-003: whitespace-only는 core summary-required(1)로 가지 않게 trim 후 검사 —
-    // Interface empty-summary와 CLI usage 채널을 맞춘다.
-    if (typeof f.reason !== 'string' || f.reason === '') {
-      return failCoordinateUsage(io, 'coordinate promote-stop: --reason is required\n', command);
-    }
-    if (typeof f.summary !== 'string' || f.summary.trim() === '') {
-      return failCoordinateUsage(io, 'coordinate promote-stop: --summary is required\n', command);
-    }
-  }
-  if (command === 'revise') {
-    // scope 판정은 coordinator의 것이고 본체는 scope.reviseTaskScope 하나뿐이다.
-    // 여기서는 인자만 모아 넘기고, 거절 코드는 그대로 옮긴다.
-    // reviseTaskScope는 `repoRoot`를 write boundary로 쓴다(main checkout·미할당
-    // worktree 거절). 그래서 `--repo`를 받아 넘기면 호출자가 자기 경계를 스스로
-    // 고르게 되어 두 거절이 무력화된다 — 실제 cwd만 넘긴다.
-    // fence도 같은 cwd 원장에 묶는다. `--repo` 원장을 검사하면 다른 checkout의
-    // hash로 통과한 뒤 cwd 원장을 쓰는 불일치가 생긴다.
-    const { coordinatorPathsFor } = require('./runtime-state');
-    const { assertLedgerFence, projectCheckpoint, loadLedgerBytes } = require('./coordinator-ledger');
-    const reviseRoot = process.cwd();
-    const paths = coordinatorPathsFor({
-      repoRoot: reviseRoot,
-      blueprint: f.blueprint,
-    });
-    // load bytes → fence → (이후 revise가 같은 경로를 씀). 디스크를 두 번 읽어
-    // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
-    const loaded = loadLedgerBytes(paths.ledgerFile);
-    if (!loaded) {
-      const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
-      io.out(`${JSON.stringify(hinted)}\n`);
-      return 1;
-    }
-    const fenced = assertLedgerFence({
-      ledgerPath, ledgerHash, ledgerBytes: loaded.bytes,
-    });
-    if (!fenced.ok) {
-      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(fenced))}\n`);
-      return 1;
-    }
-    const result = reviseTaskScope({
-      repoRoot: reviseRoot,
-      blueprint: f.blueprint,
-      task: typeof f.task === 'string' ? f.task : undefined,
-      paths: collectPathValues(rest.slice(1)),
-      newPaths: collectPathValues(rest.slice(1), '--new-path'),
-      reason: typeof f.reason === 'string' ? f.reason : undefined,
-    }) as { ok: boolean; reason?: string; paths?: string[] };
-    if (!result.ok) {
-      // 거절도 다른 coordinate 명령처럼 hint를 거친 stdout JSON(reason·paths·cause·next)으로
-      // 낸다. coordinator가 stderr 문자열을 파싱하지 않고 다음 행동을 고르게 하려는 것이다.
-      // stderr의 reason 한 줄은 사람이 읽는 기존 신호라 그대로 둔다.
-      io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(result))}\n`);
-      io.err(`coordinate revise: ${result.reason}\n`);
-      return 1;
-    }
-    // 성공 시 다음 fencing token이 될 checkpoint를 돌려 status→revise 루프를 잇는다.
-    const after = loadLedgerBytes(paths.ledgerFile);
-    const payload = after
-      ? { ...result, checkpoint: projectCheckpoint(after.ledger, paths.ledgerFile, after.bytes) }
-      : result;
-    io.out(`${JSON.stringify(payload)}\n`);
-    return 0;
-  }
-  if (command === 'next') {
-    // next는 status처럼 읽기만 한다. fence 플래그가 와도 요구·검증하지 않아
-    // mutation 집합과 혼동되지 않게 한다.
-    // parseFlags는 값 없는 --task를 boolean true로 둔다. 그걸 undefined로
-    // 접으면 blueprint next가 열려 잘못된 task 범위가 된다.
-    if (Object.prototype.hasOwnProperty.call(f, 'task')
-      && (typeof f.task !== 'string' || f.task === '')) {
-      return failCoordinateUsage(
-        io, 'coordinate next: --task requires a ddd value\n', command,
-      );
-    }
-    const { coordinateNext } = require('./coordinate-next') as typeof import('./coordinate-next');
-    try {
-      const result = coordinateNext({
-        repoRoot: (f.repo || process.cwd()) as string,
-        blueprint: f.blueprint,
-        cwd: process.cwd(),
-        task: typeof f.task === 'string' ? f.task : undefined,
-      }) as { ok: boolean };
-      io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
-      return result.ok ? 0 : 1;
-    } catch (error) {
-      io.err(`coordinate: ${catchMessage(error)}\n`);
-      return 1;
-    }
-  }
-  if (command === 'advance') {
-    // advance도 fence를 요구하지 않는다. 원장 쓰기는 next가 준 argv 명령이 맡는다.
-    if (Object.prototype.hasOwnProperty.call(f, 'task')
-      && (typeof f.task !== 'string' || f.task === '')) {
-      return failCoordinateUsage(
-        io, 'coordinate advance: --task requires a ddd value\n', command,
-      );
-    }
-    let maxSteps: number | undefined;
-    if (Object.prototype.hasOwnProperty.call(f, 'max-steps')) {
-      const raw = f['max-steps'];
-      // generation과 같이 양의 정수만. 0·음수·문자는 usage(2).
-      if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) {
-        return failCoordinateUsage(
-          io, 'coordinate advance: --max-steps must be a positive integer\n', command,
-        );
-      }
-      maxSteps = Number(raw);
-    }
-    const { advance } = require('./coordinate-advance') as typeof import('./coordinate-advance');
-    try {
-      const result = advance({
-        repoRoot: (f.repo || process.cwd()) as string,
-        blueprint: f.blueprint,
-        task: typeof f.task === 'string' ? f.task : undefined,
-        maxSteps,
-      }) as { ok: boolean };
-      io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
-      return result.ok ? 0 : 1;
-    } catch (error) {
-      io.err(`coordinate: ${catchMessage(error)}\n`);
-      return 1;
-    }
-  }
-  try {
-    // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.
-    const attemptRaw = typeof f.attempt === 'string' ? f.attempt : undefined;
-    const attemptNum = attemptRaw !== undefined && /^\d+$/.test(attemptRaw)
-      ? Number(attemptRaw) : undefined;
-    const result = coordinate({
-      command: command === 'ready' ? 'status' : command,
-      repoRoot: (f.repo || process.cwd()) as string,
-      blueprint: f.blueprint,
-      cwd: process.cwd(),
-      task: typeof f.task === 'string' ? f.task : undefined,
-      sha: typeof f.sha === 'string' ? f.sha : undefined,
-      decision: typeof (command === 'rerecord' ? f.reason : f.decision) === 'string'
-        ? (command === 'rerecord' ? f.reason : f.decision) : undefined,
-      failureCommand: typeof f['failure-command'] === 'string' ? f['failure-command'] : undefined,
-      summary: typeof f.summary === 'string' ? f.summary : undefined,
-      paths: collectPathValues(rest.slice(1)),
-      newPaths: collectPathValues(rest.slice(1), '--new-path'),
-      verify: typeof f.verify === 'string' ? f.verify : undefined,
-      findings: collectFindingValues(rest.slice(1)),
-      reviewFindings: collectReviewFindingValues(rest.slice(1)),
-      kind: repairKind,
-      done: repairDone,
-      resumeTask: typeof f['resume-task'] === 'string' ? f['resume-task'] : undefined,
-      disposition: typeof f.disposition === 'string' ? f.disposition : undefined,
-      outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
-      reason: typeof f.reason === 'string' ? f.reason : undefined,
-      attempt: attemptNum,
-      // 값 없는 --model(parseFlags가 true)은 ''로 넘겨 core가 model-invalid로 거절하게 한다.
-      // 플래그가 없으면 undefined라 기록하지 않는다.
-      model: Object.prototype.hasOwnProperty.call(f, 'model')
-        ? (typeof f.model === 'string' ? f.model : '') : undefined,
-      role: typeof f.role === 'string' ? f.role : undefined,
-      perspective: typeof f.perspective === 'string' ? f.perspective : undefined,
-      tokens: typeof f.tokens === 'string' ? f.tokens : undefined,
-      taskBriefHash: typeof f['task-brief-hash'] === 'string' ? f['task-brief-hash'] : undefined,
-      leaseId,
-      generation,
-      ledgerPath,
-      ledgerHash,
-      userConfirmed: f['user-confirmed'] === true,
-      promoteLight: f['promote-light'] === true,
-    }) as { ok: boolean };
-    const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
-    if (result.ok && hasWriteInput) {
-      // status가 모든 검사를 통과한 뒤에만 쓴다. 쓰기 오류는 아래 catch가
-      // `coordinate: <msg>` exit 1로 옮기고, 이 시점에는 stdout이 비어 있다.
-      compact.input_file = writeCoordinatorInput({
-        file: f['write-input'] as string,
-        repoRoot: (f.repo || process.cwd()) as string,
-        blueprint: f.blueprint,
-        checkpoint: (result as unknown as { checkpoint: Record<string, unknown> }).checkpoint,
-      });
-    }
-    io.out(`${JSON.stringify(compact)}\n`);
-    return result.ok ? 0 : 1;
-  } catch (error) { io.err(`coordinate: ${catchMessage(error)}\n`); return 1; }
+  const invalid = checkCommandFlags(f, command, rest, io);
+  if (invalid !== undefined) return invalid;
+  if (command === 'revise') return coordinateRevise(rest, f, io);
+  if (command === 'next' || command === 'advance') return coordinateNextOrAdvance(command, f, io);
+  return coordinateCall(command, rest, f, generation.value, io);
 }
 
 export = {
