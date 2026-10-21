@@ -53,7 +53,7 @@ bouncer:
   않는다.
 
 ## Blueprints
-* [001 benchmark-skill](blueprints/benchmark-skill/index.md) - `agentic-code-benchmark` 스킬(SKILL.md·rubric·task-suite·수집/채점 스크립트)을 Bouncer 맥락으로 각색해 반입하고 출처 고지·계약 테스트·문서 위치 서술을 붙임 — `skills/agentic-code-benchmark/`·`test/skill-agentic-code-benchmark.test.js`·`test/trust-boundary.test.js`·`docs/ARCHITECTURE.md`·`README.md`·`PLANNING-DECISIONS-1.0.md`
-* [002 DeepSWE 실행 경로](blueprints/deepswe-run-path/index.md) - 임시 클론 수명주기와 seed 정본, Pier 판정→이 저장소 채점 브리지, 3 arm 절차 — `skills/agentic-code-benchmark/scripts/`, `docs/benchmark/deepswe/`
-* [003 DeepSWE 실행 배관](blueprints/deepswe-run-plumbing/index.md) - 설치 안내 정정, 태스크별 measured 레이아웃, vanilla 스모크 실패 증적 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`
-* [004 체크아웃·arm·비교표](blueprints/checkout-arms-comparison/index.md) - 호스트 체크아웃 구멍, `--arm` 실행 조건, 9런 비교표 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`, `docs/benchmark/history.md`
+* [001 benchmark-skill](../benchmark-cost/blueprints/benchmark-skill/index.md) - `agentic-code-benchmark` 스킬(SKILL.md·rubric·task-suite·수집/채점 스크립트)을 Bouncer 맥락으로 각색해 반입하고 출처 고지·계약 테스트·문서 위치 서술을 붙임 — `skills/agentic-code-benchmark/`·`test/skill-agentic-code-benchmark.test.js`·`test/trust-boundary.test.js`·`docs/ARCHITECTURE.md`·`README.md`·`PLANNING-DECISIONS-1.0.md`
+* [002 DeepSWE 실행 경로](../benchmark-cost/blueprints/deepswe-run-path/index.md) - 임시 클론 수명주기와 seed 정본, Pier 판정→이 저장소 채점 브리지, 3 arm 절차 — `skills/agentic-code-benchmark/scripts/`, `docs/benchmark/deepswe/`
+* [003 DeepSWE 실행 배관](../benchmark-cost/blueprints/deepswe-run-plumbing/index.md) - 설치 안내 정정, 태스크별 measured 레이아웃, vanilla 스모크 실패 증적 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`
+* [004 체크아웃·arm·비교표](../benchmark-cost/blueprints/checkout-arms-comparison/index.md) - 호스트 체크아웃 구멍, `--arm` 실행 조건, 9런 비교표 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`, `docs/benchmark/history.md`

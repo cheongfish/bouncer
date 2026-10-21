@@ -48,5 +48,5 @@ bouncer:
 - `INCIDENT-TASKS-002-lint-context-comments.md` 커밋
 
 ## Blueprints
-* [finalize 메인 사본 정리와 pointer 자동 이동](blueprints/finalize-main-release/index.md) - `finalize release-main` 추가, `coordinate release` 제거, finalize 스킬의 강제 worktree 제거·자동 `--set` — `scripts/src/lib`, `skills/bouncer-finalize`, `rules`, `docs/workflow.md`, `CHANGELOG.md`, `test`
-* [템플릿 안내 주석을 스킬로 이전](blueprints/template-guidance-migration/index.md) - full 템플릿 주석 삭제, 작성 안내 이전, 옛 주석 G22·bootstrap 거절 — `scripts/src/lib`, `scripts/check-context-comments.js`, `references`, `agents`, `.codex/agents`, `rules/gates.md`, `docs/architecture`, `CHANGELOG.md`, `test`
+* [finalize 메인 사본 정리와 pointer 자동 이동](../drive-execution/blueprints/finalize-main-release/index.md) - `finalize release-main` 추가, `coordinate release` 제거, finalize 스킬의 강제 worktree 제거·자동 `--set` — `scripts/src/lib`, `skills/bouncer-finalize`, `rules`, `docs/workflow.md`, `CHANGELOG.md`, `test`
+* [템플릿 안내 주석을 스킬로 이전](../drive-execution/blueprints/template-guidance-migration/index.md) - full 템플릿 주석 삭제, 작성 안내 이전, 옛 주석 G22·bootstrap 거절 — `scripts/src/lib`, `scripts/check-context-comments.js`, `references`, `agents`, `.codex/agents`, `rules/gates.md`, `docs/architecture`, `CHANGELOG.md`, `test`

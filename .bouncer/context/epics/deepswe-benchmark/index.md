@@ -43,8 +43,8 @@ ledger 합성 과제와 fastify-001에서 vanilla가 매번 만점을 받아 Bou
 - 로컬 `benchmarks/runs/` 실행 기록 삭제. gitignore된 로컬 데이터라 커밋 대상이 아니며 BP 001 finalize 뒤 main checkout에서 수동으로 지운다.
 
 ## Blueprints
-* [001 ledger 벤치마크 제거](blueprints/ledger-removal/index.md) - 응답기 fixture를 fastify 녹취·합성 원문으로 바꾸고 `benchmarks/`·`test/`의 ledger 과제·정책·검증기·보고서와 참조를 지운다.
-* [002 DeepSWE 어댑터](blueprints/deepswe-adapter/index.md) - DeepSWE 과제 준비 명령, 과제별 에이전트 이미지, 공식 채점기 연결, 과제 4개 카드와 정책을 `benchmarks/`에 더한다.
+* [001 ledger 벤치마크 제거](../benchmark-cost/blueprints/ledger-removal/index.md) - 응답기 fixture를 fastify 녹취·합성 원문으로 바꾸고 `benchmarks/`·`test/`의 ledger 과제·정책·검증기·보고서와 참조를 지운다.
+* [002 DeepSWE 어댑터](../benchmark-cost/blueprints/deepswe-adapter/index.md) - DeepSWE 과제 준비 명령, 과제별 에이전트 이미지, 공식 채점기 연결, 과제 4개 카드와 정책을 `benchmarks/`에 더한다.
 
 ## Execution order
 BP 001 → BP 002 순서로 실행한다. 두 BP가 같은 실행기와 `task-card` 테스트를 고치므로 BP 001 finalize 뒤에 BP 002를 시작한다. 두 BP 모두 fastify-001 실행 환경 수정 PR(#191)이 develop에 병합된 뒤 시작한다.

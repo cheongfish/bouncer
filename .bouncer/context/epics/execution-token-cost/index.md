@@ -42,4 +42,4 @@ bouncer:
 - epic 043(비용 대비 품질), 067(coordinator), 075(adaptive review dispatch)의 기존 결정 재설계.
 
 ## Blueprints
-* [001 실행 계약 보완과 리뷰 횟수 축소](blueprints/contract-gaps-final-review/index.md) - CLI 명령·실패 힌트·리뷰 예제를 보완하고 scaffold·gate·coordinator·워크플로 지침의 리뷰를 blueprint 단위 한 번으로 바꾼다
+* [001 실행 계약 보완과 리뷰 횟수 축소](../drive-execution/blueprints/contract-gaps-final-review/index.md) - CLI 명령·실패 힌트·리뷰 예제를 보완하고 scaffold·gate·coordinator·워크플로 지침의 리뷰를 blueprint 단위 한 번으로 바꾼다

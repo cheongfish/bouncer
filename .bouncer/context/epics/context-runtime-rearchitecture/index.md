@@ -60,4 +60,4 @@ flowchart LR
 - cross-blueprint DAG, remote worker scheduler, main-worktree source mutation
 
 ## Blueprints
-* [Distill 제거·컨텍스트 검색·CI 복구 전환](blueprints/distill-removal-search-ci-recovery/index.md) - Distill 런타임을 제거하고 역할 기반 context 검색과 제한된 coordinator CI 복구 계약을 코드·workflow·테스트에 연결한다.
+* [Distill 제거·컨텍스트 검색·CI 복구 전환](../context-search/blueprints/distill-removal-search-ci-recovery/index.md) - Distill 런타임을 제거하고 역할 기반 context 검색과 제한된 coordinator CI 복구 계약을 코드·workflow·테스트에 연결한다.

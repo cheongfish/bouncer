@@ -49,4 +49,4 @@ flowchart LR
 - `## Intent` 헤딩 부재의 조기 검출(현재처럼 finalize 커밋 메시지 생성에서 거절됨)
 
 ## Blueprints
-* [001 Intent 코드 펜스 방어](blueprints/intent-fence-guard/index.md) - `parseIntentBody` 펜스 건너뛰기, plan·finalize gate의 S33, `finalize prepare`·`finalize`의 구조화 실패 (templates, validate, finalize-digest, 문서·테스트)
+* [001 Intent 코드 펜스 방어](../plan-workflow/blueprints/intent-fence-guard/index.md) - `parseIntentBody` 펜스 건너뛰기, plan·finalize gate의 S33, `finalize prepare`·`finalize`의 구조화 실패 (templates, validate, finalize-digest, 문서·테스트)

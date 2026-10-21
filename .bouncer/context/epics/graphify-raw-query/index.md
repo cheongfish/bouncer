@@ -48,7 +48,7 @@ flowchart LR
 - `graphify affected` 역방향 탐색 도입(미검증, 재측정 때 비교 후보)
 - `benchmarks/acp/fixtures/**` 기록 출력, `CHANGELOG.md`(릴리스 때 기록), `.bouncer/context/**` 과거 문서
 - 실제 plan 10~15건 재측정
-- search-payload-context-retention/graphify-compact-payload(graph-suggest compact payload) 문서 수정 — 이력으로 둔다
+- context-search/graphify-compact-payload(graph-suggest compact payload) 문서 수정 — 이력으로 둔다
 
 ## Blueprints
-* [001 graph-suggest-removal](blueprints/graph-suggest-removal/index.md) - plan 그래프 흐름을 원본 질의로 바꾸고 graph-suggest CLI·구현·문서를 제거 (skills/bouncer-plan, references/graphify-runner, scripts/src/lib/cli*)
+* [001 graph-suggest-removal](../context-search/blueprints/graph-suggest-removal/index.md) - plan 그래프 흐름을 원본 질의로 바꾸고 graph-suggest CLI·구현·문서를 제거 (skills/bouncer-plan, references/graphify-runner, scripts/src/lib/cli*)

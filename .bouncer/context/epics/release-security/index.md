@@ -56,6 +56,6 @@ bouncer:
    릴리스 노트·태그 전 검증·GitHub Release 기반 태그 후 smoke 운영 절차를 남긴다.
 
 ## 블루프린트
-* [001 공개 기반 차단선](blueprints/security-legal-baseline/index.md) - 의존성·벤더·Apache-2.0·TypeScript·CI 품질 계약을 코드와 공개 문서에 고정한다
-* [002 공개 계약 동결](blueprints/public-contract-freeze/index.md) - 공개 표면과 하위 호환 정책을 문서·테스트로 동결하고 파일럿 기록 틀과 지원 선언 규칙을 만든다
-* [003 1.0 공개 릴리스](blueprints/one-zero-release/index.md) - 1.0.0 버전 정합성·릴리스 노트·세 저장소 유형 × 네 호스트의 설치 smoke 운영 절차를 확정한다
+* [001 공개 기반 차단선](../host-distribution/blueprints/security-legal-baseline/index.md) - 의존성·벤더·Apache-2.0·TypeScript·CI 품질 계약을 코드와 공개 문서에 고정한다
+* [002 공개 계약 동결](../host-distribution/blueprints/public-contract-freeze/index.md) - 공개 표면과 하위 호환 정책을 문서·테스트로 동결하고 파일럿 기록 틀과 지원 선언 규칙을 만든다
+* [003 1.0 공개 릴리스](../host-distribution/blueprints/one-zero-release/index.md) - 1.0.0 버전 정합성·릴리스 노트·세 저장소 유형 × 네 호스트의 설치 smoke 운영 절차를 확정한다

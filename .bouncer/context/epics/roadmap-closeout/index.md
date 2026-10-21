@@ -41,4 +41,4 @@ bouncer:
 - 동결된 `rules-reorganization-proposal.md` 수정과 epic id `078` 중복 정리.
 
 ## Blueprints
-* [001 릴리스 산출물 전환과 governance 규칙 삭제](blueprints/release-artifact-governance-removal/index.md) - release 브랜치 빌드 산출물을 만들고 `scripts/lib` 추적을 끊으며 `rules/governance.md`의 남은 설명을 코드로 옮겨 삭제한다.
+* [001 릴리스 산출물 전환과 governance 규칙 삭제](../host-distribution/blueprints/release-artifact-governance-removal/index.md) - release 브랜치 빌드 산출물을 만들고 `scripts/lib` 추적을 끊으며 `rules/governance.md`의 남은 설명을 코드로 옮겨 삭제한다.

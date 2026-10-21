@@ -56,10 +56,10 @@ bouncer:
 - Blueprint `043/007-shared-rule-blocks`가 정본화한 공통 규칙의 재추출과 새 공통 헤더.
 
 ## Blueprints
-* [001 진입 스킬 런타임 컨텍스트 최소화](blueprints/entry-skill-runtime-context/index.md) - 진입 스킬 본문을 단계 뼈대로 줄이고 CLI preflight payload와 조건부 reference로 옮김 — `skills/bouncer-*`, `scripts/src/lib/`
-* [002 병렬 리뷰와 delta 인증 기반 리뷰 수렴](blueprints/review-convergence/index.md) - execute·plan 리뷰를 병렬 discovery, 단일 수정, delta 인증으로 바꾸고 gate와 ledger로 고정 — `references/review/`, `agents/`, `scripts/src/lib/validate-*`
-* [003 worktree branch 이름 표준화](blueprints/worktree-branch-naming/index.md) - integration·standalone·worker branch 이름을 CLI helper 하나로 계산하고 실제 branch를 기록 — `scripts/src/lib/runtime-state.ts`, `coordinator.ts`, `execute-prepare.ts`, `finalize.ts`, finalize reference
-* [004 드라이브 계획 문서 흐름과 마감 정리](blueprints/drive-document-flow/index.md) - integration을 drive 계획 문서 정본으로 삼아 seed·증적 반환·메인 사본 반환을 잇고 커밋 문장 parser를 완화 — `scripts/src/lib/coordinator.ts`, `seed-worktree.ts`, `finalize.ts`, `templates.ts`, finalize cleanup reference
-* [005 워크플로 프롬프트 runtime contract](blueprints/workflow-prompt-runtime-contract/index.md) - 공통 runtime contract를 세우고 여섯 진입 skill과 다섯 agent brief의 중복 판정을 줄임 — `CLAUDE.md`, `skills/bouncer-*/SKILL.md`, `agents/bouncer-*.md`
+* [001 진입 스킬 런타임 컨텍스트 최소화](../runtime-architecture/blueprints/entry-skill-runtime-context/index.md) - 진입 스킬 본문을 단계 뼈대로 줄이고 CLI preflight payload와 조건부 reference로 옮김 — `skills/bouncer-*`, `scripts/src/lib/`
+* [002 병렬 리뷰와 delta 인증 기반 리뷰 수렴](../runtime-architecture/blueprints/review-convergence/index.md) - execute·plan 리뷰를 병렬 discovery, 단일 수정, delta 인증으로 바꾸고 gate와 ledger로 고정 — `references/review/`, `agents/`, `scripts/src/lib/validate-*`
+* [003 worktree branch 이름 표준화](../runtime-architecture/blueprints/worktree-branch-naming/index.md) - integration·standalone·worker branch 이름을 CLI helper 하나로 계산하고 실제 branch를 기록 — `scripts/src/lib/runtime-state.ts`, `coordinator.ts`, `execute-prepare.ts`, `finalize.ts`, finalize reference
+* [004 드라이브 계획 문서 흐름과 마감 정리](../runtime-architecture/blueprints/drive-document-flow/index.md) - integration을 drive 계획 문서 정본으로 삼아 seed·증적 반환·메인 사본 반환을 잇고 커밋 문장 parser를 완화 — `scripts/src/lib/coordinator.ts`, `seed-worktree.ts`, `finalize.ts`, `templates.ts`, finalize cleanup reference
+* [005 워크플로 프롬프트 runtime contract](../runtime-architecture/blueprints/workflow-prompt-runtime-contract/index.md) - 공통 runtime contract를 세우고 여섯 진입 skill과 다섯 agent brief의 중복 판정을 줄임 — `CLAUDE.md`, `skills/bouncer-*/SKILL.md`, `agents/bouncer-*.md`
 
 실행 순서는 001 → 002 → 003이다. 002는 001이 만든 execute review reference를 고치고, 003은 001이 만든 `bouncer execute prepare`의 branch 계산을 교체한다. 004는 003이 기록한 integration branch를 병합 대상으로 쓴다.

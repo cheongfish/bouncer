@@ -43,4 +43,4 @@ bouncer:
 
 ## Blueprints
 
-* [Task intent bundle 재사용 경계](blueprints/task-intent-bundle-reuse/index.md) - intent resolver 결과를 Git 공통 runtime bundle로 재사용하고 execute 역할별 payload를 bundle ID 중심으로 제한한다.
+* [Task intent bundle 재사용 경계](../plan-workflow/blueprints/task-intent-bundle-reuse/index.md) - intent resolver 결과를 Git 공통 runtime bundle로 재사용하고 execute 역할별 payload를 bundle ID 중심으로 제한한다.

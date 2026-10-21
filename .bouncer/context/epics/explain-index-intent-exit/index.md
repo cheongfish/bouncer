@@ -39,4 +39,4 @@ bouncer:
 - `prepareDependencies` marker 판정 강화, explain scaffold title·description 교체, `.bouncer/` repair 경로.
 
 ## Blueprints
-* [001 explain coordinator 인덱스 축소와 intent sections 거부 정합](blueprints/coordinator-index-sections-exit/index.md) - `writeExplainCoordinator`가 쓰는 explain frontmatter와 `intent sections` 인자 파서를 `scripts/src/lib`에서 바꾸고 `rules/`에 반영한다
+* [001 explain coordinator 인덱스 축소와 intent sections 거부 정합](../finalize-closeout/blueprints/coordinator-index-sections-exit/index.md) - `writeExplainCoordinator`가 쓰는 explain frontmatter와 `intent sections` 인자 파서를 `scripts/src/lib`에서 바꾸고 `rules/`에 반영한다

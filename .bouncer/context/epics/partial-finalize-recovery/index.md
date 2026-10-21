@@ -36,5 +36,5 @@ bouncer:
 - repair-wave 한도나 승인 범위를 우회하는 partial close
 
 ## Blueprints
-* [부분 마감과 owner task 재개](blueprints/partial-finalize-recovery/index.md) - coordinator, finalize, gate와 CLI에 실패 인계·부분 마감·재개 계약을 연결한다.
-* [lint baseline 정리](blueprints/lint-baseline-cleanup/index.md) - `npm run ci`의 lint 단계를 막는 eslint 오류 35개를 동작 변경 없이 정리하고 implementer에 120자 한도 규칙을 추가한다.
+* [부분 마감과 owner task 재개](../finalize-closeout/blueprints/partial-finalize-recovery/index.md) - coordinator, finalize, gate와 CLI에 실패 인계·부분 마감·재개 계약을 연결한다.
+* [lint baseline 정리](../runtime-architecture/blueprints/lint-baseline-cleanup/index.md) - `npm run ci`의 lint 단계를 막는 eslint 오류 35개를 동작 변경 없이 정리하고 implementer에 120자 한도 규칙을 추가한다.

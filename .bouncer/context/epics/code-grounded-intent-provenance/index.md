@@ -70,8 +70,8 @@ bouncer:
 
 ## Blueprints
 
-* [001 Task commit provenance](blueprints/task-commit-provenance/index.md) - commit message와 Explain에 stable Task ID 기반 provenance를 기록한다.
-* [002 Function intent resolver](blueprints/function-intent-resolver/index.md) - 현재 함수 정의에서 Git commit과 연결된 Task·Explain 의도를 역추적한다.
-* [003 코드 우선 Plan 전환](blueprints/code-first-plan-cutover/index.md) - Plan이 현재 코드와 함수 의도 조회로 근거를 읽고 G4·S9 범위 근거 검사를 없앤다.
-* [004 Context graph 제거](blueprints/context-graph-removal/index.md) - context graph의 CLI·build·질의·설정·문서 표면을 없애고 Graphify를 source·test 두 scope로 줄인다.
-* [005 터미널 의도 provenance 종단 검증](blueprints/terminal-verification/index.md) - 임시 Git 저장소에서 함수 선택부터 commit·Explain·후속 intent와 source/test Graphify까지 하나의 종단 회귀로 검증한다.
+* [001 Task commit provenance](../plan-workflow/blueprints/task-commit-provenance/index.md) - commit message와 Explain에 stable Task ID 기반 provenance를 기록한다.
+* [002 Function intent resolver](../plan-workflow/blueprints/function-intent-resolver/index.md) - 현재 함수 정의에서 Git commit과 연결된 Task·Explain 의도를 역추적한다.
+* [003 코드 우선 Plan 전환](../plan-workflow/blueprints/code-first-plan-cutover/index.md) - Plan이 현재 코드와 함수 의도 조회로 근거를 읽고 G4·S9 범위 근거 검사를 없앤다.
+* [004 Context graph 제거](../plan-workflow/blueprints/context-graph-removal/index.md) - context graph의 CLI·build·질의·설정·문서 표면을 없애고 Graphify를 source·test 두 scope로 줄인다.
+* [005 터미널 의도 provenance 종단 검증](../plan-workflow/blueprints/terminal-verification/index.md) - 임시 Git 저장소에서 함수 선택부터 commit·Explain·후속 intent와 source/test Graphify까지 하나의 종단 회귀로 검증한다.

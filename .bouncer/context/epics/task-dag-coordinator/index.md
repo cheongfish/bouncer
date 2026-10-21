@@ -58,4 +58,4 @@ flowchart LR
 
 ## Blueprints
 
-* [DAG 코디네이터 위임 실행](blueprints/delegated-parallel-execution/index.md) - 계획 스키마, 격리 worktree 실행 코어, named coordinator와 workflow·문서 계약을 한 PR에서 전환
+* [DAG 코디네이터 위임 실행](../drive-execution/blueprints/delegated-parallel-execution/index.md) - 계획 스키마, 격리 worktree 실행 코어, named coordinator와 workflow·문서 계약을 한 PR에서 전환

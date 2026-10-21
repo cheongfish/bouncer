@@ -44,4 +44,4 @@ bouncer:
 
 ## Blueprints
 
-* [검증 재사용과 coordinator checkpoint](blueprints/verification-reuse-checkpoint-compaction/index.md) - verify ledger에 내용 주소화된 성공 증적을 남기고 coordinator status를 hash-fenced checkpoint로 제한
+* [검증 재사용과 coordinator checkpoint](../gates-review/blueprints/verification-reuse-checkpoint-compaction/index.md) - verify ledger에 내용 주소화된 성공 증적을 남기고 coordinator status를 hash-fenced checkpoint로 제한

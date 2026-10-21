@@ -41,4 +41,4 @@ bouncer:
 - CI 원인 repair brief 문구
 
 ## Blueprints
-* [fan-in 범위·라운드 순서·repair brief 보강](blueprints/fanin-rounds-repair-brief/index.md) - coordinator fan-in 범위 적용, execute 라운드 순서 계약, 리뷰 repair task 문서 생성을 고친다
+* [fan-in 범위·라운드 순서·repair brief 보강](../drive-execution/blueprints/fanin-rounds-repair-brief/index.md) - coordinator fan-in 범위 적용, execute 라운드 순서 계약, 리뷰 repair task 문서 생성을 고친다

@@ -38,4 +38,4 @@ bouncer:
 - 기완료 blueprint 문서의 소급 변경
 
 ## Blueprints
-* [Task 수명주기 안정화](blueprints/task-lifecycle-hardening/index.md) - context 주석 검사 범위와 리뷰 round·finding 계약을 상태 및 테스트와 함께 보강한다.
+* [Task 수명주기 안정화](../gates-review/blueprints/task-lifecycle-hardening/index.md) - context 주석 검사 범위와 리뷰 round·finding 계약을 상태 및 테스트와 함께 보강한다.

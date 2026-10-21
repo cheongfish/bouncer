@@ -44,8 +44,8 @@ bouncer:
 - digest에 coordinator 원장 전체(`coordinator`, `integrationHead` 등)를 다시 싣는 일.
 
 ## Blueprints
-* [001 ACQ 기계 판독 계약](blueprints/acq-machine-contract/index.md) - 게이트 카탈로그를 `rules/acq-gates.json`으로 옮기고 `rules/acq.md`·discovery에 판독 블록을, `finalize prepare`에 `drive` 요약을 더한다.
-* [002 응답기 계약 기반 재작성](blueprints/responder-contract-rewrite/index.md) - `benchmarks/` 응답기·정책·실행기가 BP 001 계약만 읽게 바꾸고 버전 일치 검사와 멈춘 질문 보관을 더한다.
+* [001 ACQ 기계 판독 계약](../benchmark-cost/blueprints/acq-machine-contract/index.md) - 게이트 카탈로그를 `rules/acq-gates.json`으로 옮기고 `rules/acq.md`·discovery에 판독 블록을, `finalize prepare`에 `drive` 요약을 더한다.
+* [002 응답기 계약 기반 재작성](../benchmark-cost/blueprints/responder-contract-rewrite/index.md) - `benchmarks/` 응답기·정책·실행기가 BP 001 계약만 읽게 바꾸고 버전 일치 검사와 멈춘 질문 보관을 더한다.
 
 ## Execution order
 BP 001 → BP 002 순서로 실행한다. BP 002가 BP 001의 카탈로그 파일·판독 블록·`drive` 필드를 입력으로 쓰므로 BP 001 finalize 뒤에 시작한다. BP 사이 순서는 운영 순서이며 task `depends_on`에 다른 BP를 연결하지 않는다.

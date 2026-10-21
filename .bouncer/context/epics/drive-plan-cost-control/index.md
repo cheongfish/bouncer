@@ -67,6 +67,6 @@ CLI가 계측·세션 경계·출처 검사를 결정적으로 처리하고 모�
 BP 002와 003은 BP 001이 대상 base에 통합된 뒤 별도 `/bouncer-plan`으로 이 epic에 추가한다.
 
 ## Blueprints
-* [001 드라이브 기반 안정화와 실행 출처·계측](blueprints/drive-foundation-provenance/index.md) - `advance` 출력 오염, stale build, SHA 출처, 세션 계측, worker 보고 구조화, integrate 역할 경계를 coordinator·launcher·finalize에서 고친다.
-* [002 직렬 드라이브 세션 연속과 DAG 모양 판단](blueprints/serial-drive-shape/index.md) - coordinate next·advance에 세션 경계와 `yield`를, preflight·plan gate에 DAG 모양 계산과 경고를, `/bouncer-run`에 짧은 직렬 체인 직접 실행을 더하고 측정 fixture를 둔다.
-* [003 plan context review 관점 통합과 기계 검사 이관](blueprints/plan-review-focus/index.md) - plan context review를 정합성·범위와 검증 가능성 두 판단으로 줄여 commit task 3개 이하는 한 번에 리뷰하고, Touch 경로 존재(G25)와 보안 위험 표시 누락 경고를 plan gate로 옮기며, seeded fixture로 탐지를 잰다.
+* [001 드라이브 기반 안정화와 실행 출처·계측](../drive-execution/blueprints/drive-foundation-provenance/index.md) - `advance` 출력 오염, stale build, SHA 출처, 세션 계측, worker 보고 구조화, integrate 역할 경계를 coordinator·launcher·finalize에서 고친다.
+* [002 직렬 드라이브 세션 연속과 DAG 모양 판단](../drive-execution/blueprints/serial-drive-shape/index.md) - coordinate next·advance에 세션 경계와 `yield`를, preflight·plan gate에 DAG 모양 계산과 경고를, `/bouncer-run`에 짧은 직렬 체인 직접 실행을 더하고 측정 fixture를 둔다.
+* [003 plan context review 관점 통합과 기계 검사 이관](../drive-execution/blueprints/plan-review-focus/index.md) - plan context review를 정합성·범위와 검증 가능성 두 판단으로 줄여 commit task 3개 이하는 한 번에 리뷰하고, Touch 경로 존재(G25)와 보안 위험 표시 누락 경고를 plan gate로 옮기며, seeded fixture로 탐지를 잰다.

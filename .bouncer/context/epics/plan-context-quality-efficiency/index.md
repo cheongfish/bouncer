@@ -46,6 +46,6 @@ bouncer:
 - epic 067(coordinator)·070(brief 구체화)·073(intent bundle)이 확정한 계약의 재설계
 
 ## Blueprints
-* [001 task-brief-contract-precision](blueprints/task-brief-contract-precision/index.md) - 성공 기준 1~4, 9: spec-authoring tasks 규칙·예시와 context reviewer rubric에 seam·실패 분류·기대 red 판정 추가
-* [002 dispatch-revision-attempt-evidence](blueprints/dispatch-revision-attempt-evidence/index.md) - 성공 기준 5~6, 9: implementer dispatch와 보고를 task brief hash·attempt에 묶고 stale 보고의 수락과 record를 거부
-* [003 plan-context-efficiency](blueprints/plan-context-efficiency/index.md) - 성공 기준 7~9: discovery·context reviewer 입력과 Graphify 질의를 필요한 근거로 제한
+* [001 task-brief-contract-precision](../plan-workflow/blueprints/task-brief-contract-precision/index.md) - 성공 기준 1~4, 9: spec-authoring tasks 규칙·예시와 context reviewer rubric에 seam·실패 분류·기대 red 판정 추가
+* [002 dispatch-revision-attempt-evidence](../plan-workflow/blueprints/dispatch-revision-attempt-evidence/index.md) - 성공 기준 5~6, 9: implementer dispatch와 보고를 task brief hash·attempt에 묶고 stale 보고의 수락과 record를 거부
+* [003 plan-context-efficiency](../plan-workflow/blueprints/plan-context-efficiency/index.md) - 성공 기준 7~9: discovery·context reviewer 입력과 Graphify 질의를 필요한 근거로 제한

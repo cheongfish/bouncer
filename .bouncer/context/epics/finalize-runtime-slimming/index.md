@@ -46,7 +46,7 @@ bouncer:
 - 벤치마크 평가 정책(`benchmarks/configs/ledger-00*-evaluator-policy.json`의 `quiz_score_use`) — 벤치마크 정책 정리 때 함께 다룬다
 
 ## Blueprints
-* [001 퀴즈·explain·PR drive 기록 제거](blueprints/quiz-explain-pr-drive-record/index.md) - 퀴즈 출처를 제품 동작으로 좁히고 `## 이해 상태`·`quiz_score`·`disposition`·explain `bouncer.coordinator`·digest drive 필드를 지운다 (explain-diff·finalize 지침, comprehension·finalize CLI)
-* [002 coordinator 회차 계약 이전](blueprints/coordinator-task-round/index.md) - coordinator가 execute SKILL 대신 자기 역할 문서의 회차 계약 절을 따른다 (`agents/bouncer-coordinator.md`, `.codex/agents/bouncer-coordinator.toml`, execute SKILL)
-* [003 gate 실패 hint와 gates.md 삭제](blueprints/gate-failure-hints/index.md) - validate 실패에 다음 행동 hint를 붙이고 `rules/gates.md`와 AGENTS.md rule 목록을 지운다 (validate CLI, AGENTS.md, rules·docs 링크)
-* [004 plan task 근거 병렬 수집](blueprints/plan-evidence-dispatch/index.md) - full blueprint의 commit task마다 읽기 전용 subagent가 Current behavior 근거를 병렬로 모으고 controller가 문서를 쓴다 (plan SKILL step 3, plan reference, load graph)
+* [001 퀴즈·explain·PR drive 기록 제거](../finalize-closeout/blueprints/quiz-explain-pr-drive-record/index.md) - 퀴즈 출처를 제품 동작으로 좁히고 `## 이해 상태`·`quiz_score`·`disposition`·explain `bouncer.coordinator`·digest drive 필드를 지운다 (explain-diff·finalize 지침, comprehension·finalize CLI)
+* [002 coordinator 회차 계약 이전](../finalize-closeout/blueprints/coordinator-task-round/index.md) - coordinator가 execute SKILL 대신 자기 역할 문서의 회차 계약 절을 따른다 (`agents/bouncer-coordinator.md`, `.codex/agents/bouncer-coordinator.toml`, execute SKILL)
+* [003 gate 실패 hint와 gates.md 삭제](../finalize-closeout/blueprints/gate-failure-hints/index.md) - validate 실패에 다음 행동 hint를 붙이고 `rules/gates.md`와 AGENTS.md rule 목록을 지운다 (validate CLI, AGENTS.md, rules·docs 링크)
+* [004 plan task 근거 병렬 수집](../finalize-closeout/blueprints/plan-evidence-dispatch/index.md) - full blueprint의 commit task마다 읽기 전용 subagent가 Current behavior 근거를 병렬로 모으고 controller가 문서를 쓴다 (plan SKILL step 3, plan reference, load graph)

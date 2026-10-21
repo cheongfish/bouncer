@@ -45,9 +45,9 @@ bouncer:
 - 도메인 epic 이름과 `area` 이름의 자동 추천, CLI 휴리스틱 귀속 판단
 
 ## Blueprints
-* [001 등록부 기반](blueprints/registry-foundation/index.md) - `.bouncer/epics.json` 형식·프로필·구조 검증, init의 공통 epic scaffold와 `legacy` 등록, `legacy` scaffold·approve 차단, 공용 fixture 헬퍼
-* [002 계획 경로 전환](blueprints/plan-path/index.md) - `plan inspect` 등록부 후보 출력과 `maintenanceEpic` 제거, `bouncer-plan` 스킬·`rules/planning.md` 기본 경로 전환
-* [003 등록부 gate](blueprints/registry-gates/index.md) - plan gate 등록부 검사(G 코드), `area`·`attribution` frontmatter, 도메인 epic·`area` 추가 명령, 승격 제안, 기존 테스트 fixture 등록부 추가
+* [001 등록부 기반](../context-search/blueprints/registry-foundation/index.md) - `.bouncer/epics.json` 형식·프로필·구조 검증, init의 공통 epic scaffold와 `legacy` 등록, `legacy` scaffold·approve 차단, 공용 fixture 헬퍼
+* [002 계획 경로 전환](../context-search/blueprints/plan-path/index.md) - `plan inspect` 등록부 후보 출력과 `maintenanceEpic` 제거, `bouncer-plan` 스킬·`rules/planning.md` 기본 경로 전환
+* [003 등록부 gate](../context-search/blueprints/registry-gates/index.md) - plan gate 등록부 검사(G 코드), `area`·`attribution` frontmatter, 도메인 epic·`area` 추가 명령, 승격 제안, 기존 테스트 fixture 등록부 추가
 
 ## Flow
 

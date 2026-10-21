@@ -71,8 +71,8 @@ flowchart LR
 - light-run·단독 `/bouncer-execute`·plan context-reviewer의 모델 기록, host가 실제 실행한 모델의 검증, `metrics` 스키마·pricing 변경.
 
 ## Blueprints
-* [001 리뷰 입력 정합성](blueprints/review-input-consistency/index.md) - 실행 리뷰의 작업 트리 수집·규모 분류·라운드 기록·reviewer 입력을 같은 스냅샷에 연결한다.
+* [001 리뷰 입력 정합성](../gates-review/blueprints/review-input-consistency/index.md) - 실행 리뷰의 작업 트리 수집·규모 분류·라운드 기록·reviewer 입력을 같은 스냅샷에 연결한다.
 * [002 run 시작 계약](blueprints/002-run-start-contract/index.md) - run preflight의 포인터·상태 거절, run 시작 순서와 plan gate의 커밋 문장 검사를 맞춘다.
-* [003 repair 통합 경로](blueprints/repair-integrate-path/index.md) - coordinator integrate가 repair task 문서를 받아들이게 하고 run preflight의 경로 비교를 정규화·realpath 기준으로 바꾼다.
-* [004 CLI 실행·범위 계약](blueprints/cli-execution-scope-contract/index.md) - print dispatch의 빈 보고서 거절, commit 실패 JSON 출력, revise 축소 경고, integrate dirty 경로 `-z` 파싱, G25 저장소 밖 경로 거절을 맞춘다.
-* [005 dispatch 실행 기록](blueprints/dispatch-execution-record/index.md) - dispatch 완료 알림 판정·최종 metrics·사전 모델 확인·지연 로드 툴 규칙을 문서에 넣고, coordinator 원장에 워커 dispatch 모델을 기록한다.
+* [003 repair 통합 경로](../drive-execution/blueprints/repair-integrate-path/index.md) - coordinator integrate가 repair task 문서를 받아들이게 하고 run preflight의 경로 비교를 정규화·realpath 기준으로 바꾼다.
+* [004 CLI 실행·범위 계약](../drive-execution/blueprints/cli-execution-scope-contract/index.md) - print dispatch의 빈 보고서 거절, commit 실패 JSON 출력, revise 축소 경고, integrate dirty 경로 `-z` 파싱, G25 저장소 밖 경로 거절을 맞춘다.
+* [005 dispatch 실행 기록](../drive-execution/blueprints/dispatch-execution-record/index.md) - dispatch 완료 알림 판정·최종 metrics·사전 모델 확인·지연 로드 툴 규칙을 문서에 넣고, coordinator 원장에 워커 dispatch 모델을 기록한다.

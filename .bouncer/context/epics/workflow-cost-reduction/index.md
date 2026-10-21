@@ -64,4 +64,4 @@ flowchart LR
 
 ## Blueprints
 * [001 계획·실행 호출 축소](blueprints/001-plan-run-call-reduction/index.md) - worker 이력 차단, 조사 영역 단위 evidence, implementer 1차 수정, direct 종결 범위, plan 질문 게이트, intent 실패 분리, light→full 보존 승격 (`rules/`, `skills/bouncer-plan`, `skills/bouncer-run`, `references/`, `agents/`, `.codex/agents/`, `scripts/src/lib`, `test/`, `benchmarks/acp/`, `docs/configuration.md`, `CHANGELOG.md`)
-* [002 리뷰·보고·마무리 정리](blueprints/review-report-finalize/index.md) - 최종 리뷰 1회와 must_fix 기록, 계획 리뷰 single, reviewer 입력·rubric, finding 필드 자동화, 보고 축소, 문서 정본 정리, Retro 조건, usage 기록, 한글 하드룰 (`scripts/src/lib`, `references/`, `agents/`, `skills/`, `rules/`, `AGENTS.md`, `test/`, `CHANGELOG.md`)
+* [002 리뷰·보고·마무리 정리](../benchmark-cost/blueprints/review-report-finalize/index.md) - 최종 리뷰 1회와 must_fix 기록, 계획 리뷰 single, reviewer 입력·rubric, finding 필드 자동화, 보고 축소, 문서 정본 정리, Retro 조건, usage 기록, 한글 하드룰 (`scripts/src/lib`, `references/`, `agents/`, `skills/`, `rules/`, `AGENTS.md`, `test/`, `CHANGELOG.md`)

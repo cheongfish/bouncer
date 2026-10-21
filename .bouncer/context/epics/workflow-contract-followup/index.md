@@ -40,4 +40,4 @@ bouncer:
 - 측정 근거가 없는 줄 수 축약과 기완료 blueprint 문서의 소급 수정
 
 ## Blueprints
-* [워크플로 계약 후속 검증](blueprints/contract-maintenance-evaluation/index.md) - generated 역할 사본, 여섯 workflow skill, Graphify 평가 문서를 독립 task 3개로 검증하고 정비한다.
+* [워크플로 계약 후속 검증](../runtime-architecture/blueprints/contract-maintenance-evaluation/index.md) - generated 역할 사본, 여섯 workflow skill, Graphify 평가 문서를 독립 task 3개로 검증하고 정비한다.

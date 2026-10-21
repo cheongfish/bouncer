@@ -41,6 +41,6 @@ bouncer:
 - review finding fingerprint 정규형 변경. 069/002가 정한 계약을 그대로 쓴다.
 
 ## Blueprints
-* [001 task 브리프 본문 계약 강화](blueprints/task-brief-contract/index.md) - full task 템플릿에 현재·목표 동작 절과 심볼 단위 Touch 표를 두고 작성 지침·구현자 전달에 반영 — `scripts/src/lib/templates.ts`, `validate-sections.ts`, `validate-gates.ts`, `references/spec-authoring/`, `agents/bouncer-implementer.md`
+* [001 task 브리프 본문 계약 강화](../plan-workflow/blueprints/task-brief-contract/index.md) - full task 템플릿에 현재·목표 동작 절과 심볼 단위 Touch 표를 두고 작성 지침·구현자 전달에 반영 — `scripts/src/lib/templates.ts`, `validate-sections.ts`, `validate-gates.ts`, `references/spec-authoring/`, `agents/bouncer-implementer.md`
 
 후속 blueprint는 아직 작성하지 않았다. 002 모듈·심볼 조사 handoff(성공 조건 4), 003 semantic readiness 판정(5), 004 task review 추적성(6) 순서로 이 epic에 추가한다. 004는 069/002의 finding 필드를 재사용하도록 범위를 다시 정한다.

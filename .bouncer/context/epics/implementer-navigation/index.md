@@ -39,4 +39,4 @@ bouncer:
 - epic 073의 bundle 재사용 체계 재설계 및 epic 108의 검증 경계 변경
 
 ## Blueprints
-* [구현자 함수 위치 전달](blueprints/implementer-symbol-locations/index.md) - intent projection의 위치 목록과 implementer 전달·사용 지침 및 회귀 테스트 변경
+* [구현자 함수 위치 전달](../drive-execution/blueprints/implementer-symbol-locations/index.md) - intent projection의 위치 목록과 implementer 전달·사용 지침 및 회귀 테스트 변경

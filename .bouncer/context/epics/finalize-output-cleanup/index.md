@@ -39,4 +39,4 @@ bouncer:
 - `finalize release-main` 결과와 `coordinate` 출력
 
 ## Blueprints
-* [001 finalize PR base 탐지와 결과 provenance 축소](blueprints/pr-base-and-result-provenance/index.md) - digest PR base를 config → `origin/HEAD` → `null`로 정하고 finalize 결과에서 `coordinator`를 뺀다 (finalize digest·PR draft·finalize CLI, draft-pr 지침)
+* [001 finalize PR base 탐지와 결과 provenance 축소](../finalize-closeout/blueprints/pr-base-and-result-provenance/index.md) - digest PR base를 config → `origin/HEAD` → `null`로 정하고 finalize 결과에서 `coordinator`를 뺀다 (finalize digest·PR draft·finalize CLI, draft-pr 지침)

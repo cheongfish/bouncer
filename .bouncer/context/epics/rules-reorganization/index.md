@@ -45,6 +45,6 @@ bouncer:
 - 동결된 `rules-reorganization-proposal.md`를 수정하거나 commit하지 않는다.
 
 ## Blueprints
-* [001 규칙 소유권 지도와 마이그레이션 안전망](blueprints/ownership-map-migration-safety/index.md) - 현재·목표 소유권과 workflow load graph를 기록하고 동작 보존 검사를 추가한다.
-* [002 계획 규칙과 문서 스키마 수직 이전](blueprints/planning-rule-vertical-migration/index.md) - 계획 계약과 문서 schema를 전용 정본으로 옮기고 plan·init·authoring·scaffold 소비자와 검사를 전환한다.
-* [003 실행 규칙 수직 이전](blueprints/execution-rule-vertical-migration/index.md) - commit scope, coordinator 절차와 light·finalize 실행 계약을 판단 주체별 정본으로 옮기고 실행 workflow의 참조를 전환한다.
+* [001 규칙 소유권 지도와 마이그레이션 안전망](../runtime-architecture/blueprints/ownership-map-migration-safety/index.md) - 현재·목표 소유권과 workflow load graph를 기록하고 동작 보존 검사를 추가한다.
+* [002 계획 규칙과 문서 스키마 수직 이전](../runtime-architecture/blueprints/planning-rule-vertical-migration/index.md) - 계획 계약과 문서 schema를 전용 정본으로 옮기고 plan·init·authoring·scaffold 소비자와 검사를 전환한다.
+* [003 실행 규칙 수직 이전](../runtime-architecture/blueprints/execution-rule-vertical-migration/index.md) - commit scope, coordinator 절차와 light·finalize 실행 계약을 판단 주체별 정본으로 옮기고 실행 workflow의 참조를 전환한다.

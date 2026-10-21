@@ -38,4 +38,4 @@ bouncer:
 - 그래프 질의를 필수 gate로 만드는 일과 그 정확도·토큰 측정.
 
 ## Blueprints
-* [001 verify 출력 tail과 계획 안내 보강](blueprints/verify-tail-and-plan-guides/index.md) - `finalize.ts`의 실패 payload, `scaffold.ts`의 description 검사, graphify-runner·context-review·plan 스킬 문서 문단
+* [001 verify 출력 tail과 계획 안내 보강](../plan-workflow/blueprints/verify-tail-and-plan-guides/index.md) - `finalize.ts`의 실패 payload, `scaffold.ts`의 description 검사, graphify-runner·context-review·plan 스킬 문서 문단

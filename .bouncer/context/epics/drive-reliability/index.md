@@ -49,10 +49,10 @@ bouncer:
 - finalize 동의·퀴즈·PR 승인 절차, 자동 승인, 직접 원장 수정, 게이트 우회.
 
 ## Blueprints
-* [001 코디네이터 반환 계약 강화](blueprints/coordinator-return-contract/index.md) - 역할 문서·생성 TOML·입력 payload에서 워커 대기와 continue의 조건을 강화한다.
-* [002 조기 반환 탐지와 안전한 재개](blueprints/early-handback-recovery/index.md) - status의 실행 상태 한계를 명시하고 run의 대기·보존 중단·제한된 재개를 정의한다.
-* [003 마감 검증 의존성 준비](blueprints/finalize-dependency-readiness/index.md) - finalize의 기존 설치 함수 호출과 구조화된 설치 실패를 구현한다.
-* [004 드라이브 잔여 공백 해소](blueprints/drive-gap-closure/index.md) - 빈 커밋 문장 목록 허용, implementer 보고 파일 관측, lockfile stamp 재설치를 구현한다.
+* [001 코디네이터 반환 계약 강화](../drive-execution/blueprints/coordinator-return-contract/index.md) - 역할 문서·생성 TOML·입력 payload에서 워커 대기와 continue의 조건을 강화한다.
+* [002 조기 반환 탐지와 안전한 재개](../drive-execution/blueprints/early-handback-recovery/index.md) - status의 실행 상태 한계를 명시하고 run의 대기·보존 중단·제한된 재개를 정의한다.
+* [003 마감 검증 의존성 준비](../drive-execution/blueprints/finalize-dependency-readiness/index.md) - finalize의 기존 설치 함수 호출과 구조화된 설치 실패를 구현한다.
+* [004 드라이브 잔여 공백 해소](../drive-execution/blueprints/drive-gap-closure/index.md) - 빈 커밋 문장 목록 허용, implementer 보고 파일 관측, lockfile stamp 재설치를 구현한다.
 
 ## Execution order
 BP 001 → BP 002 → BP 003 → BP 004 순서로 실행한다. BP 사이의 순서는 운영 순서이며 TASKS id의 depends_on에 다른 BP를 연결하지 않는다. 공유 run 지침·CHANGELOG·CLI 문서가 있으므로 BP를 동시에 실행하지 않는다.

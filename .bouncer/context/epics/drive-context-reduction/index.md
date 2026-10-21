@@ -44,6 +44,6 @@ bouncer:
 - 저장소 루트의 미추적 로컬 문서 `token-cost-audit.md` 자체. 커밋하지 않는다.
 
 ## Blueprints
-* [001 coordinate 출력 축소](blueprints/coordinate-output-compaction/index.md) - `coordinate` CLI stdout에서 원장 전체 사본을 빼고 한 줄 JSON으로 낸다 (`scripts/src/lib/cli-git-commands.ts`, coordinator 역할 문서)
-* [002 지침 읽기 범위 축소](blueprints/instruction-read-scope/index.md) - coordinator를 execute 참조로 직접 안내하고 이미 받은 문서 재읽기를 막는다 (`agents/*.md`, run 스킬)
-* [003 wave 단위 coordinator 세션](blueprints/wave-session-split/index.md) - coordinator가 wave마다 `continue`로 돌아오고 run이 새 세션을 띄운다 (coordinator 역할 문서, run 스킬)
+* [001 coordinate 출력 축소](../drive-execution/blueprints/coordinate-output-compaction/index.md) - `coordinate` CLI stdout에서 원장 전체 사본을 빼고 한 줄 JSON으로 낸다 (`scripts/src/lib/cli-git-commands.ts`, coordinator 역할 문서)
+* [002 지침 읽기 범위 축소](../drive-execution/blueprints/instruction-read-scope/index.md) - coordinator를 execute 참조로 직접 안내하고 이미 받은 문서 재읽기를 막는다 (`agents/*.md`, run 스킬)
+* [003 wave 단위 coordinator 세션](../drive-execution/blueprints/wave-session-split/index.md) - coordinator가 wave마다 `continue`로 돌아오고 run이 새 세션을 띄운다 (coordinator 역할 문서, run 스킬)

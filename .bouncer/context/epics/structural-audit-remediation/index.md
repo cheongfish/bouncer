@@ -39,8 +39,8 @@ bouncer:
 - 컨테이너·프로세스 격리나 신뢰할 수 없는 저장소 스크립트의 안전성 보장
 
 ## Blueprints
-* [001 검증 실행과 커밋 범위 경계 강화](blueprints/security-boundary-enforcement/index.md) - 검증 러너와 commit 범위 검사를 셸·호스트 훅 의존 없이 일관되게 집행한다.
-* [002 실행 주기 규칙 적재 계약](blueprints/run-rule-reload-elimination/index.md) - run drive의 불변 규칙을 최초 한 번만 적재하도록 공통 계약과 loop 절차를 맞춘다.
-* [003 스킬 경로와 모듈 타입 계약 정비](blueprints/correctness-contracts/index.md) - 스킬 참조·ACQ 시점을 명시하고 CommonJS 모듈 간 타입 검사를 복구한다.
-* [004 유지보수와 배포 표면 정비](blueprints/maintenance-distribution/index.md) - 산문 테스트, 버전 동기화, 배포 목록, CLI 런처 반복을 구조 계약으로 정리한다.
-* [005 문서 검사 스크립트 분리와 린트 파이프라인 정비](blueprints/doc-lint-cli/index.md) - 문서 구조 검사기를 독립 CLI로 실행하고 lint:docs 파이프라인으로 통합한다.
+* [001 검증 실행과 커밋 범위 경계 강화](../gates-review/blueprints/security-boundary-enforcement/index.md) - 검증 러너와 commit 범위 검사를 셸·호스트 훅 의존 없이 일관되게 집행한다.
+* [002 실행 주기 규칙 적재 계약](../drive-execution/blueprints/run-rule-reload-elimination/index.md) - run drive의 불변 규칙을 최초 한 번만 적재하도록 공통 계약과 loop 절차를 맞춘다.
+* [003 스킬 경로와 모듈 타입 계약 정비](../runtime-architecture/blueprints/correctness-contracts/index.md) - 스킬 참조·ACQ 시점을 명시하고 CommonJS 모듈 간 타입 검사를 복구한다.
+* [004 유지보수와 배포 표면 정비](../host-distribution/blueprints/maintenance-distribution/index.md) - 산문 테스트, 버전 동기화, 배포 목록, CLI 런처 반복을 구조 계약으로 정리한다.
+* [005 문서 검사 스크립트 분리와 린트 파이프라인 정비](../runtime-architecture/blueprints/doc-lint-cli/index.md) - 문서 구조 검사기를 독립 CLI로 실행하고 lint:docs 파이프라인으로 통합한다.

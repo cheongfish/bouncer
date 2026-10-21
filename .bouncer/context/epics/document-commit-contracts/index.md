@@ -30,5 +30,5 @@ bouncer:
 - `check-doc-shape.js`에 컨텍스트 변경 파일 탐색 책임 추가
 
 ## Blueprints
-* [템플릿 주석 lint](blueprints/scaffold-template-comment-lint/index.md) - 스캐폴드 템플릿과 CI에 변경 컨텍스트 문서의 안내 주석 검사를 추가한다.
-* [문서와 커밋 수명주기 계약](blueprints/explain-task-context/index.md) - task 맥락, 임시 문서 수명주기, 저작 커밋 메시지를 세 task로 정비한다.
+* [템플릿 주석 lint](../plan-workflow/blueprints/scaffold-template-comment-lint/index.md) - 스캐폴드 템플릿과 CI에 변경 컨텍스트 문서의 안내 주석 검사를 추가한다.
+* [문서와 커밋 수명주기 계약](../finalize-closeout/blueprints/explain-task-context/index.md) - task 맥락, 임시 문서 수명주기, 저작 커밋 메시지를 세 task로 정비한다.

@@ -59,10 +59,10 @@ flowchart LR
 - Epic 092 문서 재개방
 
 ## Blueprints
-* [001 공통 코딩 표준과 테스트 신뢰성 리뷰](blueprints/coding-standards/index.md) - `references/coding-standards/index.md` 정본을 만들고 agent·reference 중복을 참조로 바꾸며, Red run을 implementer 보고에서 reviewer slot까지 잇는다.
-* [002 테스트 이름 형식 검사](blueprints/test-name-lint/index.md) - `test/*.test.js` 이름을 `<조건> → <결과>`로 바꾸고 `npm run ci`에 이름 검사를 넣는다.
-* [003 PR 변경 그림과 판단 자료](blueprints/pr-visual-evidence/index.md) - finalize PR 규칙과 템플릿에 필수 `변경 그림`·`변경 전후`·`되돌리기 · 영향 범위` 절을 넣는다.
-* [004 세션 근거 retro](blueprints/retro/index.md) - `bouncer retro sources`·`retro read` CLI와 `/bouncer-retro` 스킬을 추가하고 finalize 성공 뒤 자동 실행한다.
+* [001 공통 코딩 표준과 테스트 신뢰성 리뷰](../gates-review/blueprints/coding-standards/index.md) - `references/coding-standards/index.md` 정본을 만들고 agent·reference 중복을 참조로 바꾸며, Red run을 implementer 보고에서 reviewer slot까지 잇는다.
+* [002 테스트 이름 형식 검사](../gates-review/blueprints/test-name-lint/index.md) - `test/*.test.js` 이름을 `<조건> → <결과>`로 바꾸고 `npm run ci`에 이름 검사를 넣는다.
+* [003 PR 변경 그림과 판단 자료](../gates-review/blueprints/pr-visual-evidence/index.md) - finalize PR 규칙과 템플릿에 필수 `변경 그림`·`변경 전후`·`되돌리기 · 영향 범위` 절을 넣는다.
+* [004 세션 근거 retro](../gates-review/blueprints/retro/index.md) - `bouncer retro sources`·`retro read` CLI와 `/bouncer-retro` 스킬을 추가하고 finalize 성공 뒤 자동 실행한다.
 
 ## Execution order
 BP 001 → 002 → 003 → 004 순서로 실행한다. 001이 정한 테스트 이름 규칙을 002가 기계 검사로 고정하므로, 003·004가 추가하는 테스트는 그 검사를 통과해야 한다. 네 BP가 CHANGELOG를 공유하므로 동시에 실행하지 않는다. BP 사이 순서는 운영 순서이며 task `depends_on`에 다른 BP를 연결하지 않는다.

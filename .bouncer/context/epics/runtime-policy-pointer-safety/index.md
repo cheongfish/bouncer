@@ -45,5 +45,5 @@ bouncer:
 
 ## Blueprints
 
-* [검증 정책 일관성](blueprints/verify-policy-consistency/index.md) - config allowlist와 오류 판정을 plan·execute에서 공유하고, worktree에 config를 보존 복사한다.
-* [활성 포인터 namespace](blueprints/active-pointer-namespace/index.md) - 포인터 덮어쓰기를 차단한 뒤 epic·blueprint별 상태와 실행 위치별 해석으로 전환한다.
+* [검증 정책 일관성](../runtime-architecture/blueprints/verify-policy-consistency/index.md) - config allowlist와 오류 판정을 plan·execute에서 공유하고, worktree에 config를 보존 복사한다.
+* [활성 포인터 namespace](../runtime-architecture/blueprints/active-pointer-namespace/index.md) - 포인터 덮어쓰기를 차단한 뒤 epic·blueprint별 상태와 실행 위치별 해석으로 전환한다.

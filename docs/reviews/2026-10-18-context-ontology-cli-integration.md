@@ -51,8 +51,8 @@ node scripts/check-test-names.js test/commit-hook.test.js
 - 최초 구현 worker: `.worktrees/111/002/workers/001`
 - 복구 worker: `.worktrees/111/002/workers/003`
 - ledger: integration 아래 `.bouncer/runtime/coordinator.json`
-- 종단 검증: integration 아래 `.bouncer/context/epics/context-ontology/blueprints/context-ontology-cli/tasks/002/verification.md`
-- 최종 리뷰: integration 아래 `.bouncer/context/epics/context-ontology/blueprints/context-ontology-cli/review.md`
+- 종단 검증: integration 아래 `.bouncer/context/epics/context-search/blueprints/context-ontology-cli/tasks/002/verification.md`
+- 최종 리뷰: integration 아래 `.bouncer/context/epics/context-search/blueprints/context-ontology-cli/review.md`
 
 이전 blueprint `111/001`의 ledger와 worktree는 보존했다. 선택 충돌을 해소하기 위해 사용자가 승인한 이전 namespace 포인터만 제거했다. 구현 결과는 사용자의 push로 원격 `develop`에도 반영됐으며 Bouncer finalize와 PR 작성·병합은 수행하지 않았다. Git 통합이 Bouncer 문서 상태의 종결을 뜻하지는 않는다.
 

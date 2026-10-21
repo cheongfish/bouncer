@@ -42,8 +42,8 @@ bouncer:
 - 제품 CLI·게이트 동작 변경. 예외는 BP 001의 `toPosix` 통일로 Linux에서 백슬래시가 든 경로의 `symbol-index` 출력이 바뀌는 것 하나다.
 
 ## Blueprints
-* [001 공용 helper 통합](blueprints/shared-helpers/index.md) - `scripts/src/lib`에 복사된 digest·레코드·오류·경로 helper를 공용 모듈로 모으고 `paths`↔`tasks-docs` 순환을 없앤다.
-* [002 동작 중심 테스트](blueprints/behavior-tests/index.md) - 소비 프로젝트 테스트 지침을 넣고, 테스트를 unit·integration으로 나누며, 느린 git 테스트와 문서 문구 테스트를 정리한다.
+* [001 공용 helper 통합](../runtime-architecture/blueprints/shared-helpers/index.md) - `scripts/src/lib`에 복사된 digest·레코드·오류·경로 helper를 공용 모듈로 모으고 `paths`↔`tasks-docs` 순환을 없앤다.
+* [002 동작 중심 테스트](../runtime-architecture/blueprints/behavior-tests/index.md) - 소비 프로젝트 테스트 지침을 넣고, 테스트를 unit·integration으로 나누며, 느린 git 테스트와 문서 문구 테스트를 정리한다.
 
 ## Execution order
 BP 001 → BP 002 순서로 실행한다. 두 BP가 CHANGELOG를 공유하고, BP 002의 테스트 정리가 BP 001 이후 코드 기준으로 계층을 나누므로 동시에 실행하지 않는다. BP 사이 순서는 운영 순서이며 task `depends_on`에 다른 BP를 연결하지 않는다.

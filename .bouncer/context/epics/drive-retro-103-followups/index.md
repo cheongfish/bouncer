@@ -38,4 +38,4 @@ bouncer:
 - 기록된 runtime 상태를 직접 고치는 우회 경로와 그 분류기 규칙.
 
 ## Blueprints
-* [001 record 사전 거부와 토큰 계측](blueprints/record-guard-and-token-metrics/index.md) - `context-review-state.ts`의 record 검사, `drive-metrics.ts`·`coordinator.ts`의 토큰 필드와 합산, CLI help·coordinator 카드 갱신
+* [001 record 사전 거부와 토큰 계측](../drive-execution/blueprints/record-guard-and-token-metrics/index.md) - `context-review-state.ts`의 record 검사, `drive-metrics.ts`·`coordinator.ts`의 토큰 필드와 합산, CLI help·coordinator 카드 갱신

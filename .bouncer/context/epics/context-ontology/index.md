@@ -47,6 +47,6 @@ bouncer:
 - 참고 문서의 기존 코어 제외 결론은 이번 사용자의 코어 기능 추가 선택으로 범위만 전환한다. 기존 실험 기록을 소급 수정하지 않는다.
 
 ## Blueprints
-* [컨텍스트 온톨로지 조회 명령](blueprints/context-ontology-cli/index.md) - 병합된 코어에 CLI·테스트·사용 문서와 승인된 lint 복구를 추가한 독립 실행. 전체 CI 실패와 리뷰 후속 작업이 남아 있다.
+* [컨텍스트 온톨로지 조회 명령](../context-search/blueprints/context-ontology-cli/index.md) - 병합된 코어에 CLI·테스트·사용 문서와 승인된 lint 복구를 추가한 독립 실행. 전체 CI 실패와 리뷰 후속 작업이 남아 있다.
 
 이전 `001-context-ontology-retrieval`은 검색 코어의 출발 계획이다. 코어 TASKS-001 병합 후 해당 실행의 ledger가 blocked로 남아 새 CLI 실행에 재사용하지 않았다. 이전 계획·작업 지시서·증적과 worktree는 로컬에 보존하며, 미추적 이전 계획으로 향하는 링크를 공개 색인에 추가하지 않는다.

@@ -29,5 +29,5 @@ bouncer:
 - 기완료된 과거 에픽/블루프린트 문서의 소급 변경
 
 ## Blueprints
-* [Graphify 질의 가이드 정비](blueprints/graphify-query-guidance/index.md) - Graphify 검색 공간 축소 원칙을 러너 지침과 플랜 제안 참조에 반영하고 테스트로 고정한다.
-* [미해결 must_fix context review 사이클 닫기](blueprints/context-review-close/index.md) - `context-review close`로 사용자 동의 accepted-risk를 기록해 막힌 사이클을 닫고, restart와 G18이 그 처분을 인정하게 한다.
+* [Graphify 질의 가이드 정비](../context-search/blueprints/graphify-query-guidance/index.md) - Graphify 검색 공간 축소 원칙을 러너 지침과 플랜 제안 참조에 반영하고 테스트로 고정한다.
+* [미해결 must_fix context review 사이클 닫기](../plan-workflow/blueprints/context-review-close/index.md) - `context-review close`로 사용자 동의 accepted-risk를 기록해 막힌 사이클을 닫고, restart와 G18이 그 처분을 인정하게 한다.

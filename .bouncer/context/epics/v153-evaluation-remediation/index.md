@@ -38,5 +38,5 @@ bouncer:
 - 평가 문서의 P1 이하 태스크는 Success criteria에 넣지 않는다. 진행할 때 이 epic에 blueprint와 기준을 함께 추가한다.
 
 ## Blueprints
-* [001 커밋 강제력 보강](blueprints/commit-enforcement/index.md) - 위협 모델 문서, commit 게이트 증거 최신성, git pre-commit hook, 승인 범위 스냅샷을 `docs/`·`scripts/src/lib`에 추가
-* [002 prepare 원장 잠금 구간 분리](blueprints/prepare-lock-split/index.md) - `scripts/src/lib/coordinator.ts` prepare의 worktree 생성·seed를 원장 잠금 밖으로 옮기고 실패 시 생성 worker를 되돌림
+* [001 커밋 강제력 보강](../gates-review/blueprints/commit-enforcement/index.md) - 위협 모델 문서, commit 게이트 증거 최신성, git pre-commit hook, 승인 범위 스냅샷을 `docs/`·`scripts/src/lib`에 추가
+* [002 prepare 원장 잠금 구간 분리](../drive-execution/blueprints/prepare-lock-split/index.md) - `scripts/src/lib/coordinator.ts` prepare의 worktree 생성·seed를 원장 잠금 밖으로 옮기고 실패 시 생성 worker를 되돌림

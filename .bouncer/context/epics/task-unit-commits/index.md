@@ -42,23 +42,23 @@ bouncer:
 - worktree 디렉터리·브랜치 이름 규칙 변경.
 
 ## Blueprints
-* [001 evidence-and-message](blueprints/evidence-and-message/index.md) - Blueprint 001
-* [002 seed-plan-artifacts](blueprints/seed-plan-artifacts/index.md) - Blueprint 001
-* [003 current-command](blueprints/current-command/index.md) - Blueprint 001
-* [004 next-blueprint-handoff](blueprints/next-blueprint-handoff/index.md) - Blueprint 001
-* [005 explain-doc-contract](blueprints/explain-doc-contract/index.md) - explain.md 문서 종류 신설, G9 폐지, G15 이해 게이트
-* [006 explain-diff-skill](blueprints/explain-diff-skill/index.md) - skills/explain-diff 신설, finalize·spec-authoring·계약 테스트 배선
-* [007 promotion-pr-body](blueprints/promotion-pr-body/index.md) - Distill 승격과 draft PR 본문의 소스를 explain.md로 통일
-* [008 tasks-doc-resolver](blueprints/tasks-doc-resolver/index.md) - Blueprint 001
-* [009 pointer-task-field](blueprints/pointer-task-field/index.md) - Blueprint 001
-* [010 task-dir-layout](blueprints/task-dir-layout/index.md) - Blueprint 001
-* [011 commit-stage](blueprints/commit-stage/index.md) - Blueprint 001
-* [012 closed-status](blueprints/closed-status/index.md) - Blueprint 001
-* [013 nested-worktree-path](blueprints/nested-worktree-path/index.md) - Blueprint 001
-* [014 scale-light-convention](blueprints/scale-light-convention/index.md) - Blueprint 001
-* [015 lightweight-cycle-guidance](blueprints/lightweight-cycle-guidance/index.md) - 경량 선언 시 epic 신설·에이전트 왕복·퀴즈 규모를 줄이는 경로를 문서와 스킬 프로즈에 배선
-* [016 comprehension-gate-move](blueprints/comprehension-gate-move/index.md) - comprehension을 BP 단일 엔트리로 축소하고 commit 게이트를 G17 스코프 검사로 재정의한다
-* [017 mermaid-authoring-convention](blueprints/mermaid-authoring-convention/index.md) - Blueprint 001
-* [018 gate-integrity](blueprints/gate-integrity/index.md) - -a 커밋 검사 집합 확장과 하네스 소유 verify 증적 대조
-* [019 promotion-verify](blueprints/promotion-verify/index.md) - finalize가 스테이징 전에 검증 명령을 실행하고, Distill 불릿 감사가 손으로 고친 목록에 의존하지 않게 한다
-* [020 completed-context-retention](blueprints/completed-context-retention/index.md) - finalize가 일회성 task·verification·review·context-review를 정리하고 explain을 장기 증적으로 남긴다
+* [001 evidence-and-message](../drive-execution/blueprints/evidence-and-message/index.md) - Blueprint 001
+* [002 seed-plan-artifacts](../drive-execution/blueprints/seed-plan-artifacts/index.md) - Blueprint 001
+* [003 current-command](../drive-execution/blueprints/current-command/index.md) - Blueprint 001
+* [004 next-blueprint-handoff](../drive-execution/blueprints/next-blueprint-handoff/index.md) - Blueprint 001
+* [005 explain-doc-contract](../finalize-closeout/blueprints/explain-doc-contract/index.md) - explain.md 문서 종류 신설, G9 폐지, G15 이해 게이트
+* [006 explain-diff-skill](../finalize-closeout/blueprints/explain-diff-skill/index.md) - skills/explain-diff 신설, finalize·spec-authoring·계약 테스트 배선
+* [007 promotion-pr-body](../finalize-closeout/blueprints/promotion-pr-body/index.md) - Distill 승격과 draft PR 본문의 소스를 explain.md로 통일
+* [008 tasks-doc-resolver](../drive-execution/blueprints/tasks-doc-resolver/index.md) - Blueprint 001
+* [009 pointer-task-field](../drive-execution/blueprints/pointer-task-field/index.md) - Blueprint 001
+* [010 task-dir-layout](../drive-execution/blueprints/task-dir-layout/index.md) - Blueprint 001
+* [011 commit-stage](../drive-execution/blueprints/commit-stage/index.md) - Blueprint 001
+* [012 closed-status](../drive-execution/blueprints/closed-status/index.md) - Blueprint 001
+* [013 nested-worktree-path](../drive-execution/blueprints/nested-worktree-path/index.md) - Blueprint 001
+* [014 scale-light-convention](../drive-execution/blueprints/scale-light-convention/index.md) - Blueprint 001
+* [015 lightweight-cycle-guidance](../drive-execution/blueprints/lightweight-cycle-guidance/index.md) - 경량 선언 시 epic 신설·에이전트 왕복·퀴즈 규모를 줄이는 경로를 문서와 스킬 프로즈에 배선
+* [016 comprehension-gate-move](../finalize-closeout/blueprints/comprehension-gate-move/index.md) - comprehension을 BP 단일 엔트리로 축소하고 commit 게이트를 G17 스코프 검사로 재정의한다
+* [017 mermaid-authoring-convention](../drive-execution/blueprints/mermaid-authoring-convention/index.md) - Blueprint 001
+* [018 gate-integrity](../gates-review/blueprints/gate-integrity/index.md) - -a 커밋 검사 집합 확장과 하네스 소유 verify 증적 대조
+* [019 promotion-verify](../finalize-closeout/blueprints/promotion-verify/index.md) - finalize가 스테이징 전에 검증 명령을 실행하고, Distill 불릿 감사가 손으로 고친 목록에 의존하지 않게 한다
+* [020 completed-context-retention](../finalize-closeout/blueprints/completed-context-retention/index.md) - finalize가 일회성 task·verification·review·context-review를 정리하고 explain을 장기 증적으로 남긴다

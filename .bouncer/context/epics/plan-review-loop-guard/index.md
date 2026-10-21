@@ -50,4 +50,4 @@ flowchart LR
 - Epic 075(review dispatch)·076(verification node) blueprint 재개. 두 epic의 후속 보강을 이 epic이 새로 담는다.
 
 ## Blueprints
-* [001 draft 검증과 리뷰 신선도](blueprints/draft-validation-review-freshness/index.md) - verification 전용 템플릿·G20 후보 표시, review-dispatch plan draft 검증, G18 digest 대조를 validate·scaffold·review-dispatch와 규칙 문서에 넣는다
+* [001 draft 검증과 리뷰 신선도](../plan-workflow/blueprints/draft-validation-review-freshness/index.md) - verification 전용 템플릿·G20 후보 표시, review-dispatch plan draft 검증, G18 digest 대조를 validate·scaffold·review-dispatch와 규칙 문서에 넣는다

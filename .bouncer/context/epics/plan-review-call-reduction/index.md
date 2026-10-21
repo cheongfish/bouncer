@@ -63,6 +63,6 @@ flowchart LR
 - 기존 epic 096(cycle·restart·delta 인증)과 098/003(리뷰 초점) 계약 변경.
 
 ## Blueprints
-* [001 리뷰 CLI 마감](blueprints/review-cli-closure/index.md) - review 도움말·close 문서 기록·plan approve 명령과 plan 스킬 지침을 `scripts/src/lib`와 `skills/bouncer-plan`에서 바꾼다.
-* [002 drive 회고 후속 가드](blueprints/retro-guards/index.md) - 메트릭 토큰 시점·tier 안내·record 병합 경고·worktree setup을 `skills/bouncer-run`·`test`·`scripts/src/lib`에서 바꾼다.
-* [003 심볼 없는 intent bundle](blueprints/intent-bundle-no-symbols/index.md) - `intent bundle --no-symbols`와 심볼 선택 지침, run 스킬 metrics 시점을 `scripts/src/lib`·`references/coordinator-cards`·`skills`에서 바꾼다.
+* [001 리뷰 CLI 마감](../plan-workflow/blueprints/review-cli-closure/index.md) - review 도움말·close 문서 기록·plan approve 명령과 plan 스킬 지침을 `scripts/src/lib`와 `skills/bouncer-plan`에서 바꾼다.
+* [002 drive 회고 후속 가드](../plan-workflow/blueprints/retro-guards/index.md) - 메트릭 토큰 시점·tier 안내·record 병합 경고·worktree setup을 `skills/bouncer-run`·`test`·`scripts/src/lib`에서 바꾼다.
+* [003 심볼 없는 intent bundle](../plan-workflow/blueprints/intent-bundle-no-symbols/index.md) - `intent bundle --no-symbols`와 심볼 선택 지침, run 스킬 metrics 시점을 `scripts/src/lib`·`references/coordinator-cards`·`skills`에서 바꾼다.

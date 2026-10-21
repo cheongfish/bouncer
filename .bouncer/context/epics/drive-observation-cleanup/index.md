@@ -47,7 +47,7 @@ bouncer:
 - auto mode 분류기, 권한 범위 같은 호스트 동작.
 
 ## Blueprints
-* [001 digest PR 입력 정리](blueprints/digest-pr-input/index.md) - finalize digest와 PR draft에서 Out of scope 절 경계, finding 중복, 검증 줄 중복, 지역 symbol을 정리한다.
+* [001 digest PR 입력 정리](../drive-execution/blueprints/digest-pr-input/index.md) - finalize digest와 PR draft에서 Out of scope 절 경계, finding 중복, 검증 줄 중복, 지역 symbol을 정리한다.
 * [002 종료 상태 정합성](blueprints/002-terminal-state-consistency/index.md) - coordinator 원장의 terminal failure 해결 표시와 digest의 terminal-missing 조건을 고친다.
 * [003 CLI 오류 안내와 정리](blueprints/003-cli-ergonomics/index.md) - CLI의 --blueprint 누락·cwd 오류 출력, 버전 불일치 경고, 빈 worktree 상위 디렉터리 정리를 구현한다.
 * [004 컨텍스트 중복 축소](blueprints/004-context-dedup/index.md) - 워크플로 스킬 문서에서 AGENTS.md 재독, run 재실행, affected_paths 중복 표시, 코디네이터 입력 전달 문구를 고친다.

@@ -56,5 +56,5 @@ flowchart LR
 - 토큰 계측, usage event, 벤치마크.
 
 ## Blueprints
-* [001 Pointer 독립 병렬 Task 실행](blueprints/pointer-independent-parallel-run/index.md) - lease·scheduler·effective task·safe fan-in을 coordinator와 실행 CLI(`scripts/src/lib`)에 넣고 coordinator·run 문서를 병렬 dispatch로 전환한다.
-* [002 Finalize digest](blueprints/finalize-digest/index.md) - `bouncer finalize prepare` digest와 PR 초안, stable ID Explain 제목을 추가하고 finalize skill 입력을 digest로 전환한다.
+* [001 Pointer 독립 병렬 Task 실행](../drive-execution/blueprints/pointer-independent-parallel-run/index.md) - lease·scheduler·effective task·safe fan-in을 coordinator와 실행 CLI(`scripts/src/lib`)에 넣고 coordinator·run 문서를 병렬 dispatch로 전환한다.
+* [002 Finalize digest](../finalize-closeout/blueprints/finalize-digest/index.md) - `bouncer finalize prepare` digest와 PR 초안, stable ID Explain 제목을 추가하고 finalize skill 입력을 digest로 전환한다.

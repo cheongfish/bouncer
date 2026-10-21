@@ -42,4 +42,4 @@ bouncer:
 - 벤치마크 재실행으로 절감률을 입증하는 일.
 
 ## Blueprints
-* [001 역할 projection·print 디스패치·리뷰 기록 CLI](blueprints/role-projection-print-dispatch-review/index.md) - `intent sections`·`dispatch print`·`review record` 명령을 `scripts/src/lib`에 더하고 실행 지침을 그 명령으로 바꾼다
+* [001 역할 projection·print 디스패치·리뷰 기록 CLI](../runtime-architecture/blueprints/role-projection-print-dispatch-review/index.md) - `intent sections`·`dispatch print`·`review record` 명령을 `scripts/src/lib`에 더하고 실행 지침을 그 명령으로 바꾼다

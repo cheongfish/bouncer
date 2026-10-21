@@ -45,5 +45,5 @@ bouncer:
 - 재시작 한도를 초기화하는 CLI와 사용자 동의를 대신하는 reset 기능.
 
 ## Blueprints
-* [001 반복 제어와 이력 보존](blueprints/review-cycle-control/index.md) - context-review 상태 CLI, 재시작 1회 제한, immutable dispatch 보관과 previous 필수화를 구현한다.
-* [002 변경분 인증과 stale 처리](blueprints/delta-certification/index.md) - 구조와 문서 보완을 구분하고 snapshot·delta 입력·stale 전이를 정합하게 바꾼다. BP 001이 대상 base에 통합된 뒤 실행한다.
+* [001 반복 제어와 이력 보존](../plan-workflow/blueprints/review-cycle-control/index.md) - context-review 상태 CLI, 재시작 1회 제한, immutable dispatch 보관과 previous 필수화를 구현한다.
+* [002 변경분 인증과 stale 처리](../plan-workflow/blueprints/delta-certification/index.md) - 구조와 문서 보완을 구분하고 snapshot·delta 입력·stale 전이를 정합하게 바꾼다. BP 001이 대상 base에 통합된 뒤 실행한다.

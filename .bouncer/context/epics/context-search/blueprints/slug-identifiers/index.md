@@ -37,7 +37,7 @@ epic·blueprint를 번호 대신 slug로 식별하고 blueprint 순서는 frontm
 - 인터페이스:
   - 새 모듈 `scripts/src/lib/context-ids.ts`가 경로·stable ID·trailer 값·pointer 키를 구형(`numeric`)과 새 형식(`slug`) 모두 해석한다. 다른 모듈은 epic·blueprint 번호 정규식을 직접 갖지 않는다.
   - 형식은 경로가 정한다. epic 디렉터리가 `^\d{3}-`로 시작하면 `numeric`, 아니면 `slug`다. 새 형식 쓰기 스위치는 따로 없다.
-  - stable ID: `numeric` → `consumer-epic-registry/registry-gates/001`, `slug` → `consumer-epic-registry/registry-gates/001`. intent는 마지막 `/<NNN>`을 뺀 값이다.
+  - stable ID: `numeric` → `context-search/registry-gates/001`, `slug` → `context-search/registry-gates/001`. intent는 마지막 `/<NNN>`을 뺀 값이다.
   - 실행 키(`slug`): pointer `<epic-slug>/<bp-slug>`, 통합 브랜치 `<commit_type>/<epic-slug>--<bp-slug>`, worker 브랜치 `bouncer/<epic-slug>--<bp-slug>--<NNN>`, worktree `.worktrees/<epic-slug>/<bp-slug>/{integration,workers/<NNN>}`.
   - 새 epic(`scaffold epic`, `epic add-domain`)은 경로가 아직 없으므로 등록부 버전으로 형식을 정한다. v2면 slug, v1이면 번호다. 이관 명령이 등록부를 v2로 올리므로 전환 시점이 같다.
   - CLI: `scaffold blueprint --order <n>`(slug epic), `scaffold epic --name <slug>`(v2 등록부), `plan inspect`의 `epic.nextBlueprintOrder`, `bouncer migrate context-slugs [--yes]`.

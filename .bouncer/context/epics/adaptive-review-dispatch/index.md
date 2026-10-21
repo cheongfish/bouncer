@@ -39,4 +39,4 @@ bouncer:
 - 자연어 diff 내용을 검색해 위험을 추측하는 휴리스틱
 
 ## Blueprints
-* [001 규모·위험 기반 리뷰 디스패치](blueprints/adaptive-review-dispatch/index.md) - CLI 분류기와 Plan·Execute reviewer 계약을 연결해 리뷰 fan-out을 규모와 위험에 맞춘다.
+* [001 규모·위험 기반 리뷰 디스패치](../gates-review/blueprints/adaptive-review-dispatch/index.md) - CLI 분류기와 Plan·Execute reviewer 계약을 연결해 리뷰 fan-out을 규모와 위험에 맞춘다.

@@ -36,7 +36,7 @@ bouncer:
   구형 명명 레포를 거절하는 파괴적 변경이므로 다음 릴리스는 0.5.0이 맞다.
 
 ## Blueprints
-* [숫자 id 하네스 계약](blueprints/id-contract/index.md) - path·schema·scaffold·validate·epic-index·템플릿이 `001` 정본을 쓰고, 구형 접두 경로는 파생만 임시 허용한다
-* [migrate CLI·스킬·SessionStart](blueprints/migrate-ids-cli/index.md) - `bouncer migrate ids`와 `migrate-ids` 스킬을 두고 SessionStart가 구형 명명을 경고한다
-* [플러그인 context dogfood](blueprints/dogfood-context/index.md) - 이 레포에 migrate를 적용하고 레거시 경로 허용을 제거하며 Distill·남은 하드코딩을 맞춘다
-* [64개 epic을 11개 주제 계층으로 통합](blueprints/corpus-consolidation/index.md) - historical context corpus를 canonical epic 계층으로 통합하고 ID·링크·검색 회귀를 검증한다
+* [숫자 id 하네스 계약](../context-search/blueprints/id-contract/index.md) - path·schema·scaffold·validate·epic-index·템플릿이 `001` 정본을 쓰고, 구형 접두 경로는 파생만 임시 허용한다
+* [migrate CLI·스킬·SessionStart](../context-search/blueprints/migrate-ids-cli/index.md) - `bouncer migrate ids`와 `migrate-ids` 스킬을 두고 SessionStart가 구형 명명을 경고한다
+* [플러그인 context dogfood](../context-search/blueprints/dogfood-context/index.md) - 이 레포에 migrate를 적용하고 레거시 경로 허용을 제거하며 Distill·남은 하드코딩을 맞춘다
+* [64개 epic을 11개 주제 계층으로 통합](../context-search/blueprints/corpus-consolidation/index.md) - historical context corpus를 canonical epic 계층으로 통합하고 ID·링크·검색 회귀를 검증한다

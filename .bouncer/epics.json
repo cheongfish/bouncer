@@ -19,6 +19,17 @@
         "007": "install-first-five-minutes",
         "008": "instruction-layers",
         "009": "debt-items"
+      },
+      "moved_to": {
+        "cli-help": "host-distribution",
+        "cursor-codex-manifests": "host-distribution",
+        "commands-to-skills": "host-distribution",
+        "venv-install-bin-resolution": "host-distribution",
+        "antigravity-plugin-surface": "host-distribution",
+        "host-candidate-launcher": "host-distribution",
+        "install-first-five-minutes": "host-distribution",
+        "instruction-layers": "runtime-architecture",
+        "debt-items": "runtime-architecture"
       }
     },
     {
@@ -35,6 +46,16 @@
         "006": "plan-verify-detection",
         "007": "context-review-guard",
         "008": "plan-explain-execute-fixes"
+      },
+      "moved_to": {
+        "spec-authoring-guardrails": "plan-workflow",
+        "init-rules-scaffold": "plan-workflow",
+        "per-task-verify-command": "plan-workflow",
+        "discovery-depth": "plan-workflow",
+        "reviewer-prompt": "plan-workflow",
+        "plan-verify-detection": "plan-workflow",
+        "context-review-guard": "gates-review",
+        "plan-explain-execute-fixes": "plan-workflow"
       }
     },
     {
@@ -49,6 +70,14 @@
         "004": "skill-body-shape",
         "005": "implementation-doc-comments",
         "006": "catalog-hide"
+      },
+      "moved_to": {
+        "tsc-cjs-migrate": "runtime-architecture",
+        "skill-structure": "runtime-architecture",
+        "core-module-split": "runtime-architecture",
+        "skill-body-shape": "runtime-architecture",
+        "implementation-doc-comments": "runtime-architecture",
+        "catalog-hide": "runtime-architecture"
       }
     },
     {
@@ -66,6 +95,17 @@
         "007": "distill-shard-discipline",
         "008": "for-union-single-call",
         "009": "master-distill-compaction"
+      },
+      "moved_to": {
+        "global-distill-runtime": "context-search",
+        "project-root-distill": "context-search",
+        "path-routed-distill": "context-search",
+        "promotion-proposal-acq": "context-search",
+        "checkout-relative-distill": "context-search",
+        "brief-injection-slim": "context-search",
+        "distill-shard-discipline": "context-search",
+        "for-union-single-call": "context-search",
+        "master-distill-compaction": "context-search"
       }
     },
     {
@@ -87,6 +127,21 @@
         "011": "distill-read-scope",
         "012": "plugin-arm-benchmark",
         "013": "structured-pr-body"
+      },
+      "moved_to": {
+        "subagent-model-config-contract": "drive-execution",
+        "named-agent-routing": "drive-execution",
+        "adaptive-quiz": "finalize-closeout",
+        "graph-basis-record": "drive-execution",
+        "pr-single-confirm": "finalize-closeout",
+        "debugger-agent": "gates-review",
+        "ponytail-advisor-removal": "drive-execution",
+        "run-loop": "drive-execution",
+        "execute-review-cap": "drive-execution",
+        "finalize-pointer-scope": "drive-execution",
+        "distill-read-scope": "drive-execution",
+        "plugin-arm-benchmark": "benchmark-cost",
+        "structured-pr-body": "finalize-closeout"
       }
     },
     {
@@ -104,6 +159,17 @@
         "007": "context-digest-grain",
         "008": "supersedes-field",
         "009": "derived-summary-regeneration"
+      },
+      "moved_to": {
+        "id-contract": "context-search",
+        "migrate-ids-cli": "context-search",
+        "dogfood-context": "context-search",
+        "corpus-consolidation": "context-search",
+        "history-import-cli": "context-search",
+        "schema-cutover": "context-search",
+        "context-digest-grain": "context-search",
+        "supersedes-field": "context-search",
+        "derived-summary-regeneration": "context-search"
       }
     },
     {
@@ -132,6 +198,28 @@
         "018": "gate-integrity",
         "019": "promotion-verify",
         "020": "completed-context-retention"
+      },
+      "moved_to": {
+        "evidence-and-message": "drive-execution",
+        "seed-plan-artifacts": "drive-execution",
+        "current-command": "drive-execution",
+        "next-blueprint-handoff": "drive-execution",
+        "explain-doc-contract": "finalize-closeout",
+        "explain-diff-skill": "finalize-closeout",
+        "promotion-pr-body": "finalize-closeout",
+        "tasks-doc-resolver": "drive-execution",
+        "pointer-task-field": "drive-execution",
+        "task-dir-layout": "drive-execution",
+        "commit-stage": "drive-execution",
+        "closed-status": "drive-execution",
+        "nested-worktree-path": "drive-execution",
+        "scale-light-convention": "drive-execution",
+        "lightweight-cycle-guidance": "drive-execution",
+        "comprehension-gate-move": "finalize-closeout",
+        "mermaid-authoring-convention": "drive-execution",
+        "gate-integrity": "gates-review",
+        "promotion-verify": "finalize-closeout",
+        "completed-context-retention": "finalize-closeout"
       }
     },
     {
@@ -144,6 +232,12 @@
         "002": "deepswe-run-path",
         "003": "deepswe-run-plumbing",
         "004": "checkout-arms-comparison"
+      },
+      "moved_to": {
+        "benchmark-skill": "benchmark-cost",
+        "deepswe-run-path": "benchmark-cost",
+        "deepswe-run-plumbing": "benchmark-cost",
+        "checkout-arms-comparison": "benchmark-cost"
       }
     },
     {
@@ -155,6 +249,11 @@
         "001": "security-legal-baseline",
         "002": "public-contract-freeze",
         "003": "one-zero-release"
+      },
+      "moved_to": {
+        "security-legal-baseline": "host-distribution",
+        "public-contract-freeze": "host-distribution",
+        "one-zero-release": "host-distribution"
       }
     },
     {
@@ -172,6 +271,17 @@
         "008": "description-budget-lock",
         "009": "execution-baseline",
         "010": "workflow-output-and-implementer-payload"
+      },
+      "moved_to": {
+        "measured-cost-reduction": "benchmark-cost",
+        "light-plan-contract": "plan-workflow",
+        "baseline-measurement": "benchmark-cost",
+        "agent-rubric-ssot": "runtime-architecture",
+        "conditional-reference-split": "runtime-architecture",
+        "shared-rule-blocks": "runtime-architecture",
+        "description-budget-lock": "runtime-architecture",
+        "execution-baseline": "benchmark-cost",
+        "workflow-output-and-implementer-payload": "runtime-architecture"
       }
     },
     {
@@ -189,6 +299,17 @@
         "007": "derived-anchors-and-coverage",
         "008": "scope-separation-and-reporting",
         "009": "function-label-lookup-key"
+      },
+      "moved_to": {
+        "context-first-ranking": "context-search",
+        "silent-skip-signal": "context-search",
+        "graph-path-contract": "context-search",
+        "context-section-digest": "context-search",
+        "scope-evidence-contract": "context-search",
+        "english-search-contract": "context-search",
+        "derived-anchors-and-coverage": "context-search",
+        "scope-separation-and-reporting": "context-search",
+        "function-label-lookup-key": "context-search"
       }
     },
     {
@@ -202,6 +323,13 @@
         "003": "correctness-contracts",
         "004": "maintenance-distribution",
         "005": "doc-lint-cli"
+      },
+      "moved_to": {
+        "security-boundary-enforcement": "gates-review",
+        "run-rule-reload-elimination": "drive-execution",
+        "correctness-contracts": "runtime-architecture",
+        "maintenance-distribution": "host-distribution",
+        "doc-lint-cli": "runtime-architecture"
       }
     },
     {
@@ -215,6 +343,13 @@
         "003": "migrate-ids-removal",
         "004": "benchmark-skill-removal",
         "005": "explain-task-context"
+      },
+      "moved_to": {
+        "scaffold-template-comment-lint": "plan-workflow",
+        "task-split-threshold": "plan-workflow",
+        "migrate-ids-removal": "context-search",
+        "benchmark-skill-removal": "benchmark-cost",
+        "explain-task-context": "finalize-closeout"
       }
     },
     {
@@ -228,6 +363,13 @@
         "003": "context-discovery-review-followup",
         "004": "context-review-close",
         "005": "codex-subagent-model-fork"
+      },
+      "moved_to": {
+        "graphify-query-guidance": "context-search",
+        "pending-task-comment-lint": "plan-workflow",
+        "context-discovery-review-followup": "plan-workflow",
+        "context-review-close": "plan-workflow",
+        "codex-subagent-model-fork": "runtime-architecture"
       }
     },
     {
@@ -238,6 +380,10 @@
       "blueprint_aliases": {
         "001": "verify-policy-consistency",
         "002": "active-pointer-namespace"
+      },
+      "moved_to": {
+        "verify-policy-consistency": "runtime-architecture",
+        "active-pointer-namespace": "runtime-architecture"
       }
     },
     {
@@ -247,6 +393,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "task-lifecycle-hardening"
+      },
+      "moved_to": {
+        "task-lifecycle-hardening": "gates-review"
       }
     },
     {
@@ -256,6 +405,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "contract-maintenance-evaluation"
+      },
+      "moved_to": {
+        "contract-maintenance-evaluation": "runtime-architecture"
       }
     },
     {
@@ -265,6 +417,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "delegated-parallel-execution"
+      },
+      "moved_to": {
+        "delegated-parallel-execution": "drive-execution"
       }
     },
     {
@@ -274,6 +429,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "distill-removal-search-ci-recovery"
+      },
+      "moved_to": {
+        "distill-removal-search-ci-recovery": "context-search"
       }
     },
     {
@@ -287,6 +445,13 @@
         "003": "worktree-branch-naming",
         "004": "drive-document-flow",
         "005": "workflow-prompt-runtime-contract"
+      },
+      "moved_to": {
+        "entry-skill-runtime-context": "runtime-architecture",
+        "review-convergence": "runtime-architecture",
+        "worktree-branch-naming": "runtime-architecture",
+        "drive-document-flow": "runtime-architecture",
+        "workflow-prompt-runtime-contract": "runtime-architecture"
       }
     },
     {
@@ -296,6 +461,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "task-brief-contract"
+      },
+      "moved_to": {
+        "task-brief-contract": "plan-workflow"
       }
     },
     {
@@ -309,6 +477,13 @@
         "003": "code-first-plan-cutover",
         "004": "context-graph-removal",
         "005": "terminal-verification"
+      },
+      "moved_to": {
+        "task-commit-provenance": "plan-workflow",
+        "function-intent-resolver": "plan-workflow",
+        "code-first-plan-cutover": "plan-workflow",
+        "context-graph-removal": "plan-workflow",
+        "terminal-verification": "plan-workflow"
       }
     },
     {
@@ -321,6 +496,12 @@
         "002": "lazy-intent-runtime-boundary",
         "003": "retention-audit-migration",
         "004": "legacy-context-compaction"
+      },
+      "moved_to": {
+        "graphify-compact-payload": "context-search",
+        "lazy-intent-runtime-boundary": "context-search",
+        "retention-audit-migration": "context-search",
+        "legacy-context-compaction": "context-search"
       }
     },
     {
@@ -330,6 +511,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "task-intent-bundle-reuse"
+      },
+      "moved_to": {
+        "task-intent-bundle-reuse": "plan-workflow"
       }
     },
     {
@@ -341,6 +525,11 @@
         "001": "task-brief-contract-precision",
         "002": "dispatch-revision-attempt-evidence",
         "003": "plan-context-efficiency"
+      },
+      "moved_to": {
+        "task-brief-contract-precision": "plan-workflow",
+        "dispatch-revision-attempt-evidence": "plan-workflow",
+        "plan-context-efficiency": "plan-workflow"
       }
     },
     {
@@ -350,6 +539,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "adaptive-review-dispatch"
+      },
+      "moved_to": {
+        "adaptive-review-dispatch": "gates-review"
       }
     },
     {
@@ -359,6 +551,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "verification-reuse-checkpoint-compaction"
+      },
+      "moved_to": {
+        "verification-reuse-checkpoint-compaction": "gates-review"
       }
     },
     {
@@ -370,6 +565,11 @@
         "001": "ownership-map-migration-safety",
         "002": "planning-rule-vertical-migration",
         "003": "execution-rule-vertical-migration"
+      },
+      "moved_to": {
+        "ownership-map-migration-safety": "runtime-architecture",
+        "planning-rule-vertical-migration": "runtime-architecture",
+        "execution-rule-vertical-migration": "runtime-architecture"
       }
     },
     {
@@ -380,6 +580,10 @@
       "blueprint_aliases": {
         "001": "pointer-independent-parallel-run",
         "002": "finalize-digest"
+      },
+      "moved_to": {
+        "pointer-independent-parallel-run": "drive-execution",
+        "finalize-digest": "finalize-closeout"
       }
     },
     {
@@ -389,6 +593,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "release-artifact-governance-removal"
+      },
+      "moved_to": {
+        "release-artifact-governance-removal": "host-distribution"
       }
     },
     {
@@ -398,6 +605,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "contract-gaps-final-review"
+      },
+      "moved_to": {
+        "contract-gaps-final-review": "drive-execution"
       }
     },
     {
@@ -407,6 +617,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "role-projection-print-dispatch-review"
+      },
+      "moved_to": {
+        "role-projection-print-dispatch-review": "runtime-architecture"
       }
     },
     {
@@ -416,6 +629,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "coordinator-index-sections-exit"
+      },
+      "moved_to": {
+        "coordinator-index-sections-exit": "finalize-closeout"
       }
     },
     {
@@ -427,6 +643,11 @@
         "001": "coordinate-output-compaction",
         "002": "instruction-read-scope",
         "003": "wave-session-split"
+      },
+      "moved_to": {
+        "coordinate-output-compaction": "drive-execution",
+        "instruction-read-scope": "drive-execution",
+        "wave-session-split": "drive-execution"
       }
     },
     {
@@ -437,6 +658,10 @@
       "blueprint_aliases": {
         "001": "finalize-main-release",
         "002": "template-guidance-migration"
+      },
+      "moved_to": {
+        "finalize-main-release": "drive-execution",
+        "template-guidance-migration": "drive-execution"
       }
     },
     {
@@ -449,6 +674,12 @@
         "002": "coordinator-task-round",
         "003": "gate-failure-hints",
         "004": "plan-evidence-dispatch"
+      },
+      "moved_to": {
+        "quiz-explain-pr-drive-record": "finalize-closeout",
+        "coordinator-task-round": "finalize-closeout",
+        "gate-failure-hints": "finalize-closeout",
+        "plan-evidence-dispatch": "finalize-closeout"
       }
     },
     {
@@ -458,6 +689,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "pr-base-and-result-provenance"
+      },
+      "moved_to": {
+        "pr-base-and-result-provenance": "finalize-closeout"
       }
     },
     {
@@ -468,6 +702,10 @@
       "blueprint_aliases": {
         "001": "commit-enforcement",
         "002": "prepare-lock-split"
+      },
+      "moved_to": {
+        "commit-enforcement": "gates-review",
+        "prepare-lock-split": "drive-execution"
       }
     },
     {
@@ -484,6 +722,16 @@
         "006": "print-dispatch-contract-gaps",
         "007": "plugin-root-resolution",
         "008": "delta-single-reviewer"
+      },
+      "moved_to": {
+        "coordinator-recovery-fixes": "drive-execution",
+        "coordinator-next-action": "drive-execution",
+        "coordinator-contract-cards": "drive-execution",
+        "coordinator-lookup-removal": "drive-execution",
+        "review-format-finalize-policy": "drive-execution",
+        "print-dispatch-contract-gaps": "drive-execution",
+        "plugin-root-resolution": "drive-execution",
+        "delta-single-reviewer": "drive-execution"
       }
     },
     {
@@ -496,6 +744,12 @@
         "002": "plan-roundtrip-reduction",
         "003": "light-run-path",
         "004": "rework-finalize-slimming"
+      },
+      "moved_to": {
+        "coordinator-auto-advance": "drive-execution",
+        "plan-roundtrip-reduction": "drive-execution",
+        "light-run-path": "drive-execution",
+        "rework-finalize-slimming": "drive-execution"
       }
     },
     {
@@ -508,6 +762,12 @@
         "002": "early-handback-recovery",
         "003": "finalize-dependency-readiness",
         "004": "drive-gap-closure"
+      },
+      "moved_to": {
+        "coordinator-return-contract": "drive-execution",
+        "early-handback-recovery": "drive-execution",
+        "finalize-dependency-readiness": "drive-execution",
+        "drive-gap-closure": "drive-execution"
       }
     },
     {
@@ -517,6 +777,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "digest-pr-input"
+      },
+      "moved_to": {
+        "digest-pr-input": "drive-execution"
       }
     },
     {
@@ -527,6 +790,10 @@
       "blueprint_aliases": {
         "001": "shared-helpers",
         "002": "behavior-tests"
+      },
+      "moved_to": {
+        "shared-helpers": "runtime-architecture",
+        "behavior-tests": "runtime-architecture"
       }
     },
     {
@@ -537,6 +804,10 @@
       "blueprint_aliases": {
         "001": "acq-machine-contract",
         "002": "responder-contract-rewrite"
+      },
+      "moved_to": {
+        "acq-machine-contract": "benchmark-cost",
+        "responder-contract-rewrite": "benchmark-cost"
       }
     },
     {
@@ -547,6 +818,10 @@
       "blueprint_aliases": {
         "001": "ledger-removal",
         "002": "deepswe-adapter"
+      },
+      "moved_to": {
+        "ledger-removal": "benchmark-cost",
+        "deepswe-adapter": "benchmark-cost"
       }
     },
     {
@@ -559,6 +834,12 @@
         "002": "test-name-lint",
         "003": "pr-visual-evidence",
         "004": "retro"
+      },
+      "moved_to": {
+        "coding-standards": "gates-review",
+        "test-name-lint": "gates-review",
+        "pr-visual-evidence": "gates-review",
+        "retro": "gates-review"
       }
     },
     {
@@ -569,6 +850,10 @@
       "blueprint_aliases": {
         "001": "review-cycle-control",
         "002": "delta-certification"
+      },
+      "moved_to": {
+        "review-cycle-control": "plan-workflow",
+        "delta-certification": "plan-workflow"
       }
     },
     {
@@ -578,6 +863,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "intent-fence-guard"
+      },
+      "moved_to": {
+        "intent-fence-guard": "plan-workflow"
       }
     },
     {
@@ -589,6 +877,11 @@
         "001": "drive-foundation-provenance",
         "002": "serial-drive-shape",
         "003": "plan-review-focus"
+      },
+      "moved_to": {
+        "drive-foundation-provenance": "drive-execution",
+        "serial-drive-shape": "drive-execution",
+        "plan-review-focus": "drive-execution"
       }
     },
     {
@@ -601,6 +894,12 @@
         "003": "repair-integrate-path",
         "004": "cli-execution-scope-contract",
         "005": "dispatch-execution-record"
+      },
+      "moved_to": {
+        "review-input-consistency": "gates-review",
+        "repair-integrate-path": "drive-execution",
+        "cli-execution-scope-contract": "drive-execution",
+        "dispatch-execution-record": "drive-execution"
       }
     },
     {
@@ -610,6 +909,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "graph-suggest-removal"
+      },
+      "moved_to": {
+        "graph-suggest-removal": "context-search"
       }
     },
     {
@@ -621,6 +923,11 @@
         "001": "review-cli-closure",
         "002": "retro-guards",
         "003": "intent-bundle-no-symbols"
+      },
+      "moved_to": {
+        "review-cli-closure": "plan-workflow",
+        "retro-guards": "plan-workflow",
+        "intent-bundle-no-symbols": "plan-workflow"
       }
     },
     {
@@ -630,6 +937,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "draft-validation-review-freshness"
+      },
+      "moved_to": {
+        "draft-validation-review-freshness": "plan-workflow"
       }
     },
     {
@@ -639,6 +949,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "fanin-rounds-repair-brief"
+      },
+      "moved_to": {
+        "fanin-rounds-repair-brief": "drive-execution"
       }
     },
     {
@@ -648,6 +961,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "record-guard-and-token-metrics"
+      },
+      "moved_to": {
+        "record-guard-and-token-metrics": "drive-execution"
       }
     },
     {
@@ -657,6 +973,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "verify-tail-and-plan-guides"
+      },
+      "moved_to": {
+        "verify-tail-and-plan-guides": "plan-workflow"
       }
     },
     {
@@ -668,6 +987,11 @@
         "001": "foundation-cleanup",
         "002": "boundary-introduction",
         "003": "execution-planning-boundaries"
+      },
+      "moved_to": {
+        "foundation-cleanup": "runtime-architecture",
+        "boundary-introduction": "runtime-architecture",
+        "execution-planning-boundaries": "runtime-architecture"
       }
     },
     {
@@ -677,6 +1001,9 @@
       "active": true,
       "blueprint_aliases": {
         "002": "review-report-finalize"
+      },
+      "moved_to": {
+        "review-report-finalize": "benchmark-cost"
       }
     },
     {
@@ -686,6 +1013,9 @@
       "active": true,
       "blueprint_aliases": {
         "001": "implementer-symbol-locations"
+      },
+      "moved_to": {
+        "implementer-symbol-locations": "drive-execution"
       }
     },
     {
@@ -695,6 +1025,9 @@
       "active": true,
       "blueprint_aliases": {
         "002": "context-ontology-cli"
+      },
+      "moved_to": {
+        "context-ontology-cli": "context-search"
       }
     },
     {
@@ -705,6 +1038,10 @@
       "blueprint_aliases": {
         "001": "transition-guards",
         "002": "transition-guard-followups"
+      },
+      "moved_to": {
+        "transition-guards": "runtime-architecture",
+        "transition-guard-followups": "runtime-architecture"
       }
     },
     {
@@ -715,6 +1052,10 @@
       "blueprint_aliases": {
         "001": "partial-finalize-recovery",
         "002": "lint-baseline-cleanup"
+      },
+      "moved_to": {
+        "partial-finalize-recovery": "finalize-closeout",
+        "lint-baseline-cleanup": "runtime-architecture"
       }
     },
     {
@@ -726,6 +1067,11 @@
         "001": "registry-foundation",
         "002": "plan-path",
         "003": "registry-gates"
+      },
+      "moved_to": {
+        "registry-foundation": "context-search",
+        "plan-path": "context-search",
+        "registry-gates": "context-search"
       }
     },
     {

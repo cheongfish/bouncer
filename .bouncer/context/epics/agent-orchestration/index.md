@@ -52,16 +52,16 @@ bouncer:
 - 리뷰 루브릭·심각도 계산 등 `reviewer-prompt.md`의 판정 내용 변경.
 
 ## Blueprints
-* [서브에이전트 모델 설정 계약 도입](blueprints/subagent-model-config-contract/index.md) - config subagents 기본값과 프로바이더별 모델 해석 헬퍼
-* [Named 서브에이전트 라우팅으로 전환](blueprints/named-agent-routing/index.md) - 플러그인 agents/ 추가와 review·execute 디스패치 전환
-* [diff 규모에 맞춘 3지선다 이해도 퀴즈](blueprints/adaptive-quiz/index.md) - explain-diff 문항 수 적응·보기 3개·정답 위치 분산·기록 위치 규정
-* [graph.basis를 그래프별 질의 레코드로 바꿈](blueprints/graph-basis-record/index.md) - basis 엔트리 리스트 스키마·검증·스캐폴드·graphify-runner 기록 규칙
-* [draft PR 승인 뒤 재확인 없이 바로 생성](blueprints/pr-single-confirm/index.md) - finalize step 4의 PR 본문 확인 ACQ 제거와 미리보기 출력 유지
-* [read-only 디버거 서브에이전트 추가](blueprints/debugger-agent/index.md) - bouncer-debugger 에이전트·4단계 debugging 스킬·execute verify 실패 배선
-* [쓰이지 않는 Ponytail 어드바이저 경로 제거](blueprints/ponytail-advisor-removal/index.md) - Blueprint 001
-* [자동 주행 커맨드와 자율성 설정](blueprints/run-loop/index.md) - /bouncer-run이 execute→commit을 task 소진까지 반복하고 autonomy가 확인 지점을 정한다
-* [리뷰 재검 왕복 상한과 소유권 정리](blueprints/execute-review-cap/index.md) - execute step 5에 리뷰 왕복 2회 상한을 넣고 run은 그 숫자를 참조만 하도록 바꾼다
-* [finalize 인계에 같은 epic의 미완료 blueprint를 포함함](blueprints/finalize-pointer-scope/index.md) - nextBlueprint가 ready 후보 밖의 같은 epic 잔여 blueprint도 함께 보고한다
-* [Distill 읽기 지점을 프리플라이트·라우팅 두 층으로 줄임](blueprints/distill-read-scope/index.md) - Distill을 읽는 7개 지점을 전수 조사해 plan·discovery·spec-authoring·finalize의 전량 읽기를 걷어낸다
-* [벤치마크를 DeepSWE 스위트와 3 arm 프로토콜로 갈아엎음](blueprints/plugin-arm-benchmark/index.md) - 기존 docs/benchmark를 걷어내고 DeepSWE 기반 태스크 10개와 vanilla·superpowers·bouncer 3 arm 프로토콜, usage 기록 필드를 세운다
-* [리뷰 흐름 중심 PR 본문 계약 개편](blueprints/structured-pr-body/index.md) - PR 본문 소스와 섹션 순서, 조건부 Mermaid, 검증 요약, 라벨 제거 규칙을 하나의 생성 계약으로 맞춘다
+* [서브에이전트 모델 설정 계약 도입](../drive-execution/blueprints/subagent-model-config-contract/index.md) - config subagents 기본값과 프로바이더별 모델 해석 헬퍼
+* [Named 서브에이전트 라우팅으로 전환](../drive-execution/blueprints/named-agent-routing/index.md) - 플러그인 agents/ 추가와 review·execute 디스패치 전환
+* [diff 규모에 맞춘 3지선다 이해도 퀴즈](../finalize-closeout/blueprints/adaptive-quiz/index.md) - explain-diff 문항 수 적응·보기 3개·정답 위치 분산·기록 위치 규정
+* [graph.basis를 그래프별 질의 레코드로 바꿈](../drive-execution/blueprints/graph-basis-record/index.md) - basis 엔트리 리스트 스키마·검증·스캐폴드·graphify-runner 기록 규칙
+* [draft PR 승인 뒤 재확인 없이 바로 생성](../finalize-closeout/blueprints/pr-single-confirm/index.md) - finalize step 4의 PR 본문 확인 ACQ 제거와 미리보기 출력 유지
+* [read-only 디버거 서브에이전트 추가](../gates-review/blueprints/debugger-agent/index.md) - bouncer-debugger 에이전트·4단계 debugging 스킬·execute verify 실패 배선
+* [쓰이지 않는 Ponytail 어드바이저 경로 제거](../drive-execution/blueprints/ponytail-advisor-removal/index.md) - Blueprint 001
+* [자동 주행 커맨드와 자율성 설정](../drive-execution/blueprints/run-loop/index.md) - /bouncer-run이 execute→commit을 task 소진까지 반복하고 autonomy가 확인 지점을 정한다
+* [리뷰 재검 왕복 상한과 소유권 정리](../drive-execution/blueprints/execute-review-cap/index.md) - execute step 5에 리뷰 왕복 2회 상한을 넣고 run은 그 숫자를 참조만 하도록 바꾼다
+* [finalize 인계에 같은 epic의 미완료 blueprint를 포함함](../drive-execution/blueprints/finalize-pointer-scope/index.md) - nextBlueprint가 ready 후보 밖의 같은 epic 잔여 blueprint도 함께 보고한다
+* [Distill 읽기 지점을 프리플라이트·라우팅 두 층으로 줄임](../drive-execution/blueprints/distill-read-scope/index.md) - Distill을 읽는 7개 지점을 전수 조사해 plan·discovery·spec-authoring·finalize의 전량 읽기를 걷어낸다
+* [벤치마크를 DeepSWE 스위트와 3 arm 프로토콜로 갈아엎음](../benchmark-cost/blueprints/plugin-arm-benchmark/index.md) - 기존 docs/benchmark를 걷어내고 DeepSWE 기반 태스크 10개와 vanilla·superpowers·bouncer 3 arm 프로토콜, usage 기록 필드를 세운다
+* [리뷰 흐름 중심 PR 본문 계약 개편](../finalize-closeout/blueprints/structured-pr-body/index.md) - PR 본문 소스와 섹션 순서, 조건부 Mermaid, 검증 요약, 라벨 제거 규칙을 하나의 생성 계약으로 맞춘다

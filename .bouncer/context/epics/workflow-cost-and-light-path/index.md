@@ -46,7 +46,7 @@ bouncer:
 - 088의 `coordinate next`·카드 계약, 083의 wave 세션 분할, 081의 CLI 이전 계약 재설계. 이 에픽은 그 위에 얹는다.
 
 ## Blueprints
-* [001 coordinator 연쇄 실행과 판단 문맥 제한](blueprints/coordinator-auto-advance/index.md) - `coordinate advance`를 추가하고 판단 응답의 문맥을 제한한다 (coordinator CLI, coordinator 역할 문서)
-* [002 plan 왕복 축소와 light 선택 신호](blueprints/plan-roundtrip-reduction/index.md) - plan 질문·승인 순서, `plan inspect` light 신호, context review 후속 조건을 정리한다 (plan 스킬, plan inspect, review dispatch)
-* [003 light run 경로](blueprints/light-run-path/index.md) - light를 run 세션 직접 구현과 reviewer 1세션 경로로 바꾸고 위험 신호에서 상태를 보존해 멈춘다 (run 스킬, 실행 규칙, light 원장 상태)
-* [004 재작업과 finalize 축소](blueprints/rework-finalize-slimming/index.md) - 범위 내 테스트 보완의 delta review 경로와 finalize 입력 축소를 정한다 (재작업 분류, finalize digest)
+* [001 coordinator 연쇄 실행과 판단 문맥 제한](../drive-execution/blueprints/coordinator-auto-advance/index.md) - `coordinate advance`를 추가하고 판단 응답의 문맥을 제한한다 (coordinator CLI, coordinator 역할 문서)
+* [002 plan 왕복 축소와 light 선택 신호](../drive-execution/blueprints/plan-roundtrip-reduction/index.md) - plan 질문·승인 순서, `plan inspect` light 신호, context review 후속 조건을 정리한다 (plan 스킬, plan inspect, review dispatch)
+* [003 light run 경로](../drive-execution/blueprints/light-run-path/index.md) - light를 run 세션 직접 구현과 reviewer 1세션 경로로 바꾸고 위험 신호에서 상태를 보존해 멈춘다 (run 스킬, 실행 규칙, light 원장 상태)
+* [004 재작업과 finalize 축소](../drive-execution/blueprints/rework-finalize-slimming/index.md) - 범위 내 테스트 보완의 delta review 경로와 finalize 입력 축소를 정한다 (재작업 분류, finalize digest)

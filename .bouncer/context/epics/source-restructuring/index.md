@@ -45,6 +45,6 @@ bouncer:
 - 파일 줄 수 감소 자체를 목표로 한 변경.
 
 ## Blueprints
-* [001 공유 계약 정본과 DAG·경로 규칙 추출](blueprints/foundation-cleanup/index.md) - 리뷰 정책·실행 타입 정본, `execution-dag`·`path-overlap` 추출로 순환 제거, 구현 고정 테스트 전환, 소비자·경계 inventory 문서 (`scripts/src/lib`, `test/`, `docs/architecture/`)
-* [002 검증 대상 선택·finalize 분리와 CLI 지연 로딩](blueprints/boundary-introduction/index.md) - 검증 대상 선택 모듈, 공통 Git·커밋 메시지와 finalize 단계 모듈, CLI 정적 usage·명령별 지연 로딩, 영역 배치 inventory (`scripts/src/lib`, `test/`, `docs/architecture/`)
-* [003 실행 조정 책임과 planning 공개 경계 분리](blueprints/execution-planning-boundaries/index.md) - coordinator 원장·Git·검증·명령 책임 분리, planning snapshot 공통 계약, 동일 조건의 전후 측정과 inventory 반영 (`scripts/src/lib`, `scripts/measure-source-boundaries.js`, `test/`, `docs/architecture/`)
+* [001 공유 계약 정본과 DAG·경로 규칙 추출](../runtime-architecture/blueprints/foundation-cleanup/index.md) - 리뷰 정책·실행 타입 정본, `execution-dag`·`path-overlap` 추출로 순환 제거, 구현 고정 테스트 전환, 소비자·경계 inventory 문서 (`scripts/src/lib`, `test/`, `docs/architecture/`)
+* [002 검증 대상 선택·finalize 분리와 CLI 지연 로딩](../runtime-architecture/blueprints/boundary-introduction/index.md) - 검증 대상 선택 모듈, 공통 Git·커밋 메시지와 finalize 단계 모듈, CLI 정적 usage·명령별 지연 로딩, 영역 배치 inventory (`scripts/src/lib`, `test/`, `docs/architecture/`)
+* [003 실행 조정 책임과 planning 공개 경계 분리](../runtime-architecture/blueprints/execution-planning-boundaries/index.md) - coordinator 원장·Git·검증·명령 책임 분리, planning snapshot 공통 계약, 동일 조건의 전후 측정과 inventory 반영 (`scripts/src/lib`, `scripts/measure-source-boundaries.js`, `test/`, `docs/architecture/`)

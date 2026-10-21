@@ -71,5 +71,5 @@ flowchart LR
 - `scripts/lib/` 빌드 산출물 커밋.
 
 ## Blueprints
-* [001 워크플로 상태 전이 가드](blueprints/transition-guards/index.md) - repair·report·record·prepare·current·run detach의 사전 거절 가드와 스킬 계약 (`scripts/src/lib/`, `rules/`, `skills/`, `agents/`)
-* [002 전이 가드 후속 보완](blueprints/transition-guard-followups/index.md) - detach 판정·거절 shape, revise 거절 출력, next의 commit 선택, literal pathspec, 정리 리팩터, 최종 리뷰 위험 수용 명령 (`scripts/src/lib/`, `rules/`, `references/`, `skills/`)
+* [001 워크플로 상태 전이 가드](../runtime-architecture/blueprints/transition-guards/index.md) - repair·report·record·prepare·current·run detach의 사전 거절 가드와 스킬 계약 (`scripts/src/lib/`, `rules/`, `skills/`, `agents/`)
+* [002 전이 가드 후속 보완](../runtime-architecture/blueprints/transition-guard-followups/index.md) - detach 판정·거절 shape, revise 거절 출력, next의 commit 선택, literal pathspec, 정리 리팩터, 최종 리뷰 위험 수용 명령 (`scripts/src/lib/`, `rules/`, `references/`, `skills/`)
