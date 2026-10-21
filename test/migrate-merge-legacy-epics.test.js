@@ -365,6 +365,13 @@ test('옮길 Explain에 legacy slug 형식 task ID가 있으면 → task_commits
   assert.deepStrictEqual(moved.data.bouncer.task_commits.map((row) => row.task), ['d1/x/001']);
   assert.ok(moved.body.split('\n').includes('### d1/x/001'));
   assert.ok(!moved.body.split('\n').includes('### a/x/001'));
+
+  // 옛 trailer 커밋은 explain 커밋 바로 앞에 있다. 고쳐 쓴 task_commits 행으로 그 커밋이 다시 조회돼야 한다.
+  const registry = readEpicRegistry(repo).registry;
+  const found = resolveTaskCommits({
+    repoRoot: repo, base: 'HEAD~2', head: 'HEAD', stableIds: ['d1/x/001'], registry,
+  });
+  assert.ok(found.has('d1/x/001'));
 });
 
 test('이미 옮겨진 저장소에서 다시 실행하면 → 쓰기 없이 moved가 빈 배열이다', () => {

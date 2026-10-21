@@ -193,6 +193,11 @@ test('replaceMovedSlugStableIds with punctuation after the pair → pair is repl
 
 test('replaceMovedSlugStableIds with inherited key name → text is unchanged', () => {
   assert.strictEqual(replaceMoved('a/constructor/001 a/toString'), 'a/constructor/001 a/toString');
+  // 열거 가능한 상속 키여야 own property 제한이 없을 때 실제로 치환이 일어난다.
+  const inherited = {
+    epics: [{ slug: 'a', kind: 'legacy', legacy_id: '001', moved_to: Object.create({ y: 'd1' }) }],
+  };
+  assert.strictEqual(replaceMoved('a/y/001', inherited), 'a/y/001');
 });
 
 test('replaceMovedSlugStableIds with null registry or no moved_to → text is unchanged', () => {
