@@ -42,7 +42,7 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 009 | 003 adaptive-quiz, 005 pr-single-confirm, 013 structured-pr-body | 퀴즈·PR 본문 |
 | 018 | 005~007, 016, 019, 020 | explain·comprehension·승격·마감 |
 | 062 | 005 explain-task-context | 마감 시 task 문서 보존 |
-| 078 | finalize digest 부분 | 병렬 run은 `drive-execution` |
+| 078 | 002 finalize-digest | Explain·Quiz·PR 입력 digest |
 
 ## Blueprints
 없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.

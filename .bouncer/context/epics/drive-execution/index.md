@@ -52,7 +52,8 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | legacy epic | blueprint | 이유 |
 | --- | --- | --- |
 | 061 | 002 | run 규칙 로딩 |
-| 099 | 003, 005, 006 | repair·dispatch·worker 정리 |
+| 087 | 002 prepare-lock-split | coordinate prepare 원장 잠금 구간 |
+| 099 | 003, 005 | repair·dispatch·worker 정리 |
 
 ## Blueprints
 - [repair-resume-integrity](blueprints/repair-resume-integrity/index.md): `coordinate repair --resume-task`가 통합된 하위 task를 유지하고, rework `next`·`revise` 승인 경로·integration 직접 수정 안내를 고친다.

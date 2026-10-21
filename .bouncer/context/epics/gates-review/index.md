@@ -43,9 +43,8 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 009 | 006 debugger-agent | verify 실패 조사 |
 | 018 | 018 gate-integrity | gate 집합과 verify 증적 |
 | 061 | 001 | 셸 없는 검증, 커밋 스코프 검사 |
-| 087 | 평가 후속 | blueprint 확인 후 확정 |
+| 087 | 001 commit-enforcement | 커밋 강제력과 게이트 실패 조건 |
 | 099 | 001 | 리뷰 입력 일관성 |
-| 105 | verify 출력 tail | 나머지는 `plan-workflow` |
 
 ## Blueprints
 없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.
