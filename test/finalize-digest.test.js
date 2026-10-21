@@ -12,6 +12,43 @@ const { resolveTaskCommits } = require('../scripts/lib/task-commits');
 const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
 const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
 const { runCli } = require('../scripts/lib/cli');
+const digestModel = require('../scripts/lib/finalize-digest-model');
+
+test('finalize digest model runtime imports → stay within pure snapshot helpers', () => {
+  const modelPath = path.join(__dirname, '..', 'scripts', 'lib', 'finalize-digest-model');
+  const probe = [
+    'const before = new Set(Object.keys(require.cache));',
+    `require(${JSON.stringify(modelPath)});`,
+    'const loaded = Object.keys(require.cache).filter((file) => !before.has(file));',
+    'process.stdout.write(JSON.stringify(loaded));',
+  ].join('\n');
+  const result = spawnSync(process.execPath, ['-e', probe], {
+    cwd: path.join(__dirname, '..'), encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const modules = JSON.parse(result.stdout).map((file) => path.basename(file, '.js'));
+  const ioModules = modules.filter((name) => new Set([
+    'config', 'current', 'finalize-digest', 'frontmatter', 'git-ops', 'scope',
+    'tasks-docs', 'task-commits', 'comprehension',
+  ]).has(name));
+  assert.deepEqual(ioModules, []);
+});
+
+test('empty digest snapshot → pure model reports the missing terminal', () => {
+  const result = digestModel.assessDigestSnapshot({
+    built: [],
+    ledger: null,
+    blueprintReviewMode: false,
+    rootReview: null,
+    changedPaths: [],
+    diffSummaryUnavailable: false,
+  });
+  assert.deepEqual(result, {
+    tasks: [],
+    blueprint_review: null,
+    unverified: [{ kind: 'terminal-missing' }],
+  });
+});
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -177,7 +214,10 @@ function buildStandaloneFixture() {
   return { repoRoot, blueprintDir: BP, base: rangeBase };
 }
 
-test('trailer commits, unverified tasks, symbols and afterClose → prepareFinalizeDigest fills them and refuses afterClose', () => {
+test(
+  'trailer commits, unverified tasks, symbols and afterClose → '
+    + 'prepareFinalizeDigest fills them and refuses afterClose',
+  () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const before = git(repoRoot, ['status', '--porcelain']);
 
@@ -212,9 +252,13 @@ test('trailer commits, unverified tasks, symbols and afterClose → prepareFinal
   fs.rmSync(path.join(repoRoot, blueprintDir, 'tasks'), { recursive: true, force: true });
   const afterClose = { repoRoot, blueprintDir };
   assert.strictEqual(prepareFinalizeDigest(afterClose).reason, 'task-documents-missing');
-});
+  },
+);
 
-test('drive fixture with a trailer integration SHA and a worker commit_sha → prepareFinalizeDigest prefers the trailer SHA', () => {
+test(
+  'drive fixture with a trailer integration SHA and a worker commit_sha → '
+    + 'prepareFinalizeDigest prefers the trailer SHA',
+  () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
 
@@ -279,7 +323,8 @@ test('drive fixture with a trailer integration SHA and a worker commit_sha → p
   assert.deepStrictEqual(fs.readFileSync(paths.ledgerFile), beforeLedger);
 
   git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
-});
+  },
+);
 
 // drive 원장을 쓰고 digest를 읽는다. extra로 mode·decisions를 바꿔 worker_notes 경로를 가른다.
 function prepareWithLedger(extra, now) {
@@ -315,7 +360,10 @@ const report = (task, extra) => ({
   task, kind: 'report', attempt: 1, task_brief_hash: 'h', outcome: 'accepted', summary: 's', ...extra,
 });
 
-test('full ledger with accepted reports → the last accepted report per task becomes worker_notes and review_points', () => {
+test(
+  'full ledger with accepted reports → the last accepted report per task '
+    + 'becomes worker_notes and review_points',
+  () => {
   const d = prepareWithLedger({ decisions: [
     report('001', { open_choices: ['old'], known_weaknesses: ['old weak'] }),
     report('001', { open_choices: ['a', 7], known_weaknesses: [] }),
@@ -326,7 +374,8 @@ test('full ledger with accepted reports → the last accepted report per task be
   assert.strictEqual('worker_notes' in d.tasks[1], false);
   assert.ok(d.pr.sections.review_points.includes('구현 선택(TASKS-001): a'));
   assert.ok(!d.pr.sections.review_points.some((p) => p.includes('old')));
-});
+  },
+);
 
 test('no ledger, light ledger or no report → tasks omit worker_notes', () => {
   const light = prepareWithLedger({
@@ -361,7 +410,10 @@ test('no ledger or an event-free ledger → drive_issues counters are all 0 and 
   assert.deepStrictEqual(empty.warnings, []);
 });
 
-test('ledger rework, debugger, repair, fan-in failure and blocked events → drive_issues counts each and the PR draft stays the same', () => {
+test(
+  'ledger rework, debugger, repair, fan-in failure and blocked events → '
+    + 'drive_issues counts each and the PR draft stays the same',
+  () => {
   const quiet = prepareWithLedger({}, FIXED_NOW);
   const noisy = prepareWithLedger({
     decisions: [
@@ -388,7 +440,8 @@ test('ledger rework, debugger, repair, fan-in failure and blocked events → dri
   // 실행 통계는 PR 입력이 아니다 — 원장 event가 달라도 초안은 같아야 한다.
   assert.deepStrictEqual(noisy.pr, quiet.pr);
   assert.strictEqual('drive_issues' in noisy.pr, false);
-});
+  },
+);
 
 // 루트 리뷰를 blueprint 모드로 쓴다. findings는 테스트마다 다르게 넣는다.
 function writeRootReview(repoRoot, blueprintDir, findings, { blueprintScope = true } = {}) {
@@ -573,6 +626,31 @@ test('missing blueprint and unreadable ledger → prepareFinalizeDigest rejects 
   assert.strictEqual(broken.code, 'UNREADABLE_LEDGER');
 });
 
+test('missing tasks and base → prepareFinalizeDigest reports missing task documents first', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  fs.rmSync(path.join(repoRoot, blueprintDir, 'tasks'), { recursive: true, force: true });
+  clearCurrent({ repoRoot });
+
+  const result = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'task-documents-missing');
+});
+
+test('no base and malformed blueprint Intent → prepareFinalizeDigest reports no-base first', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  clearCurrent({ repoRoot });
+  const blueprintIndex = path.join(repoRoot, blueprintDir, 'index.md');
+  const contents = fs.readFileSync(blueprintIndex, 'utf8');
+  fs.writeFileSync(blueprintIndex, contents.replace(
+    '## Intent\n- digest 입력을 모은다',
+    '## Intent\n- [broken](relative link)',
+  ));
+
+  const result = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'no-base');
+});
+
 test('now supplied for a deterministic pr.title_prefix → prepareFinalizeDigest accepts it', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   const d = prepareFinalizeDigest({
@@ -700,7 +778,10 @@ test('CURRENT_AMBIGUOUS → prepareFinalizeDigest treats it as no-base', () => {
   assert.strictEqual(result.reason, 'no-base');
 });
 
-test('broken verification/review and broken tasks.md → prepareFinalizeDigest absorbs the former and skips the latter', () => {
+test(
+  'broken verification/review and broken tasks.md → '
+    + 'prepareFinalizeDigest absorbs the former and skips the latter',
+  () => {
   // readVerification/readReview catch + tasks.md 파싱 실패 continue.
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   fs.writeFileSync(
@@ -722,7 +803,8 @@ test('broken verification/review and broken tasks.md → prepareFinalizeDigest a
   assert.strictEqual(d.tasks[0].id, 'TASKS-001');
   assert.strictEqual(d.tasks[0].verification, null);
   assert.strictEqual(d.tasks[0].review, null);
-});
+  },
+);
 
 test('path-outside-scope and finding-accepted inputs → prepareFinalizeDigest records both', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
@@ -1164,7 +1246,10 @@ function prepareWithFailedTerminal(mutate = () => {}) {
   return d;
 }
 
-test('failed terminal with a proven outside_scope classification → digest keeps the failure and links the original evidence', () => {
+test(
+  'failed terminal with a proven outside_scope classification → '
+    + 'digest keeps the failure and links the original evidence',
+  () => {
   const d = prepareWithFailedTerminal();
   const terminal = d.tasks.find((t) => t.execution_kind === 'verification');
   // 실패 사실은 그대로 — passed로 바뀌지 않는다.
@@ -1181,7 +1266,8 @@ test('failed terminal with a proven outside_scope classification → digest keep
   assert.ok(d.pr.sections.verification.some((line) => /npm test — failed/.test(line) && /outside_scope/.test(line)));
   assert.ok(!d.pr.sections.verification.some((line) => /npm test — passed/.test(line)));
   assert.ok(d.pr.sections.review_points.some((p) => p.startsWith('terminal-outside-scope:')));
-});
+  },
+);
 
 test('failed terminal without a valid classification → digest keeps terminal-missing and drive not ready', () => {
   const cases = [
@@ -1234,7 +1320,9 @@ test('old trailer only with alias registry → found under the caller slug id', 
 
 test('old trailer without registry → exact match behaves as before', () => {
   const exec = fakeLog([[SHA_A, 'EPIC-114/BP-003/TASK-001']]);
-  const found = resolveTaskCommits({ repoRoot: '.', base: 'x', head: 'y', exec, stableIds: ['EPIC-114/BP-003/TASK-001'] });
+  const found = resolveTaskCommits({
+    repoRoot: '.', base: 'x', head: 'y', exec, stableIds: ['EPIC-114/BP-003/TASK-001'],
+  });
   assert.equal(found.get('EPIC-114/BP-003/TASK-001').sha, SHA_A);
   const missed = resolveTaskCommits({
     repoRoot: '.', base: 'x', head: 'y', exec, stableIds: ['consumer-epic-registry/registry-gates/001'],
