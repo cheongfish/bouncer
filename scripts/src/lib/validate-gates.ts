@@ -50,14 +50,7 @@ const { computeApprovalDigest, diffApprovalParts } = approvalSnapshot;
 // require하지 않는다(validate → gates → structural, 순환 금지).
 
 type FailureEntry = { code: string; message: string; file: string };
-type DocLeaf = { data: unknown; body: string; rel: string };
-type TaskUnit = {
-  number: number | null;
-  dir: string | null;
-  tasks?: DocLeaf;
-  verification?: DocLeaf;
-  review?: DocLeaf;
-};
+import type { DocLeaf, TaskUnit } from './validate-docs';
 type BlueprintRels = {
   epicIndex: string;
   blueprintIndex: string;
@@ -1801,8 +1794,9 @@ function contextReviewFreshnessFailure(
 
 /**
  * Touch 경로의 segment·basename 조각과 정확히 비교할 보안 토큰. 부분 문자열이 아니라
- * 완전 일치만 보므로 `tokenizer`·`sessions` 같은 이름은 걸리지 않는다. review-dispatch의
- * REVIEW_RISK_ENUM을 import하면 validate와 순환하므로 이 목록은 여기서 독립으로 둔다.
+ * 완전 일치만 보므로 `tokenizer`·`sessions` 같은 이름은 걸리지 않는다. 위험도 enum
+ * (`review-policy.ts`의 REVIEW_RISK_ENUM)과는 다른 어휘다 — 그쪽은 review_risk 값이고 이 목록은
+ * Touch 경로에서 보안 민감 파일을 가려내는 토큰이라 enum으로 대체할 수 없어 여기서 독립으로 둔다.
  */
 const SECURITY_PATH_TOKENS: readonly string[] = [
   'auth', 'login', 'session', 'token', 'credential', 'secret',

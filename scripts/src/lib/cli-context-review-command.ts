@@ -3,7 +3,7 @@
 import cliUsage = require('./cli-usage');
 
 import cliFlags = require('./cli-flags');
-const { parseFlags } = cliFlags;
+const { parseFlags, argvRequestsHelp } = cliFlags;
 // validate-sections는 의도적으로 가벼운 모듈이라 argv 검증 전에 context-review-state를
 // 적재하지 않는 현재 순서를 깨지 않고 도움말 열거값을 검증기 상수에서 만들 수 있다.
 import validateSections = require('./validate-sections');
@@ -157,25 +157,6 @@ change after discovery; restart is a structure change. close and an accepted rec
 closure_target_digest (64 lowercase hex) to the runtime closure and the context-review.md frontmatter;
 a closed cycle may be closed again after a body-only edit, and close refuses a changed structure or contract.
 `;
-
-/**
- * 도움말 요청 여부. parseFlags는 `-h`를 무시하므로 원시 토큰을 본다.
- * `--flag -h`의 `-h`는 그 플래그의 값이라 제외한다.
- *
- * @param {string[]} tokens - `context-review` 뒤 원시 argv
- * @returns {boolean} 도움말이면 true
- */
-function argvRequestsHelp(tokens: string[]): boolean {
-  for (let i = 0; i < tokens.length; i += 1) {
-    const tok = tokens[i];
-    if (tok === '--help') return true;
-    if (tok === '-h') {
-      const prev = i > 0 ? tokens[i - 1] : undefined;
-      if (prev === undefined || !prev.startsWith('--')) return true;
-    }
-  }
-  return false;
-}
 
 type Parsed = { error: string } | {
   verb: 'start' | 'record' | 'close' | 'restart' | 'route';

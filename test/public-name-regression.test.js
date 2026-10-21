@@ -25,7 +25,8 @@ const HISTORICAL_DIRS = ['.bouncer/context'];
 
 /**
  * Focused tests + runtime detectors that intentionally reject legacy inputs.
- * Only these may contain `\bsdd(?:-harness)?\b`, `.sdd`, or `sdd.*`.
+ * Only these and the marker-declared detector sources (see LEGACY_DETECTOR_MARKER_RE)
+ * may contain `\bsdd(?:-harness)?\b`, `.sdd`, or `sdd.*`.
  */
 const LEGACY_ALLOWLIST = new Set([
   'test/current.test.js',
@@ -33,11 +34,6 @@ const LEGACY_ALLOWLIST = new Set([
   'test/validate-structural.test.js',
   'test/cli-validate.test.js',
   'test/cli-init.test.js',
-  'scripts/lib/schema.js',
-  'scripts/lib/validate.js',
-  // TypeScript sources of the same legacy detectors (tsc emit keeps the .js entries).
-  'scripts/src/lib/schema.ts',
-  'scripts/src/lib/validate.ts',
   'test/public-name-regression.test.js',
 ]);
 
@@ -82,6 +78,12 @@ const SDD_RE = new RegExp('\\b' + ['s', 'dd'].join('') + '(?:-harness)?\\b', 'i'
 const SDD_DIR_RE = new RegExp('\\.' + ['s', 'dd'].join('') + '\\b');
 const SDD_TYPE_RE = new RegExp('\\b' + ['s', 'dd'].join('') + '\\.');
 
+// 감지기 소스는 고정 경로 대신 파일 안의 표식 한 줄로 허용한다. 감지기를 다른 파일로
+// 옮겨도 표식과 함께 옮기면 통과한다. 이 파일 자신이 표식 리터럴을 갖지 않도록 조각을 이어 만든다.
+const LEGACY_DETECTOR_MARKER_RE = new RegExp('^// ' + ['public-name', 'legacy-input-detector'].join(': ') + '$', 'm');
+// 표식이 유효한 위치: 생성본(scripts/lib)은 추적되지 않으므로 TypeScript 소스만 해당한다.
+const LEGACY_DETECTOR_SOURCE_RE = /^scripts\/src\/lib\/[^/]+\.ts$/;
+
 function trackedTextFiles() {
   const raw = execFileSync('git', ['ls-files', '-z'], { cwd: root });
   return raw.toString('utf8').split('\0').filter(Boolean).filter((file) => {
@@ -106,6 +108,17 @@ function activeFiles() {
   return trackedTextFiles().filter((file) => !isHistorical(file));
 }
 
+// 표식이 있는 파일(활성 추적 파일 전체에서 검색해야 위치 남용도 잡힌다).
+function markedDetectorFiles() {
+  return activeFiles().filter((file) => LEGACY_DETECTOR_MARKER_RE.test(read(file)));
+}
+
+// 표식이 있는 파일은 두 이름 검사에서 빠진다. 남용은 아래 단언이 막는다.
+function isLegacyAllowed(file) {
+  return LEGACY_ALLOWLIST.has(file)
+    || (LEGACY_DETECTOR_SOURCE_RE.test(file) && LEGACY_DETECTOR_MARKER_RE.test(read(file)));
+}
+
 test('active surfaces → contain no Superpowers integration reference', () => {
   const offenders = [];
   for (const file of activeFiles()) {
@@ -119,10 +132,27 @@ test('active surfaces → contain no Superpowers integration reference', () => {
   assert.deepStrictEqual(offenders, [], `Superpowers references in:\n${offenders.join('\n')}`);
 });
 
+test('legacy detector marker → at least one tracked file declares it', () => {
+  assert.ok(markedDetectorFiles().length >= 1, 'no tracked file carries the legacy detector marker');
+});
+
+test('legacy detector marker → appears only in scripts/src/lib/*.ts', () => {
+  const misplaced = markedDetectorFiles().filter((file) => !LEGACY_DETECTOR_SOURCE_RE.test(file));
+  assert.deepStrictEqual(misplaced, [], `marker outside scripts/src/lib:\n${misplaced.join('\n')}`);
+});
+
+test('legacy detector marker → every marked file really contains a legacy string', () => {
+  const unused = markedDetectorFiles().filter((file) => {
+    const text = read(file);
+    return !(SDD_RE.test(text) || SDD_DIR_RE.test(text) || SDD_TYPE_RE.test(text));
+  });
+  assert.deepStrictEqual(unused, [], `marker without legacy string:\n${unused.join('\n')}`);
+});
+
 test('active surfaces → omit sdd names except legacy-rejection allowlist', () => {
   const offenders = [];
   for (const file of activeFiles()) {
-    if (LEGACY_ALLOWLIST.has(file) || BRANDING_DISCUSSION_DOCS.has(file) || SDD_BRANDING_FILES.has(file)) continue;
+    if (isLegacyAllowed(file) || BRANDING_DISCUSSION_DOCS.has(file) || SDD_BRANDING_FILES.has(file)) continue;
     const text = read(file);
     if (SDD_RE.test(text)) offenders.push(file);
   }
@@ -132,7 +162,7 @@ test('active surfaces → omit sdd names except legacy-rejection allowlist', () 
 test('mentions of .sdd / sdd.* → appear only in focused legacy-rejection tests and detectors', () => {
   const offenders = [];
   for (const file of activeFiles()) {
-    if (LEGACY_ALLOWLIST.has(file)) continue;
+    if (isLegacyAllowed(file)) continue;
     const text = read(file);
     if (SDD_DIR_RE.test(text) || SDD_TYPE_RE.test(text)) offenders.push(file);
   }

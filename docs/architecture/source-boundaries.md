@@ -8,19 +8,19 @@
 
 | 항목 | 전 (`c94947e7`) | 후 | 측정 명령 |
 | --- | --- | --- | --- |
-| `scripts/src/lib/*.ts` 모듈 수 | 92 | 미측정(후속 blueprint가 채움) | `git ls-tree -r --name-only c94947e7 scripts/src/lib`로 목록을 얻어 최상위 `.ts`만 센다 |
-| `scripts/src/lib/*.ts` 합계 줄 수 | 41,956 | 미측정(후속 blueprint가 채움) | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
-| `test/*.test.js` 파일 수 | 103 | 미측정(후속 blueprint가 채움) | `git ls-tree -r --name-only c94947e7 test`에서 `test/*.test.js`만 센다 |
-| `test/*.test.js` 합계 줄 수 | 54,583 | 미측정(후속 blueprint가 채움) | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
-| `../scripts/lib/*`를 직접 require하는 테스트 파일 | 82개 파일, 대상 모듈 70종 | 미측정(후속 blueprint가 채움) | 각 테스트 소스에서 `require('../scripts/lib/<모듈>')`를 추출해 파일·모듈을 중복 없이 센다 |
-| `require('./scripts/lib/cli')` 적재 모듈 수 | 77 (help 실행 후에도 77) | 미측정(후속 blueprint가 채움) | `node -e "require('./scripts/lib/cli'); console.log(Object.keys(require.cache).filter(k=>k.includes('/scripts/lib/')).length)"` (빌드 후) |
-| export 키 수 | `coordinator` 19, `scope` 13, `finalize` 12, `verification` 11, `validate` 10 | 미측정(후속 blueprint가 채움) | `node -e "console.log(Object.keys(require('./scripts/lib/<모듈>')).length)"` (빌드 후) |
-| coverage lines | 95.35% | 미측정(후속 blueprint가 채움) | `npm run test:coverage`의 `all files` 행 |
-| coverage branches | 85.17% | 미측정(후속 blueprint가 채움) | 같은 행 |
-| coverage functions | 98.11% | 미측정(후속 blueprint가 채움) | 같은 행 |
-| `npm test` 소요 시간 | 약 52초 (참고값: 환경 의존, 2443개 테스트 통과) | 미측정(후속 blueprint가 채움) | `time npm test` (같은 환경의 `npm run test:coverage`는 약 49초) |
+| `scripts/src/lib/*.ts` 모듈 수 | 92 | 118 | `git ls-tree -r --name-only c94947e7 scripts/src/lib`로 목록을 얻어 최상위 `.ts`만 센다 |
+| `scripts/src/lib/*.ts` 합계 줄 수 | 41956 | 50514 | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
+| `test/*.test.js` 파일 수 | 103 | 117 | `git ls-tree -r --name-only c94947e7 test`에서 `test/*.test.js`만 센다 |
+| `test/*.test.js` 합계 줄 수 | 54583 | 66029 | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
+| `../scripts/lib/*`를 직접 require하는 테스트 파일 | 82개 파일, 대상 모듈 70종 | 96개 파일, 대상 모듈 87종 | 각 테스트 소스에서 `require('../scripts/lib/<모듈>')`를 추출해 파일·모듈을 중복 없이 센다 |
+| `require('./scripts/lib/cli')` 적재 모듈 수 | 77 (help 실행 후에도 77) | 3 (help 실행 전후 모두 같은 측정 명령, 기준선 77) | `node -e "require('./scripts/lib/cli'); console.log(Object.keys(require.cache).filter(k=>k.includes('/scripts/lib/')).length)"` (빌드 후) |
+| export 키 수 | `coordinator` 19, `scope` 13, `finalize` 12, `verification` 11, `validate` 10 | `coordinator` 22, `scope` 16, `finalize` 1, `verification` 11, `validate` 10 | `node -e "console.log(Object.keys(require('./scripts/lib/<모듈>')).length)"` (빌드 후) |
+| coverage lines | 95.25% | 95.49% | `npm run test:coverage`의 `all files` 행 |
+| coverage branches | 85.02% | 86.64% | 같은 행 |
+| coverage functions | 98.11% | 98.23% | 같은 행 |
+| `npm test` 소요 시간 | 약 52초 (참고값: 환경 의존, 2443개 테스트 통과) | 약 69초 (참고값: 환경 의존, snapshot의 `npm test` 69,032ms) | `time npm test` (같은 환경의 `npm run test:coverage`는 약 49초) |
 
-"후" 열은 이 blueprint가 채우지 않는다. 전후 비교는 마지막 blueprint가 같은 표에 값을 채워 닫는다. 적재 수는 목표값으로 고정하지 않고 허용 의존성과 기준선 대비 결과를 기록하는 방식으로 쓴다.
+"후" 열은 기준선 `c94947e7737074e58ca882b59b9215c192051e6b`와 측정 시작 커밋 `d2af67192ec335d8d287b28a22e8f3b3ab2c290a`를 같은 Node 24.22.0·npm 11.19.1·linux x64에서 `scripts/measure-source-boundaries.js snapshot`으로 잰 값이며, 원본은 [measurements/source-restructuring.json](measurements/source-restructuring.json)이다. coverage "전" 값은 같은 도구로 다시 잰 값으로 바로잡았다. `require('./scripts/lib/cli')` 적재 수는 snapshot이 담지 않아 표의 측정 명령을 두 checkout에서 직접 실행했다. 적재 수는 목표값으로 고정하지 않고 허용 의존성과 기준선 대비 결과를 기록하는 방식으로 쓴다.
 
 ## 소비자 inventory
 
@@ -114,7 +114,7 @@ node -e "require('./scripts/lib/cli').runCli(['--help'],{out(){},err(){}}); cons
 | `test/tasks-docs.test.js` | 공유 `require.cache`를 지운 단독 로드 | `tasks-docs`가 CLI·coordinator·gate 같은 상위 계층 모듈을 전이적으로 끌어오지 않는 계층 경계 | 전환함: 캐시 삭제 대신 소스 의존 그래프의 전이 도달 집합으로 금지 모듈 도달을 검사하고, 가짜 그래프로 검사 유효성을 확인 | TASKS-003 |
 | `test/master-rules.test.js` | init 소스 문자열 | `init`이 플러그인 마스터 규칙을 프로젝트 루트(`AGENTS.md`·`CLAUDE.md`)에 설치하지 않고, 기존 프로젝트 `AGENTS.md`를 바이트 그대로 둔다 | 전환함: 소스 문자열 대신 임시 git 저장소에서 실제 `init`을 실행해 산출물을 검사하고, 가짜 `initFn`으로 설치 실패 모드를 되살려 단언 유효성을 확인. git·init 실행이 필요해 `integration` 계층으로 옮김 | TASKS-005 |
 | `test/ci-contract.test.js` | `ci` 스크립트 전체 문자열과 check-emit 소스 문구 | `ci`의 단계 순서(emit 검사가 coverage보다 앞, `lint:test-names`는 typecheck 뒤·audit 앞), check-emit이 shell 없이 실행되는 것, 관련 없는 수정 파일이 있어도 깨끗한 emit이면 종료 코드 0 | 전환함: `&&` 단계 토큰의 존재와 순서만 고정하고 Git 인자·상태 판정은 동작 fixture로 검사. shell 미사용 한 건만 실행 경계 속성이라 소스 텍스트를 의도적으로 유지 | TASKS-005 |
-| `test/public-name-regression.test.js` | 허용 목록 | 폐기한 제품 이름이 소스에 남지 않는 동작 | 유지함(전환 안 함): 목록 위치가 아니라 내용 표식으로 판단해야 하므로 후속으로 미룸 | 후속(내용 표식 필요) |
+| `test/public-name-regression.test.js` | 허용 목록 | 폐기한 제품 이름이 소스에 남지 않는 동작 | 전환함: 감지기 소스를 고정 경로 대신 파일 안의 표식 주석으로 허용하고, 표식이 `scripts/src/lib/*.ts` 밖에 있거나 레거시 문자열이 없는 파일에 있으면 실패. 감지기를 옮겨도 표식과 함께 옮기면 통과 | cli-help-and-hygiene |
 | `test/typescript-module-contract.test.js` | 모듈 두 개를 이름으로 고정한 정상 경계 fixture | 최상위 `export =`를 가진 모든 `scripts/src/lib/*.ts` 모듈이 `typeof import()`로 타입 검사를 통과하는 경계 계약 | 전환함: 모듈 이름 대신 디렉터리 스캔으로 대상을 모아 이름 변경·분리에 거짓 실패하지 않고 새 `export =` 모듈도 자동 포함. 스캔이 비면 먼저 실패 | TASKS-005 |
 | `test/cli-project-commands.test.js` | intent 모듈 네 개의 파일명 정규식 | 프로젝트 명령 실행 시 intent 기능 영역을 적재하지 않는 지연 로딩 | 전환함: 파일명 나열 대신 `test/helpers/feature-areas.js` 표로 적재된 영역을 판정(`loadedAreas`). 의도 모듈을 먼저 적재한 자식 프로세스로 검사 유효성을 확인 | TASKS-003 |
 | `test/symbol-index.test.js` | 배포된 symbol-index 소스의 `typescript` 의존 여부 | 배포된 `symbol-index`가 `typescript` 패키지 없이 `.ts` 심볼을 해석하는 동작 | 전환함: `typescript` 해석을 막은 자식 프로세스에서 `resolveSymbol`을 실행하고, `typescript`를 요구하는 lib 사본이 막힌 모듈로 실패하는지로 probe 유효성을 확인. 자식 프로세스를 띄우므로 `integration` 계층으로 옮김 | TASKS-003 |

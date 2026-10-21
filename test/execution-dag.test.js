@@ -57,3 +57,8 @@ test('normalizeOverlapPath with ./ prefixes and trailing slash → strips them b
   assert.strictEqual(normalizeOverlapPath('/'), '/');
   assert.strictEqual(normalizeOverlapPath('./'), '');
 });
+
+test('normalizeOverlapPath with backslash separators → converts them to forward slashes', () => {
+  assert.strictEqual(normalizeOverlapPath('src\\a.ts'), 'src/a.ts');
+  assert.strictEqual(normalizeOverlapPath('.\\src\\'), 'src');
+});

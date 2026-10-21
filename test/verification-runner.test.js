@@ -1666,29 +1666,8 @@ const {
 const __resolveEntries = (repoRoot, blueprintDir, taskId) => resolveVerificationTarget({
   repoRoot, blueprintDir, taskId,
 }).entries;
-const __coordMod = require('../scripts/lib/coordinator');
-const { coordinatorPathsFor: __cpFor } = require('../scripts/lib/runtime-state');
-const __crypto2 = require('node:crypto');
+const { coordinate: __coordinate } = require('./helpers/coordinator-fence');
 const __yaml = require('js-yaml');
-const __FENCED2 = new Set([
-  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke',
-]);
-function __coordFence(repoRoot, blueprint) {
-  const { ledgerFile } = __cpFor({ repoRoot, blueprint });
-  return {
-    ledgerPath: '.bouncer/runtime/coordinator.json',
-    ledgerHash: __crypto2.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
-  };
-}
-function __coordinate(opts) {
-  if (__FENCED2.has(opts.command)
-    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
-    try { opts = { ...opts, ...__coordFence(opts.repoRoot, opts.blueprint) }; }
-    catch (_e) { /* missing ledger */ }
-  }
-  return __coordMod.coordinate(opts);
-}
 function __writeFm(repo, rel, data, body = '# x\n') {
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });

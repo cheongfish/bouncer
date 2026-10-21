@@ -355,27 +355,7 @@ test('execute prepare without a subcommand → exits 2', () => {
 });
 
 const { executePrepare } = require('../scripts/lib/execute-prepare');
-const __epCoord = require('../scripts/lib/coordinator');
-const __epCrypto = require('node:crypto');
-const __EP_FENCED = new Set([
-  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke',
-]);
-function __epFence(repoRoot, blueprint) {
-  const { ledgerFile } = coordinatorPathsFor({ repoRoot, blueprint });
-  return {
-    ledgerPath: '.bouncer/runtime/coordinator.json',
-    ledgerHash: __epCrypto.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
-  };
-}
-function __epCoordinate(opts) {
-  if (__EP_FENCED.has(opts.command)
-    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
-    try { opts = { ...opts, ...__epFence(opts.repoRoot, opts.blueprint) }; }
-    catch (_e) { /* missing */ }
-  }
-  return __epCoord.coordinate(opts);
-}
+const { coordinate: __epCoordinate } = require('./helpers/coordinator-fence');
 
 test('a leased worker task with the pointer pointing elsewhere → executePrepare reports the leased worker task', () => {
   const repo = makeRepo();

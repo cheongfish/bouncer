@@ -22,6 +22,13 @@ bouncer:
 ## Success criteria
 1. `runtime-architecture` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
 2. 아래 legacy epic은 `legacy`로 그대로 두고 조회·이력에만 쓴다. 승인·검증 해시와 trailer 연결을 바꾸지 않는다.
+3. 자체 상세 help가 없는 등록 명령의 `bouncer <cmd> --help`·`-h`는 handler 모듈을 적재하지 않고, 파일을 쓰거나 외부 명령을 실행하지 않으며, `COMMAND_USAGE[cmd]`를 stdout에 쓰고 exit 0으로 끝난다.
+4. 테스트의 원장 fence helper, CLI 서브명령 help 판정 함수, tasks 문서 `TaskUnit` 타입, 경로 겹침·scope 정규화 함수, coordinator의 잠금 안 원장 열기·fence 확인 순서는 각각 정본이 하나이고, 나머지 사용처는 그 정본을 import하거나 파생한다.
+5. `coordinator` facade는 명령 API(`coordinate`, `COORDINATE_FAILURE_HINTS`, `withCoordinateFailureHints`)만 내보낸다. `coordinate()`·`cmdCoordinate()`·`runCheckGate()` 본체는 서브명령·gate 단계를 고르고 handler에 위임하는 일만 하며, TypeScript AST로 잰 함수 선언 줄 수가 각각 150·150·60 이하다. 컨텍스트 리뷰 cycle 전이 모듈 `context-review-state.ts`는 `fs`를 직접 쓰지 않고 저장 계층 모듈로만 디스크를 읽고 쓴다.
+6. 소스 경계 inventory 표는 Node 24 snapshot 비교 JSON과 함께 기록되고 `node scripts/measure-source-boundaries.js check-report`가 통과한다.
+7. 각 blueprint 병합 뒤 `npm run ci`가 통과하고, `scripts/src/lib` 모듈 의존에 순환이 없다.
+8. `scripts/lib`는 `npm run build`로만 갱신하는 생성본이며 어떤 task의 `affected_paths`에도 넣지 않는다.
+9. 폐기한 이름 검사는 레거시 입력 감지기를 고정 소스 경로가 아니라 파일 안 표식으로 허용하고, 표식이 허용 위치 밖에 있거나 레거시 문자열 없이 쓰이면 실패한다.
 
 ## Out of scope
 - 특정 단계의 기능 → 해당 단계 영역
@@ -52,4 +59,6 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 113 | 002 lint-baseline-cleanup | CI lint 기준선 |
 
 ## Blueprints
-없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.
+- [cli-help-and-hygiene](blueprints/cli-help-and-hygiene/index.md) — 서브명령 `--help`를 `cli.ts`의 정적 usage로 끝내고, 테스트 fence fixture·`TaskUnit` 타입·경로 정규화를 정본 하나로 모으며, 이전 재구성 inventory의 전후 실측을 채운다.
+- [coordinator-command-split](blueprints/coordinator-command-split/index.md) — `coordinator` facade를 명령 API로 줄이고, 원장 fence 열기를 공통 helper로 묶고, `coordinate()`·`cmdCoordinate()`를 서브명령 handler로 나눈다.
+- [gate-review-split](blueprints/gate-review-split/index.md) — `runCheckGate()`를 gate 단계 모듈로, `context-review-state.ts`를 저장 계층과 cycle 전이로 나누고 이 시리즈의 전후 실측을 기록한다.

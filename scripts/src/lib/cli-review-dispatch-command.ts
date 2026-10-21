@@ -5,7 +5,7 @@ import cliUsage = require('./cli-usage');
 const fs = require('node:fs');
 
 import cliFlags = require('./cli-flags');
-const { parseFlags } = cliFlags;
+const { parseFlags, argvRequestsHelp } = cliFlags;
 // validate-sections는 ./paths 계열만 정적으로 끌어오므로(intent 모듈 없음) help 문자열을
 // 검증기 상수에서 만들어도 ./review-dispatch lazy require 계약이 깨지지 않는다.
 import validateSections = require('./validate-sections');
@@ -152,25 +152,6 @@ must equal the cycle latest_dispatch. Failures print
 \`{ ok: false, reason, cause, next }\` (exit 1) with reason
 previous-payload-required | previous-payload-invalid | previous-payload-stale.
 `;
-
-/**
- * 서브커맨드 도움말 여부. parseFlags는 `--help`를 값 없는 플래그로 삼키고 `-h`를
- * 무시하므로 원시 토큰을 본다. `--flag -h`의 `-h`는 그 플래그의 값이라 제외한다.
- *
- * @param {string[]} tokens - `review-dispatch` 뒤 원시 argv
- * @returns {boolean} 도움말을 내면 true
- */
-function argvRequestsHelp(tokens: string[]): boolean {
-  for (let i = 0; i < tokens.length; i += 1) {
-    const tok = tokens[i];
-    if (tok === '--help') return true;
-    if (tok === '-h') {
-      const prev = i > 0 ? tokens[i - 1] : undefined;
-      if (prev === undefined || !prev.startsWith('--')) return true;
-    }
-  }
-  return false;
-}
 
 /**
  * review-dispatch argv를 plan/execute로 분기한다. 잘못된 사용법은 resolver를

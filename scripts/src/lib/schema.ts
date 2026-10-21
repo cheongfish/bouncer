@@ -208,6 +208,7 @@ function isValidSupersedes(value: unknown): boolean {
   );
 }
 
+// public-name: legacy-input-detector
 function detectLegacyFormat({ repoRoot, data }: { repoRoot?: unknown; data?: unknown } = {}) {
   if (repoRoot) {
     const fs = require('node:fs');

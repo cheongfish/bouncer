@@ -754,6 +754,19 @@ test('path-outside-scope and finding-accepted inputs → prepareFinalizeDigest r
   assert.ok(d.unverified.some((u) => u.kind === 'finding-accepted' && u.detail === 'accepted later'));
 });
 
+test('scope written as ././src/ → prepareFinalizeDigest does not flag src changes as path-outside-scope', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  // 문서 표기가 `././`여도 같은 디렉터리로 읽혀야 한다(경로 정규화 정본 통일).
+  for (const id of ['001', '002']) {
+    const file = path.join(repoRoot, blueprintDir, `tasks/${id}/tasks.md`);
+    const raw = fs.readFileSync(file, 'utf8');
+    fs.writeFileSync(file, raw.replace(/- src\/?\s*$/m, "- '././src/'"));
+  }
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.ok(!d.unverified.some((u) => u.kind === 'path-outside-scope'), JSON.stringify(d.unverified));
+});
+
 test('a passed verification task → prepareFinalizeDigest clears terminal-missing', () => {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
   writeDoc(repoRoot, `${blueprintDir}/tasks/003/tasks.md`, {
