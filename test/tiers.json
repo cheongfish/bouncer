@@ -55,6 +55,7 @@
     "build-release.test.js",
     "ci-contract.test.js",
     "cli-commit-guard.test.js",
+    "cli-help-static.test.js",
     "cli-commit.test.js",
     "cli-coordinate.test.js",
     "cli-metrics.test.js",
