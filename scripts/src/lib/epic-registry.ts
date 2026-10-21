@@ -19,6 +19,8 @@ type RegistryEpic = {
   slug: string; id: string; legacy_id?: string; kind: EpicKind; active: boolean;
   approval?: { reason: string; approvedAt: string };
   blueprint_aliases?: Record<string, string>;
+  // legacy epic 전용: 현재 blueprint slug → 그 blueprint가 지금 있는 도메인 epic slug. v2에서만 쓴다.
+  moved_to?: Record<string, string>;
 };
 type EpicRegistry = {
   version: 1 | 2; profile: string; domainEpicLimit: number; areas: string[];
@@ -109,6 +111,24 @@ function aliasViolationOf(aliases: unknown): string | null {
 }
 
 /**
+ * `moved_to`의 키·값이 slug 형식인지 본다. 값이 같은 등록부의 도메인 epic인지는 모든 항목을
+ * 읽어야 알 수 있어 이 함수가 아니라 parseEpicRegistry의 마지막 단계에서 검사한다.
+ *
+ * @param {unknown} movedTo - epic 항목의 `moved_to` 값
+ * @returns {string | null} 위반 사유(통과하면 null)
+ */
+function movedToShapeViolation(movedTo: unknown): string | null {
+  if (!isRecord(movedTo)) return 'must be an object';
+  for (const [key, target] of Object.entries(movedTo)) {
+    const keyViolation = validateSlug(key);
+    if (keyViolation !== null) return `key is not a slug: ${key}: ${keyViolation}`;
+    const targetViolation = validateSlug(target);
+    if (targetViolation !== null) return `value for ${key}: ${targetViolation}`;
+  }
+  return null;
+}
+
+/**
  * 등록부 JSON 값을 검사해 EpicRegistry로 돌려준다. 형식 위반은 throw하지 않고
  * 첫 위반의 message를 돌려줘 호출자가 S35로 접게 한다.
  *
@@ -157,6 +177,14 @@ function parseEpicRegistry(value: unknown): ParseResult {
     if (aliasViolation !== null) return fail(`blueprint_aliases is invalid: ${slug}: ${aliasViolation}`);
     if (typeof kind !== 'string' || !KINDS.includes(kind)) return fail(`epic kind is invalid: ${slug}`);
     if (typeof active !== 'boolean') return fail(`epic active must be a boolean: ${slug}`);
+    if (epic.moved_to !== undefined) {
+      // 이동 표는 legacy epic이 도메인 epic으로 넘긴 blueprint를 기록하는 v2 전용 필드다.
+      if (kind !== 'legacy') return fail(`moved_to is only allowed on legacy epics: ${slug}`);
+      const movedViolation = value.version === 1
+        ? 'only supported in version 2'
+        : movedToShapeViolation(epic.moved_to);
+      if (movedViolation !== null) return fail(`moved_to is invalid: ${slug}: ${movedViolation}`);
+    }
     if (approval !== undefined
       && !(isRecord(approval) && typeof approval.reason === 'string' && typeof approval.approvedAt === 'string')) {
       return fail(`epic approval needs string reason and approvedAt: ${slug}`);
@@ -169,6 +197,18 @@ function parseEpicRegistry(value: unknown): ParseResult {
     if (idBySlug.has(slug)) return fail(`epic row is duplicated: ${slug} ${id}`);
     idBySlug.set(slug, id);
     if (rawId !== undefined) slugById.set(id, slug);
+  }
+  // 이동 대상은 항목 순서와 무관하게 확인하려고 모든 항목을 읽은 뒤 검사한다.
+  const domainSlugs = new Set(
+    (value.epics as Array<Record<string, unknown>>).filter((e) => e.kind === 'domain').map((e) => e.slug),
+  );
+  for (const epic of value.epics as Array<Record<string, unknown>>) {
+    if (epic.moved_to === undefined) continue;
+    for (const [bp, target] of Object.entries(epic.moved_to as Record<string, string>)) {
+      if (!domainSlugs.has(target)) {
+        return fail(`moved_to is invalid: ${String(epic.slug)}: value for ${bp} is not a domain epic: ${target}`);
+      }
+    }
   }
   return { ok: true, registry: value as unknown as EpicRegistry };
 }

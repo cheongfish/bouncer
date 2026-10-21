@@ -106,6 +106,8 @@ function fullBlueprint(repo, {
   blueprintDir = BP_REL,
   withGit = true,
   withConfig = true,
+  epicKey = '001',
+  bpKey = '001',
 } = {}) {
   if (withGit) initGitWithChange(repo);
   if (withConfig) {
@@ -118,28 +120,34 @@ function fullBlueprint(repo, {
   writeDoc(repo, `${epicDir}/index.md`, {
     type: 'bouncer.epic', title: 'Auth', description: 'd', resource: `${epicDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+    bouncer: { id: epicKey, epic_id: epicKey, status: 'approved' },
   });
   const epicLeaf = epicDir.split('/').pop();
   const epicIdMatch = /^(\d{3})-/.exec(epicLeaf);
   const epicId = epicIdMatch ? epicIdMatch[1] : '001';
   const epicSlug = epicLeaf.slice(epicId.length + 1) || 'auth';
-  ensureEpicIndexEntry({
-    repoRoot: repo, epicId, name: epicSlug, description: 'd',
-  });
+  if (epicKey === '001') {
+    ensureEpicIndexEntry({
+      repoRoot: repo, epicId, name: epicSlug, description: 'd',
+    });
+  } else {
+    // slug 형식 epic 디렉터리는 번호 접두 없이 이름만으로 등록한다.
+    ensureEpicIndexEntry({ repoRoot: repo, name: epicLeaf, description: 'd' });
+  }
   writeDoc(repo, `${blueprintDir}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${blueprintDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+      id: bpKey, epic_id: epicKey, blueprint_id: bpKey, status: 'approved',
       commit_type: 'feat',
+      ...(bpKey === '001' ? {} : { order: 1 }),
     },
   }, '# Blueprint\n\n## Intent\n- 마감은 청사진 단위로 묶는다\n- 남은 변경은 설명 문서와 병합 기록이다\n');
   writeDoc(repo, `${blueprintDir}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
+      id: 'TASKS-001', epic_id: epicKey, blueprint_id: bpKey, status: 'verified',
       affected_paths: ['src/auth/'],
       // task commit_intent는 task 커밋 전용이며 finalize는 blueprint Intent를 본다.
       commit_intent: [
@@ -155,13 +163,13 @@ function fullBlueprint(repo, {
     description: 'd',
     resource: `${blueprintDir}/tasks/001/verification.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'passed' },
+    bouncer: { id: 'VERIFY-001', epic_id: epicKey, blueprint_id: bpKey, status: 'passed' },
   });
   writeDoc(repo, `${blueprintDir}/tasks/001/review.md`, {
     type: 'bouncer.review', title: 'Review', description: 'd', resource: `${blueprintDir}/tasks/001/review.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      id: 'REVIEW-001', epic_id: epicKey, blueprint_id: bpKey, status: 'accepted',
       review: { required: false, reason: 'fixture' },
     },
   });
@@ -210,7 +218,7 @@ function fullBlueprint(repo, {
     type: 'bouncer.explain', title: 'Explain', description: 'd', resource: `${blueprintDir}/explain.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'EXPLAIN-001', epic_id: '001', blueprint_id: '001', status: 'published',
+      id: `EXPLAIN-${bpKey}`, epic_id: epicKey, blueprint_id: bpKey, status: 'published',
       comprehension,
     },
   }, body);
@@ -1724,22 +1732,37 @@ test('--yes without a coordinator ledger → finalize writes no coordinator into
   assert.ok(Array.isArray(data.bouncer.task_commits));
 });
 
-test('a trailer integration SHA and a worker commit_sha → finalize --yes prefers the trailer SHA', () => {
+// moved=true: task는 도메인 epic 위치(dom/bp-a)의 slug key를 쓰고, 커밋 trailer는 옛 번호 형식이다.
+// 등록부의 moved_to가 둘을 같은 task로 잇는지 본다.
+function trailerPreferenceCase({ moved }) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo);
+  const BP = moved ? '.bouncer/context/epics/dom/blueprints/bp-a' : BP_REL;
+  fullBlueprint(repo, moved ? { blueprintDir: BP, epicKey: 'dom', bpKey: 'bp-a' } : {});
+  if (moved) {
+    fs.writeFileSync(path.join(repo, '.bouncer/epics.json'), `${JSON.stringify({
+      version: 2, profile: 'domain-only', domainEpicLimit: 3, areas: [],
+      epics: [
+        {
+          slug: 'auth', legacy_id: '001', kind: 'legacy', active: true,
+          blueprint_aliases: { '001': 'bp-a' }, moved_to: { 'bp-a': 'dom' },
+        },
+        { slug: 'dom', kind: 'domain', active: true },
+      ],
+    }, null, 2)}\n`);
+  }
   const { writeCurrent } = require('../scripts/lib/current');
   const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
   const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trimEnd();
 
   // worker commit_sha는 가짜 — trailer가 정본이어야 한다.
-  const tasksAbs = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
+  const tasksAbs = path.join(repo, `${BP}/tasks/001/tasks.md`);
   const parsed = readFm(fs.readFileSync(tasksAbs, 'utf8'));
   parsed.data.bouncer.commit_sha = 'deadbeef';
   fs.writeFileSync(tasksAbs, `---\n${yaml.dump(parsed.data)}---\n${parsed.body}`);
 
   run(['add', '-A']);
   run(['commit', '-m', 'plan']);
-  const explainAbs = path.join(repo, `${BP_REL}/explain.md`);
+  const explainAbs = path.join(repo, `${BP}/explain.md`);
   const explain = readFm(fs.readFileSync(explainAbs, 'utf8'));
   const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
   explain.data.bouncer.comprehension[0].diff_sha = hashed.sha;
@@ -1749,7 +1772,7 @@ test('a trailer integration SHA and a worker commit_sha → finalize --yes prefe
   run(['commit', '-m', 'explain']);
 
   const rangeBase = run(['rev-parse', 'HEAD']);
-  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: rangeBase });
+  writeCurrent({ repoRoot: repo, blueprint: BP, base: rangeBase });
 
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const login = 1;\n');
   run(['add', 'src/auth/login.ts']);
@@ -1761,7 +1784,7 @@ test('a trailer integration SHA and a worker commit_sha → finalize --yes prefe
   const sha8 = integrationSha.slice(0, 8);
   assert.notStrictEqual(sha8, 'deadbeef');
 
-  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP });
   run(['branch', 'feat/integ']);
   run(['worktree', 'add', paths.integrationPath, 'feat/integ']);
   writeIntegrationTask(paths.integrationPath, '001', 'verified');
@@ -1772,7 +1795,7 @@ test('a trailer integration SHA and a worker commit_sha → finalize --yes prefe
   }).trim();
   fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
     version: 1,
-    blueprint: BP_REL,
+    blueprint: BP,
     base: rangeBase,
     integrationHead: integHead,
     integrationBranch: 'feat/integ',
@@ -1790,24 +1813,31 @@ test('a trailer integration SHA and a worker commit_sha → finalize --yes prefe
 
   const g = fakeGit([
     'src/auth/login.ts',
-    ...transientRels(BP_REL, ['001']),
+    ...transientRels(BP, ['001']),
   ], []);
   const res = finalize({
-    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+    repoRoot: repo, blueprintDir: BP, yes: true, git: g.api, verifyExec: passVerify,
   });
   assert.strictEqual(res.ok, true, JSON.stringify(res));
   assert.strictEqual(res.taskCommits[0].sha, sha8);
   assert.notStrictEqual(res.taskCommits[0].sha, 'deadbeef');
-  const explainBody = fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8');
-  assert.match(explainBody, new RegExp(
-    `### EPIC-001/BP-001/TASK-001 · \`${sha8}\``,
-  ));
+  const explainBody = fs.readFileSync(path.join(repo, `${BP}/explain.md`), 'utf8');
+  const heading = moved ? 'dom/bp-a/001' : 'EPIC-001/BP-001/TASK-001';
+  assert.ok(explainBody.includes(`### ${heading} · \`${sha8}\``), explainBody);
   const explainData = yaml.load(
-    fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8').split(/^---$/m)[1],
+    fs.readFileSync(path.join(repo, `${BP}/explain.md`), 'utf8').split(/^---$/m)[1],
   );
   assert.strictEqual(explainData.bouncer.task_commits[0].sha, sha8);
 
   run(['worktree', 'remove', '--force', paths.integrationPath]);
+}
+
+test('a trailer integration SHA and a worker commit_sha → finalize --yes prefers the trailer SHA', () => {
+  trailerPreferenceCase({ moved: false });
+});
+
+test('an old numeric trailer and a moved_to registry → finalize --yes prefers the trailer SHA', () => {
+  trailerPreferenceCase({ moved: true });
 });
 
 function writeAcceptedRootReview(repo, blueprintDir = BP_REL) {
