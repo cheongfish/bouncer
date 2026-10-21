@@ -13,6 +13,8 @@ import templates = require('./templates');
 const { parseIntentBody } = templates;
 import validateSections = require('./validate-sections');
 const { parseTasksSections, parseSections, pathsOverlap } = validateSections;
+import pathOverlapMod = require('./path-overlap');
+const { normalizeOverlapPath } = pathOverlapMod;
 import schema = require('./schema');
 const { executionKindOf } = schema;
 import commitSha = require('./commit-sha');
@@ -512,20 +514,6 @@ function readReview(absPath: string | null): TaskDigest['review'] {
 }
 
 /**
- * affected_paths·changed path 비교 전에 trailing slash를 벗긴다.
- * `src/`와 `src/greet.js`가 pathsOverlap에서 빗나가 path-outside-scope로
- * 오인되지 않게 한다(원장·문서 표기가 둘 다 쓰인다).
- *
- * @param {string} raw - 상대 경로
- * @returns {string} posix, trailing slash 제거
- */
-function normalizeScopePath(raw: string): string {
-  let p = toPosix(raw).replace(/^\.\//, '');
-  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
-  return p;
-}
-
-/**
  * changed path가 어떤 task의 affected_paths로도 정당화되지 않으면 true.
  *
  * @param {string} changedPath - governance 제외 변경 경로
@@ -533,10 +521,11 @@ function normalizeScopePath(raw: string): string {
  * @returns {boolean}
  */
 function pathOutsideScope(changedPath: string, scopes: string[][]): boolean {
-  const p = normalizeScopePath(changedPath);
+  // 정규화는 path-overlap 정본 하나만 쓴다(`src/`와 `src/greet.js`가 빗나가 오인되지 않게).
+  const p = normalizeOverlapPath(changedPath);
   for (const scopePaths of scopes) {
     for (const declared of scopePaths) {
-      if (pathsOverlap(p, normalizeScopePath(declared))) return false;
+      if (pathsOverlap(p, normalizeOverlapPath(declared))) return false;
     }
   }
   return true;

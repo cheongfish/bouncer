@@ -19,8 +19,8 @@ const {
 // validate.ts를 require하지 않는다(validate → docs 한 방향).
 
 type FailureEntry = { code: string; message: string; file: string };
-type DocLeaf = { data: unknown; body: string; rel: string };
-type TaskUnit = {
+export type DocLeaf = { data: unknown; body: string; rel: string };
+export type TaskUnit = {
   number: number | null;
   dir: string | null;
   tasks?: DocLeaf;
@@ -353,7 +353,7 @@ function statusOf(doc: DocLeaf | undefined | null): unknown {
   return bouncer ? bouncer.status : undefined;
 }
 
-export = {
+export {
   defaultStagedFiles,
   readOptionalLeaf,
   loadBlueprintDocs,

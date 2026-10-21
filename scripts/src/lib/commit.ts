@@ -43,12 +43,11 @@ type GitApi = {
   headSha?: () => string;
 };
 
-type DocLeafLike = { data?: unknown; rel?: string };
-type TaskUnitLike = {
-  number?: number | null;
-  tasks?: DocLeafLike;
-  [key: string]: unknown;
-};
+// 정본은 validate-docs의 DocLeaf·TaskUnit이다. 소비자가 일부 필드만 채운 문서를 받으므로
+// 정본에서 Partial·Pick으로 파생해 필드가 갈라지지 않게 한다(런타임 import 없이 type-only).
+import type { DocLeaf, TaskUnit } from './validate-docs';
+type DocLeafLike = Partial<Pick<DocLeaf, 'data' | 'rel'>>;
+type TaskUnitLike = { tasks?: DocLeafLike } & Partial<Pick<TaskUnit, 'number'>> & { [key: string]: unknown };
 
 /**
  * 같은 blueprint에서 지금 닫는 묶음을 제외한 열린 task 중 번호가 가장 앞선 것.

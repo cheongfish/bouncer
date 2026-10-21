@@ -175,14 +175,7 @@ function withGateFailureHints(result: ValidateResult): ValidateResult {
   };
 }
 
-type DocLeaf = { data: unknown; body: string; rel: string };
-type TaskUnit = {
-  number: number | null;
-  dir: string | null;
-  tasks?: DocLeaf;
-  verification?: DocLeaf;
-  review?: DocLeaf;
-};
+import type { DocLeaf, TaskUnit } from './validate-docs';
 type BlueprintDocs = {
   epicIndex?: DocLeaf;
   blueprintIndex?: DocLeaf;

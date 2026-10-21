@@ -49,16 +49,14 @@ function parseTasksSections(body: unknown): Record<string, string | null> {
 }
 
 
-type DocLeafLike = { data?: unknown; body?: string; rel?: string };
+// 정본은 validate-docs의 DocLeaf·TaskUnit이다. 소비자가 일부 필드만 채운 문서를 받으므로
+// 정본에서 Partial·Pick으로 파생해 필드가 갈라지지 않게 한다(런타임 import 없이 type-only).
+import type { DocLeaf, TaskUnit } from './validate-docs';
+type DocLeafLike = Partial<DocLeaf>;
 
 
-type TaskUnitLike = {
-  number?: number | null;
-  tasks?: DocLeafLike;
-  verification?: DocLeafLike;
-  review?: DocLeafLike;
-  [key: string]: unknown;
-};
+type TaskUnitLike = Partial<Record<'tasks' | 'verification' | 'review', DocLeafLike>>
+  & Partial<Pick<TaskUnit, 'number'>> & { [key: string]: unknown };
 
 
 type TrailerCommit = { sha?: string; sha8: string };

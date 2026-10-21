@@ -8,7 +8,9 @@
 import configMod = require('./config');
 const { DEFAULT_MAX_PARALLEL } = configMod;
 import pathOverlapMod = require('./path-overlap');
-const { pathsOverlap } = pathOverlapMod;
+// 정규화 정본은 path-overlap이다. 기존 소비자(dag-shape·coordinator-commands)가 이 모듈에서
+// 같은 이름으로 가져가므로 아래 export에서 그대로 다시 내보낸다.
+const { pathsOverlap, normalizeOverlapPath } = pathOverlapMod;
 import type { Task } from './execution-contracts';
 
 /**
@@ -42,25 +44,8 @@ function pathSetOf(task: Task): string[] | null {
 }
 
 /**
- * pathsOverlap에 넘기기 전에 경로 표기만 맞춘다. 비교 알고리즘은 바꾸지 않는다.
- * 문서·Checklist는 `src/`·`./src/a.ts`처럼 trailing slash·`./`를 쓰는데,
- * pathsOverlap은 그 형태를 조상으로 보지 못하므로 호출 전에 벗겨야 Goal이 성립한다.
- *
- * @param {string} raw - affected_paths/scope.paths 항목
- * @returns {string} `./`·trailing `/`(단독 `/` 제외)를 제거한 경로
- */
-function normalizeOverlapPath(raw: string): string {
-  let p = raw;
-  // 1. 문서·lease가 상대경로를 `./foo`로 적는 경우 — 동일 경로를 놓치지 않게 접두만 제거
-  while (p.startsWith('./')) p = p.slice(2);
-  // 2. 디렉터리 표기 `src/` → `src`. bare `/`는 루트 의미가 있어 유지한다.
-  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
-  return p;
-}
-
-/**
  * 두 task가 같은 시점에 in-flight이면 안 되는지 판정한다. 경로 조상·동일
- * 비교는 validate-sections.pathsOverlap 하나만 쓴다 — 새 규칙을 두면 G12와
+ * 비교는 path-overlap.pathsOverlap 하나만 쓴다 — 새 규칙을 두면 G12와
  * scheduler가 갈라진다. 입력만 normalizeOverlapPath로 맞춘다.
  *
  * @param {Task} left - 한쪽 task
