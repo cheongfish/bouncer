@@ -191,13 +191,16 @@ test('replaceMovedSlugStableIds with punctuation after the pair → pair is repl
   assert.strictEqual(replaceMoved('(a/x), a/x/001. "a/x"'), '(d1/x), d1/x/001. "d1/x"');
 });
 
-test('replaceMovedSlugStableIds with inherited key name → text is unchanged', () => {
-  assert.strictEqual(replaceMoved('a/constructor/001 a/toString'), 'a/constructor/001 a/toString');
-  // 열거 가능한 상속 키여야 own property 제한이 없을 때 실제로 치환이 일어난다.
+test('replaceMovedSlugStableIds with inherited key name → replacer is never called', () => {
+  // 모든 일치를 표시하는 replacer라서, 상속 키가 쌍으로 새면 출력이 바뀌어 드러난다.
+  const mark = (hit) => `<${hit}>`;
+  // 열거 가능한 상속 키(`y`)여야 own property 제한이 없을 때 실제로 일치가 일어난다.
   const inherited = {
-    epics: [{ slug: 'a', kind: 'legacy', legacy_id: '001', moved_to: Object.create({ y: 'd1' }) }],
+    epics: [{ slug: 'a', kind: 'legacy', legacy_id: '001', moved_to: Object.create({ y: 'd1', constructor: 'd1' }) }],
   };
-  assert.strictEqual(replaceMoved('a/y/001', inherited), 'a/y/001');
+  assert.strictEqual(ids.replaceMovedSlugStableIds('a/y/001 a/constructor', inherited, mark), 'a/y/001 a/constructor');
+  const own = { epics: [{ slug: 'a', kind: 'legacy', legacy_id: '001', moved_to: { y: 'd1' } }] };
+  assert.strictEqual(ids.replaceMovedSlugStableIds('a/y/001', own, mark), '<a/y/001>');
 });
 
 test('replaceMovedSlugStableIds with null registry or no moved_to → text is unchanged', () => {
