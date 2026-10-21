@@ -7,11 +7,17 @@ import epicRegistry = require('./epic-registry');
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 import guards = require('./guards');
-const { isRecord } = guards;
+const { isRecord, catchMessage } = guards;
+import rewriteModule = require('./context-migration-rewrite');
+const { defaultRunGit, defaultListInProgress, computeRewrites, writeRegistryAtomically } = rewriteModule;
+import validate = require('./validate');
+const { validateBlueprint } = validate;
 
 // legacy epic 병합 계획. 도메인 epic `index.md`의 `## Legacy epic 귀속` 목록과 예외 표에서 legacy blueprint별
-// 이동 대상을 결정적으로 계산한다. 순수 계산이다: git·쓰기 없이 읽기 seam(`readFile`·`listDirs`)만 쓴다.
-// 디스크 이동과 CLI 연결은 후속 task(적용 단계) 소관이다.
+// 이동 대상을 결정적으로 계산한다(`planLegacyEpicMerge`). 계획 계산은 순수하다: git·쓰기 없이 읽기 seam
+// (`readFile`·`listDirs`)만 쓴다. `migrateMergeLegacyEpics`가 그 계획에 가드·`git mv`·문서 재작성·등록부
+// `moved_to` 기록·검증을 얹는다. `migrate context-slugs`와 같이 모든 변경을 메모리에서 먼저 계산하고,
+// 쓰기 단계의 롤백은 하지 않으며 되돌리는 명령만 안내한다.
 
 type EpicRegistry = Extract<ReturnType<typeof epicRegistry.readEpicRegistry>, { status: 'ok' }>['registry'];
 type RegistryEpic = EpicRegistry['epics'][number];
@@ -281,4 +287,179 @@ function parseCell(cell: string, legacy: RegistryEpic): { slugs: string[]; error
   return { slugs: matched === 0 ? [] : slugs };
 }
 
-export = { planLegacyEpicMerge };
+type InjectedFs = typeof import('node:fs');
+type InProgressEntry = { kind: 'pointer' | 'approval' | 'ledger' | 'worktree'; path: string };
+type MergeDeps = {
+  runGit?: (args: string[]) => { stdout: string };
+  fs?: InjectedFs;
+  listInProgress?: (o: { repoRoot: string }) => InProgressEntry[];
+};
+type MovedEntry = { from: string; to: string; order: number };
+type ValidateEntry = { blueprint: string; ok: boolean; failures: unknown[] };
+type MergeSuccess = {
+  ok: true;
+  dryRun: boolean;
+  moved: MovedEntry[];
+  rewritten: number;
+  movedTo: Record<string, Record<string, string>>;
+  unresolved_rows: UnresolvedRow[];
+  validate: ValidateEntry[];
+};
+type MergeFailure = {
+  ok: false;
+  code: string;
+  message: string;
+  next: string;
+  details?: unknown[];
+  blockers?: InProgressEntry[];
+  moved?: MovedEntry[];
+  validate?: ValidateEntry[];
+};
+
+// `migrate context-slugs`와 같은 복구 명령. 병합이 만지는 것도 `.bouncer` 아래뿐이다.
+const RESTORE_NEXT = 'git restore --staged --worktree .bouncer && git clean -fd .bouncer/context';
+
+function failure(code: string, message: string, next: string, extra: Partial<MergeFailure> = {}): MergeFailure {
+  return { ok: false, code, message, next, ...extra };
+}
+
+/**
+ * legacy epic의 blueprint를 도메인 epic으로 병합한다. `yes`가 없으면 계획과 재작성 결과만 보고한다(dry-run).
+ * 계획·가드 거절은 어떤 쓰기·`git mv` 전에 끝나고, 쓰기 단계의 예외는 자동 롤백 없이 복구 명령을 `next`에 담는다.
+ * 적용 순서는 `git mv` → 문서 쓰기 → 등록부 `moved_to` 원자 쓰기 → 옮긴 blueprint 검증이다.
+ *
+ * @param {object} opts - 입력
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {boolean} [opts.yes] - true면 실제로 옮긴다
+ * @param {MergeDeps} [opts.deps] - 테스트 seam. `runGit`·`fs`(쓰기)·`listInProgress`
+ * @returns {MergeSuccess | MergeFailure} 성공(moved·rewritten·movedTo·unresolved_rows·validate) 또는
+ *   거절(code·message·next와 details·blockers). 이미 옮겨졌다면 `moved: []`인 쓰기 없는 성공이다
+ */
+function migrateMergeLegacyEpics({ repoRoot, yes = false, deps }: {
+  repoRoot: string;
+  yes?: boolean;
+  deps?: MergeDeps;
+}): MergeSuccess | MergeFailure {
+  const fsApi = deps?.fs ?? nodeFs;
+  const runGit = deps?.runGit ?? defaultRunGit(repoRoot);
+  const read = epicRegistry.readEpicRegistry(repoRoot);
+  if (read.status === 'invalid') {
+    return failure('S35', `epic registry is invalid: ${read.message}`, `fix ${epicRegistry.REGISTRY_REL}, then retry`);
+  }
+  if (read.status === 'missing') {
+    return failure(
+      'migrate-registry-missing',
+      `${epicRegistry.REGISTRY_REL} is missing; the registry records where each blueprint moved`,
+      'run bouncer init to create the registry, then retry',
+    );
+  }
+  const registry = read.registry;
+  const plan = planLegacyEpicMerge({ repoRoot, registry });
+  if (!plan.ok) {
+    return failure(plan.code, `legacy epic merge plan is invalid: ${plan.code}`, 'fix the listed details, then retry', {
+      details: plan.details,
+    });
+  }
+  // 옮길 blueprint가 없으면 거절 검사 없이 성공이다. 병합 직후(작업 트리가 더러운 상태)의 재실행이
+  // dirty 거절에 걸리면 "두 번째 실행은 moved: []인 성공"이라는 멱등 계약이 깨진다.
+  if (plan.moves.length === 0) {
+    return {
+      ok: true, dryRun: !yes, moved: [], rewritten: 0, movedTo: {}, unresolved_rows: plan.unresolved_rows, validate: [],
+    };
+  }
+  // 자유 서술 예외 행은 사람이 결정해야 하는 귀속이다. dry-run은 보고만 하지만 적용은 쓰기 전에 거절한다.
+  if (yes && plan.unresolved_rows.length > 0) {
+    return failure(
+      'merge-mapping-invalid',
+      'exception table rows are free text and cannot be applied automatically',
+      'rewrite the listed rows as blueprint numbers (NNN, NNN~MMM, NNN <slug>) in the domain epic index, then retry',
+      { details: plan.unresolved_rows },
+    );
+  }
+  if (runGit(['status', '--porcelain']).stdout.trim() !== '') {
+    return failure(
+      'migrate-dirty-tree',
+      'the working tree has uncommitted changes',
+      'commit or stash every change (git status --porcelain must be empty), then retry',
+    );
+  }
+  const inProgress = (deps?.listInProgress ?? (() => defaultListInProgress({ repoRoot, runGit, fsApi })))({ repoRoot });
+  if (inProgress.length > 0) {
+    return failure(
+      'migrate-in-progress',
+      `${inProgress.length} in-progress runtime item(s) hold the old path keys`,
+      'finish or discard the pointer, approvals, coordinator ledger and linked worktrees listed in blockers, '
+        + 'then retry',
+      { blockers: inProgress },
+    );
+  }
+
+  // 등록부: 이동한 legacy epic마다 `moved_to`를 기존 값에 병합한다. 다른 필드는 건드리지 않는다.
+  const movedTo: Record<string, Record<string, string>> = {};
+  for (const move of plan.moves) (movedTo[move.legacyEpic] ??= {})[move.slug] = move.domainEpic;
+  const candidate = {
+    ...registry,
+    epics: registry.epics.map((epic) => (movedTo[epic.slug] === undefined
+      ? epic : { ...epic, moved_to: { ...epic.moved_to, ...movedTo[epic.slug] } })),
+  };
+  const parsed = epicRegistry.parseEpicRegistry(candidate);
+  if (!parsed.ok) {
+    return failure('merge-mapping-invalid', `registry with moved_to would be invalid: ${parsed.message}`,
+      'fix the legacy epic mapping, then retry');
+  }
+
+  // 모든 문서 변경을 쓰기 전에 계산한다. 여기서 던지면(깨진 YAML 등) 디스크는 그대로다.
+  const moved: MovedEntry[] = plan.moves.map((m) => ({ from: m.from, to: m.to, order: m.order }));
+  const rewrites = computeRewrites({
+    repoRoot,
+    plan: {
+      moved: plan.moves.map((m) => ({ from: m.from, to: m.to })),
+      nextRegistry: parsed.registry,
+      // 병합은 대상 epic 안의 새 순번이 정본이라 order를 덮어쓴다. legacy epic 직속 문서(index.md)는 제자리에
+      // 남고 링크만 새 경로로 바뀌므로 epic 맥락을 두지 않는다.
+      contexts: plan.moves.map((m) => ({
+        fromEpicDir: `${EPICS_ROOT}/${m.legacyEpic}`,
+        toEpicDir: `${EPICS_ROOT}/${m.domainEpic}`,
+        epicSlug: m.domainEpic,
+        blueprint: { from: m.from, to: m.to, slug: m.slug, order: m.order },
+        orderMode: 'overwrite' as const,
+      })),
+    },
+    runGit,
+    fsApi,
+  });
+  const changed = rewrites.filter((r) => r.text !== r.original);
+  const base = { moved, rewritten: changed.length, movedTo, unresolved_rows: plan.unresolved_rows };
+  if (!yes) return { ok: true, dryRun: true, ...base, validate: [] };
+
+  try {
+    for (const move of plan.moves) {
+      // git mv는 대상의 부모 디렉터리를 만들지 않는다. 도메인 epic에 blueprints/가 아직 없을 수 있다.
+      fsApi.mkdirSync(path.join(repoRoot, path.posix.dirname(move.to)), { recursive: true });
+      runGit(['mv', move.from, move.to]);
+    }
+    // 문서 내용. git mv는 내용을 바꾸지 않으므로 이동한 자리(newRel)에 새 내용을 쓴다.
+    for (const r of changed) fsApi.writeFileSync(path.join(repoRoot, r.newRel), r.text);
+    // 등록부는 문서 뒤에 쓴다 — 실패하면 문서만 새 상태가 남지만 restore 한 줄로 되돌린다.
+    writeRegistryAtomically(fsApi, repoRoot, parsed.registry);
+  } catch (error) {
+    // 자동 롤백은 하지 않는다. 어느 단계에서 던졌든 일부만 적용된 상태이므로 모든 예외를 같은 복구 안내로 접는다.
+    return failure('migrate-failed', catchMessage(error), RESTORE_NEXT, { moved });
+  }
+
+  const validation: ValidateEntry[] = plan.moves.map((m) => {
+    const result = validateBlueprint({ repoRoot, blueprintDir: m.to });
+    return { blueprint: m.to, ok: result.ok, failures: result.failures };
+  });
+  if (validation.some((v) => !v.ok)) {
+    return failure(
+      'migrate-validate-failed',
+      'bouncer validate reported failures for moved blueprints; the moved files are kept',
+      `fix the failures listed in validate (or restore with: ${RESTORE_NEXT})`,
+      { moved, validate: validation },
+    );
+  }
+  return { ok: true, dryRun: false, ...base, validate: validation };
+}
+
+export = { planLegacyEpicMerge, migrateMergeLegacyEpics };
