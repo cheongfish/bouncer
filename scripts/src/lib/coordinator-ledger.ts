@@ -13,6 +13,7 @@ import coordinatorWorker = require('./coordinator-worker');
 const { reportPathFor } = coordinatorWorker;
 import driveMetrics = require('./drive-metrics');
 import type { Ledger, Task, DispatchState, FailureEvidence, LedgerRef } from './execution-contracts';
+import type { LedgerFail, OpenedLedger } from './coordinator-command-contracts';
 
 const LEDGER_REL = runtime.COORDINATOR_LEDGER_REL;
 
@@ -88,6 +89,72 @@ function writeOwnedLedger(
   if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
   writeLedger(file, ledger);
   return null;
+}
+
+/** 성공 mutation 결과에 다음 fencing token이 될 checkpoint를 붙인다. */
+function withCheckpoint<T extends { ok: true }>(
+  result: T, ledger: Ledger, ledgerFile: string,
+): T & { checkpoint: CoordinatorCheckpoint } {
+  return { ...result, checkpoint: projectCheckpoint(ledger, ledgerFile) };
+}
+
+/**
+ * 잠금 안에서 원장을 읽고 기존 순서대로 lease·명령별 validation·fence를 검사한다.
+ * reason 우선순위가 caller마다 달라지지 않도록 이 공유 helper가 순서를 소유한다.
+ *
+ * @param {object} opts - 원장 경로와 검증 조건
+ * @returns {OpenedLedger | LedgerFail} bytes snapshot 또는 기존 거절 reason
+ */
+function openLedgerFenced({ ledgerFile, ledgerPath, ledgerHash, validate }: {
+  ledgerFile: string; ledgerPath?: string; ledgerHash?: string;
+  validate?: (ledger: Ledger) => LedgerFail | null;
+}): OpenedLedger | LedgerFail {
+  const loaded = loadLedgerBytes(ledgerFile);
+  if (!loaded) return { ok: false, reason: 'missing-ledger' };
+  const { ledger, bytes } = loaded;
+  const leaseShape = assertLeaseShape(ledger);
+  if (!leaseShape.ok) return leaseShape;
+  const rejected = validate ? validate(ledger) : null;
+  if (rejected) return rejected;
+  const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes: bytes });
+  if (!fenced.ok) return fenced;
+  return { ok: true, ledger, bytes };
+}
+
+/**
+ * 잠금 재획득 뒤 원장이 checkpoint 이후 바뀌지 않았는지 확인한다. null hash는 caller fence를 재검사한다.
+ *
+ * @param {object} opts - 재확인 입력
+ * @returns {OpenedLedger | LedgerFail} 현재 snapshot 또는 기존 거절 reason
+ */
+function recheckLedgerCheckpoint({ ledgerFile, expectedHash, fence, onStale }: {
+  ledgerFile: string; expectedHash: string | null; fence?: { ledgerPath?: string; ledgerHash?: string };
+  onStale?: (ledger: Ledger) => void;
+}): OpenedLedger | LedgerFail {
+  const loaded = loadLedgerBytes(ledgerFile);
+  if (!loaded) return { ok: false, reason: 'missing-ledger' };
+  const { ledger, bytes } = loaded;
+  if (expectedHash === null) {
+    const fenced = assertLedgerFence({
+      ledgerPath: fence?.ledgerPath, ledgerHash: fence?.ledgerHash, ledgerBytes: bytes,
+    });
+    if (!fenced.ok) return fenced;
+  } else if (ledgerBytesHash(bytes) !== expectedHash) {
+    if (onStale) onStale(ledger);
+    return { ok: false, reason: 'stale-ledger-checkpoint' };
+  }
+  return { ok: true, ledger, bytes };
+}
+
+/**
+ * fan-in 사전 검사로 fence보다 먼저 원장 전체 불변조건을 검사한다.
+ *
+ * @param {Ledger} ledger - 방금 연 원장
+ * @returns {LedgerFail | null} 거절 reason 또는 통과
+ */
+function validateFaninLedger(ledger: Ledger): LedgerFail | null {
+  const checked = runtime.validateCoordinatorLedger(ledger);
+  return checked.ok ? null : { ok: false, reason: checked.reason };
 }
 
 type CompletedTaskSummary = {
@@ -323,10 +390,17 @@ function assertLeaseShape(ledger: Ledger): { ok: true } | { ok: false; reason: '
   return { ok: true };
 }
 
+/** 원장 mode를 읽는다. 값이 없거나 light가 아니면 legacy full로 해석한다. */
+function ledgerModeOf(ledger: Ledger): 'light' | 'full' {
+  return ledger.mode === 'light' ? 'light' : 'full';
+}
+
 export = {
   atomicWrite, loadLedgerBytes, loadLedger, ledgerBytesHash, assertLedgerFence, writeOwnedLedger, LEDGER_REL,
   projectCheckpoint, assertLeaseShape,
   // coordinator-commands가 checkpoint와 같은 ready 계산·한도 폴백을 쓰도록 함께 내보낸다.
   readyWaveGated, maxParallelForRead,
+  withCheckpoint, openLedgerFenced, recheckLedgerCheckpoint, validateFaninLedger,
+  ledgerModeOf,
 };
 
