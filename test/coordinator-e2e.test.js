@@ -12,7 +12,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const __coordinatorMod = require('../scripts/lib/coordinator');
-const { loadLedger, COORDINATE_FAILURE_HINTS } = __coordinatorMod;
+const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
+const { loadLedger } = require('../scripts/lib/coordinator-ledger');
 const { coordinate } = require('./helpers/coordinator-fence');
 
 const { readDoc } = require('../scripts/lib/frontmatter');

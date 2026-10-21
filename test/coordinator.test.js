@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readyWave, transition } = require('../scripts/lib/coordinator');
+const { readyWave, transition } = require('../scripts/lib/execution-dag');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const { loadModuleGraph, reachable } = require('./helpers/module-graph');
 

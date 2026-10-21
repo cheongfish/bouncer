@@ -28,11 +28,9 @@ const { scanLegacyScaffoldComments } = legacyComments;
 import validateSections = require('./validate-sections');
 const { parseSections, REPAIR_WAVE_LIMIT } = validateSections;
 import executionDag = require('./execution-dag');
-const { readyWave, transition, normalizeOverlapPath, pathSetOf } = executionDag;
+const { transition, pathSetOf } = executionDag;
 import configMod = require('./config');
 const { readCoordinatorPolicy, readWavesPerSession } = configMod;
-import taskBriefHashMod = require('./task-brief-hash');
-const { taskBriefHash } = taskBriefHashMod;
 import scopeMod = require('./scope');
 import commandArgvMod = require('./command-argv');
 const { withLedgerLock } = scopeMod;
@@ -41,8 +39,8 @@ import reviewPolicy = require('./review-policy');
 // worker-model 기록의 관점 소속 검사와 `next` 문구가 validate-sections와 같은 정본을 쓴다.
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 import type {
-  ReportOutcome, PromoteStopReason, PromotionRecord, DispatchState, Task, Ledger,
-  FailureEvidence, RepairDecision, LedgerRef, OutsideScopeDisposition, Exec, VerificationRunner,
+  ReportOutcome, PromoteStopReason, PromotionRecord, Task, Ledger,
+  FailureEvidence, RepairDecision, OutsideScopeDisposition, Exec, VerificationRunner,
 } from './execution-contracts';
 import coordinatorLedger = require('./coordinator-ledger');
 import coordinatorGit = require('./coordinator-git');
@@ -54,7 +52,15 @@ const { randomUUID } = require('node:crypto');
 // 경로 상수와 원장 I/O는 한 모듈에서 공유해 fence와 저장 동작이 갈라지지 않게 한다.
 const {
   atomicWrite, loadLedgerBytes, loadLedger, ledgerBytesHash, assertLedgerFence, writeOwnedLedger,
+  projectCheckpoint, assertLeaseShape, readyWaveGated, maxParallelForRead,
 } = coordinatorLedger;
+import coordinatorWorker = require('./coordinator-worker');
+const {
+  reportPathFor, taskBriefHashOf, isBlueprintReviewModeAt, readBouncerBlock, workerCommitEvidence,
+  ensureIntegrationCwd, currentScopePaths, normalizeSupplementPath, porcelainPaths,
+} = coordinatorWorker;
+// checkpoint 모양의 정본은 projectCheckpoint의 반환형이다.
+type CoordinatorCheckpoint = ReturnType<typeof projectCheckpoint>;
 const {
   git, initialWorktreeState, sourceStatus, workerOwnsSha, directParent, registeredWorker, registeredIntegration,
 } = coordinatorGit;
@@ -185,31 +191,6 @@ type WorkerSalvageDecision = {
 // git·lease에서 다시 계산하지 않도록 결과에 싣는다. 등록되지 않은 worker는 head가 빈 문자열이다.
 type SalvageResult = { patch?: string; ref?: string; dirty_paths: string[]; head: string; generation: number };
 type SalvageEntry = SalvageResult & { task: string };
-type CompletedTaskSummary = {
-  id: string; status: string; attempt?: number; commit_sha?: string;
-  changed_paths?: string[]; scope_revision?: string;
-  verify_evidence_id?: string; review_evidence_id?: string; advisory?: unknown;
-};
-type ActiveTaskProjection = {
-  id: string; status: string; depends_on?: string[]; dependency_gate?: string;
-  parallel_safe?: boolean; workerPath?: string; branch?: string;
-  scope?: { revision: string; paths: string[] }; dispatch?: DispatchState;
-  report?: { path: string; attempt: number; state: 'present' | 'absent' };
-};
-/**
- * implementer attempt의 최종 보고 파일 경로를 계산한다.
- * dispatch 반환과 checkpoint 투영이 같은 경로를 쓰도록 계산을 이 한 곳에 둔다.
- * `.bouncer/runtime/`은 gitignore라서 worker HEAD·porcelain 비교에 보이지 않는다.
- *
- * @param {string} workerPath - attempt를 수행하는 worker checkout 절대 경로
- * @param {string} task - task 번호(예: '002')
- * @param {number} attempt - dispatch attempt 번호
- * @returns {string} `<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md` 절대 경로
- */
-function reportPathFor(workerPath: string, task: string, attempt: number): string {
-  return path.join(workerPath, '.bouncer', 'runtime', 'reports', `${task}-${attempt}.md`);
-}
-
 type ParsedReportFile = {
   revision: { attempt: number; task_brief_hash: string } | null;
   open_choices: string[] | null;
@@ -300,189 +281,6 @@ function checkReportFile(
 }
 
 /**
- * 보고 파일의 존재를 투영 시점에 관측한다. 원장에는 기록하지 않는다.
- * 일반 파일이고 크기가 0보다 클 때만 present다. 파일 없음·0바이트·디렉터리와
- * 그 밖의 모든 stat 오류는 absent로 접는다 — 이 관측은 복구 재개 여부를 정하는
- * 보수적 신호일 뿐이라 오류를 던지면 status 전체가 깨지고, absent는 기존
- * 보존 중단 경로로 이어지므로 안전하다.
- *
- * @param {string} reportPath - 현재 attempt의 보고 파일 절대 경로
- * @returns {'present' | 'absent'} 관측 결과
- */
-function observeReport(reportPath: string): 'present' | 'absent' {
-  try {
-    const stat = fs.statSync(reportPath);
-    return stat.isFile() && stat.size > 0 ? 'present' : 'absent';
-  } catch (_error) {
-    // stat 실패(ENOENT·EACCES 등)는 모두 absent: 위 docstring의 보수적 접힘 근거 참조.
-    return 'absent';
-  }
-}
-
-/**
- * 현재 CLI는 호스트 실행기를 추적하지 않으므로 항상 관측 불가를 뜻하는 상수 모양이다.
- * running·terminated는 root가 실제 호스트 핸들로만 확인하며 여기서 만들지 않는다.
- */
-// 실패 사유가 아니므로 `reason: '...'` 리터럴 대신 상수로 두어 COORDINATE_FAILURE_HINTS
-// 전수 검사(실패 reason 리터럴 수집)에 섞이지 않게 한다.
-const EXECUTOR_NOT_TRACKED = 'executor-state-not-tracked' as const;
-type ExecutorObservation = {
-  state: 'unknown'; source: 'unavailable'; reason: typeof EXECUTOR_NOT_TRACKED;
-};
-type CoordinatorCheckpoint = {
-  ready: string[];
-  active_tasks: ActiveTaskProjection[];
-  completed_tasks: CompletedTaskSummary[];
-  unresolved_decisions: unknown[];
-  recent_failure: FailureEvidence | null;
-  integration_head: string | null;
-  revision: string | null;
-  ledger: LedgerRef;
-  executor_observation: ExecutorObservation;
-  // status 응답에만 싣는다(mutation 응답은 생략). 계측 기록 요약이라 원장 판단에 쓰지 않는다.
-  sessions?: ReturnType<typeof driveMetrics.listCoordinatorSessions>;
-};
-
-/**
- * 읽기 전용 ready 계산용 한도. 잘못된 config는 1로 접어 병렬 폭을 넓히지 않는다.
- * prepare의 거절 경로와 달리 status·current·commit 안내는 worktree를 만들지 않으므로
- * 여기서는 거절 대신 보수적 폴백만 한다.
- *
- * @param {string} repoRoot - 정책을 읽을 checkout 루트
- * @returns {number} 유효 한도 또는 invalid 시 1
- */
-function maxParallelForRead(repoRoot: string): number {
-  const policy = readCoordinatorPolicy(repoRoot);
-  return policy.ok ? policy.maxParallel : 1;
-}
-
-/**
- * 원장 파일 경로에서 integration checkout 루트를 복원한다. checkpoint·bootstrap
- * ready가 prepare와 같은 config를 읽게 하려고 ledger 상대 위치만 쓴다.
- *
- * @param {string} ledgerFile - `.bouncer/runtime/coordinator.json` 절대 경로
- * @returns {string} integration checkout 루트
- */
-function integrationRootFromLedger(ledgerFile: string): string {
-  return path.resolve(path.dirname(ledgerFile), '..', '..');
-}
-
-/**
- * 완료 task를 status에 실을 요약만 고른다. dispatch·decisions 본문은 상세 원장에
- * 남기고, 없는 선택 필드는 키 자체를 생략해 응답이 커지지 않게 한다.
- *
- * @param {Task} task - 원장 task
- * @returns {CompletedTaskSummary} 완료 summary
- */
-function summarizeCompletedTask(task: Task): CompletedTaskSummary {
-  const summary: CompletedTaskSummary = { id: task.id, status: task.status || 'integrated' };
-  if (task.dispatch && Number.isInteger(task.dispatch.attempt)) {
-    summary.attempt = task.dispatch.attempt;
-  }
-  if (typeof task.sha === 'string' && task.sha !== '') summary.commit_sha = task.sha;
-  if (task.scope && Array.isArray(task.scope.paths)) summary.changed_paths = [...task.scope.paths];
-  if (task.scope && typeof task.scope.revision === 'string') {
-    summary.scope_revision = task.scope.revision;
-  }
-  if (typeof task.verify_evidence_id === 'string' && task.verify_evidence_id !== '') {
-    summary.verify_evidence_id = task.verify_evidence_id;
-  }
-  if (typeof task.review_evidence_id === 'string' && task.review_evidence_id !== '') {
-    summary.review_evidence_id = task.review_evidence_id;
-  }
-  if (task.advisory !== undefined) summary.advisory = task.advisory;
-  return summary;
-}
-
-/**
- * 다음 dispatch/fan-in에 필요한 활성 task 필드만 고른다. Interface allowlist는
- * current scope·dependency·branch/worktree·dispatch metadata뿐이다 —
- * execution_kind/sha/criticalRecovery/dynamic은 상세 원장에 두고 status를 키우지 않는다.
- *
- * @param {Task} task - 아직 integrated가 아닌 task
- * @returns {ActiveTaskProjection} 활성 projection
- */
-function projectActiveTask(task: Task): ActiveTaskProjection {
-  const projected: ActiveTaskProjection = {
-    id: task.id,
-    status: task.status || 'pending',
-  };
-  if (task.depends_on) projected.depends_on = [...task.depends_on];
-  if (task.dependency_gate) projected.dependency_gate = task.dependency_gate;
-  if (task.parallel_safe !== undefined) projected.parallel_safe = task.parallel_safe;
-  if (task.workerPath) projected.workerPath = task.workerPath;
-  if (task.branch) projected.branch = task.branch;
-  if (task.scope) projected.scope = { revision: task.scope.revision, paths: [...task.scope.paths] };
-  if (task.dispatch) projected.dispatch = { ...task.dispatch };
-  // active attempt에만 붙인다: reported 보고는 원장 outcome이 이미 정본이다.
-  if (task.dispatch?.status === 'active' && task.workerPath) {
-    const reportPath = reportPathFor(task.workerPath, task.id, task.dispatch.attempt);
-    projected.report = {
-      path: reportPath, attempt: task.dispatch.attempt, state: observeReport(reportPath),
-    };
-  }
-  return projected;
-}
-
-/**
- * 상세 원장을 보존한 채 status/mutation 응답에 실을 bounded checkpoint를 만든다.
- * unresolved decision은 아직 integrated가 아닌 task를 가리키는 항목만 남겨,
- * 완료 task의 과거 decision 본문이 활성 context로 되살아나지 않게 한다.
- * sha256은 호출자가 넘긴 원장 bytes(또는 쓰기 직후 디스크)에 묶는다.
- *
- * @param {Ledger} ledger - 메모리상 원장 정본
- * @param {string} ledgerFile - 쓰기 후 hash용 절대 경로(ledgerBytes 없을 때)
- * @param {Buffer} [ledgerBytes] - load 시 고정한 bytes. 있으면 디스크를 다시 읽지 않는다
- * @returns {CoordinatorCheckpoint} compact checkpoint
- */
-function projectCheckpoint(
-  ledger: Ledger, ledgerFile: string, ledgerBytes?: Buffer,
-): CoordinatorCheckpoint {
-  const completed_tasks: CompletedTaskSummary[] = [];
-  const active_tasks: ActiveTaskProjection[] = [];
-  const integratedIds = new Set<string>();
-  for (const task of ledger.tasks) {
-    if (task.status === 'integrated') {
-      integratedIds.add(task.id);
-      completed_tasks.push(summarizeCompletedTask(task));
-    } else {
-      active_tasks.push(projectActiveTask(task));
-    }
-  }
-  const unresolved_decisions = (Array.isArray(ledger.decisions) ? ledger.decisions : [])
-    .filter((entry) => {
-      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
-      const id = (entry as { task?: unknown }).task;
-      return typeof id === 'string' && !integratedIds.has(id);
-    });
-  // 쓰기 직후는 디스크로 확정된 bytes를 읽고, status·fence 직전에는 load bytes를 재사용한다.
-  const sha256 = ledgerBytes
-    ? ledgerBytesHash(ledgerBytes)
-    : ledgerBytesHash(fs.readFileSync(ledgerFile));
-  return {
-    ready: readyWaveGated(ledger.tasks, {
-      maxParallel: maxParallelForRead(integrationRootFromLedger(ledgerFile)),
-    }),
-    active_tasks,
-    completed_tasks,
-    unresolved_decisions,
-    recent_failure: ledger.terminalFailure || null,
-    integration_head: typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null,
-    revision: typeof ledger.revision === 'string' ? ledger.revision : null,
-    ledger: {
-      path: LEDGER_REL,
-      sha256,
-      revision: typeof ledger.revision === 'string' ? ledger.revision : null,
-    },
-    // active는 launch 전에 기록되고 stale report도 해시를 바꾸므로, 원장 값은
-    // 워커 생존의 증거가 아니다. 프로세스 관측·원장 저장 없이 한계만 명시한다.
-    executor_observation: {
-      state: 'unknown', source: 'unavailable', reason: EXECUTOR_NOT_TRACKED,
-    },
-  };
-}
-
-/**
  * 성공 mutation 결과에 다음 fencing token이 될 checkpoint를 붙인다.
  *
  * @param {object} result - ok:true mutation 결과
@@ -514,23 +312,6 @@ function appendWorkerCommitTrailer(message: string, workerSha: string): string {
     && last.split('\n').every((line) => /^[A-Za-z][A-Za-z0-9-]*\s*:\s*\S/.test(line));
   const line = `Bouncer-Worker-Commit: ${workerSha}`;
   return `${trimmed}${isTrailerBlock ? '\n' : '\n\n'}${line}\n`;
-}
-
-/**
- * canonical tasks.md의 SHA-256. 파일을 읽은 뒤 taskBriefHash에 맡겨 dispatch·record가
- * 같은 정규형 계약을 쓰게 한다 — intent-bundle의 task_brief_hash와 맞춘다.
- *
- * @param {string} workerRoot - 할당된 worker worktree
- * @param {string} blueprint - blueprint 상대 경로
- * @param {string} taskId - 세 자리 task id
- * @returns {string} 64자리 소문자 hex
- */
-function taskBriefHashOf(workerRoot: string, blueprint: string, taskId: string): string {
-  const markdown = fs.readFileSync(
-    path.join(workerRoot, blueprint, 'tasks', taskId, 'tasks.md'),
-    'utf8',
-  );
-  return taskBriefHash(markdown);
 }
 
 function sourceRepairPaths(paths: unknown): paths is string[] {
@@ -609,17 +390,6 @@ function checkRepairIntake({ exec, integrationPath, blueprint, ledger, paths, ne
     }
   }
   return { ok: true, paths: finalPaths, verify };
-}
-
-/**
- * supplement 경로 표기를 맞춘다. 역슬래시·`./` 접두를 정리해 포함 비교가 표기
- * 차이로 어긋나지 않게 한다.
- *
- * @param {string} raw - `--paths` 항목 또는 task 경로
- * @returns {string} posix 정규형(말미 `/` 제거)
- */
-function normalizeSupplementPath(raw: string): string {
-  return normalizeOverlapPath(path.posix.normalize(raw.replaceAll('\\', '/').trim()));
 }
 
 /**
@@ -730,32 +500,6 @@ function finalReviewDiscoveryStored(integrationPath: string, blueprint: string):
 function integrationChangedPaths(exec: Exec, integrationPath: string): string[] {
   return porcelainPaths(exec, integrationPath)
     .filter((entry) => entry !== '.bouncer' && !entry.startsWith('.bouncer/'));
-}
-
-/**
- * worktree의 커밋되지 않은 변경 경로를 필터 없이 모은다(추적·미추적 모두, rename은 양쪽).
- * `-z`를 쓰므로 한국어·따옴표가 든 이름도 C-quote 없이 원문 그대로 나온다.
- *
- * @param {Exec} exec - 주입 가능한 Git 실행기
- * @param {string} cwd - 검사할 worktree
- * @returns {string[]} 정규형 변경 경로
- */
-function porcelainPaths(exec: Exec, cwd: string): string[] {
-  const raw = String(exec('git', ['status', '--porcelain', '-z', '-uall'], {
-    cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
-  }));
-  const tokens = raw.split('\0').filter((token) => token !== '');
-  const out: string[] = [];
-  for (let i = 0; i < tokens.length; i += 1) {
-    const status = tokens[i].slice(0, 2);
-    out.push(normalizeSupplementPath(tokens[i].slice(3)));
-    // rename·copy는 다음 토큰이 원래 경로다.
-    if (/[RC]/.test(status) && i + 1 < tokens.length) {
-      i += 1;
-      out.push(normalizeSupplementPath(tokens[i]));
-    }
-  }
-  return out;
 }
 
 /**
@@ -899,26 +643,6 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
       decision, evidence_ids: evidenceIds,
     }, ledger, ledgerFile);
   });
-}
-
-/**
- * `readyWave`에 "재배정된 task가 재통합되기 전에는 terminal을 열지 않는다"는 규칙을 더한다.
- * `repair --resume-task`는 DAG를 바꾸지 않으므로 terminal의 직접 선행(통합 완료)만 보면 terminal이
- * 재작업과 동시에(또는 id 순서상 먼저) 열릴 수 있다. resumed 표지가 붙은 task가 integrated가 되기
- * 전까지 pending terminal을 후보에서 뺀다. resumed 표지가 없는 원장은 입력 그대로 `readyWave`에 간다.
- *
- * @param {Task[]} tasks - 원장 task 목록(읽기만 한다)
- * @param {{ maxParallel?: number }} [options] - `readyWave`와 같은 동시 실행 상한
- * @returns {string[]} 다음에 열 수 있는 task id
- */
-function readyWaveGated(tasks: Task[], options?: { maxParallel?: number }): string[] {
-  const reopened = tasks.some((entry) => entry.resumed === true && entry.status !== 'integrated');
-  if (!reopened) return readyWave(tasks, options);
-  return readyWave(tasks.map((entry) => (
-    entry.execution_kind === 'verification' && (entry.status || 'pending') === 'pending'
-      ? { ...entry, status: 'waiting-for-resumed' }
-      : entry
-  )), options);
 }
 
 type TerminalResolution =
@@ -1642,32 +1366,6 @@ function evidenceFiles(reviewMode: boolean): ReadonlyArray<readonly [string, str
 }
 
 /**
- * checkout의 blueprint index가 리뷰 모드인지 읽는다. 인덱스가 없거나 YAML이
- * 깨지면 구형 계약(task 리뷰 요구)을 유지한다.
- *
- * @param {string} root - 문서를 읽을 checkout
- * @param {string} blueprint - blueprint 상대 경로
- * @returns {boolean} 모드이면 true
- */
-function isBlueprintReviewModeAt(root: string, blueprint: string): boolean {
-  const abs = path.join(root, blueprint, 'index.md');
-  try {
-    const { data } = readDoc(abs);
-    const rec = data as Record<string, unknown> | undefined;
-    const bouncer = rec && rec.bouncer as Record<string, unknown> | undefined;
-    // validate-docs.isBlueprintReviewMode와 같은 조건식이다. coordinator가
-    // validate-docs를 require하면 current→coordinator 순환이 생긴다.
-    return Boolean(bouncer && bouncer.review_scope === 'blueprint');
-  } catch (error) {
-    // 인덱스 부재와 YAML 파싱 실패만 흡수한다. 모드가 아닌 쪽으로 접어야
-    // 구형 drive의 증적 요구가 풀리지 않는다.
-    if ((error as { code?: string }).code === 'ENOENT') return false;
-    if ((error as Error).name === 'YAMLException') return false;
-    throw error;
-  }
-}
-
-/**
  * blueprint index의 `bouncer.scale`을 읽는다. light 원장 여부의 유일한 입력이다.
  *
  * @param {string} root - 문서를 읽을 checkout (대개 integration)
@@ -1691,17 +1389,6 @@ function blueprintScaleAt(root: string, blueprint: string): string | undefined {
 function verificationPolicyAt(root: string, blueprint: string): 'scoped_terminal' | 'legacy' | null {
   const bouncer = readBouncerBlock(path.join(root, blueprint, 'index.md'));
   return schema.verificationPolicyOf(bouncer);
-}
-
-/**
- * task의 현재 승인 scope. scope_revision으로 갱신된 ledger scope가 있으면 그것이 정본이고,
- * 없으면 계획의 affected_paths다. 의존성 공유 여부를 가르는 seed가 이 값을 받는다.
- *
- * @param {Task} task - ledger task
- * @returns {string[]} 현재 승인 경로
- */
-function currentScopePaths(task: Task): string[] {
-  return task.scope && Array.isArray(task.scope.paths) ? [...task.scope.paths] : [...(task.affected_paths || [])];
 }
 
 /**
@@ -2086,119 +1773,6 @@ function scopedTestReportFailure({ integrationPath, blueprint, items, light }: {
   return null;
 }
 
-// frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
-// 앞부분과 같다. 이 검사를 통과한 문서는 parseFrontmatter가 블록 부재로 throw할 수
-// 없으므로, 블록 부재를 오류 문구 비교 없이 구조로 판정한다.
-const FRONTMATTER_FENCE_RE = /^---\n[\s\S]*?\n---/;
-
-/**
- * 문서의 bouncer 블록을 읽는다. 문서가 없거나 frontmatter 블록이 없거나 YAML이
- * 깨졌으면 null — 호출자는 셋 다 "상태를 읽을 수 없다"로 판정한다. integrate의
- * worker 증적 판정과 finalize의 원장·문서 대조가 이 한 구현을 같이 쓴다.
- *
- * @param {string} file - 문서 절대 경로
- * @returns {Record<string, unknown> | null} bouncer 블록 또는 null
- * @example
- * readBouncerBlock('/wt/.bouncer/.../tasks/001/tasks.md'); // { id: 'TASKS-001', status: 'verified', ... }
- * readBouncerBlock('/wt/.bouncer/.../tasks/001/missing.md'); // null
- */
-function readBouncerBlock(file: string): Record<string, unknown> | null {
-  let source: string;
-  try {
-    source = fs.readFileSync(file, 'utf8');
-  } catch (error) {
-    // 파일 부재(ENOENT)만 흡수한다. 아직 쓰이지 않은 문서는 상태를 읽을 수 없는 것으로
-    // 판정하면 되지만, 권한 오류 같은 다른 실패를 "문서 없음"으로 접으면 원인이 가려진다.
-    if ((error as { code?: string }).code === 'ENOENT') return null;
-    throw error;
-  }
-  if (!FRONTMATTER_FENCE_RE.test(source)) return null;
-  let data: unknown;
-  try {
-    data = parseFrontmatter(source).data;
-  } catch (error) {
-    // YAML 파싱 오류만 흡수한다. 블록 부재는 위 구조 검사가 이미 걸렀으므로 여기 오는
-    // 것은 깨진 YAML뿐이고, 상태를 읽을 수 없는 문서라 null로 접어도 판정이 안전하다.
-    if ((error as Error).name === 'YAMLException') return null;
-    throw error;
-  }
-  const bouncer = data && typeof data === 'object' ? (data as Record<string, unknown>).bouncer : null;
-  return bouncer && typeof bouncer === 'object' ? bouncer as Record<string, unknown> : null;
-}
-
-/**
- * worker가 report(accepted)·record 전에 task commit을 확정했는지 읽기 전용으로 판정한다.
- * 검사 순서는 원인이 겹칠 때 보이는 코드를 정한다: 커밋 부재 → stamp 불일치 → scope 안 dirty.
- * 비교 기준은 `ledger.integrationHead`다. wave에서 다른 worker가 먼저 통합돼 live HEAD가
- * 움직여도 남은 worker를 오판하지 않기 위해서다. `coordinate-next`의 report 선택과 같은
- * stamp 규칙(`commit_sha` 앞 8자 == HEAD 앞 8자)을 쓰도록 이 함수가 단일 정본이다.
- *
- * @param {Exec} exec - 주입 가능한 Git 실행기
- * @param {string} workerPath - worker(light는 integration) checkout
- * @param {string} blueprint - blueprint 상대 경로
- * @param {Task} task - ledger task(현재 scope 경로의 출처)
- * @param {{ integrationHead?: unknown }} ledger - integrationHead를 읽을 원장
- * @returns {{ ok: true } | { ok: false; reason: string; head: string; integration_head: string | null;
- *   stamp: string | null; dirty_paths: string[] }} 판정
- */
-function workerCommitEvidence(
-  exec: Exec, workerPath: string, blueprint: string, task: Task, ledger: { integrationHead?: unknown },
-): { ok: true } | {
-  ok: false; reason: string; head: string; integration_head: string | null;
-  stamp: string | null; dirty_paths: string[];
-} {
-  const head = git(exec, workerPath, ['rev-parse', 'HEAD']);
-  const integrationHead = typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null;
-  const block = readBouncerBlock(path.join(workerPath, blueprint, 'tasks', task.id, 'tasks.md'));
-  const stampRaw = block ? normalizeCommitSha(block.commit_sha) : '';
-  const stamp = stampRaw === '' ? null : stampRaw;
-  const refuse = (reason: string, dirty: string[] = []) => ({
-    ok: false as const, reason, head, integration_head: integrationHead, stamp, dirty_paths: dirty,
-  });
-  // 1. HEAD가 integrationHead와 같거나 그 조상이면 worker가 만든 커밋이 없다.
-  //    is-ancestor는 같은 커밋도 성공(exit 0)으로 답한다. exit 1(비조상)만 "커밋 있음"이고,
-  //    object 조회 실패 같은 다른 오류는 추측하지 않고 그대로 올린다.
-  if (integrationHead !== null) {
-    let ancestor: boolean;
-    try {
-      git(exec, workerPath, ['merge-base', '--is-ancestor', head, integrationHead]);
-      ancestor = true;
-    } catch (error) {
-      if ((error as { status?: number }).status !== 1) throw error;
-      ancestor = false;
-    }
-    if (ancestor) return refuse('worker-commit-missing');
-  }
-  // 2. stamp는 `bouncer commit`이 찍는 HEAD 앞 8자와 같아야 한다.
-  if (stamp !== head.slice(0, 8).toLowerCase()) return refuse('worker-commit-stamp-mismatch');
-  // 3. scope 안 dirty는 dispatch 기준선에 있어도 거절한다 — 재dispatch 때 앞 attempt의
-  //    미커밋 수정이 기준선에 흡수되므로 기준선 면제는 커밋 누락을 숨긴다.
-  //    tasks.md 제외 규칙은 workerScopeDirtyPaths가 갖는다(next와 같은 집합을 쓰기 위해 추출).
-  const dirty = workerScopeDirtyPaths(exec, workerPath, blueprint, task);
-  if (dirty.length > 0) return refuse('worker-scope-dirty', dirty);
-  return { ok: true };
-}
-
-/**
- * worker porcelain 경로 가운데 task 현재 scope 안에 있고 tasks.md가 아닌 "커밋할 scope 변경"을 모은다.
- * tasks.md는 `bouncer commit`이 stamp를 쓰는 파일이라 정상 잔여물이므로 뺀다. dispatch 기준선은
- * 면제하지 않는다. `workerCommitEvidence`의 scope dirty 판정과 `coordinate next`의 commit 선택이
- * 같은 집합을 보게 하려고 한 곳에 둔다. 읽기만 한다.
- *
- * @param {Exec} exec - 주입 가능한 Git 실행기
- * @param {string} workerPath - worker(light는 integration) checkout
- * @param {string} blueprint - blueprint 상대 경로
- * @param {Task} task - ledger task(현재 scope 경로의 출처)
- * @returns {string[]} 중복을 없애 정렬한 repo 상대 경로. 없으면 빈 배열
- */
-function workerScopeDirtyPaths(exec: Exec, workerPath: string, blueprint: string, task: Task): string[] {
-  const briefRel = `${blueprint.replaceAll('\\', '/')}/tasks/${task.id}/tasks.md`;
-  const scope = currentScopePaths(task).map((entry) => normalizeSupplementPath(entry).replace(/\/+$/, ''));
-  const dirty = porcelainPaths(exec, workerPath).filter((rel) => rel !== briefRel
-    && scope.some((entry) => entry !== '' && (rel === entry || rel.startsWith(`${entry}/`))));
-  return [...new Set(dirty)].sort();
-}
-
 /**
  * commit task의 worker bundle이 fan-in할 terminal 증적인지 판정한다. 읽기만 한다.
  * 요구 파일 목록은 integration index의 리뷰 모드로 고른다. 상태가 모자라면 그
@@ -2283,24 +1857,6 @@ function copyEvidenceBundle(
   return restore;
 }
 
-
-/**
- * 원장 lease 필드만 검사한다. 전체 validateCoordinatorLedger는 partial-close
- * 불변조건까지 보므로, 일반 mutation에서는 lease-invalid만 분리해 거절한다.
- *
- * @param {Ledger} ledger - 로드한 원장
- * @returns {{ok: true} | {ok: false, reason: 'lease-invalid'}}
- */
-function assertLeaseShape(ledger: Ledger): { ok: true } | { ok: false; reason: 'lease-invalid' } {
-  const { isValidLease, isValidLeaseSeq } = require('./lease') as typeof import('./lease');
-  if (!isValidLeaseSeq(ledger.leaseSeq)) return { ok: false, reason: 'lease-invalid' };
-  for (const task of ledger.tasks) {
-    if (task.lease !== undefined && !isValidLease(task.lease)) {
-      return { ok: false, reason: 'lease-invalid' };
-    }
-  }
-  return { ok: true };
-}
 
 /**
  * lease 검사 실패를 decision으로만 남긴다. status·dispatch·sha는 바꾸지 않는다.
@@ -2916,14 +2472,6 @@ function prepareCoordinator({
     );
   }
   return withSalvage(phase3);
-}
-
-function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, task?: string) {
-  const paths = coordinatorPathsFor({ repoRoot, blueprint, task });
-  const actual = fs.realpathSync(cwd);
-  const allowed = fs.realpathSync(task ? paths.workerPath as string : paths.integrationPath);
-  if (actual !== allowed) throw new Error('coordinate command must run in its assigned worktree');
-  return paths;
 }
 
 
@@ -5549,10 +5097,4 @@ function coordinateWithHints(opts: Parameters<typeof coordinate>[0]) {
   return withCoordinateFailureHints(coordinate(opts));
 }
 
-export = {
-  readyWave, transition, coordinate: coordinateWithHints, loadLedger, loadLedgerBytes, readBouncerBlock,
-  projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS, withCoordinateFailureHints,
-  registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
-  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
-  reportPathFor, workerCommitEvidence, workerScopeDirtyPaths,
-};
+export = { coordinate: coordinateWithHints, COORDINATE_FAILURE_HINTS, withCoordinateFailureHints };

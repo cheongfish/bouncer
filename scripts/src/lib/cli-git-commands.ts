@@ -386,7 +386,7 @@ function writeCoordinatorInput(args: {
   const fs = require('node:fs') as typeof import('node:fs');
   const nodePath = require('node:path') as typeof import('node:path');
   const { coordinatorPathsFor, runtimePaths } = require('./runtime-state');
-  const { loadLedgerBytes } = require('./coordinator');
+  const { loadLedgerBytes } = require('./coordinator-ledger');
   const { readAutonomy } = require('./run-preflight');
   const { buildCoordinatorInput } = require('./coordinator-input');
   const paths = coordinatorPathsFor({ repoRoot: args.repoRoot, blueprint: args.blueprint });
@@ -627,7 +627,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // fence도 같은 cwd 원장에 묶는다. `--repo` 원장을 검사하면 다른 checkout의
     // hash로 통과한 뒤 cwd 원장을 쓰는 불일치가 생긴다.
     const { coordinatorPathsFor } = require('./runtime-state');
-    const { assertLedgerFence, projectCheckpoint, loadLedgerBytes } = require('./coordinator');
+    const { assertLedgerFence, projectCheckpoint, loadLedgerBytes } = require('./coordinator-ledger');
     const reviseRoot = process.cwd();
     const paths = coordinatorPathsFor({
       repoRoot: reviseRoot,

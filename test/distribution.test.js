@@ -134,12 +134,19 @@ test('the coordinator runtime and agent → ship in the package without their de
 
   // 배포되는 coordinator 런타임은 node_modules 없이 로드돼야 한다.
   const coordinator = require('../scripts/lib/coordinator');
-  for (const name of [
-    'coordinate', 'readyWave', 'transition', 'loadLedger',
-    'registeredIntegration', 'registeredWorker', 'ensureIntegrationCwd', 'assertLeaseShape',
-    'isBlueprintReviewModeAt', 'initialWorktreeState', 'taskBriefHashOf', 'normalizeCommitSha',
+  assert.deepStrictEqual(
+    Object.keys(coordinator).sort(),
+    ['COORDINATE_FAILURE_HINTS', 'coordinate', 'withCoordinateFailureHints'],
+  );
+  assert.strictEqual(typeof coordinator.coordinate, 'function', 'coordinator.coordinate is not shipped');
+  // 이동한 helper의 정본 모듈도 같은 배포본에서 로드돼야 한다.
+  const ledger = require('../scripts/lib/coordinator-ledger');
+  const worker = require('../scripts/lib/coordinator-worker');
+  for (const [mod, name] of [
+    [ledger, 'loadLedger'], [ledger, 'projectCheckpoint'], [ledger, 'assertLeaseShape'],
+    [worker, 'reportPathFor'], [worker, 'workerCommitEvidence'], [worker, 'ensureIntegrationCwd'],
   ]) {
-    assert.strictEqual(typeof coordinator[name], 'function', `coordinator.${name} is not shipped`);
+    assert.strictEqual(typeof mod[name], 'function', `${name} is not shipped`);
   }
 });
 
