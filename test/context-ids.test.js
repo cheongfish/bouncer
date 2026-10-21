@@ -163,3 +163,49 @@ test('replaceOldStableIds → rewrites every old stable id and repeats safely', 
   assert.strictEqual(ids.replaceOldStableIds(text, wrap), want);
   assert.strictEqual(ids.replaceOldStableIds(text, wrap), want);
 });
+
+const MOVED_REGISTRY = {
+  version: 2,
+  epics: [
+    { slug: 'a', kind: 'legacy', legacy_id: '001', blueprint_aliases: { '001': 'x' }, moved_to: { x: 'd1' } },
+    { slug: 'd1', kind: 'domain' },
+  ],
+};
+const toDomain = (hit) => ids.normalizeStableId(hit, MOVED_REGISTRY) ?? hit;
+const replaceMoved = (text, registry = MOVED_REGISTRY) => ids.replaceMovedSlugStableIds(text, registry, toDomain);
+
+test('replaceMovedSlugStableIds with task and intent forms → moved pairs become domain IDs', () => {
+  assert.strictEqual(replaceMoved('task: a/x/001\n### a/x/002\nintent a/x'), 'task: d1/x/001\n### d1/x/002\nintent d1/x');
+});
+
+test('replaceMovedSlugStableIds with unregistered pair → text is unchanged', () => {
+  assert.strictEqual(replaceMoved('a/y/001 and b/x/001'), 'a/y/001 and b/x/001');
+});
+
+test('replaceMovedSlugStableIds with path or name fragments → text is unchanged', () => {
+  const text = 'data/x foo-bar/x a/x-y a/x_y epics/a/blueprints/x ./a/x xa/x';
+  assert.strictEqual(replaceMoved(text), text);
+});
+
+test('replaceMovedSlugStableIds with punctuation after the pair → pair is replaced', () => {
+  assert.strictEqual(replaceMoved('(a/x), a/x/001. "a/x"'), '(d1/x), d1/x/001. "d1/x"');
+});
+
+test('replaceMovedSlugStableIds with inherited key name → text is unchanged', () => {
+  assert.strictEqual(replaceMoved('a/constructor/001 a/toString'), 'a/constructor/001 a/toString');
+  // 열거 가능한 상속 키여야 own property 제한이 없을 때 실제로 치환이 일어난다.
+  const inherited = {
+    epics: [{ slug: 'a', kind: 'legacy', legacy_id: '001', moved_to: Object.create({ y: 'd1' }) }],
+  };
+  assert.strictEqual(replaceMoved('a/y/001', inherited), 'a/y/001');
+});
+
+test('replaceMovedSlugStableIds with null registry or no moved_to → text is unchanged', () => {
+  assert.strictEqual(ids.replaceMovedSlugStableIds('a/x/001', null, toDomain), 'a/x/001');
+  assert.strictEqual(replaceMoved('a/x/001', REGISTRY), 'a/x/001');
+});
+
+test('replaceMovedSlugStableIds applied twice → result equals the first application', () => {
+  const once = replaceMoved('a/x/001 and a/x');
+  assert.strictEqual(replaceMoved(once), once);
+});
