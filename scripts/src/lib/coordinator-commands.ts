@@ -543,6 +543,85 @@ function checkSupplementIntake({ ledger, integrationPath, blueprint, failureComm
   return { ok: true, paths: normalized, findings: [...reviewFindings] };
 }
 
+type LedgerFail = { ok: false; reason: string };
+type OpenedLedger = { ok: true; ledger: Ledger; bytes: Buffer };
+
+/**
+ * 잠금 안에서 원장을 처음 열 때의 고정 순서를 한 곳에 둔다.
+ * 읽기 → 부재면 `missing-ledger` → lease 모양 → (선택) 명령별 사전 검사 → fence.
+ * 이 순서가 거절 reason의 우선순위다: 손상 lease는 stale fence보다, 원장 부재는
+ * fence 값과 무관하게, 사전 검사 거절은 fence보다 먼저 나온다. 호출부마다 복제하면
+ * 한 곳만 순서가 어긋나도 같은 입력이 명령에 따라 다른 reason을 받는다.
+ * lock은 잡지 않는다 — 호출부의 `withLedgerLock` 콜백 안에서만 부른다.
+ *
+ * @param {object} opts - 열기 입력
+ * @param {string} opts.ledgerFile - 원장 절대 경로
+ * @param {string} [opts.ledgerPath] - fence 원장 상대 경로
+ * @param {string} [opts.ledgerHash] - fence sha256
+ * @param {Function} [opts.validate] - lease 검사 뒤 fence 앞에서 돌릴 사전 검사. 거절이면 그 Fail을 돌려준다
+ * @returns {OpenedLedger | LedgerFail} 통과하면 원장과 bytes, 아니면 기존과 같은 거절 reason
+ */
+function openLedgerFenced({ ledgerFile, ledgerPath, ledgerHash, validate }: {
+  ledgerFile: string; ledgerPath?: string; ledgerHash?: string;
+  validate?: (ledger: Ledger) => LedgerFail | null;
+}): OpenedLedger | LedgerFail {
+  const loaded = loadLedgerBytes(ledgerFile);
+  if (!loaded) return { ok: false, reason: 'missing-ledger' };
+  const { ledger, bytes } = loaded;
+  const leaseShape = assertLeaseShape(ledger);
+  if (!leaseShape.ok) return leaseShape;
+  const rejected = validate ? validate(ledger) : null;
+  if (rejected) return rejected;
+  const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes: bytes });
+  if (!fenced.ok) return fenced;
+  return { ok: true, ledger, bytes };
+}
+
+/**
+ * fan-in 계열 명령이 lease 검사 뒤에 쓰는 `validateCoordinatorLedger` 사전 검사.
+ * `openLedgerFenced`의 `validate`로 넘겨 fence보다 먼저 거절한다.
+ *
+ * @param {Ledger} ledger - 방금 연 원장
+ * @returns {LedgerFail | null} 거절이면 그 reason, 통과면 null
+ */
+function validateFaninLedger(ledger: Ledger): LedgerFail | null {
+  const checked = runtime.validateCoordinatorLedger(ledger);
+  return checked.ok ? null : { ok: false, reason: checked.reason };
+}
+
+/**
+ * 잠금을 풀었다 다시 잡은 뒤 원장이 1단계 이후 바뀌지 않았는지 재확인한다.
+ * `expectedHash`가 문자열이면 1단계가 남긴 hash와 대조해 다르면 `stale-ledger-checkpoint`.
+ * `null`이면 1단계 쓰기가 없던 재시작 경로라 호출자 fence를 그대로 다시 검사한다
+ * (정상 wave에서 호출자 fence는 1단계 쓰기 전 값이라 여기서 쓰면 항상 stale가 된다).
+ * lock은 잡지 않는다 — 호출부의 `withLedgerLock` 콜백 안에서만 부른다.
+ *
+ * @param {object} opts - 재확인 입력
+ * @param {string} opts.ledgerFile - 원장 절대 경로
+ * @param {string | null} opts.expectedHash - 1단계 checkpoint hash. null이면 fence 경로
+ * @param {{ ledgerPath?: string, ledgerHash?: string }} [opts.fence] - expectedHash가 null일 때 쓰는 호출자 fence
+ * @param {Function} [opts.onStale] - hash 불일치로 거절하기 직전 호출부 정리를 돌리는 훅. fence 거절에는 불리지 않는다
+ * @returns {OpenedLedger | LedgerFail} 통과하면 현재 원장과 bytes, 아니면 거절 reason
+ */
+function recheckLedgerCheckpoint({ ledgerFile, expectedHash, fence, onStale }: {
+  ledgerFile: string; expectedHash: string | null; fence?: { ledgerPath?: string; ledgerHash?: string };
+  onStale?: (ledger: Ledger) => void;
+}): OpenedLedger | LedgerFail {
+  const loaded = loadLedgerBytes(ledgerFile);
+  if (!loaded) return { ok: false, reason: 'missing-ledger' };
+  const { ledger, bytes } = loaded;
+  if (expectedHash === null) {
+    const fenced = assertLedgerFence({
+      ledgerPath: fence?.ledgerPath, ledgerHash: fence?.ledgerHash, ledgerBytes: bytes,
+    });
+    if (!fenced.ok) return fenced;
+  } else if (ledgerBytesHash(bytes) !== expectedHash) {
+    if (onStale) onStale(ledger);
+    return { ok: false, reason: 'stale-ledger-checkpoint' };
+  }
+  return { ok: true, ledger, bytes };
+}
+
 /**
  * `coordinate repair --kind supplement --done`. implementer가 integration에 남긴
  * 변경이 접수된 경로 안인지 확인하고, 그 경로를 덮는 integrated task의 verify를
@@ -570,13 +649,9 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
   let plan: Array<{ taskId: string; verify: string }> = [];
   let approvedPaths: string[] = [];
   const phase1 = withLedgerLock(ledgerFile, () => {
-    const loaded = loadLedgerBytes(ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    const { ledger, bytes } = loaded;
-    const leaseShape = assertLeaseShape(ledger);
-    if (!leaseShape.ok) return leaseShape;
-    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes: bytes });
-    if (!fenced.ok) return fenced;
+    const opened = openLedgerFenced({ ledgerFile, ledgerPath, ledgerHash });
+    if (!opened.ok) return opened;
+    const { ledger, bytes } = opened;
     if (ledger.status === 'promotion_stopped') return { ok: false, reason: 'promotion-stopped' };
     const pending = latestSupplementDecision(ledger);
     // 거절은 검증 실행과 원장 쓰기보다 앞선다. 최종 discovery 뒤에는 보완 완료도 받지 않는다.
@@ -629,10 +704,9 @@ function supplementDone({ blueprint, integrationPath, ledgerFile, ledgerPath, le
   }
 
   return withLedgerLock(ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    if (ledgerBytesHash(loaded.bytes) !== phase1Hash) return { ok: false, reason: 'stale-ledger-checkpoint' };
-    const { ledger } = loaded;
+    const rechecked = recheckLedgerCheckpoint({ ledgerFile, expectedHash: phase1Hash });
+    if (!rechecked.ok) return rechecked;
+    const { ledger } = rechecked;
     const decision = latestSupplementDecision(ledger);
     if (!decision) return { ok: false, reason: 'supplement-not-pending' };
     decision.outcome = 'verified';
@@ -2188,13 +2262,9 @@ function prepareCoordinator({
 }): unknown {
   // 1. 잠금 안: 판정·revoke 정리만 하고 원장은 쓰지 않는다. 대조 기준은 이 bytes hash다.
   const phase1 = withLedgerLock(integration.ledgerFile, () => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false as const, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
-    const leaseShape = assertLeaseShape(ledger);
-    if (!leaseShape.ok) return leaseShape;
-    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
-    if (!fenced.ok) return fenced;
+    const opened = openLedgerFenced({ ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash });
+    if (!opened.ok) return opened;
+    const { ledger, bytes: ledgerBytes } = opened;
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
     // 승격 정지는 재개 명령이 없다. prepare가 worker를 다시 열면 정지 스냅샷이
     // 의미가 없어지므로 fence 통과 직후 막는다.
@@ -2411,13 +2481,13 @@ function prepareCoordinator({
   // 3. 잠금 재획득: ① bytes와 같고 계획 worker가 등록돼 있을 때만 메모리 전이를 쓴다.
   // light는 workerPath=integration으로 lease만 발급한다.
   const phase3 = withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false as const, reason: 'missing-ledger' };
-    const { ledger: live, bytes } = loaded;
-    if (ledgerBytesHash(bytes) !== phase1Hash) {
-      removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
-      return { ok: false as const, reason: 'stale-ledger-checkpoint' };
-    }
+    // stale이면 만들어 둔 worker 중 현재 원장이 참조하지 않는 것을 거절 직전에 정리한다.
+    const rechecked = recheckLedgerCheckpoint({
+      ledgerFile: integration.ledgerFile, expectedHash: phase1Hash,
+      onStale: (live) => removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created),
+    });
+    if (!rechecked.ok) return rechecked;
+    const { ledger: live } = rechecked;
     if (!light) {
       for (const id of ready) {
         const item = ledger.tasks.find((x) => x.id === id) as Task;
@@ -2561,13 +2631,9 @@ function integrateVerificationTask({
   let phase1CheckpointHash: string | null = null;
   let verificationRetry = false;
   const phase1 = withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
-    const leaseShape = assertLeaseShape(ledger);
-    if (!leaseShape.ok) return leaseShape;
-    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
-    if (!fenced.ok) return fenced;
+    const opened = openLedgerFenced({ ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash });
+    if (!opened.ok) return opened;
+    const { ledger } = opened;
     const item = ledger.tasks.find((x) => x.id === task);
     if (!item) return { ok: false, reason: 'task-outside-blueprint' };
 
@@ -2623,13 +2689,11 @@ function integrateVerificationTask({
   });
 
   return withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
-    const currentHash = ledgerBytesHash(ledgerBytes);
-    if (phase1CheckpointHash !== currentHash) {
-      return { ok: false, reason: 'stale-ledger-checkpoint' };
-    }
+    const rechecked = recheckLedgerCheckpoint({
+      ledgerFile: integration.ledgerFile, expectedHash: phase1CheckpointHash,
+    });
+    if (!rechecked.ok) return rechecked;
+    const { ledger } = rechecked;
     const item = ledger.tasks.find((x) => x.id === task);
     if (!item) return { ok: false, reason: 'task-outside-blueprint' };
     if (!result.ok) {
@@ -2813,15 +2877,11 @@ function integrateLightCommitWave({
   integration: ReturnType<typeof coordinatorPathsFor>;
 }): unknown {
   return withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
-    const leaseShape = assertLeaseShape(ledger);
-    if (!leaseShape.ok) return leaseShape;
-    const faninChecked = runtime.validateCoordinatorLedger(ledger);
-    if (!faninChecked.ok) return { ok: false, reason: faninChecked.reason };
-    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
-    if (!fenced.ok) return fenced;
+    const opened = openLedgerFenced({
+      ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash, validate: validateFaninLedger,
+    });
+    if (!opened.ok) return opened;
+    const { ledger } = opened;
     if (ledgerModeOf(ledger) !== 'light') {
       return { ok: false, reason: 'ledger-mode-mismatch' };
     }
@@ -3057,15 +3117,11 @@ function integrateCommitWave({
 
   // --- 재시작 복구: 이전 fanin 상태가 있으면 먼저 처리 ---
   const recovery = withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false as const, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
-    const leaseShape = assertLeaseShape(ledger);
-    if (!leaseShape.ok) return leaseShape;
-    const faninChecked = runtime.validateCoordinatorLedger(ledger);
-    if (!faninChecked.ok) return { ok: false as const, reason: faninChecked.reason };
-    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
-    if (!fenced.ok) return fenced;
+    const opened = openLedgerFenced({
+      ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash, validate: validateFaninLedger,
+    });
+    if (!opened.ok) return opened;
+    const { ledger } = opened;
     if (!ledger.fanin) return { ok: true as const, resume: null as null };
     const head = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
     const fanin = ledger.fanin;
@@ -3122,15 +3178,11 @@ function integrateCommitWave({
   let waveWarnings: IntegrateWarning[] = [];
   let baseHead = '';
   const phase1 = withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
-    const leaseShape = assertLeaseShape(ledger);
-    if (!leaseShape.ok) return leaseShape;
-    const faninChecked = runtime.validateCoordinatorLedger(ledger);
-    if (!faninChecked.ok) return { ok: false, reason: faninChecked.reason };
-    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
-    if (!fenced.ok) return fenced;
+    const opened = openLedgerFenced({
+      ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash, validate: validateFaninLedger,
+    });
+    if (!opened.ok) return opened;
+    const { ledger } = opened;
 
     // --task + lease 플래그는 대상 확정 전에 checkLease.
     if (task) {
@@ -3446,22 +3498,16 @@ function finishFaninAfterFf({
 }): unknown {
   const faninPath = integration.faninPath;
   return withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
     // 정상 wave는 phase1CheckpointHash로만 끼어든 쓰기를 본다. 호출자 fence는
     // 1단계 쓰기 전 값이라 여기서 다시 검사하면 항상 stale가 된다.
     // 재시작 finish(이미 ff됨)만 호출자 fence를 다시 검사한다.
-    if (phase1CheckpointHash === null) {
-      const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
-      if (!fenced.ok) return fenced;
-    } else {
-      const currentHash = ledgerBytesHash(ledgerBytes);
-      if (phase1CheckpointHash !== currentHash) {
-        removeFaninWorktree(exec, repoRoot, faninPath);
-        return { ok: false, reason: 'stale-ledger-checkpoint' };
-      }
-    }
+    const rechecked = recheckLedgerCheckpoint({
+      ledgerFile: integration.ledgerFile, expectedHash: phase1CheckpointHash,
+      fence: { ledgerPath, ledgerHash },
+      onStale: () => removeFaninWorktree(exec, repoRoot, faninPath),
+    });
+    if (!rechecked.ok) return rechecked;
+    const { ledger } = rechecked;
 
     const head = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
     if (!alreadyFastForwarded) {
@@ -3752,17 +3798,11 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   }
 
   return withLedgerLock(integration.ledgerFile, (owns) => {
-    const loaded = loadLedgerBytes(integration.ledgerFile);
-    if (!loaded) return { ok: false, reason: 'missing-ledger' };
-    const { ledger, bytes: ledgerBytes } = loaded;
-    const leaseShape = assertLeaseShape(ledger);
-    if (!leaseShape.ok) return leaseShape;
     // status는 읽기 전용, bootstrap은 위에서 이미 반환. 그 외 쓰기는 path/hash가
     // 방금 로드한 원장 bytes와 같을 때만 진행해 stale checkpoint로 Git·원장이 갈라지지 않게 한다.
-    const fenced = assertLedgerFence({
-      ledgerPath, ledgerHash, ledgerBytes,
-    });
-    if (!fenced.ok) return fenced;
+    const opened = openLedgerFenced({ ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash });
+    if (!opened.ok) return opened;
+    const { ledger } = opened;
 
     const commitWrite = (): { ok: false; reason: 'ledger-lock-lost' } | null => (
       writeOwnedLedger(owns, writeLedger, integration.ledgerFile, ledger)

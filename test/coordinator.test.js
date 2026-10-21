@@ -2634,6 +2634,88 @@ test('mutation with missing, absolute, escaping, wrong path or stale hash ledger
   assert.notStrictEqual(next.checkpoint.ledger.sha256, hash);
 });
 
+// 잠금 안 원장 열기·fence 확인의 거절 우선순위를 겹친 실패로 고정한다.
+// helper 추출이 순서를 바꾸면 여기서 reason이 달라진다.
+test('corrupt lease with a stale fence → dispatch rejects lease-invalid before the fence check', () => {
+  const drive = checkpointFixture();
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.leaseSeq = 'broken';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const rejected = coordinateRaw({
+    command: 'dispatch', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+    task: '001', ledgerPath: LEDGER_REL, ledgerHash: 'b'.repeat(64),
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'lease-invalid', JSON.stringify(rejected));
+});
+
+test('deleted ledger with an arbitrary fence → prepare rejects missing-ledger regardless of the fence', () => {
+  const drive = checkpointFixture();
+  fs.rmSync(drive.ledgerFile);
+  const rejected = coordinateRaw({
+    command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+    ledgerPath: LEDGER_REL, ledgerHash: 'c'.repeat(64),
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'missing-ledger', JSON.stringify(rejected));
+});
+
+test('intact ledger with a stale fence → integrate rejects stale-ledger-checkpoint', () => {
+  const blueprint = '.bouncer/context/epics/050-x/blueprints/052-stale';
+  const drive = integrableDrive('bouncer-integrate-stale-fence-', blueprint);
+  const before = fs.readFileSync(drive.ledgerFile);
+  const rejected = coordinateRaw({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    ledgerPath: LEDGER_REL, ledgerHash: 'b'.repeat(64), deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'stale-ledger-checkpoint', JSON.stringify(rejected));
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('malformed seed manifest with a stale fence → commit integrate rejects invalid-seed-manifest before the fence check', () => {
+  const blueprint = '.bouncer/context/epics/050-x/blueprints/053-seed';
+  const drive = integrableDrive('bouncer-integrate-seed-first-', blueprint);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.seedManifest = [{ path: '', sha256: 'x' }];
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const rejected = coordinateRaw({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    ledgerPath: LEDGER_REL, ledgerHash: 'b'.repeat(64), deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'invalid-seed-manifest', JSON.stringify(rejected));
+});
+
+test('ledger rewritten while runVerification runs → verification integrate rejects stale-ledger-checkpoint', () => {
+  const blueprint = '.bouncer/context/epics/083-lease/blueprints/002-recheck';
+  const repo = uncommittedPlanRepo('bouncer-verify-recheck-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, LEDGER_REL);
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+
+  const rejected = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      runVerification: () => {
+        // 검증 중 끼어든 쓰기: 잠금 밖이라 막을 수 없고, phase2 재확인이 hash 불일치로 잡아야 한다.
+        const live = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+        live.revision = 'tampered-during-verify';
+        fs.writeFileSync(ledgerFile, `${JSON.stringify(live, null, 2)}\n`);
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'ev-1' };
+      },
+    },
+  });
+  assert.strictEqual(rejected.ok, false, JSON.stringify(rejected));
+  assert.strictEqual(rejected.reason, 'stale-ledger-checkpoint', JSON.stringify(rejected));
+});
+
 test('prepare issues a lease and revoke → late report/record/dispatch become stale-lease', () => {
   const blueprint = '.bouncer/context/epics/080-lease/blueprints/001-y';
   const repo = uncommittedPlanRepo('bouncer-lease-stale-', blueprint, [
