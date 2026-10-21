@@ -36,9 +36,10 @@ const {
 import templates = require('./templates');
 const { parseIntentBody, normalizeAuthoredLines } = templates;
 
+// public-name: legacy-input-detector
 // 오케스트레이션 + 공개 배럴. validateBlueprint는 이 파일에 남긴다 —
-// 함수 안의 레거시 `.sdd` 문자열이 public-name-regression allowlist에
-// 이 파일명으로 고정되어 있어, 옮기면 그 테스트가 깨진다.
+// 함수 안의 레거시 `.sdd` 문자열은 위 표식으로 public-name-regression 검사에서
+// 허용된다(파일 경로가 아니라 표식 기준이라, 옮길 때는 표식도 함께 옮긴다).
 // 게이트/구조/로드/파싱 구현은 형제 모듈. 순환을 만들지 않기 위해
 // 형제들은 이 파일을 require하지 않는다.
 
