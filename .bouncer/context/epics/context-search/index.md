@@ -50,3 +50,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 ## Blueprints
 - [slug-identifiers](blueprints/slug-identifiers/index.md) — epic·blueprint 식별자를 번호에서 slug와 `order`로 바꾸고 trailer·실행 키·이관 명령을 새 형식으로 맞춘다.
 - [legacy-epic-merge](blueprints/legacy-epic-merge/index.md) — legacy epic blueprint를 도메인 epic 아래로 옮기는 `migrate merge-legacy-epics`와 옛 trailer 해석(`moved_to`), v2 `plan inspect` 요약을 고친다.
+- [moved-slug-stable-ids](blueprints/moved-slug-stable-ids/index.md) — 병합 이관이 옮긴 문서의 slug 형식 stable ID(`task_commits`·`### ` 제목)를 `moved_to`를 따라 도메인 epic 위치로 다시 쓴다.
