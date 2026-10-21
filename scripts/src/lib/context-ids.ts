@@ -258,8 +258,44 @@ function replaceOldStableIds(text: string, replacer: (hit: string) => string): s
   return text.replace(new RegExp(OLD_STABLE_SCAN_SRC, 'g'), replacer);
 }
 
+/**
+ * 텍스트 안에서 등록부 `moved_to`에 올라 있는 slug 형식 stable ID(`<legacy>/<bp>[/<ddd>]`)를 모두
+ * `replacer` 결과로 바꾼다. 번호 형식 ID는 `replaceOldStableIds`가 맡고, 이 함수는 legacy epic이 도메인
+ * epic으로 옮겨진 뒤에도 옛 epic 이름을 가리키는 slug 형식만 찾는다. 두 단계를 나눈 이유는 번호 형식이
+ * 먼저 `<domain>/<bp>/<ddd>`로 바뀐 뒤에는 epic이 legacy slug가 아니라서 이 함수가 다시 건드리지 않기
+ * 때문이다. 같은 입력에 두 번 적용해도 결과가 같다.
+ *
+ * 경계 검사는 본문 속 부분 문자열 오탐을 막는다. 앞이 영숫자·`-`·`_`·`/`·`.`이면 다른 이름이나 경로의
+ * 일부(`data/x` 안의 `a/x`, `epics/a/blueprints/x`)로 보고 건드리지 않는다. 뒤가 영숫자·`-`·`_`로
+ * 이어지면(`a/x-y`) 다른 blueprint 이름이므로 건드리지 않는다. fs·git을 읽지 않는 순수 함수다.
+ *
+ * @param {string} text - 원문
+ * @param {RegistryLike | null} registry - 등록부. null이거나 `moved_to`가 하나도 없으면 원문을 그대로 돌려준다
+ * @param {(hit: string) => string} replacer - 일치한 slug ID를 받아 바꿀 문자열을 돌려준다
+ * @returns {string} 치환된 텍스트
+ */
+function replaceMovedSlugStableIds(
+  text: string, registry: RegistryLike | null, replacer: (hit: string) => string,
+): string {
+  if (!registry) return text;
+  const pairs: string[] = [];
+  for (const epic of registry.epics) {
+    // Object.keys는 own enumerable만 돌려주므로 상속 키(`constructor` 등)가 대상 쌍으로 새지 않는다.
+    for (const bp of Object.keys(epic.moved_to ?? {})) pairs.push(`${epic.slug}/${bp}`);
+  }
+  if (pairs.length === 0) return text;
+  // 긴 쌍이 먼저 맞아야 접두가 같은 다른 쌍에 가려지지 않는다.
+  const alternation = pairs.sort((a, b) => b.length - a.length)
+    .map((pair) => pair.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const re = new RegExp(
+    `(?<![A-Za-z0-9\\-_/.])(?:${alternation})(?:\\/\\d{3}(?![A-Za-z0-9_-]))?(?![A-Za-z0-9_-])`, 'g',
+  );
+  return text.replace(re, replacer);
+}
+
 export = {
   formatLegacyEpicId, formatLegacyBlueprintId, parseNumericPrefix, parseNumericEpicDir, replaceOldStableIds,
+  replaceMovedSlugStableIds,
   SLUG_MAX, validateSlug, parseContextPath, formatStableIntentId, formatStableTaskId,
   parseStableId, normalizeStableId, formatPointerKey, parsePointerKey,
 };

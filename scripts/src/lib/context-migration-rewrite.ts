@@ -360,7 +360,7 @@ function computeRewrites({ repoRoot, plan, runGit, fsApi }: {
       ?? plan.contexts.find((c) => c.blueprint === null && inside(c.fromEpicDir)) ?? null;
   };
 
-  // 1. 텍스트 수준 치환: 상대 링크 → 전체 경로 문자열 → (context 문서만) 안정 ID.
+  // 1. 텍스트 수준 치환: 상대 링크 → 전체 경로 문자열 → (context 문서만) 번호 형식 안정 ID → moved_to 등록 slug 안정 ID.
   const staged = new Map<string, Rewrite & { ctx: DocContext | null }>();
   for (const [oldRel, original] of originals) {
     const newRel = mapPath(oldRel);
@@ -371,7 +371,11 @@ function computeRewrites({ repoRoot, plan, runGit, fsApi }: {
         `${open}${rewriteLinkTarget(target, oldRel, newRel, mapPath)}`));
     if (pathRe !== null) text = text.replace(pathRe, (hit) => mapPath(hit));
     if (oldRel.startsWith(`${CONTEXT_ROOT}/`)) {
-      text = contextIds.replaceOldStableIds(text, (hit) => normalizeStableId(hit, idRegistry) ?? hit);
+      const normalize = (hit: string) => normalizeStableId(hit, idRegistry) ?? hit;
+      text = contextIds.replaceOldStableIds(text, normalize);
+      // 번호 형식 치환 뒤에 둔다: 등록부 moved_to에 올라 있는 slug 형식 ID(`<legacy>/<bp>[/<ddd>]`)도
+      // 도메인 epic으로 바꿔야 옮긴 Explain의 task_commits·`###` 제목이 epic_id와 일치한다.
+      text = contextIds.replaceMovedSlugStableIds(text, idRegistry, normalize);
     }
     staged.set(oldRel, { oldRel, newRel, original, text, ctx: contextOf(oldRel) });
   }

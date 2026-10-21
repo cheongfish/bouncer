@@ -342,6 +342,31 @@ test('--yes → blueprint를 옮기고 등록부 moved_to를 쓰고 검증과 tr
   assert.ok(found.has('d1/x/001'));
 });
 
+test('옮길 Explain에 legacy slug 형식 task ID가 있으면 → task_commits와 ### 제목이 도메인 epic을 가리키고 검증이 통과한다', () => {
+  const repo = template.copy();
+  const sha = git(repo, 'rev-parse', '--short=8', 'HEAD').trim();
+  const explainRel = `${EPICS}/a/blueprints/x/explain.md`;
+  fs.writeFileSync(path.join(repo, explainRel), [
+    '---', 'type: bouncer.explain', 'title: x explain', 'description: Explain for x',
+    `resource: ${explainRel}`, 'tags:', '  - bouncer', '  - explain', `timestamp: '${TS}'`,
+    'bouncer:', '  id: EXPLAIN-x', '  epic_id: a', '  blueprint_id: x', '  status: published',
+    '  task_commits:', '    - task: a/x/001', `      sha: ${sha}`, '      intent_anchor: task-001',
+    '---', '# Explain', '', '## Code', '', '### a/x/001', '', '설명', '',
+  ].join('\n'));
+  git(repo, 'add', '-A');
+  git(repo, 'commit', '-q', '-m', 'explain with slug ids');
+
+  const result = migrateMergeLegacyEpics({ repoRoot: repo, yes: true });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.ok(result.validate.every((v) => v.ok), JSON.stringify(result.validate));
+
+  const moved = readDoc(path.join(repo, EPICS, 'd1/blueprints/x/explain.md'));
+  assert.strictEqual(moved.data.bouncer.epic_id, 'd1');
+  assert.deepStrictEqual(moved.data.bouncer.task_commits.map((row) => row.task), ['d1/x/001']);
+  assert.ok(moved.body.split('\n').includes('### d1/x/001'));
+  assert.ok(!moved.body.split('\n').includes('### a/x/001'));
+});
+
 test('이미 옮겨진 저장소에서 다시 실행하면 → 쓰기 없이 moved가 빈 배열이다', () => {
   const repo = template.copy();
   assert.strictEqual(migrateMergeLegacyEpics({ repoRoot: repo, yes: true }).ok, true);
