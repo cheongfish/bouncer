@@ -26,4 +26,24 @@ function parseFlags(rest: string[]): Record<string, string | boolean> {
   return flags;
 }
 
-export = { parseFlags };
+/**
+ * 서브커맨드 도움말 요청 여부. parseFlags는 `--help` 뒤 값을 먹고 `-h`를 무시하므로
+ * 원시 토큰을 본다. `--reason -h`처럼 직전 토큰이 `--` 플래그면 `-h`는 그 플래그의 값이다.
+ * runCli(handler 적재 전 가로채기)와 자체 help를 가진 handler가 같은 규칙을 쓰도록 한 곳에 둔다.
+ *
+ * @param {string[]} tokens - 명령 이름 뒤 원시 argv
+ * @returns {boolean} 도움말을 내면 true
+ */
+function argvRequestsHelp(tokens: string[]): boolean {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const tok = tokens[i];
+    if (tok === '--help') return true;
+    if (tok === '-h') {
+      const prev = i > 0 ? tokens[i - 1] : undefined;
+      if (prev === undefined || !prev.startsWith('--')) return true;
+    }
+  }
+  return false;
+}
+
+export = { parseFlags, argvRequestsHelp };

@@ -350,25 +350,6 @@ function coordinateRegistryUsage(): string {
 }
 
 /**
- * 서브커맨드 도움말 여부. parseFlags는 `--help` 뒤 값을 먹고 `-h`를 무시하므로
- * 원시 토큰을 본다. `--reason -h`처럼 직전이 `--` 플래그면 `-h`는 값이다.
- *
- * @param {string[]} tokens - `coordinate` 뒤 원시 argv
- * @returns {boolean} 도움말을 내면 true
- */
-function argvRequestsHelp(tokens: string[]): boolean {
-  for (let i = 0; i < tokens.length; i += 1) {
-    const tok = tokens[i];
-    if (tok === '--help') return true;
-    if (tok === '-h') {
-      const prev = i > 0 ? tokens[i - 1] : undefined;
-      if (prev === undefined || !prev.startsWith('--')) return true;
-    }
-  }
-  return false;
-}
-
-/**
  * usage(2) 한 줄 뒤에 같은 stderr로 블록을 붙인다. 알 수 없는 서브커맨드는
  * 전체 registry usage, 알면 그 서브커맨드 `--help` 블록이다.
  *
@@ -442,7 +423,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { catchMessage } = require('./guards') as typeof import('./guards');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
+  const { parseFlags, argvRequestsHelp } = require('./cli-flags') as typeof import('./cli-flags');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const coordinatorMod = require('./coordinator') as typeof import('./coordinator');
   const { coordinate } = coordinatorMod;

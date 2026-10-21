@@ -3,7 +3,7 @@
 import cliUsage = require('./cli-usage');
 
 import cliFlags = require('./cli-flags');
-const { parseFlags } = cliFlags;
+const { parseFlags, argvRequestsHelp } = cliFlags;
 
 const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator'] as const;
 
@@ -26,25 +26,6 @@ Roles: implementer, reviewer, debugger, context-reviewer, coordinator.
 --out keeps bouncer-<role>.prompt.md, bouncer-<role>.jsonl, and bouncer-<role>.log.
 Payload rules: rules/cursor-print-dispatch.md
 `;
-
-/**
- * 서브커맨드 도움말 여부. parseFlags는 `--help` 뒤 값을 먹고 `-h`를 무시하므로
- * 원시 토큰을 본다. `--flag -h`의 `-h`는 값으로 남긴다.
- *
- * @param {string[]} tokens - `dispatch` 뒤 원시 argv
- * @returns {boolean} 도움말을 내면 true
- */
-function argvRequestsHelp(tokens: string[]): boolean {
-  for (let i = 0; i < tokens.length; i += 1) {
-    const tok = tokens[i];
-    if (tok === '--help') return true;
-    if (tok === '-h') {
-      const prev = i > 0 ? tokens[i - 1] : undefined;
-      if (prev === undefined || !prev.startsWith('--')) return true;
-    }
-  }
-  return false;
-}
 
 const REQUIRED_FLAGS = ['role', 'cwd', 'input', 'out'] as const;
 
