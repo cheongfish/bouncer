@@ -8,19 +8,19 @@
 
 | 항목 | 전 (`c94947e7`) | 후 | 측정 명령 |
 | --- | --- | --- | --- |
-| `scripts/src/lib/*.ts` 모듈 수 | 92 | 미측정(후속 blueprint가 채움) | `git ls-tree -r --name-only c94947e7 scripts/src/lib`로 목록을 얻어 최상위 `.ts`만 센다 |
-| `scripts/src/lib/*.ts` 합계 줄 수 | 41,956 | 미측정(후속 blueprint가 채움) | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
-| `test/*.test.js` 파일 수 | 103 | 미측정(후속 blueprint가 채움) | `git ls-tree -r --name-only c94947e7 test`에서 `test/*.test.js`만 센다 |
-| `test/*.test.js` 합계 줄 수 | 54,583 | 미측정(후속 blueprint가 채움) | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
-| `../scripts/lib/*`를 직접 require하는 테스트 파일 | 82개 파일, 대상 모듈 70종 | 미측정(후속 blueprint가 채움) | 각 테스트 소스에서 `require('../scripts/lib/<모듈>')`를 추출해 파일·모듈을 중복 없이 센다 |
-| `require('./scripts/lib/cli')` 적재 모듈 수 | 77 (help 실행 후에도 77) | 미측정(후속 blueprint가 채움) | `node -e "require('./scripts/lib/cli'); console.log(Object.keys(require.cache).filter(k=>k.includes('/scripts/lib/')).length)"` (빌드 후) |
-| export 키 수 | `coordinator` 19, `scope` 13, `finalize` 12, `verification` 11, `validate` 10 | 미측정(후속 blueprint가 채움) | `node -e "console.log(Object.keys(require('./scripts/lib/<모듈>')).length)"` (빌드 후) |
-| coverage lines | 95.35% | 미측정(후속 blueprint가 채움) | `npm run test:coverage`의 `all files` 행 |
-| coverage branches | 85.17% | 미측정(후속 blueprint가 채움) | 같은 행 |
-| coverage functions | 98.11% | 미측정(후속 blueprint가 채움) | 같은 행 |
-| `npm test` 소요 시간 | 약 52초 (참고값: 환경 의존, 2443개 테스트 통과) | 미측정(후속 blueprint가 채움) | `time npm test` (같은 환경의 `npm run test:coverage`는 약 49초) |
+| `scripts/src/lib/*.ts` 모듈 수 | 92 | 118 | `git ls-tree -r --name-only c94947e7 scripts/src/lib`로 목록을 얻어 최상위 `.ts`만 센다 |
+| `scripts/src/lib/*.ts` 합계 줄 수 | 41956 | 50514 | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
+| `test/*.test.js` 파일 수 | 103 | 117 | `git ls-tree -r --name-only c94947e7 test`에서 `test/*.test.js`만 센다 |
+| `test/*.test.js` 합계 줄 수 | 54583 | 66029 | 같은 목록에 `git show c94947e7:<경로> \| wc -l`을 합산한다 |
+| `../scripts/lib/*`를 직접 require하는 테스트 파일 | 82개 파일, 대상 모듈 70종 | 96개 파일, 대상 모듈 87종 | 각 테스트 소스에서 `require('../scripts/lib/<모듈>')`를 추출해 파일·모듈을 중복 없이 센다 |
+| `require('./scripts/lib/cli')` 적재 모듈 수 | 77 (help 실행 후에도 77) | 3 (help 실행 전후 모두 같은 측정 명령, 기준선 77) | `node -e "require('./scripts/lib/cli'); console.log(Object.keys(require.cache).filter(k=>k.includes('/scripts/lib/')).length)"` (빌드 후) |
+| export 키 수 | `coordinator` 19, `scope` 13, `finalize` 12, `verification` 11, `validate` 10 | `coordinator` 22, `scope` 16, `finalize` 1, `verification` 11, `validate` 10 | `node -e "console.log(Object.keys(require('./scripts/lib/<모듈>')).length)"` (빌드 후) |
+| coverage lines | 95.25% | 95.49% | `npm run test:coverage`의 `all files` 행 |
+| coverage branches | 85.02% | 86.64% | 같은 행 |
+| coverage functions | 98.11% | 98.23% | 같은 행 |
+| `npm test` 소요 시간 | 약 52초 (참고값: 환경 의존, 2443개 테스트 통과) | 약 69초 (참고값: 환경 의존, snapshot의 `npm test` 69,032ms) | `time npm test` (같은 환경의 `npm run test:coverage`는 약 49초) |
 
-"후" 열은 이 blueprint가 채우지 않는다. 전후 비교는 마지막 blueprint가 같은 표에 값을 채워 닫는다. 적재 수는 목표값으로 고정하지 않고 허용 의존성과 기준선 대비 결과를 기록하는 방식으로 쓴다.
+"후" 열은 기준선 `c94947e7737074e58ca882b59b9215c192051e6b`와 측정 시작 커밋 `d2af67192ec335d8d287b28a22e8f3b3ab2c290a`를 같은 Node 24.22.0·npm 11.19.1·linux x64에서 `scripts/measure-source-boundaries.js snapshot`으로 잰 값이며, 원본은 [measurements/source-restructuring.json](measurements/source-restructuring.json)이다. coverage "전" 값은 같은 도구로 다시 잰 값으로 바로잡았다. `require('./scripts/lib/cli')` 적재 수는 snapshot이 담지 않아 표의 측정 명령을 두 checkout에서 직접 실행했다. 적재 수는 목표값으로 고정하지 않고 허용 의존성과 기준선 대비 결과를 기록하는 방식으로 쓴다.
 
 ## 소비자 inventory
 
