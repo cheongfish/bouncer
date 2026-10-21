@@ -232,6 +232,32 @@ test('plan inspect with a legacy epic and an inactive common epic → legacy lis
   assert.strictEqual(payload.registry.epics.some((e) => e.slug === 'maintenance' || e.slug === 'data'), false);
 });
 
+test('plan inspect with a v2 registry → slug dirs, legacy list, null ids and nextEpicId', () => {
+  const repo = makeRepo();
+  const approval = { reason: 'domain reason', approvedAt: '2026-10-20' };
+  writeEpicRegistry(repo, {
+    version: 2,
+    profile: 'domain-only',
+    domainEpicLimit: 8,
+    epics: [
+      { slug: 'plan-workflow', kind: 'domain', active: true, approval },
+      { slug: 'drive-execution', kind: 'domain', active: true, approval },
+      { slug: 'old-work', legacy_id: '012', kind: 'legacy', active: true },
+    ],
+  });
+  mkdirp(repo, `${EPICS}/plan-workflow`);
+  mkdirp(repo, `${EPICS}/old-work`);
+
+  const payload = parsePayload(inspect(repo));
+  const byslug = (slug) => payload.registry.epics.find((e) => e.slug === slug);
+
+  assert.strictEqual(byslug('plan-workflow').dir, `${EPICS}/plan-workflow`);
+  assert.strictEqual(byslug('plan-workflow').id, null);
+  assert.strictEqual(byslug('drive-execution').dir, null);
+  assert.deepStrictEqual(payload.registry.legacy, [{ slug: 'old-work', id: '012', dir: `${EPICS}/old-work` }]);
+  assert.strictEqual(payload.nextEpicId, null);
+});
+
 test('plan inspect without a registry → registry missing and nextEpicId null', () => {
   const repo = makeRepo();
   mkdirp(repo, '.bouncer');

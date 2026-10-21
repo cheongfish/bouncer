@@ -18,6 +18,7 @@ type StableId = KeyPair & { task: string | null };
 type RegistryLike = {
   epics: ReadonlyArray<{
     slug: string; id?: string; legacy_id?: string; blueprint_aliases?: Record<string, string>;
+    moved_to?: Record<string, string>;
   }>;
 };
 
@@ -137,23 +138,37 @@ function parseStableId(v: unknown): StableId | null {
 }
 
 /**
- * 구형 stable ID를 등록부의 `legacy_id`·`blueprint_aliases`로 slug 형식으로 바꾼다.
- * 이미 slug 형식이면 값을 그대로 돌려주고, 별칭 표에 없는 구형 ID는 null이다.
+ * stable ID를 slug 형식의 현재 위치로 바꾼다. 구형 번호 ID는 `legacy_id`·`blueprint_aliases`로 해석하고,
+ * legacy epic 항목의 `moved_to`에 blueprint가 있으면 번호·slug 두 형식 모두 이동한 도메인 epic 아래로
+ * 옮긴다. 그 밖의 slug 형식 ID는 값을 그대로 돌려주고, 별칭 표에 없는 구형 ID는 null이다.
  *
  * @param {unknown} v - stable ID 후보
- * @param {RegistryLike | null} registry - 등록부(없으면 구형 ID는 해석 불가)
+ * @param {RegistryLike | null} registry - 등록부(없으면 구형 ID는 해석 불가, slug ID는 그대로)
  * @returns {string | null} slug 형식 ID 또는 null
  */
 function normalizeStableId(v: unknown, registry: RegistryLike | null): string | null {
   const parsed = parseStableId(v);
   if (!parsed) return null;
-  if (parsed.format === 'slug') return v as string;
-  if (!registry) return null;
-  // v1 등록부는 id가 곧 legacy_id다.
-  const epic = registry.epics.find((e) => (e.legacy_id ?? e.id) === parsed.epicKey);
-  const bpSlug = epic?.blueprint_aliases?.[parsed.blueprintKey];
-  if (!epic || bpSlug === undefined) return null;
-  const ids = { format: 'slug' as const, epicKey: epic.slug, blueprintKey: bpSlug };
+  let epicSlug: string;
+  let bpSlug: string;
+  if (parsed.format === 'slug') {
+    if (!registry) return v as string;
+    epicSlug = parsed.epicKey;
+    bpSlug = parsed.blueprintKey;
+  } else {
+    if (!registry) return null;
+    // v1 등록부는 id가 곧 legacy_id다.
+    const epic = registry.epics.find((e) => (e.legacy_id ?? e.id) === parsed.epicKey);
+    const alias = epic?.blueprint_aliases?.[parsed.blueprintKey];
+    if (!epic || alias === undefined) return null;
+    epicSlug = epic.slug;
+    bpSlug = alias;
+  }
+  // 상속 키(`constructor` 등)가 이동 대상으로 새지 않도록 own property만 본다.
+  const movedTo = registry.epics.find((e) => e.slug === epicSlug)?.moved_to;
+  if (movedTo && Object.prototype.hasOwnProperty.call(movedTo, bpSlug)) epicSlug = movedTo[bpSlug];
+  const ids = { format: 'slug' as const, epicKey: epicSlug, blueprintKey: bpSlug };
+  if (parsed.format === 'slug' && epicSlug === parsed.epicKey) return v as string;
   return parsed.task === null ? formatStableIntentId(ids) : formatStableTaskId({ ...ids, task: parsed.task });
 }
 

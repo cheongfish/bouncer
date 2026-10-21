@@ -93,6 +93,33 @@ test('normalizeStableId with an alias miss or missing registry → null', () => 
   assert.strictEqual(ids.normalizeStableId('garbage', REGISTRY), null);
 });
 
+const MOVED = {
+  version: 2,
+  epics: [
+    { slug: 'old', legacy_id: '012', blueprint_aliases: { '003': 'bp-a', '004': 'bp-b' }, moved_to: { 'bp-a': 'dom' } },
+    { slug: 'dom', kind: 'domain' },
+  ],
+};
+
+test('normalizeStableId with a moved blueprint → returns the domain epic location', () => {
+  assert.strictEqual(ids.normalizeStableId('EPIC-012/BP-003/TASK-001', MOVED), 'dom/bp-a/001');
+  assert.strictEqual(ids.normalizeStableId('EPIC-012/BP-003', MOVED), 'dom/bp-a');
+  assert.strictEqual(ids.normalizeStableId('old/bp-a/001', MOVED), 'dom/bp-a/001');
+  assert.strictEqual(ids.normalizeStableId('old/bp-a', MOVED), 'dom/bp-a');
+});
+
+test('normalizeStableId with an unmoved blueprint → keeps the legacy epic location', () => {
+  assert.strictEqual(ids.normalizeStableId('EPIC-012/BP-004', MOVED), 'old/bp-b');
+  assert.strictEqual(ids.normalizeStableId('old/bp-b/002', MOVED), 'old/bp-b/002');
+  assert.strictEqual(ids.normalizeStableId('old/bp-a/001', null), 'old/bp-a/001');
+  assert.strictEqual(ids.normalizeStableId('other/bp-a/001', MOVED), 'other/bp-a/001');
+});
+
+test('normalizeStableId with an inherited moved_to key → ignores it', () => {
+  const registry = { version: 2, epics: [{ slug: 'old', legacy_id: '012', moved_to: {} }] };
+  assert.strictEqual(ids.normalizeStableId('old/constructor/001', registry), 'old/constructor/001');
+});
+
 test('pointer key helpers → round trip both formats', () => {
   assert.strictEqual(ids.formatPointerKey({ format: 'numeric', epicKey: '114', blueprintKey: '003' }), '114/003');
   assert.deepStrictEqual(ids.parsePointerKey('114/003'), { format: 'numeric', epicKey: '114', blueprintKey: '003' });

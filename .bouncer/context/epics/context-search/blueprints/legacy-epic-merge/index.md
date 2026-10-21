@@ -15,7 +15,7 @@ bouncer:
   id: legacy-epic-merge
   epic_id: context-search
   blueprint_id: legacy-epic-merge
-  status: approved
+  status: closed
   order: 2
   commit_type: feat
   scale: full

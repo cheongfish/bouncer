@@ -442,6 +442,19 @@ function parseContextSlugsMigrateArgs(flagArgs: string[]): { error?: string; yes
   return { yes, repo };
 }
 
+/**
+ * migrate merge-legacy-epics 전용 argv. 쓰기 명령이라 `--yes` 오타가 dry-run으로 위장되지 않도록
+ * context-slugs와 같은 엄격 규칙(알 수 없는·중복 option, 값 없는 `--repo`, 남는 인자 거절)을 쓴다.
+ *
+ * @param {string[]} flagArgs - `migrate merge-legacy-epics` 뒤 argv
+ * @returns {{ error?: string, yes: boolean, repo?: string }}
+ */
+function parseMergeLegacyEpicsArgs(flagArgs: string[]): { error?: string; yes: boolean; repo?: string } {
+  const parsed = parseContextSlugsMigrateArgs(flagArgs);
+  return parsed.error === undefined
+    ? parsed : { ...parsed, error: parsed.error.replace('migrate context-slugs:', 'migrate merge-legacy-epics:') };
+}
+
 function cmdMigrate(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
@@ -496,6 +509,27 @@ function cmdMigrate(rest: string[], io: CliIo) {
     }
     try {
       const result = migrateContextSlugs({ repoRoot: (parsed.repo || process.cwd()) as string, yes: parsed.yes });
+      io.out(`${JSON.stringify(result, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    } catch (error) {
+      // 계산 단계(쓰기 전)의 예외도 JSON 거절로 보고한다. 이 시점에는 디스크가 바뀌지 않았다.
+      io.out(`${JSON.stringify({
+        ok: false, code: 'migrate-failed', message: catchMessage(error), next: 'fix the cause, then retry',
+      }, null, 2)}\n`);
+      return 1;
+    }
+  }
+  if (kind === 'merge-legacy-epics') {
+    const { migrateMergeLegacyEpics } = require('./migrate-merge-legacy-epics') as
+      typeof import('./migrate-merge-legacy-epics');
+    const { catchMessage } = require('./guards') as typeof import('./guards');
+    const parsed = parseMergeLegacyEpicsArgs(flagArgs);
+    if (parsed.error) {
+      io.err(parsed.error);
+      return 2;
+    }
+    try {
+      const result = migrateMergeLegacyEpics({ repoRoot: (parsed.repo || process.cwd()) as string, yes: parsed.yes });
       io.out(`${JSON.stringify(result, null, 2)}\n`);
       return result.ok ? 0 : 1;
     } catch (error) {

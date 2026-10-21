@@ -10,6 +10,8 @@ import validate = require('./validate');
 const { validateBlueprint, loadBlueprintDocs } = validate;
 import current = require('./current');
 const { clearCurrent, nextBlueprint, readCurrent } = current;
+import epicRegistry = require('./epic-registry');
+const { readEpicRegistry } = epicRegistry;
 import taskCommits = require('./task-commits');
 const { resolveTaskCommits } = taskCommits;
 import frontmatter = require('./frontmatter');
@@ -728,11 +730,16 @@ function finalize({
         .map((unit) => stableIdFromTaskData(unit.tasks && unit.tasks.data))
         .filter((id): id is string => Boolean(id));
       if (head && stableIds.length > 0) {
+        // 등록부가 있으면 옛 번호 trailer를 이동한 위치(moved_to)로 정규화해 찾는다. 없거나 깨졌으면
+        // null — 정규화 없이 정확 일치로 조회한다(깨진 등록부의 거절은 S35 검증 소관이다).
+        const registryRead = readEpicRegistry(repoRoot);
+        const trailerRegistry = registryRead.status === 'ok' ? registryRead.registry : null;
         trailerCommits = resolveTaskCommits({
           repoRoot,
           base: trailerBase,
           head,
           stableIds,
+          registry: trailerRegistry,
         });
       }
     } catch (_error) {

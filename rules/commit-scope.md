@@ -27,7 +27,7 @@ to `explain.md` as `{ task, sha, intent_anchor }`: `task` is
 existing explain rows in bulk; only the document it writes at close switches to
 the new shape. Readers keep accepting legacy `{ id, sha }` rows and the old
 `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>` trailer and task form, which they map through
-the registry's `legacy_id` and `blueprint_aliases`.
+the registry's `legacy_id` and `blueprint_aliases`. When the legacy epic's `moved_to` lists the blueprint, they resolve to the domain epic location instead.
 
 ## Approved and ledger scope
 

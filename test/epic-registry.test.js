@@ -108,6 +108,62 @@ test('registry absent → readEpicRegistry missing and validate has no S35', () 
   assert.deepStrictEqual(s35(repo), []);
 });
 
+function movedRegistry(oldEpic, extra = {}) {
+  return {
+    version: 2, profile: 'domain-only', domainEpicLimit: 3, areas: [],
+    epics: [
+      { slug: 'old', legacy_id: '012', kind: 'legacy', active: true, ...oldEpic },
+      { slug: 'dom', kind: 'domain', active: true },
+    ],
+    ...extra,
+  };
+}
+
+test('valid moved_to on a legacy epic → parseEpicRegistry ok', () => {
+  const res = parseEpicRegistry(movedRegistry({ blueprint_aliases: { '003': 'bp-a' }, moved_to: { 'bp-a': 'dom' } }));
+  assert.strictEqual(res.ok, true);
+});
+
+test('malformed moved_to → parseEpicRegistry rejects with the reason', () => {
+  const cases = [
+    [movedRegistry({ moved_to: [] }), 'moved_to is invalid: old: must be an object'],
+    [movedRegistry({ moved_to: { 'Bad Key': 'dom' } }), 'moved_to is invalid: old: '],
+    [movedRegistry({ moved_to: { 'bp-a': 'nowhere' } }), 'moved_to is invalid: old: '],
+    [movedRegistry({ moved_to: { 'bp-a': 'old' } }), 'moved_to is invalid: old: '],
+  ];
+  for (const [registry, prefix] of cases) {
+    const res = parseEpicRegistry(registry);
+    assert.strictEqual(res.ok, false);
+    assert.ok(res.message.startsWith(prefix), res.message);
+  }
+});
+
+test('moved_to on a non-legacy epic → parseEpicRegistry rejects', () => {
+  const registry = movedRegistry({});
+  registry.epics[1].moved_to = { 'bp-a': 'dom' };
+  assert.deepStrictEqual(parseEpicRegistry(registry),
+    { ok: false, message: 'moved_to is only allowed on legacy epics: dom' });
+});
+
+test('moved_to in a v1 registry → parseEpicRegistry rejects', () => {
+  const registry = {
+    version: 1, profile: 'domain-only', domainEpicLimit: 3, areas: [],
+    epics: [
+      { slug: 'old', id: '012', kind: 'legacy', active: true, moved_to: { 'bp-a': 'dom' } },
+      { slug: 'dom', id: '013', kind: 'domain', active: true },
+    ],
+  };
+  const res = parseEpicRegistry(registry);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.message.startsWith('moved_to is invalid: old: '), res.message);
+});
+
+test('malformed moved_to in the file → validate reports S35', () => {
+  const repo = mkBlueprintRepo();
+  writeEpicRegistry(repo, movedRegistry({ moved_to: { 'bp-a': 'nowhere' } }));
+  assert.strictEqual(s35(repo).length, 1);
+});
+
 test('slug mapped to two ids → S35 with file and next on any gate', () => {
   const repo = mkBlueprintRepo();
   writeEpicRegistry(repo, {
