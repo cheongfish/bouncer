@@ -41,7 +41,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-LIGHT-UNCHANGED-DOCS | `## Lightweight cycle` / `are still authored` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-UNCHANGED-GATES | `## Lightweight cycle` / `G16 comprehension` | `rules/planning.md` | shared rule | plan · finalize · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-CANONICAL-CONTEXT | `## Canonical context boundary` / `Canonical context remains` | `skills/bouncer-finalize/references/explain-quiz.md` | skill | finalize | BP3 |
-| GOV-LIGHT-SCALE-READ-SITES | `function scaffoldBlueprint` / `scale을 읽는 네 곳` | `scripts/src/lib/scaffold.ts` | docs/code | scripts/lib/scaffold.js · scripts/lib/validate-gates.js · scripts/lib/validate-structural.js · test/lightweight-cycle.test.js | BP4 |
+| GOV-LIGHT-SCALE-READ-SITES | `function scaffoldBlueprint` / `scale을 읽는 네 곳` | `scripts/src/lib/scaffold.ts` | docs/code | scripts/lib/scaffold.js · scripts/lib/validate-gates-plan.js · scripts/lib/validate-structural.js · test/lightweight-cycle.test.js | BP4 |
 | GOV-LIGHT-INLINE-LIMIT | `## Lightweight and implement dispatch` / `self-review pressure` | `skills/bouncer-run/references/agent-dispatch.md` | skill | test/lightweight-cycle.test.js | BP3 |
 | GOV-LIGHT-RETURN-FULL | `## Lightweight cycle` / `scaffold context-review` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · docs/workflow.md · test/lightweight-cycle.test.js | BP2 |
 | GOV-DAG-FIELDS | `## Task DAG and approved scope` / `default sort key` | `rules/planning.md` | shared rule | plan · coordinator · rules/document-schema.md · test/master-rules.test.js | BP2 |
