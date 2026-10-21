@@ -16,27 +16,7 @@ const { renderDoc } = require('../scripts/lib/render');
 
 const __coordinatorMod = require('../scripts/lib/coordinator');
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
-const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
-const __FENCED = new Set([
-  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release', 'revoke', 'promote-stop', 'session-open',
-]);
-function __fence(repoRoot, blueprint) {
-  const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
-  return {
-    ledgerPath: __LEDGER_REL,
-    ledgerHash: crypto.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
-  };
-}
-function coordinate(opts) {
-  if (__FENCED.has(opts.command)
-    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
-    try {
-      opts = { ...opts, ...__fence(opts.repoRoot, opts.blueprint) };
-    } catch (_error) { /* missing ledger → core rejects */ }
-  }
-  return __coordinatorMod.coordinate(opts);
-}
+const { coordinate } = require('./helpers/coordinator-fence');
 
 function git(cwd, args) {
   return execFileSync('git', args, {

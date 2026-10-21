@@ -4,7 +4,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
@@ -15,6 +14,7 @@ const { evaluateStaged } = require('../scripts/lib/commit-hook');
 const { coordinatorContext, reviseTaskScope } = require('../scripts/lib/scope');
 const { detachRun } = require('../scripts/lib/run-detach');
 const { createGitTemplate } = require('./helpers/git-fixture');
+const { fence } = require('./helpers/coordinator-fence');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 const LEDGER_REL = '.bouncer/runtime/coordinator.json';
@@ -69,15 +69,6 @@ function capture(argv) {
     err: (s) => { buf.err += s; },
   });
   return { code, ...buf };
-}
-
-function sha(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-}
-
-function fenceFor(repo) {
-  const { ledgerFile } = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
-  return { ledgerPath: LEDGER_REL, ledgerHash: sha(ledgerFile) };
 }
 
 function readLedgerFile(file) {
@@ -396,7 +387,7 @@ test('run with an unknown subcommand or without --blueprint → exits 2', () => 
 test('detached ledger → coordinate next and every fenced mutation refuse with run-detached and keep the ledger bytes', () => {
   const { repo, ledgerFile, integration } = drive({ integrated: false });
   const prepared = coordinatorMod.coordinate({
-    command: 'prepare', repoRoot: repo, blueprint: BP_REL, cwd: integration, ...fenceFor(repo),
+    command: 'prepare', repoRoot: repo, blueprint: BP_REL, cwd: integration, ...fence(repo, BP_REL),
   });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
   const worker = prepared.tasks[0].workerPath;
@@ -421,7 +412,7 @@ test('detached ledger → coordinate next and every fenced mutation refuse with 
     'session-open': { command: 'session-open', task: undefined },
   };
   for (const [name, extra] of Object.entries(calls)) {
-    const result = coordinatorMod.coordinate({ ...base, ...extra, ...fenceFor(repo) });
+    const result = coordinatorMod.coordinate({ ...base, ...extra, ...fence(repo, BP_REL) });
     assert.strictEqual(result.ok, false, name);
     assert.strictEqual(result.reason, 'run-detached', name);
     assert.ok(fs.readFileSync(ledgerFile).equals(before), `${name} changed the ledger`);
@@ -433,7 +424,7 @@ test('detached ledger → coordinate next and every fenced mutation refuse with 
   let revised;
   try {
     revised = capture([
-      'coordinate', 'revise', '--ledger-path', LEDGER_REL, '--ledger-hash', fenceFor(repo).ledgerHash,
+      'coordinate', 'revise', '--ledger-path', LEDGER_REL, '--ledger-hash', fence(repo, BP_REL).ledgerHash,
       '--blueprint', BP_REL, '--task', '001', '--paths', 'src/auth/', '--reason', 'r',
     ]);
   } finally {
