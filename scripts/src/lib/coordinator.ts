@@ -1,28 +1,10 @@
 'use strict';
 import commands = require('./coordinator-commands');
 
-// 공개 이름은 소비자와의 호환 경계다. 구현 모듈을 통해 내보내야 기존 import 계약을 유지한다.
+// 공개 이름은 명령 API 셋뿐이다. helper는 정본 모듈(coordinator-ledger·coordinator-worker·
+// execution-dag 등)에서 직접 가져온다 — 호환용 재export를 두면 경계가 다시 넓어진다.
 export = {
-  readyWave: commands.readyWave,
-  transition: commands.transition,
   coordinate: commands.coordinate,
-  loadLedger: commands.loadLedger,
-  loadLedgerBytes: commands.loadLedgerBytes,
-  readBouncerBlock: commands.readBouncerBlock,
-  projectCheckpoint: commands.projectCheckpoint,
-  assertLedgerFence: commands.assertLedgerFence,
-  LEDGER_REL: commands.LEDGER_REL,
   COORDINATE_FAILURE_HINTS: commands.COORDINATE_FAILURE_HINTS,
   withCoordinateFailureHints: commands.withCoordinateFailureHints,
-  registeredIntegration: commands.registeredIntegration,
-  registeredWorker: commands.registeredWorker,
-  ensureIntegrationCwd: commands.ensureIntegrationCwd,
-  assertLeaseShape: commands.assertLeaseShape,
-  isBlueprintReviewModeAt: commands.isBlueprintReviewModeAt,
-  initialWorktreeState: commands.initialWorktreeState,
-  taskBriefHashOf: commands.taskBriefHashOf,
-  normalizeCommitSha: commands.normalizeCommitSha,
-  reportPathFor: commands.reportPathFor,
-  workerCommitEvidence: commands.workerCommitEvidence,
-  workerScopeDirtyPaths: commands.workerScopeDirtyPaths,
 };

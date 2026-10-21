@@ -60,7 +60,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-COORD-G17 | `## Worktree and enforcement layers` / `weaker of the three` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js | BP3 |
 | GOV-COORD-NO-LEDGER | `## Approved and ledger scope` / `Without a coordinator ledger` | `rules/commit-scope.md` | shared rule | plan | BP3 |
 | GOV-COORD-REPAIR | `## Hard guards` / `at most two dynamic repair` | `agents/bouncer-coordinator.md` | agent | coordinator · run | BP3 |
-| GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `scripts/src/lib/coordinator-commands.ts` | docs/code | scripts/lib/coordinator-commands.js | BP4 |
+| GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `scripts/src/lib/coordinator-repair.ts` | docs/code | scripts/lib/coordinator-repair.js | BP4 |
 | GOV-COORD-PARTIAL-CLOSE | `## Hard guards` / `partial_closed` | `agents/bouncer-coordinator.md` | agent | coordinator · run · finalize | BP3 |
 | GOV-DISPATCH-PAYLOAD | `## Intent bundle` / `never document headings, item numbers, or test names` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · test/skill-bouncer-surface.test.js | BP3 |
 | GOV-DISPATCH-METADATA | `## Dispatch metadata and reports` / `Pass only the five metadata fields above` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · references/coordinator-cards/implement.md · test/coordinate-next.test.js | BP3 |

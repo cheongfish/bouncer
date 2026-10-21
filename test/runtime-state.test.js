@@ -780,7 +780,7 @@ test('coordinator ledger with malformed dispatch attempt metadata → rejects it
 
 test('validateCoordinatorCheckpoint with a compact summary or bad ledger refs → accepts the summary and rejects the refs', () => {
   const { validateCoordinatorCheckpoint, COORDINATOR_LEDGER_REL } = require('../scripts/lib/runtime-state');
-  const { LEDGER_REL } = require('../scripts/lib/coordinator');
+  const { LEDGER_REL } = require('../scripts/lib/coordinator-ledger');
   // MM-001: coordinator·runtime-state가 같은 상대 경로 정본을 공유한다.
   assert.strictEqual(LEDGER_REL, COORDINATOR_LEDGER_REL);
   assert.strictEqual(typeof validateCoordinatorCheckpoint, 'function');

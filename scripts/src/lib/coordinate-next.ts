@@ -5,11 +5,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import coordinator = require('./coordinator');
+const { COORDINATE_FAILURE_HINTS } = coordinator;
+import coordinatorLedger = require('./coordinator-ledger');
+const { assertLeaseShape, loadLedgerBytes, projectCheckpoint } = coordinatorLedger;
+import coordinatorWorker = require('./coordinator-worker');
 const {
-  registeredIntegration, ensureIntegrationCwd, assertLeaseShape,
-  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf,
-  loadLedgerBytes, readBouncerBlock, projectCheckpoint, COORDINATE_FAILURE_HINTS,
-} = coordinator;
+  ensureIntegrationCwd, isBlueprintReviewModeAt, taskBriefHashOf, readBouncerBlock,
+  reportPathFor, workerCommitEvidence, workerScopeDirtyPaths,
+} = coordinatorWorker;
+import coordinatorGit = require('./coordinator-git');
+const { registeredIntegration, initialWorktreeState } = coordinatorGit;
 import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths } = runtime;
 import configMod = require('./config');
@@ -334,7 +339,7 @@ function defaultEvidenceCandidates(
   return [
     // 보고 파일은 `coordinate report`가 읽는 reportPathFor 경로와 같아야 한다.
     ...(attempt === undefined ? []
-      : [{ kind: 'report' as const, path: coordinator.reportPathFor(workerPath, taskId, attempt) }]),
+      : [{ kind: 'report' as const, path: reportPathFor(workerPath, taskId, attempt) }]),
     { kind: 'verification', path: path.join(taskDir, 'verification.md') },
     { kind: 'review', path: path.join(taskDir, 'review.md') },
   ];
@@ -797,7 +802,7 @@ function blueprintNext(ctx: {
 function currentAttemptReportExists(workerPath: string, task: string, attempt: number): boolean {
   let text: string;
   try {
-    text = fs.readFileSync(coordinator.reportPathFor(workerPath, task, attempt), 'utf8');
+    text = fs.readFileSync(reportPathFor(workerPath, task, attempt), 'utf8');
   } catch (_error) {
     // 읽기 오류는 모두 "보고 없음"으로 접는다. 판정을 못 하면 implement로 남는 쪽이
     // 보수적이고(보고를 건너뛰어 미완성 구현을 verify로 넘기지 않는다), next는 읽기 전용이라
@@ -936,7 +941,7 @@ function taskNext(ctx: {
       base_head: item.dispatch.base_head,
       initial_worktree_state: item.dispatch.initial_worktree_state,
       // dispatch가 발급한 것과 같은 경로: 원장 dispatch에서 다시 계산한다.
-      report_path: coordinator.reportPathFor(
+      report_path: reportPathFor(
         item.workerPath || cwd, task, item.dispatch.attempt,
       ),
     };
@@ -994,8 +999,8 @@ function taskNext(ctx: {
   const extras = dirtyPaths(porcelainText).filter((rel) => !baseline.has(rel));
   // stamp 규칙은 report·record가 거절에 쓰는 workerCommitEvidence와 같은 함수 하나를 쓴다.
   // 그래야 next가 report를 권한 상태를 CLI가 거절하는 어긋남이 생기지 않는다.
-  const taskItem = item as Parameters<typeof coordinator.workerCommitEvidence>[3];
-  const evidence = coordinator.workerCommitEvidence(exec, cwd, blueprint, taskItem, ledger);
+  const taskItem = item as Parameters<typeof workerCommitEvidence>[3];
+  const evidence = workerCommitEvidence(exec, cwd, blueprint, taskItem, ledger);
   if (evidence.ok && onlyTaskBriefDirty(extras, blueprint, task)) {
     return ok({
       scope: 'task', action: 'report', cwd,
@@ -1016,7 +1021,7 @@ function taskNext(ctx: {
     // 끝나 stamp를 못 고치므로 advance가 같은 commit 단계를 무한 반복한다.
     const hasCommittable = evidence.reason === 'worker-scope-dirty'
       || (evidence.reason === 'worker-commit-stamp-mismatch'
-        && coordinator.workerScopeDirtyPaths(exec, cwd, blueprint, taskItem).length > 0);
+        && workerScopeDirtyPaths(exec, cwd, blueprint, taskItem).length > 0);
     if (hasCommittable) {
       return ok({
         scope: 'task', action: 'commit', cwd,

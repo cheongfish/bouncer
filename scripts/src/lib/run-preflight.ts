@@ -18,8 +18,8 @@ const {
   DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE,
   DEFAULT_EXCLUSIVE_RESOURCES, executionKindOf,
 } = schema;
-import coordinator = require('./coordinator');
-const { loadLedger } = coordinator;
+import coordinatorLedger = require('./coordinator-ledger');
+const { loadLedger } = coordinatorLedger;
 import executionDag = require('./execution-dag');
 const { readyWave } = executionDag;
 import runtimeState = require('./runtime-state');
