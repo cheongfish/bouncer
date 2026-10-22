@@ -53,21 +53,36 @@ function pathSetOf(task: Task): string[] | null {
  * @returns {boolean} 충돌이면 true
  */
 function tasksConflict(left: Task, right: Task): boolean {
+  return taskConflictDetail(left, right) !== null;
+}
+
+/**
+ * 두 task의 경로·자원 충돌 근거를 반환한다. 경로가 없는 legacy task는
+ * 모든 상대와 충돌시키되 실제 교집합 경로는 없으므로 빈 목록으로 표시한다.
+ *
+ * @param {Task} left - 비교할 task
+ * @param {Task} right - 비교할 상대 task
+ * @returns {{ paths: string[]; resources: string[]; legacy: boolean } | null} 충돌 근거 또는 충돌 없음
+ */
+function taskConflictDetail(left: Task, right: Task): { paths: string[]; resources: string[]; legacy: boolean } | null {
   const leftPaths = pathSetOf(left);
   const rightPaths = pathSetOf(right);
-  if (leftPaths === null || rightPaths === null) return true;
+  if (leftPaths === null || rightPaths === null) return { paths: [], resources: [], legacy: true };
+  const paths = new Set<string>();
+  const sharedResources = new Set<string>();
   for (const a of leftPaths) {
     for (const b of rightPaths) {
-      if (pathsOverlap(normalizeOverlapPath(a), normalizeOverlapPath(b))) return true;
+      if (pathsOverlap(normalizeOverlapPath(a), normalizeOverlapPath(b))) paths.add(b);
     }
   }
   const leftResources = new Set(
     Array.isArray(left.exclusive_resources) ? left.exclusive_resources : [],
   );
   for (const resource of Array.isArray(right.exclusive_resources) ? right.exclusive_resources : []) {
-    if (leftResources.has(resource)) return true;
+    if (leftResources.has(resource)) sharedResources.add(resource);
   }
-  return false;
+  const resources = [...sharedResources];
+  return paths.size || resources.length ? { paths: [...paths], resources, legacy: false } : null;
 }
 
 /**
@@ -135,4 +150,4 @@ function transition(from: string, to: string, executionKind: 'commit' | 'verific
 
 // pathSetOf는 coordinator의 scope 보충·감사 경로도 같은 "충돌 판정용 경로 집합"을
 // 써야 해서 함께 내보낸다 — 두 곳이 다른 집합을 보면 scheduler와 감사가 갈라진다.
-export = { readyWave, tasksConflict, transition, normalizeOverlapPath, pathSetOf };
+export = { readyWave, tasksConflict, taskConflictDetail, transition, normalizeOverlapPath, pathSetOf };

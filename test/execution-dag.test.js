@@ -1,7 +1,22 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { readyWave, transition, normalizeOverlapPath } = require('../scripts/lib/execution-dag');
+const { readyWave, transition, normalizeOverlapPath, taskConflictDetail } = require('../scripts/lib/execution-dag');
+
+test('taskConflictDetail with shared ancestor, resource, or missing paths → returns conflict evidence', () => {
+  assert.deepStrictEqual(taskConflictDetail(
+    { id: '001', affected_paths: ['src/'] }, { id: '002', affected_paths: ['src/a.ts'] },
+  ), { paths: ['src/a.ts'], resources: [], legacy: false });
+  assert.deepStrictEqual(taskConflictDetail(
+    { id: '001', affected_paths: ['a/'], exclusive_resources: ['db'] },
+    { id: '002', affected_paths: ['b/'], exclusive_resources: ['db'] },
+  ), { paths: [], resources: ['db'], legacy: false });
+  assert.deepStrictEqual(taskConflictDetail({ id: '001' }, { id: '002', affected_paths: ['b/'] }),
+    { paths: [], resources: [], legacy: true });
+  assert.strictEqual(taskConflictDetail(
+    { id: '001', affected_paths: ['a/'] }, { id: '002', affected_paths: ['b/'] },
+  ), null);
+});
 
 test('readyWave with ./src/ and src/ paths in flight and pending → treats them as one path and opens nothing', () => {
   assert.deepStrictEqual(readyWave([

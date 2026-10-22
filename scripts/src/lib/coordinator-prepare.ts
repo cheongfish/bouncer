@@ -18,6 +18,8 @@ import scopeMod = require('./scope');
 const { withLedgerLock } = scopeMod;
 import executionDag = require('./execution-dag');
 const { transition } = executionDag;
+import crossDrive = require('./cross-drive');
+const { otherDriveTasks, crossDriveConflicts } = crossDrive;
 import leaseMod = require('./lease');
 const { issueLease } = leaseMod;
 import coordinatorGit = require('./coordinator-git');
@@ -716,6 +718,11 @@ function prepareCoordinator({
       const checked = checkVerificationNode(integration.integrationPath, blueprint, id);
       if (!checked.ok) return checked;
     }
+    const otherDrives = otherDriveTasks({ repoRoot, ownLedgerFile: integration.ledgerFile });
+    if (!otherDrives.ok) return otherDrives;
+    const conflicts = crossDriveConflicts(ready.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
+      otherDrives.drives);
+    if (conflicts.length) return { ok: false as const, reason: 'cross-drive-conflict', conflicts };
     // light는 worker worktree를 만들지 않는다. integration 경로를 workerPath로
     // 쓰므로 branch·worktree 계획 단계 전체를 건너뛴다.
     if (ledgerModeOf(ledger) === 'light') {
