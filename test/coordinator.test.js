@@ -5123,6 +5123,65 @@ test('final discovery stored then CI failure-command repair → is not rejected 
   assert.notStrictEqual(out.reason, 'final-review-single-round');
 });
 
+// review_contract 표식 blueprint: 최종 discovery 뒤 리뷰 원인 repair를 한 번만 받는다.
+function briefContractDrive(prefix, blueprint, contract = 'brief') {
+  const drive = finalReviewStoredDrive(prefix, blueprint);
+  const indexFile = path.join(drive.integrationPath, blueprint, 'index.md');
+  fs.writeFileSync(indexFile, fs.readFileSync(indexFile, 'utf8')
+    .replace('bouncer:\n', `bouncer:\n  review_contract: ${contract}\n`));
+  // repair 경로는 추적되는 파일만 받으므로 수정 대상 파일을 integration HEAD에 커밋해 둔다.
+  fs.mkdirSync(path.join(drive.integrationPath, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), '// product\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: drive.integrationPath });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'src', '--', 'src/a.js'],
+    { cwd: drive.integrationPath });
+  return drive;
+}
+
+function reviewRepairOpts(drive, extra = {}) {
+  return supplementOpts(drive, { kind: undefined, paths: ['src/a.js'], ...extra });
+}
+
+test('brief contract after final discovery then the first review-caused repair → is accepted and recorded as a review repair', () => {
+  const drive = briefContractDrive('bouncer-brief-first-', '.bouncer/context/epics/090-x/blueprints/020-y');
+  const out = coordinate(reviewRepairOpts(drive));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  const repairs = readLedger(drive).decisions.filter((d) => d.kind === 'repair' && d.failure.command === 'review');
+  assert.strictEqual(repairs.length, 1);
+});
+
+test('brief contract after one review-caused repair then a second one → final-review-single-round and bytes unchanged', () => {
+  const drive = briefContractDrive('bouncer-brief-second-', '.bouncer/context/epics/090-x/blueprints/021-y');
+  assert.strictEqual(coordinate(reviewRepairOpts(drive)).ok, true);
+  const before = snapshotOf(drive);
+  const out = coordinate(reviewRepairOpts(drive));
+  assert.strictEqual(out.reason, 'final-review-single-round');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('brief contract review-caused repair with newPaths → final-review-repair-scope and bytes unchanged', () => {
+  const drive = briefContractDrive('bouncer-brief-scope-', '.bouncer/context/epics/090-x/blueprints/022-y');
+  const before = snapshotOf(drive);
+  const out = coordinate(reviewRepairOpts(drive, { newPaths: ['scripts/src/lib/x.ts'] }));
+  assert.strictEqual(out.reason, 'final-review-repair-scope');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('brief contract after final discovery then supplement → final-review-single-round', () => {
+  const drive = briefContractDrive('bouncer-brief-supp-', '.bouncer/context/epics/090-x/blueprints/023-y');
+  const before = snapshotOf(drive);
+  assert.strictEqual(coordinate(supplementOpts(drive)).reason, 'final-review-single-round');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('unknown review_contract then review-caused repair or supplement → review-contract-invalid and bytes unchanged', () => {
+  const drive = briefContractDrive('bouncer-brief-bad-', '.bouncer/context/epics/090-x/blueprints/024-y', 'other');
+  const before = snapshotOf(drive);
+  assert.strictEqual(coordinate(reviewRepairOpts(drive)).reason, 'review-contract-invalid');
+  assert.strictEqual(coordinate(supplementOpts(drive)).reason, 'review-contract-invalid');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
 test('supplement --done with several verify commands → verifies once per distinct command and marks the decision verified', () => {
   const drive = supplementDrive('bouncer-supp-done-', '.bouncer/context/epics/090-x/blueprints/004-y');
   assert.strictEqual(coordinate(supplementOpts(drive)).ok, true);

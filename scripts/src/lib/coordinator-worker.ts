@@ -105,6 +105,32 @@ function isBlueprintReviewModeAt(root: string, blueprint: string): boolean {
   }
 }
 
+/**
+ * checkout의 blueprint index에서 리뷰 계약 표식을 읽는다. `isBlueprintReviewModeAt`과
+ * 같은 이유로 index 부재·YAML 파손은 구형(`legacy`)으로 접고, 리뷰 모드가 아니면
+ * 표식이 있어도 적용하지 않는다(S38이 `review_scope: blueprint` 없는 표식을 plan gate에서
+ * 거절하므로 dispatch와 coordinator가 같은 blueprint를 다르게 읽는 경우는 없다).
+ *
+ * @param {string} root - 문서를 읽을 checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {'brief' | 'legacy' | null} 허용 밖의 표식 값이면 null — 호출자가 거절한다
+ */
+function reviewContractAt(root: string, blueprint: string): 'brief' | 'legacy' | null {
+  const abs = path.join(root, blueprint, 'index.md');
+  let data: unknown;
+  try {
+    data = readDoc(abs).data;
+  } catch (error) {
+    // 인덱스 부재와 YAML 파싱 실패만 흡수한다(isBlueprintReviewModeAt과 같은 기준).
+    if ((error as { code?: string }).code === 'ENOENT') return 'legacy';
+    if ((error as Error).name === 'YAMLException') return 'legacy';
+    throw error;
+  }
+  const bouncer = (data as Record<string, unknown> | undefined)?.bouncer as Record<string, unknown> | undefined;
+  if (!bouncer || bouncer.review_scope !== 'blueprint') return 'legacy';
+  return schema.reviewContractOf(bouncer);
+}
+
 // frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
 // 앞부분과 같다. 이 검사를 통과한 문서는 parseFrontmatter가 블록 부재로 throw할 수
 // 없으므로, 블록 부재를 오류 문구 비교 없이 구조로 판정한다.
@@ -362,7 +388,7 @@ function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, 
 }
 
 export = {
-  reportPathFor, taskBriefHashOf, isBlueprintReviewModeAt, readBouncerBlock,
+  reportPathFor, taskBriefHashOf, isBlueprintReviewModeAt, reviewContractAt, readBouncerBlock,
   evidenceFiles, checkWorkerEvidence, copyEvidenceBundle,
   workerCommitEvidence, workerScopeDirtyPaths, ensureIntegrationCwd,
   // coordinator-commands가 같은 경로 정규형과 scope 규칙을 쓰도록 함께 내보낸다.

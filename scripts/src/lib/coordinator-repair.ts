@@ -30,8 +30,8 @@ import coordinatorVerification = require('./coordinator-verification');
 const { prepareVerificationDependencies, selectVerificationRunner, runTargetVerification } = coordinatorVerification;
 import coordinatorWorker = require('./coordinator-worker');
 const {
-  readBouncerBlock, isBlueprintReviewModeAt, ensureIntegrationCwd, currentScopePaths, normalizeSupplementPath,
-  porcelainPaths,
+  readBouncerBlock, isBlueprintReviewModeAt, reviewContractAt, ensureIntegrationCwd, currentScopePaths,
+  normalizeSupplementPath, porcelainPaths,
 } = coordinatorWorker;
 
 // 실패 복구 계열(repair·supplement 완료·partial-close·critical-recovery)의 정본이다.
@@ -282,6 +282,51 @@ function finalReviewDiscoveryStored(integrationPath: string, blueprint: string):
 }
 
 /**
+ * 원장에 리뷰 원인 repair decision(`kind: 'repair'`, `failure.command: 'review'`)이 이미 있는지 본다.
+ * 표식 blueprint의 최종 리뷰는 이 repair를 한 번만 허용하므로, 두 번째 접수를 가르는 기준이다.
+ *
+ * @param {Ledger} ledger - 열린 원장
+ * @returns {boolean} 리뷰 원인 repair decision이 있으면 true
+ */
+function hasReviewRepairDecision(ledger: Ledger): boolean {
+  return (ledger.decisions || []).some((entry) => {
+    const item = entry as { kind?: unknown; failure?: { command?: unknown } } | null;
+    return item?.kind === 'repair' && item.failure?.command === 'review';
+  });
+}
+
+/**
+ * 최종 리뷰 이후 리뷰 원인 repair·supplement 접수 여부를 한 곳에서 판정한다. 표식이 허용 밖의
+ * 값이면 구형으로 접지 않고 거절한다. 구형 blueprint는 discovery 뒤 전부 거절하고, `brief`
+ * 표식은 discovery 뒤 승인된 경로 안의 리뷰 원인 repair를 한 번(delta 전·이전 repair 없음)만
+ * 받는다. 거절은 원장·문서를 쓰기 전에 끝난다.
+ *
+ * @param {object} opts - 판정 입력
+ * @param {string} opts.integrationPath - integration worktree
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {Ledger} opts.ledger - 열린 원장(읽기만 한다)
+ * @param {boolean} opts.supplement - supplement 접수이면 true, 리뷰 원인 repair이면 false
+ * @param {string[]} [opts.newPaths] - 리뷰 원인 repair가 선언한 새 경로
+ * @returns {{ ok: false; reason: string } | null} 거절이면 reason, 접수 가능이면 null
+ */
+function finalReviewGate(opts: {
+  integrationPath: string; blueprint: string; ledger: Ledger; supplement: boolean; newPaths?: string[];
+}): { ok: false; reason: string } | null {
+  const { integrationPath, blueprint, ledger, supplement, newPaths } = opts;
+  const contract = reviewContractAt(integrationPath, blueprint);
+  if (contract === null) return { ok: false, reason: 'review-contract-invalid' };
+  if (!finalReviewDiscoveryStored(integrationPath, blueprint)) return null;
+  // supplement는 표식과 무관하게 discovery 뒤에 닫힌다. 수정 기회는 repair 한 번뿐이다.
+  if (contract !== 'brief' || supplement) return { ok: false, reason: 'final-review-single-round' };
+  if (hasReviewRepairDecision(ledger) || rootReviewHasDelta(integrationPath, blueprint)) {
+    return { ok: false, reason: 'final-review-single-round' };
+  }
+  // 새 경로는 승인된 affected_paths 밖이다. 최종 리뷰의 수정 1회는 승인 범위 안에서만 열린다.
+  if (newPaths && newPaths.length > 0) return { ok: false, reason: 'final-review-repair-scope' };
+  return null;
+}
+
+/**
  * integration worktree에서 커밋되지 않은 변경 경로를 모은다(추적·미추적 모두).
  * `.bouncer/` 아래는 원장·증적이라 보완 범위 판정에서 뺀다. rename은 양쪽 경로를 낸다.
  *
@@ -372,9 +417,8 @@ function supplementDone({
     if (ledger.status === 'promotion_stopped') return { ok: false, reason: 'promotion-stopped' };
     const pending = latestSupplementDecision(ledger);
     // 거절은 검증 실행과 원장 쓰기보다 앞선다. 최종 discovery 뒤에는 보완 완료도 받지 않는다.
-    if (finalReviewDiscoveryStored(integrationPath, blueprint)) {
-      return { ok: false, reason: 'final-review-single-round' };
-    }
+    const gate = finalReviewGate({ integrationPath, blueprint, ledger, supplement: true });
+    if (gate) return gate;
     if (!pending || pending.outcome !== 'pending') return { ok: false, reason: 'supplement-not-pending' };
     // 검증이 만드는 증적 파일이 변경 목록에 섞이지 않게 검증 전에 잰다.
     const changed = integrationChangedPaths(exec, integrationPath);
@@ -1137,9 +1181,12 @@ function coordinateRepair(ctx: RepairCtx, support: RepairSupport): RepairResult 
   // 최종 리뷰 discovery가 저장된 뒤의 리뷰 원인 repair·supplement는 wave 한도나 증거
   // 검사보다 먼저 거절한다. 원장·task 문서를 쓰기 전이라 거절은 아무 파일도 바꾸지 않는다.
   // CI 원인 repair(`--failure-command`)는 리뷰 원인이 아니므로 이 거절을 받지 않는다.
-  if ((kind === 'supplement' || Array.isArray(reviewFindings))
-    && finalReviewDiscoveryStored(integration.integrationPath, blueprint)) {
-    return { ok: false, reason: 'final-review-single-round' };
+  if (kind === 'supplement' || Array.isArray(reviewFindings)) {
+    const gate = finalReviewGate({
+      integrationPath: integration.integrationPath, blueprint, ledger,
+      supplement: kind === 'supplement', newPaths,
+    });
+    if (gate) return gate;
   }
   // supplement는 wave 한도 검사보다 앞에서 처리한다. 새 task·wave를 쓰지 않으므로
   // 두 wave를 쓴 뒤에도 접수되어야 한다.
