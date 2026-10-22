@@ -866,13 +866,24 @@ test('linkLocalEnv when the worktree already has the path → keeps it', () => {
   assert.strictEqual(read(wt, '.env'), 'LOCAL=1\n');
 });
 
-test('linkLocalEnv when the path is not ignored → does not link', () => {
+test('linkLocalEnv when the path is not ignored → does not link and prints skip reason', () => {
   const repo = makeRepo();
   write(repo, '.env', 'DATABASE_URL=x\n');
   const wt = makeWorktree(repo);
+  const lines = [];
+  const stderrWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk, ...rest) => {
+    lines.push(String(chunk));
+    return stderrWrite(chunk, ...rest);
+  };
 
-  assert.deepStrictEqual(linkLocalEnv(wt), []);
-  assert.strictEqual(fs.existsSync(path.join(wt, '.env')), false);
+  try {
+    assert.deepStrictEqual(linkLocalEnv(wt), []);
+    assert.strictEqual(fs.existsSync(path.join(wt, '.env')), false);
+    assert.ok(lines.some((line) => line.includes('.env') && line.trim().length > 0));
+  } finally {
+    process.stderr.write = stderrWrite;
+  }
 });
 
 test('linkLocalEnv on the main checkout → does nothing', () => {
@@ -880,6 +891,42 @@ test('linkLocalEnv on the main checkout → does nothing', () => {
 
   assert.deepStrictEqual(linkLocalEnv(repo), []);
   assert.strictEqual(fs.lstatSync(path.join(repo, '.env')).isSymbolicLink(), false);
+});
+
+// `.venv/`처럼 trailing-slash 패턴은 아직 없는 `.venv` 경로에 check-ignore가
+// 실패한다. 디렉터리 원본이면 `rel/`로도 물어 링크를 만들고, symlink가
+// status에 새지 않도록 info/exclude에 `/rel`을 한 번만 넣는다.
+function makeRepoWithSlashIgnoreLocalEnv() {
+  const repo = makeRepo();
+  write(repo, '.gitignore', '.venv/\n.env\n');
+  git(repo, ['add', '.gitignore']);
+  git(repo, ['commit', '-qm', 'ignore local env with slash']);
+  write(repo, '.venv/bin/pytest', '#!/bin/sh\n');
+  write(repo, '.env', 'DATABASE_URL=x\n');
+  return { repo, wt: makeWorktree(repo) };
+}
+
+function excludePathOf(repo) {
+  const rel = git(repo, ['rev-parse', '--git-path', 'info/exclude']).trim();
+  return path.isAbsolute(rel) ? rel : path.join(repo, rel);
+}
+
+test('linkLocalEnv with .venv/ ignore pattern → links and keeps git status clean', () => {
+  const { repo, wt } = makeRepoWithSlashIgnoreLocalEnv();
+
+  assert.deepStrictEqual(linkLocalEnv(wt), ['.venv', '.env']);
+  assert.strictEqual(fs.readlinkSync(path.join(wt, '.venv')), path.join(repo, '.venv'));
+  assert.strictEqual(fs.readlinkSync(path.join(wt, '.env')), path.join(repo, '.env'));
+  assert.strictEqual(status(wt), '');
+});
+
+test('linkLocalEnv → writes /.venv to info/exclude only once across two calls', () => {
+  const { wt } = makeRepoWithSlashIgnoreLocalEnv();
+
+  assert.deepStrictEqual(linkLocalEnv(wt), ['.venv', '.env']);
+  assert.deepStrictEqual(linkLocalEnv(wt), []);
+  const lines = fs.readFileSync(excludePathOf(wt), 'utf8').split(/\r?\n/);
+  assert.strictEqual(lines.filter((line) => line === '/.venv').length, 1);
 });
 
 // worktree.setup 테스트: 실제 git worktree 없이 임시 디렉터리를 main checkout으로
