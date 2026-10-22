@@ -17,6 +17,7 @@ are always subagents. After the one start ACQ, open no per-task ACQ.
    | stop | root action |
    | --- | --- |
    | `worker` (implement) | dispatch the named `bouncer-implementer` per `${BOUNCER_ROOT}/rules/subagent-model.md` (Cursor print: `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md`); require it to read `${BOUNCER_ROOT}/references/coding-standards/index.md` before editing; then `advance` again |
+   | `worker` (`drive_tasks`) | for each task in `task_ids`, call `advance --blueprint <dir> --task <id>`; keep `--task <id>` on each later `advance` until that task is integrated |
    | `judge` dispatch or record | follow the returned card, including its dispatch or record action, then `advance` again |
    | `judge` report-outcome | read the current attempt from the report argv's `--attempt`; process `accepted`, and process `rework` only at attempt 1; hand off other outcomes and later rework |
    | `judge` review-round (including `final_review`) | follow the review-round card and record the round; if that round has no `must_fix`, `advance` again; otherwise hand off |

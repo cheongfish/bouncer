@@ -2,12 +2,17 @@
 'use strict';
 import scope = require('./scope');
 const { makeAllowed, isRuntimeArtifact } = scope;
+import crossDrive = require('./cross-drive');
+const { crossDriveConflicts } = crossDrive;
+import type { Task } from './execution-contracts';
 
 /**
  * 커밋 범위 안전 판정의 단일 구현.
  * `commitTask`(CLI)와 호스트 commit hook(`evaluateCommit`)이 같은
  * `allow`·`violations`를 쓰기 위한 계약이다. 허용·거부 로직을 어댑터에
  * 복제하지 말고 여기만 호출한다.
+ * 기존 worktree·revision 경계와 현재 scope를 먼저 확정한 뒤 다른 drive를 본다.
+ * 그래야 잘못된 checkout이나 범위 밖 쓰기가 상대 ledger 상태로 가려지지 않는다.
  *
  * @param {object} opts
  * @param {unknown[]|null|undefined} [opts.files] - 호출자가 선택한 실제 경로.
@@ -19,22 +24,31 @@ const { makeAllowed, isRuntimeArtifact } = scope;
  * @param {object} [opts.coordinator] - `scope.coordinatorContext` 결과.
  *   `active`면 ledger의 현재 scope가 승인된 `affected_paths`를 대신하고,
  *   `reason`이 있으면 worktree·revision 경계 위반이므로 범위 판정 전에 거절한다.
- * @returns {{ allow: boolean, violations: unknown[], code?: string }}
+ * @param {object} [opts.otherDrives] - 현재 scope 통과 뒤 비교할 다른 drive 원장 또는 읽기 실패
+ * @returns {object} allow·violations·code와, 충돌이면 conflicts 또는 ledgerFile
  *   `allow === true`면 위반 없음(`violations`는 `[]`).
  *   `allow === false`면 `code`가 거절 사유이고, `out-of-scope`일 때만
  *   `violations`가 범위 밖 경로다. 경계 위반은 staged 경로 전체를 담는다.
  *   runtime artifact(`isRuntimeArtifact`)는 위반으로 치지 않는다 —
  *   `makeAllowed` 예외와 함께 이 모듈이 소유한다.
  */
-function checkCommitSafety({ files, affectedPaths, blueprintDir, coordinator, executionKind }: {
+function checkCommitSafety({
+  files, affectedPaths, blueprintDir, coordinator, executionKind, otherDrives,
+}: {
   files?: unknown[] | null;
   affectedPaths?: unknown;
   blueprintDir?: unknown;
   coordinator?: {
     active?: boolean; reason?: string | null; scope?: unknown;
+    taskId?: string | null; resources?: string[];
   } | null;
   executionKind?: unknown;
-}): { allow: boolean; violations: unknown[]; code?: string } {
+  otherDrives?: { ok: true; drives: Parameters<typeof crossDriveConflicts>[1] }
+    | { ok: false; reason: string; ledgerFile: string };
+}): {
+  allow: boolean; violations: unknown[]; code?: string;
+  conflicts?: ReturnType<typeof crossDriveConflicts>; ledgerFile?: string;
+} {
   const candidates = (files || []).filter((f) => !isRuntimeArtifact(f));
   // verification node는 빈 scope를 이용해 "변경 없음" commit으로 들어가는 것도
   // 금지한다. 파일 수와 무관하게 종류 자체가 commit 권한을 갖지 않는다.
@@ -54,8 +68,23 @@ function checkCommitSafety({ files, affectedPaths, blueprintDir, coordinator, ex
     : affectedPaths;
   const allowed = makeAllowed({ affectedPaths: scope, blueprintDir });
   const violations = candidates.filter((f) => !allowed(f));
-  if (violations.length === 0) return { allow: true, violations: [] };
-  return { allow: false, code: 'out-of-scope', violations };
+  if (violations.length > 0) return { allow: false, code: 'out-of-scope', violations };
+  if (active && otherDrives) {
+    // 범위 검사를 먼저 끝내므로 cross-drive 결과는 승인된 후보만 비교한다.
+    if (!otherDrives.ok) {
+      return { allow: false, code: otherDrives.reason, violations: [], ledgerFile: otherDrives.ledgerFile };
+    }
+    const candidate: Task = {
+      id: coordinator && coordinator.taskId ? coordinator.taskId : 'commit',
+      affected_paths: candidates.filter((file): file is string => typeof file === 'string'),
+      exclusive_resources: coordinator && Array.isArray(coordinator.resources) ? coordinator.resources : [],
+    };
+    const conflicts = crossDriveConflicts([candidate], otherDrives.drives);
+    if (conflicts.length > 0) {
+      return { allow: false, code: 'cross-drive-conflict', violations: [], conflicts };
+    }
+  }
+  return { allow: true, violations: [] };
 }
 
 export = { checkCommitSafety };

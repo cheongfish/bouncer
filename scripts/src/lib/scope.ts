@@ -119,6 +119,7 @@ type LedgerTask = Pick<
   CanonicalTask,
   'id' | 'status' | 'workerPath' | 'sha' | 'depends_on' | 'parallel_safe' | 'dependency_gate'
   | 'scope' | 'actualPaths' | 'decisions' | 'affected_paths' | 'lease' | 'execution_kind'
+  | 'exclusive_resources'
 >;
 // 디스크 파일은 어떤 필드든 빠져 있을 수 있어 정본을 전부 선택 필드로 읽는다.
 // `version`은 정본이 리터럴 1이지만 읽기에서는 다른 버전도 받아야 하므로 number로 넓힌다.
@@ -133,6 +134,7 @@ type CoordinatorContext = {
   revision: string | null;
   scope: string[] | null;
   actualPaths: string[];
+  resources: string[];
   workerSha: string | null;
   workerPath: string | null;
   integrationPath: string | null;
@@ -530,6 +532,7 @@ function inactiveContext(reason: string): CoordinatorContext {
     revision: null,
     scope: null,
     actualPaths: [],
+    resources: [],
     workerSha: null,
     workerPath: null,
     integrationPath: null,
@@ -545,6 +548,7 @@ function inactiveContext(reason: string): CoordinatorContext {
  * `active: false`면 coordinator 실행이 아니다 — 호출자는 승인된
  * `affected_paths`로 예전처럼 판정한다. `active: true`인데 `reason`이 있으면
  * 그 자체가 거절 사유이고, `scope`는 신뢰할 수 없다.
+ * 활성 task의 `exclusive_resources`도 함께 반환해 커밋 시 다른 drive와 비교한다.
  *
  * @param {object} opts
  * @param {unknown} opts.repoRoot - 커밋이 일어나는 checkout(= cwd)
@@ -613,6 +617,7 @@ function coordinatorContext({ repoRoot, blueprint, task }: {
     revision: ledgerRevision,
     scope: entry && entry.scope ? entry.scope.paths : null,
     actualPaths: entry && Array.isArray(entry.actualPaths) ? entry.actualPaths : [],
+    resources: entry && Array.isArray(entry.exclusive_resources) ? entry.exclusive_resources : [],
     workerSha: entry && typeof entry.sha === 'string' ? entry.sha : null,
   };
   // 포인터가 가리키는 task가 원장에 없으면 이 실행이 맡은 task가 아니다.

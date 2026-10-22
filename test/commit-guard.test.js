@@ -129,6 +129,53 @@ test('a detached run context → leaves the approved-scope judgment unchanged', 
   assert.deepStrictEqual(res, { allow: true, violations: [] });
 });
 
+test('a started task in another drive with overlapping paths → blocks with conflict details', () => {
+  const res = checkCommitSafety({
+    files: ['src/auth/login.ts'], affectedPaths: ['src/auth/'], blueprintDir: BP,
+    coordinator: COORD,
+    otherDrives: { ok: true, drives: [{ blueprint: 'other/bp', ledgerFile: '/other/ledger', tasks: [
+      { id: '002', status: 'in_progress', affected_paths: ['src/auth/'] },
+    ] }] },
+  });
+  assert.strictEqual(res.allow, false);
+  assert.strictEqual(res.code, 'cross-drive-conflict');
+  assert.deepStrictEqual(res.conflicts[0].paths, ['src/auth/']);
+});
+
+test('a coordinator resource shared by another started task → reports the resource conflict', () => {
+  const res = checkCommitSafety({
+    files: [], affectedPaths: ['src/auth/'], blueprintDir: BP,
+    coordinator: { ...COORD, resources: ['db:migration'] },
+    otherDrives: { ok: true, drives: [{ blueprint: 'other/bp', ledgerFile: '/other/ledger', tasks: [
+      { id: '002', status: 'ready', affected_paths: ['src/unrelated/'],
+        exclusive_resources: ['db:migration'] },
+    ] }] },
+  });
+  assert.strictEqual(res.code, 'cross-drive-conflict');
+  assert.deepStrictEqual(res.conflicts[0].resources, ['db:migration']);
+});
+
+test('an unreadable other drive ledger → refuses with its path', () => {
+  const res = checkCommitSafety({
+    files: ['src/auth/login.ts'], affectedPaths: ['src/auth/'], blueprintDir: BP,
+    coordinator: COORD,
+    otherDrives: { ok: false, reason: 'cross-drive-ledger-unreadable', ledgerFile: '/other/ledger' },
+  });
+  assert.strictEqual(res.code, 'cross-drive-ledger-unreadable');
+  assert.strictEqual(res.ledgerFile, '/other/ledger');
+});
+
+test('existing coordinator boundary and scope refusals → precede cross-drive checks', () => {
+  const unreadable = { ok: false, reason: 'cross-drive-ledger-unreadable', ledgerFile: '/other' };
+  assert.strictEqual(checkCommitSafety({
+    files: [], coordinator: { ...COORD, reason: 'stale-revision' }, otherDrives: unreadable,
+  }).code, 'stale-revision');
+  assert.strictEqual(checkCommitSafety({
+    files: ['README.md'], affectedPaths: ['src/auth/'], coordinator: COORD,
+    otherDrives: unreadable,
+  }).code, 'out-of-scope');
+});
+
 // coordinator 원장은 실행 상태이지 커밋 대상이 아니다. integration worktree
 // 자신의 커밋 범위에서 원장이 스테이징돼도 out-of-scope로 보고하지 않는다.
 test('the coordinator ledger → is not a scope violation', () => {

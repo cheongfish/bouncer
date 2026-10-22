@@ -1206,6 +1206,14 @@ const FALLBACK_COORDINATE_NEXT =
 // 힌트는 여기 한 표만 본다. 개별 return { ok: false }에 cause/next를 흩어 쓰면
 // 새 reason이 표 없이 새어 나가고 coordinator가 다시 coordinator.ts를 읽게 된다.
 const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
+  'cross-drive-conflict': {
+    cause: 'A task in this wave overlaps a started task in another active coordinator drive.',
+    next: 'Wait for the other drive to finish or detach, or revise the plan to remove the overlap.',
+  },
+  'cross-drive-ledger-unreadable': {
+    cause: 'Another coordinator ledger could not be read, so its task scope cannot be checked.',
+    next: 'Repair or detach the named drive ledger, then retry `bouncer coordinate prepare`.',
+  },
   'accepted-report-required': {
     cause: 'Record requires an accepted dispatch report for this task, and none is stored.',
     next: 'Call `bouncer coordinate report` with outcome accepted, then retry `bouncer coordinate record`.',

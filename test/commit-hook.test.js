@@ -560,7 +560,7 @@ test('a coordinator worktree without a ledger → is not silently treated as in 
   assert.strictEqual(r.reason, 'no-active-lease');
 });
 
-function coordinatorDeps({ current, affected, staged, coordinator }) {
+function coordinatorDeps({ current, affected, staged, coordinator, otherDriveTasks }) {
   return {
     readCurrent: () => current,
     readAffectedPaths: () => affected,
@@ -568,6 +568,7 @@ function coordinatorDeps({ current, affected, staged, coordinator }) {
     trackedModified: () => [],
     mainRepoCurrent: () => null,
     coordinatorContext: () => coordinator,
+    ...(otherDriveTasks ? { otherDriveTasks } : {}),
   };
 }
 
@@ -598,6 +599,43 @@ test('the hook with staged paths and a coordinator ledger scope → judges again
   assert.strictEqual(stale.block, true);
   assert.match(stale.reason, /stale-revision/);
   assert.match(stale.reason, /src\/feature\/a\.js/);
+});
+
+test('the hook with a conflicting other drive → reports its blueprint, path, and next action', () => {
+  const current = { blueprint: BP, base: 'develop', task: `${BP}/tasks/001/tasks.md` };
+  const result = evaluateCommit({
+    command: 'git commit -m x', repoRoot: '/r',
+    deps: coordinatorDeps({
+      current, affected: ['src/auth/'], staged: ['src/auth/login.ts'],
+      coordinator: {
+        active: true, reason: null, scope: ['src/auth/'], taskId: '001',
+        resources: [], ledgerFile: '/own/ledger',
+      },
+      otherDriveTasks: () => ({ ok: true, drives: [{ blueprint: 'other/bp', ledgerFile: '/other', tasks: [
+        { id: '002', status: 'prepared', affected_paths: ['src/auth/'] },
+      ] }] }),
+    }),
+  });
+  assert.strictEqual(result.block, true);
+  assert.match(result.reason, /commit blocked: cross-drive-conflict: other\/bp 002 src\/auth\//);
+  assert.match(result.reason, /상대 drive가 끝나거나 detach될 때까지 기다리거나, 겹치지 않게 계획을 고친다$/);
+});
+
+test('the hook with an unreadable other ledger → reports its path and recovery action', () => {
+  const result = evaluateCommit({
+    command: 'git commit -m x', repoRoot: '/r',
+    deps: coordinatorDeps({
+      current: { blueprint: BP, base: 'develop', task: `${BP}/tasks/001/tasks.md` },
+      affected: ['src/auth/'], staged: ['src/auth/login.ts'],
+      coordinator: { active: true, reason: null, scope: ['src/auth/'], ledgerFile: '/own' },
+      otherDriveTasks: () => ({
+        ok: false, reason: 'cross-drive-ledger-unreadable', ledgerFile: '/other/ledger',
+      }),
+    }),
+  });
+  assert.strictEqual(result.block, true);
+  assert.match(result.reason, /commit blocked: cross-drive-ledger-unreadable: \/other\/ledger/);
+  assert.match(result.reason, /`ledgerFile`의 원장을 복구하거나 그 drive를 detach한다$/);
 });
 
 test('a boundary block with an empty staged list → reports the checkout, not a bare colon', () => {

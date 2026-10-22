@@ -24,6 +24,7 @@
 
 ### Added
 
+- **coordinator drive 간 충돌 거절** — `coordinate prepare`와 coordinator task 커밋이 다른 활성 drive의 시작된 task와 경로·`exclusive_resources`를 비교해 겹침을 거절한다. `direct-run.md`의 `drive_tasks` 행과 spec-authoring 생성물의 `Touch` 규칙도 이 동작에 맞게 보정했다.
 - **slug 식별자 전환과 이관 명령 (EPIC 119 BP 001)** — epic·blueprint 디렉터리와 stable ID, 브랜치, worktree가
   번호 대신 slug를 쓰고, blueprint 순서는 `bouncer.order`(`scaffold blueprint --order`,
   `plan inspect`의 `epic.nextBlueprintOrder`)가 맡는다. 등록부 v2는 `legacy_id`와 `blueprint_aliases`로 옛 번호를

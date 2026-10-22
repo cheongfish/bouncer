@@ -733,6 +733,63 @@ test('coordinator commit → returns actual paths, provenance SHAs and the next 
   assert.strictEqual(res.scopeRevision, null);
 });
 
+test('coordinator commit with an overlapping started task in another drive → refuses with conflict details', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  writeCurrent({ repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md` });
+  const otherLedger = path.join(repo, '.worktrees', '999', '999', 'integration',
+    '.bouncer', 'runtime', 'coordinator.json');
+  fs.mkdirSync(path.dirname(otherLedger), { recursive: true });
+  fs.writeFileSync(otherLedger, JSON.stringify({
+    blueprint: '.bouncer/context/epics/999-other/blueprints/999-drive',
+    status: 'active',
+    tasks: [{ id: '002', status: 'prepared', affected_paths: ['src/auth/'] }],
+  }));
+  const result = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'cross-drive-conflict');
+  assert.strictEqual(result.conflicts[0].task, '002');
+  assert.deepStrictEqual(result.conflicts[0].paths, ['src/auth/']);
+  assert.strictEqual(result.recovery.next,
+    '상대 drive가 끝나거나 detach될 때까지 기다리거나, 겹치지 않게 계획을 고친다');
+});
+
+test('coordinator commit with only a pending task in another drive → succeeds', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  writeCurrent({ repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md` });
+  const otherLedger = path.join(repo, '.worktrees', '999', '999', 'integration',
+    '.bouncer', 'runtime', 'coordinator.json');
+  fs.mkdirSync(path.dirname(otherLedger), { recursive: true });
+  fs.writeFileSync(otherLedger, JSON.stringify({
+    blueprint: '.bouncer/context/epics/999-other/blueprints/999-drive',
+    status: 'active',
+    tasks: [{ id: '002', status: 'pending', affected_paths: ['src/auth/'] }],
+  }));
+  const result = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(result.ok, true);
+});
+
+test('coordinator commit with an unreadable other ledger → returns the recovery action', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  writeCurrent({ repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md` });
+  const otherLedger = path.join(repo, '.worktrees', '999', '999', 'integration',
+    '.bouncer', 'runtime', 'coordinator.json');
+  fs.mkdirSync(path.dirname(otherLedger), { recursive: true });
+  fs.writeFileSync(otherLedger, '{broken');
+  const result = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(result.reason, 'cross-drive-ledger-unreadable');
+  assert.strictEqual(result.ledgerFile, otherLedger);
+  assert.strictEqual(result.recovery.next, '`ledgerFile`의 원장을 복구하거나 그 drive를 detach한다');
+});
+
 test('coordinator dry-run → reports coordinator, confirm-commit, and a null stampPath', () => {
   // 드라이브에서도 --yes 전 확인이 있어야 한다. 이 분기를 return-to-coordinator와
   // 바꾸면 스킬 Confirm 단계가 사라져 F1이 놓친 교환을 다시 허용한다.

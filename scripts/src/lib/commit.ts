@@ -32,6 +32,8 @@ import commitGuard = require('./commit-guard');
 const { checkCommitSafety } = commitGuard;
 import commitSha = require('./commit-sha');
 const { normalizeCommitSha } = commitSha;
+import crossDrive = require('./cross-drive');
+const { otherDriveTasks } = crossDrive;
 
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
 
@@ -265,6 +267,20 @@ function recoveryFor(reason: string, coordinatorActive: boolean, next?: string):
       next,
     };
   }
+  if (reason === 'cross-drive-conflict') {
+    return {
+      action: 'report-and-stop',
+      detail: `Stop and report ${reason}. Do not stage, commit, or move the pointer.`,
+      next: '상대 drive가 끝나거나 detach될 때까지 기다리거나, 겹치지 않게 계획을 고친다',
+    };
+  }
+  if (reason === 'cross-drive-ledger-unreadable') {
+    return {
+      action: 'report-and-stop',
+      detail: `Stop and report ${reason}. Do not stage, commit, or move the pointer.`,
+      next: '`ledgerFile`의 원장을 복구하거나 그 drive를 detach한다',
+    };
+  }
   if (reason === 'out-of-scope') {
     if (coordinatorActive) {
       return {
@@ -323,6 +339,19 @@ function commitExceptionResult(error: unknown): {
   };
 }
 
+/**
+ * 현재 task를 검증하고 scope·coordinator 경계를 통과한 파일만 커밋한다.
+ * coordinator 커밋은 현재 scope 확인 뒤 다른 활성 drive와 파일·자원을 비교하며,
+ * 충돌이나 상대 원장 판독 실패는 파일을 stage하기 전에 report-and-stop으로 돌린다.
+ *
+ * @param {object} opts - 저장소, blueprint, 확인 여부, Git seam과 gate
+ * @param {string} opts.repoRoot - 커밋이 일어나는 checkout 절대 경로
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @param {boolean} [opts.yes] - 실제 커밋 확인 여부
+ * @param {GitApi} [opts.git] - 테스트용 Git 연산기
+ * @param {typeof validateBlueprint} [opts.validateGate] - commit gate
+ * @returns {object} 성공 시 커밋 provenance, 실패 시 reason·recovery와 선택적 충돌 정보
+ */
 function commitTask({
   repoRoot, blueprintDir, yes = false, git, validateGate = validateBlueprint,
 }: {
@@ -407,8 +436,11 @@ function commitTask({
     !isTaskWorkflowArtifact(file)
     && !isFinalizeRemainderDeletion({ repoRoot, file, changed: trackedChanged })
   ));
-  const { allow, violations, code } = checkCommitSafety({
-    files: scopeCandidates, affectedPaths, blueprintDir, coordinator, executionKind,
+  const otherDrives = coordinator.active && !coordinator.reason
+    ? otherDriveTasks({ repoRoot, ownLedgerFile: coordinator.ledgerFile as string })
+    : undefined;
+  const { allow, violations, code, conflicts, ledgerFile } = checkCommitSafety({
+    files: scopeCandidates, affectedPaths, blueprintDir, coordinator, executionKind, otherDrives,
   });
   if (!allow) {
     const reason = code || 'out-of-scope';
@@ -416,6 +448,8 @@ function commitTask({
       ok: false,
       reason,
       violations,
+      ...(conflicts ? { conflicts } : {}),
+      ...(ledgerFile ? { ledgerFile } : {}),
       recovery: recoveryFor(
         reason,
         coordinator.active,

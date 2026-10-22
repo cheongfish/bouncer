@@ -170,6 +170,10 @@ body content only; never edits harness-owned frontmatter fields. Used from
        one does, plan a replacement or a different location in the task; an
        addition that the contract rejects only surfaces during execute and
        departs from the approved brief.
+     - **Touch** (generated artifact): when a task changes a source file that
+       generates an artifact, list the generated artifact path in both `Touch`
+       and `affected_paths`. Put the parity test in that task's `bouncer.verify`
+       and the command that regenerates the artifact in its Checklist.
      - **Judgable prose**: ban undecidable verbs such as `개선한다` or
        `적절히 처리한다`. Replace them with observable outcomes a gate or
        test can accept or reject.
