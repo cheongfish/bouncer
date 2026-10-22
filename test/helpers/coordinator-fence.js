@@ -8,12 +8,12 @@ const { coordinatorPathsFor } = require('../../scripts/lib/runtime-state');
 
 const LEDGER_REL = '.bouncer/runtime/coordinator.json';
 
-// 제품 LEDGER_FENCED_COMMANDS(scripts/src/lib/coordinator-commands.ts)와 같은 15개.
+// 제품 LEDGER_FENCED_COMMANDS(scripts/src/lib/coordinator-commands.ts)와 같은 16개.
 // 제품 모듈의 목록은 비공개라 import하지 않는다 — 제품 목록이 바뀌면 이 목록도 함께 고친다.
 const FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
   'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open',
-  'worker-model', 'worker-tokens', 'reverify',
+  'worker-model', 'worker-tokens', 'reverify', 'note',
 ]);
 
 /**
