@@ -38,6 +38,12 @@
 
 ### Changed
 
+- **plan 리뷰 관점 문서 정렬 (plan-review-perspectives BP 002)** — `review_contract: brief` 표식 blueprint의
+  plan 리뷰를 `consistency`·`scope_minimality`·`verifiability`·`risk_security` 관점별 병렬 호출로 서술하고,
+  표식 light는 `verifiability` 한 관점만 받는다고 `bouncer-plan`·context-review reference·rubric·reviewer
+  agent·`rules/planning.md`·`docs/workflow.md`·`rules/document-schema.md`에 적었다. 표식 없는 blueprint의
+  `single`·light skip 안내는 그대로다.
+
 - **plan 등록부 epic 귀속 (EPIC 114 BP 002)** — `/bouncer-plan`이 `plan inspect`의 `registry`로 epic을 고르고,
   `rules/planning.md`에 `Epic attribution` 규칙을 둔다. 경량 선언도 같은 귀속을 따르며 공유 `maintenance` epic
   안내는 없앴다. `bouncer-finalize`의 후속 작업 안내도 귀속 규칙이 정한 등록부 epic을 가리킨다.

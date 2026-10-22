@@ -1,4 +1,4 @@
-When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference.
+When deciding context review for a `scale: full` blueprint, or a light blueprint that carries `bouncer.review_contract: brief`, after `affected_paths` confirmation, read this reference.
 
 **Plugin-root shell contract.** See `${BOUNCER_ROOT}/rules/plugin-root.md`. Apply the shared
 model and host-fallback order in [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
@@ -17,8 +17,8 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    --blueprint <dir> --dispatch <payload.json>` before any reviewer call (a
    repeated start returns the same cycle and resets nothing). That CLI result
    is the only dispatch authority: do not
-   merge, split, combine, or divide its clusters, and do not add an extra
-   perspective to the `single` result. When the payload is `ok: false`, or when
+   merge, split, combine, or divide its clusters or its `perspectives`, and do not add
+   an extra perspective to a `single` or `perspectives` result. When the payload is `ok: false`, or when
    its `target.digest` / document set disagrees with the frozen snapshot,
    or `start` is rejected, stop — do not call a reviewer and do not mark
    `context-review` accepted. A `previous-payload-required`,
@@ -30,23 +30,30 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    return to `/bouncer-plan` step 3 **Author**; after the fix, restart from
    step 1 freeze.
 
-   Every full initial plan review is `strategy: single`, whatever the task
+   A blueprint without the `review_contract` marker is `strategy: single`, whatever the task
    count: dispatch one `bouncer-context-reviewer` call with perspective
-   `combined` (both rubrics). A stored payload with `strategy: clustered` from
-   an older cycle is still read, but never produced. Record round 1 with the
-   `combined` perspective. The call uses `fork_turns: "none"` (exclude full
+   `combined` (both rubrics) and record round 1 with the `combined` perspective. A marked
+   blueprint is `strategy: perspectives`: dispatch one `bouncer-context-reviewer` call per
+   entry of the payload `perspectives` (full: `consistency`, `scope_minimality`,
+   `verifiability`, `risk_security`; light: `verifiability` only), all in one message so they
+   run in parallel, and record all of them in round 1 as one `perspectives` list. A stored
+   payload with `strategy: clustered` from an older cycle is still read, but never produced.
+   Each call uses `fork_turns: "none"` (exclude full
    conversation history) and receives only this controller input allowlist:
    `mode: discovery`, the perspective, the frozen digest, the full judged epic
    · blueprint · task document set, and the read-only cwd. Do not pass the full
    conversation, the full ledger, or documents outside that judged set. The
-   discovery `target_digest` equals the frozen digest.
+   discovery `target_digest` equals the frozen digest, and no call sees another
+   call's findings.
    **Metrics.** Around every reviewer call (discovery and delta) record it:
    `bouncer metrics start --kind context-review --blueprint <dir> --label <perspective> --target-digest <call target_digest>`
    just before dispatch, then `bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>`
    from the host's final task notification once the reviewer's hand-back report has arrived, per item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md` (omit flags the host did not give).
    Procedure and rules: `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`. A failed `metrics` call
    never changes the review result.
-3. **Merge** — Verify each finding's evidence. Record `category`,
+3. **Merge** — Verify each finding's evidence. With `perspectives`, the findings of every
+   call land in round 1; findings that share a fingerprint across perspectives are merged
+   into one. Record `category`,
    `brief_clause`, `file`, `symbol`, and the fingerprint
    `context:<category>:<brief_clause>:<file>#<symbol>` (for example
    `fingerprint: context:scope:blueprint success criteria:.bouncer/context/epics/014-auth/blueprints/001-signup/index.md#success-criteria`);
@@ -79,7 +86,8 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    payload the last `start`/`record`/`restart` stored; `--previous` is
    required once the cycle exists) and copy the new
    `target.digest`. When `follow_up` is `partial`, dispatch one
-   `bouncer-context-reviewer` call in mode `delta` with `fork_turns: "none"`
+   `bouncer-context-reviewer` call (perspective `combined` on a full blueprint,
+   `verifiability` on a light one) in mode `delta` with `fork_turns: "none"`
    (exclude full conversation history) and only this controller input
    allowlist (the same fields for named, generic, inline and print calls):
    `{mode:"delta", target, previous_findings, changed_documents, revision_diff,
@@ -163,13 +171,15 @@ first writes that call's controller input allowlist (and nothing else) to
 `<out>/input.md`, then runs:
 
 ```bash
-# Run from PROJECT_ROOT. <call> is r1-combined | r2-delta
+# Run from PROJECT_ROOT. <call> is r1-<perspective> | r2-delta
 bouncer dispatch print --role context-reviewer --cwd "$PROJECT_ROOT" \
   --input .bouncer/runtime/print/context-review/<cycle id>/restart-<0|1>/<call>/input.md \
   --out .bouncer/runtime/print/context-review/<cycle id>/restart-<0|1>/<call>
 ```
 
-Use `r1-combined` for discovery `combined` and `r2-delta` for the delta; relative `--out` and `--input` resolve from
+Use `r1-<perspective>` for each discovery call (`r1-combined` for `single`, `r1-consistency`,
+`r1-scope_minimality`, `r1-verifiability`, `r1-risk_security` for `perspectives`) and
+`r2-delta` for the delta; relative `--out` and `--input` resolve from
 `PROJECT_ROOT`. Every call uses its own cycle- and restart-qualified directory,
 so a later cycle or restart never reuses or overwrites an earlier output
 directory. `input.md` holds the same allowlist as the named call. The result

@@ -147,7 +147,10 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
   `bouncer scaffold blueprint --scale light`로 blueprint `index.md`,
   `tasks/001/{tasks,verification}.md`, 루트 `review.md`만 만듭니다.
   `context-review.md`가
-  없으니 계획 문서 판정 단계도 없습니다. task 본문은
+  없으니 계획 문서 판정 단계도 없습니다. 다만 blueprint에 `review_contract: brief`
+  표식이 있는 경량 계획은 `context-review.md`를 더 받고 `verifiability`
+  관점 하나로 검증 가능성 리뷰를 받습니다. run의 최종 리뷰는 표식 없는 경량과
+  같습니다. task 본문은
   Goal & intent·Touch·Checklist 셋만 쓰는 작성 규칙을 따르고, `affected_paths`
   확정과 G5는 일반 경로와 똑같이 받습니다. `review_scope`가 없으면 기존처럼 `tasks/<NNN>/{tasks,verification,review}.md`를 씁니다.
 - **full로 돌아가려면** blueprint `index.md`의 `bouncer.scale`을 `full`로

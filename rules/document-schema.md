@@ -103,8 +103,13 @@ display and default sort order — not execution authority.
   brief-compliance perspectives (`spec_scope`, `correctness_tests`, plus
   `security` only for `authentication`/`authorization`/`credential` risk) and
   accepts a task-less `--mode delta`. New full blueprints are scaffolded with it;
-  light blueprints never carry it. Any other value, use on a light blueprint, or
-  use without `review_scope: blueprint` is S38.
+  a light blueprint may carry it too, and then its plan review is the single
+  `verifiability` perspective (`planReviewContractOf` reads the marker without
+  looking at `scale`; full plan review runs `consistency`, `scope_minimality`,
+  `verifiability`, `risk_security`). `reviewContractOf`, the run-side reader,
+  returns `'legacy'` for every light blueprint, so a marked light run is
+  reviewed like an unmarked light one. S38 checks the value only: any value
+  other than `brief`, or use without `review_scope: blueprint`, is S38.
 
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
