@@ -11,7 +11,7 @@ const { statusOf, isBlueprintReviewMode } = validateDocs;
 import validateSections = require('./validate-sections');
 const { parseExplainSections, collectFindingFailures, EXECUTE_REVIEW_STATUS } = validateSections;
 import schema = require('./schema');
-const { executionKindOf } = schema;
+const { executionKindOf, reviewContractOf } = schema;
 import { validOutsideScope } from './execution-contracts';
 import { defaultCoordinatorLedgerFor } from './validate-gates-run';
 import {
@@ -117,6 +117,13 @@ function checkG21(
   if (!head) {
     add('blueprint review has no rounds');
   }
+  // review_contract가 brief면 record와 같은 blueprint_brief 계약으로 판정한다. 허용 밖 값은 legacy로
+  // 접지 않고 collectFindingFailures 필터를 거치지 않는 직접 실패로 남겨, 마감이 조용히 통과하지 않게 한다.
+  const blueprintBouncer = docs.blueprintIndex && (docs.blueprintIndex.data as Record<string, unknown> | undefined)
+    ? (docs.blueprintIndex.data as Record<string, unknown>).bouncer
+    : undefined;
+  const reviewContract = reviewContractOf(blueprintBouncer);
+  if (reviewContract === null) add('review-contract-invalid: review_contract must be brief');
   for (const message of collectFindingFailures({
     body: reviewDoc.body,
     findings: reviewMeta && reviewMeta.findings,
@@ -126,7 +133,7 @@ function checkG21(
     allowedStatuses: EXECUTE_REVIEW_STATUS,
     reviewStatus: statusOf(reviewDoc),
     // blueprint 최종 리뷰는 repair wave마다 delta를 기록하므로 전용 순서 계약을 쓴다.
-    roundScope: 'blueprint',
+    roundScope: reviewContract === 'brief' ? 'blueprint_brief' : 'blueprint',
   }).filter(isBlockingReviewFailure)) {
     // 형식 위반은 기록 시점이 거절하므로 실질 판정만 G21로 남긴다.
     add(message);

@@ -13,8 +13,10 @@ const { toPosix } = paths;
 import validateSections = require('./validate-sections');
 const {
   normalizeRoundFindings, collectFindingFailures, EXECUTE_REVIEW_STATUS, EXECUTE_ROUND_CONTRACT,
-  BLUEPRINT_ROUND_CONTRACT,
+  BLUEPRINT_ROUND_CONTRACT, BRIEF_ROUND_CONTRACT,
 } = validateSections;
+import schema = require('./schema');
+const { reviewContractOf } = schema;
 import reviewSnapshot = require('./review-snapshot');
 const { loadReviewSnapshot, checkReviewSnapshotCurrent } = reviewSnapshot;
 
@@ -47,6 +49,15 @@ type RecordReviewFail = {
 
 type RecordReviewResult = RecordReviewOk | RecordReviewFail;
 
+/** review_contract가 허용 밖 값일 때의 공통 거절. record와 accept-risk가 같은 답을 낸다. */
+function contractInvalid(): RecordReviewFail {
+  return fail(
+    'review-contract-invalid',
+    'review_contract must be brief',
+    'fix review_contract in the blueprint index.md (brief or omit it), then retry',
+  );
+}
+
 function fail(reason: string, cause: string | string[], next: string): RecordReviewFail {
   return { ok: false, reason, cause, next };
 }
@@ -55,27 +66,35 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/** blueprint index가 정하는 리뷰 범위. contract_invalid는 review_contract가 허용 밖 값인 blueprint다. */
+type ReviewScope = 'task' | 'blueprint' | 'blueprint_brief' | 'contract_invalid';
+
 /**
- * blueprint index.md가 루트 리뷰 모드인지 본다. scaffold.isBlueprintReviewScope와
- * 같은 판정이지만 그 헬퍼는 scaffold 공개 표면에 없어 여기 읽기만 복제한다 —
- * scaffold.ts는 이 task의 Touch가 아니다.
+ * blueprint index.md의 review_scope·review_contract를 읽어 리뷰 범위를 정한다.
+ * scaffold.isBlueprintReviewScope와 같은 범위 판정이지만 그 헬퍼는 scaffold 공개 표면에 없어
+ * 여기 읽기만 복제한다 — scaffold.ts는 이 task의 Touch가 아니다. 계약 해석은 schema의
+ * reviewContractOf를 그대로 써서 S38·review-dispatch·G21과 같은 답을 낸다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} blueprintDirRel - blueprint 상대 경로
- * @returns {boolean} `review_scope === 'blueprint'`일 때만 true
+ * @returns {ReviewScope} `review_scope !== 'blueprint'`면 'task'. blueprint 범위에서 review_contract가
+ *   brief면 'blueprint_brief', 키 부재면 'blueprint', 허용 밖 값이면 'contract_invalid'
  */
-function isBlueprintReviewScopeAt(repoRoot: string, blueprintDirRel: string): boolean {
+function reviewScopeAt(repoRoot: string, blueprintDirRel: string): ReviewScope {
   const abs = path.join(repoRoot, blueprintDirRel, 'index.md');
   let data: unknown;
   try {
     ({ data } = parseFrontmatter(fs.readFileSync(abs, 'utf8')));
   } catch {
-    // 파일 없음·프론트매터 파싱 실패는 구형(task) 계약으로 본다. true로 접으면
+    // 파일 없음·프론트매터 파싱 실패는 구형(task) 계약으로 본다. blueprint로 접으면
     // --task를 거절해 대상 파일을 영원히 못 고른다.
-    return false;
+    return 'task';
   }
-  if (!isRecord(data) || !isRecord(data.bouncer)) return false;
-  return data.bouncer.review_scope === 'blueprint';
+  if (!isRecord(data) || !isRecord(data.bouncer)) return 'task';
+  if (data.bouncer.review_scope !== 'blueprint') return 'task';
+  const contract = reviewContractOf(data.bouncer);
+  if (contract === null) return 'contract_invalid';
+  return contract === 'brief' ? 'blueprint_brief' : 'blueprint';
 }
 
 /**
@@ -84,17 +103,19 @@ function isBlueprintReviewScopeAt(repoRoot: string, blueprintDirRel: string): bo
  * 여기만 접두를 허용한다 — 검사 규칙 복제가 아니라 예외 판정이다.
  *
  * @param {unknown[]} rounds - 병합 뒤 rounds
- * @param {boolean} blueprintScope - blueprint 범위면 BLUEPRINT_ROUND_CONTRACT의 sequences로 판정
+ * @param {'task' | 'blueprint' | 'blueprint_brief'} scope - 범위에 맞는 계약의 sequences로 판정
  * @returns {boolean} 허용 sequences 원소를 `,`로 나눈 배열의 길이 n 접두면 true
  */
-function isAllowedSequencePrefix(rounds: unknown[], blueprintScope: boolean): boolean {
+function isAllowedSequencePrefix(rounds: unknown[], scope: 'task' | 'blueprint' | 'blueprint_brief'): boolean {
   const modes: string[] = [];
   for (const entry of rounds) {
     if (isRecord(entry) && typeof entry.mode === 'string') modes.push(entry.mode);
   }
   const joined = modes.join(',');
   if (joined === '') return false;
-  const contract = blueprintScope ? BLUEPRINT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT;
+  let contract = EXECUTE_ROUND_CONTRACT;
+  if (scope === 'blueprint') contract = BLUEPRINT_ROUND_CONTRACT;
+  if (scope === 'blueprint_brief') contract = BRIEF_ROUND_CONTRACT;
   for (const sequence of contract.sequences) {
     const parts = sequence.split(',');
     for (let n = 1; n <= parts.length; n += 1) {
@@ -329,7 +350,11 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   const parsedInput = readRoundInput(input.roundFile);
   if ('reason' in parsedInput) return parsedInput;
 
-  const blueprintScope = isBlueprintReviewScopeAt(repoRoot, blueprintDir);
+  const scope = reviewScopeAt(repoRoot, blueprintDir);
+  // 허용 밖 review_contract는 legacy로 접지 않고 거절한다. 파일을 읽기 전이라 바이트가 그대로다.
+  if (scope === 'contract_invalid') return contractInvalid();
+  const blueprintScope = scope !== 'task';
+  const briefScope = scope === 'blueprint_brief';
   if (blueprintScope && task) {
     return fail(
       'review-task-not-allowed',
@@ -345,9 +370,10 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     );
   }
 
-  // 최종 리뷰는 discovery 한 라운드로 끝난다. 새 root delta는 파일을 읽기 전에 거절해
+  // 표식 없는 최종 리뷰는 discovery 한 라운드로 끝난다. 새 root delta는 파일을 읽기 전에 거절해
   // 저장 문서가 바뀌지 않게 한다. 이미 저장된 discovery,delta,delta 이력은 G21이 계속 읽는다.
-  if (blueprintScope && parsedInput.round.mode === 'delta') {
+  // 표식(brief) blueprint는 저장된 delta 유무를 알아야 하므로 아래에서 파일을 읽은 뒤 판정한다.
+  if (scope === 'blueprint' && parsedInput.round.mode === 'delta') {
     return fail(
       'final-review-single-round',
       'blueprint final review is a single discovery round; a new delta round is not accepted',
@@ -369,6 +395,16 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
 
   const { nextData, body, bouncer, review } = loadReviewDoc(abs);
   const existingRounds = Array.isArray(review.rounds) ? cloneJson(review.rounds) : [];
+  // 표식 blueprint는 위반을 고친 뒤 delta 한 번만 인증에 쓴다. 이미 delta가 저장돼 있으면 두 번째를
+  // 쓰기 전에 거절한다 — 남은 위반은 blocked로 보고하고 accept-risk가 닫는다.
+  if (briefScope && parsedInput.round.mode === 'delta'
+    && existingRounds.some((entry) => isRecord(entry) && entry.mode === 'delta')) {
+    return fail(
+      'final-review-single-round',
+      'brief final review allows discovery and one delta round; a second delta round is not accepted',
+      'discovery and one delta are used; report remaining violations as blocked',
+    );
+  }
   const expectedRound = existingRounds.length + 1;
   if (parsedInput.round.round !== expectedRound) {
     return fail(
@@ -410,11 +446,11 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
     allowedStatuses: EXECUTE_REVIEW_STATUS,
     reviewStatus: bouncer.status,
     // G21과 같은 계약으로 판정해야 기록과 마감 게이트가 서로 다른 답을 내지 않는다.
-    roundScope: blueprintScope ? 'blueprint' : undefined,
+    roundScope: briefScope ? 'blueprint_brief' : (blueprintScope ? 'blueprint' : undefined),
   });
   const sequenceOnly = messages.length === 1 && messages[0] === 'review rounds sequence invalid';
   const inProgressOk = sequenceOnly
-    && isAllowedSequencePrefix(mergedRounds, blueprintScope)
+    && isAllowedSequencePrefix(mergedRounds, scope)
     && bouncer.status !== 'accepted';
   if (messages.length > 0 && !inProgressOk) {
     return fail(
@@ -486,7 +522,9 @@ function acceptReviewRisk(input: AcceptRiskInput): AcceptRiskOk | RecordReviewFa
       'ask the user to explicitly approve accepting this risk, then rerun with --yes',
     );
   }
-  if (!isBlueprintReviewScopeAt(repoRoot, blueprintDir)) {
+  const scope = reviewScopeAt(repoRoot, blueprintDir);
+  if (scope === 'contract_invalid') return contractInvalid();
+  if (scope === 'task') {
     return fail(
       'review-accept-risk-task-scope',
       'accept-risk is only available when review_scope is blueprint',
@@ -534,13 +572,13 @@ function acceptReviewRisk(input: AcceptRiskInput): AcceptRiskOk | RecordReviewFa
     findingLabel: 'review',
     allowedStatuses: EXECUTE_REVIEW_STATUS,
     reviewStatus: bouncer.status,
-    roundScope: 'blueprint',
+    roundScope: scope === 'blueprint_brief' ? 'blueprint_brief' : 'blueprint',
   });
   // 남은 open이 있는 부분 수용은 문서가 requested라 정상이다. 완결 순서 검사만 접두 예외를 건다.
   const sequenceOnly = messages.length === 1 && messages[0] === 'review rounds sequence invalid';
   const inProgressOk = sequenceOnly
     && Array.isArray(review.rounds)
-    && isAllowedSequencePrefix(review.rounds, true)
+    && isAllowedSequencePrefix(review.rounds, scope)
     && bouncer.status !== 'accepted';
   if (messages.length > 0 && !inProgressOk) {
     return fail(

@@ -66,10 +66,11 @@ function git(cwd, args) {
  * untracked로 두고 그 상태를 snapshot으로 동결한다. 라운드 입력 JSON은 저장소 밖에 쓴다 —
  * 저장소 안에 두면 파일 자체가 작업 트리 변경이 되어 stale 판정을 흔든다.
  *
- * @param {{ taskMode?: boolean }} [opts] - taskMode면 review_scope 없이 task 001 리뷰 대상을 둔다
+ * @param {{ taskMode?: boolean, contract?: string }} [opts] - taskMode면 review_scope 없이 task 001 리뷰 대상을 둔다.
+ *   contract는 blueprint index의 review_contract 값('brief'·그 밖의 값). 생략하면 표식이 없는 legacy blueprint다
  * @returns {object} repo·base·head·snapshotId 등과 round/payload/freeze 헬퍼
  */
-function makeFixture({ taskMode = false } = {}) {
+function makeFixture({ taskMode = false, contract } = {}) {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-review-record-')));
   git(repo, ['init', '-q', '-b', 'main']);
   git(repo, ['config', 'user.email', 'test@example.com']);
@@ -82,6 +83,13 @@ function makeFixture({ taskMode = false } = {}) {
     repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
     blueprintId: '001', name: 'login', timestamp: TS,
   });
+  // scaffold는 새 full blueprint에 review_contract: brief를 쓴다. 기존 테스트는 표식 없는
+  // 계약을 검증하므로 기본은 키를 지우고, contract를 준 테스트만 표식을 둔다.
+  const indexFile = path.join(repo, BP_REL, 'index.md');
+  const indexDoc = parseFrontmatter(fs.readFileSync(indexFile, 'utf8'));
+  if (contract === undefined) delete indexDoc.data.bouncer.review_contract;
+  else indexDoc.data.bouncer.review_contract = contract;
+  fs.writeFileSync(indexFile, renderDoc(indexDoc.data, indexDoc.body));
   const rootReview = path.join(repo, BP_REL, 'review.md');
   let reviewPath = rootReview;
   if (taskMode) {
@@ -915,4 +923,122 @@ test('명시 id가 다른 같은 fingerprint 두 건 기록 → 기존 duplicate
   const result = fx.record(fx.payload({ new: 2 }, [EXAMPLE_FINDING, { ...EXAMPLE_FINDING, id: 'F9' }]), { status: 'addressed' });
   assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
   assert.ok(result.cause.includes(`review duplicate fingerprint ${CANONICAL_FP}`));
+});
+
+// ---- review_contract: brief (표식 blueprint) ----
+
+const BRIEF_CLAUSE_OK = ['tasks/001 Checklist', 'TASKS/002 Do not touch', 'tasks/003 Target behavior', 'Contract', 'contract 실패 모드'];
+const BRIEF_CLAUSE_BAD = ['style', 'tasks/1 Checklist', 'tasks/001 Notes', 'contractual'];
+
+function deltaPayload(fx, finding = { ...EXAMPLE_FINDING, status: 'resolved', last_seen_round: 2 }, round = 2) {
+  return fx.payload({
+    round, mode: 'delta', previous_finding_ids: ['F1'], new: 0, resolved: 1,
+  }, [finding]);
+}
+
+test('brief blueprint discovery then delta → records discovery,delta and accepts', () => {
+  const fx = makeFixture({ contract: 'brief' });
+  assert.equal(fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' }).ok, true);
+  const result = fx.record(deltaPayload(fx), { status: 'accepted' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.deepEqual(data.bouncer.review.rounds.map((r) => r.mode), ['discovery', 'delta']);
+  assert.equal(data.bouncer.status, 'accepted');
+});
+
+test('brief blueprint second delta after stored delta → is final-review-single-round and leaves bytes unchanged', () => {
+  const fx = makeFixture({ contract: 'brief' });
+  assert.equal(fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' }).ok, true);
+  const first = fx.record(deltaPayload(fx, { ...EXAMPLE_FINDING, status: 'open', last_seen_round: 2 }), {
+    status: 'requested',
+  });
+  assert.equal(first.ok, true, JSON.stringify(first));
+  const before = fs.readFileSync(fx.reviewPath);
+  const result = fx.record(deltaPayload(fx, undefined, 3), { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'final-review-single-round');
+  assert.match(result.next, /discovery and one delta are used/);
+});
+
+for (const clause of BRIEF_CLAUSE_BAD) {
+  test(`brief blueprint must_fix brief_clause ${clause} → is review-ledger-invalid`, () => {
+    const fx = makeFixture({ contract: 'brief' });
+    const before = fs.readFileSync(fx.reviewPath);
+    const result = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, brief_clause: clause }]));
+    assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+    assert.ok(
+      result.cause.some((m) => String(m).includes('review finding F1 must_fix brief_clause is not a brief section')),
+      JSON.stringify(result.cause),
+    );
+  });
+}
+
+for (const clause of BRIEF_CLAUSE_OK) {
+  test(`brief blueprint must_fix brief_clause ${clause} → records`, () => {
+    const fx = makeFixture({ contract: 'brief' });
+    const result = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, brief_clause: clause }]));
+    assert.equal(result.ok, true, JSON.stringify(result));
+  });
+}
+
+test('brief blueprint advisory finding with free brief_clause → records', () => {
+  const fx = makeFixture({ contract: 'brief' });
+  const result = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, actionability: 'advisory', brief_clause: 'style' }]));
+  assert.equal(result.ok, true, JSON.stringify(result));
+});
+
+test('brief blueprint deferred must_fix with note and --status accepted → is accepted with open must_fix', () => {
+  const fx = makeFixture({ contract: 'brief' });
+  const before = fs.readFileSync(fx.reviewPath);
+  const finding = { ...EXAMPLE_FINDING, status: 'deferred', note: 'later' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(result.cause.some((m) => String(m).includes('accepted with open must_fix')), JSON.stringify(result.cause));
+});
+
+test('brief blueprint accept-risk --yes on open must_fix → accepts the document', () => {
+  const fx = makeFixture({ contract: 'brief' });
+  recordOpenFindings(fx, ['F1']);
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 0, JSON.stringify(result));
+  assert.equal(result.status, 'accepted');
+});
+
+test('review_contract other → record is review-contract-invalid and leaves bytes unchanged', () => {
+  const fx = makeFixture({ contract: 'other' });
+  const before = fs.readFileSync(fx.reviewPath);
+  const result = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' });
+  assertRejectedUntouched(fx, before, result, 'review-contract-invalid');
+});
+
+test('review_contract other → accept-risk is review-contract-invalid and leaves bytes unchanged', () => {
+  const fx = makeFixture({ contract: 'other' });
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-contract-invalid');
+});
+
+test('brief blueprint stored discovery,delta,delta → accept-risk is review rounds sequence invalid', () => {
+  const fx = makeFixture({ contract: 'brief' });
+  const parsed = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  const stored = (round, mode) => ({
+    round, mode, target: { base: 'aaa', head: 'bbb' }, perspectives: [{ name: 'combined', target_head: 'bbb' }],
+    previous_finding_ids: round === 1 ? [] : ['F1'], new: round === 1 ? 1 : 0, resolved: 0, regressed: 0,
+  });
+  parsed.data.bouncer.status = 'requested';
+  parsed.data.bouncer.review = {
+    rounds: [stored(1, 'discovery'), stored(2, 'delta'), stored(3, 'delta')],
+    findings: [{
+      ...EXAMPLE_FINDING,
+      status: 'open',
+      last_seen_round: 3,
+      fingerprint: 'correctness:tasks/001 interface:scripts/lib/x.js#f',
+    }],
+  };
+  fs.writeFileSync(fx.reviewPath, renderDoc(parsed.data, parsed.body));
+  const before = fs.readFileSync(fx.reviewPath);
+  const { code, result } = acceptRiskCli(fx);
+  assert.equal(code, 1);
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(result.cause.some((m) => String(m).includes('review rounds sequence invalid')), JSON.stringify(result.cause));
 });

@@ -2307,9 +2307,9 @@ test('plan gate → keeps per-task failure order G3 then task checks', () => {
   assert.deepStrictEqual(codes, ['G3', 'G5', 'G3', 'G5']);
 });
 
-function blueprintReviewIndex() {
+function blueprintReviewIndex(extra = {}) {
   return {
-    data: { bouncer: { status: 'approved', review_scope: 'blueprint' } },
+    data: { bouncer: { status: 'approved', review_scope: 'blueprint', ...extra } },
     rel: rels.blueprintIndex,
     body: '',
   };
@@ -2456,6 +2456,45 @@ test('finalize G21 with accepted must_fix without accepted_risk → is accepted 
 test('finalize G21 with open must_fix in accepted review → is accepted with open must_fix', () => {
   const failures = g21FindingFailures(convergenceFinding({ status: 'open' }));
   assert.ok(failures.some((f) => /accepted with open must_fix F1|open in accepted review/.test(f.message)), JSON.stringify(failures));
+});
+
+function briefG21Failures(contract, review) {
+  return finalizeG21({
+    blueprintIndex: blueprintReviewIndex({ review_contract: contract }),
+    review: g21ReviewDoc('accepted', review),
+  }).filter((f) => f.code === 'G21');
+}
+
+test('finalize G21 with brief contract and accepted discovery,delta → has no G21', () => {
+  const failures = briefG21Failures('brief', {
+    rounds: g21ModeRounds(['discovery', 'delta']),
+    findings: [convergenceFinding({ brief_clause: 'tasks/001 Interface', fingerprint: 'correctness:tasks/001 interface:src/a.ts#run' })],
+  });
+  assert.deepEqual(failures, []);
+});
+
+test('finalize G21 with brief contract and deferred must_fix with note → is accepted with open must_fix', () => {
+  const failures = briefG21Failures('brief', {
+    rounds: g21ModeRounds(['discovery']),
+    findings: [convergenceFinding({ status: 'deferred', note: 'carry forward' })],
+  });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with brief contract and accepted_risk must_fix with note → has no G21', () => {
+  const failures = briefG21Failures('brief', {
+    rounds: g21ModeRounds(['discovery']),
+    findings: [convergenceFinding({ status: 'accepted', accepted_risk: true, note: 'user accepted the risk' })],
+  });
+  assert.deepEqual(failures, []);
+});
+
+test('finalize G21 with review_contract other → is review-contract-invalid', () => {
+  const failures = briefG21Failures('other', { rounds: g21ModeRounds(['discovery']), findings: [] });
+  assert.ok(
+    failures.some((f) => f.message === 'review-contract-invalid: review_contract must be brief'),
+    JSON.stringify(failures),
+  );
 });
 
 test('execute gate G14 with task rounds discovery,delta,delta → no G14', () => {
