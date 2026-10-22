@@ -1183,15 +1183,20 @@ test('second runVerification with same identity/scope → reuses evidence and sk
   assertRunOk(first, { command: 'npm test', reused: false });
   assert.strictEqual(calls, 1);
 
+  let reuseClockCalls = 0;
   const second = runVerification({
     repoRoot: repo,
     blueprintDir: BP_REL,
     scope,
     deps,
-    now: () => new Date('2026-07-28T00:00:00.000Z'),
+    now: () => {
+      reuseClockCalls += 1;
+      return new Date('2026-07-28T00:00:00.000Z');
+    },
     exec,
   });
   assert.strictEqual(calls, 1);
+  assert.strictEqual(reuseClockCalls, 0);
   assertRunOk(second, {
     command: 'npm test',
     reused: true,
@@ -1205,6 +1210,35 @@ test('second runVerification with same identity/scope → reuses evidence and sk
     verification.data.bouncer.verification.ran_at,
     '2026-07-27T09:00:00.000+09:00',
   );
+});
+
+test('damaged ledger JSON or output SHA → executes again and records fresh evidence', () => {
+  for (const damage of ['json', 'sha']) {
+    const repo = setupRepo();
+    const deps = fixedDeps();
+    const scope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+    let calls = 0;
+    const exec = () => {
+      calls += 1;
+      return { status: 0, stdout: 'original output', stderr: '' };
+    };
+    const options = { repoRoot: repo, blueprintDir: BP_REL, scope, deps, exec };
+    const first = runVerification(options);
+    const { ledgerFile } = verifyLedgerPathFor({
+      repoRoot: repo,
+      verificationRel: `${BP_REL}/tasks/001/verification.md`,
+      evidenceId: first.evidenceId,
+    });
+    const record = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+    record.output_sha = 'invalid';
+    fs.writeFileSync(ledgerFile, damage === 'json' ? '{broken' : JSON.stringify(record));
+    const result = runVerification(options);
+    assertRunOk(result, { command: 'npm test' });
+    assert.strictEqual(calls, 2);
+    const fresh = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+    assert.strictEqual(fresh.output_tail, 'original output');
+    assert.strictEqual(fresh.output_sha, createHash('sha256').update('original output').digest('hex'));
+  }
 });
 
 test('scope kind/key isolation → yields distinct evidence ids and three exec calls', () => {
