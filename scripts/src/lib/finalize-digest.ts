@@ -9,7 +9,7 @@ import finalizePr = require('./finalize-pr');
 const { buildPrDraft } = finalizePr;
 import digestModel = require('./finalize-digest-model');
 import type {
-  DigestFail, DriveSummary, FinalizeDigest, GitExec,
+  DigestFail, FinalizeDigest, GitExec,
 } from './finalize-digest-model';
 const { summarizeDrive, summarizeDriveIssues } = digestModel;
 const { assembleDigestBody } = digestModel;

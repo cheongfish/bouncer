@@ -218,40 +218,40 @@ test(
   'trailer commits, unverified tasks, symbols and afterClose → '
     + 'prepareFinalizeDigest fills them and refuses afterClose',
   () => {
-  const { repoRoot, blueprintDir } = buildStandaloneFixture();
-  const before = git(repoRoot, ['status', '--porcelain']);
+    const { repoRoot, blueprintDir } = buildStandaloneFixture();
+    const before = git(repoRoot, ['status', '--porcelain']);
 
-  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
-  assert.strictEqual(d.ok, true, JSON.stringify(d));
-  assert.strictEqual(d.version, 2);
-  assert.strictEqual(d.tasks[0].commit.source, 'trailer');
-  assert.strictEqual(d.tasks[0].commit.worker_sha, WORKER_SHA);
-  // worker trailer가 없는 trailer 커밋은 null이다.
-  assert.strictEqual(d.tasks[1].commit.worker_sha, null);
-  assert.deepStrictEqual(
-    d.unverified.map((u) => u.kind).sort(),
-    ['finding-deferred', 'review-skipped', 'terminal-missing'],
-  );
-  assert.ok(d.symbols.some((s) => s.names.includes('greet')));
-  assert.ok(d.pr);
-  assert.strictEqual(d.drive, null);
-  assert.strictEqual(d.git.pr_base, null);
-  assert.strictEqual(d.pr.base, null);
-  assert.strictEqual(d.pr.title_prefix, null);
-  assert.match(d.pr.title_prefix_template, /^\[\d{6}\] \(→ \{base\}\) \[Feat\]$/);
-  assert.strictEqual(d.pr.head, 'work');
-  assert.strictEqual(d.pr.draft, true);
-  assert.deepStrictEqual(d.pr.sections.related, []);
-  assert.strictEqual(d.pr.sections.background, null);
-  assert.ok(d.pr.sections.verification.some((line) => /true — passed/.test(line)));
-  assert.ok(d.pr.sections.review_points.includes('payments'));
-  assert.ok(d.pr.sections.review_points.includes('follow-up later'));
-  assert.strictEqual(git(repoRoot, ['status', '--porcelain']), before);
+    const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+    assert.strictEqual(d.ok, true, JSON.stringify(d));
+    assert.strictEqual(d.version, 2);
+    assert.strictEqual(d.tasks[0].commit.source, 'trailer');
+    assert.strictEqual(d.tasks[0].commit.worker_sha, WORKER_SHA);
+    // worker trailer가 없는 trailer 커밋은 null이다.
+    assert.strictEqual(d.tasks[1].commit.worker_sha, null);
+    assert.deepStrictEqual(
+      d.unverified.map((u) => u.kind).sort(),
+      ['finding-deferred', 'review-skipped', 'terminal-missing'],
+    );
+    assert.ok(d.symbols.some((s) => s.names.includes('greet')));
+    assert.ok(d.pr);
+    assert.strictEqual(d.drive, null);
+    assert.strictEqual(d.git.pr_base, null);
+    assert.strictEqual(d.pr.base, null);
+    assert.strictEqual(d.pr.title_prefix, null);
+    assert.match(d.pr.title_prefix_template, /^\[\d{6}\] \(→ \{base\}\) \[Feat\]$/);
+    assert.strictEqual(d.pr.head, 'work');
+    assert.strictEqual(d.pr.draft, true);
+    assert.deepStrictEqual(d.pr.sections.related, []);
+    assert.strictEqual(d.pr.sections.background, null);
+    assert.ok(d.pr.sections.verification.some((line) => /true — passed/.test(line)));
+    assert.ok(d.pr.sections.review_points.includes('payments'));
+    assert.ok(d.pr.sections.review_points.includes('follow-up later'));
+    assert.strictEqual(git(repoRoot, ['status', '--porcelain']), before);
 
-  // --yes 이후: tasks/ 삭제
-  fs.rmSync(path.join(repoRoot, blueprintDir, 'tasks'), { recursive: true, force: true });
-  const afterClose = { repoRoot, blueprintDir };
-  assert.strictEqual(prepareFinalizeDigest(afterClose).reason, 'task-documents-missing');
+    // --yes 이후: tasks/ 삭제
+    fs.rmSync(path.join(repoRoot, blueprintDir, 'tasks'), { recursive: true, force: true });
+    const afterClose = { repoRoot, blueprintDir };
+    assert.strictEqual(prepareFinalizeDigest(afterClose).reason, 'task-documents-missing');
   },
 );
 
@@ -259,70 +259,70 @@ test(
   'drive fixture with a trailer integration SHA and a worker commit_sha → '
     + 'prepareFinalizeDigest prefers the trailer SHA',
   () => {
-  const { repoRoot, blueprintDir } = buildStandaloneFixture();
-  const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
+    const { repoRoot, blueprintDir } = buildStandaloneFixture();
+    const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
 
-  // worktree를 먼저 만든다. ledger mkdir이 integration 디렉터리를 선점하면
-  // `git worktree add`가 거절한다.
-  git(repoRoot, ['branch', 'feat/integ']);
-  git(repoRoot, ['worktree', 'add', paths.integrationPath, 'feat/integ']);
+    // worktree를 먼저 만든다. ledger mkdir이 integration 디렉터리를 선점하면
+    // `git worktree add`가 거절한다.
+    git(repoRoot, ['branch', 'feat/integ']);
+    git(repoRoot, ['worktree', 'add', paths.integrationPath, 'feat/integ']);
 
-  const integHead = git(paths.integrationPath, ['rev-parse', 'HEAD']);
-  const task1Sha = git(paths.integrationPath, [
-    'log', '-1', '--format=%H', '--grep', 'Bouncer-Task: EPIC-001/BP-001/TASK-001',
-  ]);
-  assert.ok(/^[0-9a-f]{40}$/.test(task1Sha));
+    const integHead = git(paths.integrationPath, ['rev-parse', 'HEAD']);
+    const task1Sha = git(paths.integrationPath, [
+      'log', '-1', '--format=%H', '--grep', 'Bouncer-Task: EPIC-001/BP-001/TASK-001',
+    ]);
+    assert.ok(/^[0-9a-f]{40}$/.test(task1Sha));
 
-  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
-  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
-    version: 1,
-    blueprint: blueprintDir,
-    base: git(repoRoot, ['rev-parse', 'HEAD~2']),
-    integrationHead: integHead,
-    integrationBranch: 'feat/integ',
-    revision: 'r1',
-    tasks: [
-      {
-        id: '001',
-        status: 'integrated',
-        sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        actualPaths: ['src/greet.js'],
-        branch: 'bouncer/001-001-001',
-      },
-      {
-        id: '002',
-        status: 'integrated',
-        sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-        actualPaths: ['src/helper.js'],
-        branch: 'bouncer/001-001-002',
-      },
-    ],
-    decisions: [],
-  }, null, 2)}\n`);
+    fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+    fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+      version: 1,
+      blueprint: blueprintDir,
+      base: git(repoRoot, ['rev-parse', 'HEAD~2']),
+      integrationHead: integHead,
+      integrationBranch: 'feat/integ',
+      revision: 'r1',
+      tasks: [
+        {
+          id: '001',
+          status: 'integrated',
+          sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          actualPaths: ['src/greet.js'],
+          branch: 'bouncer/001-001-001',
+        },
+        {
+          id: '002',
+          status: 'integrated',
+          sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          actualPaths: ['src/helper.js'],
+          branch: 'bouncer/001-001-002',
+        },
+      ],
+      decisions: [],
+    }, null, 2)}\n`);
 
-  // Interface write-absence: prepare는 porcelain·원장 바이트를 바꾸지 않는다.
-  const beforePorcelain = git(repoRoot, ['status', '--porcelain']);
-  const beforeLedger = fs.readFileSync(paths.ledgerFile);
+    // Interface write-absence: prepare는 porcelain·원장 바이트를 바꾸지 않는다.
+    const beforePorcelain = git(repoRoot, ['status', '--porcelain']);
+    const beforeLedger = fs.readFileSync(paths.ledgerFile);
 
-  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
-  assert.strictEqual(d.ok, true, JSON.stringify(d));
-  // digest는 PR 입력이다. drive 원장 색인·task별 actual_paths는 실행 기록이라
-  // 싣지 않는다. git.branch만 원장 integrationBranch로 유지한다.
-  assert.deepStrictEqual(d.drive, { ready: true, tasks: [
-    { id: '001', status: 'integrated', sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-    { id: '002', status: 'integrated', sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-  ] });
-  assert.strictEqual('coordinator' in d, false);
-  assert.strictEqual(d.git.branch, 'feat/integ');
-  assert.strictEqual(d.tasks[0].commit.source, 'trailer');
-  assert.strictEqual(d.tasks[0].commit.sha, task1Sha.toLowerCase());
-  assert.notStrictEqual(d.tasks[0].commit.sha, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-  assert.strictEqual('actual_paths' in d.tasks[0], false);
+    const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+    assert.strictEqual(d.ok, true, JSON.stringify(d));
+    // digest는 PR 입력이다. drive 원장 색인·task별 actual_paths는 실행 기록이라
+    // 싣지 않는다. git.branch만 원장 integrationBranch로 유지한다.
+    assert.deepStrictEqual(d.drive, { ready: true, tasks: [
+      { id: '001', status: 'integrated', sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      { id: '002', status: 'integrated', sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+    ] });
+    assert.strictEqual('coordinator' in d, false);
+    assert.strictEqual(d.git.branch, 'feat/integ');
+    assert.strictEqual(d.tasks[0].commit.source, 'trailer');
+    assert.strictEqual(d.tasks[0].commit.sha, task1Sha.toLowerCase());
+    assert.notStrictEqual(d.tasks[0].commit.sha, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    assert.strictEqual('actual_paths' in d.tasks[0], false);
 
-  assert.strictEqual(git(repoRoot, ['status', '--porcelain']), beforePorcelain);
-  assert.deepStrictEqual(fs.readFileSync(paths.ledgerFile), beforeLedger);
+    assert.strictEqual(git(repoRoot, ['status', '--porcelain']), beforePorcelain);
+    assert.deepStrictEqual(fs.readFileSync(paths.ledgerFile), beforeLedger);
 
-  git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
+    git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
   },
 );
 
@@ -364,16 +364,16 @@ test(
   'full ledger with accepted reports → the last accepted report per task '
     + 'becomes worker_notes and review_points',
   () => {
-  const d = prepareWithLedger({ decisions: [
-    report('001', { open_choices: ['old'], known_weaknesses: ['old weak'] }),
-    report('001', { open_choices: ['a', 7], known_weaknesses: [] }),
-    report('002', { open_choices: [], known_weaknesses: [] }),
-  ] });
-  assert.deepStrictEqual(d.tasks[0].worker_notes, { open_choices: ['a'], known_weaknesses: [] });
-  // 두 배열이 모두 비면 키 자체가 없다.
-  assert.strictEqual('worker_notes' in d.tasks[1], false);
-  assert.ok(d.pr.sections.review_points.includes('구현 선택(TASKS-001): a'));
-  assert.ok(!d.pr.sections.review_points.some((p) => p.includes('old')));
+    const d = prepareWithLedger({ decisions: [
+      report('001', { open_choices: ['old'], known_weaknesses: ['old weak'] }),
+      report('001', { open_choices: ['a', 7], known_weaknesses: [] }),
+      report('002', { open_choices: [], known_weaknesses: [] }),
+    ] });
+    assert.deepStrictEqual(d.tasks[0].worker_notes, { open_choices: ['a'], known_weaknesses: [] });
+    // 두 배열이 모두 비면 키 자체가 없다.
+    assert.strictEqual('worker_notes' in d.tasks[1], false);
+    assert.ok(d.pr.sections.review_points.includes('구현 선택(TASKS-001): a'));
+    assert.ok(!d.pr.sections.review_points.some((p) => p.includes('old')));
   },
 );
 
@@ -414,32 +414,32 @@ test(
   'ledger rework, debugger, repair, fan-in failure and blocked events → '
     + 'drive_issues counts each and the PR draft stays the same',
   () => {
-  const quiet = prepareWithLedger({}, FIXED_NOW);
-  const noisy = prepareWithLedger({
-    decisions: [
-      report('001', { outcome: 'rework' }),
-      { kind: 'worker-model', role: 'debugger', model: 'm', task: '001' },
-      // 같은 debugger 호출의 늦은 토큰 기록 — 0증가.
-      { kind: 'worker-tokens', role: 'debugger', tokens: 5, task: '001' },
-      { task: 'R1', kind: 'repair', wave: 1, reason: 'r', failure: {} },
-      { kind: 'fanin-verification-failed', tasks: ['001'], command: 'c', exitCode: 1, evidence_id: null },
-      report('002', { outcome: 'blocked' }),
-      { task: '002', kind: 'critical-recovery', used: 1, findings: [], reason: 'r', outcome: 'blocked' },
-    ],
-    // decisions와 같은 repair의 중복 기록 — 0증가.
-    repairWaves: [{ task: 'R1', kind: 'repair', wave: 1, reason: 'r', failure: {} }],
-  }, FIXED_NOW);
-  assert.deepStrictEqual(noisy.drive_issues, {
-    rework_reports: 1,
-    debugger_calls: 1,
-    repair_waves: 1,
-    fanin_verification_failures: 1,
-    blocked: 2,
-    deferred_must_fix: 0,
-  });
-  // 실행 통계는 PR 입력이 아니다 — 원장 event가 달라도 초안은 같아야 한다.
-  assert.deepStrictEqual(noisy.pr, quiet.pr);
-  assert.strictEqual('drive_issues' in noisy.pr, false);
+    const quiet = prepareWithLedger({}, FIXED_NOW);
+    const noisy = prepareWithLedger({
+      decisions: [
+        report('001', { outcome: 'rework' }),
+        { kind: 'worker-model', role: 'debugger', model: 'm', task: '001' },
+        // 같은 debugger 호출의 늦은 토큰 기록 — 0증가.
+        { kind: 'worker-tokens', role: 'debugger', tokens: 5, task: '001' },
+        { task: 'R1', kind: 'repair', wave: 1, reason: 'r', failure: {} },
+        { kind: 'fanin-verification-failed', tasks: ['001'], command: 'c', exitCode: 1, evidence_id: null },
+        report('002', { outcome: 'blocked' }),
+        { task: '002', kind: 'critical-recovery', used: 1, findings: [], reason: 'r', outcome: 'blocked' },
+      ],
+      // decisions와 같은 repair의 중복 기록 — 0증가.
+      repairWaves: [{ task: 'R1', kind: 'repair', wave: 1, reason: 'r', failure: {} }],
+    }, FIXED_NOW);
+    assert.deepStrictEqual(noisy.drive_issues, {
+      rework_reports: 1,
+      debugger_calls: 1,
+      repair_waves: 1,
+      fanin_verification_failures: 1,
+      blocked: 2,
+      deferred_must_fix: 0,
+    });
+    // 실행 통계는 PR 입력이 아니다 — 원장 event가 달라도 초안은 같아야 한다.
+    assert.deepStrictEqual(noisy.pr, quiet.pr);
+    assert.strictEqual('drive_issues' in noisy.pr, false);
   },
 );
 
@@ -783,26 +783,26 @@ test(
     + 'prepareFinalizeDigest absorbs the former and skips the latter',
   () => {
   // readVerification/readReview catch + tasks.md 파싱 실패 continue.
-  const { repoRoot, blueprintDir } = buildStandaloneFixture();
-  fs.writeFileSync(
-    path.join(repoRoot, blueprintDir, 'tasks/001/verification.md'),
-    '---\n: not-yaml\n---\n',
-  );
-  fs.writeFileSync(
-    path.join(repoRoot, blueprintDir, 'tasks/001/review.md'),
-    '---\n{broken\n---\n',
-  );
-  fs.writeFileSync(
-    path.join(repoRoot, blueprintDir, 'tasks/002/tasks.md'),
-    '---\n: broken-tasks\n---\n',
-  );
-  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
-  assert.strictEqual(d.ok, true, JSON.stringify(d));
-  // 깨진 tasks.md(002)는 목록에서 빠지고, 001은 verification/review null.
-  assert.strictEqual(d.tasks.length, 1);
-  assert.strictEqual(d.tasks[0].id, 'TASKS-001');
-  assert.strictEqual(d.tasks[0].verification, null);
-  assert.strictEqual(d.tasks[0].review, null);
+    const { repoRoot, blueprintDir } = buildStandaloneFixture();
+    fs.writeFileSync(
+      path.join(repoRoot, blueprintDir, 'tasks/001/verification.md'),
+      '---\n: not-yaml\n---\n',
+    );
+    fs.writeFileSync(
+      path.join(repoRoot, blueprintDir, 'tasks/001/review.md'),
+      '---\n{broken\n---\n',
+    );
+    fs.writeFileSync(
+      path.join(repoRoot, blueprintDir, 'tasks/002/tasks.md'),
+      '---\n: broken-tasks\n---\n',
+    );
+    const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+    assert.strictEqual(d.ok, true, JSON.stringify(d));
+    // 깨진 tasks.md(002)는 목록에서 빠지고, 001은 verification/review null.
+    assert.strictEqual(d.tasks.length, 1);
+    assert.strictEqual(d.tasks[0].id, 'TASKS-001');
+    assert.strictEqual(d.tasks[0].verification, null);
+    assert.strictEqual(d.tasks[0].review, null);
   },
 );
 
@@ -1250,22 +1250,22 @@ test(
   'failed terminal with a proven outside_scope classification → '
     + 'digest keeps the failure and links the original evidence',
   () => {
-  const d = prepareWithFailedTerminal();
-  const terminal = d.tasks.find((t) => t.execution_kind === 'verification');
-  // 실패 사실은 그대로 — passed로 바뀌지 않는다.
-  assert.strictEqual(terminal.verification.status, 'failed');
-  assert.strictEqual(terminal.verification.exit_code, 1);
-  assert.strictEqual(terminal.verification.outside_scope.evidence_id, 'e'.repeat(64));
-  assert.strictEqual(terminal.verification.outside_scope.reason, 'vendored lock drift is outside every task scope');
-  assert.ok(!d.unverified.some((u) => u.kind === 'terminal-missing'));
-  const outside = d.unverified.filter((u) => u.kind === 'terminal-outside-scope');
-  assert.strictEqual(outside.length, 1);
-  assert.match(outside[0].detail, new RegExp('e'.repeat(64)));
-  assert.strictEqual(d.drive.ready, true);
-  // PR은 실패와 근거를 남기고 전체 통과로 보이게 하지 않는다.
-  assert.ok(d.pr.sections.verification.some((line) => /npm test — failed/.test(line) && /outside_scope/.test(line)));
-  assert.ok(!d.pr.sections.verification.some((line) => /npm test — passed/.test(line)));
-  assert.ok(d.pr.sections.review_points.some((p) => p.startsWith('terminal-outside-scope:')));
+    const d = prepareWithFailedTerminal();
+    const terminal = d.tasks.find((t) => t.execution_kind === 'verification');
+    // 실패 사실은 그대로 — passed로 바뀌지 않는다.
+    assert.strictEqual(terminal.verification.status, 'failed');
+    assert.strictEqual(terminal.verification.exit_code, 1);
+    assert.strictEqual(terminal.verification.outside_scope.evidence_id, 'e'.repeat(64));
+    assert.strictEqual(terminal.verification.outside_scope.reason, 'vendored lock drift is outside every task scope');
+    assert.ok(!d.unverified.some((u) => u.kind === 'terminal-missing'));
+    const outside = d.unverified.filter((u) => u.kind === 'terminal-outside-scope');
+    assert.strictEqual(outside.length, 1);
+    assert.match(outside[0].detail, new RegExp('e'.repeat(64)));
+    assert.strictEqual(d.drive.ready, true);
+    // PR은 실패와 근거를 남기고 전체 통과로 보이게 하지 않는다.
+    assert.ok(d.pr.sections.verification.some((line) => /npm test — failed/.test(line) && /outside_scope/.test(line)));
+    assert.ok(!d.pr.sections.verification.some((line) => /npm test — passed/.test(line)));
+    assert.ok(d.pr.sections.review_points.some((p) => p.startsWith('terminal-outside-scope:')));
   },
 );
 

@@ -12,7 +12,7 @@ const { readCurrent } = currentMod;
 import paths = require('./paths');
 const { toPosix } = paths;
 import type {
-  DigestCollection, DigestFail, DiffSummary, Finding, GitExec, GitExecResult, TaskDigest,
+  DigestCollection, DigestFail, Finding, GitExec, GitExecResult, TaskDigest,
   TaskDocumentSnapshot,
 } from './finalize-digest-model';
 
@@ -303,9 +303,6 @@ export function collectDigestGit({
     branch: integrationBranch || resolveCheckoutBranch(checkoutRoot),
   };
 }
-
-type LedgerRead = ReturnType<typeof readCoordinatorLedger>;
-type Listing = ReturnType<typeof listTasksDocs>;
 
 /**
  * checkout에서 git을 읽고 외부 환경 변수로 대화형 입력을 막는다.
