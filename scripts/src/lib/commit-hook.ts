@@ -14,6 +14,8 @@ import paths = require('./paths');
 const { toPosix } = paths;
 import scope = require('./scope');
 const { coordinatorContext } = scope;
+import crossDrive = require('./cross-drive');
+const { otherDriveTasks } = crossDrive;
 
 type WordToken = { value: string; quoted: boolean; separator?: undefined };
 type SepToken = { separator: true };
@@ -31,6 +33,7 @@ type CommitHookDeps = {
   coordinatorContext?: (opts: {
     repoRoot: string; blueprint: string; task?: unknown;
   }) => ReturnType<typeof coordinatorContext>;
+  otherDriveTasks?: typeof otherDriveTasks;
   mainRepoCurrent?: (opts: {
     repoRoot: string;
     deps?: Parameters<typeof readCurrent>[0]['deps'];
@@ -370,6 +373,7 @@ function mergeCommitHookDeps(deps?: CommitHookDeps | null) {
     trackedModified: realTrackedModified,
     mainRepoCurrent: realMainRepoCurrent,
     coordinatorContext,
+    otherDriveTasks,
     ...(deps || {}),
   };
 }
@@ -377,7 +381,8 @@ function mergeCommitHookDeps(deps?: CommitHookDeps | null) {
 /**
  * staged(또는 -a면 tracked 수정까지) 목록을 checkCommitSafety에 넘긴다.
  * 명령 탐지는 호출부가 끝낸 뒤라, git pre-commit과 PreToolUse가 같은
- * 이유 문자열을 내게 여기만 공유한다.
+ * 이유 문자열을 내게 여기만 공유한다. coordinator scope를 통과하면 상대
+ * drive 원장도 검사해 두 경로가 같은 충돌 근거와 복구 안내를 낸다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 커밋이 일어나는 checkout 절대 경로
@@ -416,11 +421,31 @@ function evaluateIndex({ repoRoot, deps, all }: {
   const coordinator = d.coordinatorContext({
     repoRoot, blueprint: blueprintDir, task: taskForScope,
   });
-  const { allow, violations, code } = checkCommitSafety({
-    files, affectedPaths, blueprintDir, coordinator,
+  const otherDrives = coordinator.active && !coordinator.reason
+    ? d.otherDriveTasks({ repoRoot, ownLedgerFile: coordinator.ledgerFile as string })
+    : undefined;
+  const { allow, violations, code, conflicts, ledgerFile } = checkCommitSafety({
+    files, affectedPaths, blueprintDir, coordinator, otherDrives,
   });
   if (allow) return { block: false };
   const detail = violations.join(', ');
+  if (code === 'cross-drive-conflict' && conflicts && conflicts.length > 0) {
+    const first = conflicts[0];
+    const target = first.paths[0] || `resource:${first.resources[0]}`;
+    const remaining = conflicts.length > 1 ? ` (+${conflicts.length - 1} more)` : '';
+    return {
+      block: true,
+      reason: `commit blocked: cross-drive-conflict: ${first.blueprint} ${first.task} ${target}`
+        + `${remaining} | next: 상대 drive가 끝나거나 detach될 때까지 기다리거나, 겹치지 않게 계획을 고친다`,
+    };
+  }
+  if (code === 'cross-drive-ledger-unreadable') {
+    return {
+      block: true,
+      reason: `commit blocked: cross-drive-ledger-unreadable: ${ledgerFile}`
+        + ' | next: `ledgerFile`의 원장을 복구하거나 그 drive를 detach한다',
+    };
+  }
   if (code && code !== 'out-of-scope') {
     // 경계 거절은 staged 목록이 비어도 성립한다 — 그때는 빈 콜론 대신
     // 어느 checkout에서 무엇이 거절됐는지 남긴다. 원장 경로도 함께 남긴다:
