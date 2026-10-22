@@ -10,8 +10,6 @@ import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import render = require('./render');
 const { renderDoc } = render;
-import commitShaMod = require('./commit-sha');
-const { normalizeCommitSha } = commitShaMod;
 import validateSections = require('./validate-sections');
 const { parseSections } = validateSections;
 import executionDag = require('./execution-dag');
@@ -25,7 +23,7 @@ import reviewPolicy = require('./review-policy');
 // worker-model 기록의 관점 소속 검사와 `next` 문구가 validate-sections와 같은 정본을 쓴다.
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 import type {
-  ReportOutcome, PromoteStopReason, PromotionRecord, Task, Ledger,
+  ReportOutcome, PromoteStopReason, PromotionRecord, Task,
   FailureEvidence, Exec, VerificationRunner,
 } from './execution-contracts';
 import type {
@@ -35,7 +33,7 @@ import coordinatorLedger = require('./coordinator-ledger');
 import coordinatorGit = require('./coordinator-git');
 import coordinatorVerification = require('./coordinator-verification');
 import driveMetrics = require('./drive-metrics');
-const { issueLease, revokeLease, checkLease } = leaseMod;
+const { revokeLease, checkLease } = leaseMod;
 const { randomUUID } = require('node:crypto');
 
 // 경로 상수와 원장 I/O는 한 모듈에서 공유해 fence와 저장 동작이 갈라지지 않게 한다.
@@ -59,10 +57,9 @@ const {
 const {
   prepareVerificationDependencies, selectVerificationRunner, runTargetVerification,
 } = coordinatorVerification;
-const LEDGER_REL = coordinatorLedger.LEDGER_REL;
 import coordinatorPrepare = require('./coordinator-prepare');
 const {
-  blueprintScaleAt, worktreeDiffSha, prepareCoordinator,
+  worktreeDiffSha, prepareCoordinator,
   coordinateBootstrap, salvageRevokedWorker,
 } = coordinatorPrepare;
 

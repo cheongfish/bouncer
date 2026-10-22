@@ -28,7 +28,7 @@ const {
 } = coordinatorWorker;
 import coordinatorLedger = require('./coordinator-ledger');
 const {
-  loadLedgerBytes, loadLedger, ledgerBytesHash, writeOwnedLedger, assertLeaseShape,
+  loadLedger, ledgerBytesHash, writeOwnedLedger, assertLeaseShape,
   readyWaveGated, maxParallelForRead, withCheckpoint, openLedgerFenced,
   recheckLedgerCheckpoint, ledgerModeOf,
 } = coordinatorLedger;
