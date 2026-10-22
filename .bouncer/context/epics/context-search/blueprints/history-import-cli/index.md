@@ -11,7 +11,7 @@ bouncer:
   id: history-import-cli
   epic_id: context-search
   blueprint_id: history-import-cli
-  status: approved
+  status: closed
   order: 17
   commit_type: feat
   commit_intent:

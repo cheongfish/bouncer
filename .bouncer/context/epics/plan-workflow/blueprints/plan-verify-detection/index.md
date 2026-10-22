@@ -11,7 +11,7 @@ bouncer:
   id: plan-verify-detection
   epic_id: plan-workflow
   blueprint_id: plan-verify-detection
-  status: approved
+  status: closed
   order: 7
   commit_type: feat
   commit_intent:

@@ -11,7 +11,7 @@ bouncer:
   id: commands-to-skills
   epic_id: host-distribution
   blueprint_id: commands-to-skills
-  status: approved
+  status: closed
   order: 3
 ---
 # 003 commands-to-skills

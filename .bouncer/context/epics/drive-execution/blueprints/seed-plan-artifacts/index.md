@@ -11,7 +11,7 @@ bouncer:
   id: seed-plan-artifacts
   epic_id: drive-execution
   blueprint_id: seed-plan-artifacts
-  status: approved
+  status: closed
   order: 11
   commit_type: feat
 ---

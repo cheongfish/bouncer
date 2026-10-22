@@ -14,7 +14,7 @@ bouncer:
   id: registry-foundation
   epic_id: context-search
   blueprint_id: registry-foundation
-  status: approved
+  status: closed
   order: 40
   commit_type: feat
   scale: full

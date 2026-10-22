@@ -11,7 +11,7 @@ bouncer:
   id: closed-status
   epic_id: drive-execution
   blueprint_id: closed-status
-  status: approved
+  status: closed
   order: 18
   commit_type: feat
   commit_intent:

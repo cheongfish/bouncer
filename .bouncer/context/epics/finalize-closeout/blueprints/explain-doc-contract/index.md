@@ -11,7 +11,7 @@ bouncer:
   id: explain-doc-contract
   epic_id: finalize-closeout
   blueprint_id: explain-doc-contract
-  status: approved
+  status: closed
   order: 4
   commit_type: feat
   commit_intent:

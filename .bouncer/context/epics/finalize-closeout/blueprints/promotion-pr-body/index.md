@@ -11,7 +11,7 @@ bouncer:
   id: promotion-pr-body
   epic_id: finalize-closeout
   blueprint_id: promotion-pr-body
-  status: approved
+  status: closed
   order: 6
   commit_type: feat
   commit_intent:

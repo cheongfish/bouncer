@@ -11,7 +11,7 @@ bouncer:
   id: lightweight-cycle-guidance
   epic_id: drive-execution
   blueprint_id: lightweight-cycle-guidance
-  status: approved
+  status: closed
   order: 21
   commit_type: docs
   commit_intent:

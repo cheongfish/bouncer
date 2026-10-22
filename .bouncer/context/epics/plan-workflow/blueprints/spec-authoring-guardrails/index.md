@@ -11,7 +11,7 @@ bouncer:
   id: spec-authoring-guardrails
   epic_id: plan-workflow
   blueprint_id: spec-authoring-guardrails
-  status: approved
+  status: closed
   order: 2
 ---
 # 001 spec-authoring-guardrails

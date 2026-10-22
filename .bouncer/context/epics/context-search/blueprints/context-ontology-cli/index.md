@@ -14,7 +14,7 @@ bouncer:
   id: context-ontology-cli
   epic_id: context-search
   blueprint_id: context-ontology-cli
-  status: approved
+  status: closed
   order: 39
   commit_type: feat
   scale: full

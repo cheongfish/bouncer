@@ -11,7 +11,7 @@ bouncer:
   id: per-task-verify-command
   epic_id: plan-workflow
   blueprint_id: per-task-verify-command
-  status: approved
+  status: closed
   order: 4
   commit_type: feat
   commit_intent:

@@ -11,7 +11,7 @@ bouncer:
   id: adaptive-quiz
   epic_id: finalize-closeout
   blueprint_id: adaptive-quiz
-  status: approved
+  status: closed
   order: 1
   commit_type: docs
   commit_intent:

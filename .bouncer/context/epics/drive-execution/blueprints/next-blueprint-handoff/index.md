@@ -11,7 +11,7 @@ bouncer:
   id: next-blueprint-handoff
   epic_id: drive-execution
   blueprint_id: next-blueprint-handoff
-  status: approved
+  status: closed
   order: 13
   commit_type: feat
   commit_intent:

@@ -11,7 +11,7 @@ bouncer:
   id: task-dir-layout
   epic_id: drive-execution
   blueprint_id: task-dir-layout
-  status: approved
+  status: closed
   order: 16
   commit_type: feat
   commit_intent:

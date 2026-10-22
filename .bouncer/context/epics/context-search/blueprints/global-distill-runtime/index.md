@@ -11,7 +11,7 @@ bouncer:
   id: global-distill-runtime
   epic_id: context-search
   blueprint_id: global-distill-runtime
-  status: approved
+  status: closed
   order: 4
   commit_type: feat
 ---

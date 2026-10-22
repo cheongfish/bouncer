@@ -11,7 +11,7 @@ bouncer:
   id: graph-path-contract
   epic_id: context-search
   blueprint_id: graph-path-contract
-  status: approved
+  status: closed
   order: 24
   commit_type: fix
   commit_intent:

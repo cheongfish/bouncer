@@ -15,7 +15,7 @@ bouncer:
   id: transition-guards
   epic_id: runtime-architecture
   blueprint_id: transition-guards
-  status: approved
+  status: closed
   order: 34
   commit_type: feat
   scale: full

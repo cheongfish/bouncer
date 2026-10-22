@@ -11,7 +11,7 @@ bouncer:
   id: tsc-cjs-migrate
   epic_id: runtime-architecture
   blueprint_id: tsc-cjs-migrate
-  status: approved
+  status: closed
   order: 3
   commit_type: refactor
 ---

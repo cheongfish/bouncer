@@ -11,7 +11,7 @@ bouncer:
   id: named-agent-routing
   epic_id: drive-execution
   blueprint_id: named-agent-routing
-  status: approved
+  status: closed
   order: 3
 ---
 # 002 named-agent-routing

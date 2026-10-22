@@ -16,7 +16,7 @@ bouncer:
   id: workflow-responsibility-split
   epic_id: runtime-architecture
   blueprint_id: workflow-responsibility-split
-  status: approved
+  status: closed
   order: 40
   commit_type: refactor
   scale: full

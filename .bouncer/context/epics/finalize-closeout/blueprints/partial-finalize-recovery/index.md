@@ -14,7 +14,7 @@ bouncer:
   id: partial-finalize-recovery
   epic_id: finalize-closeout
   blueprint_id: partial-finalize-recovery
-  status: approved
+  status: closed
   order: 18
   commit_type: feat
   scale: full

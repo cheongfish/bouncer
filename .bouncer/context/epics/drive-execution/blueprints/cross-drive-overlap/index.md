@@ -11,7 +11,7 @@ bouncer:
   id: cross-drive-overlap
   epic_id: drive-execution
   blueprint_id: cross-drive-overlap
-  status: approved
+  status: closed
   order: 59
   commit_type: feat
   scale: full

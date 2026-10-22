@@ -11,7 +11,7 @@ bouncer:
   id: pointer-task-field
   epic_id: drive-execution
   blueprint_id: pointer-task-field
-  status: approved
+  status: closed
   order: 15
   commit_type: feat
   commit_intent:

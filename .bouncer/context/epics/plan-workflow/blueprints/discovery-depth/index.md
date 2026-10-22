@@ -11,7 +11,7 @@ bouncer:
   id: discovery-depth
   epic_id: plan-workflow
   blueprint_id: discovery-depth
-  status: approved
+  status: closed
   order: 5
   commit_type: docs
   commit_intent:

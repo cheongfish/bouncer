@@ -11,7 +11,7 @@ bouncer:
   id: subagent-model-config-contract
   epic_id: drive-execution
   blueprint_id: subagent-model-config-contract
-  status: approved
+  status: closed
   order: 2
 ---
 # 001 subagent-model-config-contract

@@ -11,7 +11,7 @@ bouncer:
   id: evidence-and-message
   epic_id: drive-execution
   blueprint_id: evidence-and-message
-  status: approved
+  status: closed
   order: 10
 ---
 # 001 evidence-and-message
