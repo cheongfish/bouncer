@@ -11,7 +11,7 @@ bouncer:
   id: pr-single-confirm
   epic_id: finalize-closeout
   blueprint_id: pr-single-confirm
-  status: approved
+  status: closed
   order: 2
   commit_type: docs
   commit_intent:

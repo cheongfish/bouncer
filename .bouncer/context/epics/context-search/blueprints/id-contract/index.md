@@ -11,7 +11,7 @@ bouncer:
   id: id-contract
   epic_id: context-search
   blueprint_id: id-contract
-  status: approved
+  status: closed
   order: 13
   commit_type: refactor
   commit_intent:

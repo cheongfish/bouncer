@@ -66,13 +66,73 @@ function mainCheckoutOf(worktreePath: string): string | null {
 }
 
 /**
+ * worktree에서 `git check-ignore -q`가 pathspec을 무시하면 true.
+ * check-ignore는 ignored면 0, 아니면 1(throw)로 끝난다.
+ *
+ * @param {string} worktreePath - 조회 cwd
+ * @param {string} pathspec - check-ignore에 넘길 경로(또는 `rel/`)
+ * @returns {boolean} ignored 여부
+ */
+function checkIgnoreQuiet(worktreePath: string, pathspec: string): boolean {
+  try {
+    execFileSync('git', ['check-ignore', '-q', '--', pathspec], {
+      cwd: worktreePath, stdio: 'ignore',
+    });
+    return true;
+  } catch (error) {
+    // exit 1만 "ignored 아님". 128 같은 git 치명 오류를 not-ignored로 접으면
+    // 건너뜀 사유가 틀리므로 호출자가 구분하도록 다시 던진다.
+    if ((error as { status?: number }).status === 1) return false;
+    throw error;
+  }
+}
+
+/**
+ * 링크한 로컬 환경 경로를 공통 `info/exclude`에 `/<rel>`로 한 줄 추가한다.
+ * symlink는 디렉터리가 아니라서 `.venv/` 같은 패턴에 걸리지 않고 `??`로 새므로,
+ * 저장소 공유 exclude에 루트 고정 항목을 넣어 status를 깨끗이 유지한다.
+ * 이미 같은 줄이 있으면 쓰지 않는다.
+ *
+ * @param {string} worktreePath - `git rev-parse --git-path` cwd
+ * @param {string} rel - LOCAL_ENV_LINKS 항목(예: `.venv`)
+ */
+function ensureLocalEnvExclude(worktreePath: string, rel: string): void {
+  let excludeRel: string;
+  try {
+    excludeRel = (execFileSync('git', ['rev-parse', '--git-path', 'info/exclude'], {
+      cwd: worktreePath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }) as string).trim();
+  } catch {
+    // exclude 경로를 못 얻으면 status 오염만 감수한다. 링크 자체는 이미 성공했다.
+    return;
+  }
+  const excludePath = path.isAbsolute(excludeRel)
+    ? excludeRel
+    : path.join(worktreePath, excludeRel);
+  const entry = `/${rel}`;
+  let body = '';
+  try {
+    body = fs.readFileSync(excludePath, 'utf8');
+  } catch (error) {
+    // 없는 파일만 새로 만든다. 권한 오류는 숨기지 않는다.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    fs.mkdirSync(path.dirname(excludePath), { recursive: true });
+  }
+  if (body.split(/\r?\n/).includes(entry)) return;
+  const prefix = body.length > 0 && !body.endsWith('\n') ? '\n' : '';
+  fs.appendFileSync(excludePath, `${prefix}${entry}\n`);
+}
+
+/**
  * main checkout의 ignored 로컬 환경(LOCAL_ENV_LINKS)을 worktree에 symlink한다.
  * 상대경로 `.venv/bin/pytest` 같은 검증 명령과 `.env`를 읽는 설정 로딩이
  * worker·fan-in candidate·integration checkout에서도 main과 같게 돌게 한다.
  * main에 없거나, worktree에 이미 있거나(깨진 symlink 포함), worktree에서 ignored가
  * 아닌 경로는 건너뛴다 — 추적 파일을 가리지 않기 위해서다. main checkout 자신이면
- * 아무것도 하지 않는다. 링크 실패는 흡수한다: 링크는 편의 장치이고, 없으면 검증이
- * 원래처럼 실패해 원인이 그대로 드러난다.
+ * 아무것도 하지 않는다. `.gitignore`의 `.venv/`처럼 디렉터리 전용 패턴은 아직 없는
+ * `rel`에 check-ignore가 실패하므로, main 원본이 디렉터리면 `rel/`로도 확인한다.
+ * 링크 뒤에는 symlink가 status에 새지 않도록 `info/exclude`에 `/<rel>`을 한 번만 넣고,
+ * ignored가 아니거나 링크에 실패한 건너뜀은 stderr에 한 줄로 남긴다(조용한 검증 실패 방지).
  *
  * @param {string} worktreePath - 링크를 만들 worktree 절대 경로
  * @returns {string[]} 새로 만든 링크의 저장소 상대 경로
@@ -96,14 +156,46 @@ function linkLocalEnv(worktreePath: string): string[] {
     } catch {
       // ENOENT면 아직 없는 경로라 링크 대상이다.
     }
+    let srcIsDir = false;
     try {
-      // check-ignore는 ignored면 0, 아니면 1로 끝난다. 1은 throw로 온다.
-      execFileSync('git', ['check-ignore', '-q', '--', rel], { cwd: worktreePath, stdio: 'ignore' });
-      fs.symlinkSync(src, dst);
-      linked.push(rel);
+      srcIsDir = fs.statSync(src).isDirectory();
     } catch {
-      // ignored가 아니거나 링크를 만들 수 없으면 건너뛴다.
+      continue;
     }
+    // 1. 일반 pathspec. 2. 디렉터리 원본이면 trailing-slash 패턴용 `rel/` 재시도.
+    let ignored: boolean;
+    try {
+      ignored = checkIgnoreQuiet(worktreePath, rel)
+        || (srcIsDir && checkIgnoreQuiet(worktreePath, `${rel}/`));
+    } catch (error) {
+      process.stderr.write(
+        `linkLocalEnv: skip ${rel} (check-ignore failed: ${(error as { message?: string }).message || error})\n`,
+      );
+      continue;
+    }
+    if (!ignored) {
+      process.stderr.write(`linkLocalEnv: skip ${rel} (not ignored in worktree)\n`);
+      continue;
+    }
+    try {
+      fs.symlinkSync(src, dst);
+    } catch (error) {
+      // 링크는 편의 장치라 실패를 흡수하되, 사유를 남겨 검증 exit 1이 묻히지 않게 한다.
+      process.stderr.write(
+        `linkLocalEnv: skip ${rel} (symlink failed: ${(error as { message?: string }).message || error})\n`,
+      );
+      continue;
+    }
+    // exclude는 status 정리용이다. 링크는 이미 성공했으므로 쓰기가 실패해도
+    // 반환에 넣고, 사유만 exclude 실패로 구분해 symlink 실패와 섞지 않는다.
+    try {
+      ensureLocalEnvExclude(worktreePath, rel);
+    } catch (error) {
+      process.stderr.write(
+        `linkLocalEnv: exclude ${rel} failed: ${(error as { message?: string }).message || error}\n`,
+      );
+    }
+    linked.push(rel);
   }
   return linked;
 }

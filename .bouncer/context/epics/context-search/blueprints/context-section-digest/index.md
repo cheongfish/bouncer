@@ -11,7 +11,7 @@ bouncer:
   id: context-section-digest
   epic_id: context-search
   blueprint_id: context-section-digest
-  status: approved
+  status: closed
   order: 25
   commit_type: feat
   commit_intent:

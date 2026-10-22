@@ -11,7 +11,7 @@ bouncer:
   id: cursor-codex-manifests
   epic_id: host-distribution
   blueprint_id: cursor-codex-manifests
-  status: approved
+  status: closed
   order: 2
 ---
 # 002 cursor-codex-manifests

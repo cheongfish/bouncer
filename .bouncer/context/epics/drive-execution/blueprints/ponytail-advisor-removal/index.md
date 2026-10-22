@@ -11,7 +11,7 @@ bouncer:
   id: ponytail-advisor-removal
   epic_id: drive-execution
   blueprint_id: ponytail-advisor-removal
-  status: approved
+  status: closed
   order: 5
   commit_type: refactor
   commit_intent:

@@ -11,7 +11,7 @@ bouncer:
   id: dogfood-context
   epic_id: context-search
   blueprint_id: dogfood-context
-  status: approved
+  status: closed
   order: 15
   commit_type: chore
   commit_intent:

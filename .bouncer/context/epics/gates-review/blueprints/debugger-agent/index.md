@@ -11,7 +11,7 @@ bouncer:
   id: debugger-agent
   epic_id: gates-review
   blueprint_id: debugger-agent
-  status: approved
+  status: closed
   order: 2
   commit_type: feat
   commit_intent:

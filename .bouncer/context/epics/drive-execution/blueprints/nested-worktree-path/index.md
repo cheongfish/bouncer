@@ -11,7 +11,7 @@ bouncer:
   id: nested-worktree-path
   epic_id: drive-execution
   blueprint_id: nested-worktree-path
-  status: approved
+  status: closed
   order: 19
   commit_type: feat
   commit_intent:

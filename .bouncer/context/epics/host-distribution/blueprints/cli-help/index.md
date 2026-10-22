@@ -11,7 +11,7 @@ bouncer:
   id: cli-help
   epic_id: host-distribution
   blueprint_id: cli-help
-  status: approved
+  status: closed
   order: 1
 ---
 # 001 cli-help

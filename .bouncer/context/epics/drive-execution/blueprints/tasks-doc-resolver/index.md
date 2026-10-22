@@ -11,7 +11,7 @@ bouncer:
   id: tasks-doc-resolver
   epic_id: drive-execution
   blueprint_id: tasks-doc-resolver
-  status: approved
+  status: closed
   order: 14
   commit_type: feat
   commit_intent:

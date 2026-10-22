@@ -13,7 +13,7 @@ bouncer:
   id: execution-planning-boundaries
   epic_id: runtime-architecture
   blueprint_id: execution-planning-boundaries
-  status: approved
+  status: closed
   order: 33
   commit_type: feat
   scale: full

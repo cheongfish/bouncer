@@ -11,7 +11,7 @@ bouncer:
   id: venv-install-bin-resolution
   epic_id: host-distribution
   blueprint_id: venv-install-bin-resolution
-  status: approved
+  status: closed
   order: 4
   commit_type: feat
   commit_intent:

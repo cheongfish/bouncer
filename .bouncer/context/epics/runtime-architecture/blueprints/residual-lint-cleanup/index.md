@@ -11,7 +11,7 @@ bouncer:
   id: residual-lint-cleanup
   epic_id: runtime-architecture
   blueprint_id: residual-lint-cleanup
-  status: approved
+  status: closed
   order: 41
   commit_type: fix
   scale: light

@@ -11,7 +11,7 @@ bouncer:
   id: scale-light-convention
   epic_id: drive-execution
   blueprint_id: scale-light-convention
-  status: approved
+  status: closed
   order: 20
   commit_type: docs
   commit_intent:

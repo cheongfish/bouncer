@@ -11,7 +11,7 @@ bouncer:
   id: explain-diff-skill
   epic_id: finalize-closeout
   blueprint_id: explain-diff-skill
-  status: approved
+  status: closed
   order: 5
   commit_type: feat
   commit_intent:

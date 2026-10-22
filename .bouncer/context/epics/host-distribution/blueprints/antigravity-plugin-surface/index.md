@@ -11,7 +11,7 @@ bouncer:
   id: antigravity-plugin-surface
   epic_id: host-distribution
   blueprint_id: antigravity-plugin-surface
-  status: approved
+  status: closed
   order: 5
   commit_type: feat
   commit_intent:

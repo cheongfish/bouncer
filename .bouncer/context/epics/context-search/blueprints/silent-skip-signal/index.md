@@ -11,7 +11,7 @@ bouncer:
   id: silent-skip-signal
   epic_id: context-search
   blueprint_id: silent-skip-signal
-  status: approved
+  status: closed
   order: 23
   commit_type: fix
   commit_intent:

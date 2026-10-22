@@ -11,7 +11,7 @@ bouncer:
   id: graph-basis-record
   epic_id: drive-execution
   blueprint_id: graph-basis-record
-  status: approved
+  status: closed
   order: 4
   commit_type: feat
   commit_intent:

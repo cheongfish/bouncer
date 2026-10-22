@@ -11,7 +11,7 @@ bouncer:
   id: reviewer-prompt
   epic_id: plan-workflow
   blueprint_id: reviewer-prompt
-  status: approved
+  status: closed
   order: 6
 ---
 # 005 reviewer-prompt

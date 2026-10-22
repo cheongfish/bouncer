@@ -11,7 +11,7 @@ bouncer:
   id: current-command
   epic_id: drive-execution
   blueprint_id: current-command
-  status: approved
+  status: closed
   order: 12
   commit_type: feat
   commit_intent:

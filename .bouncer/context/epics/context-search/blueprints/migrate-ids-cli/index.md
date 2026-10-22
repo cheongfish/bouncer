@@ -11,7 +11,7 @@ bouncer:
   id: migrate-ids-cli
   epic_id: context-search
   blueprint_id: migrate-ids-cli
-  status: approved
+  status: closed
   order: 14
   commit_type: feat
   commit_intent:
