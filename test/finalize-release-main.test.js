@@ -166,6 +166,11 @@ test('an untracked closed blueprint with a same-epic sibling → releaseMain rem
   assert.deepEqual(res.next, { blueprint: fx.sibling });
 });
 
+// drive-not-closed 케이스별 기대 미통합 task id. verifying 케이스만 ['001']이다.
+function tasksOf(mutate) {
+  return String(mutate).includes("status: 'verifying'") ? ['001'] : [];
+}
+
 test('rejection reasons → leave the main tree and porcelain unchanged', () => {
   const cases = [
     [() => {}, { cwd: (fx) => fx.integration }, 'release-main-requires-main-checkout'],
@@ -225,6 +230,12 @@ test('rejection reasons → leave the main tree and porcelain unchanged', () => 
     });
     assert.equal(res.ok, false, reason);
     assert.equal(res.reason, reason);
+    if (reason === 'drive-not-closed') {
+      assert.ok(typeof res.cause === 'string' && res.cause !== '', 'cause');
+      assert.ok(typeof res.next === 'string' && res.next !== '', 'next');
+      assert.ok(Array.isArray(res.tasks), 'tasks');
+      assert.deepEqual(res.tasks, tasksOf(mutate), 'tasks ids');
+    }
     assert.deepEqual(snapshot(fx.main), before, reason);
     assert.equal(porcelain(fx.main), beforeStatus, reason);
   }
@@ -621,4 +632,70 @@ test('directory symlinks out of the blueprint tree → walkFiles does not follow
   assert.equal(res.ok, true);
   assert.deepEqual(snapshot(fx.main, fx.sibling), siblingBefore);
   assert.equal(fs.existsSync(path.join(fx.main, 'README.md')), true);
+});
+
+const DIGEST = 'a'.repeat(64);
+
+/** 유효한 outside_scope 분류가 붙은 verification terminal 원장을 쓴다. */
+function writeOutsideScopeLedger(fx, patch = {}) {
+  const prev = JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8'));
+  writeLedger(fx.ledgerFile, {
+    ...prev,
+    tasks: [
+      { id: '001', status: 'integrated', execution_kind: 'commit' },
+      { id: '002', status: 'verifying', execution_kind: 'verification' },
+    ],
+    terminalFailure: {
+      task: '002',
+      evidence_id: 'ev-1',
+      source_digest: DIGEST,
+      disposition: {
+        kind: 'outside_scope', reason: 'unrelated flake', evidence_id: 'ev-1',
+        source_digest: DIGEST, paths: ['x'],
+      },
+    },
+    integrationHead: DIGEST,
+    ...patch,
+  });
+}
+
+test('classified outside_scope terminal → release-main succeeds and reports outside_scope', () => {
+  const fx = makeFixture();
+  writeOutsideScopeLedger(fx);
+  const res = runRelease(fx);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual(res.outside_scope, { task: '002', evidence_id: 'ev-1', reason: 'unrelated flake' });
+});
+
+test('outside_scope terminal with a stale integrationHead → drive-not-closed listing the terminal', () => {
+  const fx = makeFixture();
+  writeOutsideScopeLedger(fx, { integrationHead: 'b'.repeat(64) });
+  const res = runRelease(fx);
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, 'drive-not-closed');
+  assert.deepEqual(res.tasks, ['002']);
+});
+
+test('valid classification plus another open drive state → drive-not-closed with cause and next', () => {
+  const cases = [
+    [{ tasks: [
+      { id: '001', status: 'verifying', execution_kind: 'commit' },
+      { id: '002', status: 'verifying', execution_kind: 'verification' },
+    ] }, ['001'], 'coordinate next'],
+    [{ status: 'awaiting_confirmation' }, [], 'coordinate next'],
+    [{ status: 'partial_closed' }, [], '--allow-partial-merge'],
+  ];
+  for (const [patch, tasks, hint] of cases) {
+    const fx = makeFixture();
+    writeOutsideScopeLedger(fx, patch);
+    const before = snapshot(fx.main);
+    const beforeStatus = porcelain(fx.main);
+    const res = runRelease(fx);
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, 'drive-not-closed');
+    assert.deepEqual(res.tasks, tasks);
+    assert.ok(res.cause && res.next.includes(hint), JSON.stringify(res));
+    assert.deepEqual(snapshot(fx.main), before);
+    assert.equal(porcelain(fx.main), beforeStatus);
+  }
 });
