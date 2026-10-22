@@ -236,6 +236,7 @@ test('verification task is committed → both commitTask and the shared commit g
   const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'verification-task-no-commit');
+  assert.strictEqual(res.gate, 'commit-scope');
   assert.strictEqual(res.recovery.action, 'run-verification-node');
   assert.ok(typeof res.recovery.detail === 'string' && res.recovery.detail.length > 0);
   assert.deepStrictEqual(checkCommitSafety({ files: [], executionKind: 'verification' }), {
@@ -358,6 +359,7 @@ test('out-of-scope file changed → hard-aborts without staging', () => {
   });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'out-of-scope');
+  assert.strictEqual(res.gate, 'commit-scope');
   assert.deepStrictEqual(res.violations, ['src/payments/charge.ts']);
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
 });
@@ -488,6 +490,8 @@ test('gate fails → returns validate reason without staging', () => {
   });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');
+  assert.ok(Array.isArray(res.gates) && res.gates.length > 0);
+  assert.ok(!('gate' in res));
   assert.strictEqual(res.recovery.action, 'fix-gate-failures');
   assert.ok(typeof res.recovery.detail === 'string' && res.recovery.detail.length > 0);
   assert.ok(res.failures.some((f) => f.code === 'G6'));
@@ -919,6 +923,7 @@ test('task document out of step with the ledger revision → refuses the commit'
   });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'stale-revision');
+  assert.strictEqual(res.gate, 'freshness-approval');
   assert.strictEqual(res.recovery.action, 'report-and-stop');
   assert.ok(typeof res.recovery.detail === 'string' && res.recovery.detail.length > 0);
 });

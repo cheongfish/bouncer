@@ -293,6 +293,7 @@ test('a gate failure → finalize short-circuits before touching git', () => {
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');
   assert.ok(res.failures.some((f) => f.code === 'G16'));
+  assert.strictEqual(typeof res.gates[0].gate, 'string');
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 

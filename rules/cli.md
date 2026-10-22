@@ -535,6 +535,12 @@ Retention's default is an audit;
 Exit code `0` means the command completed, `1` is an operational or gate
 failure, and `2` is invalid usage. Consume structured stdout where a command
 returns JSON. When a `validate` failure item includes `next`, that sentence is
-the recovery action — follow it instead of reading validator sources. Do not
+the recovery action — follow it instead of reading validator sources.
+A `validate` result carries `gates[]` only when G failures exist; render it
+first, and use the gate's single `next` as the recovery action. Check each
+individual failure through `failures[]` `code` and `next`. `current --set`,
+`commit`, and `finalize` failure payloads carry the same `gates`. The `gate`
+field on a commit or coordinate failure is for display only; `reason` is what
+decides. Do not
 infer success from prose, partial output, or a command that returned a
 non-zero exit code.

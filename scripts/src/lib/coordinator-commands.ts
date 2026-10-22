@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import runtime = require('./runtime-state');
+import compositeGates = require('./composite-gates');
 const {
   coordinatorPathsFor, runtimePaths,
 } = runtime;
@@ -1767,7 +1768,9 @@ function withCoordinateFailureHints(result: unknown): unknown {
       cause: body.reason,
       next: FALLBACK_COORDINATE_NEXT,
     };
-    return { ...body, cause: hint.cause, next: hint.next };
+    // 매핑된 경계 reason에만 gate를 붙인다. 나머지는 키 자체가 없다.
+    const gate = compositeGates.compositeGateForReason(body.reason);
+    return { ...body, cause: hint.cause, next: hint.next, ...(gate ? { gate } : {}) };
   }
   return result;
 }

@@ -9,6 +9,7 @@
     "cli-help.test.js",
     "commit-guard.test.js",
     "comprehension.test.js",
+    "composite-gates.test.js",
     "config-help.test.js",
     "context-id-guard.test.js",
     "context-ids.test.js",

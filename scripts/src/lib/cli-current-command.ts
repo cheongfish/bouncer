@@ -284,7 +284,10 @@ function cmdCurrent(rest: string[], io: CliIo) {
     if (!result.ok) {
       // failures를 그대로 전달 — plan gate가 권위; 실패한 brief에는 pointer를
       // 쓰지 않음.
-      io.out(`${JSON.stringify({ ok: false, failures: result.failures }, null, 2)}\n`);
+      // gates는 validate가 G 실패를 요약했을 때만 있다 — 있을 때만 그대로 싣는다.
+      const payload = result.gates ? { ok: false, failures: result.failures, gates: result.gates }
+        : { ok: false, failures: result.failures };
+      io.out(`${JSON.stringify(payload, null, 2)}\n`);
       return 1;
     }
     // plan 통과 뒤에만 task 해석·포인터 기록. 해석 실패는 사용법 오류(2).

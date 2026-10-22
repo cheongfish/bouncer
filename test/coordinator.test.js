@@ -213,6 +213,12 @@ test('integration-source-mutated hint → next names main pre-commit and coordin
   assert.ok(hinted.next.includes('`bouncer coordinate repair`'));
 });
 
+test('mapped boundary reasons → get gate, unmapped reasons get no gate key', () => {
+  assert.strictEqual(withCoordinateFailureHints({ ok: false, reason: 'unassigned-worktree' }).gate, 'commit-scope');
+  assert.strictEqual(withCoordinateFailureHints({ ok: false, reason: 'stale-revision' }).gate, 'freshness-approval');
+  assert.ok(!('gate' in withCoordinateFailureHints({ ok: false, reason: 'ledger-locked' })));
+});
+
 test('every coordinator reason literal exists → COORDINATE_FAILURE_HINTS covers each of them', () => {
   const reasons = reasonLiteralsOf(coordinatorReasonFiles());
   assert.ok(reasons.length > 0);

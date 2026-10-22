@@ -34,6 +34,9 @@ const {
   parseTasksSections, parseSections, extractPathCandidates,
 } = validateSections;
 import templates = require('./templates');
+import compositeGates = require('./composite-gates');
+import type { CompositeGateSummary } from './composite-gates';
+const { summarizeCompositeGates } = compositeGates;
 const { parseIntentBody, normalizeAuthoredLines } = templates;
 
 // public-name: legacy-input-detector
@@ -45,7 +48,12 @@ const { parseIntentBody, normalizeAuthoredLines } = templates;
 
 type FailureEntry = { code: string; message: string; file: string; next?: string };
 type GateFailureHint = { code: string; match?: RegExp; next: string };
-type ValidateResult = { ok: boolean; failures: FailureEntry[]; warnings?: FailureEntry[] };
+type ValidateResult = {
+  ok: boolean;
+  failures: FailureEntry[];
+  warnings?: FailureEntry[];
+  gates?: CompositeGateSummary[];
+};
 
 // 복구가 메시지에 없는 코드만 여기를 본다. 같은 G 코드라도 이미 다음 행동을
 // 말하는 메시지(G13 body sections 등)에는 next를 붙이지
@@ -114,21 +122,24 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
 /**
  * validate 실패 항목에 hint 표의 next를 붙인 사본을 만든다.
  * 판정(ok·순서·warnings)은 바꾸지 않고, match가 맞는 항목에만 next 키를 넣는다.
+ * G 실패가 하나 이상이면 복합 gate 요약 `gates`를 함께 싣는다.
  *
  * @param {ValidateResult} result - validateBlueprint가 만들 원본 결과
  * @returns {ValidateResult} failures에 next가 병합된 사본. 맞는 hint가 없으면 그 항목은 그대로다
  */
 function withGateFailureHints(result: ValidateResult): ValidateResult {
-  return {
-    ...result,
-    failures: result.failures.map((entry) => {
-      const hint = GATE_FAILURE_HINTS.find((row) => (
-        row.code === entry.code && (!row.match || row.match.test(entry.message))
-      ));
-      if (!hint) return entry;
-      return { ...entry, next: hint.next };
-    }),
-  };
+  const failures = result.failures.map((entry) => {
+    const hint = GATE_FAILURE_HINTS.find((row) => (
+      row.code === entry.code && (!row.match || row.match.test(entry.message))
+    ));
+    if (!hint) return entry;
+    return { ...entry, next: hint.next };
+  });
+  // gates는 hint 병합 뒤에 요약해야 gate의 next가 첫 실패 항목의 hint를 따른다.
+  // G 실패가 없으면 키 자체를 싣지 않는다(warnings와 같은 방식) — 성공 결과 전체를
+  // deepStrictEqual로 고정한 기존 테스트가 깨지지 않게 하기 위함이다.
+  const gates = summarizeCompositeGates(failures);
+  return gates.length > 0 ? { ...result, failures, gates } : { ...result, failures };
 }
 
 import type { DocLeaf, TaskUnit } from './validate-docs';

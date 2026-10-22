@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- **복합 gate 실패 출력** — `bouncer validate`가 G-code 실패를 복합 gate 7개로 요약한 `gates[]`를 싣고,
+  `current --set`·`commit`·`finalize` 실패도 같은 요약을 낸다. commit·coordinate 경계 거절은 `gate` 필드,
+  commit hook 거절 줄은 `[<복합 gate>]` 접두를 갖는다. `failures[]`와 `reason`은 그대로다.
+
 ### Fixed
 
 - **전이 가드 후속 보정 (EPIC 112 BP 002)** — `run detach`는 `integrated`가 아닌 task만 진행 중으로 보고,

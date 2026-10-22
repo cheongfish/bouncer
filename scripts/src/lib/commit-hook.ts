@@ -15,6 +15,7 @@ const { toPosix } = paths;
 import scope = require('./scope');
 const { coordinatorContext } = scope;
 import crossDrive = require('./cross-drive');
+import compositeGates = require('./composite-gates');
 const { otherDriveTasks } = crossDrive;
 
 type WordToken = { value: string; quoted: boolean; separator?: undefined };
@@ -379,6 +380,18 @@ function mergeCommitHookDeps(deps?: CommitHookDeps | null) {
 }
 
 /**
+ * hook 거절 줄 맨 앞에 붙일 복합 gate 라벨 접두를 만든다.
+ * 라벨은 줄 맨 앞에만 둔다 — `commit blocked: <code>:` 연속 문자열을 쪼개면 기존 정규식이 깨진다.
+ *
+ * @param {unknown} reason - 거절 code. 문자열이 아니거나 매핑이 없으면 접두 없음
+ * @returns {string} `[<label>] ` 또는 빈 문자열
+ */
+function gateLabelPrefix(reason: unknown): string {
+  const gate = typeof reason === 'string' ? compositeGates.compositeGateForReason(reason) : null;
+  return gate ? `[${compositeGates.compositeGateLabel(gate)}] ` : '';
+}
+
+/**
  * staged(또는 -a면 tracked 수정까지) 목록을 checkCommitSafety에 넘긴다.
  * 명령 탐지는 호출부가 끝낸 뒤라, git pre-commit과 PreToolUse가 같은
  * 이유 문자열을 내게 여기만 공유한다. coordinator scope를 통과하면 상대
@@ -435,14 +448,14 @@ function evaluateIndex({ repoRoot, deps, all }: {
     const remaining = conflicts.length > 1 ? ` (+${conflicts.length - 1} more)` : '';
     return {
       block: true,
-      reason: `commit blocked: cross-drive-conflict: ${first.blueprint} ${first.task} ${target}`
+      reason: `${gateLabelPrefix(code)}commit blocked: cross-drive-conflict: ${first.blueprint} ${first.task} ${target}`
         + `${remaining} | next: 상대 drive가 끝나거나 detach될 때까지 기다리거나, 겹치지 않게 계획을 고친다`,
     };
   }
   if (code === 'cross-drive-ledger-unreadable') {
     return {
       block: true,
-      reason: `commit blocked: cross-drive-ledger-unreadable: ${ledgerFile}`
+      reason: `${gateLabelPrefix(code)}commit blocked: cross-drive-ledger-unreadable: ${ledgerFile}`
         + ' | next: `ledgerFile`의 원장을 복구하거나 그 drive를 detach한다',
     };
   }
@@ -456,11 +469,11 @@ function evaluateIndex({ repoRoot, deps, all }: {
     const next = code === 'main-worktree-source-write'
       ? ` | next: ${scope.mainWorktreeNext(coordinator, blueprintDir)}`
       : '';
-    return { block: true, reason: `commit blocked: ${code}: ${where}${ledger}${next}` };
+    return { block: true, reason: `${gateLabelPrefix(code)}commit blocked: ${code}: ${where}${ledger}${next}` };
   }
   return {
     block: true,
-    reason: `commit blocked: files outside affected_paths: ${detail}`,
+    reason: `${gateLabelPrefix('out-of-scope')}commit blocked: files outside affected_paths: ${detail}`,
   };
 }
 

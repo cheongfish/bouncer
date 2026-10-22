@@ -597,7 +597,7 @@ test('the hook with staged paths and a coordinator ledger scope → judges again
     }),
   });
   assert.strictEqual(stale.block, true);
-  assert.match(stale.reason, /stale-revision/);
+  assert.match(stale.reason, /^\[신선도·승인\] commit blocked: stale-revision: /);
   assert.match(stale.reason, /src\/feature\/a\.js/);
 });
 
@@ -617,7 +617,7 @@ test('the hook with a conflicting other drive → reports its blueprint, path, a
     }),
   });
   assert.strictEqual(result.block, true);
-  assert.match(result.reason, /commit blocked: cross-drive-conflict: other\/bp 002 src\/auth\//);
+  assert.match(result.reason, /^\[커밋 범위\] commit blocked: cross-drive-conflict: other\/bp 002 src\/auth\//);
   assert.match(result.reason, /상대 drive가 끝나거나 detach될 때까지 기다리거나, 겹치지 않게 계획을 고친다$/);
 });
 
@@ -650,6 +650,7 @@ test('a boundary block with an empty staged list → reports the checkout, not a
     }),
   });
   assert.strictEqual(r.block, true);
+  assert.match(r.reason, /^\[커밋 범위\] commit blocked: main-worktree-source-write: /);
   assert.match(r.reason, /main-worktree-source-write: no staged path in \/r/);
   assert.doesNotMatch(r.reason, /: $/);
 });

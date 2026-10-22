@@ -359,6 +359,8 @@ Ship login validation.
   assert.ok(g19, `expected G19 in ${JSON.stringify(parsed.failures)}`);
   assert.match(g19.file, /tasks\/001\/tasks\.md$/);
   assert.match(g19.message, /TASKS-999|missing|unknown/i);
+  assert.strictEqual(parsed.gates[0].gate, 'execution-topology');
+  assert.strictEqual(typeof parsed.gates[0].next, 'string');
 });
 
 // --- coordinator mode -------------------------------------------------------

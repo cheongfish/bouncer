@@ -28,3 +28,15 @@ test('GATE_FAILURE_HINTS when code and match agree → attaches next only', () =
   assert.match(out[8].next, /commit_summary[\s\S]*plan gate/);
   for (const i of [2, 3, 5, 6]) assert.strictEqual('next' in out[i], false, out[i].message);
 });
+
+test('withGateFailureHints when a G failure exists → gates summary attached', () => {
+  const out = withGateFailureHints({ ok: false, failures: [{ code: 'G7', message: 'm', file: 'v.md' }] });
+  assert.strictEqual(out.gates.length, 1);
+  assert.strictEqual(out.gates[0].gate, 'verification-evidence');
+  assert.strictEqual(out.failures.length, 1);
+});
+
+test('withGateFailureHints when only S failures → no gates key', () => {
+  const out = withGateFailureHints({ ok: false, failures: [{ code: 'S10', message: 'm', file: 'a.md' }] });
+  assert.strictEqual('gates' in out, false);
+});
