@@ -59,7 +59,9 @@ A `direct-run.md` drive (start ACQ option D) has no coordinator dispatch. Open o
 `bouncer metrics start --kind root-direct-session --blueprint <dir> --label direct` after
 bootstrap and close it with `metrics end` when the drive hands off to the coordinator or reaches
 `done`. A handoff then follows the coordinator steps above, so its session is a separate
-`coordinator-session`. The `summary` reports both kinds.
+`coordinator-session`. The `summary` reports both kinds. Run `metrics end` once, at `done` or
+handoff, and alone rather than chained with another command; a second call on a closed session
+returns `metrics-session-ended`.
 
 ## Closing report
 
