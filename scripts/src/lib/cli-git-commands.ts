@@ -336,6 +336,7 @@ const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next',
   'advance', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
+  'note',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -433,6 +434,7 @@ const COORDINATE_STRING_FLAG_FIELDS: Record<string, string> = {
   perspective: 'perspective',
   tokens: 'tokens',
   taskBriefHash: 'task-brief-hash',
+  text: 'text',
 };
 
 /** `--write-input`은 status 전용이고 값이 있어야 한다. 아니면 파일을 쓰기 전에 usage(2). */
@@ -456,7 +458,7 @@ function checkFenceFlags(f: CoordFlags, command: string, io: CliIo): number | un
   const fenced = [
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
     'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
-    'worker-model', 'worker-tokens',
+    'worker-model', 'worker-tokens', 'note',
   ];
   const missing = !nonEmpty(f['ledger-path']) || !nonEmpty(f['ledger-hash']);
   if (!missing) return undefined;
@@ -562,6 +564,14 @@ function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: C
   if (command === 'worker-model' || command === 'worker-tokens') {
     const bad = checkWorkerFlags(f, command, io);
     if (bad !== undefined) return bad;
+  }
+  if (command === 'note') {
+    // 내용 검사(trim·2000자)는 core 몫이라 여기서는 플래그 존재·값 유무만 본다.
+    // 값 없는 --task(true)를 undefined로 접으면 task 없는 note가 조용히 기록되므로 usage(2)로 막는다.
+    if (!nonEmpty(f.text)) return failCoordinateUsage(io, 'coordinate note: --text is required\n', command);
+    if (hasFlag(f, 'task') && !nonEmpty(f.task)) {
+      return failCoordinateUsage(io, 'coordinate note: --task requires a value\n', command);
+    }
   }
   // reverify는 terminal task id 없이는 core가 대상을 알 수 없다. core 호출 전에 usage(2)로 거절한다.
   if (command === 'reverify' && !nonEmpty(f.task)) {

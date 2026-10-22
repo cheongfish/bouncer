@@ -200,11 +200,15 @@ const EXECUTOR_NOT_TRACKED = 'executor-state-not-tracked' as const;
 type ExecutorObservation = {
   state: 'unknown'; source: 'unavailable'; reason: typeof EXECUTOR_NOT_TRACKED;
 };
+/** checkpoint에 싣는 note 개수 상한. 오래된 note는 원장에만 남는다. */
+const CHECKPOINT_NOTES_LIMIT = 5;
 type CoordinatorCheckpoint = {
   ready: string[];
   active_tasks: ActiveTaskProjection[];
   completed_tasks: CompletedTaskSummary[];
   unresolved_decisions: unknown[];
+  // 다음 세션 인계용 note 최근 CHECKPOINT_NOTES_LIMIT개(원장 순서). 구 checkpoint에는 없을 수 있다.
+  notes: Array<{ text: string; written_at: string; task?: string }>;
   recent_failure: FailureEvidence | null;
   integration_head: string | null;
   revision: string | null;
@@ -320,12 +324,25 @@ function projectCheckpoint(
       active_tasks.push(projectActiveTask(task));
     }
   }
-  const unresolved_decisions = (Array.isArray(ledger.decisions) ? ledger.decisions : [])
+  const decisions: unknown[] = Array.isArray(ledger.decisions) ? ledger.decisions : [];
+  // note는 task를 가리켜도 미해결 판단이 아니라 인계 메모이므로 unresolved_decisions에서 뺀다.
+  const isNote = (entry: unknown): entry is { kind: 'note'; text: string; written_at: string; task?: string } =>
+    !!entry && typeof entry === 'object' && !Array.isArray(entry) && (entry as { kind?: unknown }).kind === 'note';
+  const unresolved_decisions = decisions
     .filter((entry) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+      if (isNote(entry)) return false;
       const id = (entry as { task?: unknown }).task;
       return typeof id === 'string' && !integratedIds.has(id);
     });
+  // task 없는 note와 아직 통합되지 않은 task의 note만 최근 N개 싣는다(통합된 task의 메모는 낡았다).
+  const notes = decisions
+    .filter(isNote)
+    .filter((n) => n.task === undefined || !integratedIds.has(n.task))
+    .slice(-CHECKPOINT_NOTES_LIMIT)
+    .map((n) => ({
+      text: n.text, written_at: n.written_at, ...(n.task !== undefined ? { task: n.task } : {}),
+    }));
   // 쓰기 직후는 디스크로 확정된 bytes를 읽고, status·fence 직전에는 load bytes를 재사용한다.
   const sha256 = ledgerBytes
     ? ledgerBytesHash(ledgerBytes)
@@ -337,6 +354,7 @@ function projectCheckpoint(
     active_tasks,
     completed_tasks,
     unresolved_decisions,
+    notes,
     recent_failure: ledger.terminalFailure || null,
     integration_head: typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null,
     revision: typeof ledger.revision === 'string' ? ledger.revision : null,

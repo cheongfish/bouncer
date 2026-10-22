@@ -5461,6 +5461,102 @@ test('worker-model implementer with tokens 48200 → records tokens on the decis
   assert.ok(!('tokens' in bare.decision));
 });
 
+function noteCall(drive, extra) {
+  return coordinate({
+    command: 'note', repoRoot: drive.repo, blueprint: drive.blueprint,
+    cwd: drive.integrationPath, ...extra,
+  });
+}
+
+test('note with padded text and task 001 → appends a trimmed note to the ledger only and surfaces it in checkpoint.notes', () => {
+  const drive = preparedCommitDrive('bouncer-note-', MODEL_BP);
+  const beforeTask = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8')).tasks[0];
+  const r = noteCall(drive, { text: '  다음 세션: 002 lint 원인 확인 중  ', task: '001' });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.decision.text, '다음 세션: 002 lint 원인 확인 중');
+  assert.strictEqual(r.decision.kind, 'note');
+  assert.strictEqual(typeof r.decision.written_at, 'string');
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.decisions[ledger.decisions.length - 1], r.decision);
+  const task = ledger.tasks[0];
+  assert.deepStrictEqual(task.decisions, beforeTask.decisions);
+  assert.deepStrictEqual(task.dispatch, beforeTask.dispatch);
+  assert.deepStrictEqual(task.lease, beforeTask.lease);
+  assert.strictEqual(task.status, beforeTask.status);
+  assert.deepStrictEqual(r.checkpoint.notes, [{
+    text: r.decision.text, written_at: r.decision.written_at, task: '001',
+  }]);
+  assert.ok(!r.checkpoint.unresolved_decisions.some((d) => d.kind === 'note'));
+});
+
+test('six notes plus a note on an integrated task → checkpoint.notes keeps the last five in ledger order without the integrated one', () => {
+  const drive = preparedCommitDrive('bouncer-note-cap-', MODEL_BP);
+  let last;
+  for (let i = 1; i <= 6; i += 1) {
+    last = noteCall(drive, { text: `note ${i}` });
+    assert.strictEqual(last.ok, true, JSON.stringify(last));
+  }
+  assert.deepStrictEqual(last.checkpoint.notes.map((n) => n.text), ['note 2', 'note 3', 'note 4', 'note 5', 'note 6']);
+  const tagged = noteCall(drive, { text: 'about 001', task: '001' });
+  assert.strictEqual(tagged.ok, true, JSON.stringify(tagged));
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const status = coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
+  });
+  assert.strictEqual(status.ok, true, JSON.stringify(status));
+  assert.ok(!status.checkpoint.notes.some((n) => n.text === 'about 001'));
+  assert.deepStrictEqual(status.checkpoint.notes.map((n) => n.text), ['note 2', 'note 3', 'note 4', 'note 5', 'note 6']);
+});
+
+test('note with bad text, task, mode or status → refuses with the matching reason and keeps the ledger bytes', () => {
+  const cases = [
+    [{ text: '   ' }, 'note-text-required'],
+    [{ text: 42 }, 'note-text-required'],
+    [{ text: 'x'.repeat(2001) }, 'note-too-long'],
+    [{ text: 'ok', task: '999' }, 'task-outside-blueprint'],
+    [{ text: 'ok' }, 'ledger-not-active', (l) => { l.status = 'awaiting_confirmation'; }],
+    [{ text: 'ok' }, 'ledger-mode-mismatch', (l) => { l.mode = 'light'; }],
+  ];
+  for (const [extra, reason, mutate] of cases) {
+    const drive = preparedCommitDrive('bouncer-note-bad-', MODEL_BP);
+    if (mutate) {
+      const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+      mutate(ledger);
+      fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+    }
+    const before = fs.readFileSync(drive.ledgerFile);
+    const r = noteCall(drive, extra);
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, reason);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, reason);
+  }
+});
+
+test('note with a wrong ledgerHash → refuses with the fence reason and keeps the ledger bytes', () => {
+  const drive = preparedCommitDrive('bouncer-note-fence-', MODEL_BP);
+  const before = fs.readFileSync(drive.ledgerFile);
+  const r = coordinateRaw({
+    command: 'note', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
+    text: 'ok', ledgerPath: LEDGER_REL, ledgerHash: '0'.repeat(64),
+  });
+  assert.strictEqual(r.ok, false, JSON.stringify(r));
+  assert.match(r.reason, /ledger-checkpoint-invalid|stale-ledger-checkpoint/);
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('two notes then status → checkpoint.notes lists both in ledger order', () => {
+  const drive = preparedCommitDrive('bouncer-note-status-', MODEL_BP);
+  assert.strictEqual(noteCall(drive, { text: 'first' }).ok, true);
+  assert.strictEqual(noteCall(drive, { text: 'second' }).ok, true);
+  const status = coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
+  });
+  assert.strictEqual(status.ok, true, JSON.stringify(status));
+  assert.deepStrictEqual(status.checkpoint.notes.map((n) => n.text), ['first', 'second']);
+});
+
 function workerTokensCall(drive, extra) {
   return coordinate({
     command: 'worker-tokens', repoRoot: drive.repo, blueprint: drive.blueprint,

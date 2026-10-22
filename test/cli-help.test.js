@@ -310,7 +310,7 @@ test('usage → coordinate repair review-finding과 required-task CI 형식을 �
 const COORDINATE_SUBCOMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-  'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
+  'promote-stop', 'session-open', 'worker-model', 'worker-tokens', 'note',
 ];
 
 test('coordinate <sub> --help와 -h → 그 subcommand usage를 stdout에 출력한다', () => {

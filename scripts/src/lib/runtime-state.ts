@@ -438,6 +438,16 @@ function validateCoordinatorCheckpoint(
     || !Array.isArray(checkpoint.unresolved_decisions)) {
     return { ok: false, reason: 'invalid-checkpoint' };
   }
+  // notes는 구 checkpoint 호환을 위해 선택이지만, 있으면 각 항목이 비지 않은 text·written_at을 가져야 한다.
+  if (Object.prototype.hasOwnProperty.call(checkpoint, 'notes')) {
+    if (!Array.isArray(checkpoint.notes) || !checkpoint.notes.every((n) => (
+      !!n && typeof n === 'object' && !Array.isArray(n)
+      && nonEmptyString((n as Record<string, unknown>).text)
+      && nonEmptyString((n as Record<string, unknown>).written_at)
+    ))) {
+      return { ok: false, reason: 'invalid-checkpoint' };
+    }
+  }
   // 키 부재와 null은 다르다. null은 "실패 없음"이고 키 누락은 projection 결함이다.
   if (!Object.prototype.hasOwnProperty.call(checkpoint, 'recent_failure')) {
     return { ok: false, reason: 'invalid-checkpoint' };

@@ -71,7 +71,7 @@ const {
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
   'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
-  'reverify',
+  'reverify', 'note',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
@@ -143,6 +143,11 @@ type RerecordDecision = {
 type SessionDecision = {
   kind: 'session'; opened_at: string; integration_head: string; waves_cap: number;
 };
+// `coordinate note`가 남기는 자유 형식 인계 메모다. 다음 coordinator 세션이 같은 조사를 반복하지 않도록
+// checkpoint `notes`로 돌려준다. 예외·wave 계산에는 쓰이지 않는다.
+type NoteDecision = { kind: 'note'; text: string; written_at: string; task?: string };
+/** note 본문 길이 상한(trim 뒤). checkpoint가 매번 싣는 값이라 무한정 키우지 않는다. */
+const NOTE_TEXT_MAX = 2000;
 type ParsedReportFile = {
   revision: { attempt: number; task_brief_hash: string } | null;
   open_choices: string[] | null;
@@ -769,6 +774,39 @@ function coordinateSessionOpen(ctx: LockedCtx): CoordinateResult {
 }
 
 /**
+ * `note`: 다음 세션에 넘길 판단 메모를 원장 decisions 끝에 덧붙인다. task의 decisions·dispatch·lease·
+ * status는 건드리지 않고(원장 전역 기록만), 검증을 모두 통과한 뒤에만 commitWrite()를 부른다.
+ *
+ * @param {LockedCtx} ctx - 공통 준비가 끝난 handler 문맥
+ * @returns {CoordinateResult} 명령 결과. 거절은 `ok: false`와 reason
+ */
+function coordinateNote(ctx: LockedCtx): CoordinateResult {
+  const { cwd, integration, ledger, commitWrite } = ctx;
+  const { command, repoRoot, blueprint, task, text } = ctx.args;
+  ensureIntegrationCwd(repoRoot, blueprint, cwd);
+  // light 원장은 세션 경계가 없어 인계 대상이 아니다. 거절 reason은 session-open과 같다.
+  if (ledgerModeOf(ledger) !== 'full') return { ok: false, reason: 'ledger-mode-mismatch' };
+  if (ledger.status !== undefined && ledger.status !== 'active') {
+    return { ok: false, reason: 'ledger-not-active' };
+  }
+  // 값 없는 플래그(true)나 비문자열은 빈 값과 같이 취급한다. 길이는 trim 뒤 기준이라 공백 패딩이 상한을 깎지 않는다.
+  const body = typeof text === 'string' ? text.trim() : '';
+  if (body === '') return { ok: false, reason: 'note-text-required' };
+  if (body.length > NOTE_TEXT_MAX) return { ok: false, reason: 'note-too-long' };
+  if (task !== undefined && !ledger.tasks.some((x) => x.id === task)) {
+    return { ok: false, reason: 'task-outside-blueprint' };
+  }
+  const note: NoteDecision = {
+    kind: 'note', text: body, written_at: new Date().toISOString(), ...(task !== undefined ? { task } : {}),
+  };
+  ledger.decisions.push(note);
+  { const lost = commitWrite(); if (lost) return lost; }
+  return withCheckpoint({
+    ok: true as const, command, decision: note,
+  }, ledger, integration.ledgerFile);
+}
+
+/**
  * `worker-model`·`worker-tokens`: 기록 전용 명령. dispatch·lease·status·attempt를 바꾸지 않고
  * decision만 덧붙이므로 검증을 모두 통과한 뒤에만 commitWrite()를 부른다.
  *
@@ -1190,6 +1228,7 @@ const PRE_LOCK_HANDLERS = new Map<string, (ctx: CoordinateCtx) => CoordinateResu
 /** lock 안·task 조회 전에 끝까지 처리하는 handler. `promote-stop`은 별도로 promotion_stopped 거절 앞에서 돈다. */
 const LOCKED_HANDLERS = new Map<string, (ctx: LockedCtx) => CoordinateResult>([
   ['session-open', coordinateSessionOpen],
+  ['note', coordinateNote],
   ['worker-model', coordinateWorkerRecord],
   ['worker-tokens', coordinateWorkerRecord],
   ['partial-close', (ctx) => coordinatorRepair.coordinatePartialClose(ctx, REPAIR_SUPPORT)],
@@ -1798,6 +1837,14 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'model-invalid': {
     cause: 'The model argument is empty or was given without a value.',
     next: 'Retry with the one-line output of `bouncer subagent-model --agent <name>` as `--model <value>`.',
+  },
+  'note-text-required': {
+    cause: 'The note text is missing, not a string, or empty after trimming.',
+    next: 'Retry `bouncer coordinate note --text "<handoff note>"` with a non-empty text.',
+  },
+  'note-too-long': {
+    cause: 'The note text is longer than 2000 characters after trimming.',
+    next: 'Shorten the note to 2000 characters or fewer and retry `bouncer coordinate note`.',
   },
   'worker-model-role-invalid': {
     cause: 'worker-model and worker-tokens record only the implementer, reviewer or debugger role.',

@@ -130,7 +130,7 @@ function coordinateCli(cwd, command, extra, { fence = true } = {}) {
     const fenced = new Set([
       'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
       'repair', 'reverify', 'partial-close', 'critical-recovery', 'release', 'revoke', 'session-open',
-      'worker-model', 'worker-tokens',
+      'worker-model', 'worker-tokens', 'note',
     ]);
     let args = [...extra];
     if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
@@ -1248,6 +1248,36 @@ test('coordinate worker-model without --role or --model → is usage exit 2 nami
     assert.strictEqual(r.code, 2, r.buf.err + r.buf.out);
     assert.match(r.buf.err, /usage: bouncer coordinate worker-model/);
   }
+});
+
+test('coordinate note without --text or with an empty --text → is usage exit 2 naming --text', () => {
+  const drive = preparedDrive();
+  for (const args of [[], ['--text']]) {
+    const r = coordinateCli(drive.integration, 'note', ['--repo', drive.repo, ...args]);
+    assert.strictEqual(r.code, 2, r.buf.err + r.buf.out);
+    assert.match(r.buf.err, /--text is required/);
+  }
+});
+
+test('coordinate note with a valueless --task → is usage exit 2 naming --task', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.integration, 'note', ['--repo', drive.repo, '--text', 'x', '--task']);
+  assert.strictEqual(r.code, 2, r.buf.err + r.buf.out);
+  assert.match(r.buf.err, /--task requires a value/);
+});
+
+test('coordinate note with a current fence → records a note that status --write-input shows in notes', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.integration, 'note', ['--repo', drive.repo, '--text', '다음 세션 메모']);
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const out = JSON.parse(r.buf.out);
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.decision.kind, 'note');
+  const status = coordinateCli(drive.integration, 'status', ['--write-input', 'out/coordinator.input.md']);
+  assert.strictEqual(status.code, 0, status.buf.err + status.buf.out);
+  const file = JSON.parse(status.buf.out).input_file;
+  const line = fs.readFileSync(file, 'utf8').match(/^checkpoint: (\{.*\})$/m)[1];
+  assert.ok(JSON.parse(line).notes.some((n) => n.text === '다음 세션 메모'));
 });
 
 test('coordinate worker-model without fence flags → is usage exit 2 and keeps the ledger', () => {
