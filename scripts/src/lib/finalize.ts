@@ -499,7 +499,12 @@ function finalize({
   }
 
   const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
-  if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };
+  if (!v.ok) {
+    // gates는 validate가 요약했을 때만 있다 — 있을 때만 그대로 싣는다.
+    return v.gates
+      ? { ok: false, reason: 'validate', failures: v.failures, gates: v.gates }
+      : { ok: false, reason: 'validate', failures: v.failures };
+  }
 
   const { docs } = loadBlueprintDocs({ repoRoot, blueprintDir });
   const affectedPaths = docs.tasks && asRecord(docs.tasks.data).bouncer

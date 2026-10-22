@@ -33,6 +33,7 @@ const { checkCommitSafety } = commitGuard;
 import commitSha = require('./commit-sha');
 const { normalizeCommitSha } = commitSha;
 import crossDrive = require('./cross-drive');
+import compositeGates = require('./composite-gates');
 const { otherDriveTasks } = crossDrive;
 
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
@@ -241,6 +242,17 @@ function commitGuidance({
 }
 
 /**
+ * 경계 거절 reason에 대응하는 복합 gate 표시 필드를 만든다. 표시 전용이라 판정은 바꾸지 않는다.
+ *
+ * @param {string} reason - 거절 reason
+ * @returns {{gate?: string}} 매핑된 reason이면 `{gate}`, 아니면 빈 객체(키 자체를 넣지 않는다)
+ */
+function gateField(reason: string): { gate?: compositeGates.CompositeGateId } {
+  const gate = compositeGates.compositeGateForReason(reason);
+  return gate ? { gate } : {};
+}
+
+/**
  * 실패 reason 값은 그대로 두고, 스킬이 고를 복구 행동만 붙인다.
  *
  * out-of-scope만 controller가 갈린다. standalone의 return-to-plan은 payload
@@ -376,6 +388,7 @@ function commitTask({
     return {
       ok: false,
       reason: 'verification-task-no-commit',
+      ...gateField('verification-task-no-commit'),
       recovery: recoveryFor('verification-task-no-commit', false),
     };
   }
@@ -405,6 +418,7 @@ function commitTask({
       ok: false,
       reason: 'validate',
       failures: v.failures,
+      ...(v.gates ? { gates: v.gates } : {}),
       recovery: recoveryFor('validate', false),
     };
   }
@@ -447,6 +461,7 @@ function commitTask({
     return {
       ok: false,
       reason,
+      ...gateField(reason),
       violations,
       ...(conflicts ? { conflicts } : {}),
       ...(ledgerFile ? { ledgerFile } : {}),

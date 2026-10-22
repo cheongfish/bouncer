@@ -371,6 +371,7 @@ test('plan gate가 실패할 때 current --set → pointer를 쓰지 않는다',
   assert.strictEqual(parsed.ok, false);
   assert.ok(Array.isArray(parsed.failures));
   assert.ok(parsed.failures.length > 0);
+  assert.strictEqual(typeof parsed.gates[0].gate, 'string');
   assert.strictEqual(readCurrent({ repoRoot: repo }), null);
 });
 
