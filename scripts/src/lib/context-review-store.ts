@@ -28,7 +28,7 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 // YAML에 적힌 값의 모양이다.
 const MARKER_VALUES = new Set([0, 1]);
 
-import type { Fail, Ref, ReportRef, Finding, Cycle, State, Dispatch, Legacy, Ctx }
+import type { Fail, Ref, Finding, State, Dispatch, Legacy, Ctx }
   from './context-review-contracts';
 
 function fail(reason: string, cause: unknown, next: string): Fail {

@@ -24,6 +24,8 @@ module.exports = [
       '.benchmarks/**',
       'benchmarks/**',
       'docs/**',
+      // git-ignore 대상인 작업 트리(integration·worker 복사본)를 main checkout lint가 다시 검사하지 않게 한다.
+      '.worktrees/**',
     ],
   },
   js.configs.recommended,
@@ -38,6 +40,8 @@ module.exports = [
         console: 'readonly',
         __dirname: 'readonly',
         Buffer: 'readonly',
+        // engines.node >=24의 내장 전역이다. 기본 globals에 없어 no-undef가 오탐한다.
+        structuredClone: 'readonly',
       },
     },
     linterOptions: {
