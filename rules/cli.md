@@ -123,7 +123,8 @@ with a message starting `worktree.setup`. `bouncer init` seeds it as
 `npm run build` only for a new config whose `package.json` has `scripts.build`;
 existing configs are never rewritten.
 `finalize release-main --blueprint <dir>` is main-checkout-only: it cleans
-main plan copies after a closed drive.
+main plan copies after a closed drive. A valid `outside_scope` terminal counts as closed
+(the payload carries `outside_scope`); `drive-not-closed` refusals carry `cause`, `next`, and `tasks`.
 
 ## Context and task creation
 

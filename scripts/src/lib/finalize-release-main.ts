@@ -15,6 +15,8 @@ import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
 import current = require('./current');
 const { nextBlueprint } = current;
+import executionContracts = require('./execution-contracts');
+const { validOutsideScope } = executionContracts;
 import seedWorktree = require('./seed-worktree');
 const { releaseSeedManifest } = seedWorktree;
 
@@ -27,17 +29,23 @@ type ReleaseMainOk = {
   restored: string[];
   preserved: string[];
   next: { blueprint: string } | null;
+  // 분류된 outside_scope terminal로 닫힌 drive일 때만 싣는다.
+  outside_scope?: { task: string; evidence_id: string; reason: string };
 };
 
 type ReleaseMainErr = {
   ok: false;
   reason: string;
+  // drive-not-closed 거절만 싣는다: 이유·다음 행동·분류되지 않은 미통합 task id.
+  cause?: string;
+  next?: string;
+  tasks?: string[];
 };
 
 type ReleaseMainResult = ReleaseMainOk | ReleaseMainErr;
 
 type LedgerRead =
-  | { ok: true; ledger: { status?: string; tasks?: Array<{ status?: string }>; seedManifest?: unknown };
+  | { ok: true; ledger: { status?: string; tasks?: Array<{ id?: string; status?: string }>; seedManifest?: unknown };
       integrationPath: string }
   | { ok: false; reason: string };
 
@@ -53,6 +61,51 @@ type ReleaseMainDeps = {
   worktreePathFor: (opts: { repoRoot: string; blueprint: string }) => string;
   git: (args: string[]) => string;
 };
+
+/**
+ * 분류된 outside_scope terminal을 뺀 "아직 통합되지 않은" task id를 정렬해 돌려준다.
+ * finalize 쪽(finalize-checks)과 같은 validOutsideScope로 판정해, finalize --yes가
+ * 닫은 drive를 release-main이 다시 거절하지 않게 한다. 닫힘 판정과 거절 응답의
+ * tasks가 같은 계산을 쓰도록 이 함수 하나로 모았다.
+ *
+ * @param {unknown} ledger - 원장 객체(읽기만 한다)
+ * @param {Array<{ id?: string; status?: string }>} tasks - 원장 tasks 배열
+ * @returns {string[]} integrated도 유효 분류도 아닌 task id(정렬)
+ */
+function unintegratedTaskIds(ledger: unknown, tasks: Array<{ id?: string; status?: string }>): string[] {
+  return tasks
+    .filter((entry) => entry.status !== 'integrated'
+      && !(typeof entry.id === 'string' && validOutsideScope(ledger, entry.id)))
+    .map((entry) => String(entry.id))
+    .sort();
+}
+
+/**
+ * drive-not-closed 거절 응답을 만든다. 원장 상태별로 cause·next를 고르며 우선순위는
+ * partial_closed, awaiting_confirmation, 미통합 task 순이다.
+ *
+ * @param {string | undefined} status - 원장 status
+ * @param {string[]} tasks - unintegratedTaskIds 결과
+ * @returns {ReleaseMainErr} cause·next·tasks를 담은 거절 응답
+ */
+function driveNotClosed(status: string | undefined, tasks: string[]): ReleaseMainErr {
+  const rerun = 'rerun `bouncer finalize release-main --blueprint <dir>`.';
+  if (status === 'partial_closed') {
+    return { ok: false, reason: 'drive-not-closed', tasks,
+      cause: 'The drive was partially closed and needs an explicit partial merge.',
+      next: 'After the user approves, rerun with `--allow-partial-merge --confirm-partial-merge`.' };
+  }
+  if (status === 'awaiting_confirmation') {
+    return { ok: false, reason: 'drive-not-closed', tasks,
+      cause: 'The ledger is waiting for a user decision after the repair wave limit.',
+      next: `Resolve it with \`bouncer coordinate next\` (reverify, partial-close, or outside_scope), then ${rerun}` };
+  }
+  return { ok: false, reason: 'drive-not-closed', tasks,
+    cause: 'A coordinator task is not integrated, so the drive is not closed.',
+    next: 'From the integration worktree, finish the listed tasks with `bouncer coordinate next` '
+      + '(or classify a proven out-of-scope terminal failure with '
+      + '`bouncer coordinate repair --disposition outside_scope`), then ' + rerun };
+}
 
 /**
  * 정규형 blueprint 상대 경로인지 본다. normalize가 입력을 바꾸면 `..` 탈출이
@@ -246,7 +299,8 @@ function sortedUnique(values: string[]): string[] {
  * @param {string} opts.cwd - 실제 프로세스 cwd. repoRoot와 함께 메인 루트여야 한다
  * @param {string} opts.blueprintDir - 정규형 blueprint 상대 경로
  * @param {object} [opts.deps] - 테스트 seam. 생략하면 runtime/ledger/next/git 기본값
- * @returns {ReleaseMainResult} 성공 payload 또는 `{ ok: false, reason }`
+ * @returns {ReleaseMainResult} 성공 payload(분류된 outside_scope terminal이 있으면 `outside_scope` 포함)
+ *   또는 `{ ok: false, reason }`. `drive-not-closed`는 `cause`·`next`·`tasks`를 더 싣는다
  */
 function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = false, confirmPartialMerge = false }: {
   repoRoot: string;
@@ -357,11 +411,14 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
     return { ok: false, reason: 'coordinator-ledger' };
   }
   const hasLedger = ledgerRead.ok === true;
+  let outsideScope: ReleaseMainOk['outside_scope'];
   if (hasLedger) {
     const ledger = ledgerRead.ledger;
     const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
     if (ledger.status === 'partial_closed') {
-      if (!allowPartialMerge && !confirmPartialMerge) return { ok: false, reason: 'drive-not-closed' };
+      if (!allowPartialMerge && !confirmPartialMerge) {
+        return driveNotClosed(ledger.status, unintegratedTaskIds(ledger, tasks));
+      }
       if (!allowPartialMerge || !confirmPartialMerge) {
         return { ok: false, reason: 'partial-merge-confirmation-required' };
       }
@@ -401,9 +458,18 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
       return { ok: true, blueprint: bp, partial: true, merged: integrationHead,
         handoff: handoff.path, removed: [], restored: [], preserved: [], next: null } as ReleaseMainResult;
     }
-    if (ledger.status === 'awaiting_confirmation'
-        || tasks.some((entry) => entry.status !== 'integrated')) {
-      return { ok: false, reason: 'drive-not-closed' };
+    // 분류된 outside_scope terminal 제외는 닫힘 판정 한 곳에서만 한다. 무효 분류는
+    // validOutsideScope가 null이라 미통합으로 남아 거절된다.
+    const open = unintegratedTaskIds(ledger, tasks);
+    if (ledger.status === 'awaiting_confirmation' || open.length > 0) {
+      return driveNotClosed(ledger.status, open);
+    }
+    const classified = tasks.find((entry) => entry.status !== 'integrated');
+    const disposition = classified && typeof classified.id === 'string'
+      ? validOutsideScope(ledger, classified.id) : null;
+    if (disposition) {
+      outsideScope = { task: String(classified?.id), evidence_id: disposition.evidence_id,
+        reason: disposition.reason };
     }
   }
 
@@ -539,6 +605,7 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
     restored: sortedUnique(restored),
     preserved: sortedUnique(preserved),
     deps: d,
+    outsideScope,
   });
 }
 
@@ -554,15 +621,17 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
  * @param {string[]} opts.restored - HEAD로 되돌린 경로
  * @param {string[]} opts.preserved - 손대지 않은 index 경로
  * @param {ReleaseMainDeps} opts.deps - nextBlueprint seam
- * @returns {ReleaseMainOk} 정렬된 경로와 next
+ * @param {ReleaseMainOk['outside_scope']} [opts.outsideScope] - 분류된 terminal. 없으면 키를 싣지 않는다
+ * @returns {ReleaseMainOk} 정렬된 경로와 next. 분류된 terminal이 있으면 outside_scope도 담는다
  */
-function successPayload({ repoRoot, bp, removed, restored, preserved, deps }: {
+function successPayload({ repoRoot, bp, removed, restored, preserved, deps, outsideScope }: {
   repoRoot: string;
   bp: string;
   removed: string[];
   restored: string[];
   preserved: string[];
   deps: ReleaseMainDeps;
+  outsideScope?: ReleaseMainOk['outside_scope'];
 }): ReleaseMainOk {
   const listed = deps.nextBlueprint({ repoRoot, blueprintDir: bp });
   const chain: Array<{ blueprint: string; sameEpic?: boolean }> = [];
@@ -576,6 +645,7 @@ function successPayload({ repoRoot, bp, removed, restored, preserved, deps }: {
     restored,
     preserved,
     next: same ? { blueprint: same.blueprint } : null,
+    ...(outsideScope ? { outside_scope: outsideScope } : {}),
   };
 }
 

@@ -45,4 +45,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 078 | 002 finalize-digest | Explain·Quiz·PR 입력 digest |
 
 ## Blueprints
-없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.
+- [release-main-outside-scope](blueprints/release-main-outside-scope/index.md): `finalize release-main`이 `outside_scope`로 분류한 terminal만 남은 drive를 정리하고, `drive-not-closed`에 `cause`·`next`·`tasks`를 싣는다.

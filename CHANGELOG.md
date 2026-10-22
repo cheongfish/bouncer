@@ -17,6 +17,9 @@
 
 ### Fixed
 
+- **`finalize release-main`의 outside_scope 마감 drive 정리** — `finalize --yes`가 유효한 `outside_scope` terminal을
+  완료로 보고 닫은 drive를 `release-main`도 정리하고 성공 payload에 `outside_scope`를 싣는다. 그 밖의
+  `drive-not-closed` 거절은 `cause`·`next`·`tasks`를 담아 이유와 다음 행동을 알린다.
 - **전이 가드 후속 보정 (EPIC 112 BP 002)** — `run detach`는 `integrated`가 아닌 task만 진행 중으로 보고,
   거절에 `cause`·`next`를 담으며 잠금 경합을 `ledger-locked`·`ledger-lock-lost`로 알린다.
   `coordinate revise` 거절은 `cause`·`next`와 함께 stdout JSON으로 나오고, `current --set`의
