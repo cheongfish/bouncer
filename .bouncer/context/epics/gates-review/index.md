@@ -22,6 +22,12 @@ bouncer:
 ## Success criteria
 1. `gates-review` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
 2. 아래 legacy epic은 `legacy`로 그대로 두고 조회·이력에만 쓴다. 승인·검증 해시와 trailer 연결을 바꾸지 않는다.
+3. G10·G11·G12·G18·G22·G25·G26–G31 조건만 어긋난 approved blueprint에서 `bouncer validate --gate plan`이 `ok: true`이고 출력에 해당 코드가 없다.
+4. G1–G3·G5·G19·G20과 S 코드는 삭제 전과 같은 입력에서 같은 코드로 실패한다.
+5. execute G14와 finalize G21은 finding·round 형식 위반만으로는 실패하지 않고, open `must_fix`, 열린 finding이 남은 accepted review, review 부재·미승인, round 부재, 배열이 아닌 findings, enum 밖이거나 누락된 finding status·actionability에서는 계속 실패한다.
+6. G6·G7·G8·G13·G16·G17·G23·G24 판정은 바뀌지 않는다.
+7. plan draft 검사(`review-dispatch plan`)는 G5·G19·G20만 보고한다.
+8. 플러그인 rules·references·skills·agents·docs가 삭제된 코드를 gate 판정으로 서술하지 않고, CHANGELOG `[Unreleased]`에 `Removed` 항목이 있으며 `npm run ci`가 통과한다.
 
 ## Out of scope
 - gate가 나오는 계획 문서 형식 → `plan-workflow`
@@ -47,4 +53,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 099 | 001 | 리뷰 입력 일관성 |
 
 ## Blueprints
-없음. 첫 blueprint는 `/bouncer-plan`으로 추가한다.
+- [doc-quality-gate-removal](blueprints/doc-quality-gate-removal/index.md) — plan gate의 문서 품질 코드(G10–G12·G18·G22·G25–G31)와 G14·G21 형식 메시지를 `validate-gates-*`에서 삭제하고 플러그인 문서를 맞춘다.
