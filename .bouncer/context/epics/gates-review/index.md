@@ -28,6 +28,11 @@ bouncer:
 6. G6·G7·G8·G13·G16·G17·G23·G24 판정은 바뀌지 않는다.
 7. plan draft 검사(`review-dispatch plan`)는 G5·G19·G20만 보고한다.
 8. 플러그인 rules·references·skills·agents·docs가 삭제된 코드를 gate 판정으로 서술하지 않고, CHANGELOG `[Unreleased]`에 `Removed` 항목이 있으며 `npm run ci`가 통과한다.
+9. G-code가 하나 이상 실패한 `bouncer validate` 결과는 최상위 `gates[]`에 실패한 복합 gate만 고정 순서로 싣고, 각 항목은 `gate`·`label`·`codes`·`targets`·`next`(문자열 1개)를 가지며 길이는 7 이하다.
+10. 같은 입력에서 `failures[]`의 `code`·`message`·`file`·`next`와 `ok`·`warnings`는 `gates[]` 도입 전과 같고, 실패가 S 코드뿐이거나 `ok: true`이면 결과에 `gates` 키가 없다.
+11. `current --set`·`bouncer commit`·`finalize`의 validate 실패 payload는 `failures`와 함께 같은 `gates[]`를 싣는다.
+12. 경계 거절 reason 7종(`out-of-scope`·`main-worktree-source-write`·`unassigned-worktree`·`verification-task-no-commit`·`cross-drive-conflict`·`cross-drive-ledger-unreadable`·`stale-revision`)은 commit·coordinator 실패 payload에 `gate` 필드를 갖고 commit hook 거절 줄에 복합 gate 이름이 붙으며, 그 밖의 reason에는 `gate` 키가 없고 `reason` 값은 바뀌지 않는다.
+13. 새 테스트 파일은 `test/tiers.json`에 등록되고, `rules/output.md`·`rules/cli.md`가 복합 gate 출력을 서술하며, CHANGELOG `[Unreleased]`에 `Added` 항목이 있고 `npm run ci`가 통과한다.
 
 ## Out of scope
 - gate가 나오는 계획 문서 형식 → `plan-workflow`
@@ -54,3 +59,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 
 ## Blueprints
 - [doc-quality-gate-removal](blueprints/doc-quality-gate-removal/index.md) — plan gate의 문서 품질 코드(G10–G12·G18·G22·G25–G31)와 G14·G21 형식 메시지를 `validate-gates-*`에서 삭제하고 플러그인 문서를 맞춘다.
+- [composite-gate-output](blueprints/composite-gate-output/index.md) — `validate` 실패를 복합 gate 7개(`gates[]`)로 요약하고 commit·coordinator·hook의 경계 거절 reason에 같은 gate 이름을 붙인다.
