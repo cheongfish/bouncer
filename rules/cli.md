@@ -66,7 +66,7 @@ rerun `run detach` and confirm it reports `already: true`. Every refusal is
 `{ ok: false, reason, cause, next }`.
 A missing `--blueprint` or unknown `run` subcommand exits 2. On a detached
 ledger `coordinate next` and every fenced mutation (`prepare`, `dispatch`,
-`report`, `record`, `integrate`, `repair`, `revise`, supplement, `session-open`)
+`report`, `record`, `integrate`, `repair`, `reverify`, `revise`, supplement, `session-open`)
 refuse with `run-detached`, and worker `revise` write boundaries do too. To
 finalize, set the pointer with `bouncer current --set <dir>` and run
 `/bouncer-finalize`; finalize rules are unchanged. The
@@ -179,7 +179,7 @@ flag, or an unknown flag is exit 2.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
@@ -198,6 +198,7 @@ bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>
 bouncer coordinate repair --blueprint <dir> --kind supplement --review-finding <id> \
   [--review-finding <id>]... --summary <text> --paths <test-path>
 bouncer coordinate repair --blueprint <dir> --kind supplement --done --summary <text>
+bouncer coordinate reverify --blueprint <dir> --task <terminal ddd>
 ```
 
 `coordinate status` checkpoints carry `executor_observation`
@@ -482,6 +483,16 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it, and the next final review is the one delta round.
 `--kind` accepts only `product` (default) or `supplement`.
+
+When a terminal CI failure came from the environment only (a missing tool, a
+stale install, a flaky service) and no source file has to change, run
+`coordinate reverify --task <terminal>` before any `repair`. It needs `--task`
+(missing or valueless exits 2) and the ledger path/hash fence (missing is
+`ledger-checkpoint-invalid`, exit 1); a detached ledger refuses it like the
+other fenced commands. It re-runs the terminal verification without opening a
+repair wave, and refuses with `reverify-source-moved` when the source moved
+since the recorded failure or `reverify-worktree-dirty` when the worktree has
+uncommitted changes. If the code has to change, use `repair`.
 
 Terminal CI failures add two mutually exclusive forms of `coordinate repair`
 (both need `--task <terminal>`, the recorded `--failure-command`, `--summary`,

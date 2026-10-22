@@ -26,6 +26,11 @@ from the coordinator Procedure step 5 (Judge) and Hard guards.
 
 ## Terminal CI repair
 
+- If a terminal failure was caused by the environment only and no code has to
+  change, first run `bouncer coordinate reverify --task <terminal>`. It re-runs
+  the terminal verification without a repair wave and is refused with
+  `reverify-source-moved` or `reverify-worktree-dirty` when the source changed.
+  When the code has to change, use `repair`.
 - Terminal CI recovery runs through `bouncer coordinate repair`: supply the
   failing command, its summary, and why the repair stays inside the Blueprint.
   Its refusal is final; never start another wave by hand. Terminal CI failure

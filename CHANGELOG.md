@@ -9,6 +9,8 @@
 
 ### Added
 
+- **`coordinate reverify` CLI** — `bouncer coordinate reverify --task <terminal>`을 fence 명령으로 등록하고 help와
+  terminal 실패 복구 안내에 추가했다. 환경만 고쳤다면 `reverify`, 코드가 바뀌어야 하면 `repair`를 쓴다.
 - **복합 gate 실패 출력** — `bouncer validate`가 G-code 실패를 복합 gate 7개로 요약한 `gates[]`를 싣고,
   `current --set`·`commit`·`finalize` 실패도 같은 요약을 낸다. commit·coordinate 경계 거절은 `gate` 필드,
   commit hook 거절 줄은 `[<복합 gate>]` 접두를 갖는다. `failures[]`와 `reason`은 그대로다.

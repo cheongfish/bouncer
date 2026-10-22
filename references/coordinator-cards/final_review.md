@@ -76,6 +76,9 @@ and Procedure step 6 (Close).
   with `payload.outside_scope`. Review as usual, keep the failure (never call
   it passed or integrated), and carry it as a warning in the final report.
   A stale or unproven classification stays `blocked`.
+- A terminal failure caused by the environment only is re-run with
+  `coordinate reverify --task <terminal>` (no repair wave); a failure that
+  needs a code change still goes through `repair`.
 - A terminal-verification (CI) failure still goes through `coordinate repair
   --failure-command` and its wave ceiling: `repair-wave-limit` ends `blocked`
   with the open findings in the Blocked report. That path is not review-caused
