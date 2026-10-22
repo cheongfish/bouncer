@@ -129,8 +129,8 @@ function coordinateCli(cwd, command, extra, { fence = true } = {}) {
   try {
     const fenced = new Set([
       'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-      'repair', 'partial-close', 'critical-recovery', 'release', 'revoke', 'session-open', 'worker-model',
-      'worker-tokens',
+      'repair', 'reverify', 'partial-close', 'critical-recovery', 'release', 'revoke', 'session-open',
+      'worker-model', 'worker-tokens',
     ]);
     let args = [...extra];
     if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
@@ -556,6 +556,25 @@ test('coordinate release → is no longer a command', () => {
   assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, promote-stop, session-open, worker-model, or worker-tokens/);
 });
 
+
+test('coordinate reverify without --task → usage exit 2 before core', () => {
+  const drive = preparedDrive();
+  const { code, buf } = coordinateCli(drive.integration, 'reverify', ['--repo', drive.repo]);
+  assert.strictEqual(code, 2);
+  assert.match(buf.err, /coordinate reverify: --task is required/);
+  const valueless = coordinateCli(drive.integration, 'reverify', ['--repo', drive.repo, '--task']);
+  assert.strictEqual(valueless.code, 2);
+  assert.match(valueless.buf.err, /coordinate reverify: --task is required/);
+});
+
+test('coordinate reverify without ledger fence flags → ledger-checkpoint-invalid exit 1', () => {
+  const drive = preparedDrive();
+  const { code, buf } = coordinateCli(drive.integration, 'reverify', [
+    '--repo', drive.repo, '--task', '001',
+  ], { fence: false });
+  assert.strictEqual(code, 1);
+  assert.strictEqual(JSON.parse(buf.out).reason, 'ledger-checkpoint-invalid');
+});
 
 test('coordinate dispatch and report without worker cwd or report metadata flags → require them', () => {
   const drive = preparedDrive();

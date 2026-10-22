@@ -334,8 +334,8 @@ function cmdExecute(rest: string[], io: CliIo) {
 
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-  'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
+  'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next',
+  'advance', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -455,7 +455,7 @@ function checkFenceFlags(f: CoordFlags, command: string, io: CliIo): number | un
   // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
   const fenced = [
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-    'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
+    'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
     'worker-model', 'worker-tokens',
   ];
   const missing = !nonEmpty(f['ledger-path']) || !nonEmpty(f['ledger-hash']);
@@ -562,6 +562,10 @@ function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: C
   if (command === 'worker-model' || command === 'worker-tokens') {
     const bad = checkWorkerFlags(f, command, io);
     if (bad !== undefined) return bad;
+  }
+  // reverify는 terminal task id 없이는 core가 대상을 알 수 없다. core 호출 전에 usage(2)로 거절한다.
+  if (command === 'reverify' && !nonEmpty(f.task)) {
+    return failCoordinateUsage(io, 'coordinate reverify: --task is required\n', command);
   }
   if (command === 'revoke') {
     if (!nonEmpty(f.task)) return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
@@ -759,8 +763,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-      + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, '
-      + 'advance, promote-stop, session-open, worker-model, or worker-tokens\n',
+      + 'integrate, status, revise, repair, reverify, partial-close, critical-recovery, revoke, '
+      + 'next, advance, promote-stop, session-open, worker-model, or worker-tokens\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {

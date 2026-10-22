@@ -25,7 +25,7 @@ import reviewPolicy = require('./review-policy');
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 import type {
   ReportOutcome, PromoteStopReason, PromotionRecord, Task,
-  FailureEvidence, Exec, VerificationRunner,
+  FailureEvidence, Exec, VerificationRunner, Ledger,
 } from './execution-contracts';
 import type {
   CoordinateArgs, CoordinateResult, CoordinateCtx, LockedCtx, TaskCtx,
@@ -71,6 +71,7 @@ const {
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
   'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
+  'reverify',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
@@ -352,15 +353,18 @@ function integrateTask({
  * @param {Function} opts.writeLedger - 원장 원자 쓰기
  * @param {{ runVerification?: VerificationRunner }} opts.deps - 검증 러너 주입
  * @param {object} opts.integration - coordinatorPathsFor 결과. integrationPath가 검증 cwd
+ * @param {boolean} [opts.reverify] - true이면 `terminalFailure`가 기록된 verifying terminal을 같은
+ *   HEAD에서 다시 돌리는 reverify 모드다. 조건을 어기면 상태를 바꾸지 않고 거절하고, 실패해도
+ *   wave 한도 전이를 하지 않으며, 통과하면 `awaiting_confirmation`을 `active`로 되돌린다
  * @returns {unknown} 성공 시 ok:true와 task·verification. 실패 시 ok:false와 reason
  */
 function integrateVerificationTask({
   // repoRoot는 공개 시그니처 호환용 — 검증 cwd는 integration.integrationPath만 쓴다.
   blueprint, task, leaseId, generation,
-  ledgerPath, ledgerHash, exec, writeLedger, deps, integration,
+  ledgerPath, ledgerHash, exec, writeLedger, deps, integration, reverify = false,
 }: {
   repoRoot: string; blueprint: string; task: string;
-  leaseId?: string; generation?: number;
+  leaseId?: string; generation?: number; reverify?: boolean;
   ledgerPath?: string; ledgerHash?: string;
   exec: Exec; writeLedger: (file: string, data: unknown) => void;
   deps: { runVerification?: VerificationRunner };
@@ -376,6 +380,16 @@ function integrateVerificationTask({
     if (!item) return { ok: false, reason: 'task-outside-blueprint' };
 
     const status = item.status || 'pending';
+    if (reverify) {
+      // 재실행 조건을 전부 통과한 경우에만 아래 잠금 밖 단계로 넘어간다. 이 단계는 원장·문서를
+      // 쓰지 않으므로 거절은 항상 상태 불변이다.
+      const rejected = reverifyRejection({
+        ledger, item, task, blueprint, exec, integrationPath: integration.integrationPath,
+      });
+      if (rejected) return rejected;
+      phase1CheckpointHash = ledgerBytesHash(fs.readFileSync(integration.ledgerFile));
+      return { ok: true as const, mode: 'verification' as const, ledger };
+    }
     // terminalFailure가 있는 verifying는 repair만 받는다.
     if (status === 'verifying' && ledger.terminalFailure
       && ledger.terminalFailure.task === task) {
@@ -451,12 +465,18 @@ function integrateVerificationTask({
         source_digest: headForKey,
       };
       ledger.terminalFailure = evidence;
-      const exhausted = (ledger.repairWaves || []).length >= 2;
+      // reverify는 wave를 쓰지 않으므로 한도 상태 전이(awaiting_confirmation)를 건드리지 않는다.
+      // 이미 awaiting_confirmation이면 그대로 두어 사용자 확인 대기가 풀리지 않게 한다.
+      const exhausted = !reverify && (ledger.repairWaves || []).length >= 2;
       if (exhausted) {
         ledger.status = 'awaiting_confirmation';
       }
       if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
       writeLedger(integration.ledgerFile, ledger);
+      if (reverify) {
+        return { ok: false, reason: 'verification-failed', command: 'reverify', task: item,
+          verification: result, repairWaves: (ledger.repairWaves || []).length, stopped: false };
+      }
       return { ok: false, reason: 'verification-failed', task: item, verification: result,
         repairWaves: (ledger.repairWaves || []).length, stopped: exhausted };
     }
@@ -465,18 +485,93 @@ function integrateVerificationTask({
       item.verify_evidence_id = result.evidenceId;
     }
     writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'integrated');
+    // wave 한도로 멈췄던 drive도 환경 수정으로 통과하면 다시 진행할 수 있어야 한다.
+    const restored = reverify && ledger.status === 'awaiting_confirmation';
+    if (restored) ledger.status = 'active';
     if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(integration.ledgerFile, ledger);
     void verificationRetry;
     void leaseId;
     void generation;
     void exec;
-    return withCheckpoint({ ok: true as const, command: 'integrate', task: item, verification: result,
+    return withCheckpoint({ ok: true as const, command: reverify ? 'reverify' : 'integrate', task: item,
+      verification: result,
       ready: readyWaveGated(ledger.tasks, {
         maxParallel: maxParallelForRead(integration.integrationPath),
-      }), decisions: ledger.decisions },
+      }), decisions: ledger.decisions, ...(restored ? { status_restored: 'active' as const } : {}) },
     ledger, integration.ledgerFile);
   });
+}
+
+/**
+ * reverify 거절 조건을 순서대로 검사한다. 읽기 전용이라 거절해도 원장·문서·작업 트리가 그대로다.
+ *
+ * @param {object} opts - 검사 입력
+ * @param {Ledger} opts.ledger - fence를 통과한 원장
+ * @param {Task} opts.item - 대상 task 항목
+ * @param {string} opts.task - task id
+ * @param {string} opts.blueprint - blueprint 상대 경로(허용 증적 문서 경로 계산용)
+ * @param {Exec} opts.exec - git 실행기
+ * @param {string} opts.integrationPath - integration checkout
+ * @returns {{ ok: false; reason: string } | null} 거절 응답, 통과하면 null
+ */
+function reverifyRejection({
+  ledger, item, task, blueprint, exec, integrationPath,
+}: {
+  ledger: Ledger; item: Task; task: string; blueprint: string;
+  exec: Exec; integrationPath: string;
+}): { ok: false; reason: string } | null {
+  const failure = ledger.terminalFailure;
+  if (item.execution_kind !== 'verification' || (item.status || 'pending') !== 'verifying'
+    || !failure || failure.task !== task) {
+    return { ok: false, reason: 'terminal-failure-required' };
+  }
+  // 실패가 기록된 바로 그 소스에서만 재실행한다. HEAD가 움직였으면 환경 문제가 아니라 코드
+  // 변경이므로 repair 경로로 보낸다(coordinator-repair의 source_digest 대조와 같은 기준).
+  const digest = failure.source_digest;
+  if (typeof digest !== 'string' || digest === ''
+    || ledger.integrationHead !== digest || git(exec, integrationPath, ['rev-parse', 'HEAD']) !== digest) {
+    return { ok: false, reason: 'reverify-source-moved' };
+  }
+  // 허용 목록은 coordinator-fanin의 disallowedDirtyPaths와 같은 규칙을 따른다(그 함수는 비공개라
+  // 여기서 미러링한다): 원장 seedManifest 경로(bootstrap이 seed한 계획 문서; 추적 파일이면 수정으로,
+  // 아니면 미추적으로 보인다) + 통합된 task의 증적 문서 + 이번 terminal이 스스로 쓰는 증적 문서.
+  const base = blueprint.replaceAll('\\', '/');
+  const allowed = new Set<string>((ledger.seedManifest || []).map((entry) => entry.path));
+  allowed.add(`${base}/tasks/${task}/tasks.md`);
+  allowed.add(`${base}/tasks/${task}/verification.md`);
+  allowed.add(`${base}/verification.md`);
+  const reviewMode = coordinatorWorker.isBlueprintReviewModeAt(integrationPath, blueprint);
+  for (const other of ledger.tasks) {
+    if (other.status !== 'integrated' && other.dynamic !== true) continue;
+    for (const [name] of coordinatorWorker.evidenceFiles(reviewMode)) {
+      allowed.add(`${base}/tasks/${other.id}/${name}`);
+    }
+  }
+  const porcelain = String(exec('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
+    cwd: integrationPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }));
+  const dirty: string[] = [];
+  // -z는 경로를 C-quote하지 않고 NUL로 끝맺으므로 비ASCII·따옴표 경로도 허용 목록과 원문 비교된다.
+  const tokens = porcelain.split('\0');
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token.length < 4) continue;
+    const entries = [token.slice(3)];
+    // rename·copy는 다음 토큰이 원래 경로이고 그 토큰에는 상태 코드가 없다.
+    if (/[RC]/.test(token.slice(0, 2)) && i + 1 < tokens.length) {
+      i += 1;
+      entries.push(tokens[i]);
+    }
+    for (const entry of entries) {
+      // worktree 등록·CLI 런타임 파일은 source가 아니다(fanin과 같은 제외).
+      if (entry.startsWith('.worktrees/') || entry.startsWith('.bouncer/runtime/')
+        || entry === '.bouncer/config.json') continue;
+      if (!allowed.has(entry)) dirty.push(entry);
+    }
+  }
+  if (dirty.length > 0) return { ok: false, reason: 'reverify-worktree-dirty' };
+  return null;
 }
 
 
@@ -525,6 +620,27 @@ function coordinateIntegrate(ctx: CoordinateCtx): CoordinateResult {
     ledgerPath, ledgerHash, exec, writeLedger, deps,
     integration,
   });
+}
+
+/**
+ * `reverify`: 환경만 고치면 통과할 terminal 검증 실패를 repair wave 없이 같은 HEAD에서 다시 돌린다.
+ * 조건 검사와 2단계 실행은 `integrateVerificationTask`의 reverify 모드가 맡는다.
+ *
+ * @param {CoordinateCtx} ctx - 공통 준비가 끝난 handler 문맥
+ * @returns {CoordinateResult} 통과·실패·거절 결과
+ */
+function coordinateReverify(ctx: CoordinateCtx): CoordinateResult {
+  const { repoRoot, blueprint, task, ledgerPath, ledgerHash } = ctx.args;
+  const { cwd, exec, writeLedger, deps, integration } = ctx;
+  if (task === undefined || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
+  ensureIntegrationCwd(repoRoot, blueprint, cwd);
+  // integrate와 같이 승격이 멈춘 drive에서는 검증을 시작하지 않는다.
+  if (loadLedger(integration.ledgerFile)?.status === 'promotion_stopped') {
+    return { ok: false, reason: 'promotion-stopped' };
+  }
+  return integrateVerificationTask({
+    repoRoot, blueprint, task, ledgerPath, ledgerHash, exec, writeLedger, deps, integration, reverify: true,
+  }) as CoordinateResult;
 }
 
 /**
@@ -1067,6 +1183,7 @@ const REPAIR_SUPPORT = {
 const PRE_LOCK_HANDLERS = new Map<string, (ctx: CoordinateCtx) => CoordinateResult>([
   ['status', coordinateStatus],
   ['integrate', coordinateIntegrate],
+  ['reverify', coordinateReverify],
   ['prepare', coordinatePrepare],
 ]);
 
@@ -1599,7 +1716,18 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'repair-wave-limit': {
     cause: 'This drive already used the maximum of two repair waves.',
-    next: 'Report the terminal failure to the user; do not retry `bouncer coordinate repair`.',
+    next: 'If the failure was environmental, fix it and run `bouncer coordinate reverify --task <terminal>` first; '
+      + 'otherwise report the terminal failure to the user. Do not retry `bouncer coordinate repair`.',
+  },
+  'reverify-source-moved': {
+    cause: 'The integration HEAD is not the source the terminal failure was recorded on.',
+    next: 'The code changed since the failure, so reverify cannot vouch for it; handle it with '
+      + '`bouncer coordinate repair`.',
+  },
+  'reverify-worktree-dirty': {
+    cause: 'The integration worktree has uncommitted changes beyond the terminal evidence documents.',
+    next: 'Revert the uncommitted source changes and run `bouncer coordinate reverify` again; if the change is '
+      + 'needed, handle it with `bouncer coordinate repair`.',
   },
   'review-repair-requires-integrated': {
     cause: 'A final-review repair can open only after every task on the blueprint is integrated.',

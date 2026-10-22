@@ -58,7 +58,9 @@ are done, so the light ledger already exists.
    scope is recorded with `--disposition outside_scope`: the failure stays
    failed, `next` moves on, and the final report, finalize, and PR carry it as a
    separate warning. The two options are mutually exclusive; an unclear, mixed,
-   or stale cause stays `blocked`.
+   or stale cause stays `blocked`. If only the environment was fixed and no
+   code changed, run `coordinate reverify --task <terminal>` first (no repair
+   wave); if code has to change, use `repair`.
 
 ## Prohibitions
 

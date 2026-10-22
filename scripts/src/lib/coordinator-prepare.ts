@@ -172,6 +172,19 @@ function worktreeDiffSha(exec: Exec, cwd: string): string {
 }
 
 /**
+ * 복원 전에 경로의 노드를 지운다. Node 24의 rmSync는 dangling symlink를 남기므로
+ * 링크는 unlinkSync로 노드만 지운다.
+ *
+ * @param {string} abs - 지울 절대 경로
+ */
+function removeNode(abs: string): void {
+  const st = fs.lstatSync(abs, { throwIfNoEntry: false });
+  if (!st) return;
+  if (st.isSymbolicLink()) fs.unlinkSync(abs);
+  else fs.rmSync(abs, { force: true, recursive: true });
+}
+
+/**
  * promotion_stopped light 원장과 integration의 미커밋 작업을 원자적으로 full seed로 바꾼다.
  * 중간 쓰기가 실패하면 원문 계획 파일, 원장, 작업 트리를 되돌려 재시도 가능한 상태를 만든다.
  *
@@ -323,10 +336,10 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
       try {
         for (const [rel, bytes] of originalFiles) {
           const abs = path.join(integration, rel);
-          if (bytes === null) fs.rmSync(abs, { force: true, recursive: true });
+          if (bytes === null) removeNode(abs);
           else {
             fs.mkdirSync(path.dirname(abs), { recursive: true });
-            fs.rmSync(abs, { force: true, recursive: true });
+            removeNode(abs);
             if ('symlink' in bytes) fs.symlinkSync(bytes.symlink, abs);
             else {
               fs.writeFileSync(abs, bytes.bytes);

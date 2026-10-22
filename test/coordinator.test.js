@@ -5905,3 +5905,220 @@ test('--disposition outside_scope with weak or mismatched grounds → rejects an
     assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, label);
   }
 });
+
+// ---- reverify: 같은 HEAD에서 실패한 terminal 검증만 repair wave 없이 다시 실행 ----
+
+const reverifyInput = (drive, override = {}) => ({
+  command: 'reverify', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+  ...override,
+});
+const passingRunner = (calls = []) => ({
+  runVerification: (opts) => { calls.push(opts); return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'a'.repeat(64) }; },
+});
+const failingRunner = (evidenceId) => ({
+  runVerification: () => ({ ok: false, command: 'node --test', exitCode: 2, evidenceId }),
+});
+// 실패한 integrate가 남기는 terminal 증적 문서 dirty 상태를 fixture가 실제로 만들었는지 확인한다.
+function assertTerminalDocsDirty(drive) {
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: drive.integration, encoding: 'utf8',
+  });
+  assert.ok(status.includes('tasks/002/tasks.md'), status);
+}
+// 두 wave를 소모해 awaiting_confirmation이 된 원장으로 바꾼다.
+function exhaustWaves(drive) {
+  const ledger = readLedgerFile(drive.ledgerFile);
+  ledger.repairWaves = [{ wave: 1, task: '001' }, { wave: 2, task: '001' }];
+  ledger.status = 'awaiting_confirmation';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+}
+
+test('reverify with a passing runner on the failed terminal → integrates it, keeps failure and repairWaves', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-pass-');
+  assertTerminalDocsDirty(drive);
+  const calls = [];
+  const result = coordinate(reverifyInput(drive, { deps: passingRunner(calls) }));
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.command, 'reverify');
+  assert.strictEqual(result.status_restored, undefined);
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].scope.kind, 'terminal');
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.strictEqual(after.tasks[1].status, 'integrated');
+  assert.strictEqual(after.tasks[1].verify_evidence_id, 'a'.repeat(64));
+  assert.strictEqual((after.repairWaves || []).length, 0);
+  assert.strictEqual(after.terminalFailure.evidence_id, RESUME_EVIDENCE);
+});
+
+test('reverify passing from awaiting_confirmation → restores ledger status to active', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-restore-');
+  exhaustWaves(drive);
+  const result = coordinate(reverifyInput(drive, { deps: passingRunner() }));
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.status_restored, 'active');
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.strictEqual(after.status, 'active');
+  assert.strictEqual(after.repairWaves.length, 2);
+});
+
+test('reverify with a failing runner → overwrites terminalFailure without disposition, no wave or status change', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-fail-');
+  const before = readLedgerFile(drive.ledgerFile);
+  const newEvidence = 'b'.repeat(64);
+  const result = coordinate(reverifyInput(drive, { deps: failingRunner(newEvidence) }));
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'verification-failed');
+  assert.strictEqual(result.command, 'reverify');
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.strictEqual(after.terminalFailure.evidence_id, newEvidence);
+  assert.strictEqual(after.terminalFailure.exitCode, 2);
+  assert.strictEqual(after.terminalFailure.source_digest, drive.integrationHead);
+  assert.strictEqual(Object.hasOwn(after.terminalFailure, 'disposition'), false);
+  assert.strictEqual((after.repairWaves || []).length, 0);
+  assert.strictEqual(after.status, before.status);
+  assert.strictEqual(after.tasks[1].status, 'verifying');
+});
+
+test('reverify failing while awaiting_confirmation → status stays awaiting_confirmation', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-fail-await-');
+  exhaustWaves(drive);
+  const result = coordinate(reverifyInput(drive, { deps: failingRunner('c'.repeat(64)) }));
+  assert.strictEqual(result.reason, 'verification-failed');
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.strictEqual(after.status, 'awaiting_confirmation');
+  assert.strictEqual(after.repairWaves.length, 2);
+});
+
+test('reverify rejections → leave ledger and task docs untouched and carry a hint', () => {
+  const missing = terminalFailedDrive('bouncer-reverify-rej-missing-');
+  const commitTask = terminalFailedDrive('bouncer-reverify-rej-commit-');
+  const noFailure = terminalFailedDrive('bouncer-reverify-rej-nofail-');
+  const noFailureLedger = readLedgerFile(noFailure.ledgerFile);
+  delete noFailureLedger.terminalFailure;
+  fs.writeFileSync(noFailure.ledgerFile, `${JSON.stringify(noFailureLedger, null, 2)}\n`);
+  const moved = terminalFailedDrive('bouncer-reverify-rej-moved-');
+  fs.writeFileSync(path.join(moved.integration, 'src/b.js'), 'later commit\n');
+  execFileSync('git', ['add', 'src/b.js'], { cwd: moved.integration });
+  execFileSync('git', ['commit', '-m', 'feat: moved'], { cwd: moved.integration });
+  const dirty = terminalFailedDrive('bouncer-reverify-rej-dirty-');
+  fs.writeFileSync(path.join(dirty.integration, 'src/a.js'), 'uncommitted edit\n');
+  const cases = [
+    ['unknown task', missing, { task: '999' }, 'task-outside-blueprint'],
+    ['commit task', commitTask, { task: '001' }, 'terminal-failure-required'],
+    ['terminal without failure', noFailure, {}, 'terminal-failure-required'],
+    ['integration moved past the failed HEAD', moved, {}, 'reverify-source-moved'],
+    ['source file edited', dirty, {}, 'reverify-worktree-dirty'],
+  ];
+  for (const [label, drive, override, reason] of cases) {
+    const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+    const docBefore = fs.readFileSync(path.join(drive.integration, drive.blueprint, 'tasks/002/tasks.md'));
+    const calls = [];
+    const rejected = coordinate(reverifyInput(drive, { ...override, deps: passingRunner(calls) }));
+    assert.strictEqual(rejected.ok, false, label);
+    assert.strictEqual(rejected.reason, reason, label);
+    assertHinted(rejected);
+    assert.ok(rejected.next, label);
+    assert.strictEqual(calls.length, 0, label);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore, label);
+    assert.deepStrictEqual(
+      fs.readFileSync(path.join(drive.integration, drive.blueprint, 'tasks/002/tasks.md')), docBefore, label,
+    );
+  }
+});
+
+test('reverify with a seeded tracked plan file modified → accepted as not dirty', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-seeded-mod-');
+  const seeded = readLedgerFile(drive.ledgerFile).seedManifest.map((entry) => entry.path);
+  const target = seeded.find((entry) => entry.endsWith('/index.md'));
+  assert.ok(target, JSON.stringify(seeded));
+  // 추적된 seed 파일을 수정 상태(" M")로 만든다. 이 커밋은 HEAD를 움직이므로 실패 기록 digest도 맞춘다.
+  execFileSync('git', ['add', '-f', target], { cwd: drive.integration });
+  execFileSync('git', ['commit', '-m', 'chore: track seeded plan file'], { cwd: drive.integration });
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: drive.integration, encoding: 'utf8' }).trim();
+  const ledger = readLedgerFile(drive.ledgerFile);
+  ledger.integrationHead = head;
+  ledger.terminalFailure.source_digest = head;
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  fs.appendFileSync(path.join(drive.integration, target), 'seeded edit\n');
+  const status = execFileSync('git', ['status', '--porcelain', '--', target], {
+    cwd: drive.integration, encoding: 'utf8',
+  });
+  assert.ok(status.startsWith(' M '), status);
+  const result = coordinate(reverifyInput(drive, { deps: passingRunner() }));
+  assert.notStrictEqual(result.reason, 'reverify-worktree-dirty', JSON.stringify(result));
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+});
+
+test('reverify with an untracked non-seeded .bouncer/context file → reverify-worktree-dirty', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-stray-ctx-');
+  const stray = path.join(drive.integration, '.bouncer/context/stray-note.md');
+  fs.mkdirSync(path.dirname(stray), { recursive: true });
+  fs.writeFileSync(stray, 'not seeded\n');
+  const rejected = coordinate(reverifyInput(drive, { deps: passingRunner() }));
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'reverify-worktree-dirty');
+});
+
+test('reverify when npm ci throws → dependency-install-failed and the ledger bytes stay', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-npm-');
+  // lockfile이 있어야 의존성 준비가 npm ci를 호출한다. exclude로 숨겨 reverify의 dirty 검사에 걸리지 않게 한다.
+  fs.writeFileSync(path.join(drive.integration, 'package-lock.json'), '{}\n');
+  const exclude = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], {
+    cwd: drive.integration, encoding: 'utf8',
+  }).trim();
+  fs.mkdirSync(path.dirname(exclude), { recursive: true });
+  fs.appendFileSync(exclude, 'package-lock.json\n');
+  const before = fs.readFileSync(drive.ledgerFile);
+  const result = coordinate(reverifyInput(drive, {
+    deps: {
+      ...passingRunner(),
+      execFileSync: (cmd, args, opts) => {
+        if (cmd === 'npm') throw new Error('npm ci boom');
+        return execFileSync(cmd, args, opts);
+      },
+    },
+  }));
+  assert.strictEqual(result.reason, 'dependency-install-failed', JSON.stringify(result));
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('reverify when the ledger changes during the run → checkpoint reason and terminalFailure unchanged', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-race-');
+  const result = coordinate(reverifyInput(drive, {
+    deps: {
+      runVerification: () => {
+        const ledger = readLedgerFile(drive.ledgerFile);
+        ledger.decisions.push({ kind: 'note' });
+        fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+        return { ok: true, command: 'node --test', exitCode: 0 };
+      },
+    },
+  }));
+  assert.strictEqual(result.ok, false, JSON.stringify(result));
+  assert.notStrictEqual(result.reason, 'verification-failed');
+  assert.notStrictEqual(result.reason, 'unknown-coordinate-command');
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.strictEqual(after.terminalFailure.evidence_id, RESUME_EVIDENCE);
+  assert.strictEqual(after.tasks[1].status, 'verifying');
+});
+
+test('reverify failing twice → new evidence each time and repairWaves stays the same', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-twice-');
+  const first = coordinate(reverifyInput(drive, { deps: failingRunner('d'.repeat(64)) }));
+  assert.strictEqual(first.reason, 'verification-failed');
+  const afterFirst = readLedgerFile(drive.ledgerFile);
+  const second = coordinate(reverifyInput(drive, { deps: failingRunner('e'.repeat(64)) }));
+  assert.strictEqual(second.reason, 'verification-failed');
+  const afterSecond = readLedgerFile(drive.ledgerFile);
+  assert.notStrictEqual(afterSecond.terminalFailure.evidence_id, afterFirst.terminalFailure.evidence_id);
+  assert.strictEqual((afterFirst.repairWaves || []).length, (afterSecond.repairWaves || []).length);
+});
+
+test('integrate on a terminal with terminalFailure → still not-ready (reverify is the only rerun path)', () => {
+  const drive = terminalFailedDrive('bouncer-reverify-integrate-kept-');
+  const result = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    deps: passingRunner(),
+  });
+  assert.strictEqual(result.reason, 'not-ready');
+});
