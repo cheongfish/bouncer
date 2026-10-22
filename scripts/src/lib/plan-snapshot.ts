@@ -17,8 +17,8 @@ const {
   SNAPSHOT_VERSION, digestPlanContent, normalizeStructure, structureKindOf, hashBody, hashStructure,
 } = snapshotContract;
 
-// 계획 snapshot digest의 단일 구현. review-dispatch(frozen target)와 plan gate
-// G18이 같은 hex를 내야 하므로 둘 다 여기서 가져간다. review-dispatch는
+// 계획 snapshot digest의 단일 구현. review-dispatch(frozen target)와 context review 기록이
+// 같은 hex를 내야 하므로 둘 다 여기서 가져간다. review-dispatch는
 // validate를 require하므로, 이 모듈이 validate·validate-gates·review-dispatch를
 // require하면 validate-gates → plan-snapshot 경로에 순환이 생긴다 — 금지.
 // validate-sections는 형제 validate-* 를 끌어오지 않는 맨 아래층이라 여기 써도
@@ -29,7 +29,7 @@ type PlanDocContent = { body: string; structure: PlanStructure };
 
 /**
  * epic·blueprint·tasks.md 상대 경로를 집계 digest와 같은 순서로 모은다.
- * 문서 집합이 갈라지면 G18과 follow_up 판정이 서로 다른 대상을 본다.
+ * 문서 집합이 갈라지면 context review 기록과 follow_up 판정이 서로 다른 대상을 본다.
  *
  * @param {string} repoRoot - 저장소 루트 절대 경로
  * @param {string} blueprintDir - blueprint 상대 경로(POSIX)

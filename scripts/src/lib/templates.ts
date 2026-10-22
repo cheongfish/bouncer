@@ -1,7 +1,7 @@
 // scripts/lib/templates.js
 // scaffold(및 finalize PR 본문)용 내장 문서 본문. 플러그인이 이 문자열을
 // 소유하며 — 프로젝트에 설치되지 않고 프로젝트 수준 override도 없습니다.
-// 모든 기본값은 게이트가 요구하는 본문 섹션을 충족합니다: tasks는 G10,
+// 모든 기본값은 게이트가 요구하는 본문 섹션을 충족합니다: tasks는 필수 절 작성 규칙,
 // verification은 G13, review는 G14.
 'use strict';
 
@@ -56,7 +56,7 @@ flowchart TD
 // 작성 가이드는 더 이상 템플릿 HTML 주석이 아니다. 안내 본문은
 // LEGACY_SCAFFOLD_COMMENT_BODIES에 동결하고, 새 문서는 `<TODO: …>`만 남긴다.
 // plan gate는 섹션이 비었는지 판단하기 전에 주석을 제거하고 남은 `<TODO:`
-// 토큰이 있으면 거부합니다(G10), 따라서 손대지 않은 템플릿은 통과할 수 없습니다.
+// 토큰이 있으면 거부합니다, 따라서 손대지 않은 템플릿은 통과할 수 없습니다.
 // 문서 간 링크는 bundle-relative(§5.1)가 아니라 relative(OKF §5.2)입니다:
 // 둘 다 유효하지만, 선행 `/`를 저장소 루트에 대해 해석하는 웹 git 호스트에서
 // survive하는 것은 relative 형식뿐입니다.
@@ -154,7 +154,7 @@ Source 변경 경로 없음.
 - [ ] <TODO: 검증 항목>
 `,
   'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
-  // G14/G18은 findings[]와 status로 미완성을 거절한다. `- <finding>` 자리표시만
+  // G14와 기록 검증은 findings[]와 status로 미완성을 거절한다. `- <finding>` 자리표시만
   // 두면 stripComments 후 섹션이 비지 않고, 파서가 예시 finding을 실제 값으로
   // 읽지도 않는다. 허용값 안내는 동결 목록·reference가 정본이다.
   'review.md': `# Review
@@ -168,7 +168,7 @@ Source 변경 경로 없음.
 - <finding>
 `,
   // G16는 필수 세 절(Background·Code·Quiz)이 비어 있으면 거절한다. 주석을 지워도
-  // 제목만 있는 본문은 손대지 않은 tasks 템플릿이 G10에 걸리듯 통과할 수 없다.
+  // 제목만 있는 본문은 손대지 않은 tasks 템플릿이 TODO 검사에 걸리듯 통과할 수 없다.
   // Intuition은 새 문서에 만들지 않는다 — 기존 Explain의 Intuition은 파서가
   // 선택적 legacy 절로 계속 읽는다.
   'explain.md': `# Explain
@@ -194,7 +194,7 @@ Epic: [<EPIC-id>](../../index.md) · Tasks: [001](tasks/001/tasks.md)
 ## Intent
 - <TODO: 무엇을 바꾸고 무엇이 되면 끝인가>
 `,
-  // light G10 필수 절은 Goal & intent / Touch / Checklist 셋뿐이다.
+  // light task의 필수 절(작성 규칙)은 Goal & intent / Touch / Checklist 셋뿐이다.
   // Interface·Do not touch 제목을 템플릿에 남기면 빈 절이 그대로 남아
   // 사람이 읽을 때 full과 같은 계약으로 오해된다.
   // DAG frontmatter 기본값 3줄을 상쇄하려고 본문 빈 줄을 줄인다(100줄 예산).

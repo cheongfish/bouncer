@@ -145,9 +145,9 @@ body content only; never edits harness-owned frontmatter fields. Used from
        `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
        `변경` is `Create`, `Modify`, `Delete`, or `Rename`. Wrap path and
        symbol cells in backticks. Write a `Rename` path cell as
-       `` `old` → `new` ``. The plan gate (G25) fails a `Modify`, `Delete`, or
-       `Rename` old path that is absent from the repository and from every
-       predecessor task's `Create` or `Rename` new path, and fails any path that is
+       `` `old` → `new` ``. A `Modify`, `Delete`, or
+       `Rename` old path must not be absent from the repository and from every
+       predecessor task's `Create` or `Rename` new path, and no path may be
        absolute or resolves outside the repository. List only symbols
        tied to the entry point, state change, or verification point, and give
        the selection reason in `근거`. When the symbol name is not yet
@@ -212,15 +212,15 @@ body content only; never edits harness-owned frontmatter fields. Used from
      - **tasks on a light blueprint**: when blueprint `bouncer.scale` is
        `light`, the required sections are **three** — Goal & intent, Touch,
        Checklist. The scaffolded body has no Interface / Do not touch / Constraints
-       headings and you do not add them; G10 asks for the three only. Write
+       headings and you do not add them; the three are the only required sections. Write
        them shorter, not vaguer: Goal & intent is one or two sentences that
        name the acceptance condition, Touch keeps the per-file table rows
-       (it still has to justify every `affected_paths` entry for G11), and the
+       (it still has to justify every `affected_paths` entry), and the
        Checklist keeps the failing-test-first ordering. Needing a public interface,
        a protected path, an error contract, or state changes across multiple modules
        is the signal to set `scale` back to `full` rather than to smuggle those
        rules into Goal & intent — a path you must protect has nowhere to live in a
-       light task, and G12 can only judge a Do not touch section that exists.
+       light task, and a Do not touch section must exist to protect any path.
        The scaffolded light plan set is budgeted at 100 lines
        (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`). A
        `scoped_terminal` light plan adds one terminal verification task
@@ -243,7 +243,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
    then stop. No filler sections, no summary that restates the section above it,
    no boilerplate kept because the skeleton had a heading for it. A section with
    nothing real to say is shorter, not padded. Do not leave leftover scaffold
-   guidance HTML comments in plan documents (G22).
+   guidance HTML comments in plan documents.
 4. After editing, the calling command runs validation; if it reports a failure
    tied to a field you touched, fix the body and re-run.
 

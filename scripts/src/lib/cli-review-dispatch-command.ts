@@ -55,7 +55,7 @@ const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
 `;
 
 // 예시 finding의 구성 요소. fingerprint는 아래에서 검증기와 같은 함수로 계산해
-// 손으로 쓴 값이 공식과 어긋나는 일(G18 fingerprint mismatch)을 없앤다.
+// 손으로 쓴 값이 공식과 어긋나는 일(fingerprint mismatch)을 없앤다.
 const EXAMPLE_FINDING = {
   category: 'scope',
   brief_clause: 'tasks/001 touch',
@@ -66,7 +66,7 @@ const EXAMPLE_FINDING = {
 /**
  * `review-dispatch --help`에 실리는 `bouncer.context_review` 예시. 들여쓰기는
  * `bouncer:` 아래에 붙인 `context_review:` 블록 그대로이고, `<target.digest>` 두 곳만
- * `review-dispatch plan` 출력 값으로 바꾸면 G18을 통과한다. fence는 하나만 둔다.
+ * `review-dispatch plan` 출력 값으로 바꾸면 기록 검증을 통과한다. fence는 하나만 둔다.
  */
 const HELP_CONTEXT_REVIEW_EXAMPLE = `context_review:
   rounds:
@@ -93,7 +93,7 @@ const HELP_CONTEXT_REVIEW_EXAMPLE = `context_review:
 
 /**
  * `review-dispatch --help` stdout 본문. plan 에이전트가 검증기 소스를 열지 않고
- * G18을 통과하는 기록을 쓰도록 형식·enum·digest 출처를 한곳에 모은다.
+ * 기록 검증을 통과하는 기록을 쓰도록 형식·enum·digest 출처를 한곳에 모은다.
  */
 const HELP = `${USAGE}
 Context review record shape (plan). Reports are recorded with

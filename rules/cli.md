@@ -414,7 +414,7 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
-`failures` (G5, G10–G12, G19, G20) when the draft fails. Invalid argv is exit 2.
+`failures` (G5, G19, G20) when the draft fails. Invalid argv is exit 2.
 `dispatch print` runs one Cursor print process. It returns JSON for success
 (`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
 `reason` is `print-dispatch-disabled`, `agent-unavailable`,
@@ -429,7 +429,7 @@ bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file> [--st
 ```
 
 `review record` writes one round and finding updates into `review.md`
-frontmatter only after the same finding/round checks as G21 and G14 pass.
+frontmatter only after the shared finding/round checkers pass.
 Success is `{ ok: true, path, round, status, findings }` (exit 0), plus `warnings: [{ code: 'finding-merge-candidate', file, symbol, ids }]` when findings of the round share `file` and `symbol` under different categories (key omitted when none; never blocks the record). Failure is
 `{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
 `reason` is `review-target-missing`, `review-task-required`,

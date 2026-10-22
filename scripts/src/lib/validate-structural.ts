@@ -32,7 +32,7 @@ const { REVIEW_RISK_ENUM } = reviewPolicy;
 
 // 문서 하나(프론트매터)를 보는 S 코드 층. 게이트(G) 판정과 분리해 두면
 // 스키마/id 규칙을 고치는 사람이 checkGate 분기를 같이 읽지 않아도 된다.
-// 승인 범위는 plan 게이트의 G5·G11·G12가 판정한다 — 이 파일은 affected_paths
+// 승인 범위는 plan 게이트의 G5가 판정한다 — 이 파일은 affected_paths
 // 존재(S7)만 본다. validate.ts를 require하지 않는다.
 
 type FailureEntry = { code: string; message: string; file: string };

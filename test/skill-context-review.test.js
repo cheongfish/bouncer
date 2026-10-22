@@ -8,8 +8,8 @@ const root = path.join(__dirname, '..');
 
 // frontmatter 정체성과 문서 구조는 PATH_CONTRACTS가 lint:docs로 검사한다.
 // 여기에는 reviewer가 findings에 그대로 옮겨 적는 fingerprint 예시의 "형식"만 남긴다 —
-// G18이 받는 값이 아니면 예시를 따라 쓴 plan review가 게이트에서 거절된다.
-test('context review docs → carry a G18-valid fingerprint example', () => {
+// 기록 검증이 받는 값이 아니면 예시를 따라 쓴 plan review가 기록 시점에 거절된다.
+test('context review docs → carry a record-valid fingerprint example', () => {
   const docs = [
     path.join(root, 'skills', 'bouncer-plan', 'references', 'context-review.md'),
     path.join(root, 'references', 'context-review', 'index.md'),
@@ -29,7 +29,7 @@ test('context review docs → carry a G18-valid fingerprint example', () => {
 });
 
 // 브리프(098-003/004)가 rubric 문구를 계약으로 고정했으므로 제목·키워드만 단언한다.
-// 두 판단 밖의 일(경로 존재 G25, 문장 품질 stop-slop)이 다시 finding으로 새지 않게 막는 회귀 장치다.
+// 두 판단 밖의 일(경로 존재, 문장 품질 stop-slop)이 다시 finding으로 새지 않게 막는 회귀 장치다.
 test('context reviewer rubric → judges two scopes with storage ownership and review_risk checks', () => {
   const md = fs.readFileSync(path.join(root, 'agents', 'bouncer-context-reviewer.md'), 'utf8');
   // `### <title>` 절 본문을 다음 `##`/`###` 제목 직전까지 잘라낸다.
@@ -48,7 +48,7 @@ test('context reviewer rubric → judges two scopes with storage ownership and r
     assert.ok(cross.includes(phrase), `cross-document mentions ${phrase}`);
   }
   const out = section(md, 'Out of judgment');
-  for (const phrase of ['G25', 'stop-slop']) {
+  for (const phrase of ['Path existence', 'stop-slop']) {
     assert.ok(out.includes(phrase), `out of judgment mentions ${phrase}`);
   }
   const index = fs.readFileSync(path.join(root, 'references', 'context-review', 'index.md'), 'utf8');

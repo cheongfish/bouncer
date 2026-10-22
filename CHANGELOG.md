@@ -41,6 +41,16 @@
   --note <text> --yes`가 blueprint 최종 리뷰의 open finding 하나를 round 추가 없이 사용자 수용 위험으로 닫는다.
   `--yes`가 없으면 파일을 읽기 전에 거절한다.
 
+### Removed
+
+- **문서 품질 gate 삭제 (EPIC gates-review BP doc-quality-gate-removal)** — plan gate의 G10(필수 절)·G11(Touch 근거)·
+  G12(금지 경로 교차)·G18(context review 신선도)·G22(legacy 주석)·G25(경로 존재)와
+  G26–G31을 삭제했다. 번호는 결번이며 재사용하지 않는다. 남는 차단 조건은 승인 범위(G5)와 task DAG(G19)·
+  verification 노드(G20) 정합성 등 삭제하지 않은 나머지 gate다. light의 세 필수 절은 gate 판정이
+  아니라 작성 규칙이며, context review는 `/bouncer-plan` step 5의 권고 절차로 남는다.
+- **review 형식 gate 메시지 삭제** — G14·G21의 finding 형식 메시지를 삭제했다. 형식 검증은 `bouncer review record`·
+  `bouncer context-review record`의 기록 시점에 그대로 일어나며, 잘못된 기록은 쓰이기 전에 거절된다.
+
 ## [1.6.0] — 2026-10-18
 
 ### Added

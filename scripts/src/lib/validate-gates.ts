@@ -1,7 +1,7 @@
 'use strict';
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
-// 않는다. 승인 범위는 G5·G11·G12가 판정한다(G4는 결번). validate.ts를
+// 않는다. 승인 범위는 G5가 판정한다(G4는 결번). validate.ts를
 // require하지 않는다(validate → gates → structural, 순환 금지).
 // 단계 본체는 plan·run·finalize 모듈에 두고, 이 파일은 호출 형태와 단계 선택만 맡는다.
 
