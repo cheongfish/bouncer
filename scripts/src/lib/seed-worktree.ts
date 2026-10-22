@@ -156,7 +156,8 @@ function linkLocalEnv(worktreePath: string): string[] {
     } catch {
       // ENOENT면 아직 없는 경로라 링크 대상이다.
     }
-    let srcIsDir = false;
+    // 초기값은 try/catch에서 항상 덮이거나 continue로 버려지므로 선언만 한다(no-useless-assignment).
+    let srcIsDir: boolean;
     try {
       srcIsDir = fs.statSync(src).isDirectory();
     } catch {
