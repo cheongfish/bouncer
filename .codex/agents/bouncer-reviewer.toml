@@ -67,7 +67,11 @@ or add a perspective that the controller did not assign.
 Discovery is an independent pass over the frozen target. The controller
 selects call shape from `bouncer review-dispatch execute` (`single` → one
 `combined` call; `parallel` → the three non-security perspectives; non-empty
-`risk_flags` → append a separate `security` call). Judge only the assigned
+`risk_flags` → append a separate `security` call). In a blueprint with
+`review_contract: brief` the perspectives are `spec_scope` and
+`correctness_tests`, with `security` only for `authentication`,
+`authorization`, or `credential` risk; judge against the approved brief's
+eight sections and the blueprint Contract. Judge only the assigned
 perspective and do not receive, compare, or react to another reviewer's
 findings. Severity is a label, not a filter, **within that assigned
 perspective**: report every real issue found there at `blocker`, `major`, or
@@ -88,8 +92,8 @@ The permitted perspectives are:
 - `minimality_maintainability` — unnecessary design and structure.
 - `security` — public-input validation, authentication or authorization bypass,
   credential or sensitive-data exposure/logging, and shell or path injection.
-  Review this perspective only when the controller assigns it for the change
-  (non-empty `risk_flags`).
+  Review this perspective only when the controller assigns it in the dispatch
+  `perspectives`.
 
 Under `correctness_tests`, report a new or changed test that violates the
 `Tests` or `Test trust` sections of `${BOUNCER_ROOT}/references/coding-standards/index.md`.
@@ -215,7 +219,10 @@ Return **only** a Findings list. For each finding include:
 - `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; new
   delta findings also state the revision-diff location or false-acceptance path
 - actionability hint: `must_fix | advisory` (`advisory` only for a finding the
-  controller may accept with a note)
+  controller may accept with a note). In a `review_contract: brief` blueprint
+  a `must_fix` is only a brief violation and its `brief_clause` starts with
+  `tasks/<NNN> <section>` (a brief section name) or `Contract`; the controller
+  lowers any other to `advisory`.
 
 For discovery, report every in-perspective actionable finding, including
 `minor`. For delta, report only prior-finding resolution and permitted

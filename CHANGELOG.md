@@ -18,6 +18,12 @@
   `current --set`·`commit`·`finalize` 실패도 같은 요약을 낸다. commit·coordinate 경계 거절은 `gate` 필드,
   commit hook 거절 줄은 `[<복합 gate>]` 접두를 갖는다. `failures[]`와 `reason`은 그대로다.
 
+### Changed
+
+- **브리프 계약 최종 리뷰 절차 문서** — `review_contract: brief` 표식 blueprint의 최종 리뷰 두 관점, 브리프 조항
+  `must_fix`와 `no-brief-clause`·`not-brief-violation` 낮춤 기록, 수정 1회와 delta 1회 순서를 run 참조·카드·
+  reviewer/coordinator 역할 브리프·`rules/cli.md`에 쓰고 표식 없는 blueprint의 단일 라운드 규칙은 조건을 붙여 남겼다.
+
 ### Fixed
 
 - **`finalize release-main`의 outside_scope 마감 drive 정리** — `finalize --yes`가 유효한 `outside_scope` terminal을
