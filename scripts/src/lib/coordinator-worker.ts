@@ -13,10 +13,40 @@ import executionDag = require('./execution-dag');
 const { normalizeOverlapPath } = executionDag;
 import coordinatorGit = require('./coordinator-git');
 const { git } = coordinatorGit;
+import contextIdsMod = require('./context-ids');
+const { parseContextPath, formatStableIntentId } = contextIdsMod;
+import schema = require('./schema');
 import type { Exec, Task } from './execution-contracts';
 
 // worker·dispatch 조회 helper의 정본이다. 원장 I/O(coordinator-ledger)와 명령 구현
 // (coordinator-commands)이 모두 이 모듈을 가져오고, 이 모듈은 둘 다 가져오지 않아 순환이 없다.
+
+/**
+ * blueprint 경로를 canonical stable intent ID로 바꾼다.
+ *
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {string} stable intent ID
+ * @throws epic 또는 blueprint 식별자를 해석할 수 없으면 Error
+ */
+function intentIdFor(blueprint: string): string {
+  const ids = parseContextPath(blueprint);
+  if (!ids || ids.blueprintKey === null) {
+    throw new Error(`Cannot derive epic/blueprint ids from blueprint path: ${blueprint}`);
+  }
+  return formatStableIntentId({ format: ids.format, epicKey: ids.epicKey, blueprintKey: ids.blueprintKey });
+}
+
+/**
+ * blueprint index의 verification 정책을 읽는다. 알 수 없는 값은 legacy로 접지 않는다.
+ *
+ * @param {string} root - 문서를 읽을 checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {'scoped_terminal' | 'legacy' | null} 허용 정책 또는 invalid 표시
+ */
+function verificationPolicyAt(root: string, blueprint: string): 'scoped_terminal' | 'legacy' | null {
+  const bouncer = readBouncerBlock(path.join(root, blueprint, 'index.md'));
+  return schema.verificationPolicyOf(bouncer);
+}
 
 /**
  * implementer attempt의 최종 보고 파일 경로를 계산한다.
@@ -113,6 +143,93 @@ function readBouncerBlock(file: string): Record<string, unknown> | null {
   }
   const bouncer = data && typeof data === 'object' ? (data as Record<string, unknown>).bouncer : null;
   return bouncer && typeof bouncer === 'object' ? bouncer as Record<string, unknown> : null;
+}
+
+const EVIDENCE_FILES: ReadonlyArray<readonly [string, string]> = [
+  ['tasks.md', 'verified'], ['verification.md', 'passed'], ['review.md', 'accepted'],
+];
+
+/**
+ * fan-in이 요구하는 worker 증적 파일과 terminal 상태 쌍을 고른다.
+ * blueprint review 모드에서는 루트 리뷰가 정본이므로 task `review.md`를 뺀다.
+ *
+ * @param {boolean} reviewMode - integration blueprint index의 리뷰 모드
+ * @returns {ReadonlyArray<readonly [string, string]>} 파일명과 기대 status
+ */
+function evidenceFiles(reviewMode: boolean): ReadonlyArray<readonly [string, string]> {
+  return reviewMode ? EVIDENCE_FILES.filter(([name]) => name !== 'review.md') : EVIDENCE_FILES;
+}
+
+/**
+ * worker task bundle이 fan-in할 terminal 증적인지 판정한다. 요구 모드는 integration
+ * index만 읽어 worker가 review_scope를 바꾸어 검사 항목을 줄이지 못하게 한다.
+ *
+ * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} integrationPath - review 모드의 정본 checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task 번호
+ * @param {string} sha - 원장에 기록된 worker SHA
+ * @returns {{ ok: true } | { ok: false; reason: string; files: string[] }} 판정
+ */
+function checkWorkerEvidence(
+  workerPath: string, integrationPath: string, blueprint: string, taskId: string, sha: string,
+): { ok: true } | { ok: false; reason: string; files: string[] } {
+  const relOf = (name: string) => `${blueprint.replaceAll('\\', '/')}/tasks/${taskId}/${name}`;
+  const open: string[] = [];
+  let stamped: unknown;
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  for (const [name, terminal] of evidenceFiles(reviewMode)) {
+    const bouncer = readBouncerBlock(path.join(workerPath, blueprint, 'tasks', taskId, name));
+    if (!bouncer || bouncer.status !== terminal) open.push(relOf(name));
+    if (name === 'tasks.md' && bouncer) stamped = bouncer.commit_sha;
+  }
+  if (open.length > 0) return { ok: false, reason: 'worker-evidence-not-terminal', files: open };
+  if (normalizeCommitSha(stamped) !== sha.slice(0, 8).toLowerCase()) {
+    return { ok: false, reason: 'worker-evidence-sha-mismatch', files: [relOf('tasks.md')] };
+  }
+  return { ok: true };
+}
+
+/**
+ * worker terminal bundle을 integration에 복사하고, 실패 시 복사 전 바이트를 복원한다.
+ *
+ * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} integrationPath - integration checkout 및 모드 정본
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task 번호
+ * @returns {() => void} 성공 후 rollback 함수
+ */
+function copyEvidenceBundle(
+  workerPath: string, integrationPath: string, blueprint: string, taskId: string,
+): () => void {
+  const targetDir = path.join(integrationPath, blueprint, 'tasks', taskId);
+  const dirExisted = fs.existsSync(targetDir);
+  const entries = evidenceFiles(isBlueprintReviewModeAt(integrationPath, blueprint)).map(([name]) => {
+    const target = path.join(targetDir, name);
+    return {
+      source: path.join(workerPath, blueprint, 'tasks', taskId, name), target,
+      before: fs.existsSync(target) ? fs.readFileSync(target) as Buffer : null,
+    };
+  });
+  const restore = () => {
+    if (!dirExisted) {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.before === null) fs.rmSync(entry.target, { force: true });
+      else fs.writeFileSync(entry.target, entry.before);
+    }
+  };
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+    for (const entry of entries) fs.copyFileSync(entry.source, entry.target);
+  } catch (error) {
+    // 일부만 복사된 bundle은 fan-in 기준이 될 수 없으므로 되돌린 뒤 같은 오류를 전달한다.
+    restore();
+    throw error;
+  }
+  return restore;
 }
 
 /**
@@ -246,7 +363,8 @@ function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, 
 
 export = {
   reportPathFor, taskBriefHashOf, isBlueprintReviewModeAt, readBouncerBlock,
+  evidenceFiles, checkWorkerEvidence, copyEvidenceBundle,
   workerCommitEvidence, workerScopeDirtyPaths, ensureIntegrationCwd,
   // coordinator-commands가 같은 경로 정규형과 scope 규칙을 쓰도록 함께 내보낸다.
-  currentScopePaths, normalizeSupplementPath, porcelainPaths,
+  currentScopePaths, normalizeSupplementPath, porcelainPaths, intentIdFor, verificationPolicyAt,
 };

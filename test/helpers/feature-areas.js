@@ -6,9 +6,20 @@ const path = require('node:path');
 // 값은 `scripts/lib`의 확장자 없는 모듈 basename이다.
 const FEATURE_AREAS = Object.freeze({
   intent: Object.freeze(['intent-bundle', 'intent-provenance', 'symbol-index', 'cli-intent-command']),
-  execution: Object.freeze(['coordinator', 'coordinator-commands', 'coordinator-worker', 'coordinator-repair', 'coordinate-next', 'coordinate-advance', 'execute-prepare', 'coordinate-output']),
-  verification: Object.freeze(['verification', 'verification-target']),
-  delivery: Object.freeze(['finalize', 'finalize-digest', 'finalize-pr', 'finalize-release-main', 'finalize-collect', 'finalize-checks', 'finalize-explain', 'commit', 'import-history', 'retention-migration']),
+  execution: Object.freeze([
+    'coordinator', 'coordinator-commands', 'coordinator-worker', 'coordinator-repair', 'coordinator-input',
+    'coordinator-prepare', 'coordinator-fanin', 'coordinator-command-contracts', 'coordinate-next',
+    'coordinate-advance', 'execute-prepare', 'coordinate-output',
+  ]),
+  verification: Object.freeze([
+    'verification', 'verification-target', 'verification-contracts', 'verification-identity',
+    'verification-execution', 'verification-evidence',
+  ]),
+  delivery: Object.freeze([
+    'finalize', 'finalize-digest', 'finalize-digest-model', 'finalize-digest-collect', 'finalize-pr',
+    'finalize-release-main', 'finalize-collect', 'finalize-checks', 'finalize-explain', 'commit',
+    'import-history', 'retention-migration',
+  ]),
   graph: Object.freeze(['graphify', 'session-graph', 'graph-exec', 'graph-scope']),
 });
 

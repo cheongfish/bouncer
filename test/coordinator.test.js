@@ -142,6 +142,16 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
 
 const COORDINATOR_SRC_DIR = path.join(__dirname, '..', 'scripts', 'src', 'lib');
 
+test('fan-in 모듈 의존 경계 → commands와 prepare로 런타임 역참조하지 않음', () => {
+  const graph = loadModuleGraph(COORDINATOR_SRC_DIR);
+  assert.ok(graph.get('coordinator-commands').has('coordinator-fanin'));
+  const dependencies = reachable(graph, 'coordinator-fanin');
+  assert.strictEqual(dependencies.has('coordinator-commands'), false);
+  assert.strictEqual(dependencies.has('coordinator-prepare'), false);
+  assert.ok(dependencies.has('coordinator-ledger'));
+  assert.ok(dependencies.has('coordinator-worker'));
+});
+
 /**
  * reason 완전성 검사가 훑을 소스 파일 집합. `coordinator.ts`와 그 파일이 정적으로 도달하는
  * `coordinator-*` 모듈이다. 코드를 하위 모듈로 옮겨도 집합이 함께 늘어나므로, 단일 파일만
@@ -3426,6 +3436,7 @@ test('resume after a verified fanin → finishes without cherry-pick', () => {
   fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
 
   let cherryPickCalls = 0;
+  let verificationCalls = 0;
   const resumed = coordinate({
     command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
     deps: {
@@ -3433,11 +3444,15 @@ test('resume after a verified fanin → finishes without cherry-pick', () => {
         if (args[0] === 'cherry-pick') cherryPickCalls += 1;
         return execFileSync(file, args, options);
       },
-      runVerification: passVerify,
+      runVerification: () => {
+        verificationCalls += 1;
+        return passVerify();
+      },
     },
   });
   assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
   assert.strictEqual(cherryPickCalls, 0);
+  assert.strictEqual(verificationCalls, 0);
   assert.strictEqual(drive.ledger().integrationHead, candidateHead);
   assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['integrated', 'integrated']);
   assert.strictEqual(drive.ledger().fanin, null);
@@ -3505,6 +3520,7 @@ test('CAS mismatch during fan-in → returns stale-integration-head and clears f
 test('stale ledger checkpoint during verify → leaves fanin building and retry integrates', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/007-checkpoint';
   const drive = twoRecordedWave('bouncer-fanin-checkpoint-', blueprint);
+  let concurrentBytes;
   const stale = coordinate({
     command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
     deps: {
@@ -3512,20 +3528,36 @@ test('stale ledger checkpoint during verify → leaves fanin building and retry 
         const ledger = drive.ledger();
         ledger.revision = 'mutated-during-verify';
         fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+        concurrentBytes = fs.readFileSync(drive.ledgerFile);
         return passVerify();
       },
     },
   });
   assert.strictEqual(stale.reason, 'stale-ledger-checkpoint');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), concurrentBytes);
   assert.strictEqual(drive.ledger().fanin.status, 'building');
   assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['recorded', 'recorded']);
 
+  // base HEAD 복구에서는 등록이 없는 잔여 candidate도 지우고 새 후보를 만든다.
+  fs.mkdirSync(drive.faninPath, { recursive: true });
+  const residue = path.join(drive.faninPath, 'interrupted-candidate');
+  fs.writeFileSync(residue, 'interrupted');
+  let removedBeforeAdd = false;
   const again = coordinate({
     command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
-    deps: { runVerification: passVerify },
+    deps: {
+      execFileSync: (file, args, options) => {
+        if (args[0] === 'worktree' && args[1] === 'add' && args.includes(drive.faninPath)) {
+          removedBeforeAdd = !fs.existsSync(residue);
+        }
+        return execFileSync(file, args, options);
+      },
+      runVerification: passVerify,
+    },
   });
   assert.strictEqual(again.ok, true, JSON.stringify(again));
   assert.deepStrictEqual(again.integrated, ['001', '002']);
+  assert.strictEqual(removedBeforeAdd, true);
 });
 
 test('fanin whose HEAD matches neither base nor candidate → returns stale-integration-head', () => {

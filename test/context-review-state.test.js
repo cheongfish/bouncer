@@ -15,6 +15,84 @@ const { readDoc } = require('../scripts/lib/frontmatter');
 const { findingFingerprint } = require('../scripts/lib/validate-sections');
 
 const TS = '2026-07-01T00:00:00+09:00';
+
+test('순수 리뷰 모듈을 독립 로드 → 파일·프로세스·저장·snapshot을 직접 의존하지 않는다', () => {
+  const { spawnSync } = require('node:child_process');
+  // 별도 프로세스에서 캐시 없이 로드해야 이미 로드된 I/O 모듈이 의존 경계를 숨기지 않는다.
+  const probe = spawnSync(process.execPath, ['-e', `
+    const Module = require('node:module');
+    const original = Module._load;
+    Module._load = function (request, parent, ...args) {
+      const denied = ['fs', 'node:fs', 'child_process', 'node:child_process',
+        './context-review-store', './context-review-state', './plan-snapshot'];
+      const pureModules = ['context-review-transitions.js', 'context-review-projection.js'];
+      const direct = parent && pureModules.some((name) => parent.filename.endsWith('/' + name));
+      if (direct && denied.includes(request)) throw new Error('forbidden dependency: ' + request);
+      return original.call(this, request, parent, ...args);
+    };
+    require('./scripts/lib/context-review-transitions');
+    require('./scripts/lib/context-review-projection');
+  `], { cwd: path.join(__dirname, '..'), encoding: 'utf8' });
+  assert.equal(probe.status, 0, probe.stderr);
+});
+
+test('순수 처분과 next state 계산 → 입력을 보존하고 명시 동의와 인증 digest를 반영한다', () => {
+  const transitions = require('../scripts/lib/context-review-transitions');
+  const findings = Object.freeze([Object.freeze({
+    id: 'CR-pure', status: 'open', actionability: 'must_fix',
+  })]);
+  const dispositions = Object.freeze([Object.freeze({
+    id: 'CR-pure', status: 'accepted', note: '사용자 동의',
+  })]);
+  const disposed = transitions.applyDispositions(findings, dispositions);
+  assert.equal(findings[0].status, 'open');
+  assert.equal(disposed[0].status, 'accepted');
+  assert.equal(transitions.projectClosure(disposed, []).reason, 'context-review-unresolved-findings');
+  const projected = transitions.projectClosure(disposed, ['CR-pure']);
+  assert.equal(projected[0].accepted_risk, true);
+  assert.equal(disposed[0].accepted_risk, undefined);
+  const state = Object.freeze({
+    version: 1, blueprint: 'bp', closed: false, projection: null,
+    transitions: Object.freeze([]),
+    cycle: Object.freeze({
+      id: 'cr-pure', restart_count: 0, history: Object.freeze([]), active_reports: Object.freeze([]),
+      latest_dispatch: Object.freeze({ path: 'old.json', sha256: 'old' }),
+    }),
+  });
+  const projection = { findings: projected, rounds: [] };
+  const closed = transitions.closeState(state, 'close-key', { path: 'disp.json', sha256: 'disp' },
+    ['CR-pure'], 'certified', projection);
+  assert.equal(state.closed, false);
+  assert.deepEqual(state.transitions, []);
+  assert.equal(closed.closed, true);
+  assert.equal(closed.closure.closure_target_digest, 'certified');
+  const restarted = transitions.restartState(closed, { reason: 'changed' },
+    { path: 'new.json', sha256: 'new' }, 'restart-key');
+  assert.equal(closed.cycle.restart_count, 0);
+  assert.equal(closed.cycle.history.length, 0);
+  assert.equal(restarted.cycle.restart_count, 1);
+  assert.equal(restarted.closure, undefined);
+  assert.equal(restarted.projection, null);
+  assert.deepEqual(restarted.transitions, ['close-key', 'restart-key']);
+});
+
+test('순수 marker 투영 → 원문과 파싱 입력을 보존하고 다른 키 변경은 거절한다', () => {
+  const { projectMarker, validateMarker } = require('../scripts/lib/context-review-projection');
+  const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+  const original = '---\nbouncer:\n  context_review:\n    rounds: []\n---\n## Findings\n- none\n';
+  const before = parseFrontmatter(original).data;
+  const saved = structuredClone(before);
+  const projected = projectMarker(original, 1);
+  assert.equal(projected.ok, undefined);
+  const after = parseFrontmatter(projected.text).data;
+  assert.equal(validateMarker(before, after, 1), null);
+  assert.deepEqual(before, saved);
+  assert.equal(after.bouncer.context_review.restart_count, 1);
+  assert.equal(parseFrontmatter(projected.text).body, parseFrontmatter(original).body);
+  assert.equal(projectMarker(projected.text, 1).text, projected.text);
+  after.bouncer.extra = true;
+  assert.equal(validateMarker(before, after, 1).reason, 'context-review-legacy-evidence');
+});
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 // 닫는 명령은 기록 전에 G18과 같은 형식 검증을 하므로 finding은 fingerprint를 갖춰야 한다.
