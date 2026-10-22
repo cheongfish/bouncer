@@ -70,8 +70,6 @@ type GateDeps = {
     readFileSync: (p: string, encoding: string) => string;
   };
   platform?: string;
-  // G18 신선도 대조용 현재 계획 digest. 주입되면 ctx 경로 유무와 상관없이 호출된다.
-  planSnapshot?: (opts: { repoRoot?: string; blueprintDir?: string }) => PlanSnapshotResult;
   // finalize G21 stale 검사용. 원장이 없으면 null — drive가 아니므로 git을 부르지 않는다.
   readCoordinatorLedger?: (opts: { repoRoot: string }) => { blueprint: string } | null;
   // commit G23: verify 시점 source_digest와 현재 checkout을 대조한다.
@@ -92,16 +90,13 @@ type ApprovalRead =
   | { ok: true; snapshot: { digest: string; parts: Record<string, string> } }
   | { ok: false; path: string }
   | null;
-type PlanSnapshotResult =
-  | { ok: true; digest: string; documents: string[] }
-  | { ok: false; error: string };
 
 type GateContext = {
   repoRoot?: string;
   blueprintDir?: string;
   deps?: GateDeps;
   taskUnit?: TaskUnit | null;
-  // loader가 남긴 S0. plan G18만 context-review 경로를 본다(다른 optional 문서는 일반화하지 않음).
+  // loader가 남긴 S0 원본 목록. failures에 합쳐지기 전 문서별 파싱 실패를 구분할 때 쓴다.
   parseErrors?: FailureEntry[];
   // plan task 분해 보조 신호. failures와 분리 — 호출부가 배열을 넘길 때만 채운다.
   warnings?: FailureEntry[];
@@ -238,7 +233,7 @@ function sameCanonical(left: unknown, right: unknown): boolean {
 
 export type {
   FailureEntry, BlueprintRels, BlueprintDocs, VerifyLedgerRecord, GateDeps,
-  ApprovalRead, PlanSnapshotResult, GateContext, CheckGateOpts, GateStageCtx,
+  ApprovalRead, GateContext, CheckGateOpts, GateStageCtx,
 };
 export {
   toGateContext, asData, gitExec, lastReviewHead, firstStderrLine, sameCanonical,

@@ -157,17 +157,6 @@ test('Constraints section → bounds the preceding section instead of folding in
   const s = parseTasksSections(body);
   assert.ok(s.constraints.includes('backward compatible'));
   assert.ok(!s.doNotTouch.includes('src/auth/login.js'));
-  const tasks = doc('ready', {
-    affected_paths: ['src/auth/'],
-    graph: { suggested_paths: [], basis: 'manual' },
-  }, body);
-  const failures = [];
-  checkGate('plan', {
-    epicIndex: doc('approved'),
-    blueprintIndex: doc('approved'),
-    tasks,
-  }, rels, failures);
-  assert.deepStrictEqual(failures.filter((f) => f.code === 'G12'), []);
 });
 
 test('extractPathCandidates on backtick and bare paths → finds both', () => {
@@ -176,7 +165,7 @@ test('extractPathCandidates on backtick and bare paths → finds both', () => {
   assert.ok(paths.includes('test/auth/login.test.js'));
 });
 
-test('plan gate when all conditions met including G10–G12 → passes', () => {
+test('plan gate when all conditions are met → passes', () => {
   const failures = [];
   checkGate('plan', planDocs(READY_BODY), rels, failures);
   assert.deepStrictEqual(failures, []);
@@ -244,21 +233,6 @@ test('plan gate G3 → accepts ready, in_progress, and verified', () => {
   }
 });
 
-test('plan gate G10 when a section is missing → fails', () => {
-  const body = '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n`src/`\n\n## Checklist\n- [ ] a\n';
-  const docs = {
-    epicIndex: doc('approved'),
-    blueprintIndex: doc('approved'),
-    tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
-      affected_paths: ['src/a.js'],
-    }, body),
-  };
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G10'));
-});
-
 function planDocs(body) {
   return {
     epicIndex: doc('approved'),
@@ -289,28 +263,10 @@ test('plan gate → ignores malformed legacy scope evidence', () => {
   assert.deepStrictEqual(failures, []);
 });
 
-test('plan gate G10 when a section holds only guidance comments → fails', () => {
-  const body = READY_BODY.replace('Ship login validation.', '<!-- 여기에 목표를 적습니다 -->');
-  const failures = [];
-  checkGate('plan', planDocs(body), rels, failures);
-  const g10 = failures.filter((f) => f.code === 'G10');
-  assert.strictEqual(g10.length, 1);
-  assert.match(g10[0].message, /missing implementation-ready sections: goal/);
-});
-
-test('plan gate G10 when a TODO placeholder survives → fails', () => {
-  const body = READY_BODY.replace('- [ ] implement validateLogin', '- [ ] <TODO: 작업 항목>');
-  const failures = [];
-  checkGate('plan', planDocs(body), rels, failures);
-  const g10 = failures.filter((f) => f.code === 'G10');
-  assert.strictEqual(g10.length, 1);
-  assert.match(g10[0].message, /placeholders: checklist/);
-});
-
 test('plan gate → tolerates guidance comments alongside real content', () => {
   const body = READY_BODY.replace(
     '## Touch',
-    '## Touch\n<!-- affected_paths의 모든 경로가 여기서 정당화되어야 합니다 (G11) -->',
+    '## Touch\n<!-- affected_paths의 모든 경로가 여기서 정당화되어야 합니다 -->',
   );
   const failures = [];
   checkGate('plan', planDocs(body), rels, failures);
@@ -324,17 +280,6 @@ test('plan gate → does not mistake a generic parameter for a placeholder', () 
   assert.deepStrictEqual(failures, []);
 });
 
-// The safety property the guidance-heavy templates must not cost us: prose in a
-// section makes it non-empty, so `<TODO:` detection is the only thing keeping an
-// untouched template out of the plan gate.
-test('the shipped tasks template → cannot pass the plan gate untouched', () => {
-  const failures = [];
-  checkGate('plan', planDocs(TEMPLATES['tasks.md']), rels, failures);
-  const g10 = failures.filter((f) => f.code === 'G10');
-  assert.strictEqual(g10.length, 1);
-  assert.match(g10[0].message, /placeholders: goal, interface, touch, doNotTouch, checklist/);
-});
-
 test('parseTasksSections → reads Current and Target behavior as distinct keys', () => {
   const s = parseTasksSections(
     '## Goal & intent\ng\n## Current behavior\nc\n## Target behavior\nt\n## Interface\ni',
@@ -345,245 +290,9 @@ test('parseTasksSections → reads Current and Target behavior as distinct keys'
   assert.strictEqual(s.interface, 'i');
 });
 
-test('plan gate G10 → rejects TODO placeholders in optional behavior sections', () => {
-  // 문서 lint가 자리표시 원문을 막으므로 조합한다.
-  const todo = '<' + 'TODO: x>';
-  const withTarget = READY_BODY + `\n## Target behavior\n${todo}\n`;
-  const withCurrent = READY_BODY + `\n## Current behavior\n${todo}\n`;
-
-  const targetFailures = [];
-  checkGate('plan', planDocs(withTarget), rels, targetFailures);
-  const targetG10 = targetFailures.filter((f) => f.code === 'G10');
-  assert.strictEqual(targetG10.length, 1);
-  assert.match(targetG10[0].message, /placeholders: targetBehavior/);
-
-  const currentFailures = [];
-  checkGate('plan', planDocs(withCurrent), rels, currentFailures);
-  const currentG10 = currentFailures.filter((f) => f.code === 'G10');
-  assert.strictEqual(currentG10.length, 1);
-  assert.match(currentG10[0].message, /placeholders: currentBehavior/);
-
-  // 새 절이 없으면 기존 READY_BODY 판정이 그대로다.
-  const absentFailures = [];
-  checkGate('plan', planDocs(READY_BODY), rels, absentFailures);
-  assert.deepStrictEqual(absentFailures.filter((f) => f.code === 'G10'), []);
-});
-
-test('plan gate G11 → accepts backtick paths inside a Touch table cell', () => {
-  const body = READY_BODY.replace(
-    '## Touch\n- `src/auth/`\n- `test/auth/`',
-    '## Touch\n| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |\n'
-      + '| --- | --- | --- | --- | --- | --- |\n'
-      + '| `scripts/a.ts` | `fn` | Modify | a | b | c |',
-  );
-  const docs = {
-    epicIndex: doc('approved'),
-    blueprintIndex: doc('approved'),
-    tasks: doc('ready', {
-      graph: { suggested_paths: ['scripts/a.ts'], basis: 'manual: scripts/a.ts' },
-      affected_paths: ['scripts/a.ts'],
-    }, body),
-    contextReview: contextReviewDoc('accepted'),
-  };
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.deepStrictEqual(failures.filter((f) => f.code === 'G11'), []);
-});
-
-test('plan gate G11 when affected_paths not justified by Touch → fails', () => {
-  const docs = {
-    epicIndex: doc('approved'),
-    blueprintIndex: doc('approved'),
-    tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
-      affected_paths: ['src/auth/login.js', 'src/unrelated/x.js'],
-    }, READY_BODY),
-  };
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G11'));
-});
-
-test('plan gate G12 when do-not-touch intersects affected_paths → fails', () => {
-  const body = `# Tasks
-
-## Goal & intent
-x
-
-## Interface
-y
-
-## Touch
-- \`src/auth/\`
-
-## Do not touch
-- \`src/auth/login.js\`
-
-## Checklist
-- [ ] a
-`;
-  const docs = {
-    epicIndex: doc('approved'),
-    blueprintIndex: doc('approved'),
-    tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
-      affected_paths: ['src/auth/login.js'],
-    }, body),
-  };
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G12'));
-});
-
-test('plan gate G18 when context-review.md is missing → fails', () => {
-  const docs = planDocs(READY_BODY);
-  delete docs.contextReview;
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  const g18 = failures.filter((f) => f.code === 'G18');
-  assert.strictEqual(g18.length, 1);
-  assert.match(g18[0].message, /context-review\.md missing/);
-  assert.match(g18[0].message, /scaffold context-review/);
-  assert.strictEqual(g18[0].file, rels.contextReview);
-});
-
-// 파싱 실패는 docs.contextReview가 비어 보이지만 파일이 없는 것과 다르다.
-// parseErrors에 해당 경로 S0이 있으면 scaffold가 아니라 frontmatter 수정을 안내한다.
-test('plan gate G18 when parseErrors has context-review S0 → reports invalid frontmatter', () => {
-  const docs = planDocs(READY_BODY);
-  delete docs.contextReview;
-  const failures = [];
-  checkGate('plan', docs, rels, failures, {
-    parseErrors: [{
-      code: 'S0',
-      message: 'bad indentation of a mapping entry',
-      file: rels.contextReview,
-    }],
-  });
-  const g18 = failures.filter((f) => f.code === 'G18');
-  assert.strictEqual(g18.length, 1);
-  assert.match(g18[0].message, /invalid frontmatter/);
-  assert.match(g18[0].message, /fix the S0 parse error/);
-  assert.ok(!/scaffold context-review/.test(g18[0].message));
-  assert.strictEqual(g18[0].file, rels.contextReview);
-});
-
-test('plan gate G18 when the file is truly absent → keeps missing scaffold guidance', () => {
-  const docs = planDocs(READY_BODY);
-  delete docs.contextReview;
-  const failures = [];
-  checkGate('plan', docs, rels, failures, { parseErrors: [] });
-  const g18 = failures.filter((f) => f.code === 'G18');
-  assert.strictEqual(g18.length, 1);
-  assert.match(g18[0].message, /context-review\.md missing/);
-  assert.match(g18[0].message, /scaffold context-review/);
-});
-
-test('plan gate G18 when context-review.status is pending → fails', () => {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = contextReviewDoc('pending');
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G18' && /status != accepted/.test(f.message)));
-});
-
-test('plan gate G18 when context-review body lacks Findings heading → fails', () => {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = contextReviewDoc('accepted', [], '# Context review\n\nnothing structured\n');
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G18' && /missing ## Findings/.test(f.message)));
-});
-
-test('plan gate G18 when a finding severity is invalid → fails', () => {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = contextReviewDoc('accepted', [
-    { id: 'CR-1', severity: 'critical', status: 'resolved' },
-  ]);
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => (
-    f.code === 'G18' && /finding CR-1 severity invalid: critical/.test(f.message)
-  )));
-});
-
-test('plan gate G18 when an accepted finding has no note → fails', () => {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = contextReviewDoc('accepted', [
-    { id: 'CR-2', severity: 'major', status: 'accepted' },
-  ]);
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => (
-    f.code === 'G18' && /finding CR-2 accepted without note/.test(f.message)
-  )));
-});
-
-test('plan gate G18 when a finding status is deferred → fails', () => {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = contextReviewDoc('accepted', [
-    { id: 'CR-3', severity: 'minor', status: 'deferred', note: 'next epic' },
-  ]);
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => (
-    f.code === 'G18' && /finding CR-3 status invalid: deferred/.test(f.message)
-  )));
-});
-
-test('plan gate G18 when context_review.findings is not an array → fails', () => {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = doc(
-    'accepted',
-    { context_review: { findings: { id: 'CR-1' } } },
-    CONTEXT_REVIEW_BODY_OK,
-  );
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G18'));
-});
-
-test('plan gate G18 → passes for an accepted context-review with empty findings', () => {
-  const failures = [];
-  checkGate('plan', planDocs(READY_BODY), rels, failures);
-  assert.deepStrictEqual(failures.filter((f) => f.code === 'G18'), []);
-  assert.deepStrictEqual(failures, []);
-});
-
-// context review 수렴 계약 fixture. execute의 convergenceFinding과 달리 fingerprint가
-// `context:` namespace를 갖고, round target이 commit 쌍이 아니라 계획 snapshot digest다.
+// context review 수렴 계약 fixture. fingerprint가 `context:` namespace를 갖는다.
 const CONTEXT_TASK_FILE = '.bouncer/context/epics/001-auth/blueprints/001-login/tasks/002/tasks.md';
 const CONTEXT_FINGERPRINT = `context:scope:tasks/002 interface:${CONTEXT_TASK_FILE}#interface`;
-
-function contextFinding(overrides = {}) {
-  return {
-    id: 'CR-1', severity: 'major', status: 'resolved',
-    category: 'scope', brief_clause: 'tasks/002 Interface', file: CONTEXT_TASK_FILE, symbol: 'interface',
-    fingerprint: CONTEXT_FINGERPRINT,
-    actionability: 'must_fix', origin: 'discovery', first_seen_round: 1, last_seen_round: 1,
-    ...overrides,
-  };
-}
-
-function contextRound(overrides = {}) {
-  return {
-    round: 1,
-    mode: 'discovery',
-    target: { digest: 'digest-1' },
-    perspectives: ['cross_document', 'scope', 'korean_quality', 'success_criteria']
-      .map((name) => ({ name, target_digest: 'digest-1' })),
-    severity_changes: [],
-    ...overrides,
-  };
-}
-
-function contextReviewFailures(contextReview) {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = doc('accepted', { context_review: contextReview }, CONTEXT_REVIEW_BODY_OK);
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  return failures.filter((f) => f.code === 'G18');
-}
 
 test('findingFingerprint with the context namespace → prefixes it', () => {
   assert.strictEqual(
@@ -594,53 +303,12 @@ test('findingFingerprint with the context namespace → prefixes it', () => {
   );
 });
 
-test('plan gate G18 → accepts a context finding in the context namespace', () => {
-  assert.deepStrictEqual(contextReviewFailures({
-    findings: [contextFinding()], rounds: [contextRound()],
-  }), []);
-});
-
-test('plan gate G18 with accepted must_fix and accepted_risk: true → passes without open must_fix', () => {
-  assert.deepStrictEqual(contextReviewFailures({
-    findings: [contextFinding({ status: 'accepted', note: 'accepted risk note', accepted_risk: true })],
-    rounds: [contextRound()],
-  }), []);
-});
-
-test('plan gate G18 with accepted must_fix without accepted_risk → fails with accepted with open must_fix', () => {
-  const failures = contextReviewFailures({
-    findings: [contextFinding({ status: 'accepted', note: 'accepted note' })],
-    rounds: [contextRound()],
-  });
-  assert.ok(failures.some((f) => /context-review accepted with open must_fix CR-1/.test(f.message)));
-});
-
 test('execute gate G14 with accepted must_fix and accepted_risk: true → still fails with accepted with open must_fix', () => {
   const failures = executeReviewFailures({
     findings: [convergenceFinding({ status: 'accepted', note: 'accepted note', accepted_risk: true })],
     rounds: [convergenceRound()],
   });
   assert.ok(failures.some((f) => /review accepted with open must_fix F1/.test(f.message)));
-});
-
-test('plan gate G18 → accepts adaptive combined local global perspectives', () => {
-  assert.deepStrictEqual(contextReviewFailures({
-    findings: [contextFinding()],
-    rounds: [contextRound({
-      perspectives: [
-        { name: 'combined', target_digest: 'digest-1' },
-      ],
-    })],
-  }), []);
-  assert.deepStrictEqual(contextReviewFailures({
-    findings: [contextFinding()],
-    rounds: [contextRound({
-      perspectives: [
-        { name: 'local', target_digest: 'digest-1' },
-        { name: 'global', target_digest: 'digest-1' },
-      ],
-    })],
-  }), []);
 });
 
 test('execute gate G14 → accepts combined perspective and still rejects bad target', () => {
@@ -653,280 +321,6 @@ test('execute gate G14 → accepts combined perspective and still rejects bad ta
     rounds: [convergenceRound({ perspectives: [{ name: 'combined', target_head: 'other' }] })],
   });
   assert.ok(mismatch.some((f) => /round 1 target mismatch combined/.test(f.message)));
-});
-
-test('plan gate G18 → enforces the context convergence contract', () => {
-  const duplicate = contextReviewFailures({
-    findings: [contextFinding(), contextFinding({ id: 'CR-2' })], rounds: [contextRound()],
-  });
-  assert.ok(duplicate.some((f) => f.message === `context-review duplicate fingerprint ${CONTEXT_FINGERPRINT}`));
-
-  // G14가 context: 접두를 거부하듯, G18은 접두 없는 execute 형식을 거부한다.
-  const namespace = contextReviewFailures({
-    findings: [contextFinding({ fingerprint: `scope:tasks/002 interface:${CONTEXT_TASK_FILE}#interface` })],
-    rounds: [contextRound()],
-  });
-  assert.ok(namespace.some((f) => /context-review finding CR-1 fingerprint namespace invalid/.test(f.message)));
-
-  const mismatch = contextReviewFailures({
-    findings: [contextFinding({ fingerprint: 'context:scope:other#x' })], rounds: [contextRound()],
-  });
-  assert.ok(mismatch.some((f) => /context-review finding CR-1 fingerprint mismatch/.test(f.message)));
-
-  const missing = contextReviewFailures({
-    findings: [contextFinding({ origin: undefined })], rounds: [contextRound()],
-  });
-  assert.ok(missing.some((f) => /context-review finding CR-1 origin missing/.test(f.message)));
-
-  const target = contextReviewFailures({
-    findings: [contextFinding()],
-    rounds: [contextRound({ perspectives: [{ name: 'scope', target_digest: 'digest-0' }] })],
-  });
-  assert.ok(target.some((f) => /context-review round 1 target mismatch scope/.test(f.message)));
-
-  // execute 관점 이름은 계획 문서 판정 관점이 아니다.
-  const perspective = contextReviewFailures({
-    findings: [contextFinding()],
-    rounds: [contextRound({ perspectives: [{ name: 'spec_scope', target_digest: 'digest-1' }] })],
-  });
-  assert.ok(perspective.some((f) => /context-review round 1 perspective invalid spec_scope/.test(f.message)));
-
-  // mode 순서는 discovery 또는 discovery → delta뿐이다. delta는 한 번만 인증한다.
-  const sequence = contextReviewFailures({
-    findings: [contextFinding()],
-    rounds: [
-      contextRound(),
-      contextRound({ round: 2, mode: 'delta', target: { digest: 'digest-2' }, perspectives: [] }),
-      contextRound({ round: 3, mode: 'delta', target: { digest: 'digest-3' }, perspectives: [] }),
-    ],
-  });
-  assert.ok(sequence.some((f) => /context-review rounds sequence invalid/.test(f.message)));
-
-  // context review에는 critical recovery가 없다 — execute 전용 mode는 mode 자체가 무효다.
-  const recovery = contextReviewFailures({
-    findings: [contextFinding()],
-    rounds: [
-      contextRound(),
-      contextRound({ round: 2, mode: 'critical_recovery', target: { digest: 'digest-2' }, perspectives: [] }),
-    ],
-  });
-  assert.ok(recovery.some((f) => /context-review round 2 mode invalid/.test(f.message)));
-
-  const deltaRounds = [
-    contextRound(),
-    contextRound({ round: 2, mode: 'delta', target: { digest: 'digest-2' }, perspectives: [] }),
-  ];
-  const deltaOrigin = contextReviewFailures({
-    findings: [contextFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'discovery' })],
-    rounds: deltaRounds,
-  });
-  assert.ok(deltaOrigin.some((f) => /context-review finding CR-1 delta origin not allowed/.test(f.message)));
-  assert.deepStrictEqual(contextReviewFailures({
-    findings: [contextFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'introduced_by_revision' })],
-    rounds: deltaRounds,
-  }), []);
-});
-
-test('plan gate G18 → rejects context category, target, and delta origin violations', () => {
-  // category는 context 관점 이름이어야 한다. execute 관점 이름을 fingerprint까지 맞춰
-  // 적어도 계획 원장에 들어올 수 없다.
-  const category = contextReviewFailures({
-    findings: [contextFinding({
-      category: 'spec_scope',
-      fingerprint: `context:spec_scope:tasks/002 interface:${CONTEXT_TASK_FILE}#interface`,
-    })],
-    rounds: [contextRound()],
-  });
-  assert.ok(category.some((f) => f.message === 'context-review finding CR-1 category invalid: spec_scope'));
-
-  // context round target은 digest다. digest가 없거나 execute 형식(base·head)만 있으면 무효다.
-  const noDigest = contextReviewFailures({
-    findings: [contextFinding()], rounds: [contextRound({ target: {}, perspectives: [] })],
-  });
-  assert.ok(noDigest.some((f) => f.message === 'context-review round 1 target invalid'));
-  const executeTarget = contextReviewFailures({
-    findings: [contextFinding()],
-    rounds: [contextRound({ target: { base: 'abc', head: 'def' }, perspectives: [] })],
-  });
-  assert.ok(executeTarget.some((f) => f.message === 'context-review round 1 target invalid'));
-
-  // delta의 missed_critical은 blocker·major만 허용한다. minor·nit은 discovery에서 놓친
-  // 사소한 지적이라 delta 인증을 다시 여는 근거가 되지 못한다.
-  const deltaRounds = [
-    contextRound(),
-    contextRound({ round: 2, mode: 'delta', target: { digest: 'digest-2' }, perspectives: [] }),
-  ];
-  for (const severity of ['minor', 'nit']) {
-    const missedMinor = contextReviewFailures({
-      findings: [contextFinding({
-        severity, first_seen_round: 2, last_seen_round: 2, origin: 'missed_critical',
-      })],
-      rounds: deltaRounds,
-    });
-    assert.ok(missedMinor.some((f) => f.message === 'context-review finding CR-1 delta origin not allowed'));
-  }
-});
-
-// rounds 없는 구문서는 이번 계약 이전과 같은 판정을 받는다: finding 정체성 필드와
-// namespace를 요구하지 않고, deferred 거부 같은 기존 실패만 그대로 남는다.
-test('plan gate G18 when rounds are absent → keeps legacy context-review results', () => {
-  assert.deepStrictEqual(contextReviewFailures({
-    findings: [{ id: 'CR-1', severity: 'minor', status: 'resolved', fingerprint: 'scope:legacy#x' }],
-  }), []);
-  assert.deepStrictEqual(
-    contextReviewFailures({
-      findings: [{ id: 'CR-3', severity: 'minor', status: 'deferred', note: 'later' }],
-    }).map((f) => f.message),
-    ['context-review finding CR-3 status invalid: deferred'],
-  );
-});
-
-// G18 신선도: ctx 경로 없이 deps.planSnapshot만 주입해 digest 대조 분기를 고정한다.
-// 호출 횟수로 생략 조건에서 snapshot 계산 자체가 일어나지 않음을 확인한다.
-function freshnessRun({
-  contextReview = { findings: [], rounds: [contextRound()] },
-  current = { ok: true, digest: 'digest-1', documents: [] },
-  mutate,
-} = {}) {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = doc('accepted', { context_review: contextReview }, CONTEXT_REVIEW_BODY_OK);
-  if (mutate) mutate(docs);
-  let calls = 0;
-  const planSnapshot = (opts) => {
-    calls += 1;
-    assert.deepStrictEqual(opts, { repoRoot: undefined, blueprintDir: undefined });
-    return current;
-  };
-  const failures = [];
-  checkGate('plan', docs, rels, failures, { deps: { planSnapshot } });
-  return { g18: failures.filter((f) => f.code === 'G18'), calls };
-}
-
-test('plan gate G18 → rejects a stale context review digest', () => {
-  const { g18, calls } = freshnessRun({ current: { ok: true, digest: 'digest-2', documents: [] } });
-  assert.strictEqual(calls, 1);
-  assert.strictEqual(g18.length, 1);
-  assert.match(g18[0].message, /context review is stale/);
-  assert.strictEqual(
-    g18[0].message,
-    'context review is stale: last round digest digest-1 != current digest-2; rerun context review',
-  );
-  assert.strictEqual(g18[0].file, rels.contextReview);
-});
-
-test('plan gate G18 when the last round digest matches the current snapshot → passes', () => {
-  assert.deepStrictEqual(freshnessRun().g18, []);
-  const twoRounds = freshnessRun({
-    contextReview: {
-      findings: [],
-      rounds: [
-        contextRound(),
-        contextRound({ round: 2, mode: 'delta', target: { digest: 'digest-2' }, perspectives: [] }),
-      ],
-    },
-    current: { ok: true, digest: 'digest-2', documents: [] },
-  });
-  assert.strictEqual(twoRounds.calls, 1);
-  assert.deepStrictEqual(twoRounds.g18, []);
-});
-
-// 기록값은 마지막 round의 target.digest 하나다. 앞 round에 문자열 digest가 있으면
-// 마지막 round 값이 문자열이 아니어도 대조를 생략하지 않고 stale로 거절한다.
-test('plan gate G18 with a non-string last round digest when an earlier round has one → rejects it', () => {
-  const { g18, calls } = freshnessRun({
-    contextReview: {
-      findings: [],
-      rounds: [
-        contextRound(),
-        contextRound({ round: 2, mode: 'delta', target: { digest: 42 }, perspectives: [] }),
-      ],
-    },
-    current: { ok: true, digest: 'digest-1', documents: [] },
-  });
-  assert.strictEqual(calls, 1);
-  const stale = g18.filter((f) => /context review is stale/.test(f.message));
-  assert.strictEqual(stale.length, 1);
-  assert.strictEqual(
-    stale[0].message,
-    'context review is stale: last round digest 42 != current digest-1; rerun context review',
-  );
-  assert.strictEqual(stale[0].file, rels.contextReview);
-});
-
-const HEX_A = 'a'.repeat(64);
-const HEX_B = 'b'.repeat(64);
-
-test('plan gate G18 when the closure digest matches though the last round digest is old → passes', () => {
-  const run = freshnessRun({
-    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_B },
-    current: { ok: true, digest: HEX_B, documents: [] },
-  });
-  assert.strictEqual(run.calls, 1);
-  assert.deepStrictEqual(run.g18, []);
-});
-
-test('plan gate G18 when the body changed after the closure digest → reports stale against the closure', () => {
-  const run = freshnessRun({
-    contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: HEX_A },
-    current: { ok: true, digest: HEX_B, documents: [] },
-  });
-  assert.strictEqual(run.g18.length, 1);
-  assert.match(run.g18[0].message, /^context review is stale: closure digest a{64} != current b{64}/);
-});
-
-test('plan gate G18 when the closure digest is absent → falls back to the last round digest', () => {
-  const stale = freshnessRun({ current: { ok: true, digest: 'digest-2', documents: [] } });
-  assert.match(stale.g18[0].message, /last round digest digest-1 != current digest-2/);
-  assert.deepStrictEqual(freshnessRun().g18, []);
-});
-
-test('plan gate G18 when the closure digest is malformed → rejects without certifying the current content', () => {
-  for (const bad of ['A'.repeat(64), 'abc', 42, '']) {
-    const run = freshnessRun({
-      contextReview: { findings: [], rounds: [contextRound()], closure_target_digest: bad },
-      current: { ok: true, digest: 'digest-1', documents: [] },
-    });
-    assert.strictEqual(run.g18.length, 1, JSON.stringify(bad));
-    assert.match(run.g18[0].message, /closure_target_digest must be 64 lowercase hex/);
-    assert.strictEqual(run.calls, 0);
-  }
-});
-
-test('plan gate G18 when the snapshot fails → reports unavailable freshness', () => {
-  const { g18 } = freshnessRun({ current: { ok: false, error: 'boom' } });
-  assert.strictEqual(g18.length, 1);
-  assert.match(g18[0].message, /freshness unavailable: boom/);
-  assert.strictEqual(g18[0].file, rels.contextReview);
-});
-
-test('plan gate G18 → skips the freshness check outside its conditions', () => {
-  const stale = { ok: true, digest: 'digest-2', documents: [] };
-  const cases = {
-    'task in_progress': { mutate: (docs) => { docs.tasks.data.bouncer.status = 'in_progress'; } },
-    'rounds absent': { contextReview: { findings: [] } },
-    'rounds empty': { contextReview: { findings: [], rounds: [] } },
-    light: {
-      mutate: (docs) => {
-        docs.blueprintIndex = doc('approved', { scale: 'light' });
-        delete docs.contextReview;
-      },
-    },
-    pending: { mutate: (docs) => { docs.contextReview.data.bouncer.status = 'pending'; } },
-    'no string digest': {
-      contextReview: {
-        findings: [],
-        rounds: [contextRound({ target: { digest: 42 }, perspectives: [] })],
-      },
-    },
-  };
-  for (const [label, options] of Object.entries(cases)) {
-    const { g18, calls } = freshnessRun({ ...options, current: stale });
-    assert.strictEqual(calls, 0, `${label}: planSnapshot must not be called`);
-    assert.ok(!g18.some((f) => /context review is stale/.test(f.message)), `${label}: ${JSON.stringify(g18)}`);
-    if (label === 'pending') {
-      assert.deepStrictEqual(g18.map((f) => f.message), ['context-review.status != accepted']);
-    }
-  }
 });
 
 const VERIFY_BODY_OK = `# Verification
@@ -1268,7 +662,7 @@ test('execute gate G14 stored target.snapshot_id → absent passes and malformed
 });
 
 // 입력 보정은 record/close 경계에만 있다. 자동 id 형식이어도 수기로 틀린 fingerprint는 게이트가 거절한다.
-test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14·G18이 계속 mismatch로 거절한다', () => {
+test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14가 계속 mismatch로 거절한다', () => {
   const { normalizeFinding } = require('../scripts/lib/validate-sections');
   const withoutId = (f) => {
     const copy = { ...f };
@@ -1283,12 +677,6 @@ test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14·G18이 �
   });
   assert.ok(tamperedExecute.some((f) => f.message === `review finding ${autoExecute.id} fingerprint mismatch`));
 
-  const autoContext = normalizeFinding(withoutId(contextFinding()), 'context');
-  assert.match(autoContext.id, /^CR-[0-9a-f]{8}$/);
-  const tamperedContext = contextReviewFailures({
-    findings: [{ ...autoContext, fingerprint: 'context:scope:other#x' }], rounds: [contextRound()],
-  });
-  assert.ok(tamperedContext.some((f) => f.message === `context-review finding ${autoContext.id} fingerprint mismatch`));
 });
 
 test('findingFingerprint identity components → are normalized', () => {
@@ -1890,7 +1278,7 @@ function writePlanBlueprint(repo, tasksBody) {
   );
 }
 
-test('validateBlueprint plan gate → loads tasks body from disk for G10–G12 pass', () => {
+test('validateBlueprint plan gate → loads tasks body from disk and passes', () => {
   const repo = mkRepo();
   writePlanBlueprint(repo, planReadyTasksBody());
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
@@ -1984,28 +1372,6 @@ test('plan gate when affected_paths exceeds 20 (non-blocking) → warns only', (
     structural.warnings === undefined || structural.warnings.length === 0,
     `gate-less validation must not expose task-split warnings: ${JSON.stringify(structural.warnings)}`,
   );
-});
-
-test('validateBlueprint plan gate G10 when section missing → fails via file-loaded body', () => {
-  const repo = mkRepo();
-  const body = `# Tasks
-
-## Goal & intent
-x
-
-## Interface
-y
-
-## Touch
-\`src/\`
-
-## Checklist
-- [ ] a
-`;
-  writePlanBlueprint(repo, body);
-  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
-  assert.strictEqual(res.ok, false);
-  assert.ok(res.failures.some((f) => f.code === 'G10'));
 });
 
 test('plan gate → applies per task document and reports the failing file', () => {
@@ -2608,48 +1974,7 @@ test('plan gate on scale light → passes without a context-review document', ()
   assert.deepStrictEqual(failures, []);
 });
 
-test('plan gate on scale full → still demands context-review (no light exemption)', () => {
-  const docs = lightPlanDocs(LIGHT_READY_BODY);
-  docs.blueprintIndex = doc('approved', { scale: 'full' });
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G18' && /context-review\.md missing/.test(f.message)));
-  // full은 Interface·Do not touch도 여전히 필수다.
-  assert.ok(failures.some(
-    (f) => f.code === 'G10' && /missing implementation-ready sections: interface, doNotTouch/.test(f.message),
-  ));
-});
-
-test('plan gate G10 on scale light → requires only goal, touch, checklist', () => {
-  for (const heading of ['## Goal & intent', '## Touch', '## Checklist']) {
-    const body = LIGHT_READY_BODY.replace(`${heading}\n`, '');
-    const failures = [];
-    checkGate('plan', lightPlanDocs(body), rels, failures);
-    assert.ok(
-      failures.some((f) => f.code === 'G10'),
-      `${heading} removal must fail G10`,
-    );
-  }
-});
-
-test('plan gate G10 on scale light when no tasks doc exists → reports the three-section list', () => {
-  const failures = [];
-  const docs = { epicIndex: doc('approved'), blueprintIndex: doc('approved', { scale: 'light' }) };
-  checkGate('plan', docs, rels, failures);
-  const g10 = failures.filter((f) => f.code === 'G10');
-  assert.strictEqual(g10.length, 1);
-  assert.match(g10[0].message, /sections: goal, touch, checklist$/);
-});
-
-test('the shipped light tasks template → cannot pass the plan gate untouched', () => {
-  const failures = [];
-  checkGate('plan', lightPlanDocs(TEMPLATES['tasks-light.md']), rels, failures);
-  const g10 = failures.filter((f) => f.code === 'G10');
-  assert.strictEqual(g10.length, 1);
-  assert.match(g10[0].message, /placeholders: goal, touch, checklist/);
-});
-
-test('scale light → keeps G5, G11, and G12 identical to full', () => {
+test('scale light → keeps G5 identical to full', () => {
   // G5 — 빈 affected_paths는 light에서도 통과하지 못한다. G4는 결번이라 내지 않는다.
   const bare = {
     epicIndex: doc('approved'),
@@ -2660,30 +1985,14 @@ test('scale light → keeps G5, G11, and G12 identical to full', () => {
   checkGate('plan', bare, rels, bareFailures);
   assert.ok(!bareFailures.some((f) => f.code === 'G4'));
   assert.ok(bareFailures.some((f) => f.code === 'G5'));
-
-  // G11 — Touch가 근거를 대지 않는 경로.
-  const g11 = [];
-  checkGate('plan', lightPlanDocs(LIGHT_READY_BODY, {
-    affected_paths: ['src/payments/charge.js'],
-  }), rels, g11);
-  assert.ok(g11.some((f) => f.code === 'G11' && /src\/payments\/charge\.js/.test(f.message)));
-
-  // G12 — light 문서가 Do not touch 절을 쓰면 교차 판정은 그대로 걸린다.
-  const withAvoid = LIGHT_READY_BODY.replace(
-    '## Checklist',
-    '## Do not touch\n- `src/auth/login.js`\n\n## Checklist',
-  );
-  const g12 = [];
-  checkGate('plan', lightPlanDocs(withAvoid), rels, g12);
-  assert.ok(g12.some((f) => f.code === 'G12' && /src\/auth\/login\.js/.test(f.message)));
 });
 
 test('an unknown scale value → is not treated as light', () => {
-  const docs = lightPlanDocs(LIGHT_READY_BODY);
-  docs.blueprintIndex = doc('approved', { scale: 'tiny' });
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G18'));
+  // light였다면 commit task가 둘일 때 G20 light 메시지가 나온다. 알 수 없는 scale은 full과 같다.
+  const messages = g20Messages(scopedPlanDocs([
+    scopedCommit('001'), scopedCommit('002'), scopedTerminal('003', ['TASKS-001', 'TASKS-002']),
+  ], { scale: 'tiny' }));
+  assert.deepStrictEqual(messages, []);
 });
 
 function planTaskDoc(nnn, extra = {}, body = READY_BODY) {
@@ -2957,26 +2266,18 @@ function draftCodes(docs) {
 }
 
 function assertNoStatusCodes(codes, label) {
-  for (const code of ['G1', 'G2', 'G3', 'G18']) {
+  for (const code of ['G1', 'G2', 'G3']) {
     assert.ok(!codes.includes(code), `${label}: ${code} must not appear in ${JSON.stringify(codes)}`);
   }
 }
 
-test('checkPlanDraft → reports G5, G10, G11, G12, G19, G20 without status codes', () => {
-  const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
-  const avoidBody = READY_BODY.replace(
-    /## Do not touch[\s\S]*?## Checklist/,
-    '## Do not touch\n- `src/auth/login.js`\n\n## Checklist',
-  );
+test('checkPlanDraft → reports G5, G19, G20 without status codes', () => {
   const commandBody = READY_BODY.replace(
     /## Touch[\s\S]*?## Do not touch/,
     '## Touch\n- `npm run ci`\n\n## Do not touch',
   );
   const cases = [
     { code: 'G5', tasks: [draftTaskDoc('001', { affected_paths: [] })] },
-    { code: 'G10', tasks: [draftTaskDoc('001', {}, noChecklist)] },
-    { code: 'G11', tasks: [draftTaskDoc('001', { affected_paths: ['src/unrelated/x.js'] })] },
-    { code: 'G12', tasks: [draftTaskDoc('001', { affected_paths: ['src/auth/login.js'] }, avoidBody)] },
     { code: 'G19', tasks: [draftTaskDoc('001', { depends_on: ['TASKS-001'] })] },
     {
       code: 'G20',
@@ -2996,28 +2297,15 @@ test('checkPlanDraft → reports G5, G10, G11, G12, G19, G20 without status code
   }
 });
 
-test('checkPlanDraft on light blueprint → requires only goal, touch, checklist', () => {
-  const light = { scale: 'light' };
-  const ok = draftCodes(draftPlanDocs([draftTaskDoc('001', {}, LIGHT_READY_BODY)], light));
-  assert.ok(!ok.includes('G10'), JSON.stringify(ok));
-  assertNoStatusCodes(ok, 'light');
-
-  const noChecklist = LIGHT_READY_BODY.replace(/## Checklist[\s\S]*$/, '');
-  const missing = draftCodes(draftPlanDocs([draftTaskDoc('001', {}, noChecklist)], light));
-  assert.ok(missing.includes('G10'), JSON.stringify(missing));
-  assertNoStatusCodes(missing, 'light missing checklist');
-});
-
 test('plan gate → keeps per-task failure order G3 then task checks', () => {
-  const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
   const docs = planDocsWithTasks([
-    planTaskDoc('001', { status: 'draft' }, noChecklist),
-    planTaskDoc('002', { status: 'draft' }, noChecklist),
+    planTaskDoc('001', { status: 'draft', affected_paths: [] }),
+    planTaskDoc('002', { status: 'draft', affected_paths: [] }),
   ]);
   const failures = [];
   checkGate('plan', docs, rels, failures);
-  const codes = failures.map((f) => f.code).filter((c) => !['G1', 'G2', 'G18'].includes(c));
-  assert.deepStrictEqual(codes, ['G3', 'G10', 'G3', 'G10']);
+  const codes = failures.map((f) => f.code).filter((c) => !['G1', 'G2'].includes(c));
+  assert.deepStrictEqual(codes, ['G3', 'G5', 'G3', 'G5']);
 });
 
 function blueprintReviewIndex() {
@@ -3367,41 +2655,6 @@ test('without review_scope, accepted finding without note → is still G14', () 
   assert.ok(failures.some((f) => f.code === 'G14'));
 });
 
-const G22_LEGACY = '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
-const G22_AUTHOR = '<!-- 저자 메모 -->\n';
-
-function writeG22Rel(repoRoot, rel, body) {
-  const abs = path.join(repoRoot, rel);
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, body);
-}
-
-test('plan gate G22 → reports leftover scaffold comments and skips without ctx', () => {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g22-'));
-  const bp = '.bouncer/context/epics/001-auth/blueprints/001-login';
-  writeG22Rel(repoRoot, `${bp}/index.md`, G22_LEGACY);
-  writeG22Rel(repoRoot, `${bp}/review.md`, G22_LEGACY);
-  const failures = [];
-  checkGate('plan', planDocs(READY_BODY), rels, failures, { repoRoot, blueprintDir: bp });
-  assert.ok(failures.some((f) => f.code === 'G22'
-    && f.message === `scaffold guidance comments remain: ${bp}/index.md, ${bp}/review.md`));
-
-  const cleanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g22-clean-'));
-  writeG22Rel(cleanRoot, `${bp}/index.md`, G22_AUTHOR);
-  writeG22Rel(cleanRoot, `${bp}/review.md`, G22_AUTHOR);
-  const cleanFailures = [];
-  checkGate('plan', planDocs(READY_BODY), rels, cleanFailures, { repoRoot: cleanRoot, blueprintDir: bp });
-  assert.ok(!cleanFailures.some((f) => f.code === 'G22'));              // 옛 주석 없음·저자 주석만
-
-  const lightFailures = [];
-  checkGate('plan', lightPlanDocs(LIGHT_READY_BODY), rels, lightFailures, { repoRoot, blueprintDir: bp });
-  assert.ok(lightFailures.some((f) => f.code === 'G22'));               // light blueprint도 같은 판정
-
-  const noCtxFailures = [];
-  checkGate('plan', planDocs(READY_BODY), rels, noCtxFailures);
-  assert.ok(!noCtxFailures.some((f) => f.code === 'G22'));              // ctx 없는 checkGate 호출
-});
-
 function g24TaskFixture(repo) {
   writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, unitTasksData(
     '001', 'verified', `${BP_REL}/tasks/001/tasks.md`,
@@ -3523,16 +2776,6 @@ test('finalize G21 → rejects an open finding in an accepted blueprint review',
   assert.ok(failures.some((f) => f.code === 'G21' && /finding F1 open in accepted review/.test(f.message)), JSON.stringify(failures));
 });
 
-test('plan gate G18 → keeps rejecting open as an invalid status', () => {
-  const docs = planDocs(READY_BODY);
-  docs.contextReview = contextReviewDoc('accepted', [
-    { id: 'CR-4', severity: 'minor', status: 'open' },
-  ]);
-  const failures = [];
-  checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G18' && /finding CR-4 status invalid: open/.test(f.message)));
-});
-
 // ---- execute delta round: reviewer 하나 규칙 (perspective 수) ----
 
 test('execute G14: 관점 2개 delta round → 실패', () => {
@@ -3617,26 +2860,6 @@ test('execute G14: 관점 2개 discovery round와 관점 2개 critical_recovery 
     !failures.some((f) => /delta perspectives invalid/.test(f.message)),
     JSON.stringify(failures),
   );
-});
-
-test('context G18: 관점 2개 delta round → 실패 없음', () => {
-  assert.deepStrictEqual(contextReviewFailures({
-    findings: [contextFinding({
-      first_seen_round: 2, last_seen_round: 2, origin: 'introduced_by_revision',
-    })],
-    rounds: [
-      contextRound(),
-      contextRound({
-        round: 2,
-        mode: 'delta',
-        target: { digest: 'digest-2' },
-        perspectives: [
-          { name: 'local', target_digest: 'digest-2' },
-          { name: 'global', target_digest: 'digest-2' },
-        ],
-      }),
-    ],
-  }), []);
 });
 
 // --- plan DAG 모양 경고: dag-serial-overlap / dag-disjoint-edge ---
@@ -3800,11 +3023,17 @@ test('plan task with security Touch and task-split → review-risk-missing comes
   assert.deepStrictEqual(all.map((x) => x.code), ['task-split', 'review-risk-missing']);
 });
 
-test('plan task with security Touch but missing sections (G10 fails) → no warning', () => {
-  const { warnings, failures } = shapeWarnings([
+test('plan task with security Touch but other sections missing → still warns review-risk-missing', () => {
+  const { warnings } = shapeWarnings([
     planTaskDoc('001', {}, '# Tasks\n\n## Touch\n- `src/auth/login.ts`\n'),
   ], 'review-risk-missing');
-  assert.ok(failures.some((f) => f.code === 'G10'));
+  assert.deepStrictEqual(warnings.map((x) => x.code), ['review-risk-missing']);
+});
+
+test('plan task without a Touch section → no review-risk-missing warning', () => {
+  const { warnings } = shapeWarnings([
+    planTaskDoc('001', {}, '# Tasks\n\n## Goal & intent\nauth/login.ts 정리\n'),
+  ], 'review-risk-missing');
   assert.deepStrictEqual(warnings, []);
 });
 
@@ -3843,386 +3072,164 @@ test('SECURITY_PATH_TOKENS → exports the fixed token list', () => {
   ]);
 });
 
-// ---- G25: Touch 표의 수정 대상 경로 존재 ----
-
-const G25_HEAD = '| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |\n| --- | --- | --- | --- | --- | --- |\n';
-
-/** Touch 표 행 [변경, 경로 칸] 목록으로 task 문서를 만든다. */
-function g25Task(nnn, rows, extra = {}) {
-  const table = rows.map(([change, cell]) => `| ${cell} | \`s\` | ${change} | a | b | c |`).join('\n');
-  const body = READY_BODY.replace(
-    '## Touch\n- `src/auth/`\n- `test/auth/`',
-    `## Touch\n${G25_HEAD}${table}`,
-  );
-  return planTaskDoc(nnn, { execution_kind: 'commit', ...extra }, body);
-}
-
-function g25Run(taskDocs, { files = [], blueprint, ctx } = {}) {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g25-'));
-  for (const f of files) {
-    fs.mkdirSync(path.dirname(path.join(repo, f)), { recursive: true });
-    fs.writeFileSync(path.join(repo, f), 'x');
-  }
-  const docs = planDocsWithTasks(taskDocs);
-  if (blueprint) docs.blueprintIndex = blueprint;
-  const failures = [];
-  checkGate('plan', docs, rels, failures, ctx === undefined ? { repoRoot: repo } : ctx);
-  return failures.filter((f) => f.code === 'G25');
-}
-
-test('plan gate with a Touch Modify path missing → fails G25', () => {
-  const failures = [];
-  const docs = planDocsWithTasks([g25Task('001', [['Modify', '`src/missing.ts`']])]);
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g25-'));
-  checkGate('plan', docs, rels, failures, { repoRoot: repo });
-  const hit = failures.find((f) => f.code === 'G25');
-  assert.ok(hit, JSON.stringify(failures));
-  assert.ok(hit.message.includes('src/missing.ts'));
-  assert.strictEqual(hit.message, 'Touch path does not exist: src/missing.ts');
-  assert.match(hit.file, /tasks\/001\/tasks\.md$/);
-});
-
-test('parseTouchRows with header, separator, and Rename rows → returns normalized rows', () => {
-  const { parseTouchRows } = require('../scripts/lib/validate-sections');
-  const text = `${G25_HEAD}`
-    + '| `./src/a.ts` | `f` | Modify | a | b | c |\n'
-    + '| `src/old.ts` → `src/new.ts` | `f` | Rename | a | b | c |\n'
-    + '| `src/bare.ts` | `f` | Rename | a | b | c |\n'
-    + '| `src/n.ts` | `f` | Create | a | b | c |\n'
-    + '| `src/x.ts` | `f` | Other | a | b | c |\n';
-  assert.deepStrictEqual(parseTouchRows(text), [
-    { change: 'Modify', path: 'src/a.ts', renameTo: null },
-    { change: 'Rename', path: 'src/old.ts', renameTo: 'src/new.ts' },
-    { change: 'Rename', path: 'src/bare.ts', renameTo: null },
-    { change: 'Create', path: 'src/n.ts', renameTo: null },
-  ]);
-  assert.deepStrictEqual(parseTouchRows('- `src/a.ts`'), []);
-});
-
-test('plan gate with existing, predecessor-created, or Create-only Touch paths → no G25', () => {
-  // 존재하는 파일 Modify, Rename old 존재, Create만 있는 task.
-  assert.deepStrictEqual(g25Run([
-    g25Task('001', [['Modify', '`src/here.ts`'], ['Rename', '`src/old.ts` → `src/new.ts`'], ['Create', '`src/fresh.ts`']]),
-  ], { files: ['src/here.ts', 'src/old.ts'] }), []);
-
-  // 001 → 002 → 003: 003이 001의 Create와 002의 Rename new를 Modify한다(전이 선행).
-  assert.deepStrictEqual(g25Run([
-    g25Task('001', [['Create', '`src/made.ts`']]),
-    g25Task('002', [['Rename', '`src/gone.ts` → `src/moved.ts`']], { depends_on: ['TASKS-001'] }),
-    g25Task('003', [['Modify', '`src/made.ts`'], ['Modify', '`src/moved.ts`']], { depends_on: ['TASKS-002'] }),
-  ], { files: ['src/gone.ts'] }), []);
-});
-
-test('plan gate with unrelated Create, missing Delete, or sorted duplicates → fails G25', () => {
-  // 선행 관계 없는 task의 Create는 근거가 아니다.
-  const unrelated = g25Run([
-    g25Task('001', [['Create', '`src/made.ts`']]),
-    g25Task('002', [['Modify', '`src/made.ts`']]),
-  ]);
-  assert.strictEqual(unrelated.length, 1);
-  assert.match(unrelated[0].file, /tasks\/002\/tasks\.md$/);
-
-  const del = g25Run([g25Task('001', [['Delete', '`src/gone.ts`']])]);
-  assert.strictEqual(del.length, 1);
-
-  // 같은 경로는 한 번, 목록은 정렬.
-  const multi = g25Run([
-    g25Task('001', [['Modify', '`src/b.ts`'], ['Modify', '`src/a.ts`'], ['Delete', '`src/b.ts`']]),
-  ]);
-  assert.strictEqual(multi[0].message, 'Touch path does not exist: src/a.ts, src/b.ts');
-});
-
-test('plan gate with G19 cycle, in_progress task, light blueprint, or no repoRoot → no G25', () => {
-  const cycle = [];
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g25-'));
-  checkGate('plan', planDocsWithTasks([
-    g25Task('001', [['Modify', '`src/missing.ts`']], { depends_on: ['TASKS-002'] }),
-    g25Task('002', [['Modify', '`src/missing.ts`']], { depends_on: ['TASKS-001'] }),
-  ]), rels, cycle, { repoRoot: repo });
-  assert.ok(cycle.some((f) => f.code === 'G19'));
-  assert.deepStrictEqual(cycle.filter((f) => f.code === 'G25'), []);
-
-  assert.deepStrictEqual(g25Run([
-    g25Task('001', [['Modify', '`src/missing.ts`']], { status: 'in_progress' }),
-  ]), []);
-  assert.deepStrictEqual(g25Run([
-    g25Task('001', [['Modify', '`src/missing.ts`']]),
-  ], { blueprint: doc('approved', { scale: 'light' }) }), []);
-  assert.deepStrictEqual(g25Run([
-    g25Task('001', [['Modify', '`src/missing.ts`']]),
-  ], { ctx: {} }), []);
-
-  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
-  const draft = [];
-  checkPlanDraft(planDocsWithTasks([g25Task('001', [['Modify', '`src/missing.ts`']])]), rels, draft, {});
-  assert.deepStrictEqual(draft.filter((f) => f.code === 'G25'), []);
-});
-
-// ---- G25: 저장소 밖을 가리키는 Touch 경로 ----
-
-test('plan gate with an escaping Touch path of any change kind → fails G25 with escape message', () => {
-  const cases = [
-    [[['Create', '`../outside.js`']], [], '../outside.js'],
-    [[['Modify', '`/etc/hosts`']], [], '/etc/hosts'],
-    [[['Rename', '`src/a.js` → `../b.js`']], ['src/a.js'], '../b.js'],
-    [[['Modify', '`src/../../x.js`']], [], 'src/../../x.js'],
-    [[['Delete', '`../d.js`']], [], '../d.js'],
-    [[['Rename', '`../old.js` → `src/new.js`']], [], '../old.js'],
-    [[['Modify', '`C:/x.js`']], [], 'C:/x.js'],
-  ];
-  for (const [rows, files, escaped] of cases) {
-    const hits = g25Run([g25Task('001', rows)], { files });
-    assert.deepStrictEqual(hits.map((h) => h.message), [`Touch path escapes repository: ${escaped}`]);
-  }
-});
-
-test('plan gate with a Touch path that normalizes inside the repository → no G25', () => {
-  assert.deepStrictEqual(g25Run([g25Task('001', [['Modify', '`src/../a.js`']])], { files: ['a.js'] }), []);
-  assert.deepStrictEqual(
-    g25Run([g25Task('001', [['Modify', '`.bouncer/config.json`']])], { files: ['.bouncer/config.json'] }),
-    [],
-  );
-});
-
-test('plan gate with escaping and missing paths in one task → fails G25 twice', () => {
-  const hits = g25Run([g25Task('001', [['Modify', '`../x.js`'], ['Modify', '`src/missing.js`']])]);
-  assert.deepStrictEqual(hits.map((h) => h.message).sort(), [
-    'Touch path does not exist: src/missing.js',
-    'Touch path escapes repository: ../x.js',
-  ]);
-});
-
-test('plan gate with a missing Rename old path → fails G25 with does-not-exist message', () => {
-  const hits = g25Run([g25Task('001', [['Rename', '`src/gone.js` → `src/new.js`']])]);
-  assert.deepStrictEqual(hits.map((h) => h.message), ['Touch path does not exist: src/gone.js']);
-});
-
-test('G25 escape failure → gets a repository-relative hint', () => {
-  const { withGateFailureHints } = require('../scripts/lib/validate');
-  const out = withGateFailureHints({ ok: false, failures: [
-    { code: 'G25', message: 'Touch path escapes repository: ../x.js', file: 'x.md' },
-  ] });
-  assert.match(out.failures[0].next, /repository-relative/);
-});
-
-// ---- 등록부 gate (G26–G31) ----
-
-const REGISTRY_GATE_CODES = ['G26', 'G27', 'G28', 'G29', 'G30', 'G31'];
-
-/**
- * 기존 001-auth fixture를 epicDirName 아래로 옮기고 등록부 gate 입력을 구성한다.
- * 다른 G/S 코드는 이 테스트의 관심사가 아니므로 결과는 G26–G31만 걸러 비교한다.
- */
-function registryGateRepo({ epicDirName = '001-auth', bpData = {}, bpStatus = 'approved', registry }) {
-  const repo = mkRepo();
-  writePlanBlueprint(repo, planReadyTasksBody());
-  const epicsRoot = path.join(repo, '.bouncer/context/epics');
-  const from = path.join(epicsRoot, '001-auth');
-  const to = path.join(epicsRoot, epicDirName);
-  if (epicDirName !== '001-auth') fs.renameSync(from, to);
-  const bpRel = `.bouncer/context/epics/${epicDirName}/blueprints/001-login`;
-  const idx = readDoc(path.join(repo, bpRel, 'index.md'));
-  idx.data.bouncer = { ...idx.data.bouncer, status: bpStatus };
-  delete idx.data.bouncer.attribution;
-  Object.assign(idx.data.bouncer, bpData);
-  writeDoc(repo, `${bpRel}/index.md`, idx.data, idx.body);
-  fs.rmSync(path.join(repo, '.bouncer/epics.json'), { force: true });
-  if (registry) writeEpicRegistry(repo, registry);
-  return { repo, bpRel };
-}
-
-function registryCodes(repo, bpRel) {
-  const res = validateBlueprint({ repoRoot: repo, blueprintDir: bpRel, gate: 'plan' });
-  return { res, codes: res.failures.map((f) => f.code).filter((c) => REGISTRY_GATE_CODES.includes(c)) };
-}
+// ---- 삭제한 등록부 코드 fixture ----
 
 const reg = (epics, areas = []) => ({
   profile: 'domain-only', domainEpicLimit: 99, areas, epics,
 });
 const ent = (slug, id, kind = 'common', active = true) => ({ slug, id, kind, active });
 
-test('plan gate with no registry → G26 with bouncer init next', () => {
-  const { repo, bpRel } = registryGateRepo({});
-  const { res, codes } = registryCodes(repo, bpRel);
-  assert.deepStrictEqual(codes, ['G26']);
-  assert.match(res.failures.find((f) => f.code === 'G26').message, /epic registry missing/);
-});
+// ---- 삭제한 문서 품질 코드: 조건 하나만 어긋난 approved blueprint는 그 코드를 내지 않는다 ----
 
-test('plan gate with unregistered epic → only G27', () => {
-  const { repo, bpRel } = registryGateRepo({
-    epicDirName: '050-x', registry: reg([ent('auth', '001')]),
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G27']);
-});
+const REMOVED_TOUCH_HEAD = '| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |\n| --- | --- | --- | --- | --- | --- |\n';
 
-test('plan gate with registry slug differing from path slug → G27', () => {
-  const { repo, bpRel } = registryGateRepo({
-    epicDirName: '050-x', registry: reg([ent('y', '050')]),
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G27']);
-});
-
-test('plan gate with inactive epic → G28', () => {
-  const { repo, bpRel } = registryGateRepo({
-    registry: reg([ent('auth', '001', 'domain', false)]), bpData: { attribution: 'a' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G28']);
-});
-
-test('plan gate with legacy epic and draft blueprint → G29 alongside G2', () => {
-  const { repo, bpRel } = registryGateRepo({
-    registry: reg([ent('auth', '001', 'legacy')]), bpStatus: 'draft',
-  });
-  const { res, codes } = registryCodes(repo, bpRel);
-  assert.deepStrictEqual(codes, ['G29']);
-  assert.ok(res.failures.some((f) => f.code === 'G2'));
-});
-
-test('plan gate with legacy epic and approved blueprint without attribution → no G26–G31', () => {
-  const { repo, bpRel } = registryGateRepo({ registry: reg([ent('auth', '001', 'legacy')]) });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
-});
-
-test('plan gate with features epic and no area → G30', () => {
-  const { repo, bpRel } = registryGateRepo({
-    epicDirName: '031-features', registry: reg([ent('features', '031')], ['ordering']),
-    bpData: { attribution: 'a' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G30']);
-});
-
-test('plan gate with features area outside registry areas → G30', () => {
-  const { repo, bpRel } = registryGateRepo({
-    epicDirName: '031-features', registry: reg([ent('features', '031')], []),
-    bpData: { attribution: 'a', area: 'ordering' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G30']);
-});
-
-test('plan gate with features area inside registry areas → no G26–G31', () => {
-  const { repo, bpRel } = registryGateRepo({
-    epicDirName: '031-features', registry: reg([ent('features', '031')], ['ordering']),
-    bpData: { attribution: 'a', area: 'ordering' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
-});
-
-test('plan gate with features ID 007 and 031 → same verdict', () => {
-  for (const id of ['007', '031']) {
-    const { repo, bpRel } = registryGateRepo({
-      epicDirName: `${id}-features`, registry: reg([ent('features', id)], ['ordering']),
-      bpData: { attribution: 'a', area: 'ordering' },
-    });
-    assert.deepStrictEqual(registryCodes(repo, bpRel).codes, [], `id ${id}`);
-  }
-});
-
-test('plan gate with area on a non-features epic → G30', () => {
-  const { repo, bpRel } = registryGateRepo({
-    epicDirName: '002-core', registry: reg([ent('core', '002')], ['ordering']),
-    bpData: { attribution: 'a', area: 'ordering' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G30']);
-});
-
-test('plan gate with non-legacy epic and no attribution → G31', () => {
-  for (const kind of ['common', 'domain']) {
-    const { repo, bpRel } = registryGateRepo({ registry: reg([ent('auth', '001', kind)]) });
-    assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G31'], kind);
-  }
-});
-
-test('plan gate cwd with broken registry elsewhere → result follows repoRoot only', () => {
-  const { repo, bpRel } = registryGateRepo({
-    registry: reg([ent('auth', '001')]), bpData: { attribution: 'a' },
-  });
-  const other = mkRepo();
-  fs.mkdirSync(path.join(other, '.bouncer'));
-  fs.writeFileSync(path.join(other, '.bouncer/epics.json'), '{broken');
-  const before = process.cwd();
-  process.chdir(other);
-  try {
-    assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
-  } finally {
-    process.chdir(before);
-  }
-});
-
-test('plan gate without ctx repoRoot → no registry codes', () => {
-  const failures = [];
-  checkGate('plan', {}, {}, failures);
-  assert.ok(!failures.some((f) => REGISTRY_GATE_CODES.includes(f.code)));
-});
-
-// ---- slug 경로 epic: 등록부는 slug로 대조하고 번호 id는 보지 않는다 ----
-
-function slugGateRepo({ epicSlug = 'plan-workflow', registryEpics, areas = [], bpData = {} }) {
-  const repo = mkRepo();
-  const epicRel = `.bouncer/context/epics/${epicSlug}`;
-  const bpRel = `${epicRel}/blueprints/registry-gates`;
-  writeDoc(repo, `${epicRel}/index.md`, {
-    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicRel}/index.md`,
-    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: epicSlug, epic_id: epicSlug, status: 'approved' },
-  });
-  writeDoc(repo, `${bpRel}/index.md`, {
-    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpRel}/index.md`,
-    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: {
-      id: 'registry-gates', epic_id: epicSlug, blueprint_id: 'registry-gates', status: 'approved', order: 1, ...bpData,
-    },
-  });
-  writeEpicRegistry(repo, { version: 2, profile: 'domain-only', domainEpicLimit: 99, areas, epics: registryEpics });
-  return { repo, bpRel };
+/** 기본 Touch 불릿을 변경 종류가 있는 표로 바꾼 tasks 본문. Create 두 행이 affected_paths를 정당화한다. */
+function touchTableBody(extraRow) {
+  const rows = [
+    '| `src/auth/login.js` | `a` | Create | a | b | c |',
+    '| `test/auth/login.test.js` | `a` | Create | a | b | c |',
+    extraRow,
+  ].join('\n');
+  return planReadyTasksBody().replace('## Touch\n- `src/auth/`\n- `test/auth/`', `## Touch\n${REMOVED_TOUCH_HEAD}${rows}`);
 }
 
-const slugEnt = (slug, kind = 'common', active = true) => ({ slug, kind, active });
-
-test('plan gate with a slug epic registered by slug → no G26–G31', () => {
-  const { repo, bpRel } = slugGateRepo({
-    registryEpics: [slugEnt('plan-workflow')], bpData: { attribution: 'a' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
-});
-
-test('plan gate with a slug epic missing from the registry → G27 naming the slug', () => {
-  const { repo, bpRel } = slugGateRepo({ registryEpics: [slugEnt('other-epic')] });
-  const { res, codes } = registryCodes(repo, bpRel);
-  assert.deepStrictEqual(codes, ['G27']);
-  assert.match(res.failures.find((f) => f.code === 'G27').message, /epic plan-workflow is not registered/);
-});
-
-test('plan gate with an inactive slug epic → G28', () => {
-  const { repo, bpRel } = slugGateRepo({
-    registryEpics: [slugEnt('plan-workflow', 'domain', false)], bpData: { attribution: 'a' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G28']);
-});
-
-test('plan gate with a slug epic and no attribution → G31', () => {
-  const { repo, bpRel } = slugGateRepo({ registryEpics: [slugEnt('plan-workflow', 'domain')] });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, ['G31']);
-});
-
-test('plan gate with a slug features epic and a registered area → no G26–G31', () => {
-  const { repo, bpRel } = slugGateRepo({
-    epicSlug: 'features', registryEpics: [slugEnt('features')], areas: ['ordering'],
-    bpData: { attribution: 'a', area: 'ordering' },
-  });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
-});
-
-test('plan gate with a legacy slug epic and an approved blueprint → no G26–G31', () => {
-  const { repo, bpRel } = slugGateRepo({ registryEpics: [slugEnt('plan-workflow', 'legacy')] });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
-});
-
-test('plan gate with a numbered epic that a v2 registry keeps under legacy_id → no G26–G31', () => {
-  const { repo, bpRel } = registryGateRepo({
-    registry: {
-      version: 2, ...reg([{ slug: 'auth', kind: 'domain', active: true, legacy_id: '001' }]),
+/** writePlanBlueprint 뒤에 한 조건만 어긋나게 고치는 변형. 각 항목은 repo를 받아 문서를 덮어쓴다. */
+const REMOVED_CODE_CASES = [
+  {
+    name: 'a missing required section', code: 'G10',
+    build: (repo) => writePlanBlueprint(repo, planReadyTasksBody().replace('## Checklist\n- [ ] implement validateLogin\n', '')),
+  },
+  {
+    name: 'a TODO placeholder section', code: 'G10',
+    build: (repo) => writePlanBlueprint(repo, planReadyTasksBody().replace('implement validateLogin', '<TODO: 작업 항목>')),
+  },
+  {
+    name: 'affected_paths that Touch does not justify', code: 'G11',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      const tasks = planReadyTasks();
+      tasks.bouncer.affected_paths = ['./src/auth/login.js', './src/unrelated/x.js'];
+      writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, tasks, planReadyTasksBody());
     },
-    bpData: { attribution: 'a' },
+  },
+  {
+    name: 'a Do not touch path that overlaps affected_paths', code: 'G12',
+    build: (repo) => writePlanBlueprint(
+      repo,
+      planReadyTasksBody().replace('- `src/payments/`', '- `src/auth/login.js`'),
+    ),
+  },
+  {
+    name: 'a context-review that is not accepted', code: 'G18',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      writeDoc(repo, `${BP_REL}/context-review.md`, contextReviewFileData('pending'), CONTEXT_REVIEW_BODY_OK);
+    },
+  },
+  {
+    name: 'a leftover scaffold guidance comment', code: 'G22',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      writeDoc(repo, `${BP_REL}/index.md`, {
+        ...blueprintDoc(), bouncer: { ...blueprintDoc().bouncer, attribution: 'fixture' },
+      }, '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n');
+    },
+  },
+  {
+    name: 'a Touch Modify path that does not exist', code: 'G25',
+    build: (repo) => writePlanBlueprint(repo, touchTableBody('| `src/missing.ts` | `a` | Modify | a | b | c |')),
+  },
+  {
+    name: 'a Touch path outside the repository', code: 'G25',
+    build: (repo) => writePlanBlueprint(repo, touchTableBody('| `../outside.ts` | `a` | Modify | a | b | c |')),
+  },
+  {
+    name: 'a missing epic registry', code: 'G26',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      fs.rmSync(path.join(repo, '.bouncer/epics.json'), { force: true });
+    },
+  },
+  {
+    name: 'an unregistered epic', code: 'G27',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      writeEpicRegistry(repo, reg([ent('other', '009')]));
+    },
+  },
+  {
+    name: 'an inactive epic', code: 'G28',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      writeEpicRegistry(repo, reg([ent('auth', '001', 'common', false)]));
+    },
+  },
+  {
+    name: 'a legacy epic with a new draft blueprint', code: 'G29',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      writeEpicRegistry(repo, reg([ent('auth', '001', 'legacy')]));
+      const idx = readDoc(path.join(repo, BP_REL, 'index.md'));
+      idx.data.bouncer.status = 'draft';
+      writeDoc(repo, `${BP_REL}/index.md`, idx.data, idx.body);
+    },
+  },
+  {
+    name: 'a blueprint area on a non-features epic', code: 'G30',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      writeEpicRegistry(repo, reg([ent('auth', '001')]));
+      const idx = readDoc(path.join(repo, BP_REL, 'index.md'));
+      idx.data.bouncer.area = 'ordering';
+      writeDoc(repo, `${BP_REL}/index.md`, idx.data, idx.body);
+    },
+  },
+  {
+    name: 'a missing blueprint attribution', code: 'G31',
+    build: (repo) => {
+      writePlanBlueprint(repo, planReadyTasksBody());
+      writeEpicRegistry(repo, reg([ent('auth', '001')]));
+      const idx = readDoc(path.join(repo, BP_REL, 'index.md'));
+      delete idx.data.bouncer.attribution;
+      writeDoc(repo, `${BP_REL}/index.md`, idx.data, idx.body);
+    },
+  },
+];
+
+for (const { name, code, build } of REMOVED_CODE_CASES) {
+  test(`plan gate with ${name} → no ${code}`, () => {
+    const repo = mkRepo();
+    build(repo);
+    const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+    assert.ok(!result.failures.some((f) => f.code === code), JSON.stringify(result.failures));
   });
-  assert.deepStrictEqual(registryCodes(repo, bpRel).codes, []);
-});
+}
+
+const REMOVED_DRAFT_CASES = [
+  {
+    name: 'a missing required section', code: 'G10',
+    body: planReadyTasksBody().replace('## Checklist\n- [ ] implement validateLogin\n', ''),
+  },
+  {
+    name: 'affected_paths that Touch does not justify', code: 'G11',
+    body: planReadyTasksBody(), affected: ['./src/auth/login.js', './src/unrelated/x.js'],
+  },
+  {
+    name: 'a Do not touch path that overlaps affected_paths', code: 'G12',
+    body: planReadyTasksBody().replace('- `src/payments/`', '- `src/auth/login.js`'),
+  },
+];
+
+for (const { name, code, body, affected } of REMOVED_DRAFT_CASES) {
+  test(`plan draft with ${name} → no ${code}`, () => {
+    const repo = mkRepo();
+    writePlanBlueprint(repo, body);
+    if (affected) {
+      const tasks = planReadyTasks();
+      tasks.bouncer.affected_paths = affected;
+      writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, tasks, body);
+    }
+    const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
+    assert.ok(!result.failures.some((f) => f.code === code), JSON.stringify(result.failures));
+  });
+}

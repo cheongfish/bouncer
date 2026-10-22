@@ -20,7 +20,7 @@ function writeRaw(repo, rel, content) {
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
-  // plan gate가 등록부(G26–G31)를 보므로 blueprint index를 쓸 때 epic 등록과 attribution을 함께 채운다.
+  // blueprint index는 epic 등록부 항목과 attribution을 함께 채운다.
   const bpIndex = /epics\/(\d{3}-[^/]+)\/blueprints\/[^/]+\/index\.md$/.exec(rel);
   if (bpIndex && data && data.type === 'bouncer.blueprint') {
     registerFixtureEpic(repo, bpIndex[1]);
@@ -689,9 +689,8 @@ test('S19: context-review.md with bouncer.review type → reports expected and a
 });
 
 // 파일이 있는데 frontmatter 파싱이 깨지면 loader는 docs.contextReview를
-// 비우고 S0만 남긴다. plan 게이트가 이를 부재로 오인하면 scaffold 안내가
-// 나오므로, 통합 fixture로 S0 + invalid-frontmatter G18 페어링을 고정한다.
-test('plan gate: existing context-review with backtick-leading note → yields S0 and invalid-frontmatter G18', () => {
+// 비우고 S0만 남긴다. 통합 fixture로 그 S0이 context-review 경로에 하나만 남는지 고정한다.
+test('plan gate: existing context-review with backtick-leading note → yields S0', () => {
   const repo = mkRepo();
   const epic = epicDoc();
   epic.bouncer.status = 'approved';
@@ -746,10 +745,7 @@ bouncer:
   writeBundleIndex(repo);
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
   const s0 = res.failures.filter((f) => f.code === 'S0' && f.file === `${BP_REL}/context-review.md`);
-  const g18 = res.failures.filter((f) => f.code === 'G18');
   assert.strictEqual(s0.length, 1);
-  assert.ok(g18.some((f) => /invalid frontmatter/.test(f.message) && /fix the S0 parse error/.test(f.message)));
-  assert.ok(!g18.some((f) => /context-review\.md missing/.test(f.message)));
 });
 
 test('S20: scale missing or valid values pass; lite → fails', () => {

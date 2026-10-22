@@ -48,7 +48,7 @@ type GateFailureHint = { code: string; match?: RegExp; next: string };
 type ValidateResult = { ok: boolean; failures: FailureEntry[]; warnings?: FailureEntry[] };
 
 // 복구가 메시지에 없는 코드만 여기를 본다. 같은 G 코드라도 이미 다음 행동을
-// 말하는 메시지(G13 body sections, G18 status != accepted 등)에는 next를 붙이지
+// 말하는 메시지(G13 body sections 등)에는 next를 붙이지
 // 않아야 에이전트가 표 밖의 경로를 발명하지 않는다. match는 메시지 문자열을
 // 바꾸지 않고 고르는 필터다.
 const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
@@ -58,21 +58,9 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     next: 'Rerun this checkout\'s active-task `bouncer verify --blueprint <dir>`, then rerun the gate.',
   },
   {
-    code: 'G18',
-    match: /context review is stale/,
-    // 한 줄이면 eslint max-len(120)을 넘는다. 문장 의미는 같고 줄만 나눈다.
-    next: 'Replace `rounds[]` and `findings[]` with round 1 discovery for the current digest, '
-      + 'set status to `pending`, then redo `/bouncer-plan` step 5 and step 6 approvals.',
-  },
-  {
     code: 'G20',
     match: /Touch must not declare source changes/,
     next: 'Set Touch to `Source 변경 경로 없음.` and keep the command only in frontmatter `verify`.',
-  },
-  {
-    code: 'G22',
-    match: /scaffold guidance comments remain/,
-    next: 'Remove the listed leftover scaffold guidance comments and rerun the plan gate.',
   },
   {
     code: 'G23',
@@ -84,39 +72,6 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     match: /approved scope changed after activation/,
     next: 'If the change is intended, get the user\'s explicit approval, then run '
       + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
-  },
-  {
-    code: 'G25',
-    match: /Touch path (does not exist|escapes repository)/,
-    next: 'Fix the path typo, change `변경` to `Create` if the task creates it, '
-      + 'or add the creating predecessor task to `depends_on`; Touch paths must be '
-      + 'repository-relative and stay inside the repository. Then rerun the plan gate.',
-  },
-  {
-    code: 'G26',
-    next: 'Run `bouncer init` to register existing epics as legacy, then plan under a registry epic.',
-  },
-  {
-    code: 'G27',
-    next: 'Plan under an epic listed in `.bouncer/epics.json` (matching id and slug), '
-      + 'or add a domain epic with `bouncer epic`.',
-  },
-  {
-    code: 'G28',
-    next: 'Plan under an active registry epic; this epic is marked `active: false`.',
-  },
-  {
-    code: 'G29',
-    next: 'Legacy epics take no new draft blueprints; open the blueprint under a registry epic instead.',
-  },
-  {
-    code: 'G30',
-    next: 'Set `area` to a registered area only on a `features` blueprint, and remove it elsewhere, '
-      + 'then rerun the plan gate.',
-  },
-  {
-    code: 'G31',
-    next: 'Add a non-empty single-line `attribution` to the blueprint frontmatter, then rerun the plan gate.',
   },
   {
     code: 'S32',
@@ -483,8 +438,8 @@ function validateBlueprint({
     const taskUnit = (gate === 'execute' || gate === 'commit')
       ? resolveTaskUnit(docs, { repoRoot, blueprintDir })
       : undefined;
-    // parseErrors는 이미 failures에 합쳐졌지만, plan G18은 원본 목록으로
-    // context-review S0 여부를 본다 — failures만 보면 다른 문서 S0과 섞인다.
+    // parseErrors는 이미 failures에 합쳐졌지만, gate 문맥에는 문서별 파싱 실패를
+    // 구분할 수 있도록 원본 목록을 그대로 넘긴다.
     checkGate(gate, docs, rels, failures, {
       repoRoot, blueprintDir, deps, taskUnit, parseErrors, warnings,
     });
