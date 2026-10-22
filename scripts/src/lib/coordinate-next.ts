@@ -102,7 +102,9 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
   },
   'terminal-verification-failed': {
     cause: 'Terminal verification failed and that verification task is still verifying.',
-    next: 'Inspect the failure, then `bouncer coordinate repair`, or report the block to the user.',
+    next: 'Inspect the failure. If it was environmental, fix it and run ' +
+      '`bouncer coordinate reverify --task <terminal>`; ' +
+      'otherwise `bouncer coordinate repair`, or report the block to the user.',
   },
   'no-ready-task': {
     cause: 'No prepared, recorded, ready, or integrable work remains, and the blueprint is not done.',

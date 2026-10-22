@@ -99,6 +99,18 @@ test('(c) blocked, done, and none actions → stop with matching reason', () => 
   }
 });
 
+test('(c2) terminal blocked whose next offers reverify → advance stops without running it', () => {
+  const step = okNext('blocked', {
+    reason: 'terminal-verification-failed',
+    next: 'fix the environment, `bouncer coordinate reverify --task 002`, or `bouncer coordinate repair`',
+  });
+  const { deps, runCalls } = scriptedDeps([step], []);
+  const out = advance({ repoRoot: '/r', blueprint: 'bp', deps });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.stop.reason, 'blocked');
+  assert.strictEqual(runCalls.length, 0);
+});
+
 test('(d) max-steps is reached → stops before another auto action', () => {
   const third = okNext('prepare', { argv: argvFor('prepare') });
   const { deps, runCalls } = scriptedDeps(

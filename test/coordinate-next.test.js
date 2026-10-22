@@ -260,6 +260,7 @@ test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons�
     assert.strictEqual(typeof NEXT_FAILURE_HINTS[key].next, 'string');
   }
   assert.match(NEXT_FAILURE_HINTS['terminal-verification-failed'].next, /coordinate repair/);
+  assert.match(NEXT_FAILURE_HINTS['terminal-verification-failed'].next, /coordinate reverify/);
 });
 
 test('blueprint next에서 partial_closed → blocked', () => {
@@ -330,6 +331,7 @@ test('blueprint next에서 awaiting_confirmation → repair-wave-limit를 씀', 
   assertCardFor(r);
   assert.strictEqual(r.reason, 'repair-wave-limit');
   assert.strictEqual(r.cause, __coordinatorMod.COORDINATE_FAILURE_HINTS['repair-wave-limit'].cause);
+  assert.match(r.next, /coordinate reverify/);
 });
 
 test('blueprint next에서 verifying 중 terminalFailure → blocked', () => {
@@ -365,6 +367,7 @@ test('blueprint next에서 verifying 중 terminalFailure → blocked', () => {
   assertCardFor(r);
   assert.strictEqual(r.reason, 'terminal-verification-failed');
   assert.match(r.next, /coordinate repair/);
+  assert.match(r.next, /coordinate reverify/);
   assert.deepStrictEqual(r.payload.evidence, [{
     kind: 'verification', path: verificationPath, sha256: verificationSha,
   }]);
