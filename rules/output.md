@@ -28,7 +28,7 @@
 
 복합 gate가 없는 실패:
 
-`실패 S10: 검증 명령이 종료 코드 1로 끝남 · 관련 경로: test/skill-output-contract.test.js · 복구: 실패한 테스트를 수정한 뒤 execute gate를 다시 실행`
+`실패 S10: blueprintDir must be under .bouncer/context/epics · 관련 경로: <blueprintDir> · 복구: blueprint를 .bouncer/context/epics 아래 정본 경로로 옮긴 뒤 gate를 다시 실행`
 
 ## coordinator 실행
 

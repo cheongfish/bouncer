@@ -56,6 +56,26 @@ test('summarizeCompositeGates when gates fail → groups in table order with ded
   });
 });
 
+test('summarizeCompositeGates when the first failure of a gate has no next → uses the first non-empty next', () => {
+  const out = summarizeCompositeGates([
+    { code: 'G13', message: 'm', file: 'a.md' },
+    { code: 'G13', message: 'm2', file: 'b.md', next: '' },
+    { code: 'G7', message: 'm3', file: 'c.md', next: 'second-next' },
+  ]);
+  assert.strictEqual(out.length, 1);
+  assert.strictEqual(out[0].next, 'second-next');
+});
+
+test('summarizeCompositeGates when no failure of a gate has next → uses the gate default sentence', () => {
+  const out = summarizeCompositeGates([
+    { code: 'G13', message: 'm', file: 'a.md' },
+    { code: 'G7', message: 'm2', file: 'b.md' },
+  ]);
+  const row = COMPOSITE_GATES.find((g) => g.gate === 'verification-evidence');
+  assert.strictEqual(out.length, 1);
+  assert.strictEqual(out[0].next, row.next);
+});
+
 test('summarizeCompositeGates when only S failures or none → empty list', () => {
   assert.deepStrictEqual(summarizeCompositeGates([]), []);
   assert.deepStrictEqual(summarizeCompositeGates([{ code: 'S10', message: 'm', file: 'a.md' }]), []);
