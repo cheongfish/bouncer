@@ -57,3 +57,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 
 ## Blueprints
 - [repair-resume-integrity](blueprints/repair-resume-integrity/index.md): `coordinate repair --resume-task`가 통합된 하위 task를 유지하고, rework `next`·`revise` 승인 경로·integration 직접 수정 안내를 고친다.
+- [terminal-reverify](blueprints/terminal-reverify/index.md): `coordinate reverify`가 실패한 terminal 검증만 같은 HEAD에서 다시 실행하고, repair wave를 쓰지 않는다.
