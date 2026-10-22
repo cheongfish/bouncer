@@ -215,8 +215,7 @@ function buildStandaloneFixture() {
 }
 
 test(
-  'trailer commits, unverified tasks, symbols and afterClose → '
-    + 'prepareFinalizeDigest fills them and refuses afterClose',
+  'trailer commits, unverified tasks, symbols and afterClose → prepareFinalizeDigest fills them and refuses afterClose',
   () => {
     const { repoRoot, blueprintDir } = buildStandaloneFixture();
     const before = git(repoRoot, ['status', '--porcelain']);
@@ -256,8 +255,7 @@ test(
 );
 
 test(
-  'drive fixture with a trailer integration SHA and a worker commit_sha → '
-    + 'prepareFinalizeDigest prefers the trailer SHA',
+  'drive fixture with a trailer integration SHA and a worker commit_sha → prepareFinalizeDigest prefers the trailer SHA',
   () => {
     const { repoRoot, blueprintDir } = buildStandaloneFixture();
     const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
@@ -361,8 +359,7 @@ const report = (task, extra) => ({
 });
 
 test(
-  'full ledger with accepted reports → the last accepted report per task '
-    + 'becomes worker_notes and review_points',
+  'full ledger with accepted reports → the last accepted report per task becomes worker_notes and review_points',
   () => {
     const d = prepareWithLedger({ decisions: [
       report('001', { open_choices: ['old'], known_weaknesses: ['old weak'] }),
@@ -411,8 +408,7 @@ test('no ledger or an event-free ledger → drive_issues counters are all 0 and 
 });
 
 test(
-  'ledger rework, debugger, repair, fan-in failure and blocked events → '
-    + 'drive_issues counts each and the PR draft stays the same',
+  'ledger rework, debugger, repair, fan-in failure and blocked events → drive_issues counts each and the PR draft stays the same',
   () => {
     const quiet = prepareWithLedger({}, FIXED_NOW);
     const noisy = prepareWithLedger({
@@ -779,8 +775,7 @@ test('CURRENT_AMBIGUOUS → prepareFinalizeDigest treats it as no-base', () => {
 });
 
 test(
-  'broken verification/review and broken tasks.md → '
-    + 'prepareFinalizeDigest absorbs the former and skips the latter',
+  'broken verification/review and broken tasks.md → prepareFinalizeDigest absorbs the former and skips the latter',
   () => {
   // readVerification/readReview catch + tasks.md 파싱 실패 continue.
     const { repoRoot, blueprintDir } = buildStandaloneFixture();
@@ -1247,8 +1242,7 @@ function prepareWithFailedTerminal(mutate = () => {}) {
 }
 
 test(
-  'failed terminal with a proven outside_scope classification → '
-    + 'digest keeps the failure and links the original evidence',
+  'failed terminal with a proven outside_scope classification → digest keeps the failure and links the original evidence',
   () => {
     const d = prepareWithFailedTerminal();
     const terminal = d.tasks.find((t) => t.execution_kind === 'verification');
