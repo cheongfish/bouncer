@@ -33,6 +33,10 @@ bouncer:
 11. `current --set`·`bouncer commit`·`finalize`의 validate 실패 payload는 `failures`와 함께 같은 `gates[]`를 싣는다.
 12. 경계 거절 reason 7종(`out-of-scope`·`main-worktree-source-write`·`unassigned-worktree`·`verification-task-no-commit`·`cross-drive-conflict`·`cross-drive-ledger-unreadable`·`stale-revision`)은 commit·coordinator 실패 payload에 `gate` 필드를 갖고 commit hook 거절 줄에 복합 gate 이름이 붙으며, 그 밖의 reason에는 `gate` 키가 없고 `reason` 값은 바뀌지 않는다.
 13. 새 테스트 파일은 `test/tiers.json`에 등록되고, `rules/output.md`·`rules/cli.md`가 복합 gate 출력을 서술하며, CHANGELOG `[Unreleased]`에 `Added` 항목이 있고 `npm run ci`가 통과한다.
+14. `bouncer.review_contract: brief` blueprint의 최종 리뷰 discovery 관점은 `review_risk: [public_interface]`일 때 `spec_scope`·`correctness_tests` 두 개이고, `authentication`·`authorization`·`credential` 중 하나가 있으면 `security`가 더해진다.
+15. 같은 blueprint에서 브리프 위반 `must_fix`가 있는 최종 리뷰는 리뷰 원인 repair 1회와 delta 1회를 거쳐 `accepted`로 닫히고, delta 뒤에도 위반이 남으면 `coordinate next`가 `final-review-blocked`를 내며, 그 뒤의 delta·리뷰 원인 repair는 `final-review-single-round`로 거절된다.
+16. `review_contract: brief` blueprint의 최종 리뷰 record는 `brief_clause`가 브리프 조항 참조(`tasks/<NNN> <브리프 섹션>` 또는 `Contract`로 시작)가 아닌 `must_fix` finding과 `deferred` `must_fix`가 남은 accepted 문서를 거절한다.
+17. `review_contract`가 없는 blueprint와 이미 저장된 단일 라운드 root `review.md`는 개편 전과 같은 관점·거절·G21 판정을 받는다.
 
 ## Out of scope
 - gate가 나오는 계획 문서 형식 → `plan-workflow`
@@ -60,3 +64,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 ## Blueprints
 - [doc-quality-gate-removal](blueprints/doc-quality-gate-removal/index.md) — plan gate의 문서 품질 코드(G10–G12·G18·G22·G25–G31)와 G14·G21 형식 메시지를 `validate-gates-*`에서 삭제하고 플러그인 문서를 맞춘다.
 - [composite-gate-output](blueprints/composite-gate-output/index.md) — `validate` 실패를 복합 gate 7개(`gates[]`)로 요약하고 commit·coordinator·hook의 경계 거절 reason에 같은 gate 이름을 붙인다.
+- [final-review-brief-compliance](blueprints/final-review-brief-compliance/index.md) — `review_contract: brief` blueprint의 최종 리뷰를 브리프 이행 판정 2관점으로 줄이고, 브리프 위반에 한해 리뷰 원인 repair 1회와 delta 1회를 `review-record`·`coordinator-repair`·`coordinate-next`에 허용한다.
