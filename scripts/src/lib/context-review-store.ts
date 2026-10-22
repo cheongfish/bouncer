@@ -28,46 +28,8 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 // YAML에 적힌 값의 모양이다.
 const MARKER_VALUES = new Set([0, 1]);
 
-type Fail = { ok: false; reason: string; cause: unknown; next: string };
-type Ref = { path: string; sha256: string };
-type ReportRef = {
-  round: number;
-  mode: string;
-  status: string;
-  path: string;
-  sha256: string;
-  dispatch: Ref;
-  key: string;
-};
-type Finding = Record<string, unknown>;
-type Cycle = {
-  id: string;
-  restart_count: 0 | 1;
-  history: Array<Record<string, unknown>>;
-  active_reports: ReportRef[];
-  latest_dispatch: Ref;
-};
-// closure_target_digest: close·accepted record가 인증한 계획 snapshot digest(64 lowercase hex).
-// G18이 마지막 round digest보다 먼저 비교하는 값이다. 이 필드가 없는 과거 state는 round digest로 폴백한다.
-// dispositions는 close 전이만 남긴다 — accepted record는 처분 파일 없이 round 보고로 닫기 때문이다.
-type Closure = { dispositions?: Ref; accept_risk: string[]; closure_target_digest?: string };
-type State = {
-  version: 1;
-  blueprint: string;
-  cycle: Cycle;
-  transitions: string[];
-  closed: boolean;
-  closure?: Closure;
-  projection: { findings: Finding[]; rounds: unknown[] } | null;
-};
-type Dispatch = { sha256: string; digest: string; text: string };
-type Legacy = {
-  present: boolean; rounds: unknown[]; findings: Finding[]; digest: string | null;
-  // context-review.md frontmatter의 restart_count 표식(없으면 0). runtime state가 지워져도
-  // 누적 재시작 횟수가 되돌려지지 않게 하는 하한이다.
-  marker: number;
-};
-type Ctx = { nsAbs: string; nsRel: string; bp: string };
+import type { Fail, Ref, ReportRef, Finding, Cycle, State, Dispatch, Legacy, Ctx }
+  from './context-review-contracts';
 
 function fail(reason: string, cause: unknown, next: string): Fail {
   return { ok: false, reason, cause, next };
