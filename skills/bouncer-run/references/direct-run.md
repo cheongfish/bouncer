@@ -25,6 +25,9 @@ are always subagents. After the one start ACQ, open no per-task ACQ.
    | `done` | `metrics end`, then `SKILL.md` step 5 |
    | anything else | hand off (below) — record no judgment |
 
+Run `coordinate next` and `advance` from the integration cwd with `--task <ddd>`;
+run `report` and `record` from the worker `cwd` that `next` returned.
+
 3. Hand off without returning to direct mode for a `must_fix` review round,
    attempt 2 or later `rework`, report outcomes `scope_revision`,
    `task_change`, or `blocked`, `critical-recovery`, `supplement`, stop reasons

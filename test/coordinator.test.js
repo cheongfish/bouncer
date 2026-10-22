@@ -2618,14 +2618,14 @@ test('mutation with missing, absolute, escaping, wrong path or stale hash ledger
   });
   const hash = crypto.createHash('sha256').update(before).digest('hex');
   const cases = [
-    { label: 'missing both', opts: {} },
-    { label: 'missing hash', opts: { ledgerPath: LEDGER_REL } },
-    { label: 'missing path', opts: { ledgerHash: hash } },
-    { label: 'absolute', opts: { ledgerPath: path.join(drive.integration, LEDGER_REL), ledgerHash: hash } },
-    { label: 'escaping', opts: { ledgerPath: '../runtime/coordinator.json', ledgerHash: hash } },
-    { label: 'wrong path', opts: { ledgerPath: '.bouncer/runtime/other.json', ledgerHash: hash } },
-    { label: 'bad hash shape', opts: { ledgerPath: LEDGER_REL, ledgerHash: 'zzzz' } },
-    { label: 'stale hash', opts: { ledgerPath: LEDGER_REL, ledgerHash: 'b'.repeat(64) } },
+    { label: 'missing both', reason: 'ledger-checkpoint-invalid', opts: {} },
+    { label: 'missing hash', reason: 'ledger-checkpoint-invalid', opts: { ledgerPath: LEDGER_REL } },
+    { label: 'missing path', reason: 'ledger-checkpoint-invalid', opts: { ledgerHash: hash } },
+    { label: 'absolute', reason: 'ledger-checkpoint-invalid', opts: { ledgerPath: path.join(drive.integration, LEDGER_REL), ledgerHash: hash } },
+    { label: 'escaping', reason: 'ledger-checkpoint-invalid', opts: { ledgerPath: '../runtime/coordinator.json', ledgerHash: hash } },
+    { label: 'wrong path', reason: 'ledger-checkpoint-invalid', opts: { ledgerPath: '.bouncer/runtime/other.json', ledgerHash: hash } },
+    { label: 'bad hash shape', reason: 'ledger-checkpoint-invalid', opts: { ledgerPath: LEDGER_REL, ledgerHash: 'zzzz' } },
+    { label: 'stale hash', reason: 'stale-ledger-checkpoint', opts: { ledgerPath: LEDGER_REL, ledgerHash: 'b'.repeat(64) } },
   ];
   for (const entry of cases) {
     const rejected = coordinateRaw({
@@ -2633,7 +2633,7 @@ test('mutation with missing, absolute, escaping, wrong path or stale hash ledger
       cwd: drive.integration, ...entry.opts,
     });
     assert.strictEqual(rejected.ok, false, entry.label);
-    assert.match(rejected.reason, /ledger-checkpoint-invalid|stale-ledger-checkpoint/, entry.label);
+    assert.strictEqual(rejected.reason, entry.reason, entry.label);
     assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, entry.label);
   }
   assert.strictEqual(execFileSync('git', ['status', '--porcelain'], {
@@ -5542,7 +5542,8 @@ test('note with a wrong ledgerHash → refuses with the fence reason and keeps t
     text: 'ok', ledgerPath: LEDGER_REL, ledgerHash: '0'.repeat(64),
   });
   assert.strictEqual(r.ok, false, JSON.stringify(r));
-  assert.match(r.reason, /ledger-checkpoint-invalid|stale-ledger-checkpoint/);
+  // '0'.repeat(64)는 형식은 맞고 해시만 달라 stale로 거절된다.
+  assert.strictEqual(r.reason, 'stale-ledger-checkpoint');
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
 });
 
