@@ -558,7 +558,8 @@ failure, and `2` is invalid usage. Consume structured stdout where a command
 returns JSON. When a `validate` failure item includes `next`, that sentence is
 the recovery action — follow it instead of reading validator sources.
 A `validate` result carries `gates[]` only when G failures exist; render it
-first, and use the gate's single `next` as the recovery action. Check each
+first, and use the gate's single `next` as the recovery action (the first non-empty
+`next` among that gate's failures, or the gate's default sentence when none has one). Check each
 individual failure through `failures[]` `code` and `next`. `current --set`,
 `commit`, and `finalize` failure payloads carry the same `gates`. The `gate`
 field on a commit or coordinate failure is for display only; `reason` is what

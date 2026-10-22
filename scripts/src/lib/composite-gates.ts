@@ -122,8 +122,8 @@ function compositeGateLabel(gate: CompositeGateId): string {
 /**
  * 실패 목록을 복합 gate 단위 요약으로 묶는다. 순수 함수다.
  * 표에 없는 코드(S 코드 포함)는 건너뛰므로 failures[]에만 남는다. codes·targets는
- * 첫 등장 순서를 지키고 중복·빈 file을 뺀다. next는 그 gate의 첫 실패 항목의 next
- * (hint 적용 뒤)이고, 없으면 gate 기본 문장이다.
+ * 첫 등장 순서를 지키고 중복·빈 file을 뺀다. next는 그 gate에서 next가 비어 있지 않은
+ * 첫 실패의 값(hint 적용 뒤)이고, 그런 실패가 없으면 gate 기본 문장이다.
  *
  * @param {FailureEntry[]} failures - hint가 병합된 실패 목록
  * @returns {CompositeGateSummary[]} 실패한 gate만, 표 순서대로. 해당 없으면 빈 배열

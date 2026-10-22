@@ -634,8 +634,24 @@ test('the hook with an unreadable other ledger → reports its path and recovery
     }),
   });
   assert.strictEqual(result.block, true);
-  assert.match(result.reason, /commit blocked: cross-drive-ledger-unreadable: \/other\/ledger/);
+  assert.match(result.reason, /^\[커밋 범위\] commit blocked: cross-drive-ledger-unreadable: \/other\/ledger/);
   assert.match(result.reason, /`ledgerFile`의 원장을 복구하거나 그 drive를 detach한다$/);
+});
+
+test('a coordinator reason without a label mapping → reason starts with commit blocked, no bracket label', () => {
+  const r = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: '/r',
+    deps: coordinatorDeps({
+      current: { blueprint: BP, base: 'develop', task: `${BP}/tasks/001/tasks.md` },
+      affected: ['src/feature'],
+      staged: ['src/feature/a.ts'],
+      coordinator: { active: true, reason: 'unreadable-ledger', scope: null },
+    }),
+  });
+  assert.strictEqual(r.block, true);
+  assert.doesNotMatch(r.reason, /^\[/);
+  assert.match(r.reason, /^commit blocked: unreadable-ledger: /);
 });
 
 test('a boundary block with an empty staged list → reports the checkout, not a bare colon', () => {
