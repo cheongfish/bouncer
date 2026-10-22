@@ -25,10 +25,12 @@ function writeDoc(repo, rel, bouncer, extra = {}) {
 }
 
 // 기본 픽스처: 모두 draft, full, context-review accepted.
-function makeRepo({ scale, contextReview = 'accepted', epic = 'draft', t2 = 'draft' } = {}) {
+function makeRepo({ scale, contextReview = 'accepted', epic = 'draft', t2 = 'draft', reviewContract } = {}) {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-approve-')));
   writeDoc(repo, EPIC_REL, { status: epic });
-  writeDoc(repo, BP_REL, { status: 'draft', ...(scale ? { scale } : {}) });
+  writeDoc(repo, BP_REL, {
+    status: 'draft', ...(scale ? { scale } : {}), ...(reviewContract ? { review_contract: reviewContract } : {}),
+  });
   if (contextReview) writeDoc(repo, CR_REL, { status: contextReview });
   writeDoc(repo, T1_REL, { status: 'draft', execution_kind: 'commit' });
   writeDoc(repo, T2_REL, { status: t2, execution_kind: 'commit' });
@@ -95,6 +97,29 @@ test('epic 이미 approved → epic unchanged, 나머지 전이', () => {
 
 test('light blueprint와 context-review 부재 → 전이 성공', () => {
   const repo = makeRepo({ scale: 'light', contextReview: null });
+  const r = approve(repo);
+  assert.strictEqual(r.code, 0, r.out);
+  assert.strictEqual(statusOf(repo, BP_REL), 'approved');
+});
+
+test('표식 light blueprint와 context-review pending → plan-approve-context-review, 모든 파일 바이트 불변', () => {
+  const repo = makeRepo({ scale: 'light', reviewContract: 'brief', contextReview: 'pending' });
+  const before = snapshot(repo);
+  const r = approve(repo);
+  assert.strictEqual(r.code, 1);
+  assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-context-review');
+  assert.deepEqual(snapshot(repo), before);
+});
+
+test('표식 light blueprint와 context-review.md 부재 → plan-approve-context-review', () => {
+  const repo = makeRepo({ scale: 'light', reviewContract: 'brief', contextReview: null });
+  const r = approve(repo);
+  assert.strictEqual(r.code, 1);
+  assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-context-review');
+});
+
+test('표식 light blueprint와 accepted context-review → 전이 성공', () => {
+  const repo = makeRepo({ scale: 'light', reviewContract: 'brief' });
   const r = approve(repo);
   assert.strictEqual(r.code, 0, r.out);
   assert.strictEqual(statusOf(repo, BP_REL), 'approved');

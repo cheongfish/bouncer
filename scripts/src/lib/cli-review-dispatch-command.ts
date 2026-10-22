@@ -124,7 +124,10 @@ Do not compute the digest. Copy \`target.digest\` from the JSON that
 \`review-dispatch plan --blueprint <dir>\` prints into both <target.digest>
 places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
 
-Plan fields (\`single\` only; older stored \`clustered\` payloads are still read; absent on \`skip\` and failures):
+Plan fields (\`single\` or \`perspectives\`; older stored \`clustered\` payloads are still read;
+absent on \`skip\` and failures):
+  A blueprint with review_contract brief gets strategy \`perspectives\`: full runs consistency, scope_minimality,
+  verifiability and risk_security in parallel; light runs verifiability only (one reviewer call per perspective).
   snapshot_version 2. target.digest hashes the ordered {file, body, structure} of
                    every plan document; status/title/timestamp/commit evidence are excluded
   parts            per-document body sha256 (epic index, blueprint index, each tasks.md)

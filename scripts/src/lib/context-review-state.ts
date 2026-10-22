@@ -268,6 +268,45 @@ function readReportInput(roundFile: string): ReportInput | Fail {
   return { text, round: parsed.round, findings: parsed.findings as Finding[] };
 }
 
+// perspectives dispatch가 아닌 cycle에서는 새 plan 관점 이름을 받지 않는다.
+const PERSPECTIVES_ONLY_NAMES = ['consistency', 'scope_minimality', 'verifiability', 'risk_security'];
+
+/**
+ * round 보고의 관점 이름이 dispatch 계약과 맞는지 검사한다.
+ * perspectives dispatch면 discovery는 dispatch 관점 집합과 같아야 하고 delta는 full `combined` /
+ * light `verifiability` 하나여야 한다. single/clustered dispatch는 새 관점 이름을 받지 않는다 —
+ * 표식 없는 blueprint가 새 계약의 round를 몰래 쌓지 못하게 하기 위해서다. 상태를 바꾸지 않는다.
+ *
+ * @param {unknown} dispatchPayload - loadDispatch가 검증한 dispatch JSON
+ * @param {number} priorRounds - 이미 기록된 round 수(0이면 discovery, 1이면 delta)
+ * @param {Record<string, unknown>} round - 보고의 round 객체
+ * @returns {Fail | null} 어긋나면 context-review-input-invalid, 맞으면 null
+ */
+function checkRoundPerspectives(
+  dispatchPayload: unknown, priorRounds: number, round: Record<string, unknown>,
+): Fail | null {
+  const next = 'set round.perspectives names to the dispatch perspectives contract';
+  const raw = round.perspectives;
+  const entries = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  const names = entries.map((entry) => (isRecord(entry) && typeof entry.name === 'string' ? entry.name : ''));
+  const payload = isRecord(dispatchPayload) ? dispatchPayload : {};
+  if (payload.strategy !== 'perspectives') {
+    const stray = names.find((name) => PERSPECTIVES_ONLY_NAMES.includes(name));
+    return stray === undefined ? null
+      : fail('context-review-input-invalid', `perspective ${stray} requires a perspectives dispatch`, next);
+  }
+  const expected = payload.perspectives as string[];
+  if (priorRounds === 0) {
+    const same = names.length === expected.length && expected.every((name) => names.includes(name));
+    return same ? null : fail('context-review-input-invalid',
+      `round 1 perspectives ${names.join(',')} != dispatch perspectives ${expected.join(',')}`, next);
+  }
+  // delta는 reviewer 하나: full은 combined, light는 verifiability(dispatch 관점이 하나뿐인 경우).
+  const want = expected.length === 1 ? expected[0] : 'combined';
+  return names.length === 1 && names[0] === want ? null
+    : fail('context-review-input-invalid', `round ${priorRounds + 1} delta perspective must be ${want}`, next);
+}
+
 /**
  * 리뷰어 보고 한 건과 dispatch를 cycle에 기록한다. 보고는 immutable 파일로 먼저 저장하고
  * state 교체(sibling tmp + rename)가 마지막이라, 어느 단계에서 실패해도 기존 state는
@@ -368,6 +407,9 @@ function recordReport(input: {
       return targetInvalid(`round target.digest ${String(reportTarget.digest)} != dispatch ${dispatch.digest}`,
         'set round.target.digest to the dispatch target.digest');
     }
+    // 2-1. 관점 계약: 상태를 바꾸기 전에 거절해 round·cycle이 그대로 남게 한다.
+    const wrongPerspectives = checkRoundPerspectives(JSON.parse(dispatch.text), n, report.round);
+    if (wrongPerspectives) return wrongPerspectives;
     // 3. 이전 보고와 합쳐 ID별 최신 처분을 만든다. closure면 projection 검사까지.
     const folded = foldReports(ctx, repoRoot, cycle.active_reports);
     if (isFail(folded)) return folded;

@@ -1,6 +1,6 @@
 ---
 name: context-review
-description: "Use during /bouncer-plan on full plans, or when named, to judge plan documents and record Findings without editing."
+description: "Use during /bouncer-plan on full plans and on light plans that carry the review_contract marker, or when named, to judge plan documents and record Findings without editing."
 ---
 
 # Context review
@@ -15,16 +15,16 @@ the agent returns its Findings schema without taking record or status actions.
 
 ## When this applies
 
-**Full plans only.** This skill owns the `context-review.md` rubric, and that
-document exists only on a blueprint whose `bouncer.scale` is absent or `full`.
-`bouncer scaffold blueprint --scale light` does not create it, `/bouncer-plan`
-does not dispatch this judgment there on a
-light blueprint — so there is no light variant of this rubric to run and no
-lighter judgment to substitute. If a light plan needs this judgment, the answer
-is to set `scale` back to `full` and scaffold the document
-(`bouncer scaffold context-review --blueprint <dir>`), not to review without one.
-On a light plan, approved scope rests on the user's confirmation of
-`affected_paths` and on G3–G5.
+**Full plans, and light plans that carry the marker.** This skill owns the
+`context-review.md` rubric. A blueprint without the `bouncer.review_contract`
+marker keeps the earlier contract: a full one is judged by one `combined` call,
+and a light one has no `context-review.md` and no review, so approved scope
+rests on the user's confirmation of `affected_paths` and on G3–G5. A blueprint
+with the marker is judged by one call per perspective that
+`review-dispatch plan` returns in `perspectives`: `consistency`,
+`scope_minimality`, `verifiability`, `risk_security` on a full blueprint, and
+`verifiability` alone on a light one (scaffold creates its `context-review.md`).
+Do not merge or split the returned perspectives.
 
 ## Steps
 
@@ -70,9 +70,11 @@ On a light plan, approved scope rests on the user's confirmation of
    remains unresolved (every finding `resolved`, or `accepted` with a note).
 
 3. **Judge** — In `discovery`, the controller first runs
-   `bouncer review-dispatch plan` on the frozen snapshot. Every full initial
-   plan review is `single`: one call with perspective `combined` judges both
-   rubrics. `combined` covers task-local consistency (Interface ·
+   `bouncer review-dispatch plan` on the frozen snapshot. A blueprint without the
+   marker is `single`: one call with perspective `combined` judges both
+   rubrics. A marked blueprint is `perspectives`: one call per returned
+   perspective, each judging only its own range (`consistency`,
+   `scope_minimality`, `verifiability`, `risk_security`). `combined` covers task-local consistency (Interface ·
    Touch · Checklist), Checklist edit paths against `affected_paths`, task
    `review_risk` marking, and red assertions, and also epic→blueprint→tasks and
    cross-task consistency, the Contract storage
@@ -84,7 +86,7 @@ On a light plan, approved scope rests on the user's confirmation of
    assigned perspective and
    never sees another call's findings. When the CLI returns `ok: false` or
    the digest/document set drifts from the freeze, do not judge and do not
-   accept. In `delta`, one call certifies whether the previous findings are
+   accept. In `delta`, one call (`combined` on a full blueprint, `verifiability` on a light one) certifies whether the previous findings are
    resolved and whether the revision introduced a problem — once, regardless
    of strategy. When plan dispatch reports
    `follow_up: partial`, delta inputs are the new target, previous findings,
@@ -100,7 +102,7 @@ On a light plan, approved scope rests on the user's confirmation of
    The scope bodies, the delta origin rule, what each scope excludes, and the
    severity mapping are canonical in the named agent
    `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` (`## Review modes`,
-   `## Rubric — two scopes`, `## Calibration (severity)`). Read them there;
+   `## Rubric — two scopes`, `## Rubric — plan perspectives`, `## Calibration (severity)`). Read them there;
    this skill does not carry a second copy.
 
 4. **Return** — Return a Findings list only. The controller (not this

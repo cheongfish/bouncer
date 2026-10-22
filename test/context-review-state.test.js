@@ -127,16 +127,24 @@ function capture(argv) {
   return { code, ...buf, json: buf.out.trim().startsWith('{') ? JSON.parse(buf.out) : null };
 }
 
-/** 계획 문서가 있는 임시 repo를 만든다. */
-function makeRepo() {
+/**
+ * 계획 문서가 있는 임시 repo를 만든다. 기본은 review_contract 표식이 없는 blueprint다 —
+ * single dispatch 기대값을 단언하는 기존 테스트가 scaffold의 표식 때문에 바뀌지 않게 지운다.
+ * `marked`면 표식을 남기고, `scale`로 light blueprint를 만들 수 있다.
+ */
+function makeRepo({ marked = false, scale } = {}) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cr-state-'));
   scaffoldEpic({
     repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS, description: 'Auth epic description',
   });
   scaffoldBlueprint({
     repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
-    blueprintId: '001', name: 'login', timestamp: TS,
+    blueprintId: '001', name: 'login', timestamp: TS, ...(scale ? { scale } : {}),
   });
+  if (!marked) {
+    const abs = path.join(repo, BP, 'index.md');
+    fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('  review_contract: brief\n', ''));
+  }
   return repo;
 }
 
@@ -1795,4 +1803,155 @@ test('state projection에 남은 틀린 fingerprint → close noop 재실행이 
   assert.equal(again.json.projection.findings[0].fingerprint, canonicalOf(MUST_FIX));
   const written = readDoc(path.join(repo, BP, 'context-review.md')).data.bouncer.context_review.findings[0];
   assert.equal(written.fingerprint, canonicalOf(MUST_FIX));
+});
+
+// --- 표식(review_contract: brief) blueprint의 perspectives 전략 -------------------------------
+
+const FULL_NAMES = ['consistency', 'scope_minimality', 'verifiability', 'risk_security'];
+
+/** perspectives dispatch payload 파일. 관점 목록은 scale이 정하는 값이 기본이다. */
+function markedDispatch(repo, name = 'pd.json', perspectives = FULL_NAMES) {
+  return dispatchFile(repo, name, { strategy: 'perspectives', perspectives });
+}
+
+/** round 보고에 지정한 관점 이름들을 싣는다. */
+function namedRound(repo, name, round, mode, findings, names) {
+  const digest = computePlanSnapshot({ repoRoot: repo, blueprintDir: BP }).digest;
+  return writeJson(repo, name, {
+    round: {
+      round,
+      mode,
+      target: { digest },
+      perspectives: names.map((n) => ({ name: n, target_digest: digest })),
+      severity_changes: [],
+    },
+    findings,
+  });
+}
+
+const activeReports = (repo) => JSON.parse(fs.readFileSync(findState(repo), 'utf8')).cycle.active_reports.length;
+const contextStatus = (repo) => readDoc(path.join(repo, BP, 'context-review.md')).data.bouncer.status;
+
+test('표식 없는 blueprint에 perspectives dispatch → start가 target-invalid로 거부한다', () => {
+  const repo = makeRepo();
+  const out = start(repo, markedDispatch(repo));
+  assert.equal(out.code, 1);
+  assert.equal(out.json.reason, 'context-review-target-invalid');
+  assert.equal(out.json.cause, 'perspectives dispatch requires review_contract brief');
+});
+
+test('표식 blueprint에 single dispatch → start·record·restart·route가 각각 target-invalid로 거부한다', () => {
+  const repo = makeRepo({ marked: true });
+  const cause = 'review_contract brief requires a perspectives dispatch';
+  const single = dispatchFile(repo, 'single.json');
+  const started = start(repo, single);
+  assert.equal(started.json.reason, 'context-review-target-invalid');
+  assert.equal(started.json.cause, cause);
+  assert.equal(findState(repo), null);
+
+  const good = markedDispatch(repo);
+  assert.equal(start(repo, good).code, 0);
+  const round = namedRound(repo, 'r1.json', 1, 'discovery', [], FULL_NAMES);
+  const recorded = record(repo, single, round);
+  assert.equal(recorded.json.reason, 'context-review-target-invalid');
+  assert.equal(recorded.json.cause, cause);
+  const restarted = restart(repo, single);
+  assert.equal(restarted.json.reason, 'context-review-target-invalid');
+  assert.equal(restarted.json.cause, cause);
+  const routed = crState.routeFollowUp({
+    repoRoot: repo, blueprintDir: BP, dispatchFile: withFollowUp(single, 'partial'),
+  });
+  assert.equal(routed.reason, 'context-review-target-invalid');
+  assert.equal(routed.cause, cause);
+  assert.equal(activeReports(repo), 0);
+});
+
+test('표식 blueprint의 discovery 관점 하나 누락 → input-invalid로 거부하고 round는 늘지 않는다', () => {
+  const repo = makeRepo({ marked: true });
+  const d = markedDispatch(repo);
+  start(repo, d);
+  const out = record(repo, d, namedRound(repo, 'r1.json', 1, 'discovery', [], FULL_NAMES.slice(0, 3)));
+  assert.equal(out.code, 1);
+  assert.equal(out.json.reason, 'context-review-input-invalid');
+  assert.equal(out.json.cause,
+    'round 1 perspectives consistency,scope_minimality,verifiability != dispatch perspectives '
+    + 'consistency,scope_minimality,verifiability,risk_security');
+  assert.equal(activeReports(repo), 0);
+});
+
+test('표식 full의 delta 관점 verifiability → input-invalid로 거부하고 round는 1개로 남는다', () => {
+  const repo = makeRepo({ marked: true });
+  const d = markedDispatch(repo);
+  start(repo, d);
+  assert.equal(record(repo, d, namedRound(repo, 'r1.json', 1, 'discovery', [MUST_FIX], FULL_NAMES)).code, 0);
+  const out = record(repo, d, namedRound(repo, 'r2.json', 2, 'delta', [], ['verifiability']));
+  assert.equal(out.json.reason, 'context-review-input-invalid');
+  assert.equal(out.json.cause, 'round 2 delta perspective must be combined');
+  assert.equal(activeReports(repo), 1);
+});
+
+test('표식 light의 delta 관점 combined → input-invalid로 거부하고 round는 1개로 남는다', () => {
+  const repo = makeRepo({ marked: true, scale: 'light' });
+  const d = markedDispatch(repo, 'pd.json', ['verifiability']);
+  start(repo, d);
+  assert.equal(record(repo, d, namedRound(repo, 'r1.json', 1, 'discovery', [MUST_FIX], ['verifiability'])).code, 0);
+  const out = record(repo, d, namedRound(repo, 'r2.json', 2, 'delta', [], ['combined']));
+  assert.equal(out.json.reason, 'context-review-input-invalid');
+  assert.equal(out.json.cause, 'round 2 delta perspective must be verifiability');
+  assert.equal(activeReports(repo), 1);
+});
+
+test('single cycle에 verifiability 관점 round → input-invalid로 거부하고 round는 늘지 않는다', () => {
+  const repo = makeRepo();
+  const d = dispatchFile(repo);
+  start(repo, d);
+  const out = record(repo, d, namedRound(repo, 'r1.json', 1, 'discovery', [], ['verifiability']));
+  assert.equal(out.code, 1);
+  assert.equal(out.json.reason, 'context-review-input-invalid');
+  assert.equal(out.json.cause, 'perspective verifiability requires a perspectives dispatch');
+  assert.equal(activeReports(repo), 0);
+});
+
+test('표식 full에서 네 관점 discovery → combined delta → close가 accepted를 쓰고 구조 변경은 restart로 이어진다', () => {
+  const repo = makeRepo({ marked: true });
+  const d1 = markedDispatch(repo, 'd1.json');
+  assert.equal(start(repo, d1).code, 0);
+  const r1 = record(repo, d1, namedRound(repo, 'r1.json', 1, 'discovery', [MUST_FIX], FULL_NAMES));
+  assert.equal(r1.code, 0, r1.out + r1.err);
+  changeDocs(repo);
+  const d2 = markedDispatch(repo, 'd2.json');
+  const r2 = record(repo, d2, namedRound(repo, 'r2.json', 2, 'delta', [{ ...MUST_FIX, status: 'resolved' }], ['combined']));
+  assert.equal(r2.code, 0, r2.out + r2.err);
+  const closed = close(repo, writeJson(repo, 'disp.json', []));
+  assert.equal(closed.code, 0, closed.out + closed.err);
+  assert.equal(contextStatus(repo), 'accepted');
+
+  changeStructure(repo);
+  const d3 = markedDispatch(repo, 'd3.json');
+  assert.equal(route(repo, d3, 'partial').next_action, 'restart');
+  const restarted = restart(repo, d3);
+  assert.equal(restarted.code, 0, restarted.out + restarted.err);
+});
+
+test('표식 light에서 verifiability discovery → verifiability delta → close가 accepted를 쓰고 구조 변경은 restart로 이어진다', () => {
+  const repo = makeRepo({ marked: true, scale: 'light' });
+  const names = ['verifiability'];
+  const d1 = markedDispatch(repo, 'd1.json', names);
+  const started = start(repo, d1);
+  assert.equal(started.code, 0, started.out + started.err);
+  const r1 = record(repo, d1, namedRound(repo, 'r1.json', 1, 'discovery', [MUST_FIX], names));
+  assert.equal(r1.code, 0, r1.out + r1.err);
+  changeDocs(repo);
+  const d2 = markedDispatch(repo, 'd2.json', names);
+  const r2 = record(repo, d2, namedRound(repo, 'r2.json', 2, 'delta', [{ ...MUST_FIX, status: 'resolved' }], names));
+  assert.equal(r2.code, 0, r2.out + r2.err);
+  const closed = close(repo, writeJson(repo, 'disp.json', []));
+  assert.equal(closed.code, 0, closed.out + closed.err);
+  assert.equal(contextStatus(repo), 'accepted');
+
+  changeStructure(repo);
+  const d3 = markedDispatch(repo, 'd3.json', names);
+  assert.equal(route(repo, d3, 'partial').next_action, 'restart');
+  const restarted = restart(repo, d3);
+  assert.equal(restarted.code, 0, restarted.out + restarted.err);
 });

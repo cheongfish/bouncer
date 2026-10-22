@@ -473,6 +473,18 @@ test('review-dispatch --help → previous 거부 reason 세 가지와 context-re
   assert.ok(r.out.includes('context-review record'));
 });
 
+test('review-dispatch·context-review --help → perspectives 전략과 새 관점 이름을 나열한다', () => {
+  const names = ['consistency', 'scope_minimality', 'verifiability', 'risk_security'];
+  const dispatchHelp = capture(['review-dispatch', '--help']);
+  assert.strictEqual(dispatchHelp.code, 0);
+  assert.ok(dispatchHelp.out.includes('perspectives'));
+  for (const name of names) assert.ok(dispatchHelp.out.includes(name), `review-dispatch ${name}`);
+  const contextHelp = capture(['context-review', '--help']);
+  assert.strictEqual(contextHelp.code, 0);
+  assert.ok(contextHelp.out.includes('perspectives dispatch'));
+  for (const name of names) assert.ok(contextHelp.out.includes(name), `context-review ${name}`);
+});
+
 test('잘못된 호출의 review-dispatch → 계속 거부하고 플래그 값 -h는 값으로 취급한다', () => {
   const valueH = capture(['review-dispatch', 'plan', '--blueprint', '-h']);
   assert.doesNotMatch(valueH.out, /```yaml/);

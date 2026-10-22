@@ -22,6 +22,10 @@ bouncer:
 ## Success criteria
 1. `plan-workflow` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
 2. 아래 legacy epic은 `legacy`로 그대로 두고 조회·이력에만 쓴다. 승인·검증 해시와 trailer 연결을 바꾸지 않는다.
+3. `bouncer.review_contract: brief` full blueprint의 `review-dispatch plan`은 `strategy: perspectives`와 관점 `consistency`·`scope_minimality`·`verifiability`·`risk_security`를 내고, `must_fix`가 있으면 수정 1회와 `combined` delta 1회를 거쳐 `context-review`가 닫힌다.
+4. 새 light scaffold도 `review_contract: brief`를 쓰고 `context-review.md`를 만들며, 구조 검사 S38은 light의 표식을 거절하지 않는다. 표식 light는 `verifiability` 관점 리뷰를 받고, context review가 `accepted`가 아니면 `plan approve`가 거절한다.
+5. 표식이 없는 blueprint는 full `single`/`combined`, light `skip`을 그대로 받고, 저장된 `single`·`clustered` payload와 legacy 관점 이름 기록이 계속 읽힌다. 표식 light의 run 최종 리뷰(관점·record·repair·G21)는 표식 없는 light와 같은 판정을 받는다.
+6. light 문서 예산 100줄에서 `context-review.md`는 빠지고, CHANGELOG `[Unreleased]`에 항목이 있으며 `npm run ci`가 통과한다.
 
 ## Out of scope
 - review 심사 자체의 기준·디스패치 → `gates-review`
@@ -51,3 +55,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 
 ## Blueprints
 - [context-review-fix-restart](blueprints/context-review-fix-restart/index.md) — delta 뒤 열린 `must_fix` 대상 섹션을 고치면 `context-review restart`·`route`가 restart를 허용하고 skill 안내를 맞춘다.
+- [plan-review-perspectives](blueprints/plan-review-perspectives/index.md) — `review_contract: brief` blueprint의 plan 리뷰를 full 4관점 병렬(`perspectives`)과 light `verifiability` 1관점으로 바꾸고 수정 1회·delta 1회로 닫는다.

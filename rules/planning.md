@@ -69,8 +69,12 @@ What shrinks (five things only):
 1. **Plan documents** — `--scale light` writes four documents: blueprint
    `index.md`, `tasks/001/{tasks,verification}.md`, and root `review.md`. It
    creates no `context-review.md`, so `/bouncer-plan` runs no context review on
-   a light blueprint. The four
-   scaffolded documents total **100 lines or fewer**.
+   a light blueprint without the `bouncer.review_contract: brief` marker. A
+   marked light blueprint also gets a `context-review.md` and one
+   `verifiability` plan review (no delta beyond that single perspective); the
+   file is outside the budget. The four
+   scaffolded documents total **100 lines or fewer**. The run-side final review
+   of a marked light blueprint stays the same as an unmarked light one.
 2. **Task sections** — a light task body requires only `Goal & intent`, `Touch`,
    and `Checklist` as an authoring rule. `Interface` and `Do not touch` are
    neither templated nor demanded. Approved scope is untouched: **G3–G5**

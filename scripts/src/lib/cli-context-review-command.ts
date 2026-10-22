@@ -119,6 +119,9 @@ Allowed values:
   finding actionability: ${FINDING_ACTIONABILITY.join('|')}
   finding origin: ${FINDING_ORIGIN.join('|')}
   perspectives[].name (also finding category): ${CONTEXT_REVIEW_PERSPECTIVE.join('|')}
+  perspectives dispatch (review_contract brief): discovery round lists every dispatch perspective, e.g.
+  perspectives: [{ name: consistency, target_digest: <target.digest> }, ...];
+  delta lists combined (full) or verifiability (light)
   disposition status (--dispositions): ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
   --status: ${ALLOWED_STATUS.join('|')}
 

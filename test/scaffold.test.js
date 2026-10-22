@@ -660,17 +660,18 @@ test('--scale full and an omitted --scale → produce identical trees', () => {
   }
 });
 
-test('scale light → writes four plan docs and no context-review', () => {
+test('scale light → writes five plan docs including context-review', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const created = scaffoldWith(repo, 'light');
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   assert.deepStrictEqual(created, [
     `${base}/index.md`,
+    `${base}/context-review.md`,
     `${base}/review.md`,
     `${base}/tasks/001/tasks.md`,
     `${base}/tasks/001/verification.md`,
   ]);
-  assert.strictEqual(fs.existsSync(path.join(repo, base, 'context-review.md')), false);
+  assert.strictEqual(fs.existsSync(path.join(repo, base, 'context-review.md')), true);
   assert.strictEqual(fs.existsSync(path.join(repo, base, 'explain.md')), false);
   const bp = readDoc(path.join(repo, base, 'index.md')).data;
   assert.strictEqual(bp.bouncer.scale, 'light');
@@ -684,9 +685,10 @@ test('scale light → writes four plan docs and no context-review', () => {
   assert.doesNotMatch(rawTasks, /scope_evidence/);
 });
 
-test('the light plan document set → stays within 100 lines total', () => {
+test('the light plan document set without context-review → stays within 100 lines total', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  const created = scaffoldWith(repo, 'light');
+  // context-review.md는 표식 light의 리뷰 기록 틀이라 문서 예산에서 뺀다.
+  const created = scaffoldWith(repo, 'light').filter((rel) => !rel.endsWith('/context-review.md'));
   const total = created.reduce(
     (sum, rel) => sum + fs.readFileSync(path.join(repo, rel), 'utf8').split('\n').length - 1,
     0,
@@ -760,7 +762,7 @@ test('scaffoldBlueprint with an unknown scale → throws without creating the di
   );
 });
 
-test('bouncer scaffold blueprint --scale light → exits 0 with four created paths', () => {
+test('bouncer scaffold blueprint --scale light → exits 0 with five created paths', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const r = captureScaffold([
@@ -769,7 +771,7 @@ test('bouncer scaffold blueprint --scale light → exits 0 with four created pat
     '--id', '001', '--name', 'login', '--timestamp', TS, '--scale', 'light',
   ]);
   assert.strictEqual(r.code, 0);
-  assert.strictEqual(JSON.parse(r.out).created.length, 4);
+  assert.strictEqual(JSON.parse(r.out).created.length, 5);
 });
 
 // 허용값 안내는 reference가 정본이다. 템플릿은 finding 자리표시와 주석 부재만 남긴다.
@@ -974,7 +976,7 @@ test('new full and light blueprints → record verification_policy scoped_termin
   }
 });
 
-test('new full blueprint → records review_contract brief after verification_policy, light omits it', () => {
+test('new full and light blueprints → record review_contract brief after verification_policy', () => {
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   const full = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(full, undefined);
@@ -985,7 +987,9 @@ test('new full blueprint → records review_contract brief after verification_po
   const light = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(light, 'light');
   const lightBouncer = readDoc(path.join(light, base, 'index.md')).data.bouncer;
-  assert.strictEqual(Object.prototype.hasOwnProperty.call(lightBouncer, 'review_contract'), false);
+  assert.strictEqual(lightBouncer.review_contract, 'brief');
+  const lightKeys = Object.keys(lightBouncer);
+  assert.strictEqual(lightKeys.indexOf('review_contract'), lightKeys.indexOf('verification_policy') + 1);
 });
 
 test('new light blueprint plus a terminal verification task → plan gate sees no verification topology failure', () => {

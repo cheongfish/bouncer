@@ -5,7 +5,7 @@ const {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat,
   KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM,
   isValidDependsOn, isValidExclusiveResources, isValidAuthoredLineList,
-  executionKindOf, reviewContractOf,
+  executionKindOf, planReviewContractOf,
 } = schema;
 import paths = require('./paths');
 const {
@@ -210,15 +210,16 @@ function checkStructural(
     add('S31', 'review_scope must be blueprint');
   }
 
-  // S38: review_contract는 켜져 있으면 값 'brief'만 받는다. 부재는 legacy 최종 리뷰
-  // 계약이므로 통과한다. 잘못된 표식을 legacy로 오인하면 리뷰 관점이 조용히 바뀌므로
-  // 값·light 동시 사용·review_scope 전제를 각각 거절한다. 해석은 dispatch와 같은 해석기를 쓴다.
-  if (docType === 'bouncer.blueprint' && reviewContractOf(bouncer) !== 'legacy') {
-    if (reviewContractOf(bouncer) === null) {
+  // S38: review_contract는 켜져 있으면 값 'brief'만 받는다. 부재는 legacy 계약이므로
+  // 통과한다. 잘못된 표식을 legacy로 오인하면 리뷰 관점이 조용히 바뀌므로 값과
+  // review_scope 전제를 각각 거절한다. light도 표식을 받는다(plan 리뷰가 verifiability
+  // 한 관점으로 돈다). light를 접는 reviewContractOf가 아니라 planReviewContractOf를
+  // 써야 light의 잘못된 값도 여기서 거절된다.
+  if (docType === 'bouncer.blueprint' && planReviewContractOf(bouncer) !== 'legacy') {
+    if (planReviewContractOf(bouncer) === null) {
       add('S38', 'review_contract must be brief');
-    } else {
-      if (bouncer.scale === 'light') add('S38', 'review_contract is not allowed on a light blueprint');
-      if (bouncer.review_scope !== 'blueprint') add('S38', 'review_contract requires review_scope blueprint');
+    } else if (bouncer.review_scope !== 'blueprint') {
+      add('S38', 'review_contract requires review_scope blueprint');
     }
   }
 

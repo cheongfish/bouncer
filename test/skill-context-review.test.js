@@ -22,7 +22,7 @@ test('context review docs → carry a record-valid fingerprint example', () => {
     assert.ok(line, `${rel} has a fingerprint example`);
     assert.match(
       line,
-      /^\s*`?fingerprint: context:(combined|local|global|cross_document|scope|korean_quality|success_criteria):/,
+      /^\s*`?fingerprint: context:(combined|local|global|cross_document|scope|korean_quality|success_criteria|consistency|scope_minimality|verifiability|risk_security):/,
       `${rel} example`,
     );
   }
@@ -53,6 +53,17 @@ test('context reviewer rubric → judges two scopes with storage ownership and r
   }
   const index = fs.readFileSync(path.join(root, 'references', 'context-review', 'index.md'), 'utf8');
   assert.ok(!index.includes('four rubrics'));
+});
+
+// 표식 blueprint는 관점마다 reviewer를 따로 부른다. 관점 이름이 제목으로 한 번씩만 있어야
+// reviewer가 자기 판정 범위 본문을 하나로 찾고, 같은 관점이 두 본문으로 갈라지지 않는다.
+test('context reviewer doc → has exactly one heading per plan perspective', () => {
+  const md = fs.readFileSync(path.join(root, 'agents', 'bouncer-context-reviewer.md'), 'utf8');
+  const count = (re) => (md.match(re) ?? []).length;
+  assert.strictEqual(count(/^### consistency\b/gm), 1, '### consistency');
+  assert.strictEqual(count(/^### scope_minimality\b/gm), 1, '### scope_minimality');
+  assert.strictEqual(count(/^### verifiability\b/gm), 1, '### verifiability');
+  assert.strictEqual(count(/^### risk_security\b/gm), 1, '### risk_security');
 });
 
 // route 도움말의 next_action 목록은 controller가 읽는 계약이다: close가 빠지면 본문 수정 경로를 못 찾는다.

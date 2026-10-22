@@ -224,7 +224,8 @@ function writePlanTree(repo, { scale = 'full', tasks = ['001'], reviewContract }
     timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved', scale,
-      ...(reviewContract === undefined ? {} : { review_contract: reviewContract }),
+      // S38: 표식은 review_scope blueprint가 전제다. 표식 fixture만 이 전제를 갖춘다.
+      ...(reviewContract === undefined ? {} : { review_scope: 'blueprint', review_contract: reviewContract }),
     },
   }, '# Login blueprint\n');
   for (const number of tasks) {
@@ -407,6 +408,53 @@ test('plan with a single commit task → returns combined', () => {
   assert.strictEqual(result.target.digest, expected.digest);
   assert.deepStrictEqual(result.target.documents, expected.documents);
   assert.ok(Array.isArray(result.reasons) && result.reasons.length > 0);
+});
+
+const PLAN_PERSPECTIVES = ['consistency', 'scope_minimality', 'verifiability', 'risk_security'];
+
+test('plan with review_contract brief on a full blueprint → returns perspectives with four names', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'], reviewContract: 'brief' });
+  writeVerificationTask(repo, '002', { dependsOn: ['TASKS-001'] });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.strategy, 'perspectives');
+  assert.deepStrictEqual(result.perspectives, PLAN_PERSPECTIVES);
+  assert.strictEqual(result.task_count, 1);
+  assert.strictEqual(result.clusters.length, 1);
+  assert.strictEqual(result.follow_up, 'full');
+});
+
+test('plan with review_contract brief on a light blueprint → returns verifiability with follow_up', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'], reviewContract: 'brief' });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.strategy, 'perspectives');
+  assert.deepStrictEqual(result.perspectives, ['verifiability']);
+  assert.strictEqual(result.follow_up, 'full');
+  assert.ok(result.parts && result.documents_content);
+});
+
+test('plan with a perspectives previous payload → accepts it and reports a follow_up', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'], reviewContract: 'brief' });
+  const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(first.strategy, 'perspectives');
+  const again = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: first });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(again.strategy, 'perspectives');
+  assert.strictEqual(again.follow_up, 'partial');
+});
+
+test('plan with review_contract other → rejects with review-contract-invalid', () => {
+  for (const scale of ['full', 'light']) {
+    const repo = makeRepo();
+    writePlanTree(repo, { scale, tasks: ['001'], reviewContract: 'other' });
+    const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+    assert.strictEqual(result.ok, false, scale);
+    assert.strictEqual(result.error, 'review-contract-invalid: review_contract must be brief', scale);
+  }
 });
 
 function rewriteTasksGoal(repo, number, goalLine) {
@@ -719,7 +767,8 @@ test('context-review template → guides new categories combined local global', 
   const { LEGACY_SCAFFOLD_COMMENT_BODIES } = require('../scripts/lib/templates');
   const guide = LEGACY_SCAFFOLD_COMMENT_BODIES.find((body) => body.includes('optional bouncer.context_review.rounds[]'));
   assert.ok(guide);
-  assert.ok(guide.includes('category: combined | local | global'));
+  assert.ok(guide.includes('category: combined | local | global | consistency | scope_minimality'));
+  assert.ok(guide.includes('verifiability | risk_security'));
   assert.ok(!guide.includes('category: cross_document | scope | korean_quality'));
 });
 
@@ -1154,12 +1203,29 @@ test('review_contract brief without a task and --mode delta → returns single c
   assert.deepStrictEqual(json.perspectives, ['combined']);
 });
 
-test('review_contract other → discovery rejects with review-contract-invalid', () => {
-  for (const scale of ['full', 'light']) {
-    const out = discover(markedRepo({ reviewContract: 'other', scale }));
-    assert.strictEqual(out.ok, false, scale);
-    assert.ok(out.error.startsWith('review-contract-invalid'), out.error);
-  }
+test('review_contract other on a full blueprint → discovery rejects with review-contract-invalid', () => {
+  const out = discover(markedRepo({ reviewContract: 'other', scale: 'full' }));
+  assert.strictEqual(out.ok, false);
+  assert.ok(out.error.startsWith('review-contract-invalid'), out.error);
+});
+
+// light는 run 쪽 표식 해석기에서 legacy로 읽힌다. 잘못된 값의 거절은 S38이 맡는다.
+test('review_contract other on a light blueprint → execute discovery ignores the marker', () => {
+  const out = discover(markedRepo({ reviewContract: 'other', scale: 'light' }));
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'single');
+  assert.deepStrictEqual(out.perspectives, ['combined']);
+});
+
+test('review_contract brief on a light blueprint without a task → execute discovery equals the unmarked light', () => {
+  const marked = discover(markedRepo({ scale: 'light' }));
+  const unmarked = discover(markedRepo({ unmarked: true, scale: 'light' }));
+  assert.strictEqual(marked.ok, true);
+  assert.strictEqual(marked.strategy, unmarked.strategy);
+  assert.deepStrictEqual(marked.perspectives, unmarked.perspectives);
+  assert.deepStrictEqual(marked.reasons, unmarked.reasons);
+  assert.strictEqual(marked.strategy, 'single');
+  assert.deepStrictEqual(marked.perspectives, ['combined']);
 });
 
 // 사용법 거절은 분류기 모듈을 적재하지 않는다. 테스트 파일이 이미 require했으므로 먼저 캐시에서 지운다.

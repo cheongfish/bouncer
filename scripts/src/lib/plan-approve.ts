@@ -16,6 +16,7 @@ const { readEpicRegistry } = epicRegistry;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import contextIds = require('./context-ids');
+import schema = require('./schema');
 const { parseContextPath } = contextIds;
 
 type ApproveOk = { ok: true; changed: string[]; unchanged: string[] };
@@ -184,9 +185,11 @@ function approvePlan({ repoRoot, blueprintDir, deps = {} }: {
     taskPlans.push(plan);
   }
 
-  // 4. full blueprint는 context review가 accepted여야 한다. light만 건너뛴다(부재는 full).
+  // 4. full blueprint는 context review가 accepted여야 한다. 표식 없는 light만 건너뛴다
+  //    (부재는 full). 표식 light는 verifiability 리뷰를 받으므로 full과 같은 사유·next로 막는다.
+  //    잘못된 표식 값(null)은 S38이 이 gate 앞에서 이미 거절하므로 여기서는 legacy로 읽혀도 안전하다.
   const bpBouncer = bpPlan.data.bouncer as Record<string, unknown>;
-  if (bpBouncer.scale !== 'light') {
+  if (bpBouncer.scale !== 'light' || schema.planReviewContractOf(bpBouncer) === 'brief') {
     const crRel = `${bp}/context-review.md`;
     let crStatus: unknown;
     try {
