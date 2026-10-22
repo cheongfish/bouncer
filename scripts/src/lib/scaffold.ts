@@ -478,7 +478,6 @@ function scaffoldBlueprint({
   if (attribution !== undefined && (attribution.trim() === '' || /[\r\n]/.test(attribution))) {
     throw new Error('attribution must be a non-empty single line');
   }
-  const isLight = bpScale === 'light';
   // legacy epic에는 새 blueprint를 만들지 않는다. 등록부를 한 번 읽고 첫 파일을 쓰기 전에 거절한다.
   // 등록부 부재·invalid(형식 위반은 S35 소관)와 미등록 epic은 기존 동작을 유지한다.
   // 번호 epic은 옛 번호(v1 id, v2 legacy_id)로, slug epic은 slug로 항목을 찾는다.
@@ -525,9 +524,10 @@ function scaffoldBlueprint({
         // 표식이 없는 기존 blueprint는 legacy로 남으므로 소급하지 않는다. 표식의
         // 의미(명령 누락 거절·terminal topology)는 plan gate가 판정한다.
         verification_policy: 'scoped_terminal',
-        // 새 full 계획만 브리프 이행 기준 최종 리뷰를 받는다. light는 단일 combined
-        // 리뷰를 유지하므로 쓰지 않는다(S38도 light 동시 사용을 거절). 기존 문서는 소급하지 않는다.
-        ...(isLight ? {} : { review_contract: 'brief' }),
+        // 새 계획은 full·light 모두 브리프 계약 표식을 받는다. full은 4관점 plan 리뷰와
+        // 브리프 이행 최종 리뷰를, light는 verifiability 1관점 plan 리뷰를 받는다(run
+        // 최종 리뷰는 reviewContractOf가 light를 legacy로 읽어 지금과 같다). 기존 문서는 소급하지 않는다.
+        review_contract: 'brief',
         // 귀속 기록은 선택 키다. 필수 판정은 plan gate가 맡고 여기서는 값을 쓰기만 한다.
         ...(area === undefined ? {} : { area }),
         ...(attribution === undefined ? {} : { attribution }),
@@ -536,13 +536,10 @@ function scaffoldBlueprint({
     body('blueprint.md')));
 
   // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.
-  // light는 context-review 문서 자체를 만들지 않는다 — light에서는
-  // context review를 돌리지 않으므로 판정 대상이 없다.
-  if (!isLight) {
-    created.push(...scaffoldContextReview({
-      repoRoot, blueprintDir: dir, timestamp,
-    }));
-  }
+  // 표식 light도 verifiability 관점 context review를 받으므로 light에도 만든다.
+  created.push(...scaffoldContextReview({
+    repoRoot, blueprintDir: dir, timestamp,
+  }));
 
   const reviewRel = `${dir}/review.md`;
   // 이미 있는 루트 리뷰는 사람이 쓴 findings를 지울 수 있어 재작성하지 않는다.

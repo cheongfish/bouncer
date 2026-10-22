@@ -1156,9 +1156,15 @@ test('S38: review_contract other than brief → is rejected', () => {
   assert.deepStrictEqual(s38For({}), []);
 });
 
-test('S38: review_contract on a light blueprint → is rejected', () => {
-  const found = s38For({ review_contract: 'brief', scale: 'light' });
-  assert.deepStrictEqual(found.map((f) => f.message), ['review_contract is not allowed on a light blueprint']);
+test('S38: review_contract on a light blueprint → is accepted', () => {
+  assert.deepStrictEqual(s38For({ review_contract: 'brief', scale: 'light' }), []);
+});
+
+test('S38: review_contract other on a light blueprint → is rejected', () => {
+  for (const value of ['other', '', null]) {
+    const found = s38For({ review_contract: value, scale: 'light' });
+    assert.deepStrictEqual(found.map((f) => f.message), ['review_contract must be brief'], String(value));
+  }
 });
 
 test('S38: review_contract without review_scope blueprint → is rejected', () => {

@@ -28,7 +28,9 @@ import guards = require('./guards');
 import contextReviewState = require('./context-review-state');
 const { isRecord } = guards;
 import schema = require('./schema');
-const { executionKindOf, reviewContractOf } = schema;
+const {
+  executionKindOf, reviewContractOf, planReviewContractOf, PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES,
+} = schema;
 import reviewSnapshot = require('./review-snapshot');
 const { captureReviewSnapshot } = reviewSnapshot;
 
@@ -88,7 +90,8 @@ type RevisionDiffEntry = {
 };
 
 type PlanDispatchReview = PlanDispatchBase & {
-  strategy: 'single' | 'clustered';
+  // perspectives는 review_contract: brief 표식 blueprint의 관점 병렬 호출(full 4관점, light verifiability).
+  strategy: 'single' | 'clustered' | 'perspectives';
   snapshot_version: number;
   parts: Record<string, string>;
   scope_parts: Record<string, string>;
@@ -339,7 +342,7 @@ function previousFail(reason: string, cause: string, next: string): PreviousFail
 
 /**
  * 후속 리뷰가 기대하는 previous의 정상 payload 모양을 검사한다. review-dispatch plan이
- * 내는 single/clustered 성공 결과만 통과하며, 일부 필드만 골라 만든 축소본은 거절한다.
+ * 내는 single/clustered/perspectives 성공 결과만 통과하며, 일부 필드만 골라 만든 축소본은 거절한다.
  *
  * @param {unknown} previous - --previous로 받은 JSON
  * @param {string} bp - 현재 blueprint 상대 POSIX 경로
@@ -351,8 +354,8 @@ function checkPreviousShape(previous: unknown, bp: string): PreviousFail | null 
   if (!isRecord(previous) || previous.ok !== true || previous.phase !== 'plan') {
     return bad('previous is not a successful plan payload');
   }
-  if (previous.strategy !== 'single' && previous.strategy !== 'clustered') {
-    return bad('previous strategy must be single or clustered');
+  if (previous.strategy !== 'single' && previous.strategy !== 'clustered' && previous.strategy !== 'perspectives') {
+    return bad('previous strategy must be single, clustered or perspectives');
   }
   const target = previous.target;
   if (!isRecord(target) || typeof target.digest !== 'string' || !Array.isArray(target.documents)) {
@@ -512,6 +515,24 @@ function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): 
 }
 
 /**
+ * blueprint index.md에서 plan 리뷰 계약 표식을 읽는다. 읽기·파싱 실패는 legacy로 두고 흡수한다 —
+ * 같은 파일의 실패는 뒤따르는 structural 검사와 scale 읽기가 지금과 같은 사유로 드러내기 때문에,
+ * 여기서 사유를 바꾸면 표식 없는 blueprint의 거절 문구가 달라진다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} blueprintDir - blueprint 상대 경로
+ * @returns {'brief' | 'legacy' | null} 표식 해석 결과. null은 허용 밖의 값이다
+ */
+function readPlanReviewContract(repoRoot: string, blueprintDir: string): 'brief' | 'legacy' | null {
+  try {
+    const doc = readDoc(path.join(repoRoot, toPosix(blueprintDir), 'index.md'));
+    return planReviewContractOf((doc.data as { bouncer?: unknown } | null)?.bouncer);
+  } catch (_error) {
+    return 'legacy';
+  }
+}
+
+/**
  * Plan 리뷰 전략을 문서의 구조 신호만으로 분류한다.
  * reviewer 호출 전에 structural 검사와 plan draft 검사(G5·G19·G20)를
  * 통과해야 한다 — gate가 나중에 거절할 문서로 context review snapshot을 얼리지 않기 위해서다.
@@ -536,6 +557,12 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
   blueprintDir: string;
   previous?: unknown;
 }): PlanDispatchResult {
+  // 0. 표식 해석 실패는 light 여부와 무관하게 거절한다. 깨진 표식을 legacy로 접으면 리뷰
+  //    전략이 조용히 바뀐다(fallback 없음). 표식은 선언된 값만 보고 크기·task 수로 추론하지
+  //    않는다. 구조 검사(S38)보다 앞에 두어 값 오류가 항상 같은 사유로 돌아오게 한다.
+  const contract = readPlanReviewContract(repoRoot, blueprintDir);
+  if (contract === null) return { ok: false, error: REVIEW_CONTRACT_INVALID };
+
   // 1. 구조·draft 실패를 축소 판정으로 덮지 않는다 — malformed review_risk·문서 부재·
   //    G19/G20 위반은 그대로 돌려 controller가 reviewer를 호출하지 않게 한다.
   //    validateBlueprint는 S 실패가 있으면 draft 검사를 건너뛰므로 한 결과에
@@ -564,12 +591,15 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
     return { ok: false, error: `blueprint index unreadable: ${message}` };
   }
 
+  const marked = contract === 'brief';
+
   const snapshot = computePlanSnapshot({ repoRoot, blueprintDir: bp });
   if (!snapshot.ok) return snapshot;
 
-  // 2. light는 context review를 건너뛰는 신호(선언된 scale)만 본다. task 수로 skip을
-  //    추론하면 full 소규모 Plan이 context review를 건너뛴다.
-  if (scale === 'light') {
+  // 2. 표식 없는 light는 context review를 건너뛰는 신호(선언된 scale)만 본다. task 수로 skip을
+  //    추론하면 full 소규모 Plan이 context review를 건너뛴다. 표식 light는 skip하지 않고
+  //    아래 경로로 내려가 verifiability 한 관점 리뷰를 받는다.
+  if (scale === 'light' && !marked) {
     return {
       ok: true,
       phase: 'plan',
@@ -650,6 +680,25 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
       touch_paths: sortedUnique(commitTasks.tasks.flatMap((task) => [...task.touchPaths])),
     }]
     : [];
+  if (marked) {
+    // 표식 blueprint는 같은 cluster·reviewFields에 관점만 바꿔 싣는다: full은 4관점 병렬,
+    // light는 verifiability 하나. light용 별도 strategy 이름은 만들지 않는다.
+    const perspectives = scale === 'light' ? PLAN_LIGHT_PERSPECTIVES : PLAN_FULL_PERSPECTIVES;
+    return {
+      ok: true,
+      phase: 'plan',
+      target: { digest: snapshot.digest, documents: snapshot.documents },
+      strategy: 'perspectives',
+      task_count: taskCount,
+      clusters,
+      perspectives: [...perspectives],
+      reasons: [
+        `review_contract brief — ${perspectives.join(', ')} plan review perspectives`,
+        ...migrationReasons,
+      ],
+      ...reviewFields,
+    };
+  }
   return {
     ok: true,
     phase: 'plan',

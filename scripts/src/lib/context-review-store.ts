@@ -17,6 +17,8 @@ import paths = require('./paths');
 const { toPosix } = paths;
 import layout = require('./layout');
 const { isCanonicalBlueprintDir } = layout;
+import schema = require('./schema');
+const { planReviewContractOf, PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES } = schema;
 
 // 컨텍스트 리뷰의 디스크 접근만 모은다. cycle 재시작 한도·finding 판정은 여기 두지 않고
 // context-review-state가 맡긴다. 전이는 이 모듈의 함수로만 읽고 쓴다.
@@ -221,7 +223,7 @@ function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Dispa
     || !Array.isArray(payload.target.documents)) {
     return targetInvalid('dispatch is not a successful plan payload', next);
   }
-  if (payload.strategy !== 'single' && payload.strategy !== 'clustered') {
+  if (payload.strategy !== 'single' && payload.strategy !== 'clustered' && payload.strategy !== 'perspectives') {
     return targetInvalid(`strategy ${String(payload.strategy)} has no context review`, next);
   }
   if (payload.blueprint !== undefined && payload.blueprint !== bp) {
@@ -236,7 +238,28 @@ function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Dispa
   }
   const meta = isRecord(indexData) && isRecord(indexData.bouncer) ? indexData.bouncer : {};
   if (meta.status === 'closed') return targetInvalid('blueprint is closed', 'open a new blueprint');
-  if (meta.scale === 'light') return targetInvalid('light blueprint skips context review', 'no review is needed');
+  // 표식(review_contract: brief) blueprint는 perspectives dispatch만, 표식 없는 blueprint는
+  // single/clustered만 받는다. 어긋난 payload를 받으면 record가 관점 집합을 대조할 기준이
+  // 사라지고, 옛 계약의 저장 payload가 새 계약 blueprint에 섞인다.
+  const marked = planReviewContractOf(meta) === 'brief';
+  if (marked && payload.strategy !== 'perspectives') {
+    return targetInvalid('review_contract brief requires a perspectives dispatch', next);
+  }
+  if (!marked && payload.strategy === 'perspectives') {
+    return targetInvalid('perspectives dispatch requires review_contract brief', next);
+  }
+  // record가 round 관점을 대조하는 기준이 payload의 perspectives라서, 손으로 바꾼 목록이
+  // 기준이 되지 못하게 scale이 정하는 값(full 4관점 / light verifiability)과 같아야 한다.
+  if (marked) {
+    const expected = meta.scale === 'light' ? PLAN_LIGHT_PERSPECTIVES : PLAN_FULL_PERSPECTIVES;
+    if (!isDeepStrictEqual(payload.perspectives, expected)) {
+      return targetInvalid(`dispatch perspectives differ from ${expected.join(',')}`, next);
+    }
+  }
+  // light 거절은 표식 없는 light에만 남는다. 표식 light는 verifiability 리뷰를 받는다.
+  if (meta.scale === 'light' && !marked) {
+    return targetInvalid('light blueprint skips context review', 'no review is needed');
+  }
   const snap = computePlanSnapshot({ repoRoot, blueprintDir: bp });
   if (!snap.ok) return targetInvalid(snap.error, next);
   if (snap.digest !== payload.target.digest

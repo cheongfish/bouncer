@@ -93,21 +93,44 @@ function verificationPolicyOf(bouncer: unknown): 'scoped_terminal' | 'legacy' | 
 // 없으므로 부재를 새 계약으로 읽지 않는다. plan 구조 해시에는 넣지 않는다.
 const REVIEW_CONTRACT_ENUM = ['brief'];
 
+// 표식(review_contract: brief) blueprint의 plan 리뷰 관점. review-dispatch plan이 내는 값과
+// context-review가 round를 대조하는 기준이 같은 정본을 보도록 여기 둔다. full은 4관점 병렬,
+// light는 verifiability 하나다.
+const PLAN_FULL_PERSPECTIVES = ['consistency', 'scope_minimality', 'verifiability', 'risk_security'];
+const PLAN_LIGHT_PERSPECTIVES = ['verifiability'];
+
 /**
- * blueprint `bouncer` 블록의 리뷰 계약 표식을 해석한다.
- * 구조 검사(S38)와 review-dispatch가 같은 판정을 쓰도록 한 곳에 둔다.
+ * blueprint `bouncer` 블록의 plan 리뷰 계약 표식을 해석한다. scale을 보지 않는다 —
+ * light도 표식을 가질 수 있고(light는 verifiability 한 관점으로 plan 리뷰를 받는다),
+ * 크기·task 수로 표식을 추론하지 않기 위해서다.
  *
  * @param {unknown} bouncer - blueprint index.md의 bouncer 객체
  * @returns {'brief' | 'legacy' | null} 키 부재·비객체는 legacy, 허용값은 그대로,
  *   허용 밖의 값(빈 문자열·null 포함)은 null — 호출자가 legacy로 접지 않고 거절한다
  */
-function reviewContractOf(bouncer: unknown): 'brief' | 'legacy' | null {
+function planReviewContractOf(bouncer: unknown): 'brief' | 'legacy' | null {
   if (bouncer == null || typeof bouncer !== 'object' || Array.isArray(bouncer)) return 'legacy';
   const rec = bouncer as Record<string, unknown>;
   if (!Object.prototype.hasOwnProperty.call(rec, 'review_contract')) return 'legacy';
   return (REVIEW_CONTRACT_ENUM as unknown[]).includes(rec.review_contract)
     ? rec.review_contract as 'brief'
     : null;
+}
+
+/**
+ * blueprint `bouncer` 블록의 run(최종 리뷰) 쪽 리뷰 계약 표식을 해석한다.
+ * 구조 검사(S38)와 review-dispatch가 같은 판정을 쓰도록 한 곳에 둔다.
+ * light는 키 값과 관계없이 legacy다: 표식 light의 최종 리뷰는 표식 없는 light와
+ * 같아야 하고, 잘못된 값의 거절은 S38이 맡는다. run 쪽 소비자를 건드리지 않고
+ * light 처리를 해석기 한 곳에서만 바꾸려는 선택이다.
+ *
+ * @param {unknown} bouncer - blueprint index.md의 bouncer 객체
+ * @returns {'brief' | 'legacy' | null} light는 항상 legacy, 그 밖에는 planReviewContractOf와 같다
+ */
+function reviewContractOf(bouncer: unknown): 'brief' | 'legacy' | null {
+  if (bouncer != null && typeof bouncer === 'object' && !Array.isArray(bouncer)
+    && (bouncer as Record<string, unknown>).scale === 'light') return 'legacy';
+  return planReviewContractOf(bouncer);
 }
 
 // finalize가 읽되 scaffold가 비우면 항상 'feat' 폴백으로 떨어지던 구멍 —
@@ -256,7 +279,8 @@ export = {
   LEGACY_GUIDANCE, detectLegacyFormat,
   BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
   VERIFICATION_POLICY_ENUM, verificationPolicyOf,
-  REVIEW_CONTRACT_ENUM, reviewContractOf,
+  REVIEW_CONTRACT_ENUM, reviewContractOf, planReviewContractOf,
+  PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,

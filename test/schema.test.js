@@ -115,3 +115,16 @@ test('review_contract → brief is accepted, absence is legacy, anything else is
   assert.equal(schema.reviewContractOf({ review_contract: null }), null);
   assert.equal(schema.reviewContractOf({ review_contract: 'other' }), null);
 });
+
+test('review_contract on a light blueprint → reviewContractOf reads legacy and planReviewContractOf keeps the marker', () => {
+  assert.equal(schema.reviewContractOf({ scale: 'light', review_contract: 'brief' }), 'legacy');
+  assert.equal(schema.reviewContractOf({ scale: 'light', review_contract: 'other' }), 'legacy');
+  assert.equal(schema.reviewContractOf({ scale: 'full', review_contract: 'brief' }), 'brief');
+  assert.equal(typeof schema.planReviewContractOf, 'function');
+  assert.equal(schema.planReviewContractOf({ scale: 'light', review_contract: 'brief' }), 'brief');
+  assert.equal(schema.planReviewContractOf({ scale: 'full', review_contract: 'brief' }), 'brief');
+  assert.equal(schema.planReviewContractOf({}), 'legacy');
+  assert.equal(schema.planReviewContractOf(undefined), 'legacy');
+  assert.equal(schema.planReviewContractOf({ review_contract: '' }), null);
+  assert.equal(schema.planReviewContractOf({ scale: 'light', review_contract: 'other' }), null);
+});

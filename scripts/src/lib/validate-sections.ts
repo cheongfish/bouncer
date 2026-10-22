@@ -74,6 +74,11 @@ const CONTEXT_REVIEW_PERSPECTIVE = [
   'scope',
   'korean_quality',
   'success_criteria',
+  // 표식(review_contract: brief) blueprint의 plan 리뷰 관점. 기존 이름의 읽기는 그대로다.
+  'consistency',
+  'scope_minimality',
+  'verifiability',
+  'risk_security',
 ];
 // execute fingerprint는 접두가 없고 context fingerprint만 이 접두를 갖는다. 두 원장이
 // 같은 문자열을 만들 수 없게 해 finding을 다른 리뷰로 옮겨 적는 실수를 게이트가 잡는다.
