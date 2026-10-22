@@ -29,11 +29,17 @@ bouncer:
 7. 각 blueprint 병합 뒤 `npm run ci`가 통과하고, `scripts/src/lib` 모듈 의존에 순환이 없다.
 8. `scripts/lib`는 `npm run build`로만 갱신하는 생성본이며 어떤 task의 `affected_paths`에도 넣지 않는다.
 9. 폐기한 이름 검사는 레거시 입력 감지기를 고정 소스 경로가 아니라 파일 안 표식으로 허용하고, 표식이 허용 위치 밖에 있거나 레거시 문자열 없이 쓰이면 실패한다.
+10. 실행 조정의 prepare·bootstrap과 commit fan-in은 서로 다른 내부 모듈이 소유하고, commands/facade로 runtime 역참조하지 않는다. 공통 원장 fence·worker 증적 규칙은 기존 하위 정본을 쓰며 잠금 밖 작업과 재잠금 hash·HEAD 재확인 순서가 보존된다.
+11. Finalize digest의 디스크·Git 수집과 순수 검사·조립을 구분할 수 있고, version 2 출력·PR 초안·실패 우선순위 및 integration checkout 선택이 보존된다.
+12. Verification의 실행·identity 계산·증적 저장은 서로 다른 모듈이 소유하고 기존 대상 선택 경계를 유지한다. 재사용의 원본 timestamp·출력·evidence ID, throw와 cache miss 구분, 기록 뒤 task 승격 순서가 보존된다.
+13. 컨텍스트 리뷰는 기존 저장 계층 위에서 순수 전이 판단과 문서 투영을 구분한다. State·Cycle 타입 정본이 하나이며 재시작 누적 한도·명시적 accepted-risk 동의·closure digest·동일 입력의 복구와 쓰기 순서가 보존된다.
+14. 네 책임 분해의 금지 역참조·순수 모듈 I/O 경계를 회귀 검사하고, 동일 Node 24·npm·OS에서 잰 전후 snapshot과 inventory가 기존 check-report를 통과한다. 기존 CLI·승인·증적·동시성 계약과 coverage 임계값 94/82/96을 유지한다.
 
 ## Out of scope
 - 특정 단계의 기능 → 해당 단계 영역
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
+- `workflow-responsibility-split`은 이미 닫힌 `coordinator-command-split`·`gate-review-split`의 결과 위에서 책임을 나눈다. 기존 blueprint·증적·상태·이력을 재작성하거나 소급 완료하지 않는다.
 
 ## Legacy epic 귀속
 Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 귀속된다는 뜻이다.
@@ -62,3 +68,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [cli-help-and-hygiene](blueprints/cli-help-and-hygiene/index.md) — 서브명령 `--help`를 `cli.ts`의 정적 usage로 끝내고, 테스트 fence fixture·`TaskUnit` 타입·경로 정규화를 정본 하나로 모으며, 이전 재구성 inventory의 전후 실측을 채운다.
 - [coordinator-command-split](blueprints/coordinator-command-split/index.md) — `coordinator` facade를 명령 API로 줄이고, 원장 fence 열기를 공통 helper로 묶고, `coordinate()`·`cmdCoordinate()`를 서브명령 handler로 나눈다.
 - [gate-review-split](blueprints/gate-review-split/index.md) — `runCheckGate()`를 gate 단계 모듈로, `context-review-state.ts`를 저장 계층과 cycle 전이로 나누고 이 시리즈의 전후 실측을 기록한다.
+- [workflow-responsibility-split](blueprints/workflow-responsibility-split/index.md) — prepare·bootstrap·commit fan-in, digest 수집·조립, verification 실행·identity·증적, 리뷰 순수 전이·투영을 분리하고 경계 검사와 전후 실측을 기록한다.
