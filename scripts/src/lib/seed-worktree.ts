@@ -79,8 +79,11 @@ function checkIgnoreQuiet(worktreePath: string, pathspec: string): boolean {
       cwd: worktreePath, stdio: 'ignore',
     });
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    // exit 1만 "ignored 아님". 128 같은 git 치명 오류를 not-ignored로 접으면
+    // 건너뜀 사유가 틀리므로 호출자가 구분하도록 다시 던진다.
+    if ((error as { status?: number }).status === 1) return false;
+    throw error;
   }
 }
 
@@ -160,22 +163,39 @@ function linkLocalEnv(worktreePath: string): string[] {
       continue;
     }
     // 1. 일반 pathspec. 2. 디렉터리 원본이면 trailing-slash 패턴용 `rel/` 재시도.
-    const ignored = checkIgnoreQuiet(worktreePath, rel)
-      || (srcIsDir && checkIgnoreQuiet(worktreePath, `${rel}/`));
+    let ignored: boolean;
+    try {
+      ignored = checkIgnoreQuiet(worktreePath, rel)
+        || (srcIsDir && checkIgnoreQuiet(worktreePath, `${rel}/`));
+    } catch (error) {
+      process.stderr.write(
+        `linkLocalEnv: skip ${rel} (check-ignore failed: ${(error as { message?: string }).message || error})\n`,
+      );
+      continue;
+    }
     if (!ignored) {
       process.stderr.write(`linkLocalEnv: skip ${rel} (not ignored in worktree)\n`);
       continue;
     }
     try {
       fs.symlinkSync(src, dst);
-      ensureLocalEnvExclude(worktreePath, rel);
-      linked.push(rel);
     } catch (error) {
       // 링크는 편의 장치라 실패를 흡수하되, 사유를 남겨 검증 exit 1이 묻히지 않게 한다.
       process.stderr.write(
         `linkLocalEnv: skip ${rel} (symlink failed: ${(error as { message?: string }).message || error})\n`,
       );
+      continue;
     }
+    // exclude는 status 정리용이다. 링크는 이미 성공했으므로 쓰기가 실패해도
+    // 반환에 넣고, 사유만 exclude 실패로 구분해 symlink 실패와 섞지 않는다.
+    try {
+      ensureLocalEnvExclude(worktreePath, rel);
+    } catch (error) {
+      process.stderr.write(
+        `linkLocalEnv: exclude ${rel} failed: ${(error as { message?: string }).message || error}\n`,
+      );
+    }
+    linked.push(rel);
   }
   return linked;
 }
