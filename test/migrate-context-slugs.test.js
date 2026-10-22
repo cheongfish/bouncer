@@ -622,6 +622,11 @@ test('이관한 저장소에서 새 blueprint를 만들고 승인해 커밋까�
   assert.equal(scaffolded.code, 0, scaffolded.err);
   assert.equal(data(repo, `${bp}/index.md`).bouncer.order, 4);
 
+  // 새 light blueprint는 review_contract: brief 표식과 pending context-review.md로 만들어지고 plan approve는
+  // accepted를 요구한다. 이 테스트의 관심사는 slug 키이므로 리뷰 절차 대신 status만 accepted로 맞춘다.
+  patch(repo, `${bp}/context-review.md`, (d) => {
+    d.bouncer.status = 'accepted';
+  });
   const approved = run(['plan', 'approve', '--blueprint', bp]);
   assert.equal(approved.code, 0, approved.out + approved.err);
   // CLI의 `current --set`은 계획 gate까지 돌려 gate를 통과하는 완성 계획을 요구한다. 여기서 보려는 것은
