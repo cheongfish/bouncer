@@ -105,6 +105,11 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
 - **main worktree는 읽기 전용 provenance입니다.** 주행 중 coordinator와 worker는
   자기에게 배정된 worktree에만 씁니다. main checkout에서 낸 커밋은 `bouncer
   commit`과 `commit-safety` 훅이 `main-worktree-source-write`로 거절합니다.
+- **drive 간 경로·자원 충돌을 확인합니다.** 경로와 `exclusive_resources`가
+  겹치지 않는 drive는 각자의 execution worktree에서 동시에 진행할 수 있습니다.
+  겹치면 `coordinate prepare`나 coordinator task 커밋이 상대 blueprint를
+  알려 주며 거절됩니다. 다른 원장을 읽지 못해도 원장을 특정해 거절하므로,
+  상대 drive를 finalize하거나 detach하거나 계획의 겹침을 제거한 뒤 재시도합니다.
 - **구현 worker는 커밋하지 않습니다.** 커밋은 run이 내부 `bouncer commit`으로 처리하고, 주행
   중에는 배정된 worker worktree 안에서 일어납니다.
 - **포인터는 blueprint namespace로 저장됩니다.** Git common directory에 있어

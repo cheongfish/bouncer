@@ -74,6 +74,16 @@ finalize, set the pointer with `bouncer current --set <dir>` and run
 carries a `next`: `run detach` when every commit task is `integrated`,
 otherwise "work in the execution worktree or continue `/bouncer-run`".
 
+`coordinate prepare` and coordinator task commits compare paths and
+`exclusive_resources` with started tasks (`pending` excluded, `integrated`
+included) in other active ledgers; detached ledgers are excluded. The drive
+that opened its wave first has priority. An overlap is refused as
+`cross-drive-conflict` with `conflicts[]` entries containing `blueprint`,
+`task`, `paths`, `resources`, and `legacy`. If another ledger cannot be read,
+the operation is refused as `cross-drive-ledger-unreadable` with `ledgerFile`.
+Wait for the other drive to finalize or detach, or revise the plan to remove
+the overlap before retrying.
+
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
 `plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
 tasks to `ready` all-or-nothing; run it only after the user approves the
