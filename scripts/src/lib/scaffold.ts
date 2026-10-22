@@ -525,6 +525,9 @@ function scaffoldBlueprint({
         // 표식이 없는 기존 blueprint는 legacy로 남으므로 소급하지 않는다. 표식의
         // 의미(명령 누락 거절·terminal topology)는 plan gate가 판정한다.
         verification_policy: 'scoped_terminal',
+        // 새 full 계획만 브리프 이행 기준 최종 리뷰를 받는다. light는 단일 combined
+        // 리뷰를 유지하므로 쓰지 않는다(S38도 light 동시 사용을 거절). 기존 문서는 소급하지 않는다.
+        ...(isLight ? {} : { review_contract: 'brief' }),
         // 귀속 기록은 선택 키다. 필수 판정은 plan gate가 맡고 여기서는 값을 쓰기만 한다.
         ...(area === undefined ? {} : { area }),
         ...(attribution === undefined ? {} : { attribution }),

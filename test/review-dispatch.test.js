@@ -204,7 +204,7 @@ function writeVerificationTask(repo, number, {
   });
 }
 
-function writePlanTree(repo, { scale = 'full', tasks = ['001'] } = {}) {
+function writePlanTree(repo, { scale = 'full', tasks = ['001'], reviewContract } = {}) {
   writeBundleIndex(repo);
   writeDoc(repo, `${EPIC_REL}/index.md`, {
     type: 'bouncer.epic',
@@ -224,6 +224,7 @@ function writePlanTree(repo, { scale = 'full', tasks = ['001'] } = {}) {
     timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved', scale,
+      ...(reviewContract === undefined ? {} : { review_contract: reviewContract }),
     },
   }, '# Login blueprint\n');
   for (const number of tasks) {
@@ -1073,6 +1074,138 @@ test('task 없는 execute에 --mode delta → usage exit 2이고 stdout JSON이 
   assert.strictEqual(run.code, 2);
   assert.strictEqual(run.out, '');
   assert.match(run.err, /--task/);
+});
+
+// review_contract 표식 fixture. big=true면 임계값을 넘기는 4파일 diff, 아니면 1파일 diff를 커밋한다.
+function markedRepo({ reviewContract = 'brief', unmarked = false, scale = 'full', risk, big = false, tasks = ['001'] } = {}) {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale, tasks, reviewContract: unmarked ? undefined : reviewContract });
+  if (risk !== undefined) {
+    tasks.forEach((n, i) => writeCommitTask(repo, n, { reviewRisk: risk[i] ?? risk[0] }));
+  }
+  const base = commitBaseline(repo);
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  for (const name of big ? ['a', 'b', 'c', 'd'] : ['a']) {
+    fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
+  }
+  git(repo, ['add', 'src']);
+  git(repo, ['commit', '-qm', 'change']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  return { repo, base, head };
+}
+
+function discover({ repo, base, head }) {
+  return classifyExecuteReview({ repoRoot: repo, blueprintDir: BP_REL, base, head });
+}
+
+const BRIEF_PERSPECTIVES = ['spec_scope', 'correctness_tests'];
+
+test('review_contract brief with a large diff and public_interface → returns two brief perspectives', () => {
+  const out = discover(markedRepo({ big: true, risk: [['public_interface']] }));
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.deepStrictEqual(out.perspectives, BRIEF_PERSPECTIVES);
+  assert.strictEqual(out.reasons[0], 'review_contract brief — brief-compliance perspectives');
+  assert.ok(out.reasons[1].endsWith('no security reviewer'), out.reasons[1]);
+});
+
+test('review_contract brief with a small diff and no risk → returns the same two perspectives', () => {
+  const out = discover(markedRepo({ big: false, risk: [[]] }));
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.deepStrictEqual(out.perspectives, BRIEF_PERSPECTIVES);
+});
+
+test('review_contract brief with public_interface and authentication → appends security last', () => {
+  const out = discover(markedRepo({ risk: [['public_interface', 'authentication']] }));
+  assert.deepStrictEqual(out.perspectives, [...BRIEF_PERSPECTIVES, 'security']);
+  assert.strictEqual(out.reasons[1], 'review_risk public_interface,authentication adds security reviewer');
+});
+
+test('review_contract brief with credential or authorization alone → includes security', () => {
+  for (const flag of ['credential', 'authorization']) {
+    const out = discover(markedRepo({ risk: [[flag]] }));
+    assert.deepStrictEqual(out.perspectives, [...BRIEF_PERSPECTIVES, 'security'], flag);
+  }
+});
+
+test('review_contract brief with security flag in a second task → unions across tasks', () => {
+  const out = discover(markedRepo({ tasks: ['001', '002'], risk: [['public_interface'], ['credential']] }));
+  assert.deepStrictEqual(out.perspectives, [...BRIEF_PERSPECTIVES, 'security']);
+});
+
+test('review_contract brief with a task-scoped review → keeps the legacy perspective rules', () => {
+  const fx = markedRepo({ risk: [['public_interface']] });
+  const out = classifyExecuteReview({
+    repoRoot: fx.repo, blueprintDir: BP_REL, taskId: '001', base: fx.base, head: fx.head,
+  });
+  assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
+});
+
+test('review_contract brief without a task and --mode delta → returns single combined', () => {
+  const { repo, base, head } = markedRepo({ big: true, risk: [['public_interface']] });
+  const run = capture([
+    'review-dispatch', 'execute', '--blueprint', BP_REL, '--base', base, '--head', head,
+    '--repo', repo, '--mode', 'delta',
+  ]);
+  assert.strictEqual(run.code, 0, run.err);
+  const json = JSON.parse(run.out);
+  assert.strictEqual(json.strategy, 'single');
+  assert.deepStrictEqual(json.perspectives, ['combined']);
+});
+
+test('review_contract other → discovery rejects with review-contract-invalid', () => {
+  for (const scale of ['full', 'light']) {
+    const out = discover(markedRepo({ reviewContract: 'other', scale }));
+    assert.strictEqual(out.ok, false, scale);
+    assert.ok(out.error.startsWith('review-contract-invalid'), out.error);
+  }
+});
+
+// 사용법 거절은 분류기 모듈을 적재하지 않는다. 테스트 파일이 이미 require했으므로 먼저 캐시에서 지운다.
+const REVIEW_DISPATCH_PATH = require.resolve('../scripts/lib/review-dispatch');
+function captureWithoutClassifier(argv) {
+  delete require.cache[REVIEW_DISPATCH_PATH];
+  const run = capture(argv);
+  const loaded = Object.prototype.hasOwnProperty.call(require.cache, REVIEW_DISPATCH_PATH);
+  return { ...run, loaded };
+}
+
+test('review_contract other without a task and --mode delta → exit 2 review-contract-invalid, classifier not loaded', () => {
+  const { repo, base, head } = markedRepo({ reviewContract: 'other' });
+  const run = captureWithoutClassifier([
+    'review-dispatch', 'execute', '--blueprint', BP_REL, '--base', base, '--head', head,
+    '--repo', repo, '--mode', 'delta',
+  ]);
+  assert.strictEqual(run.code, 2);
+  assert.strictEqual(run.out, '');
+  assert.match(run.err, /review-contract-invalid/);
+  assert.strictEqual(run.loaded, false);
+});
+
+test('unmarked blueprint without a task and --mode delta → exit 2 --task usage, classifier not loaded', () => {
+  const { repo, base, head } = markedRepo({ unmarked: true });
+  const run = captureWithoutClassifier([
+    'review-dispatch', 'execute', '--blueprint', BP_REL, '--base', base, '--head', head,
+    '--repo', repo, '--mode', 'delta',
+  ]);
+  assert.strictEqual(run.code, 2);
+  assert.strictEqual(run.out, '');
+  assert.match(run.err, /--task/);
+  assert.strictEqual(run.loaded, false);
+});
+
+test('blueprint without index and no task with --mode delta → exit 2 --task usage, classifier not loaded', () => {
+  const repo = makeRepo();
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  const run = captureWithoutClassifier([
+    'review-dispatch', 'execute', '--blueprint', BP_REL, '--base', base, '--head', base,
+    '--repo', repo, '--mode', 'delta',
+  ]);
+  assert.strictEqual(run.code, 2);
+  assert.strictEqual(run.out, '');
+  assert.match(run.err, /--task/);
+  assert.strictEqual(run.loaded, false);
 });
 
 test('--mode discovery → --mode 생략과 같은 JSON', () => {

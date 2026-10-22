@@ -88,6 +88,28 @@ function verificationPolicyOf(bouncer: unknown): 'scoped_terminal' | 'legacy' | 
     : null;
 }
 
+// blueprint `bouncer.review_contract` 허용값은 하나뿐이다. `brief`는 최종 리뷰가
+// 브리프 이행 판정 관점으로 도는 새 계약이고, 키 부재는 legacy다 — 소급 migration이
+// 없으므로 부재를 새 계약으로 읽지 않는다. plan 구조 해시에는 넣지 않는다.
+const REVIEW_CONTRACT_ENUM = ['brief'];
+
+/**
+ * blueprint `bouncer` 블록의 리뷰 계약 표식을 해석한다.
+ * 구조 검사(S38)와 review-dispatch가 같은 판정을 쓰도록 한 곳에 둔다.
+ *
+ * @param {unknown} bouncer - blueprint index.md의 bouncer 객체
+ * @returns {'brief' | 'legacy' | null} 키 부재·비객체는 legacy, 허용값은 그대로,
+ *   허용 밖의 값(빈 문자열·null 포함)은 null — 호출자가 legacy로 접지 않고 거절한다
+ */
+function reviewContractOf(bouncer: unknown): 'brief' | 'legacy' | null {
+  if (bouncer == null || typeof bouncer !== 'object' || Array.isArray(bouncer)) return 'legacy';
+  const rec = bouncer as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(rec, 'review_contract')) return 'legacy';
+  return (REVIEW_CONTRACT_ENUM as unknown[]).includes(rec.review_contract)
+    ? rec.review_contract as 'brief'
+    : null;
+}
+
 // finalize가 읽되 scaffold가 비우면 항상 'feat' 폴백으로 떨어지던 구멍 —
 // blueprint에 기본 commit_type을 써 둔다. 값 검사는 TASKS-001 branch helper가
 // 새 worktree 생성 전에 맡아, coordinator와 다른 소비자가 다른 이름을 만들지 않는다.
@@ -234,6 +256,7 @@ export = {
   LEGACY_GUIDANCE, detectLegacyFormat,
   BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
   VERIFICATION_POLICY_ENUM, verificationPolicyOf,
+  REVIEW_CONTRACT_ENUM, reviewContractOf,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,

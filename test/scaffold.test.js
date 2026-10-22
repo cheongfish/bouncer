@@ -974,6 +974,20 @@ test('new full and light blueprints → record verification_policy scoped_termin
   }
 });
 
+test('new full blueprint → records review_contract brief after verification_policy, light omits it', () => {
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const full = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(full, undefined);
+  const fullBouncer = readDoc(path.join(full, base, 'index.md')).data.bouncer;
+  assert.strictEqual(fullBouncer.review_contract, 'brief');
+  const keys = Object.keys(fullBouncer);
+  assert.strictEqual(keys.indexOf('review_contract'), keys.indexOf('verification_policy') + 1);
+  const light = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(light, 'light');
+  const lightBouncer = readDoc(path.join(light, base, 'index.md')).data.bouncer;
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(lightBouncer, 'review_contract'), false);
+});
+
 test('new light blueprint plus a terminal verification task → plan gate sees no verification topology failure', () => {
   const { validateBlueprint } = require('../scripts/lib/validate');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));

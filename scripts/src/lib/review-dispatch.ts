@@ -28,7 +28,7 @@ import guards = require('./guards');
 import contextReviewState = require('./context-review-state');
 const { isRecord } = guards;
 import schema = require('./schema');
-const { executionKindOf } = schema;
+const { executionKindOf, reviewContractOf } = schema;
 import reviewSnapshot = require('./review-snapshot');
 const { captureReviewSnapshot } = reviewSnapshot;
 
@@ -40,6 +40,13 @@ const EXECUTE_SMALL_MAX_LINES = 200;
 // S30과 같은 허용 목록(review-policy 정본). validate-structural이 먼저 거절하지만
 // Execute 경로는 구조 게이트 없이 이 필드를 읽으므로 여기서도 동일 enum으로 막는다.
 const { REVIEW_RISK_ENUM } = reviewPolicy;
+
+// 브리프 이행 최종 리뷰가 security 관점을 붙이는 위험 집합. public_interface는 브리프
+// 이행 판정(spec_scope·correctness_tests)이 이미 다루므로 여기에 넣지 않는다.
+const BRIEF_SECURITY_RISKS = ['authentication', 'authorization', 'credential'];
+
+// 표식이 허용 밖 값일 때 dispatch가 legacy로 접지 않고 내는 거절 메시지. CLI도 같은 문구를 쓴다.
+const REVIEW_CONTRACT_INVALID = 'review-contract-invalid: review_contract must be brief';
 
 type ExecFileSyncFn = (
   file: string,
@@ -718,16 +725,26 @@ function classifyExecuteReview({
   // 추론하면 full 대규모 변경이 축소 리뷰로 빠지고, light 큰 diff는 parallel로
   // 갈라져 단일 reviewer 계약이 깨진다.
   let scale = 'full';
+  let reviewContract: 'brief' | 'legacy' | null;
   try {
     const bpDoc = readDoc(path.join(repoRoot, bp, 'index.md'));
     const bouncer = (bpDoc.data as { bouncer?: { scale?: string } } | null)?.bouncer;
     if (bouncer && typeof bouncer.scale === 'string') scale = bouncer.scale;
+    reviewContract = reviewContractOf(bouncer);
   } catch (error) {
     // index 부재·파싱 실패를 기본 full로 접으면 light 선언을 놓친 채 parallel을
     // 고른다. Plan 분류기와 같이 읽기 실패를 그대로 드러낸다.
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, error: `blueprint index unreadable: ${message}` };
   }
+
+  // 표식 해석 실패는 light 여부와 무관하게 거절한다. 깨진 표식을 legacy로 접으면
+  // 리뷰 관점이 조용히 바뀐다(fallback 없음).
+  if (reviewContract === null) return { ok: false, error: REVIEW_CONTRACT_INVALID };
+  // 브리프 관점은 task 없는 최종 리뷰의 full blueprint에만 적용한다. task 범위 리뷰는
+  // 표식과 무관하게 현행 규칙이고, light 표식 조합은 plan gate(S38)가 막으므로
+  // 분류기에서는 light 분기를 그대로 둔다.
+  const briefReview = reviewContract === 'brief' && scale !== 'light' && (taskId == null || taskId === '');
 
   let targetTask: string | null = null;
   let risk: { ok: true; flags: string[] } | DispatchFail;
@@ -818,7 +835,13 @@ function classifyExecuteReview({
     : ['spec_scope', 'correctness_tests', 'minimality_maintainability'];
   if (risk.flags.length > 0) perspectives.push('security');
 
-  const reasons = [
+  const briefSecurity = briefReview && risk.flags.some((flag) => BRIEF_SECURITY_RISKS.includes(flag));
+  const reasons = briefReview ? [
+    'review_contract brief — brief-compliance perspectives',
+    briefSecurity
+      ? `review_risk ${risk.flags.join(',')} adds security reviewer`
+      : 'review_risk has no authentication/authorization/credential — no security reviewer',
+  ] : [
     lightScale
       ? 'blueprint scale is light — single combined reviewer regardless of diff size'
       : small
@@ -826,10 +849,11 @@ function classifyExecuteReview({
           + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
         : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
   ];
-  if (risk.flags.length > 0) {
-    reasons.push(`review_risk ${risk.flags.join(',')} adds security reviewer`);
-  } else {
-    reasons.push('review_risk empty — no security reviewer');
+  // 브리프 리뷰의 reasons는 위에서 완성했다(규모와 무관하게 두 관점 고정).
+  if (!briefReview) {
+    reasons.push(risk.flags.length > 0
+      ? `review_risk ${risk.flags.join(',')} adds security reviewer`
+      : 'review_risk empty — no security reviewer');
   }
 
   // delta는 risk_flags·diff 통계를 discovery와 같게 두고 reviewer만 combined로
@@ -853,11 +877,13 @@ function classifyExecuteReview({
     ok: true,
     phase: 'execute',
     target: frozenTarget,
-    strategy,
+    strategy: briefReview ? 'parallel' : strategy,
     changed_files: stats.changed_files,
     changed_lines: stats.changed_lines,
     risk_flags: risk.flags,
-    perspectives,
+    perspectives: briefReview
+      ? ['spec_scope', 'correctness_tests', ...(briefSecurity ? ['security'] : [])]
+      : perspectives,
     reasons,
   };
 }

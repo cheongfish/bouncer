@@ -98,6 +98,14 @@ display and default sort order — not execution authority.
   node) must depend, directly or transitively, on every commit task. An unknown
   value is rejected by the plan gate (G20).
 
+- Blueprint `bouncer.review_contract` is optional; `brief` is the only value and
+  absence means legacy. A `brief` blueprint's task-less final review uses the
+  brief-compliance perspectives (`spec_scope`, `correctness_tests`, plus
+  `security` only for `authentication`/`authorization`/`credential` risk) and
+  accepts a task-less `--mode delta`. New full blueprints are scaffolded with it;
+  light blueprints never carry it. Any other value, use on a light blueprint, or
+  use without `review_scope: blueprint` is S38.
+
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
   validation (S28) checks shape; the plan gate (G19) checks missing ids,
