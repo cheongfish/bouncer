@@ -45,7 +45,7 @@ function pathSetOf(task: Task): string[] | null {
 
 /**
  * 두 task가 같은 시점에 in-flight이면 안 되는지 판정한다. 경로 조상·동일
- * 비교는 path-overlap.pathsOverlap 하나만 쓴다 — 새 규칙을 두면 G12와
+ * 비교는 path-overlap.pathsOverlap 하나만 쓴다 — 새 규칙을 두면 경로 중첩 규칙과
  * scheduler가 갈라진다. 입력만 normalizeOverlapPath로 맞춘다.
  *
  * @param {Task} left - 한쪽 task

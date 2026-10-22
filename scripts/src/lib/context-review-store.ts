@@ -192,7 +192,7 @@ function targetInvalid(cause: unknown, next: string): Fail {
 /**
  * dispatch 파일을 읽어 blueprint·현재 snapshot·문서 집합과 대조한다.
  * skip·light·closed·다른 blueprint·stale digest는 모두 거절한다 — 오래된 payload로
- * 기록하면 이후 G18 신선도와 어긋난 보고가 cycle에 쌓인다.
+ * 기록하면 이후 review 신선도와 어긋난 보고가 cycle에 쌓인다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} bp - blueprint 상대 POSIX 경로

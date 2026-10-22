@@ -34,7 +34,7 @@ function git(cwd, args) {
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
-  // plan gate가 등록부(G26–G31)를 보므로 blueprint index를 쓸 때 epic 등록과 attribution을 함께 채운다.
+  // blueprint index는 epic 등록부 항목과 attribution을 함께 채운다.
   const bpIndex = /epics\/(\d{3}-[^/]+)\/blueprints\/[^/]+\/index\.md$/.exec(rel);
   if (bpIndex && data && data.type === 'bouncer.blueprint') {
     registerFixtureEpic(repo, bpIndex[1]);
@@ -86,8 +86,7 @@ Keep scope tight.
 `;
 }
 
-// plan dispatch가 draft 검사(G11)를 돌리므로 affected_paths는 Touch가 정당화해야 한다.
-// 기본값을 Touch 백틱 경로에서 뽑아 Touch 본문(=cluster touch_paths·digest)은 그대로 둔다.
+// affected_paths 기본값을 Touch 백틱 경로에서 뽑아 Touch 본문(=cluster touch_paths·digest)과 맞춘다.
 function touchBacktickPaths(touchText) {
   return [...touchText.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
 }
@@ -553,7 +552,7 @@ test('plan follow_up with a Touch-only change → is partial with that tasks.md 
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
-  // 같은 백틱 경로를 유지해 G11·affected_paths는 고정하고 Touch 절 문구만 바꾼다.
+  // 같은 백틱 경로를 유지해 affected_paths는 고정하고 Touch 절 문구만 바꾼다.
   writeCommitTask(repo, '001', {
     interfaceText: PLAN_TASK_001_INTERFACE,
     touchText: '- Modify `src/shared.ts`\n- Modify `src/a.ts`\n',
@@ -577,7 +576,7 @@ test('plan follow_up with an affected_paths-only scope_parts change → is full'
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
-  // Touch 본문은 그대로 두고 affected_paths만 축소한다(여전히 Touch가 정당화 → G11 유지).
+  // Touch 본문은 그대로 두고 affected_paths만 축소한다.
   // frontmatter만 바뀌므로 parts는 같아도 scope_parts가 달라 full이어야 한다.
   writeCommitTask(repo, '001', {
     interfaceText: PLAN_TASK_001_INTERFACE,
@@ -838,7 +837,7 @@ function writeStructuralAndDraftFailureTree(repo) {
   });
 }
 
-const DRAFT_CODES = ['G5', 'G10', 'G11', 'G12', 'G19', 'G20'];
+const DRAFT_CODES = ['G5', 'G19', 'G20'];
 
 test('plan with structural and draft failures → structural failure wins and classifies as structural', () => {
   const repo = makeRepo();
@@ -1503,33 +1502,6 @@ test('CLI plan with a structural failure → exits 1 without reviewer list', () 
   const payload = JSON.parse(result.out);
   assert.strictEqual(payload.ok, false);
   assert.ok(!('perspectives' in payload) || payload.perspectives === undefined);
-});
-
-test('review-dispatch --help yaml example with <target.digest> replaced → passes G18', () => {
-  const repo = makeRepo();
-  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
-  const help = capture(['review-dispatch', '--help']);
-  const fence = /```yaml\n([\s\S]*?)\n```/.exec(help.out);
-  assert.ok(fence, 'help carries one yaml example');
-  const plan = JSON.parse(capture([
-    'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo,
-  ]).out);
-  assert.strictEqual(plan.ok, true);
-  const contextReview = yaml.load(fence[1].split('<target.digest>').join(plan.target.digest)).context_review;
-  writeDoc(repo, `${BP_REL}/context-review.md`, {
-    type: 'bouncer.context_review',
-    title: 'Login context review',
-    description: 'd',
-    resource: `${BP_REL}/context-review.md`,
-    tags: ['bouncer', 'context_review'],
-    timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: {
-      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
-      context_review: contextReview,
-    },
-  }, '# Context review\n\n## Findings\n- CR-1 advisory, accepted with note.\n');
-  const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
-  assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G18'), []);
 });
 
 // --- 후속 리뷰 previous 결속(BP 096/001 task 002) ---------------------------------

@@ -506,7 +506,7 @@ function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): 
 
 /**
  * Plan 리뷰 전략을 문서의 구조 신호만으로 분류한다.
- * reviewer 호출 전에 structural 검사와 plan draft 검사(G5·G10–G12·G19·G20)를
+ * reviewer 호출 전에 structural 검사와 plan draft 검사(G5·G19·G20)를
  * 통과해야 한다 — gate가 나중에 거절할 문서로 context review snapshot을 얼리지 않기 위해서다.
  * working tree와 review 문서는 쓰지 않으며, 실패 시 perspectives를 만들지 않는다.
  * `previous`가 있으면 문서별 digest로 follow_up을 판정한다. 저장된 리뷰 증거가 있는
@@ -560,7 +560,7 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
   const snapshot = computePlanSnapshot({ repoRoot, blueprintDir: bp });
   if (!snapshot.ok) return snapshot;
 
-  // 2. light는 G18 면제와 같은 신호(선언된 scale)만 본다. task 수로 skip을
+  // 2. light는 context review를 건너뛰는 신호(선언된 scale)만 본다. task 수로 skip을
   //    추론하면 full 소규모 Plan이 context review를 건너뛴다.
   if (scale === 'light') {
     return {

@@ -69,16 +69,13 @@ What shrinks (five things only):
 1. **Plan documents** — `--scale light` writes four documents: blueprint
    `index.md`, `tasks/001/{tasks,verification}.md`, and root `review.md`. It
    creates no `context-review.md`, so `/bouncer-plan` runs no context review on
-   a light blueprint and the plan gate applies no **G18** there. The four
+   a light blueprint. The four
    scaffolded documents total **100 lines or fewer**.
-2. **Gated task sections** — **G10** requires only `Goal & intent`, `Touch`,
-   and `Checklist` on a light blueprint. `Interface` and `Do not touch` are
+2. **Task sections** — a light task body requires only `Goal & intent`, `Touch`,
+   and `Checklist` as an authoring rule. `Interface` and `Do not touch` are
    neither templated nor demanded. Approved scope is untouched: **G3–G5**
-   (G4 is retired), and **G11** judge an ordinary commit task exactly as they
-   judge a full one, so an empty `affected_paths` still fails.
-   **G12** stays wired on light and judges a `Do not touch` section the same
-   way when one is present — the light template ships none, so a light plan
-   normally gives it nothing to judge.
+   (G4 is retired) judge an ordinary commit task exactly as they judge a
+   full one, so an empty `affected_paths` still fails.
 3. **Epic allocation** — do not open a new epic. Stack the blueprint under the
    registry epic by attribution, chosen with the rules in `## Epic attribution`
    below. Never create or pick a shared catch-all epic for light work.
@@ -102,11 +99,11 @@ marker keeps the legacy single-task contract and its four documents.
 What stays the same:
 
 - Task document set: when `review_scope` is `blueprint`, `tasks/<NNN>/{tasks,verification}.md` plus root `review.md` and `explain.md` are still authored and gated; when `review_scope` is absent, `tasks/<NNN>/{tasks,verification,review}.md` and `explain.md` are still authored and gated.
-- Ordinary commit-task gate judgments **G1–G8** and **G11–G17** are unchanged in the light path
+- Ordinary commit-task gate judgments **G1–G8** and **G13–G17** that remain are unchanged in the light path
   (G16 comprehension at finalize; G17 staged scope at commit).
-  G4 and G15 are retired. Only **G18** (not applied) and the **G10** section list
-  differ, and both differences follow from the document set above rather than
-  from any agent judgment.
+  G4 and G15 are retired. Only the missing `context-review.md` and the
+  three-section task body differ, and both differences follow from the document
+  set above rather than from any agent judgment.
 
 Returning to `full` on an already-scaffolded light blueprint
 means authoring the missing sections and running

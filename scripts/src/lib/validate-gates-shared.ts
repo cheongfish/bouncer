@@ -70,8 +70,6 @@ type GateDeps = {
     readFileSync: (p: string, encoding: string) => string;
   };
   platform?: string;
-  // G18 신선도 대조용 현재 계획 digest. 주입되면 ctx 경로 유무와 상관없이 호출된다.
-  planSnapshot?: (opts: { repoRoot?: string; blueprintDir?: string }) => PlanSnapshotResult;
   // finalize G21 stale 검사용. 원장이 없으면 null — drive가 아니므로 git을 부르지 않는다.
   readCoordinatorLedger?: (opts: { repoRoot: string }) => { blueprint: string } | null;
   // commit G23: verify 시점 source_digest와 현재 checkout을 대조한다.
@@ -92,16 +90,13 @@ type ApprovalRead =
   | { ok: true; snapshot: { digest: string; parts: Record<string, string> } }
   | { ok: false; path: string }
   | null;
-type PlanSnapshotResult =
-  | { ok: true; digest: string; documents: string[] }
-  | { ok: false; error: string };
 
 type GateContext = {
   repoRoot?: string;
   blueprintDir?: string;
   deps?: GateDeps;
   taskUnit?: TaskUnit | null;
-  // loader가 남긴 S0. plan G18만 context-review 경로를 본다(다른 optional 문서는 일반화하지 않음).
+  // loader가 남긴 S0 원본 목록. failures에 합쳐지기 전 문서별 파싱 실패를 구분할 때 쓴다.
   parseErrors?: FailureEntry[];
   // plan task 분해 보조 신호. failures와 분리 — 호출부가 배열을 넘길 때만 채운다.
   warnings?: FailureEntry[];
@@ -236,10 +231,29 @@ function sameCanonical(left: unknown, right: unknown): boolean {
   return canonicalJson(left) === canonicalJson(right);
 }
 
+/**
+ * `collectFindingFailures`가 돌려준 메시지 중 gate가 실패로 남길 실질 판정인지 가린다.
+ * 열린 finding·열린 must_fix는 리뷰가 승인될 수 없다는 뜻이고, findings 배열·status·actionability가
+ * 깨지면 위 두 판정을 내릴 수 없으므로 fail-closed로 같이 남긴다. 나머지(severity·note·fingerprint·
+ * rounds 순서 등) 형식 위반은 기록 시점(`review record`·`accept-risk`)이 이미 거절하므로 gate에서는 뺀다.
+ * id 자리는 `.+`다 — id 없는 finding은 `(no id)`(공백 포함)로 찍힌다.
+ *
+ * @param {string} message - `collectFindingFailures`의 메시지 한 건
+ * @returns {boolean} gate 실패로 남겨야 하면 true, 형식 메시지라 뺄 수 있으면 false
+ */
+function isBlockingReviewFailure(message: string): boolean {
+  return /^\S+ finding .+ open in accepted review$/.test(message)
+    || /^\S+ accepted with open must_fix .+$/.test(message)
+    || /^\S+ findings must be an array$/.test(message)
+    || /^\S+ finding .+ status invalid: .*$/.test(message)
+    || /^\S+ finding .+ actionability (invalid|missing)$/.test(message);
+}
+
 export type {
   FailureEntry, BlueprintRels, BlueprintDocs, VerifyLedgerRecord, GateDeps,
-  ApprovalRead, PlanSnapshotResult, GateContext, CheckGateOpts, GateStageCtx,
+  ApprovalRead, GateContext, CheckGateOpts, GateStageCtx,
 };
 export {
   toGateContext, asData, gitExec, lastReviewHead, firstStderrLine, sameCanonical,
+  isBlockingReviewFailure,
 };

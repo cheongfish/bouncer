@@ -142,14 +142,14 @@ a file, or a gate result.
 
 ### Out of judgment
 
-Path existence (Modify, Delete, and Rename sources) is judged by plan gate G25,
+Path existence (Modify, Delete, and Rename sources) is not a reviewer finding,
 and sentence quality belongs to the authoring-stage stop-slop check
 (advisory). Do not report a finding on path existence or sentence quality
 alone.
 
 OKF fields (`type`, `title`, `resource`, `tags`, `timestamp`, `bouncer.id` /
 `epic_id` / `blueprint_id`) and document `bouncer.status` are excluded — gates
-already check those. Do not re-litigate G1–G5 / G10–G12.
+already check those. Do not re-litigate G1–G5.
 
 ## Calibration (severity)
 

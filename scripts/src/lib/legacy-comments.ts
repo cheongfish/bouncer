@@ -8,7 +8,7 @@ const { epicDirOf, toPosix } = paths;
 
 /**
  * blueprint 디렉터리 아래 .md를 재귀로 모은다.
- * 디렉터리가 없으면 빈 목록을 돌려 G22를 만들지 않는다 — 그 부재는 G2·G3이 판정한다.
+ * 디렉터리가 없으면 빈 목록을 돌려 판정을 만들지 않는다 — 그 부재는 G2·G3이 판정한다.
  *
  * @param {string} absDir - 절대 경로 디렉터리
  * @param {string} repoRoot - 저장소 루트 절대 경로

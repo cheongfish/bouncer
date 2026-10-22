@@ -6,7 +6,7 @@
 /**
  * 두 경로가 같거나 한쪽이 다른 쪽의 조상 디렉터리인지 판정한다.
  * 디렉터리 prefix도 교차로 본다. `scripts/` 금지가 `scripts/lib/x.js`를
- * 통과시키면 G12가 파일 단위 affected_paths를 놓친다.
+ * 통과시키면 scope 충돌 판정이 파일 단위 affected_paths를 놓친다.
  *
  * @param {string} a - 한쪽 경로(`./`·trailing `/`는 호출자가 미리 정규화한다)
  * @param {string} b - 다른 쪽 경로

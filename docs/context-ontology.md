@@ -3,7 +3,7 @@
 `bouncer ontology`는 `.bouncer/context`의 문서를 매 조회 메모리에서 색인해 정확한 엔티티·파일 일치와 한 단계 영향 후보를 JSON으로 출력하는 읽기 전용 명령이다. 색인이나 캐시 파일은 만들지 않는다.
 
 ```sh
-bouncer ontology entity --entity G10
+bouncer ontology entity --entity G5
 bouncer ontology file --file src/cli.ts --repo /path/to/checkout --limit 10
 bouncer ontology impact --file docs/context-ontology.md
 ```

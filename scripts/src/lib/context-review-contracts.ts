@@ -18,7 +18,7 @@ export type Cycle = {
   latest_dispatch: Ref;
 };
 // closure_target_digest: close·accepted record가 인증한 계획 snapshot digest(64 lowercase hex).
-// G18이 마지막 round digest보다 먼저 비교하는 값이다. 이 필드가 없는 과거 state는 round digest로 폴백한다.
+// 기록 검사가 마지막 round digest보다 먼저 비교하는 값이다. 이 필드가 없는 과거 state는 round digest로 폴백한다.
 // dispositions는 close 전이만 남긴다 — accepted record는 처분 파일 없이 round 보고로 닫기 때문이다.
 export type Closure = { dispositions?: Ref; accept_risk: string[]; closure_target_digest?: string };
 export type State = {

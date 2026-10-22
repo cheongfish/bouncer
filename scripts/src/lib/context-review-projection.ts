@@ -61,15 +61,15 @@ function validateMarker(before: unknown, after: unknown, count: number): Fail | 
   return null;
 }
 
-// context-review.md `## Findings` 절 제목. validate-sections의 REVIEW_SECTION_DEFS(G18이 읽는 정의)와
-// 같은 별칭을 받아야 재작성한 절을 게이트가 같은 절로 인식한다.
+// context-review.md `## Findings` 절 제목. validate-sections의 REVIEW_SECTION_DEFS(기록 검사가 읽는 정의)와
+// 같은 별칭을 받아야 재작성한 절을 검사가 같은 절로 인식한다.
 const FINDINGS_HEADING_RE = /^##\s+(Findings|발견사항|리뷰\s*결과)\s*$/i;
 // plan 스킬이 print dispatch 실패 증거로 `## Findings`에 적는 줄의 접두. 재작성 때 보존한다.
 const INLINE_EVIDENCE_PREFIX = '- inline context review:';
 
 /**
  * 투영 finding 목록을 `## Findings` 본문 줄로 만든다. 없으면 `- none` 한 줄이다.
- * G18은 목록 내용을 보지 않지만 사람이 읽는 증적이라 finding마다 한 줄씩 남긴다.
+ * 기록 검사는 목록 내용을 보지 않지만 사람이 읽는 증적이라 finding마다 한 줄씩 남긴다.
  *
  * @param {Finding[]} findings - 닫힌 cycle의 projection.findings
  * @returns {string[]} 목록 줄들
@@ -86,7 +86,7 @@ function findingLines(findings: Finding[]): string[] {
 /**
  * 본문의 `## Findings` 절만 생성 목록으로 바꾼다. 절 안의 `- inline context review:` 줄은
  * 원래 순서로 목록 앞에 남기고, 절 밖 바이트와 절 끝의 빈 줄은 그대로 둔다. 절이 없으면
- * 본문 끝에 새로 붙인다(G18이 제목 존재를 요구하므로 문서가 이 절 없이 닫히면 안 된다).
+ * 본문 끝에 새로 붙인다(기록 검사가 제목 존재를 요구하므로 문서가 이 절 없이 닫히면 안 된다).
  * 이미 생성된 절에 다시 적용해도 결과가 같아 재실행이 멱등이다.
  *
  * @param {string} body - frontmatter 뒤 본문
@@ -135,7 +135,7 @@ function projectClosureDoc(
   cr.rounds = JSON.parse(JSON.stringify(projection.rounds));
   cr.findings = JSON.parse(JSON.stringify(projection.findings));
   // runtime closure와 같은 값을 frontmatter에 투영한다. 과거 closed state는 digest가 없으므로
-  // 그 경우 기존 값을 건드리지 않아 G18이 round digest 폴백으로 판정하게 둔다.
+  // 그 경우 기존 값을 건드리지 않아 기록 검사가 round digest 폴백으로 판정하게 둔다.
   if (closureTargetDigest !== undefined) cr.closure_target_digest = closureTargetDigest;
   bouncer.context_review = cr;
   const body = rewriteFindingsSection(parsed.body, findingLines(projection.findings));

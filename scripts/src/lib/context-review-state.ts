@@ -35,7 +35,7 @@ const {
 
 // 계획 리뷰 cycle의 단일 writer. 전체 재시작을 누적 1회로 제한하고, 재시작이
 // 이전 finding을 지우지 못하게 archive로 보관한다. cycle을 닫는 전이(close, record --status accepted)만
-// context-review.md에 투영을 기록하고 execute review.md는 쓰지 않는다. 기록 성공이 곧 plan gate(G18)
+// context-review.md에 투영을 기록하고 execute review.md는 쓰지 않는다. 기록 성공이 곧 plan gate
 // 전체 통과는 아니다(다른 문서와 신선도는 게이트가 본다).
 
 const RESTART_LIMIT = 1;
@@ -422,7 +422,7 @@ function recordReport(input: {
 
 /**
  * 마지막 round 뒤 남은 finding 처분을 사용자 동의(--accept-risk·note)와 함께 기록해 cycle을 닫는다.
- * 닫힌 cycle은 restart할 수 있고, accepted-risk must_fix는 G18에서 미해결로 세지 않는다.
+ * 닫힌 cycle은 restart할 수 있고, accepted-risk must_fix는 미해결로 세지 않는다.
  * dispositions를 immutable 파일로 먼저 저장하고 state 교체가 마지막이라, 어느 단계에서
  * 실패해도 기존 state는 유지된다. 같은 전이 키의 재요청은 no-op이다.
  *

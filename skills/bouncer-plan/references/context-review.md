@@ -121,14 +121,14 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    Leave `context-review` unaccepted until then. Run `bouncer context-review close`
    only after explicit user approval. `close` and `record --status accepted`
    certify the current snapshot: they store `closure_target_digest` in the
-   runtime closure and in `context-review.md`, which plan gate G18 compares
+   runtime closure and in `context-review.md`, which the record checks compare
    first (an older document without it falls back to the last round digest).
    If plan documents are modified after closing the cycle, rerun
    `bouncer review-dispatch plan --previous <stored-latest.json>` and
    `bouncer context-review route`: `close` re-certifies a body-only edit,
    `delta` or `restart` follow the contract or structure change as below.
 
-When the plan gate reports `context review is stale`, rerun
+When the plan documents changed after the last review (a stale snapshot), rerun
 `bouncer review-dispatch plan --blueprint <dir> --previous <stored-latest-payload.json>`,
 save that JSON, and run `bouncer context-review route --blueprint <dir> --dispatch <json>`.
 It is read-only, derives `follow_up` from the payload and prints `next_action`

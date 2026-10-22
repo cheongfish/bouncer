@@ -20,7 +20,7 @@ const { computeSourceDigest } = verification;
 import approvalSnapshot = require('./approval-snapshot');
 const { computeApprovalDigest, diffApprovalParts } = approvalSnapshot;
 import {
-  asData, gitExec, firstStderrLine, sameCanonical, toGateContext,
+  asData, gitExec, firstStderrLine, sameCanonical, toGateContext, isBlockingReviewFailure,
 } from './validate-gates-shared';
 import type {
   ApprovalRead, BlueprintRels, FailureEntry, GateContext, GateDeps, GateStageCtx,
@@ -360,9 +360,8 @@ function checkExecuteGate(stage: GateStageCtx): void {
     ? reviewMetaBouncer.review as Record<string, unknown> | undefined
     : undefined;
   const reviewSkipped = reviewMeta && reviewMeta.required === false;
-  // G14는 execute status(deferred 포함)와 선택적 rounds[]를 검사한다.
-  // G18은 CONTEXT_REVIEW_STATUS와 context namespace를 넘긴다 — 같은 헬퍼라도
-  // 계획 문서에는 deferred를 열지 않고, round 원장은 digest target 계약으로만 연다.
+  // G14는 execute status(deferred 포함)를 넘겨 실질 판정(열린 finding·must_fix, 깨진 enum)만 남긴다.
+  // 형식 위반은 review record·accept-risk가 기록 시점에 거절하므로 gate는 막지 않는다.
   // G8의 accepted/required 판정은 그대로 둔다.
   if (!blueprintReviewMode && !isVerificationTask && reviewDoc && !reviewSkipped) {
     for (const message of collectFindingFailures({
@@ -373,7 +372,7 @@ function checkExecuteGate(stage: GateStageCtx): void {
       findingLabel: 'review',
       allowedStatuses: EXECUTE_REVIEW_STATUS,
       reviewStatus: statusOf(reviewDoc),
-    })) {
+    }).filter(isBlockingReviewFailure)) {
       addUnit('G14', message, 'review');
     }
   }

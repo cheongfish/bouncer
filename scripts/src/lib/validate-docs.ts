@@ -134,7 +134,7 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }: {
     verification: `${bp}/verification.md`,
     review: `${bp}/review.md`,
     explain: `${bp}/explain.md`,
-    // BP 단위 슬롯. plan 게이트 G18이 이 문서를 판정한다. 슬롯이 없으면
+    // BP 단위 슬롯. context review 기록 검사가 이 문서를 판정한다. 슬롯이 없으면
     // 문서가 로드되지 않아 checkStructural/S19가 이 파일을 보지 못한다.
     contextReview: `${bp}/context-review.md`,
   };
@@ -151,7 +151,7 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }: {
         const { data, body } = readDoc(abs);
         docs[key] = { data, body, rel };
         // context_review.closure_target_digest는 64 lowercase hex만 구조상 유효하다. 틀린 값은
-        // 현재 내용으로 대체 인증하지 않고 구조 오류로 남겨 G18이 stale로 통과시키지 못하게 한다.
+        // 현재 내용으로 대체 인증하지 않고 구조 오류로 남겨 stale 값이 통과하지 못하게 한다.
         if (key === 'contextReview' && !isValidClosureDigestField(data)) {
           parseErrors.push({
             code: 'S0',

@@ -142,13 +142,13 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
   `bouncer scaffold blueprint --scale light`로 blueprint `index.md`,
   `tasks/001/{tasks,verification}.md`, 루트 `review.md`만 만듭니다.
   `context-review.md`가
-  없으니 계획 문서 판정 단계도, plan 게이트의 G18도 없습니다. task 본문은
-  Goal & intent·Touch·Checklist 셋만 쓰면 G10을 통과하고, `affected_paths`
-  확정과 G5·G11·G12는 일반 경로와 똑같이 받습니다. `review_scope`가 없으면 기존처럼 `tasks/<NNN>/{tasks,verification,review}.md`를 씁니다.
+  없으니 계획 문서 판정 단계도 없습니다. task 본문은
+  Goal & intent·Touch·Checklist 셋만 쓰는 작성 규칙을 따르고, `affected_paths`
+  확정과 G5는 일반 경로와 똑같이 받습니다. `review_scope`가 없으면 기존처럼 `tasks/<NNN>/{tasks,verification,review}.md`를 씁니다.
 - **full로 돌아가려면** blueprint `index.md`의 `bouncer.scale`을 `full`로
   되돌리고, `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를
   만든 뒤 task에 Interface·Do not touch 절을 채웁니다. 그 다음 plan 게이트를
-  다시 돌리면 G18과 다섯 절이 함께 요구됩니다.
+  다시 돌리면 판정 문서와 다섯 절을 쓰는 일반 경로가 됩니다.
 - **마감한 blueprint는 잠깁니다.** `finalize --yes` 뒤 `closed` blueprint에는
   task를 다시 붙이지 않습니다. 후속 작업은 `/bouncer-plan`으로 별도 blueprint를
   계획합니다.

@@ -11,22 +11,22 @@ const { pathsOverlap } = pathOverlapMod;
 const { toPosix } = paths;
 
 // 본문 파싱 층. 게이트(G)와 구조(S)가 같은 heading/경로 규칙을 보게 여기만 둔다.
-// 상위 모듈이 각자 정규식을 가지면 G10과 G16의 "비어 있음"이 어긋난다.
+// 상위 모듈이 각자 정규식을 가지면 G16 등 소비자의 "비어 있음" 판정이 어긋난다.
 // 이 파일은 형제 validate-*.ts를 require하지 않는다 — 의존 방향의 맨 아래층.
 
 type SectionDef = { key: string; re: RegExp };
 
 const SECTION_DEFS: SectionDef[] = [
   { key: 'goal', re: /^##\s+(Goal\s*&\s*intent|목적[·・.]?의도)\s*$/i },
-  // 선택 절: G10 필수 목록에는 없지만 경계로 등록한다. def가 없으면
+  // 선택 절: 필수 목록에는 없지만 경계로 등록한다. def가 없으면
   // Goal & intent에 흡수되어 placeholder 검사가 goal로만 보고된다.
   { key: 'currentBehavior', re: /^##\s+(Current\s+behavior|현재\s*동작)\s*$/i },
   { key: 'targetBehavior', re: /^##\s+(Target\s+behavior|목표\s*동작)\s*$/i },
   { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },
   { key: 'touch', re: /^##\s+(Touch|수정할\s*부분)\s*$/i },
   { key: 'doNotTouch', re: /^##\s+(Do\s+not\s+touch|절대\s*수정\s*금지)\s*$/i },
-  // 경계로 파싱하지만 G10 필수 목록에는 없음: 여기에 def가 없으면 해당 본문이
-  // Do not touch에 흡수되어 G12 path overlap을 잘못 만들어 냄.
+  // 경계로 파싱하지만 필수 목록에는 없음: 여기에 def가 없으면 해당 본문이
+  // Do not touch에 흡수되어 path overlap을 잘못 만들어 냄.
   { key: 'constraints', re: /^##\s+(Constraints|제약)\s*$/i },
   { key: 'checklist', re: /^##\s+(Checklist|체크리스트)\s*$/i },
 ];
@@ -41,7 +41,7 @@ const REVIEW_SECTION_DEFS: SectionDef[] = [
 ];
 const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
 // context review는 기존 두 값만 유지한다. execute만 deferred를 추가한다 —
-// 한 배열을 공유하면 G18이 후속 이연을 계획 문서에 허용하게 된다.
+// 한 배열을 공유하면 context review 기록이 후속 이연을 계획 문서에 허용하게 된다.
 // `open`(해결 전)도 execute 전용이다. repair wave에서 coordinator가 해결 전 must_fix를
 // 기록할 값이며 note를 요구하지 않는다(NOTE_REQUIRED_STATUS에 넣지 않는다).
 const CONTEXT_REVIEW_STATUS = ['resolved', 'accepted'];
@@ -65,7 +65,7 @@ const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
 // 목록 본체는 review-policy 정본이며 코디네이터의 worker-model 검사도 같은 값을 쓴다.
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 // adaptive Plan은 combined·local·global을 쓰되, legacy 네 관점 round도 읽는다.
-// execute 관점과 이름을 섞지 않아야 G18이 diff 리뷰 원장을 계획 원장으로 오인하지 않는다.
+// execute 관점과 이름을 섞지 않아야 context review 기록 검사가 diff 리뷰 원장을 계획 원장으로 오인하지 않는다.
 const CONTEXT_REVIEW_PERSPECTIVE = [
   'combined',
   'local',
@@ -135,7 +135,7 @@ const CONTEXT_ROUND_CONTRACT: RoundContract = {
   counters: false,
 };
 
-// G10과 동일한 비어 있음 계약: 제목은 있고, comment-strip 후 본문이 있어야 함.
+// 필수 절 파서와 동일한 비어 있음 계약: 제목은 있고, comment-strip 후 본문이 있어야 함.
 // comprehension module이 어떤 section이 있는지 SSOT가 되도록 key는
 // EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
 const EXPLAIN_SECTION_HEADINGS: SectionDef[] = [
@@ -191,7 +191,7 @@ function parseExplainSections(body: unknown): Record<string, string | null> {
 }
 
 // Touch/Do-not-touch는 백틱 경로와 민줄 경로를 섞어 쓴다. 한쪽만 모으면
-// G11(Touch 근거) / G12(금지 교차)가 표기 차이로 빗나간다.
+// Touch 근거·금지 경로 교차 판정이 표기 차이로 빗나간다.
 function extractPathCandidates(text: unknown): string[] {
   const raw = typeof text === 'string' ? text : '';
   const found = new Set<string>();
@@ -207,49 +207,6 @@ function extractPathCandidates(text: unknown): string[] {
     found.add(p);
   }
   return [...found];
-}
-
-type TouchRow = {
-  change: 'Create' | 'Modify' | 'Delete' | 'Rename';
-  path: string;
-  renameTo: string | null;
-};
-const TOUCH_CHANGES: readonly string[] = ['Create', 'Modify', 'Delete', 'Rename'];
-
-/**
- * Touch 절의 Markdown 표 행을 `변경` 열 기준으로 읽는다. G25가 "어느 경로를 수정·삭제·
- * 이름 변경하는가"를 판정하려면 경로 후보만 모으는 extractPathCandidates로는 부족하다.
- * 머리행·구분행, `변경` 값이 네 값 밖인 행, 표가 아닌 줄(bullet Touch)은 조용히 건너뛴다 —
- * 형식 판정은 G10·S 코드의 몫이고 여기서 실패로 만들면 기존 문서가 막힌다.
- *
- * @param {string} touchText - parseTasksSections(body).touch 본문
- * @returns {TouchRow[]} 행 순서대로의 `{ change, path, renameTo }`. Rename은 경로 칸을
- *   `→`로 나눠 path=old, renameTo=new로 두고, `→`가 없으면 renameTo는 null이다
- */
-function parseTouchRows(touchText: unknown): TouchRow[] {
-  const rows: TouchRow[] = [];
-  const norm = (cell: string): string =>
-    toPosix(cell.replace(/`/g, '').trim()).replace(/^\.\//, '');
-  for (const line of (typeof touchText === 'string' ? touchText : '').split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('|')) continue;
-    const cells = trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
-    const change = cells[2];
-    if (cells.length < 3 || !TOUCH_CHANGES.includes(change)) continue;
-    const [first, second] = cells[0].split('→');
-    const rowPath = norm(first);
-    if (!rowPath) continue;
-    const renameTo = change === 'Rename' && second !== undefined && norm(second) ? norm(second) : null;
-    rows.push({ change: change as TouchRow['change'], path: rowPath, renameTo });
-  }
-  return rows;
-}
-
-function pathJustifiedByTouch(ap: string, touchText: string): boolean {
-  if (touchText.includes(ap)) return true;
-  return extractPathCandidates(touchText).some(
-    (c) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`),
-  );
 }
 
 function isPositiveInteger(value: unknown): boolean {
@@ -426,7 +383,7 @@ function missingFindingField(record: Record<string, unknown>, field: string): bo
  * 리뷰 finding 형식 실패를 모은다. 본문 판정 문장은 읽지 않는다 —
  * heading 존재와 id/severity/status/note, 그리고 선택적 rounds[]만 본다.
  *
- * G14와 G18이 헬퍼를 공유하되 allowedStatuses로 계약을 가른다. 한 배열을
+ * execute review(G14)와 context review 기록이 헬퍼를 공유하되 allowedStatuses로 계약을 가른다. 한 배열을
  * 쓰면 deferred가 계획 문서에 새거나, execute가 기존 resolved/accepted를
  * 잃는다. findings가 있는데 배열이 아니면 []로 떨어뜨리지 않는다. 빈 배열과
  * 같게 취급하면 형식 위반이 통과한다. 부재(undefined/null)만 빈 목록으로 본다.
@@ -487,7 +444,7 @@ function collectFindingFailures({
     }
     // open은 accepted 문서에 남을 수 없다. actionability·mode 유무와 무관해야 하므로
     // modeContract 블록 밖에서 본다(mode 없는 구문서와 advisory도 같은 답을 낸다).
-    // G18은 reviewStatus를 넘기지 않고 open을 status invalid로 먼저 거절한다.
+    // context review 기록 검사는 reviewStatus를 넘기지 않고 open을 status invalid로 먼저 거절한다.
     if (reviewStatus === 'accepted' && rec && rec.status === 'open') {
       messages.push(`${findingLabel} finding ${id} open in accepted review`);
     }
@@ -528,7 +485,7 @@ function collectFindingFailures({
       if (!(FINDING_ORIGIN as readonly unknown[]).includes(rec.origin)) {
         messages.push(`${findingLabel} finding ${id} origin invalid`);
       }
-      // context namespace(G18)는 reviewStatus 인자가 생략되더라도 게이트 진입 조건에서 이미 status=accepted를
+      // context namespace는 reviewStatus 인자가 생략되더라도 게이트 진입 조건에서 이미 status=accepted를
       // 확인하므로 accepted 검사를 적용한다. execute(G14)는 reviewStatus === 'accepted'일 때 검사한다.
       // context namespace에서만 명시적 사용자 동의가 반영된 accepted_risk: true(비어 있지 않은 note 필수)를
       // 예외로 인정하며, execute namespace에서는 accepted_risk를 인정하지 않는다.
@@ -700,9 +657,7 @@ export = {
   parseTasksSections,
   parseExplainSections,
   extractPathCandidates,
-  parseTouchRows,
   pathsOverlap,
-  pathJustifiedByTouch,
   findingFingerprint,
   findingAutoId,
   normalizeFinding,

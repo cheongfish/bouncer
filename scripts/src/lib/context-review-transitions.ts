@@ -88,7 +88,7 @@ function projectClosure(findings: Finding[], acceptRisk: string[]): Finding[] | 
       'resolve open findings or record explicit user-approved accepted-risk with note');
   }
   // 통과한 finding 중 사용자 동의가 명시된 accepted must_fix에만 accepted_risk: true 표식을 붙인다.
-  // 사람이 손으로 붙인 값은 배제하고 CLI projection에서만 부여해 G18 판정에 넘긴다.
+  // 사람이 손으로 붙인 값은 배제하고 CLI projection에서만 부여해 기록 판정에 넘긴다.
   return findings.map((f) => {
     if (f.status === 'accepted' && f.actionability === 'must_fix' && risky.has(f.id as string)) {
       return { ...f, accepted_risk: true };

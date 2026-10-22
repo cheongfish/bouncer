@@ -147,7 +147,7 @@ The only complete mode sequences are `discovery`, `discovery → delta`, and the
 drive-only recovery sequence `discovery → delta → critical_recovery → delta`.
 The blueprint final review (`review_scope: blueprint`) is a single `discovery`
 round for new records. A stored `discovery → delta → delta` history is still
-read and passes G21, but no new root delta is recorded; task reviews keep the
+read-compatible, but no new root delta is recorded; task reviews keep the
 sequences above.
 An `advisory` is recorded once as `accepted` or `deferred` with a note; it never
 opens another implementer dispatch. Do not classify a current-task accuracy

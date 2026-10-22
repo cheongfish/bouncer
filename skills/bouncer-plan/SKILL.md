@@ -209,7 +209,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    check `scale === 'light'`.
    **Light authoring scope.** Fill only Goal & intent, Touch, and Checklist in
    light task bodies — the template has no Interface or Do not touch headings
-   and G10 requires only those three. Needing a public interface, a protected path,
+   and those three are the only required sections. Needing a public interface, a protected path,
    an error contract, or state changes across multiple modules signals a return to
    full: set `scale` back, run `bouncer scaffold context-review --blueprint <dir>`,
    fill Interface and Do not touch, and rejoin the normal path.
@@ -258,11 +258,11 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
 
 5. **Review.** **Skip this entire step when the blueprint's
    `bouncer.scale` is `light`** — that blueprint has no `context-review.md`
-   (scaffold does not create one) and the plan gate applies no G18 to it. Do
+   (scaffold does not create one). Do
    not scaffold the document just to run the judgment, and do not substitute a
    lighter inline review or an empty accepted `context-review.md`; go to step
    6. Light matches CLI `strategy: skip` — do not invent reviewer calls. On a
-   light plan the user's `affected_paths` confirmation and G3–G5 / G10–G12
+   light plan the user's `affected_paths` confirmation and and G3–G5
    carry approved scope.
 
    For a `scale: full` blueprint, after `affected_paths` confirmation, read: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`; its strategy is always `single` (one `combined` reviewer; older `clustered` payloads are only read). Follow-ups, routing, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or digest mismatch, stop without reviewers and report. Behavioral brief: the `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while an actionable finding remains unresolved. An open `must_fix` after delta stops for the user; accepted-risk needs explicit user consent.
@@ -294,9 +294,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    and G19 task-DAG integrity (missing / self / duplicate / cycle), plus G20
    verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
-   cause, path, and recovery action. On G18 `context review is stale`, do not
-   fix it in this loop: return to step 5 and follow the reference's stale
-   recovery, then re-run steps 7 and 8 after the step 6 re-approval.
+   cause, path, and recovery action.
    Then point the user at `/bouncer-run` — it
    drives implement, verify, review, and task commit until the blueprint's tasks run out, and
    `config.autonomy` (`auto` | `interactive`) already decides how often they are

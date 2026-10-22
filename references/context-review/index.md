@@ -18,13 +18,13 @@ the agent returns its Findings schema without taking record or status actions.
 **Full plans only.** This skill owns the `context-review.md` rubric, and that
 document exists only on a blueprint whose `bouncer.scale` is absent or `full`.
 `bouncer scaffold blueprint --scale light` does not create it, `/bouncer-plan`
-does not dispatch this judgment there, and the plan gate applies no G18 to a
+does not dispatch this judgment there on a
 light blueprint — so there is no light variant of this rubric to run and no
 lighter judgment to substitute. If a light plan needs this judgment, the answer
 is to set `scale` back to `full` and scaffold the document
 (`bouncer scaffold context-review --blueprint <dir>`), not to review without one.
 On a light plan, approved scope rests on the user's confirmation of
-`affected_paths` and on G3–G5 / G10–G12.
+`affected_paths` and on G3–G5.
 
 ## Steps
 
@@ -52,7 +52,7 @@ On a light plan, approved scope rests on the user's confirmation of
    is kept as given. The record result's `finding_ids` lists that round's
    normalized ids, and close and noop projections repair earlier wrong
    fingerprints without changing the stored report bytes.
-   A complete `bouncer.context_review` record that passes G18 is printed by
+   A complete `bouncer.context_review` record that passes the record checks is printed by
    `bouncer review-dispatch --help`; copy the digest from the `target.digest` of
    `review-dispatch plan` instead of computing it.
    Also record
@@ -63,10 +63,10 @@ On a light plan, approved scope rests on the user's confirmation of
    `target_digest` equal to `target.digest`, and `severity_changes`. The mode
    order is `discovery` or `discovery → delta`; there is no critical recovery
    and no `deferred` status. On a blueprint whose execution has not started,
-   plan gate G18 compares the closure `closure_target_digest` (64 lowercase
+   the record checks compare the closure `closure_target_digest` (64 lowercase
    hex, written by `close` and an accepted record) with the current snapshot
    digest, and falls back to the last round `target.digest` when the document
-   has none. A document without `rounds` keeps the earlier G18 contract. Mark the context review accepted only when no actionable finding
+   has none. A document without `rounds` keeps the earlier contract. Mark the context review accepted only when no actionable finding
    remains unresolved (every finding `resolved`, or `accepted` with a note).
 
 3. **Judge** — In `discovery`, the controller first runs
@@ -77,8 +77,8 @@ On a light plan, approved scope rests on the user's confirmation of
    `review_risk` marking, and red assertions, and also epic→blueprint→tasks and
    cross-task consistency, the Contract storage
    location and state ownership check, shared paths and DAG, and epic
-   success-criteria coverage. Path existence is judged by plan gate G25 and
-   sentence quality by stop-slop; neither is a reviewer finding. Legacy
+   success-criteria coverage. Path existence is not a reviewer judgment and
+   sentence quality belongs to stop-slop; neither is a reviewer finding. Legacy
    perspective names `cross_document | scope | korean_quality |
    success_criteria` and recorded `local` / `global` rounds are only read. The call judges its
    assigned perspective and

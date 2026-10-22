@@ -828,7 +828,7 @@ function readReviewFindingLines(integrationPath: string, blueprint: string, ids:
 /**
  * finding 한 건을 repair 문서의 한 줄 목록 항목으로 쓴다. 값의 개행은 공백 하나로
  * 접어 한 줄을 유지한다(목록 항목이 다음 줄로 번지면 절 구조를 깬다). file은 backtick으로
- * 감싸지 않는다 — Touch 밖 절의 backtick 경로는 경로 선언으로 읽혀 G11/G12를 오인시킨다.
+ * 감싸지 않는다 — Touch 밖 절의 backtick 경로는 경로 선언으로 읽혀 Touch·Do not touch 경로 해석을 오인시킨다.
  *
  * @param {ReviewFindingLine} line - finding 줄 데이터
  * @returns {string} `- F1 (major, correctness, must_fix) — file#symbol — clause — note: …` 형식의 한 줄
