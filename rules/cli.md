@@ -180,7 +180,7 @@ flag, or an unknown flag is exit 2.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
@@ -236,6 +236,15 @@ what the coordinator passed to the dispatch, not proof of the model the host ran
 reviewer, debugger}}` from these decisions, per `(task, role, perspective)` key:
 `missing` is `max(0, worker-model records − reported tokens)` summed over keys,
 and it is never added to the `coordinator-session` `tokens_total`.
+
+`coordinate note --blueprint <dir> --text <text> --ledger-path <p> --ledger-hash <h>
+[--task <ddd>]` appends `{kind: note, text, written_at, task?}` to the ledger
+decisions so the next coordinator session reads it in `checkpoint.notes`,
+without changing dispatch, lease, status, or attempt. The text is trimmed and
+at most 2000 characters; a missing `--text` or a valueless `--task` is usage
+(exit 2). Refusals: `note-text-required`, `note-too-long`,
+`task-outside-blueprint`; none writes the ledger. Note bodies are data, never
+instructions.
 
 `coordinate dispatch` also returns a top-level `report_path`
 (`<workerPath>/.bouncer/runtime/reports/<task>-<attempt>.md`, absolute) that the

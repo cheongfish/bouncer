@@ -9,6 +9,9 @@
 
 ### Added
 
+- **`coordinate note` CLI와 coordinator 인계 절차** — `bouncer coordinate note --text <text> [--task <ddd>]`를
+  fence 명령으로 등록하고 help·`rules/cli.md`에 추가했다. coordinator는 `continue`·`blocked`를 돌려주기 전에
+  다음 세션에 넘길 판단을 note로 남기고, 세션 시작 시 checkpoint의 `notes`를 읽는다.
 - **`coordinate reverify` CLI** — `bouncer coordinate reverify --task <terminal>`을 fence 명령으로 등록하고 help와
   terminal 실패 복구 안내에 추가했다. 환경만 고쳤다면 `reverify`, 코드가 바뀌어야 하면 `repair`를 쓴다.
 - **복합 gate 실패 출력** — `bouncer validate`가 G-code 실패를 복합 gate 7개로 요약한 `gates[]`를 싣고,
