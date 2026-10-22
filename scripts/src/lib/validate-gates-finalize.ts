@@ -15,7 +15,7 @@ const { executionKindOf } = schema;
 import { validOutsideScope } from './execution-contracts';
 import { defaultCoordinatorLedgerFor } from './validate-gates-run';
 import {
-  asData, gitExec, lastReviewHead, firstStderrLine, toGateContext,
+  asData, gitExec, lastReviewHead, firstStderrLine, toGateContext, isBlockingReviewFailure,
 } from './validate-gates-shared';
 import type {
   BlueprintDocs, BlueprintRels, FailureEntry, GateContext, GateStageCtx,
@@ -127,7 +127,8 @@ function checkG21(
     reviewStatus: statusOf(reviewDoc),
     // blueprint 최종 리뷰는 repair wave마다 delta를 기록하므로 전용 순서 계약을 쓴다.
     roundScope: 'blueprint',
-  })) {
+  }).filter(isBlockingReviewFailure)) {
+    // 형식 위반은 기록 시점이 거절하므로 실질 판정만 G21로 남긴다.
     add(message);
   }
   if (!head) return;

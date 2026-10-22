@@ -311,7 +311,7 @@ test('execute gate G14 with accepted must_fix and accepted_risk: true → still 
   assert.ok(failures.some((f) => /review accepted with open must_fix F1/.test(f.message)));
 });
 
-test('execute gate G14 → accepts combined perspective and still rejects bad target', () => {
+test('execute gate G14 → accepts combined perspective and a bad target → no G14', () => {
   assert.deepStrictEqual(executeReviewFailures({
     findings: [convergenceFinding()],
     rounds: [convergenceRound({ perspectives: [{ name: 'combined', target_head: 'head-sha' }] })],
@@ -320,7 +320,7 @@ test('execute gate G14 → accepts combined perspective and still rejects bad ta
     findings: [convergenceFinding()],
     rounds: [convergenceRound({ perspectives: [{ name: 'combined', target_head: 'other' }] })],
   });
-  assert.ok(mismatch.some((f) => /round 1 target mismatch combined/.test(f.message)));
+  assert.deepStrictEqual(mismatch, []);
 });
 
 const VERIFY_BODY_OK = `# Verification
@@ -567,7 +567,7 @@ test('execute gate → accepts review with valid findings schema', () => {
   assert.deepStrictEqual(failures, []);
 });
 
-test('execute gate when accepted finding has no note → flags G14', () => {
+test('execute gate when accepted finding has no note → no G14', () => {
   const docs = {
     tasks: doc('verified'),
     verification: doc('passed', {}, VERIFY_BODY_OK),
@@ -577,10 +577,10 @@ test('execute gate when accepted finding has no note → flags G14', () => {
   };
   const failures = [];
   checkGate('execute', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G14'));
+  assert.ok(!failures.some((f) => f.code === 'G14'));
 });
 
-test('execute gate when review body lacks Findings heading → flags G14', () => {
+test('execute gate when review body lacks Findings heading → no G14', () => {
   const docs = {
     tasks: doc('verified'),
     verification: doc('passed', {}, VERIFY_BODY_OK),
@@ -588,7 +588,7 @@ test('execute gate when review body lacks Findings heading → flags G14', () =>
   };
   const failures = [];
   checkGate('execute', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G14'));
+  assert.ok(!failures.some((f) => f.code === 'G14'));
 });
 
 test('execute gate when review.required is false → skips G14', () => {
@@ -643,7 +643,7 @@ function convergenceRound(overrides = {}) {
   });
 }
 
-test('execute gate G14 stored target.snapshot_id → absent passes and malformed is rejected', () => {
+test('execute gate G14 stored target.snapshot_id → absent, valid and malformed all give no G14', () => {
   // 저장된 기록의 snapshot_id: 부재(과거 기록)는 통과, 있으면 64자 소문자 hex여야 한다.
   const legacyNoId = executeReviewFailures({ findings: [convergenceFinding()], rounds: [convergenceRound()] });
   assert.ok(!legacyNoId.some((f) => /snapshot_id/.test(f.message)));
@@ -657,12 +657,12 @@ test('execute gate G14 stored target.snapshot_id → absent passes and malformed
       findings: [convergenceFinding()],
       rounds: [convergenceRound({ target: { base: 'base-sha', head: 'head-sha', snapshot_id: bad } })],
     });
-    assert.ok(badId.some((f) => /round 1 target snapshot_id invalid/.test(f.message)), `bad id ${String(bad)}`);
+    assert.deepStrictEqual(badId, [], `bad id ${String(bad)}`);
   }
 });
 
 // 입력 보정은 record/close 경계에만 있다. 자동 id 형식이어도 수기로 틀린 fingerprint는 게이트가 거절한다.
-test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14가 계속 mismatch로 거절한다', () => {
+test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14를 내지 않는다', () => {
   const { normalizeFinding } = require('../scripts/lib/validate-sections');
   const withoutId = (f) => {
     const copy = { ...f };
@@ -675,8 +675,7 @@ test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14가 계속
   const tamperedExecute = executeReviewFailures({
     findings: [{ ...autoExecute, fingerprint: 'correctness:interface:src/a.ts#other' }], rounds: [convergenceRound()],
   });
-  assert.ok(tamperedExecute.some((f) => f.message === `review finding ${autoExecute.id} fingerprint mismatch`));
-
+  assert.deepStrictEqual(tamperedExecute, []);
 });
 
 test('findingFingerprint identity components → are normalized', () => {
@@ -686,51 +685,51 @@ test('findingFingerprint identity components → are normalized', () => {
   );
 });
 
-test('execute gate G14 → enforces the mode convergence contract', () => {
+test('execute gate G14 → format violations in the convergence contract give no G14, open must_fix still does', () => {
   const missing = executeReviewFailures({
     findings: [convergenceFinding({ first_seen_round: undefined })], rounds: [convergenceRound()],
   });
-  assert.ok(missing.some((f) => /finding F1 first_seen_round missing/.test(f.message)));
+  assert.deepStrictEqual(missing, []);
 
   const fingerprint = executeReviewFailures({
     findings: [convergenceFinding({ fingerprint: 'wrong' })], rounds: [convergenceRound()],
   });
-  assert.ok(fingerprint.some((f) => /finding F1 fingerprint mismatch/.test(f.message)));
+  assert.deepStrictEqual(fingerprint, []);
 
   const duplicate = executeReviewFailures({
     findings: [convergenceFinding(), convergenceFinding({ id: 'F2' })], rounds: [convergenceRound()],
   });
-  assert.ok(duplicate.some((f) => /duplicate fingerprint correctness:interface:src\/a\.ts#run/.test(f.message)));
+  assert.deepStrictEqual(duplicate, []);
 
   const namespace = executeReviewFailures({
     findings: [convergenceFinding({ fingerprint: 'context:correctness:interface:src/a.ts#run' })], rounds: [convergenceRound()],
   });
-  assert.ok(namespace.some((f) => /finding F1 fingerprint namespace invalid/.test(f.message)));
+  assert.deepStrictEqual(namespace, []);
 
   const enums = executeReviewFailures({
     findings: [convergenceFinding({ actionability: 'maybe', origin: 'guess' })], rounds: [convergenceRound()],
   });
   assert.ok(enums.some((f) => /finding F1 actionability invalid/.test(f.message)));
-  assert.ok(enums.some((f) => /finding F1 origin invalid/.test(f.message)));
+  assert.ok(!enums.some((f) => /finding F1 origin invalid/.test(f.message)));
 
   const target = executeReviewFailures({
     findings: [convergenceFinding()], rounds: [convergenceRound({ target: { base: 'base-sha' } })],
   });
-  assert.ok(target.some((f) => /round 1 target invalid/.test(f.message)));
+  assert.deepStrictEqual(target, []);
   const perspective = executeReviewFailures({
     findings: [convergenceFinding()], rounds: [convergenceRound({ perspectives: [{ name: 'style', target_head: 'head-sha' }] })],
   });
-  assert.ok(perspective.some((f) => /round 1 perspective invalid style/.test(f.message)));
+  assert.deepStrictEqual(perspective, []);
   const mismatch = executeReviewFailures({
     findings: [convergenceFinding()], rounds: [convergenceRound({ perspectives: [{ name: 'correctness_tests', target_head: 'other' }] })],
   });
-  assert.ok(mismatch.some((f) => /round 1 target mismatch correctness_tests/.test(f.message)));
+  assert.deepStrictEqual(mismatch, []);
 
   const sequence = executeReviewFailures({
     findings: [convergenceFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'introduced_by_revision' })],
     rounds: [convergenceRound({ mode: 'delta' }), convergenceRound({ round: 2, mode: 'discovery' })],
   });
-  assert.ok(sequence.some((f) => /rounds sequence invalid/.test(f.message)));
+  assert.deepStrictEqual(sequence, []);
 
   assert.deepStrictEqual(executeReviewFailures({
     findings: [convergenceFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'introduced_by_revision' })],
@@ -740,7 +739,7 @@ test('execute gate G14 → enforces the mode convergence contract', () => {
     findings: [convergenceFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'missed_critical' })],
     rounds: [convergenceRound(), convergenceRound({ round: 2, mode: 'delta' })],
   });
-  assert.ok(minorCritical.some((f) => /finding F1 delta origin not allowed/.test(f.message)));
+  assert.deepStrictEqual(minorCritical, []);
   assert.deepStrictEqual(executeReviewFailures({
     findings: [convergenceFinding({ severity: 'major', first_seen_round: 2, last_seen_round: 2, origin: 'missed_critical' })],
     rounds: [convergenceRound(), convergenceRound({ round: 2, mode: 'delta' })],
@@ -783,63 +782,63 @@ test('execute gate G14 → accepts deferred finding with note and a valid rounds
   assert.deepStrictEqual(g14, []);
 });
 
-test('execute gate G14 when deferred finding has no note → fails', () => {
+test('execute gate G14 when deferred finding has no note → no G14', () => {
   const g14 = executeReviewFailures({
     findings: [{ id: 'F4', severity: 'minor', status: 'deferred' }],
   });
-  assert.ok(g14.some((f) => /finding F4 deferred without note/.test(f.message)));
+  assert.deepStrictEqual(g14, []);
 });
 
-test('execute gate G14 when rounds is not an array → fails', () => {
+test('execute gate G14 when rounds is not an array → no G14', () => {
   const g14 = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: { round: 1 },
   });
-  assert.ok(g14.some((f) => /rounds must be an array/.test(f.message)));
+  assert.deepStrictEqual(g14, []);
 });
 
-test('execute gate G14 when rounds counts are negative or not integers → fails', () => {
+test('execute gate G14 when rounds counts are negative or not integers → no G14', () => {
   const negative = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ new: -1 })],
   });
-  assert.ok(negative.some((f) => /round 1 new invalid: -1/.test(f.message)));
+  assert.deepStrictEqual(negative, []);
   const nonInteger = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ resolved: 1.5 })],
   });
-  assert.ok(nonInteger.some((f) => /round 1 resolved invalid: 1\.5/.test(f.message)));
+  assert.deepStrictEqual(nonInteger, []);
 });
 
-test('execute gate G14 when rounds are duplicated or out of order → fails', () => {
+test('execute gate G14 when rounds are duplicated or out of order → no G14', () => {
   const duplicate = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ round: 1 }), roundEntry({ round: 1, previous_finding_ids: ['F1'] })],
   });
-  assert.ok(duplicate.some((f) => /rounds duplicate round: 1/.test(f.message)));
+  assert.deepStrictEqual(duplicate, []);
   const reversed = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ round: 2 }), roundEntry({ round: 1 })],
   });
-  assert.ok(reversed.some((f) => /rounds out of order/.test(f.message)));
+  assert.deepStrictEqual(reversed, []);
 });
 
-test('execute gate G14 when round types are invalid → fails', () => {
+test('execute gate G14 when round types are invalid → no G14', () => {
   const badRound = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ round: 0 })],
   });
-  assert.ok(badRound.some((f) => /rounds round invalid: 0/.test(f.message)));
+  assert.deepStrictEqual(badRound, []);
   const badIds = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: [roundEntry({ previous_finding_ids: [1] })],
   });
-  assert.ok(badIds.some((f) => /round 1 previous_finding_ids invalid/.test(f.message)));
+  assert.deepStrictEqual(badIds, []);
   const badEntry = executeReviewFailures({
     findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
     rounds: ['round-1'],
   });
-  assert.ok(badEntry.some((f) => /rounds entry invalid/.test(f.message)));
+  assert.deepStrictEqual(badEntry, []);
 });
 
 const EXPLAIN_BODY_OK = `# Explain
@@ -2414,17 +2413,17 @@ test('finalize G21 with rounds discovery,delta,delta → has no sequence failure
   assert.deepEqual(g21SequenceFailures(['discovery', 'delta', 'delta']), []);
 });
 
-test('finalize G21 with four rounds discovery,delta,delta,delta → is rounds sequence invalid', () => {
-  assert.equal(g21SequenceFailures(['discovery', 'delta', 'delta', 'delta']).length, 1);
+test('finalize G21 with four rounds discovery,delta,delta,delta → no G21', () => {
+  assert.equal(g21SequenceFailures(['discovery', 'delta', 'delta', 'delta']).length, 0);
 });
 
 test('finalize G21 with rounds discovery,delta,critical_recovery,delta → has no sequence failure', () => {
   assert.deepEqual(g21SequenceFailures(['discovery', 'delta', 'critical_recovery', 'delta']), []);
 });
 
-test('finalize G21 with rounds discovery,delta,delta,critical_recovery,delta → is rounds sequence invalid', () => {
+test('finalize G21 with rounds discovery,delta,delta,critical_recovery,delta → no G21', () => {
   assert.equal(
-    g21SequenceFailures(['discovery', 'delta', 'delta', 'critical_recovery', 'delta']).length, 1,
+    g21SequenceFailures(['discovery', 'delta', 'delta', 'critical_recovery', 'delta']).length, 0,
   );
 });
 
@@ -2439,9 +2438,8 @@ test('finalize G21 with deferred must_fix and note in accepted review → has no
   assert.deepEqual(g21FindingFailures(convergenceFinding({ status: 'deferred', note: 'carry forward' })), []);
 });
 
-test('finalize G21 with deferred must_fix without note in accepted review → is deferred without note', () => {
-  const failures = g21FindingFailures(convergenceFinding({ status: 'deferred' }));
-  assert.ok(failures.some((f) => /finding F1 deferred without note/.test(f.message)), JSON.stringify(failures));
+test('finalize G21 with deferred must_fix without note in accepted review → no G21', () => {
+  assert.deepStrictEqual(g21FindingFailures(convergenceFinding({ status: 'deferred' })), []);
 });
 
 test('finalize G21 with accepted_risk must_fix and note in accepted review → has no G21', () => {
@@ -2460,14 +2458,14 @@ test('finalize G21 with open must_fix in accepted review → is accepted with op
   assert.ok(failures.some((f) => /accepted with open must_fix F1|open in accepted review/.test(f.message)), JSON.stringify(failures));
 });
 
-test('execute gate G14 with task rounds discovery,delta,delta → is rounds sequence invalid', () => {
+test('execute gate G14 with task rounds discovery,delta,delta → no G14', () => {
   const failures = executeReviewFailures({
     findings: [],
     rounds: g21ModeRounds(['discovery', 'delta', 'delta']).map((r) => ({
       ...r, perspectives: [{ name: 'correctness_tests', target_head: 'deadbeef' }],
     })),
   });
-  assert.ok(failures.some((f) => /rounds sequence invalid/.test(f.message)), JSON.stringify(failures));
+  assert.deepStrictEqual(failures, []);
 });
 
 test('finalize G21 stale: no ledger → skips git and G21', () => {
@@ -2642,7 +2640,7 @@ test('without review_scope, pending task review → is still G8', () => {
   assert.ok(failures.some((f) => f.code === 'G8'));
 });
 
-test('without review_scope, accepted finding without note → is still G14', () => {
+test('without review_scope, accepted finding without note → no G14', () => {
   const docs = {
     tasks: doc('verified'),
     verification: passingVerificationDoc(),
@@ -2652,7 +2650,7 @@ test('without review_scope, accepted finding without note → is still G14', () 
   };
   const failures = [];
   checkGate('execute', docs, rels, failures, { deps: ledgerDeps(docs.verification) });
-  assert.ok(failures.some((f) => f.code === 'G14'));
+  assert.ok(!failures.some((f) => f.code === 'G14'));
 });
 
 function g24TaskFixture(repo) {
@@ -2778,7 +2776,7 @@ test('finalize G21 → rejects an open finding in an accepted blueprint review',
 
 // ---- execute delta round: reviewer 하나 규칙 (perspective 수) ----
 
-test('execute G14: 관점 2개 delta round → 실패', () => {
+test('execute G14: 관점 2개 delta round → G14 없음', () => {
   const head = 'head-sha';
   const findings = [convergenceFinding({
     status: 'resolved', first_seen_round: 1, last_seen_round: 2,
@@ -2801,13 +2799,10 @@ test('execute G14: 관점 2개 delta round → 실패', () => {
       }),
     ],
   });
-  assert.ok(
-    failures.some((f) => f.message === 'review round 2 delta perspectives invalid: 2'),
-    JSON.stringify(failures),
-  );
+  assert.deepStrictEqual(failures, []);
 });
 
-test('finalize G21: blueprint root review의 관점 2개 delta round → 실패', () => {
+test('finalize G21: blueprint root review의 관점 2개 delta round → G21 없음', () => {
   const head = 'head-sha';
   const failures = finalizeG21({
     review: g21ReviewDoc('accepted', {
@@ -2832,10 +2827,7 @@ test('finalize G21: blueprint root review의 관점 2개 delta round → 실패'
       ],
     }),
   });
-  assert.ok(
-    failures.some((f) => f.code === 'G21' && f.message === 'review round 2 delta perspectives invalid: 2'),
-    JSON.stringify(failures),
-  );
+  assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
 });
 
 test('execute G14: 관점 2개 discovery round와 관점 2개 critical_recovery round → 개수 메시지 없음', () => {
@@ -3233,3 +3225,49 @@ for (const { name, code, body, affected } of REMOVED_DRAFT_CASES) {
     assert.ok(!result.failures.some((f) => f.code === code), JSON.stringify(result.failures));
   });
 }
+
+// ---- 실질 리뷰 판정은 gate에 남는다 ----
+
+test('accepted review with open must_fix → G14', () => {
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ status: 'open' })], rounds: [convergenceRound()],
+  });
+  assert.ok(failures.some((f) => /^review (accepted with open must_fix|finding F1 open in accepted review)/.test(f.message)));
+});
+
+test('accepted review with finding status Open (invalid enum) → G14', () => {
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ status: 'Open' })], rounds: [convergenceRound()],
+  });
+  assert.ok(failures.some((f) => f.message === 'review finding F1 status invalid: Open'), JSON.stringify(failures));
+});
+
+test('accepted review with open must_fix finding that has no id → G14', () => {
+  const failures = executeReviewFailures({
+    findings: [convergenceFinding({ id: undefined, status: 'open' })], rounds: [convergenceRound()],
+  });
+  assert.ok(failures.some((f) => /^review accepted with open must_fix /.test(f.message)), JSON.stringify(failures));
+});
+
+test('blueprint review with findings not an array → G21', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ValidRounds(), findings: { id: 'F1' } }),
+  });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'review findings must be an array'), JSON.stringify(failures));
+});
+
+test('isBlockingReviewFailure with open-in-accepted, open must_fix, open must_fix (no id), non-array, status invalid, actionability invalid, actionability missing, severity-invalid messages → true ×7, false', () => {
+  const { isBlockingReviewFailure } = require('../scripts/lib/validate-gates-shared');
+  for (const message of [
+    'review finding F-1 open in accepted review',
+    'review accepted with open must_fix F-1',
+    'review accepted with open must_fix (no id)',
+    'review findings must be an array',
+    'review finding F-1 status invalid: Open',
+    'review finding F-1 actionability invalid',
+    'review finding F-1 actionability missing',
+  ]) {
+    assert.strictEqual(isBlockingReviewFailure(message), true, message);
+  }
+  assert.strictEqual(isBlockingReviewFailure('review finding F-1 severity invalid: high'), false);
+});
