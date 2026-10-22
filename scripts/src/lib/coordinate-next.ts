@@ -10,7 +10,7 @@ import coordinatorLedger = require('./coordinator-ledger');
 const { assertLeaseShape, loadLedgerBytes, projectCheckpoint } = coordinatorLedger;
 import coordinatorWorker = require('./coordinator-worker');
 const {
-  ensureIntegrationCwd, isBlueprintReviewModeAt, taskBriefHashOf, readBouncerBlock,
+  ensureIntegrationCwd, isBlueprintReviewModeAt, reviewContractAt, taskBriefHashOf, readBouncerBlock,
   reportPathFor, workerCommitEvidence, workerScopeDirtyPaths,
 } = coordinatorWorker;
 import coordinatorGit = require('./coordinator-git');
@@ -114,6 +114,10 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
     cause: 'The blueprint final review already recorded its one discovery round and the root review is not accepted.',
     next: 'Show the open findings to the user and wait for their decision (note + deferred, or '
       + 'accepted-risk consent); do not run a delta round or repair.',
+  },
+  'review-contract-invalid': {
+    cause: 'The blueprint index `review_contract` value is not an allowed marker, so the final review path is closed.',
+    next: 'Report to the user and fix `review_contract` through `/bouncer-plan`; do not run the final review.',
   },
   'critical-recovery-open': {
     cause: 'This prepared task has an open critical-recovery record with no outcome yet.',
@@ -479,6 +483,22 @@ function rootReviewHasDiscoveryRound(integrationPath: string, blueprint: string)
     && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'discovery');
 }
 
+/**
+ * root review.md의 `bouncer.review.rounds[]`에 `mode: delta`가 있는지 읽는다. 표식 blueprint는
+ * delta 한 번으로 끝나므로 delta 뒤 미accepted를 blocked로 가르는 기준이다. 판독 불가는
+ * rootReviewHasDiscoveryRound와 같은 이유로 없음으로 본다.
+ *
+ * @param {string} integrationPath - integration worktree
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {boolean} delta 라운드가 있으면 true
+ */
+function rootReviewHasDeltaRound(integrationPath: string, blueprint: string): boolean {
+  const block = readBouncerBlock(path.join(integrationPath, blueprint, 'review.md'));
+  const rounds = (block?.review as { rounds?: unknown } | undefined)?.rounds;
+  return Array.isArray(rounds)
+    && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'delta');
+}
+
 type Built = Omit<NextOk, 'ok' | 'checkpoint' | 'cwd'> & { cwd: string };
 
 /**
@@ -493,8 +513,9 @@ function succeed(body: Built, cwd: string, ledgerRef: LedgerRef): NextOk {
   const result: NextOk = { ok: true, checkpoint: { ledger: ledgerRef }, ...body, cwd };
   if (result.action === 'blocked' && typeof result.reason === 'string') {
     const hint = hintFor(result.reason);
-    result.cause = hint.cause;
-    result.next = hint.next;
+    // 호출자가 상황별 문구를 실어 보내면(brief 표식의 final-review-blocked) 그대로 둔다.
+    result.cause = result.cause ?? hint.cause;
+    result.next = result.next ?? hint.next;
   }
   return result;
 }
@@ -756,9 +777,48 @@ function blueprintNext(ctx: {
       // delta·repair·supplement로 되돌리지 않고 사용자 결정까지 멈춘다. 새 review status를
       // 만들지 않으려고 기존 신호(문서 status requested, open finding)를 그대로 blocked로
       // 읽는다. 저장된 과거 delta 이력은 읽기만 하고 여기서 새 delta를 만들지 않는다.
+      const contract = reviewContractAt(integrationCwd, blueprint);
+      if (contract === null) {
+        return ok({
+          scope: 'blueprint', action: 'blocked', reason: 'review-contract-invalid', cwd: integrationCwd,
+        });
+      }
       if (rootReviewHasDiscoveryRound(integrationCwd, blueprint)) {
+        if (contract !== 'brief') {
+          return ok({
+            scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
+          });
+        }
+        // brief 표식은 discovery 뒤 리뷰 원인 repair 한 번과 그 뒤 delta 한 번을 허용한다. repair와
+        // terminal 재검증이 끝나(allIntegrated) 여기 도달했고 delta가 아직 없으면 delta를 연다.
+        const repaired = (ledger.decisions || []).some((entry) => {
+          const item = entry as { kind?: unknown; failure?: { command?: unknown } } | null;
+          return item?.kind === 'repair' && item.failure?.command === 'review';
+        });
+        if (repaired && !rootReviewHasDeltaRound(integrationCwd, blueprint)) {
+          return ok({
+            scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
+            argv: [
+              'bouncer', 'review-dispatch', 'execute', '--blueprint', blueprint,
+              '--base', base, '--head', head, '--mode', 'delta',
+            ],
+            judge: { kind: 'review-round', fields: [] },
+            ...completionPayload,
+          });
+        }
         return ok({
           scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
+          cause: repaired
+            ? 'The blueprint final review used its discovery round, the one review repair, and the delta round, '
+              + 'and the root review is not accepted.'
+            : 'The blueprint final review recorded its discovery round, the root review is not accepted, '
+              + 'and no review repair has been opened yet.',
+          next: repaired
+            ? 'Stop: the one review repair and delta are used. Show the open findings to the user and wait for their '
+              + 'decision (note + deferred, or accepted-risk consent); do not open another repair or round.'
+            : 'If an open must_fix is a brief violation, open the one repair with `bouncer coordinate repair '
+              + '--review-finding`; otherwise show the open findings to the user and wait for their decision '
+              + '(note + deferred, or accepted-risk consent).',
         });
       }
       // discovery 전 최신 supplement 결정이 이 분기를 좌우한다. pending이면 implementer가

@@ -126,8 +126,9 @@ role's Gate-checked items already decide.
 - `minimality_maintainability`: unnecessary design and structure.
 - `security`: public-input validation, authentication or authorization bypass,
   credential or sensitive-data exposure/logging, and shell or path injection.
-  Use only when the controller assigned this perspective (non-empty
-  `risk_flags`).
+  Use only when the controller assigned this perspective in the dispatch
+  `perspectives` (a marked `review_contract: brief` blueprint assigns it only
+  for `authentication`, `authorization`, or `credential` risk).
 
 Under `correctness_tests`, report a new or changed test that violates the
 `Tests` or `Test trust` sections of `${BOUNCER_ROOT}/references/coding-standards/index.md`.

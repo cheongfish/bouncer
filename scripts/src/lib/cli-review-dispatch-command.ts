@@ -3,7 +3,11 @@
 import cliUsage = require('./cli-usage');
 
 const fs = require('node:fs');
+const path = require('node:path');
 
+// 표식 확인용 가벼운 모듈. review-dispatch 그래프는 끌어오지 않는다(lazy require 계약).
+import frontmatter = require('./frontmatter');
+import schema = require('./schema');
 import cliFlags = require('./cli-flags');
 const { parseFlags, argvRequestsHelp } = cliFlags;
 // validate-sections는 ./paths 계열만 정적으로 끌어오므로(intent 모듈 없음) help 문자열을
@@ -51,7 +55,8 @@ const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
              review-snapshots/ and returns target.snapshot_id/snapshot_path; --head
              must be the current HEAD. On failure it prints reason/cause/next, exit 1.
              When that blueprint's scale is light, returns single/combined
-             regardless of diff size.
+             regardless of diff size. A blueprint with review_contract brief gets the
+             brief-compliance perspectives; only it accepts --mode delta without --task.
 `;
 
 // 예시 finding의 구성 요소. fingerprint는 아래에서 검증기와 같은 함수로 계산해
@@ -252,10 +257,8 @@ function parseExecuteArgs(rest: string[]): ParsedExecute {
       return fail('--mode must be discovery or delta');
     }
   }
-  // blueprint 최종 리뷰는 discovery 한 번이다. task 없는 delta는 사용법 오류로 분류기 전에 거절한다.
-  if (f.mode === 'delta' && !Object.prototype.hasOwnProperty.call(f, 'task')) {
-    return fail('--mode delta requires --task <ddd> (the blueprint final review has no delta round)');
-  }
+  // task 없는 delta는 여기서 거절하지 않는다. review_contract 표식이 있는 blueprint만
+  // 받으므로 표식 확인이 필요하고, 그 확인은 분류기 적재 전 cmdReviewDispatch가 맡는다.
   return {
     mode: 'execute',
     blueprint: f.blueprint,
@@ -265,6 +268,34 @@ function parseExecuteArgs(rest: string[]): ParsedExecute {
     reviewMode: f.mode === 'delta' ? 'delta' : 'discovery',
     repo: typeof f.repo === 'string' ? f.repo : undefined,
   };
+}
+
+const DELTA_NEEDS_TASK = 'review-dispatch execute: --mode delta requires --task <ddd>'
+  + ' (the blueprint final review has no delta round)\n';
+
+/**
+ * task 없는 `--mode delta`를 분류기 적재 전에 거절해야 하는지 판정한다.
+ * review_contract brief 표식 blueprint만 이 호출을 받는다. 표식 확인은 분류기를
+ * require하지 않도록 `readDoc`과 `reviewContractOf`만 쓴다.
+ *
+ * @param {ParsedExecute} parsed - task 없는 delta로 해석된 execute 인자
+ * @returns {string | null} 거절 시 stderr 메시지(exit 2), 표식이 brief면 null
+ */
+function blueprintDeltaRefusal(parsed: ParsedExecute): string | null {
+  const repoRoot = parsed.repo ? parsed.repo : process.cwd();
+  let bouncer: unknown;
+  try {
+    const doc = frontmatter.readDoc(path.join(repoRoot, parsed.blueprint as string, 'index.md'));
+    bouncer = (doc.data as { bouncer?: unknown } | null)?.bouncer;
+  } catch {
+    // index 부재·파싱 실패를 모두 기존 --task 사용법 메시지로 접는다. 표식을 읽지
+    // 못한 호출은 legacy와 구분할 수 없고, legacy 출력을 보존하는 것이 이 경로의 계약이다.
+    return DELTA_NEEDS_TASK;
+  }
+  const contract = schema.reviewContractOf(bouncer);
+  if (contract === 'brief') return null;
+  if (contract === null) return 'review-dispatch execute: review-contract-invalid: review_contract must be brief\n';
+  return DELTA_NEEDS_TASK;
 }
 
 /**
@@ -284,6 +315,13 @@ function cmdReviewDispatch(rest: string[], io: CliIo): number {
   if (parsed.mode === 'usage' || parsed.error) {
     io.err(parsed.error || USAGE);
     return 2;
+  }
+  if (parsed.mode === 'execute' && parsed.reviewMode === 'delta' && parsed.task === null) {
+    const refusal = blueprintDeltaRefusal(parsed);
+    if (refusal !== null) {
+      io.err(refusal);
+      return 2;
+    }
   }
   // argv를 통과한 뒤에만 분류기를 적재한다. 사용법 거절이 review-dispatch·
   // validate 그래프를 require.cache에 남기지 않게 하기 위함.

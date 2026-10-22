@@ -104,3 +104,14 @@ test('verification_policy → scoped_terminal is accepted, absence is legacy, an
   assert.strictEqual(schema.verificationPolicyOf({ verification_policy: null }), null);
   assert.strictEqual(schema.verificationPolicyOf({ verification_policy: 'scoped' }), null);
 });
+
+test('review_contract → brief is accepted, absence is legacy, anything else is null', () => {
+  assert.equal(typeof schema.reviewContractOf, 'function');
+  assert.deepStrictEqual(schema.REVIEW_CONTRACT_ENUM, ['brief']);
+  assert.equal(schema.reviewContractOf(undefined), 'legacy');
+  assert.equal(schema.reviewContractOf({}), 'legacy');
+  assert.equal(schema.reviewContractOf({ review_contract: 'brief' }), 'brief');
+  assert.equal(schema.reviewContractOf({ review_contract: '' }), null);
+  assert.equal(schema.reviewContractOf({ review_contract: null }), null);
+  assert.equal(schema.reviewContractOf({ review_contract: 'other' }), null);
+});

@@ -112,7 +112,14 @@ unresolved. Used from `/bouncer-run`.
    CLI already placed those choices in `perspectives` (for example `single`
    without risk → `combined`; small risk → `combined` then `security`;
    `parallel` without risk → the three non-security perspectives; large risk →
-   those three then `security`). Fill
+   those three then `security`). A blueprint with `review_contract: brief`
+   (marked, full blueprints only) gets `spec_scope` and `correctness_tests`
+   instead, plus `security` only when `review_risk` has `authentication`,
+   `authorization`, or `credential`; its `must_fix` is limited to a violation
+   of the approved brief's eight sections or the blueprint Contract, with a
+   `brief_clause` starting `tasks/<NNN> <section>` or `Contract` (anything
+   else is lowered to `advisory` with `no-brief-clause` or
+   `not-brief-violation` in `severity_changes`). Fill
    [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md)
    (its existing `TARGET` slot carries `snapshot_id` and `snapshot_path`; add
    no new slot) for each reviewer without sharing another discovery reviewer's findings and

@@ -35,10 +35,15 @@ and Procedure step 6 (Close).
   `review record` rejection (`review-snapshot-stale`, `-mismatch`, `-invalid`,
   `-required`), follow `next`: dispatch a new snapshot, reclassify, and
   re-review; never edit status or rounds by hand to bypass it.
-- In discovery, walk `perspectives` in CLI order per agent-dispatch. The final
-  review is this one discovery round: there is no delta round for it (`review-dispatch execute --mode delta` without `--task` exits
+- In discovery, walk `perspectives` in CLI order per agent-dispatch. In a
+  blueprint without `review_contract: brief` (legacy) the final review is this
+  one discovery round: there is no delta round for it (`review-dispatch execute --mode delta` without `--task` exits
   2, and `review record` rejects a new root delta as
-  `final-review-single-round`).
+  `final-review-single-round`). In a blueprint with `review_contract: brief`
+  (full blueprints only) the perspectives are `spec_scope` and
+  `correctness_tests`, plus `security` only when `review_risk` has
+  `authentication`, `authorization`, or `credential`, and one repair and one
+  delta follow (see the marked flow below).
 - Give each reviewer every commit task brief (Goal & intent, Current behavior,
   Target behavior, Interface, Touch, Do not touch, Constraints, Checklist; an
   absent optional behavior section is omitted) and the blueprint Contract.
@@ -51,7 +56,26 @@ and Procedure step 6 (Close).
   `head`), `task_brief_hashes` (commit task id → brief hash),
   `intent_bundles` (commit task id → `{ id, revision }`), and each
   perspective's `target_head`.
-- Classify every finding after the discovery round, in this order:
+- Marked blueprint (`review_contract: brief`): judge against the approved
+  brief's eight sections and the blueprint Contract. A `must_fix` is only a
+  brief violation (change outside Do not touch or `affected_paths`, Interface
+  provision or refusal violated, Constraints breach, Checklist skipped or an
+  assertion looser than the brief, an unmet Contract failure mode, or a defect
+  of the open security risk) and its `brief_clause` starts with
+  `tasks/<NNN> <section>` (a brief section name) or `Contract`. Lower any other
+  reviewer `must_fix` to `advisory` and record `no-brief-clause` or
+  `not-brief-violation` in `severity_changes`; new design or refactoring
+  opinions are `advisory`. Order: discovery; when a `must_fix` exists, one
+  `coordinate repair --review-finding` carrying every violation finding (inside
+  approved paths, no `newPaths`); terminal re-verification; then `coordinate
+  next` returns a delta `final_review` (`--mode delta`, `combined`, one
+  reviewer); record it `accepted`, or `final-review-blocked` when a finding
+  remains. There is no second repair: report `final-review-repair-scope` and
+  `final-review-single-round` as blocked. Record `advisory` findings
+  `accepted`, or `deferred` with a `note`, and carry them as warnings in the
+  final report. A marker problem surfaces as `review-contract-invalid`.
+- Legacy blueprint (no `review_contract: brief`): classify every finding after
+  the discovery round, in this order:
   `blocked` (needs a new product decision, dependency, or public interface)
   or any other finding. The CLI does not classify; you declare it.
   - A finding that is not `blocked` and is a `must_fix` is recorded
@@ -121,10 +145,21 @@ document `--status` (`review record --status`).
 
 Final review order:
 
+Legacy blueprint (no `review_contract: brief`):
+
 1. Discovery round: record a `blocked` finding as `open` with `--status
    requested`; record every other `must_fix` as `deferred` with a `note` and
    `--status accepted`.
 2. A stored discovery round ends the review's rounds: no delta round follows.
+
+Marked blueprint (`review_contract: brief`):
+
+1. Discovery round: with no `must_fix`, record `--status accepted`.
+2. With a `must_fix`: one `coordinate repair --review-finding` for all
+   violation findings, terminal re-verification, then the delta `final_review`
+   from `coordinate next`.
+3. Delta round: `accepted`, or `final-review-blocked` when a finding remains.
+   No second repair follows.
 
 Discovery round (`--status accepted`, one `must_fix` carried forward as `deferred`):
 

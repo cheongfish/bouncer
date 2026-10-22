@@ -1726,9 +1726,22 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'final-review-single-round': {
     cause: 'The blueprint final review already recorded its one discovery round, so no review-caused '
-      + 'repair, supplement, or delta round may open.',
+      + 'repair, supplement, or delta round may open. A `review_contract: brief` blueprint gets one '
+      + 'review-caused repair after discovery; a second repair, any supplement, or a repair after the delta '
+      + 'round is refused here.',
     next: 'Defer the remaining must_fix findings with a note and accept the review, or stop with '
       + '`final-review-blocked` for the user decision.',
+  },
+  'final-review-repair-scope': {
+    cause: 'The review-caused repair declares new paths outside the approved `affected_paths`, which the one '
+      + 'final-review repair may not add.',
+    next: 'Report the block to the user and plan the out-of-scope fix with `/bouncer-plan`; retry only with '
+      + 'paths inside the approved scope.',
+  },
+  'review-contract-invalid': {
+    cause: 'The blueprint index `review_contract` value is not an allowed marker, so no review-caused repair '
+      + 'or supplement may open.',
+    next: 'Report to the user and fix `review_contract` through `/bouncer-plan`.',
   },
   'supplement-delta-used': {
     cause: 'The blueprint root review already recorded its one delta round, so no in-place supplement may open.',

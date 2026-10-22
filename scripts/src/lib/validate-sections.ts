@@ -125,6 +125,23 @@ const BLUEPRINT_ROUND_CONTRACT: RoundContract = {
   ],
 };
 
+// `review_contract: brief` blueprint 전용 계약. 브리프 위반을 고친 뒤 delta 한 번으로 인증할 수
+// 있어야 하므로 discovery 뒤 delta 하나까지만 연다. critical_recovery와 두 번째 delta는
+// 일부러 열지 않는다 — 남은 위반은 blocked로 보고한다. 저장된 legacy 이력(discovery,delta,delta)은
+// 표식 없는 blueprint가 BLUEPRINT_ROUND_CONTRACT로 계속 읽는다.
+const BRIEF_ROUND_CONTRACT: RoundContract = {
+  ...EXECUTE_ROUND_CONTRACT,
+  sequences: ['discovery', 'discovery,delta'],
+};
+
+// 브리프 조항 참조: `tasks/<NNN> <브리프 8섹션>` 또는 `contract`로 시작하고 뒤는 끝이거나 공백.
+// 접두 일치(`contractual`)와 섹션 아닌 이름(`tasks/001 Notes`)을 거르려고 경계를 둔다.
+const BRIEF_CLAUSE_PATTERN = new RegExp(
+  '^(?:tasks/\\d{3} (?:goal & intent|current behavior|target behavior|interface|touch|do not touch'
+  + '|constraints|checklist)|contract)(?:\\s|$)',
+  'i',
+);
+
 const CONTEXT_ROUND_CONTRACT: RoundContract = {
   modes: ['discovery', 'delta'],
   sequences: ['discovery', 'discovery,delta'],
@@ -399,8 +416,10 @@ function missingFindingField(record: Record<string, unknown>, field: string): bo
  *   `bouncer.context_review.rounds`. 부재면 검사 생략
  * @param {'context'} [namespace] - context review면 fingerprint 접두와 context round 계약.
  *   생략하면 execute 계약(접두 없음, commit target)
- * @param {'blueprint'} [roundScope] - blueprint 최종 리뷰면 execute namespace에서
- *   BLUEPRINT_ROUND_CONTRACT를 쓴다. context namespace에서는 무시한다
+ * @param {'blueprint' | 'blueprint_brief'} [roundScope] - blueprint 최종 리뷰면 execute namespace에서
+ *   BLUEPRINT_ROUND_CONTRACT를 쓴다. `blueprint_brief`(review_contract: brief)는 BRIEF_ROUND_CONTRACT를 쓰고
+ *   deferred must_fix 예외 없이 must_fix brief_clause가 브리프 조항 참조인지도 검사한다.
+ *   context namespace에서는 무시한다
  * @returns {string[]} 게이트 메시지. 없으면 빈 배열
  */
 function collectFindingFailures({
@@ -414,7 +433,7 @@ function collectFindingFailures({
   rounds?: unknown;
   reviewStatus?: unknown;
   namespace?: typeof CONTEXT_FINDING_NAMESPACE;
-  roundScope?: 'blueprint';
+  roundScope?: 'blueprint' | 'blueprint_brief';
 }): string[] {
   const messages: string[] = [];
   const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
@@ -498,11 +517,12 @@ function collectFindingFailures({
       // blueprint 최종 리뷰는 discovery 한 라운드로 끝나므로, 고치지 않고 넘기는 must_fix는
       // deferred(+note, 위 NOTE_REQUIRED_STATUS 검사)로 기록해 accepted를 허용한다.
       // task 범위(G14)는 roundScope가 없어 이 예외를 받지 않고 기존처럼 거절한다.
+      // blueprint_brief는 delta로 인증할 라운드가 있으므로 이 예외를 받지 않는다.
       const isBlueprintDeferred = roundScope === 'blueprint' && rec.status === 'deferred';
       // blueprint 최종 리뷰의 blocked finding은 round를 더할 수 없어 open으로 남는다. 사용자가
       // 명시적으로 위험을 수용하면 `review accept-risk`가 accepted + accepted_risk: true + note로
       // 닫는다. task 범위(G14)는 roundScope가 없어 이 예외를 받지 않는다.
-      const isBlueprintAcceptedRisk = roundScope === 'blueprint'
+      const isBlueprintAcceptedRisk = (roundScope === 'blueprint' || roundScope === 'blueprint_brief')
         && rec.status === 'accepted'
         && rec.accepted_risk === true
         && typeof rec.note === 'string'
@@ -511,15 +531,33 @@ function collectFindingFailures({
         && !isContextAcceptedRisk && !isBlueprintDeferred && !isBlueprintAcceptedRisk) {
         messages.push(`${findingLabel} accepted with open must_fix ${id}`);
       }
+      // 조항을 인용하지 못하는 finding이 must_fix로 올라오면 직접 실행이 코디네이터로 넘어간다.
+      // advisory와 context namespace에는 걸지 않는다(브리프 이행 판정은 execute must_fix만의 계약).
+      if (roundScope === 'blueprint_brief' && namespace !== CONTEXT_FINDING_NAMESPACE
+        && rec.actionability === 'must_fix' && !missingFindingField(rec, 'brief_clause')
+        && !BRIEF_CLAUSE_PATTERN.test(String(rec.brief_clause).trim())) {
+        messages.push(`${findingLabel} finding ${id} must_fix brief_clause is not a brief section`);
+      }
     }
   }
   messages.push(...collectRoundFailures(
     rounds, findingLabel, list, modeContract,
     namespace === CONTEXT_FINDING_NAMESPACE
       ? CONTEXT_ROUND_CONTRACT
-      : (roundScope === 'blueprint' ? BLUEPRINT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT),
+      : roundScopeContract(roundScope),
   ));
   return messages;
+}
+
+/**
+ * roundScope에 맞는 execute 라운드 계약을 고른다.
+ *
+ * @param {'blueprint' | 'blueprint_brief'} [roundScope] - 생략하면 task 범위
+ * @returns {RoundContract} 범위별 계약. 모르는 값은 타입이 막는다
+ */
+function roundScopeContract(roundScope?: 'blueprint' | 'blueprint_brief'): RoundContract {
+  if (roundScope === 'blueprint_brief') return BRIEF_ROUND_CONTRACT;
+  return roundScope === 'blueprint' ? BLUEPRINT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT;
 }
 
 /**
@@ -665,6 +703,7 @@ export = {
   findingMergeCandidates,
   collectFindingFailures,
   EXECUTE_ROUND_CONTRACT,
+  BRIEF_ROUND_CONTRACT,
   BLUEPRINT_ROUND_CONTRACT,
   REPAIR_WAVE_LIMIT,
 };

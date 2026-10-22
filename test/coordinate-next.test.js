@@ -252,7 +252,7 @@ test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons�
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
     'verification-task-uses-blueprint-next', 'coordinator-card-missing', 'final-review-blocked',
-    'worker-commit-stamp-mismatch',
+    'worker-commit-stamp-mismatch', 'review-contract-invalid',
   ];
   assert.deepStrictEqual(Object.keys(NEXT_FAILURE_HINTS).sort(), [...keys].sort());
   for (const key of keys) {
@@ -562,6 +562,73 @@ test('root review에 discovery round가 있고 pending supplement → final-revi
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'blocked');
   assert.strictEqual(r.reason, 'final-review-blocked');
+});
+
+function briefReviewDrive(prefix, blueprint, modes, decisions, contract = 'brief') {
+  const drive = supplementReviewDrive(prefix, blueprint, decisions);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'index.md'),
+    `---\nbouncer:\n  status: approved\n  review_scope: blueprint\n  review_contract: ${contract}\n---\n# Blueprint\n`,
+  );
+  const rounds = modes.map((mode, i) => `      - round: ${i + 1}\n        mode: ${mode}\n`).join('');
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    `---\nbouncer:\n  status: requested\n  review:\n    rounds:\n${rounds}---\n# Review\n`,
+  );
+  return drive;
+}
+
+const REVIEW_REPAIR = { kind: 'repair', wave: 1, failure: { command: 'review' } };
+
+test('brief contract with discovery only and a review repair decision → final_review with --mode delta', () => {
+  const drive = briefReviewDrive('bouncer-next-brief-delta-', '.bouncer/context/epics/088-n/blueprints/030-b', ['discovery'], [REVIEW_REPAIR]);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'final_review');
+  assert.deepStrictEqual(r.argv.slice(-2), ['--mode', 'delta']);
+  assert.strictEqual(r.judge.kind, 'review-round');
+});
+
+test('brief contract after the delta round and not accepted → final-review-blocked with the used-up guidance', () => {
+  const drive = briefReviewDrive('bouncer-next-brief-used-', '.bouncer/context/epics/088-n/blueprints/031-b', ['discovery', 'delta'], [REVIEW_REPAIR]);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+  assert.ok(r.next.includes('the one review repair and delta are used'));
+});
+
+test('brief contract with a review repair but the terminal task still pending → not final_review', () => {
+  const drive = briefReviewDrive('bouncer-next-brief-pend-', '.bouncer/context/epics/088-n/blueprints/032-b', ['discovery'], [REVIEW_REPAIR]);
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.tasks[ledger.tasks.length - 1].status = 'pending';
+  writeLedger(drive.ledgerFile, ledger);
+  assert.notStrictEqual(assertNoWrite(drive, () => nextOf(drive)).action, 'final_review');
+});
+
+test('brief contract with a review repair and a failed terminal re-verification → not final_review', () => {
+  const drive = briefReviewDrive('bouncer-next-brief-tfail-', '.bouncer/context/epics/088-n/blueprints/033-b', ['discovery'], [REVIEW_REPAIR]);
+  const ledger = loadLedger(drive.ledgerFile);
+  const last = ledger.tasks[ledger.tasks.length - 1];
+  last.status = 'verifying';
+  ledger.terminalFailure = { task: last.id, command: 'npm test', summary: 'fail', paths: [], exitCode: 1 };
+  writeLedger(drive.ledgerFile, ledger);
+  assert.notStrictEqual(assertNoWrite(drive, () => nextOf(drive)).action, 'final_review');
+});
+
+test('brief contract with discovery only and no review repair → final-review-blocked pointing at the one repair', () => {
+  const drive = briefReviewDrive('bouncer-next-brief-none-', '.bouncer/context/epics/088-n/blueprints/034-b', ['discovery'], []);
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'final-review-blocked');
+  assert.ok(r.next.includes('coordinate repair'));
+  assert.ok(r.next.includes('--review-finding'));
+});
+
+test('unknown review_contract with all integrated → blocked review-contract-invalid', () => {
+  const drive = briefReviewDrive('bouncer-next-brief-bad-', '.bouncer/context/epics/088-n/blueprints/035-b', [], [], 'other');
+  fs.rmSync(path.join(drive.integrationPath, '.bouncer/context/epics/088-n/blueprints/035-b/review.md'));
+  const r = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'review-contract-invalid');
 });
 
 test('root review가 discovery 뒤 accepted → done', () => {

@@ -152,8 +152,9 @@ to your `Decision required` judgment, never a second brief.
 - A final-review `must_fix` that is only an in-scope gap in test evidence (test
   paths inside an integrated task's `affected_paths`; product behavior already
   correct) is closed in place with `bouncer coordinate repair --kind
-  supplement`, then `--done`, then the one delta round — no new task, repair
-  wave, or `terminalFailure`. You declare that nature; the CLI checks only the
+  supplement`, then `--done` (before discovery only in a blueprint without
+  `review_contract: brief`; the marked flow is in the final_review card) — no
+  new task, repair wave, or `terminalFailure`. You declare that nature; the CLI checks only the
   path conditions. Product-behavior fixes keep the repair-wave path, and a new
   product decision, dependency, or public interface stays `blocked`.
 - A delta-certification `blocker` or `major` (`introduced_by_revision` or

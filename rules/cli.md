@@ -361,7 +361,10 @@ bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
   # --mode delta → strategy single / perspectives [combined] (delta certification)
   # light scale → strategy single / perspectives [combined] (diff size ignored);
-  # non-empty review_risk still appends security
+  # non-empty review_risk still appends security (legacy blueprint)
+  # blueprint review mode without --task and review_contract: brief: --mode delta is allowed
+  # for the one delta after the single repair; perspectives spec_scope, correctness_tests,
+  # and security only for authentication|authorization|credential
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
@@ -466,8 +469,8 @@ bouncer review accept-risk --blueprint <dir> --finding <id> --note <text> --yes
 ```
 
 `review accept-risk` closes one `open` finding of a blueprint-scope final review
-as a user-accepted risk, because the final review is a single round and cannot
-take another. Run it only after the user explicitly approves accepting that
+as a user-accepted risk, because a legacy final review is a single round and a
+marked (`review_contract: brief`) one allows only one repair and one delta. Run it only after the user explicitly approves accepting that
 risk; `--yes` carries that approval. It changes only the target finding
 (`status: accepted`, `accepted_risk: true`, `note`) and leaves `rounds`
 unchanged; the document status becomes `accepted` only when no finding stays
@@ -491,7 +494,11 @@ either `--failure-command` (terminal CI) or repeated `--review-finding`
 when the blueprint has no terminal verification task. `--kind supplement`
 accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
-`--done` verifies it, and the next final review is the one delta round.
+`--done` verifies it. In a `review_contract: brief` blueprint the final review
+allows one `--review-finding` repair (all violation findings, approved paths,
+no `newPaths`) before the one delta; a second repair is refused as
+`final-review-repair-scope` and `final-review-single-round` and reported
+`final-review-blocked`.
 `--kind` accepts only `product` (default) or `supplement`.
 
 When a terminal CI failure came from the environment only (a missing tool, a

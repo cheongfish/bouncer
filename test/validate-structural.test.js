@@ -1137,6 +1137,35 @@ test('S31: review_scope other than blueprint → is rejected', () => {
   )), JSON.stringify(failures));
 });
 
+function s38For(patch) {
+  const failures = [];
+  const data = {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, review_scope: 'blueprint', ...patch },
+  };
+  checkStructural({ data, rel: `${BP_REL}/index.md` }, failures);
+  return failures.filter((f) => f.code === 'S38');
+}
+
+test('S38: review_contract other than brief → is rejected', () => {
+  for (const value of ['other', '', null]) {
+    const found = s38For({ review_contract: value });
+    assert.deepStrictEqual(found.map((f) => f.message), ['review_contract must be brief'], String(value));
+  }
+  assert.deepStrictEqual(s38For({ review_contract: 'brief' }), []);
+  assert.deepStrictEqual(s38For({}), []);
+});
+
+test('S38: review_contract on a light blueprint → is rejected', () => {
+  const found = s38For({ review_contract: 'brief', scale: 'light' });
+  assert.deepStrictEqual(found.map((f) => f.message), ['review_contract is not allowed on a light blueprint']);
+});
+
+test('S38: review_contract without review_scope blueprint → is rejected', () => {
+  const found = s38For({ review_contract: 'brief', review_scope: undefined });
+  assert.deepStrictEqual(found.map((f) => f.message), ['review_contract requires review_scope blueprint']);
+});
+
 // S36: area·attribution은 선택 키다. 부재는 통과하고, 있는 값의 모양만 거절한다.
 function s36For(patch) {
   const failures = [];
