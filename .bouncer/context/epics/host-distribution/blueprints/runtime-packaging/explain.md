@@ -15,6 +15,12 @@ TASKS-001은 SessionStart lint 복구를, TASKS-002는 runtime 패키지 배치�
 
 TASKS-003은 plugin asset resolver와 runtime/plugin version 경계를 담당한다. 이 task의 focused 검증은 runtime launcher가 안내하는 build 경로 때문에 실패했다. 그 launcher 파일은 최초 brief에서 TASKS-003의 수정 금지 경로였으나, 실패를 고치는 데 필요한 파일이었다.
 
+## TASKS-003 시도 내용
+- 지정 focused 검증은 175개 중 172개 통과와 3개 실패로 끝났다.
+- 실패 분석은 `packages/cli/bin/bouncer`와 `packages/cli/bin/bouncer-root`의 build guidance가 패키지 분리 뒤의 경로를 올바르게 안내하지 않는다고 분류했다.
+- 첫 attempt의 worker는 resolver, version 검사, 관련 테스트 변경을 준비했지만 launcher 두 파일을 수정할 수 없어 통합 커밋을 만들지 않았다.
+- 사용자 승인으로 scope revision `r1`이 두 launcher를 affected paths에 추가했다. 기존 blocked lease를 revoke하고 새 attempt도 열었지만, brief의 `Do not touch`에는 두 파일이 그대로 남아 있었다.
+
 ## 중단 원인
 범위 수정 `r1`은 launcher 두 파일을 TASKS-003의 affected paths에 추가했다. 그러나 Bouncer의 `coordinate revise`는 affected paths와 scope decision만 바꾸며, 같은 brief 안의 `Do not touch` 목록은 갱신하지 않는다.
 

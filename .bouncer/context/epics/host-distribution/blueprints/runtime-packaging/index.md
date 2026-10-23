@@ -71,8 +71,8 @@ Epic: [host-distribution](../../index.md)
 
 ## 현재 실행 상태
 - TASKS-001과 TASKS-002는 integration worktree에 통합됐다.
-- TASKS-003은 runtime launcher의 build guidance를 고쳐야 하지만, 최초 task brief의 `Do not touch` 제약과 수정된 affected paths가 일치하지 않아 중단됐다.
-- scope revision `r1`은 `packages/cli/bin/bouncer`와 `packages/cli/bin/bouncer-root`를 affected paths에 추가했다. 다만 task brief의 `Do not touch` 목록을 같은 revision으로 갱신하는 실행 경로가 없어 새 worker attempt도 blocked 상태가 됐다.
+- TASKS-003의 focused 검증은 175개 중 172개가 통과했고, 남은 launcher build guidance 실패는 `packages/cli/bin/bouncer`와 `packages/cli/bin/bouncer-root`를 고쳐야 한다고 분류됐다.
+- scope revision `r1`은 두 launcher를 affected paths에 추가했다. 다만 task brief의 `Do not touch` 목록을 같은 revision으로 갱신하는 실행 경로가 없어 새 worker attempt도 blocked 상태가 됐다.
 - TASKS-003의 제약 목록과 affected paths를 원자적으로 갱신할 수 있는 실행 지원이 마련되기 전에는 후속 task 또는 terminal 검증을 실행하지 않는다.
 
 ## Out of scope
