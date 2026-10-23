@@ -10,6 +10,13 @@ does not match the active dispatch, read the stale report rule in
   `task_brief_hash`) against the active dispatch. Matching values: fill
   `judge.fields` and run the `report` `argv`; only an `accepted` report may
   then run the `record` `argv`. A mismatch is stale and follows agent-dispatch.
+- Before `accepted`, check all of: Brief revision matches the dispatch, scope
+  (Changed files inside the approved paths), verify (the assigned command
+  passed in `## Tests`), Interface (brief wording matches the changed files),
+  and the worker commit state below. Run the returned `argv` with its fence
+  (`--attempt`, `--task-brief-hash`, lease, generation, ledger) unchanged and
+  add only `--outcome accepted --summary "<basis: verify passed, scope kept,
+  commit stamped>"`.
 - `--outcome accepted` needs a confirmed worker commit: HEAD past
   `integrationHead`, `commit_sha` equal to HEAD's first 8 characters, and no
   dirty file inside the approved scope. Otherwise `coordinate report` refuses
