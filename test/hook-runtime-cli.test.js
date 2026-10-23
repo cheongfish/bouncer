@@ -376,3 +376,49 @@ test('Cursor hook when the runtime writes stdout noise and exits 1 → emits onl
   assert.equal(res.userMessage, 'blocked: reason-x');
   assert.equal(r.stdout.includes('noise'), false);
 });
+
+// ---------- 예기치 못한 throw는 차단 ----------
+
+// PATH 앞쪽에 읽기 불가 디렉터리를 둬 statSync가 EACCES를 던지게 하는 env.
+function unreadablePathEnv() {
+  const locked = tmp('locked');
+  fs.chmodSync(locked, 0o000);
+  return hookEnv({ PATH: `${locked}${path.delimiter}${barePath()}` });
+}
+
+// root는 권한 검사를 우회하므로 EACCES를 만들 수 없다.
+const canLock = typeof process.getuid === 'function' && process.getuid() !== 0;
+
+test('Claude hook given a commit and an unreadable PATH entry → exits 2 instead of failing open',
+  { skip: !canLock }, () => {
+    const repo = gitRepo({ bouncer: true });
+    const r = runClaude('git commit -m x', repo, unreadablePathEnv());
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /^commit-safety: /);
+  });
+
+test('Cursor hook given a commit and an unreadable PATH entry → emits deny JSON', { skip: !canLock }, () => {
+  const repo = gitRepo({ bouncer: true });
+  const r = runCursor('git commit -m x', repo, unreadablePathEnv());
+  assert.equal(r.status, 0);
+  assert.equal(JSON.parse(r.stdout).permission, 'deny');
+});
+
+test('Claude hook given a non-string cwd → exits 2', () => {
+  const stub = makeStub({});
+  const r = runClaude('', os.tmpdir(), hookEnv({ BOUNCER_BIN: stub.bin }),
+    JSON.stringify({ tool_input: { command: 'git commit -m x' }, cwd: 5 }));
+  assert.equal(r.status, 2);
+});
+
+test('Cursor hook given a non-string workspace root → emits deny JSON', () => {
+  const stub = makeStub({});
+  const r = spawnSync(process.execPath, [path.join(root, 'hooks/cursor-commit-safety.js')], {
+    input: JSON.stringify({ command: 'git commit -m x', workspace_roots: [5] }),
+    encoding: 'utf8',
+    env: hookEnv({ BOUNCER_BIN: stub.bin }),
+    cwd: os.tmpdir(),
+  });
+  assert.equal(r.status, 0);
+  assert.equal(JSON.parse(r.stdout).permission, 'deny');
+});

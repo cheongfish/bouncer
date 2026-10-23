@@ -16,9 +16,18 @@ process.stdin.on('end', () => {
   let payload = {};
   // 파싱할 수 없는 payload는 판정할 명령이 없으므로 허용한다(기존 계약).
   try { payload = raw.trim() ? JSON.parse(raw) : {}; } catch (_e) { process.exit(0); }
-  const command = payload.tool_input && typeof payload.tool_input.command === 'string'
-    ? payload.tool_input.command : '';
-  const repoRoot = payload.cwd || process.cwd();
+  // payload가 JSON `null` 등이면 프로퍼티 접근이 throw한다. 판정 전 throw도 통과가
+  // 아니라 차단이어야 하므로(exit 1은 비차단) 여기서 exit 2로 바꾼다.
+  let command;
+  let repoRoot;
+  try {
+    command = payload.tool_input && typeof payload.tool_input.command === 'string'
+      ? payload.tool_input.command : '';
+    repoRoot = payload.cwd || process.cwd();
+  } catch (_e) {
+    process.stderr.write('commit-safety: unexpected error (bad payload); commit blocked\n');
+    process.exit(2);
+  }
   const result = decideCommit(command, repoRoot);
   if (result.block) {
     process.stderr.write(`${result.reason}\n`);

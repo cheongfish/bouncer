@@ -988,3 +988,29 @@ test('syncSessionGraphs with a leftover context graph.json → graphs and action
   assert.deepStrictEqual(shape(corrupt), shape(absent));
 });
 
+
+test('SessionStart hook given an unreadable PATH entry → exits 0 with one failed warning line', {
+  skip: typeof process.getuid !== 'function' || process.getuid() === 0,
+}, () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  const locked = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-locked-'));
+  fs.chmodSync(locked, 0o000);
+  const env = { ...process.env, PATH: `${locked}${path.delimiter}${path.dirname(process.execPath)}` };
+  delete env.BOUNCER_BIN;
+  const result = runSessionHook(repo, env);
+  fs.chmodSync(locked, 0o755);
+  assert.strictEqual(result.status, 0);
+  assert.strictEqual(result.stdout, '');
+  assert.match(result.stderr, /^session-graph: bouncer graph-sync failed \(.+\)\n$/);
+});
+
+test('SessionStart hook given a non-string cwd → exits 0 with one failed warning line', () => {
+  const stub = writeStubRuntime('{}', 0);
+  const result = spawnSync(process.execPath, [path.join(checkoutRoot, 'hooks', 'session-graph.js')], {
+    input: JSON.stringify({ cwd: 5 }),
+    encoding: 'utf8',
+    env: { ...process.env, BOUNCER_BIN: stub },
+  });
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stderr, /^session-graph: bouncer graph-sync failed \(.+\)\n$/);
+});

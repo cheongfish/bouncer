@@ -228,7 +228,7 @@ function commitFailureMessage(result) {
  * @param {object} [opts] - 테스트 seam(`spawn`, `fs`, `env`)
  * @returns {{block: false} | {block: true, reason: string}} 허용이면 block false
  */
-function decideCommit(command, repoRoot, opts = {}) {
+function decideCommitUnguarded(command, repoRoot, opts) {
   if (!needsCommitCheck(command, repoRoot, opts)) return { block: false };
   // `-C`가 있으면 다른 저장소를 가리킬 수 있어 repoRoot의 컨텍스트 부재가 근거가 되지 못한다.
   const hasDashC = /(^|\s)-C/.test(command.replace(/['"\\]/g, ''));
@@ -241,6 +241,26 @@ function decideCommit(command, repoRoot, opts = {}) {
     return { block: true, reason: r.stderr.replace(/\n+$/, '') || 'commit blocked' };
   }
   return { block: true, reason: commitFailureMessage(r) };
+}
+
+/**
+ * `decideCommitUnguarded`를 감싸 예기치 못한 throw를 모두 차단으로 바꾼다. 런타임
+ * 탐색의 권한 오류(EACCES)나 비문자열 cwd가 일으키는 TypeError가 훅 밖으로 새면
+ * Claude는 exit 1(비차단), Cursor는 JSON 없음이 되어 가드가 조용히 열린다. 안전을
+ * 증명하지 못한 상태는 허용이 아니라 차단이어야 하므로 모든 throw를 흡수해 막는다.
+ *
+ * @param {string} command - 셸 명령 원문
+ * @param {*} repoRoot - 저장소 위치. 훅 payload 값이라 문자열이 아닐 수 있다
+ * @param {object} [opts] - 테스트 seam(`spawn`, `fs`, `env`)
+ * @returns {{block: false} | {block: true, reason: string}} throw가 나면 항상 block true
+ */
+function decideCommit(command, repoRoot, opts = {}) {
+  try {
+    return decideCommitUnguarded(command, repoRoot, opts);
+  } catch (e) {
+    const label = (e && (e.code || e.name)) || 'unknown';
+    return { block: true, reason: `commit-safety: unexpected error (${label}); commit blocked` };
+  }
 }
 
 module.exports = {
