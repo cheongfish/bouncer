@@ -169,7 +169,11 @@ perspective's range, even if another range would also catch it. The delta pass i
 Epic → blueprint → tasks agreement, the task DAG and each `depends_on`, Interface ↔ Touch ↔
 Checklist agreement inside a task, and the Contract storage location and state ownership check
 (compare the location and owner the blueprint Contract fixes against each task). Success-criteria
-coverage is not judged here; it belongs to `verifiability`.
+coverage is not judged here; it belongs to `verifiability`. Also judge that a task
+changing a behavior description records its survey of related documents (`file:line`
+in Touch `근거`) and that the documents agree on the contract. A missing survey is
+reported here only; the consumer-test omission below belongs to `verifiability`.
+Apply this to new plans and later edits, not to briefs already approved.
 
 ### scope_minimality
 
@@ -184,6 +188,12 @@ Checklist red assertions (each names an expected failing assertion or failure po
 `verify` command, and success-criteria coverage, including a success criterion that no task opens.
 Also judge assertion precision: flag a loose assertion such as a regular expression or substring
 check on prose where an observable value exists.
+Also report a changed scaffold or contract output whose consumer test or fixture
+(for example `migrate-context-slugs`) is missing from Touch, and an expected red
+that cannot be reached: when a structural failure comes first (such as a marker
+`other` rejected earlier), the target assertion's failure cannot be claimed from
+that state. Judge the red by its command, input, first failure point, and target
+assertion. Report each omission under one perspective only, never twice.
 
 ### risk_security
 

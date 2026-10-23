@@ -112,6 +112,14 @@ When `.bouncer/epics.json` is valid and lists the blueprint's epic as `legacy`,
 approving a `draft` blueprint is refused with `plan-approve-legacy-epic` (exit 1,
 no file changed); plan the blueprint under a registry epic instead. An already
 approved blueprint is unaffected.
+A blueprint that declares `bouncer.prerequisites` must have every merge result
+commit in the current checkout's HEAD history. `plan approve` refuses with
+`plan-approve-prerequisite` (exit 1, no file changed; `cause` lists `G32` lines
+naming each prerequisite path and reason), and the plan draft check and plan
+gate report the same `G32` (composite gate `freshness-approval`). Recover by
+fixing the missing reference or the merge result SHA, or by merging/rebasing
+the prerequisite into this checkout, then rerun. A Git lookup error is a
+failure, never a pass. Blueprints without the key are unaffected.
 With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
 module/risk signals and a light/full recommendation); without that flag
 `routing` is `null`. The signal does not select or approve light.
@@ -470,7 +478,7 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
-`failures` (G5, G19, G20) when the draft fails. Invalid argv is exit 2.
+`failures` (G5, G19, G20, and G32 for a declared prerequisite) when the draft fails. Invalid argv is exit 2.
 `dispatch print` runs one Cursor print process. It returns JSON for success
 (`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
 `reason` is `print-dispatch-disabled`, `agent-unavailable`,

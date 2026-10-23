@@ -9,6 +9,11 @@
 
 ### Changed
 
+- **선행 병합 판정을 승인과 계획 게이트에 연결** — `bouncer.prerequisites`를 선언한 blueprint는 선언된 병합
+  결과 commit이 현재 checkout HEAD의 조상이 아니거나 선행 blueprint 참조·Git 조회가 실패하면 plan draft 검사,
+  plan gate, `plan approve`가 같은 helper로 `G32`(`freshness-approval` 복합 gate)를 낸다. 승인 거절은
+  `plan-approve-prerequisite`이며 어떤 문서도 쓰지 않는다. 선언이 없는 blueprint의 동작은 그대로다. 계획 품질·
+  light 설명·선행 gate 변경은 같은 Unreleased 묶음이다.
 - **보존 집계·측정 불가 보고 기준 명시** — `drive-metrics.md`가 token 상태를 관측값/미보고/측정 불가로
   구별하고, direct session은 root 전체 사용량으로 대체하지 않고 측정 불가로 보고한다고 밝힌다.
   `worker_tokens_source`가 `ledger`/`snapshot`/`unavailable`일 때의 보고 방식(snapshot은 `recorded_at`과 보존

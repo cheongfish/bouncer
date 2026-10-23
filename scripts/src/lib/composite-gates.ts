@@ -70,10 +70,11 @@ const COMPOSITE_GATES: ReadonlyArray<CompositeGateRow> = Object.freeze([
   {
     gate: 'freshness-approval',
     label: '신선도·승인',
-    codes: ['G23', 'G24'],
+    codes: ['G23', 'G24', 'G32'],
     reasons: ['stale-revision'],
     next: 'Rerun verification after the last change; if the approved scope changed, '
-      + 'get the user\'s explicit approval before reapproving.',
+      + 'get the user\'s explicit approval before reapproving; for G32, fix the `bouncer.prerequisites` merge '
+      + 'evidence or bring the prerequisite merge into this checkout.',
   },
   {
     gate: 'closeout-completeness',

@@ -164,6 +164,14 @@ body content only; never edits harness-owned frontmatter fields. Used from
        *constructs or asserts* that shape, with `Modify` — even if the owning
        production module is under Do not touch. Import absence is not absence
        of blast radius.
+     - **Touch** (consumer survey): for a contract or output change, `rg` every
+       test that constructs or asserts it and every document describing the same
+       behavior (SKILL, references, role docs), and record each hit as `file:line`
+       in `근거`. Do not duplicate the shape-fixture duty above; this extends it.
+       Judgment cases: a scaffold output change whose consumer fixture
+       (for example the `migrate-context-slugs` test) is missing from Touch is
+       a consumer-test omission; a changed behavior description whose related
+       document is not surveyed is a document-survey omission.
      - **Touch** (size or shape contract): before planning an addition to a Touch
        path, check whether a test or `scripts/check-doc-shape.js` pins that file's
        size, headings, or step shape (`rg` the path in `test/` and `scripts/`). If
@@ -183,6 +191,11 @@ body content only; never edits harness-owned frontmatter fields. Used from
        approval.
      - **Do not touch**: paths only; must not overlap `affected_paths`.
        Carry epic and blueprint Out of scope into this list.
+     - **Constraints** (existing assertions): when a task may change an existing
+       assertion, bound it by file, test name, and new expected value. A blanket
+       "update related tests" is not a bound. Keep the red run already recorded
+       against the baseline apart from the expected red to be run at
+       implementation time.
      - **Constraints**: the rules that hold inside the allowed paths —
        compatibility promises, contracts to preserve, conventions to keep.
        Anything you cannot express as a path belongs here, not in Do not
@@ -191,6 +204,11 @@ body content only; never edits harness-owned frontmatter fields. Used from
        it fails → implement. Write expected assertions, constants, and
        commands as literal code blocks; this is where implementation detail
        deferred from the blueprint Contract lands. Name the acceptance criteria and the verify command.
+     - **Checklist** (reachable red): an expected red states the reproduction
+       command, the input, the first failure point reached, and the target
+       assertion. When a structural failure (for example a marker `other`
+       rejected before the target assertion runs) comes first, do not claim the
+       target assertion fails from that state; change the input or the order.
      - **Checklist** (expected red): every red step names the
        `expected failing assertion` or failure point. Unless the brief requires
        it, `module-load failure` is not expected red.
@@ -225,7 +243,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
        is the signal to set `scale` back to `full` rather than to smuggle those
        rules into Goal & intent — a path you must protect has nowhere to live in a
        light task, and a Do not touch section must exist to protect any path.
-       The scaffolded light plan set is budgeted at 100 lines
+       The scaffolded light plan set (five initial documents) is budgeted at
+       100 lines excluding `context-review.md`
        (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`). A
        `scoped_terminal` light plan adds one terminal verification task
        (verification only, no source Touch) that depends on the one

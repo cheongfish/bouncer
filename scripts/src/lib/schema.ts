@@ -184,6 +184,11 @@ const DEFAULT_EXCLUSIVE_RESOURCES: string[] = [];
 // 호출처마다 trim·lower를 다르게 적용하면 같은 문자열이 충돌/비충돌로 갈라진다.
 const EXCLUSIVE_RESOURCE_ID_RE = /^[a-z0-9][a-z0-9._-]*$/;
 
+// blueprint `bouncer.prerequisites[].merged_commit` 형식. 선행 blueprint가 실제로 병합된 결과 commit이며
+// squash/rebase에서도 원래 worker SHA가 아니라 병합 결과를 가리킨다. 전체 40자리 소문자만 받아
+// 같은 commit이 약어·대문자로 갈라지지 않게 한다. 키 부재/[]는 선행 없음(기존 계획은 그대로).
+const PREREQUISITE_MERGED_COMMIT_RE = /^[0-9a-f]{40}$/;
+
 // 키 부재는 기존 task의 commit 의미를 보존한다. 잘못 쓴 문자열은 null로
 // 남겨 구조 검사가 명시적으로 거절하게 한다.
 const EXECUTION_KIND_ENUM = ['commit', 'verification'];
@@ -305,5 +310,5 @@ export = {
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,
   isValidExclusiveResources, EXCLUSIVE_RESOURCE_ID_RE, isValidAuthoredLineList,
-  EXECUTION_KIND_ENUM, executionKindOf,
+  EXECUTION_KIND_ENUM, executionKindOf, PREREQUISITE_MERGED_COMMIT_RE,
 };

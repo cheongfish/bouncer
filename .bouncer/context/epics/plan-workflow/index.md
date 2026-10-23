@@ -27,8 +27,15 @@ bouncer:
 5. 표식이 없는 blueprint는 full `single`/`combined`, light `skip`을 그대로 받고, 저장된 `single`·`clustered` payload와 legacy 관점 이름 기록이 계속 읽힌다. 표식 light의 run 최종 리뷰(관점·record·repair·G21)는 표식 없는 light와 같은 판정을 받는다.
 6. light 문서 예산 100줄에서 `context-review.md`는 빠지고, CHANGELOG `[Unreleased]`에 항목이 있으며 `npm run ci`가 통과한다.
 
+7. R-M2 범위에서 경량 계획 산출물 설명의 현행 계약 반영의 task 수용 기준과 전용 검증을 만족한다.
+8. R-P1·R-P2·R-P3·R-P4 범위에서 계획 소비자 조사와 리뷰 판정 기준 명시의 task 수용 기준과 전용 검증을 만족한다.
+9. R-P5 범위에서 선행 계획 병합 근거의 선언 형식 추가의 task 수용 기준과 전용 검증을 만족한다.
+10. R-P5 범위에서 승인과 계획 게이트에 선행 병합 판정 연결의 task 수용 기준과 전용 검증을 만족한다.
+11. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
+
 ## Out of scope
-- review 심사 자체의 기준·디스패치 → `gates-review`
+- 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
+- 공통 리뷰 엔진과 execute·finalize 리뷰의 판정 기준·디스패치 → `gates-review`. 계획 작성의 소비자 조사·검증 가능성을 판정하는 plan context-review 기준은 이 epic에 포함한다.
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
 
@@ -56,3 +63,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 ## Blueprints
 - [context-review-fix-restart](blueprints/context-review-fix-restart/index.md) — delta 뒤 열린 `must_fix` 대상 섹션을 고치면 `context-review restart`·`route`가 restart를 허용하고 skill 안내를 맞춘다.
 - [plan-review-perspectives](blueprints/plan-review-perspectives/index.md) — `review_contract: brief` blueprint의 plan 리뷰를 full 4관점 병렬(`perspectives`)과 light `verifiability` 1관점으로 바꾸고 수정 1회·delta 1회로 닫는다.
+- [drive-plan-quality](blueprints/drive-plan-quality/index.md) — 계획 영향 범위와 선행 병합 검증 강화; R-M2·R-P1·R-P2·R-P3·R-P4·R-P5 처리.

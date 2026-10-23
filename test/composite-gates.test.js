@@ -12,10 +12,11 @@ test('COMPOSITE_GATES when read → seven gates cover every live G-code and boun
     'plan-activation', 'scope-declaration', 'execution-topology', 'verification-evidence',
     'commit-scope', 'freshness-approval', 'closeout-completeness',
   ]);
-  const live = ['G1', 'G2', 'G3', 'G5', 'G6', 'G7', 'G8', 'G13', 'G14', 'G16', 'G17', 'G19', 'G20', 'G21', 'G23', 'G24'];
+  const live = ['G1', 'G2', 'G3', 'G5', 'G6', 'G7', 'G8', 'G13', 'G14', 'G16', 'G17', 'G19', 'G20', 'G21', 'G23', 'G24', 'G32'];
   assert.deepStrictEqual(COMPOSITE_GATES.flatMap((g) => g.codes).sort(), [...live].sort());
   assert.strictEqual(compositeGateForCode('G14'), 'verification-evidence');
   assert.strictEqual(compositeGateForCode('G21'), 'closeout-completeness');
+  assert.strictEqual(compositeGateForCode('G32'), 'freshness-approval');
   assert.strictEqual(compositeGateForCode('S10'), null);
   assert.strictEqual(compositeGateForCode('G99'), null);
   assert.strictEqual(compositeGateForCode(undefined), null);
@@ -79,4 +80,13 @@ test('summarizeCompositeGates when no failure of a gate has next → uses the ga
 test('summarizeCompositeGates when only S failures or none → empty list', () => {
   assert.deepStrictEqual(summarizeCompositeGates([]), []);
   assert.deepStrictEqual(summarizeCompositeGates([{ code: 'S10', message: 'm', file: 'a.md' }]), []);
+});
+
+test('summarizeCompositeGates with G32 → freshness-approval gate keeps the failure next and target', () => {
+  const out = summarizeCompositeGates([
+    { code: 'G32', message: 'declared prerequisite is not ready: x', file: 'bp/index.md', next: 'fix-prerequisite' },
+  ]);
+  assert.deepStrictEqual(out, [{
+    gate: 'freshness-approval', label: '신선도·승인', codes: ['G32'], targets: ['bp/index.md'], next: 'fix-prerequisite',
+  }]);
 });

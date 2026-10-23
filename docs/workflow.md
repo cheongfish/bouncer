@@ -143,13 +143,14 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
   `bouncer.scale`을 `light`로 바꿉니다. 무엇이 줄고 무엇이 그대로인지는
   [`rules/planning.md`](../rules/planning.md) `## Lightweight cycle`에
   있습니다.
-- **경량 계획은 문서 넷·100줄입니다.** 선언을 받으면 plan이
-  `bouncer scaffold blueprint --scale light`로 blueprint `index.md`,
-  `tasks/001/{tasks,verification}.md`, 루트 `review.md`만 만듭니다.
-  `context-review.md`가
-  없으니 계획 문서 판정 단계도 없습니다. 다만 blueprint에 `review_contract: brief`
-  표식이 있는 경량 계획은 `context-review.md`를 더 받고 `verifiability`
-  관점 하나로 검증 가능성 리뷰를 받습니다. run의 최종 리뷰는 표식 없는 경량과
+- **새 경량 계획은 초기 문서 다섯·100줄(context-review 제외)입니다.** 선언을
+  받으면 plan이 `bouncer scaffold blueprint --scale light`로 blueprint
+  `index.md`, `tasks/001/{tasks,verification}.md`, 루트 `review.md`,
+  `context-review.md`를 만들고 `review_contract: brief` 표식을 기록합니다.
+  `verifiability` 관점 하나로 검증 가능성 리뷰를 받으며 `context-review.md`는
+  100줄 예산에 세지 않습니다. 종단 검증 task를 더하면 문서가 둘 늘어납니다.
+  표식이 없는 기존 경량 계획은 문서 넷에 `context-review.md`가 없어 계획 문서
+  판정 단계도 없습니다. run의 최종 리뷰는 표식 없는 경량과
   같습니다. task 본문은
   Goal & intent·Touch·Checklist 셋만 쓰는 작성 규칙을 따르고, `affected_paths`
   확정과 G5는 일반 경로와 똑같이 받습니다. `review_scope`가 없으면 기존처럼 `tasks/<NNN>/{tasks,verification,review}.md`를 씁니다.

@@ -17,6 +17,8 @@ import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import contextIds = require('./context-ids');
 import schema = require('./schema');
+import validateGatesPlan = require('./validate-gates-plan');
+const { planPrerequisiteFailures, PREREQUISITE_NEXT } = validateGatesPlan;
 const { parseContextPath } = contextIds;
 
 type ApproveOk = { ok: true; changed: string[]; unchanged: string[] };
@@ -27,7 +29,11 @@ type ApproveFail = {
   next: string;
   changed?: string[];
 };
-type ApproveDeps = { writeFile?: (abs: string, text: string) => void };
+type ApproveDeps = {
+  writeFile?: (abs: string, text: string) => void;
+  // 선행 병합 판정용 Git seam. 없으면 plan-prerequisites의 기본 실행기(셸 없는 git)를 쓴다.
+  exec?: (args: string[]) => { status: number; stdout: string };
+};
 
 // 문서 한 건의 전이 계획. 판정 단계에서 모두 만든 뒤에만 쓴다.
 type Plan = {
@@ -207,6 +213,19 @@ function approvePlan({ repoRoot, blueprintDir, deps = {} }: {
         'run bouncer context-review close until the review is accepted, then retry',
       );
     }
+  }
+
+  // 4b. 선언된 선행 blueprint가 현재 checkout에 병합돼 있어야 한다. draft·정식 plan gate와 같은
+  //     helper라 세 경로의 G32 답이 같다. 어떤 문서도 쓰기 전에 거절해 거절 뒤 바이트가 그대로다.
+  const prerequisiteFailures = planPrerequisiteFailures({
+    repoRoot, blueprintDir: bp, file: `${bp}/index.md`, exec: deps.exec,
+  });
+  if (prerequisiteFailures.length > 0) {
+    return fail(
+      'plan-approve-prerequisite',
+      prerequisiteFailures.map((f) => `${f.code} ${f.message}`),
+      PREREQUISITE_NEXT,
+    );
   }
 
   // 5. 판정 통과 — 이제부터만 쓴다. 순서는 epic → blueprint → tasks.
