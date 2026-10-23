@@ -142,24 +142,15 @@ test('(c) build status 1 → throws and does not create outDir', () => {
   assert.equal(fs.existsSync(outDir), false);
 });
 
-test('(d) real repo tree → matches pack list, ships lib, has no node_modules, --help exits 0', () => {
+test('(d) real repo tree → matches the plugin pack and excludes runtime files', () => {
   const out = path.join(tmp('bouncer-release-repo-'), 'tree');
   const result = buildReleaseTree({ root, outDir: out });
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(listRelFiles(out), packPaths(root));
-  for (const rel of [
-    path.join('packages', 'cli', 'dist', 'cli.js'),
-    path.join('packages', 'cli', 'dist', 'commit-hook.js'),
-    path.join('packages', 'cli', 'dist', 'session-graph.js'),
-  ]) {
-    assert.ok(fs.existsSync(path.join(out, rel)), `missing ${rel}`);
-  }
+  assert.ok(fs.existsSync(path.join(out, 'agents', 'bouncer-coordinator.md')));
+  assert.equal(fs.existsSync(path.join(out, 'packages', 'cli')), false);
+  assert.equal(fs.existsSync(path.join(out, 'scripts', 'lib')), false);
   assert.equal(fs.existsSync(path.join(out, 'node_modules')), false);
-  const help = spawnSync(process.execPath, [path.join(out, 'packages', 'cli', 'bin', 'bouncer'), '--help'], {
-    env: { ...process.env, BOUNCER_HOME: out },
-    encoding: 'utf8',
-  });
-  assert.strictEqual(help.status, 0, help.stderr || help.stdout);
 });
 
 test('(e) release.yml → declares tag and develop-only dispatch contracts', () => {

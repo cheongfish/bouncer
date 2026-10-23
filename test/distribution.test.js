@@ -13,9 +13,9 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 
-function packageFiles() {
+function packageFiles(cwd = root) {
   const output = execFileSync('npm', ['pack', '--dry-run', '--json'], {
-    cwd: root,
+    cwd,
     encoding: 'utf8',
     maxBuffer: 1024 * 1024,
   });
@@ -64,22 +64,18 @@ test('package.json → declares no runtime dependencies', () => {
   assert.deepStrictEqual(deps, [], `runtime deps are not installed by Claude Code: ${deps.join(', ')}`);
 });
 
-test('the package contents → contain only the plugin runtime surface and host manifests', () => {
+test('the plugin package → contains only plugin runtime and host manifests', () => {
   const files = packageFiles();
+  assert.ok(!files.some((file) => file.startsWith('packages/cli/')));
+  assert.ok(!files.some((file) => file.startsWith('scripts/lib/')));
+  assert.ok(!files.some((file) => file.startsWith('scripts/vendor/')));
+  assert.ok(!files.some((file) => file.startsWith('scripts/bouncer')));
   const required = [
     'agents/bouncer-reviewer.md',
     'agents/bouncer-coordinator.md',
     'hooks/hooks.json',
     'references/coding-standards/index.md',
     'references/implementation/index.md',
-    'packages/cli/bin/bouncer',
-    'packages/cli/bin/bouncer-root',
-    'packages/cli/bin/build-stamp.js',
-    'packages/cli/dist/cli.js',
-    'packages/cli/dist/coordinator.js',
-    'packages/cli/dist/doc-shape-contracts.js',
-    'packages/cli/dist/scope.js',
-    'packages/cli/vendor/js-yaml.js',
     'skills/bouncer-run/SKILL.md',
     'AGENTS.md',
     '.agents/plugins/marketplace.json',
@@ -112,9 +108,32 @@ test('the package contents → contain only the plugin runtime surface and host 
   assert.deepStrictEqual(leaked, [], `development files leaked into package:\n${leaked.join('\n')}`);
 });
 
+test('the runtime package → contains runtime assets and excludes plugin files', () => {
+  const cwd = path.join(root, 'packages', 'cli');
+  const files = packageFiles(cwd);
+  for (const file of ['bin/bouncer', 'bin/bouncer-root', 'dist/cli.js', 'vendor/js-yaml.js',
+    'resources/graphify-compat.json', 'README.md', 'LICENSE', 'package.json']) {
+    assert.ok(files.includes(file), `missing runtime file: ${file}`);
+  }
+  const forbiddenPrefixes = [
+    'src/', 'test/', 'benchmark/', '.bouncer/', 'agents/', 'hooks/', 'skills/', 'references/', '.github/',
+    '.claude-plugin/', '.codex-plugin/', '.cursor-plugin/',
+  ];
+  const forbidden = files.filter((file) => file === 'plugin.json'
+    || forbiddenPrefixes.some((prefix) => file.startsWith(prefix)));
+  assert.deepStrictEqual(forbidden, [], `plugin or development files leaked into runtime:\n${forbidden.join('\n')}`);
+  const pkg = readJson('packages/cli/package.json');
+  assert.deepStrictEqual(pkg.repository, {
+    type: 'git',
+    url: 'git+https://github.com/cheongfish/bouncer.git',
+    directory: 'packages/cli',
+  });
+  assert.deepStrictEqual(pkg.publishConfig, { access: 'public' });
+});
+
 // 모든 스킬은 번호 단계 전에 `${BOUNCER_ROOT}/AGENTS.md`를 읽는다. 마스터 룰이나 그것이
 // 가리키는 규칙 파일이 빠지면 설치본의 워크플로가 계약 없이 돈다.
-test('the master rules and their links → every linked file is shipped in the package', () => {
+test('the master rules and their links → every linked file is shipped in the plugin package', () => {
   const files = packageFiles();
   assert.ok(files.includes('AGENTS.md'), 'missing master rules: AGENTS.md');
   const links = [...fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8').matchAll(/\]\(([^)#\s]+)/g)]
@@ -128,14 +147,15 @@ test('the master rules and their links → every linked file is shipped in the p
 // 빠지면 설치본에서 `bouncer coordinate`가 사라지고, TypeScript 소스나 저장소
 // 로컬 `.codex/` 시드가 섞여 들어가면 설치본이 개발 체크아웃에 의존하게 된다.
 test('the coordinator runtime and agent → ship in the package without their development sources', () => {
-  const files = packageFiles();
-  for (const file of ['packages/cli/dist/coordinator.js', 'packages/cli/dist/scope.js', 'agents/bouncer-coordinator.md']) {
-    assert.ok(files.includes(file), `missing coordinator surface: ${file}`);
+  const pluginFiles = packageFiles();
+  const runtimeFiles = packageFiles(path.join(root, 'packages', 'cli'));
+  for (const file of ['dist/coordinator.js', 'dist/scope.js']) {
+    assert.ok(runtimeFiles.includes(file), `missing coordinator surface: ${file}`);
   }
-  const leaked = files.filter((file) => file === 'packages/cli/src/coordinator.ts'
-    || file === 'packages/cli/src/scope.ts'
-    || file.startsWith('.codex/agents/'));
-  assert.deepStrictEqual(leaked, [], `coordinator development files leaked:\n${leaked.join('\n')}`);
+  assert.ok(pluginFiles.includes('agents/bouncer-coordinator.md'));
+  for (const file of ['src/coordinator.ts', 'src/scope.ts']) {
+    assert.ok(!runtimeFiles.includes(file), `coordinator development file leaked: ${file}`);
+  }
 
   // 배포되는 coordinator 런타임은 node_modules 없이 로드돼야 한다.
   const coordinator = require('../packages/cli/dist/coordinator');
@@ -228,10 +248,10 @@ test('vendored js-yaml and the installed package → match at a safe minimum ver
 });
 
 test('every host install → the package ships the Graphify compatibility manifest', () => {
-  const files = packageFiles();
+  const files = packageFiles(path.join(root, 'packages', 'cli'));
   assert.ok(
-    files.includes('packages/cli/resources/graphify-compat.json'),
-    'missing package file: packages/cli/resources/graphify-compat.json',
+    files.includes('resources/graphify-compat.json'),
+    'missing package file: resources/graphify-compat.json',
   );
   const manifest = readJson('packages/cli/resources/graphify-compat.json');
   assert.strictEqual(manifest.schema_version, 1);

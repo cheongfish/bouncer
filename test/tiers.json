@@ -83,6 +83,7 @@
     "current.test.js",
     "cursor-plugin.test.js",
     "distribution.test.js",
+    "runtime-install-smoke.test.js",
     "doc-shape-cli.test.js",
     "execute-prepare.test.js",
     "finalize-digest.test.js",
