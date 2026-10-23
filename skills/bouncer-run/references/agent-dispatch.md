@@ -223,19 +223,26 @@ order and add no attempt field or retry state.
 | any call exits 1 or 2 (including the reselect or `--no-symbols` call) | Stop role dispatch and report the failure. |
 
 `created` versus `reused` follows the cache the task already has. The result is
-`reused` only when a valid previous cache has the same `task_brief_hash` and the
-same function set, blob hashes, and section hashes; it keeps `bundle_id` and
-`revision`. Any other case is `created`:
+`reused` only when a valid previous cache has the same `task_brief_hash`, the
+same function set, the same `function_ref` for every function, and the same blob
+and section hashes; it keeps `bundle_id` and `revision`. A function with the same
+symbol name but a different opaque `function_ref` string is not reused. Any other
+case is `created`, except the symlink boundary violation below, which fails
+instead of missing the cache:
 
 | Previous cache | Current call | Result and `revision` |
 | --- | --- | --- |
 | valid, same brief hash, functions and sections unchanged | same set | `reused`, `revision` unchanged |
 | valid, brief hash differs (brief-only change) | same set | `created`, previous `revision` + 1 |
-| valid | function set or blob/section changed | `created`, previous `revision` + 1 |
+| valid | function set, any `function_ref`, or blob/section changed | `created`, previous `revision` + 1 |
 | valid, non-empty functions | `--no-symbols` (empty set) | cache miss, `created`, `revision` + 1 |
 | valid, empty | `--no-symbols`, same brief hash | `reused`, `revision` unchanged |
 | valid, empty | `--no-symbols`, different brief hash | `created`, `revision` + 1 (empty bundle is not exempt) |
-| missing, malformed, or symlink-escaped | any | `created`, `revision` 1 |
+| missing or malformed | any | `created`, `revision` 1 |
+
+A cache path that escapes the Git common dir through a symlink is not a cache
+miss and never becomes `created` revision 1: the call rejects it immediately and
+exits 1 or 2, so role dispatch stops and reports the failure as in the table above.
 
 Switching from a symbol set to `--no-symbols` can therefore raise the revision;
 pin whatever revision the single resolve returns for every later role.

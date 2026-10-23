@@ -19,6 +19,8 @@ import contextIds = require('./context-ids');
 import schema = require('./schema');
 import validateGatesPlan = require('./validate-gates-plan');
 const { planPrerequisiteFailures, PREREQUISITE_NEXT } = validateGatesPlan;
+import planPrerequisites = require('./plan-prerequisites');
+const { prerequisiteFormatIssues } = planPrerequisites;
 const { parseContextPath } = contextIds;
 
 type ApproveOk = { ok: true; changed: string[]; unchanged: string[] };
@@ -217,6 +219,12 @@ function approvePlan({ repoRoot, blueprintDir, deps = {} }: {
 
   // 4b. 선언된 선행 blueprint가 현재 checkout에 병합돼 있어야 한다. draft·정식 plan gate와 같은
   //     helper라 세 경로의 G32 답이 같다. 어떤 문서도 쓰기 전에 거절해 거절 뒤 바이트가 그대로다.
+  //     형식 오류(HEAD·짧은 SHA·추가 키·비정본 경로·중복·자기참조)는 G32 helper의 entries에서 빠져
+  //     통과해 버리므로, 같은 형식 판정(S39)을 여기서 먼저 적용해 쓰기 전에 거절한다.
+  const formatIssues = prerequisiteFormatIssues(bpBouncer.prerequisites, bp);
+  if (formatIssues.length > 0) {
+    return fail('plan-approve-prerequisite', formatIssues.map((m) => `S39 ${m}`), PREREQUISITE_NEXT);
+  }
   const prerequisiteFailures = planPrerequisiteFailures({
     repoRoot, blueprintDir: bp, file: `${bp}/index.md`, exec: deps.exec,
   });

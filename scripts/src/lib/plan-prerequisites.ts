@@ -26,19 +26,26 @@ type PrerequisiteReport = {
   cycles: string[][];
 };
 
+type ValidEntry = { blueprint: string; merged_commit: string };
+
 /**
- * `bouncer.prerequisites` 한 값의 형식만 판정한다. 부재(undefined)와 `[]`는 선행 없음이라 통과한다.
- * 존재·순환·병합 여부는 보지 않는다(helper가 판정 데이터로 돌려준다). validate-structural의 S39가
- * 이 목록을 그대로 실패로 옮겨, 구조 검사와 helper가 같은 형식 판정을 쓰게 한다.
+ * `bouncer.prerequisites` 값을 항목별로 판정해 위반 설명과 "유효한 항목"을 함께 돌려준다.
+ * 형식 검사(S39)·Git 조회 대상·순환 간선이 각자 선별 조건을 갖고 있으면 서로 다른 답을 내
+ * HEAD·짧은 SHA·중복이 승인 때 새어 나갔다. 그래서 선별을 이 한 곳에 모은다.
+ * 유효한 항목 = 정확한 두 키, 정본 경로, 40자 소문자 SHA, 자기참조 아님, 앞선 유효 항목과 중복 아님.
+ * 부재(undefined)와 `[]`는 선행 없음이라 통과한다. 존재·순환·병합 여부는 보지 않는다.
  *
  * @param {unknown} value - 프론트매터의 prerequisites 값. 키가 없으면 undefined
  * @param {string} selfDir - 이 선언을 가진 blueprint의 저장소 상대 디렉터리(자기참조 판정용)
- * @returns {string[]} 위반 설명 목록. 비어 있으면 형식이 맞다
+ * @returns {{issues: string[], valid: ValidEntry[]}} 위반 설명 목록과 Git 조회·간선에 쓸 유효한 항목
  */
-function prerequisiteFormatIssues(value: unknown, selfDir: string): string[] {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) return ['prerequisites must be an array of {blueprint, merged_commit}'];
+function classifyPrerequisites(value: unknown, selfDir: string): { issues: string[]; valid: ValidEntry[] } {
+  if (value === undefined) return { issues: [], valid: [] };
+  if (!Array.isArray(value)) {
+    return { issues: ['prerequisites must be an array of {blueprint, merged_commit}'], valid: [] };
+  }
   const issues: string[] = [];
+  const valid: ValidEntry[] = [];
   const seen = new Set<string>();
   const self = normalizeRepoPath(selfDir);
   value.forEach((entry, i) => {
@@ -58,15 +65,29 @@ function prerequisiteFormatIssues(value: unknown, selfDir: string): string[] {
     const canonical = typeof blueprint === 'string'
       && normalizeRepoPath(blueprint) === blueprint && isCanonicalBlueprintDir(blueprint);
     if (!canonical) issues.push(`${label}.blueprint must be a canonical blueprint directory`);
-    if (typeof commit !== 'string' || !MERGED_COMMIT_RE.test(commit)) {
-      issues.push(`${label}.merged_commit must be a 40-char lowercase sha`);
-    }
+    const shaOk = typeof commit === 'string' && MERGED_COMMIT_RE.test(commit);
+    if (!shaOk) issues.push(`${label}.merged_commit must be a 40-char lowercase sha`);
     if (!canonical) return;
-    if (blueprint === self) issues.push(`${label}.blueprint must not reference itself`);
-    else if (seen.has(blueprint as string)) issues.push(`${label}.blueprint duplicates an earlier entry`);
-    seen.add(blueprint as string);
+    const bp = blueprint as string;
+    let dup = false;
+    if (bp === self) issues.push(`${label}.blueprint must not reference itself`);
+    else if (seen.has(bp)) { issues.push(`${label}.blueprint duplicates an earlier entry`); dup = true; }
+    seen.add(bp);
+    if (shaOk && bp !== self && !dup) valid.push({ blueprint: bp, merged_commit: commit as string });
   });
-  return issues;
+  return { issues, valid };
+}
+
+/**
+ * `bouncer.prerequisites` 한 값의 형식만 판정한다. validate-structural의 S39가 이 목록을 그대로
+ * 실패로 옮겨, 구조 검사·승인·helper가 같은 형식 판정을 쓰게 한다.
+ *
+ * @param {unknown} value - 프론트매터의 prerequisites 값. 키가 없으면 undefined
+ * @param {string} selfDir - 이 선언을 가진 blueprint의 저장소 상대 디렉터리(자기참조 판정용)
+ * @returns {string[]} 위반 설명 목록. 비어 있으면 형식이 맞다
+ */
+function prerequisiteFormatIssues(value: unknown, selfDir: string): string[] {
+  return classifyPrerequisites(value, selfDir).issues;
 }
 
 /**
@@ -111,15 +132,9 @@ function readPrerequisites(repoRoot: string, dir: string): { found: boolean; raw
   return { found: true, raw };
 }
 
-/** 형식이 맞는 항목의 blueprint 경로만 뽑는다(순환 탐색용). 자기참조는 형식 위반이라 제외한다. */
+/** 유효한 항목의 blueprint 경로만 뽑는다(순환 탐색용). 위반 항목은 간선으로 쓰지 않는다. */
 function wellFormedTargets(raw: unknown, selfDir: string): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  for (const entry of raw) {
-    const bp = entry && typeof entry === 'object' ? (entry as Record<string, unknown>).blueprint : undefined;
-    if (typeof bp === 'string' && isCanonicalBlueprintDir(bp) && bp !== selfDir) out.push(bp);
-  }
-  return out;
+  return classifyPrerequisites(raw, selfDir).valid.map((e) => e.blueprint);
 }
 
 /**
@@ -179,23 +194,14 @@ function checkPrerequisites(
   const run = exec || defaultExec(repoRoot);
   const dir = normalizeRepoPath(blueprintDir);
   const { raw } = readPrerequisites(repoRoot, dir);
-  const formatIssues = prerequisiteFormatIssues(raw, dir);
-  const entries: PrerequisiteEntry[] = [];
-  if (Array.isArray(raw)) {
-    for (const entry of raw) {
-      const rec = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
-      const { blueprint, merged_commit: commit } = rec;
-      // 형식이 틀린 항목은 S39가 이미 보고하므로 Git에 보내지 않는다(잘못된 문자열을 git 인자로 넘기지 않기 위함).
-      if (typeof blueprint !== 'string' || !isCanonicalBlueprintDir(blueprint) || blueprint === dir) continue;
-      if (typeof commit !== 'string' || !MERGED_COMMIT_RE.test(commit)) continue;
-      entries.push({
-        blueprint,
-        merged_commit: commit,
-        blueprintFound: fs.existsSync(path.join(repoRoot, blueprint, 'index.md')),
-        commitState: commitStateOf(run, commit),
-      });
-    }
-  }
+  const { issues: formatIssues, valid } = classifyPrerequisites(raw, dir);
+  // 형식이 틀린 항목은 S39가 이미 보고하므로 Git에 보내지 않는다(잘못된 문자열을 git 인자로 넘기지 않기 위함).
+  const entries: PrerequisiteEntry[] = valid.map(({ blueprint, merged_commit: commit }) => ({
+    blueprint,
+    merged_commit: commit,
+    blueprintFound: fs.existsSync(path.join(repoRoot, blueprint, 'index.md')),
+    commitState: commitStateOf(run, commit),
+  }));
   return { formatIssues, entries, cycles: raw === undefined ? [] : findCycles(repoRoot, dir) };
 }
 

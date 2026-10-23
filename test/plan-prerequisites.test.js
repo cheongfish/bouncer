@@ -122,9 +122,28 @@ test('self reference → is a format issue and is not sent to git', () => {
 
 test('same blueprint declared twice → duplicate is a format issue and only the first reaches git', () => {
   const repo = mkRepo({ [SELF]: [entry(PRE, SHA), entry(PRE, SHA2)], [PRE]: undefined });
-  const r = checkPrerequisites({ repoRoot: repo, blueprintDir: SELF, exec: fakeGit().exec });
+  const git = fakeGit();
+  const r = checkPrerequisites({ repoRoot: repo, blueprintDir: SELF, exec: git.exec });
   assert.strictEqual(r.formatIssues.length, 1);
   assert.match(r.formatIssues[0], /duplicates/);
+  // 유효한 첫 항목만 entries·Git 조회에 남고 중복 항목은 별도 조회가 아니다.
+  assert.strictEqual(r.entries.length, 1);
+  assert.strictEqual(r.entries[0].merged_commit, SHA);
+  assert.deepStrictEqual(git.calls, [
+    ['rev-parse', '--verify', '--quiet', `${SHA}^{commit}`],
+    ['merge-base', '--is-ancestor', SHA, 'HEAD'],
+  ]);
+});
+
+test('entry has an extra key or a non-canonical path → format issue and no entry or git call', () => {
+  for (const bad of [{ ...entry(), note: 'x' }, entry(`${PRE}/`)]) {
+    const repo = mkRepo({ [SELF]: [bad], [PRE]: undefined });
+    const git = fakeGit();
+    const r = checkPrerequisites({ repoRoot: repo, blueprintDir: SELF, exec: git.exec });
+    assert.strictEqual(r.formatIssues.length, 1);
+    assert.deepStrictEqual(r.entries, []);
+    assert.deepStrictEqual(git.calls, []);
+  }
 });
 
 test('malformed sha → format issue is returned and git is not called for it', () => {

@@ -241,7 +241,8 @@ test('rejection reasons → leave the main tree and porcelain unchanged', () => 
   }
 });
 
-test('partial merge without two independent confirmations → preserves main, then merges only integration HEAD with a handoff marker', () => {
+// 거절 사전 조건(handoff·userConfirmed·깨끗한 main·integration HEAD 앞섬)을 모두 채운 partial 상태.
+function makePartialFixture() {
   const fx = makeFixture();
   git(fx.main, ['add', '--', BP]);
   git(fx.main, ['commit', '-qm', 'main plan copy']);
@@ -258,6 +259,11 @@ test('partial merge without two independent confirmations → preserves main, th
   const integrationHead = git(fx.integration, ['rev-parse', 'HEAD']);
   writeLedger(fx.ledgerFile, { status: 'partial_closed', userConfirmed: true, handoff: { path: handoff } });
 
+  return { fx, handoff, integrationHead };
+}
+
+test('partial merge without two independent confirmations → preserves main, then merges only integration HEAD with a handoff marker', () => {
+  const { fx, handoff, integrationHead } = makePartialFixture();
   const before = git(fx.main, ['rev-parse', 'HEAD']);
   const ordinary = runRelease(fx);
   assert.equal(ordinary.reason, 'drive-not-closed');
@@ -274,6 +280,60 @@ test('partial merge without two independent confirmations → preserves main, th
   assert.match(git(fx.main, ['log', '-1', '--format=%B']), new RegExp(`Handoff: ${handoff}`));
   assert.match(fs.readFileSync(path.join(fx.main, `${BP}/index.md`), 'utf8'), /status: partial_closed/);
   assert.equal(JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8')).status, 'partial_closed');
+});
+
+// save와 git 호출을 한 배열에 순서대로 기록한다. git은 기록 뒤 실제 fixture git에 위임한다.
+function recordingDeps(fx, events, save) {
+  return {
+    saveMetricsSnapshot: (args) => { events.push('save'); return save(args); },
+    git: (args) => {
+      events.push(`git ${args[0] === '-C' ? args[2] : args[0]}`);
+      return execFileSync('git', args, { cwd: fx.main, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    },
+  };
+}
+
+test('partial merge whose snapshot save fails → never merges or commits and leaves HEAD, tree, porcelain, ledger, and integration unchanged', () => {
+  const { fx } = makePartialFixture();
+  const headBefore = git(fx.main, ['rev-parse', 'HEAD']);
+  const countBefore = git(fx.main, ['rev-list', '--count', 'HEAD']);
+  const treeBefore = git(fx.main, ['rev-parse', 'HEAD^{tree}']);
+  const mainBefore = snapshot(fx.main);
+  const porcelainBefore = porcelain(fx.main);
+  const ledgerBefore = fs.readFileSync(fx.ledgerFile);
+  const integrationBefore = snapshot(fx.integration);
+  const events = [];
+  const res = runRelease(fx, {
+    allowPartialMerge: true,
+    confirmPartialMerge: true,
+    deps: recordingDeps(fx, events, () => ({ ok: false, reason: 'metrics-snapshot-write-failed' })),
+  });
+  assert.deepEqual(res, { ok: false, reason: 'metrics-snapshot-write-failed' });
+  assert.ok(events.includes('save'), JSON.stringify(events));
+  assert.deepEqual(events.filter((e) => e === 'git merge' || e === 'git commit'), []);
+  assert.equal(git(fx.main, ['rev-parse', 'HEAD']), headBefore);
+  assert.equal(git(fx.main, ['rev-list', '--count', 'HEAD']), countBefore);
+  assert.equal(git(fx.main, ['rev-parse', 'HEAD^{tree}']), treeBefore);
+  assert.deepEqual(snapshot(fx.main), mainBefore);
+  assert.equal(porcelain(fx.main), porcelainBefore);
+  assert.deepEqual(fs.readFileSync(fx.ledgerFile), ledgerBefore);
+  assert.deepEqual(snapshot(fx.integration), integrationBefore);
+});
+
+test('partial merge whose snapshot save succeeds → the save is recorded before the first merge', () => {
+  const { fx, integrationHead } = makePartialFixture();
+  const events = [];
+  const res = runRelease(fx, {
+    allowPartialMerge: true,
+    confirmPartialMerge: true,
+    deps: recordingDeps(fx, events, () => ({ ok: true })),
+  });
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(res.merged, integrationHead);
+  const save = events.indexOf('save');
+  const merge = events.indexOf('git merge');
+  assert.ok(save >= 0 && merge >= 0, JSON.stringify(events));
+  assert.ok(save < merge, JSON.stringify(events));
 });
 
 test('staged new files under the blueprint → are unstaged and deleted', () => {

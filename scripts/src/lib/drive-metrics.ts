@@ -119,8 +119,14 @@ type SnapshotFs = {
     (file: string): Buffer;
     (file: string, encoding: BufferEncoding): string;
   };
-  writeFileSync: (file: string, data: string) => void;
+  // options는 temp를 배타 생성('wx')하려는 저장 경로만 넘긴다. 기존 2-인자 주입도 그대로 허용된다.
+  writeFileSync: (file: string, data: string, options?: { flag: string }) => void;
   renameSync: (from: string, to: string) => void;
+  // 아래 넷은 경계 검사·mkdir·temp 정리용 optional seam이다. 없으면 node:fs로 fallback한다.
+  realpathSync?: (file: string) => string;
+  lstatSync?: (file: string) => { isSymbolicLink: () => boolean };
+  mkdirSync?: (dir: string, options: { recursive: true }) => string | undefined;
+  unlinkSync?: (file: string) => void;
 };
 
 /**
@@ -531,27 +537,60 @@ function isInsideReal(child: string, parent: string): boolean {
   return rel === '' || (!rel.startsWith(`..${path.sep}`) && rel !== '..' && !path.isAbsolute(rel));
 }
 
+// 파일 시스템 오류(code가 문자열인 Error)인지 가른다. 프로그래밍 오류(TypeError 등)는 I/O 실패로 삼키지 않는다.
+function isFsError(error: unknown): error is Error {
+  return error instanceof Error && typeof (error as { code?: unknown }).code === 'string';
+}
+
 /**
  * snapshot 파일 자리가 Git common dir 안쪽이고 파일 자체가 symlink가 아닌지 검사한다.
- * 상위 디렉터리가 아직 없으면(ENOENT) 만들 자리이므로 통과다. 그 밖의 I/O 오류는 삼키지 않는다.
+ * mkdir 전에도 호출되므로 아직 없는 하위 경로는 "가장 가까운 기존 조상"까지 거슬러 올라가
+ * 그 realpath가 경계 안인지 본다 — 미존재 디렉터리를 이유로 바로 통과시키면 조상이 외부를
+ * 가리키는 symlink일 때 recursive mkdir이 외부에 디렉터리를 만든다. realpath가 ENOENT인데
+ * lstat은 성공하는 조상은 가리키는 곳이 없는(dangling) symlink이므로 안전하지 않다고 본다.
+ * 경계 검사 중의 ENOENT 외 I/O 오류(EACCES 등)는 안전을 확인할 수 없으므로 false이고,
+ * 프로그래밍 오류는 그대로 던진다.
  *
  * @param {string} commonGitDir - Git common dir
  * @param {string} file - workerSnapshotPath 결과
+ * @param {SnapshotFs} [fsx] - 검사 seam. 없는 메서드는 node:fs로 fallback한다
  * @returns {boolean} 경계 안쪽이고 symlink가 아니면 true
  */
-function snapshotLocationSafe(commonGitDir: string, file: string): boolean {
-  const base = fs.realpathSync(commonGitDir);
+function snapshotLocationSafe(commonGitDir: string, file: string, fsx: SnapshotFs = fs): boolean {
+  const realpath = fsx.realpathSync ?? fs.realpathSync;
+  const lstat = fsx.lstatSync ?? fs.lstatSync;
   try {
-    if (!isInsideReal(fs.realpathSync(path.dirname(file)), base)) return false;
+    const base = realpath(commonGitDir);
+    let dir = path.dirname(file);
+    for (;;) {
+      try {
+        return isInsideReal(realpath(dir), base) && !lstatIsSymlink(lstat, file);
+      } catch (error) {
+        if (!isEnoentError(error)) throw error;
+      }
+      // realpath ENOENT: 진짜 없는 조상이면 한 칸 위로, lstat이 성공하면 dangling symlink라 거절.
+      try {
+        lstat(dir);
+        return false;
+      } catch (error) {
+        if (!isEnoentError(error)) throw error;
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) return false;
+      dir = parent;
+    }
   } catch (error) {
-    if (!isEnoentError(error)) throw error;
-    return true;
+    if (isFsError(error)) return false;
+    throw error;
   }
+}
+
+// 파일이 아직 없는 것(ENOENT)만 "첫 저장"으로 보아 symlink가 아니라고 답한다.
+function lstatIsSymlink(lstat: (file: string) => { isSymbolicLink: () => boolean }, file: string): boolean {
   try {
-    return !fs.lstatSync(file).isSymbolicLink();
+    return lstat(file).isSymbolicLink();
   } catch (error) {
-    // 파일이 아직 없는 것만 "첫 저장"으로 본다.
-    if (isEnoentError(error)) return true;
+    if (isEnoentError(error)) return false;
     throw error;
   }
 }
@@ -585,12 +624,14 @@ function loadWorkerSnapshot(opts: { commonGitDir: string; blueprint: string; fs?
   { ok: true; snapshot: WorkerSnapshotFile | null } | Failure {
   const invalid: Failure = { ok: false, reason: 'metrics-snapshot-invalid' };
   const file = workerSnapshotPath(opts.commonGitDir, opts.blueprint);
-  if (!snapshotLocationSafe(opts.commonGitDir, file)) return invalid;
+  if (!snapshotLocationSafe(opts.commonGitDir, file, opts.fs)) return invalid;
   let raw: string;
   try {
     raw = (opts.fs ?? fs).readFileSync(file, 'utf8');
   } catch (error) {
     if (isEnoentError(error)) return { ok: true, snapshot: null };
+    // EACCES·EISDIR 같은 읽기 오류는 값을 신뢰할 수 없으므로 던지지 않고 invalid로 접는다.
+    if (isFsError(error)) return invalid;
     throw error;
   }
   let parsed: unknown;
@@ -604,18 +645,29 @@ function loadWorkerSnapshot(opts: { commonGitDir: string; blueprint: string; fs?
     ? { ok: true, snapshot: parsed } : invalid;
 }
 
+// 이 호출이 방금 만든 temp를 지운다. 정리 실패(fs 오류)는 원래의 저장 실패 보고를 가리지 않도록
+// 삼킨다: 남는 것은 우리 pid가 붙은 .tmp뿐이고 최종 snapshot은 건드리지 않는다.
+function removeOwnTemporary(fsx: SnapshotFs, temporary: string): void {
+  try {
+    (fsx.unlinkSync ?? fs.unlinkSync)(temporary);
+  } catch (error) {
+    if (!isFsError(error)) throw error;
+  }
+}
+
 /**
  * 실제 원장에서 worker 집계와 원장 SHA-256을 읽어 snapshot으로 atomic 저장한다.
  * 같은 원장 hash의 snapshot은 다시 쓰지 않고(`reused: true`), 새 원장이면 갱신한다.
  * 원장이 없으면 새 값을 만들지 않는다: 유효한 기존 snapshot은 그대로 보존해 돌려주고,
  * 둘 다 없으면 `metrics-ledger-unavailable`이다. 기존 snapshot이 깨졌으면 덮어쓰지 않고
- * `metrics-snapshot-invalid`로 거절한다. 저장 I/O 실패는 `metrics-snapshot-write-failed`다.
+ * `metrics-snapshot-invalid`로 거절한다. 경계 검사·snapshot 읽기의 I/O 오류도 invalid이고,
+ * mkdir·temp 생성·쓰기·rename 실패는 `metrics-snapshot-write-failed`다.
  *
  * @param {object} opts - 저장 입력
  * @param {string} opts.commonGitDir - Git common dir
  * @param {string | null} opts.ledgerFile - integration 원장 경로. null이면 원장 없음
  * @param {string} opts.blueprint - blueprint 경로
- * @param {{readFileSync: Function, writeFileSync: Function, renameSync: Function}} [opts.fs] - I/O seam
+ * @param {SnapshotFs} [opts.fs] - I/O seam(optional 메서드는 node:fs fallback)
  * @param {Clock} [opts.now] - 시계 seam
  * @returns {{ok: true, blueprint: string, path: string, ledger_sha256: string, reused: boolean} | Failure}
  *   저장(또는 재사용)된 snapshot 정보 또는 거절 사유
@@ -644,17 +696,36 @@ function saveWorkerSnapshot(opts: {
     ledger_sha256: hash, worker_tokens: sumWorkerDecisions(ledger.decisions),
   };
   const temporary = `${file}.${process.pid}.tmp`;
+  const invalid: Failure = { ok: false, reason: 'metrics-snapshot-invalid' };
+  const writeFailed: Failure = { ok: false, reason: 'metrics-snapshot-write-failed' };
+  // 위 loadWorkerSnapshot이 mkdir 전에 기존 조상까지 경계를 검사했다. 여기서는 만들기만 한다.
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    // mkdir 뒤에 다시 검사한다: 중간 디렉터리가 symlink였다면 이제야 드러난다.
-    if (!snapshotLocationSafe(opts.commonGitDir, file)) return { ok: false, reason: 'metrics-snapshot-invalid' };
-    fsx.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
+    (fsx.mkdirSync ?? fs.mkdirSync)(path.dirname(file), { recursive: true });
+  } catch (error) {
+    // 디렉터리 생성 실패(EACCES·ENOSPC 등 fs 오류)만 저장 실패로 접는다. 프로그래밍 오류는 던진다.
+    if (!isFsError(error)) throw error;
+    return writeFailed;
+  }
+  // mkdir 뒤에 다시 검사한다: 검사와 mkdir 사이에 조상이 바뀌었다면 이제야 드러난다.
+  if (!snapshotLocationSafe(opts.commonGitDir, file, fsx)) return invalid;
+  try {
+    // 'wx' 배타 생성: 예측 가능한 temp 자리에 누가 symlink·파일을 심어 두었더라도 따라 쓰지 않고
+    // EEXIST로 실패한다. 이 경우 temp는 우리 것이 아니므로 지우지 않는다.
+    fsx.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`, { flag: 'wx' });
+  } catch (error) {
+    if (!isFsError(error)) throw error;
+    // 파일이 만들어진 뒤에만 생기는 오류(공간 부족 등)일 때만 자신의 부분 temp를 정리한다.
+    if (['ENOSPC', 'EDQUOT', 'EIO', 'EFBIG'].includes((error as unknown as { code: string }).code)) {
+      removeOwnTemporary(fsx, temporary);
+    }
+    return writeFailed;
+  }
+  try {
     fsx.renameSync(temporary, file);
   } catch (error) {
-    // 파일 시스템 오류(code가 문자열인 Error)만 "저장 실패"로 접는다. 호출자는 이 거절로
-    // 정리를 멈추므로 안전하다. 그 밖의 예외(프로그래밍 오류)는 삼키지 않는다.
-    if (!(error instanceof Error) || typeof (error as { code?: unknown }).code !== 'string') throw error;
-    return { ok: false, reason: 'metrics-snapshot-write-failed' };
+    if (!isFsError(error)) throw error;
+    removeOwnTemporary(fsx, temporary);
+    return writeFailed;
   }
   return { ok: true, blueprint, path: file, ledger_sha256: hash, reused: false };
 }

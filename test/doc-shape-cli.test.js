@@ -329,3 +329,45 @@ test('CLI with the drive-metrics reference → applies its path contract and exi
   const result = spawnCli(['skills/bouncer-run/references/drive-metrics.md']);
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
 });
+
+// 정본 경로를 유지한 사본에서 필수 H2 하나를 H3로 내리면 경로 계약이 제목 누락을 거절해야 한다.
+test('drive-metrics reference copy without a required H2 → exit 1 naming the file path and the missing heading', () => {
+  const rel = 'skills/bouncer-run/references/drive-metrics.md';
+  const { dir, abs, markdown } = copyDocToTmp(rel);
+  try {
+    assert.strictEqual(runInTmp([rel], dir).code, 0);
+    const required = markdown.match(/^## (.+)$/m)[1];
+    fs.writeFileSync(abs, markdown.replace(/^## (.+)$/m, '### $1'));
+    const { code, err } = runInTmp([rel], dir);
+    assert.strictEqual(code, 1, err);
+    assert.ok(err.includes(rel), err);
+    assert.ok(err.includes(required), err);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the shared contract leaf → classifies kinds and resolves path contracts the CLI relies on', () => {
+  const leaf = require('../scripts/lib/doc-shape-contracts');
+  assert.strictEqual(leaf.classifyDocPath('agents/bouncer-reviewer.md'), 'agent');
+  assert.strictEqual(leaf.classifyDocPath('./skills/bouncer-plan/SKILL.md'), 'workflow');
+  assert.strictEqual(leaf.classifyDocPath('references/coding-standards/index.md'), 'subskill');
+  assert.strictEqual(leaf.classifyDocPath('docs/workflow.md'), null);
+  // 종류가 없는 경로 전용 계약도 표에서 찾는다.
+  const drive = 'skills/bouncer-run/references/drive-metrics.md';
+  assert.strictEqual(leaf.classifyDocPath(drive), null);
+  assert.deepStrictEqual(leaf.pathContractFor(`./${drive}`), leaf.PATH_CONTRACTS[drive]);
+  assert.strictEqual(leaf.pathContractFor('docs/workflow.md'), null);
+  assert.strictEqual(leaf.pathContractFor('constructor'), null);
+});
+
+test('CLI with explicit files → accepts a path-contract-only file and still rejects an uncontracted one', () => {
+  const ok = spawnCli(['skills/bouncer-run/references/drive-metrics.md', 'agents/bouncer-reviewer.md']);
+  assert.strictEqual(ok.status, 0, ok.stderr || ok.stdout);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-doc-shape-'));
+  fs.mkdirSync(path.join(dir, 'docs'));
+  fs.writeFileSync(path.join(dir, 'docs', 'workflow.md'), '# x\n');
+  const bad = spawnCli(['docs/workflow.md'], { cwd: dir });
+  assert.strictEqual(bad.status, 1);
+  assert.ok(bad.stderr.includes('docs/workflow.md'), bad.stderr);
+});

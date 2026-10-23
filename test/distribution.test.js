@@ -77,6 +77,7 @@ test('the package contents → contain only the plugin runtime surface and host 
     'scripts/build-stamp.js',
     'scripts/lib/cli.js',
     'scripts/lib/coordinator.js',
+    'scripts/lib/doc-shape-contracts.js',
     'scripts/lib/scope.js',
     'scripts/vendor/js-yaml.js',
     'skills/bouncer-run/SKILL.md',
@@ -90,6 +91,10 @@ test('the package contents → contain only the plugin runtime surface and host 
   ];
   for (const file of required) assert.ok(files.includes(file), `missing package file: ${file}`);
   assert.ok(!files.includes('rules/governance.md'), 'rules/governance.md must not be packaged');
+  // 배포본의 plan 게이트는 이 compiled leaf를 require한다. 빠지면 설치본의 validate가 로드 실패한다.
+  const leaf = require('../scripts/lib/doc-shape-contracts');
+  assert.strictEqual(typeof leaf.classifyDocPath, 'function');
+  assert.strictEqual(typeof leaf.pathContractFor, 'function');
 
   const developmentOnly = [
     '.bouncer/context/',

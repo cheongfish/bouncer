@@ -18,7 +18,7 @@ bouncer execute prepare --blueprint <dir>
 bouncer commit --blueprint <dir> [--yes]
 bouncer finalize --blueprint <dir> [--yes]
 bouncer finalize release-main --blueprint <dir>
-bouncer finalize comprehension --blueprint <dir> --digest <json-file> (--confirm-quiz | --refresh)
+bouncer finalize comprehension --blueprint <dir> --digest <json-file> (--confirm-quiz | --refresh) [--repo <dir>]
 bouncer finalize pr-body --digest <json-file> --summary <markdown-file> [--flow <mermaid-file>]
 bouncer run preflight --blueprint <dir>
 bouncer run detach --blueprint <dir> --yes [--reason <text>]
@@ -114,8 +114,9 @@ no file changed); plan the blueprint under a registry epic instead. An already
 approved blueprint is unaffected.
 A blueprint that declares `bouncer.prerequisites` must have every merge result
 commit in the current checkout's HEAD history. `plan approve` refuses with
-`plan-approve-prerequisite` (exit 1, no file changed; `cause` lists `G32` lines
-naming each prerequisite path and reason), and the plan draft check and plan
+`plan-approve-prerequisite` (exit 1, no file changed; `cause` lists `S39` lines
+for a malformed declaration, or `G32` lines naming each prerequisite path and
+reason for merge state), and the plan draft check and plan
 gate report the same `G32` (composite gate `freshness-approval`). Recover by
 fixing the missing reference or the merge result SHA, or by merging/rebasing
 the prerequisite into this checkout, then rerun. A Git lookup error is a
@@ -399,12 +400,13 @@ bouncer retro read --path <file> [--max-chars <n>]
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
-  # --mode delta → strategy single / perspectives [combined] (delta certification)
-  # light scale → strategy single / perspectives [combined] (diff size ignored);
-  # non-empty review_risk still appends security (legacy blueprint)
-  # blueprint review mode without --task and review_contract: brief: --mode delta is allowed
-  # for the one delta after the single repair; perspectives spec_scope, correctness_tests,
-  # and security only for authentication|authorization|credential
+  # --mode delta → strategy single / perspectives [combined] (delta certification, any blueprint;
+  # discovery perspectives and security are never listed for a delta)
+  # review_contract: brief, scale full, no --task (final review): strategy parallel, perspectives
+  # spec_scope, correctness_tests; security only when review_risk has authentication|authorization|credential
+  # legacy (unmarked), light, or --task review: light or a small diff → single [combined]; else parallel
+  # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk appends security
+  # --mode delta is allowed for the one delta after the single repair of a brief final review
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
@@ -418,7 +420,7 @@ failures are `{ ok: false, reason: unreadable|unsupported-schema }` (exit 1).
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
-`intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. The result is `reused` only when a valid previous cache has the same brief hash, function set, blob hashes, and section hashes (`bundle_id` and `revision` unchanged); otherwise it is `created` with `revision` = previous valid `revision` + 1, or 1 when the previous cache is missing or invalid. A brief-only change or a switch to `--no-symbols` is a miss, and an empty bundle with a different brief hash also increments. The first call is not a reselection; an `ambiguous` result allows one evidence-based reselection, after which `--no-symbols` is used (see `skills/bouncer-run/references/agent-dispatch.md`). `coordinate note` (C1) already covers note use, checkpoint `notes`, and the fence above; no separate note feature is added. `intent sections` is
+`intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. The result is `reused` only when a valid previous cache has the same brief hash, function set, each resolved entry's `function_ref` and blob hash, and section hashes (`bundle_id` and `revision` unchanged); otherwise it is `created` with `revision` = previous valid `revision` + 1, or 1 when the previous cache is missing or invalid. A brief-only change or a switch to `--no-symbols` is a miss, and an empty bundle with a different brief hash also increments. The first call is not a reselection; an `ambiguous` result allows one evidence-based reselection, after which `--no-symbols` is used (see `skills/bouncer-run/references/agent-dispatch.md`). `coordinate note` (C1) already covers note use, checkpoint `notes`, and the fence above; no separate note feature is added. `intent sections` is
 read-only: it projects role-specific section bodies from that cache. Successful
 implementer responses also include `symbol_locations`, copied in bundle order
 from resolved (including historical) and unlinked entries; unresolved and
@@ -440,9 +442,12 @@ prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
 
-`review-dispatch` is read-only. It returns JSON for Plan (`skip | single`;
-older stored `clustered` payloads are still read) or Execute (`single | parallel`, with `security` when
-`review_risk` is non-empty). Plan `single` also includes
+`review-dispatch` is read-only. It returns JSON for Plan (`skip | single`, or
+`perspectives` for a `review_contract: brief` blueprint; older stored `clustered`
+payloads are still read) or Execute (`single | parallel`; `security` joins a general, light, or task-scoped review when
+`review_risk` is non-empty, and a brief final review only for authentication, authorization, or credential risk). Plan of an unmarked blueprint: light is `skip`, full is `single`. A marked
+(`review_contract: brief`) blueprint is `perspectives`: full gets the four plan
+perspectives, light gets `verifiability` only (never `skip`). Plan `single` also includes
 `snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
 (per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
 `structure_parts` (per-document structure sha256; the `follow_up` input),
@@ -478,7 +483,10 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
-`failures` (G5, G19, G20, and G32 for a declared prerequisite) when the draft fails. Invalid argv is exit 2.
+`failures` (G5, G19, G20, and G32 for a declared prerequisite) when the draft fails. G20 also
+statically rejects, for every task (any `verification_policy`) in the plan draft check and plan gate, a `bouncer.verify` of the form `node scripts/check-doc-shape.js <doc>...` that names a
+document with neither a kind nor a path contract (the checker would exit 1); it reads only the argument strings,
+and a verify with no document argument (default scan) passes. Invalid argv is exit 2.
 `dispatch print` runs one Cursor print process. It returns JSON for success
 (`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
 `reason` is `print-dispatch-disabled`, `agent-unavailable`,

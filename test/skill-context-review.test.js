@@ -90,3 +90,17 @@ test('open must_fix after delta → guide names close, restart and accepted-risk
   assert.match(close, /contract[\s\S]*`restart`/);
   assert.match(routeItem, /accepted-risk[\s\S]*stop/);
 });
+
+// 기존 단언을 바꾸는 task는 Constraints에 파일·테스트명·새 기대값을 적어야 한다. 이 책임이
+// consistency 절에서 빠지면 단언 변경 범위가 비어 있는 브리프가 어느 관점에서도 걸리지 않는다.
+test('consistency rubric → requires Constraints to name changed assertion file, test and expectation', () => {
+  const md = fs.readFileSync(path.join(root, 'agents', 'bouncer-context-reviewer.md'), 'utf8');
+  const start = md.indexOf('### consistency');
+  assert.ok(start >= 0, 'consistency section exists');
+  const rest = md.slice(start + 4);
+  const end = rest.search(/\n##+ /);
+  const body = end < 0 ? rest : rest.slice(0, end);
+  for (const phrase of ['existing assertion', 'Constraints', 'test name', 'new expected value']) {
+    assert.ok(body.includes(phrase), `consistency mentions ${phrase}`);
+  }
+});

@@ -173,6 +173,10 @@ coverage is not judged here; it belongs to `verifiability`. Also judge that a ta
 changing a behavior description records its survey of related documents (`file:line`
 in Touch `근거`) and that the documents agree on the contract. A missing survey is
 reported here only; the consumer-test omission below belongs to `verifiability`.
+Also judge that a task changing an existing assertion states that scope in its
+Constraints: the file, the test name, and the new expected value. Report Constraints that
+omit the change or leave any of the three unspecified; the expected red and fixture
+precision stay with `verifiability`.
 Apply this to new plans and later edits, not to briefs already approved.
 
 ### scope_minimality

@@ -1,4 +1,5 @@
 'use strict';
+const path = require('node:path');
 import schema = require('./schema');
 const { executionKindOf } = schema;
 import commandArgv = require('./command-argv');
@@ -15,6 +16,8 @@ import type {
   BlueprintDocs, BlueprintRels, FailureEntry, GateContext, GateStageCtx,
 } from './validate-gates-shared';
 import type { DocLeaf } from './validate-docs';
+import docShapeContracts = require('./doc-shape-contracts');
+const { classifyDocPath, pathContractFor } = docShapeContracts;
 import planPrerequisites = require('./plan-prerequisites');
 const { checkPrerequisites } = planPrerequisites;
 
@@ -279,6 +282,41 @@ function checkVerificationTaskGraph(tasksList: DocLeaf[], failures: FailureEntry
   }
 }
 
+// check-doc-shape 직접 호출로 인정하는 저장소 안 script 경로(repoRoot 상대 POSIX).
+const DOC_SHAPE_SCRIPT = 'scripts/check-doc-shape.js';
+
+/**
+ * verify 명령이 `node scripts/check-doc-shape.js <문서...>` 직접 호출이면 종류/경로 계약이 없는
+ * 문서 인자를 돌려준다. checker CLI는 계약 없는 인자에 exit 1이므로, 실행 전에 같은 표
+ * (doc-shape-contracts)로 미리 판정해 plan gate와 draft가 같은 답을 내게 한다.
+ * 파일을 읽거나 실행하지 않는다: 인자 문자열과 정적 표만 본다. npm wrapper·node 옵션·셸은
+ * 해석하지 않으며(첫 인자가 script가 아니면 인식 밖), 명시 문서가 0개면 기본 스캔이라 통과다.
+ * repoRoot가 없는 단위 호출은 절대 경로를 저장소 상대로 바꿀 수 없어 그 인자를 판정하지 않는다.
+ *
+ * @param {string} verify - 이미 parseVerifyArgv를 통과한 task `bouncer.verify`
+ * @param {string | undefined} repoRoot - 저장소 루트 절대 경로. 없으면 상대 인자만 판정한다
+ * @returns {string[]} 계약 없는 문서 인자(repoRoot 상대 POSIX). 인식 밖이거나 모두 계약이 있으면 빈 배열
+ */
+function docShapeTargetsWithoutContract(verify: string, repoRoot: string | undefined): string[] {
+  const argv = commandArgv.parseVerifyArgv(verify);
+  if (!argv || argv.length < 2 || commandArgv.verifyExecutableName(argv[0]) !== 'node') return [];
+  // checker는 cwd(저장소 루트) 기준으로 인자를 풀어 path.relative로 정규화한다. 같은 규칙을 따른다.
+  const toRepoRel = (arg: string): string | null => {
+    if (!repoRoot) {
+      return path.isAbsolute(arg) ? null : path.posix.normalize(arg.replace(/\\/g, '/'));
+    }
+    return path.relative(repoRoot, path.resolve(repoRoot, arg)).replace(/\\/g, '/');
+  };
+  if (toRepoRel(argv[1]) !== DOC_SHAPE_SCRIPT) return [];
+  const missing: string[] = [];
+  for (const arg of argv.slice(2)) {
+    const rel = toRepoRel(arg);
+    if (rel === null) continue;
+    if (classifyDocPath(rel) === null && pathContractFor(rel) === null) missing.push(rel);
+  }
+  return missing;
+}
+
 /**
  * `verification_policy: scoped_terminal` blueprint의 검증 책임 분리를 판정한다(G20).
  * 구현 task는 task 전용 `bouncer.verify`를 가져야 하고, 전체 검증은 구현 task를
@@ -289,11 +327,14 @@ function checkVerificationTaskGraph(tasksList: DocLeaf[], failures: FailureEntry
  * 같은 전체 명령 배정, terminal 개수가 1이 아님, terminal이 구현 task를 (간접 포함)
  * 기다리지 않음, 새 light에서 구현이 하나가 아니거나 독립이 아님. 검증 뒤 구현
  * node는 checkVerificationTaskGraph가 이미 거절하므로 중복 보고하지 않는다.
+ * 정책과 무관하게 모든 task verify가 check-doc-shape에 계약 없는 문서를 명시하면 실행 전에 거절한다.
  *
  * @param {DocLeaf | undefined} blueprintIndex - blueprint index.md 문서
  * @param {DocLeaf[]} tasksList - blueprint의 모든 tasks.md
  * @param {boolean} isLight - blueprint scale이 light인지
+ *
  * @param {FailureEntry[]} failures - G20 결과 누적 배열
+ * @param {string | undefined} repoRoot - verify의 절대 경로 인자를 저장소 상대로 바꿀 루트(선택)
  * @returns {void} 결과는 failures에 push로만 남긴다
  */
 function checkScopedTerminalPolicy(
@@ -301,6 +342,7 @@ function checkScopedTerminalPolicy(
   tasksList: DocLeaf[],
   isLight: boolean,
   failures: FailureEntry[],
+  repoRoot?: string,
 ): void {
   const bpData = asData(blueprintIndex);
   const policy = schema.verificationPolicyOf(bpData ? bpData.bouncer : undefined);
@@ -312,6 +354,23 @@ function checkScopedTerminalPolicy(
       file: bpFile,
     });
     return;
+  }
+
+  // check-doc-shape 대상 사전 검사는 정책과 무관하게 모든 task verify에 적용한다. legacy 계획도
+  // 계약 없는 문서를 실행 시점에야 exit 1로 알게 되면 안 되기 때문이다. verify가 없거나 파싱 불가한
+  // 명령은 docShapeTargetsWithoutContract가 빈 배열을 돌려주므로 선택 verify와 argv 위반은 건드리지 않는다.
+  for (const doc of tasksList) {
+    const data = asData(doc);
+    const verify = data && data.bouncer ? (data.bouncer as Record<string, unknown>).verify : undefined;
+    if (typeof verify !== 'string') continue;
+    const uncontracted = docShapeTargetsWithoutContract(verify, repoRoot);
+    if (uncontracted.length > 0) {
+      failures.push({
+        code: 'G20',
+        message: `check-doc-shape verify target has no kind or path contract: ${uncontracted.join(', ')}`,
+        file: doc.rel,
+      });
+    }
   }
   if (policy === 'legacy') return;
 
@@ -515,7 +574,7 @@ function checkPlanGate(stage: GateStageCtx): void {
     checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   }
   checkVerificationTaskGraph(tasksList, failures);
-  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
+  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures, stage.repoRoot);
   // repoRoot 없이 부른 단위 호출은 선행 선언을 읽을 위치가 없어 건너뛴다(선언 없는 기존 경로와 같다).
   if (stage.repoRoot && stage.blueprintDir) {
     failures.push(...planPrerequisiteFailures({
@@ -679,7 +738,7 @@ function checkPlanDraft(
   // plan gate와 같은 조건: G19가 실패하면 모양 경고를 건너뛴다.
   if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   checkVerificationTaskGraph(tasksList, failures);
-  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
+  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures, ctx.repoRoot);
   // 정식 gate·approvePlan과 같은 helper를 쓴다. repoRoot가 없으면 선언을 읽을 수 없어 건너뛴다.
   if (ctx.repoRoot && ctx.blueprintDir) {
     failures.push(...planPrerequisiteFailures({
