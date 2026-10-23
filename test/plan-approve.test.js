@@ -6,8 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { readDoc } = require('../scripts/lib/frontmatter');
+const { runCli } = require('../packages/cli/dist/cli');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
 const { writeEpicRegistry } = require('./helpers/epic-registry');
 
 const EPIC = '.bouncer/context/epics/001-e';
@@ -241,7 +241,7 @@ test('저장소 밖 --blueprint → plan-approve-target', () => {
 
 test('두 번째 쓰기에서 deps.writeFile throw → plan-approve-write, changed에 첫 파일, 재실행으로 전이 완료', () => {
   // seam이 라이브러리에만 있어 approvePlan을 직접 호출한다.
-  const { approvePlan } = require('../scripts/lib/plan-approve');
+  const { approvePlan } = require('../packages/cli/dist/plan-approve');
   const repo = makeRepo();
   let calls = 0;
   const writeFile = (abs, text) => {
@@ -407,7 +407,7 @@ test('선행 병합 commit이 현재 HEAD의 조상 → 전이 성공', () => {
 
 // 형식 오류 선언은 entries에서 빠지는 입력이라 G32 경로로는 잡히지 않는다. approvePlan이 formatIssues를
 // S39로 거절하고 어떤 문서도 쓰지 않는지, 주입 writeFile 호출 수와 문서 원문 Buffer로 관찰한다.
-const { approvePlan } = require('../scripts/lib/plan-approve');
+const { approvePlan } = require('../packages/cli/dist/plan-approve');
 
 const PRE_DIR = `${EPIC}/blueprints/002-pre`;
 // 항목마다 [선언, 해당 항목을 지목해야 하는 S39 cause 문장]. 사유가 빠진 일반 거절과 구분하려는 기대값이다.

@@ -11,10 +11,10 @@ const {
   parseGithubRemote,
   buildPrDraft,
   resolveExplainLinks,
-} = require('../scripts/lib/finalize-pr');
-const { runCli } = require('../scripts/lib/cli');
-const { writeCurrent } = require('../scripts/lib/current');
-const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+} = require('../packages/cli/dist/finalize-pr');
+const { runCli } = require('../packages/cli/dist/cli');
+const { writeCurrent } = require('../packages/cli/dist/current');
+const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 

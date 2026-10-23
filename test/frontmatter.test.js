@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 
 test('a document with a frontmatter block → parses frontmatter data and body', () => {
   const md = '---\ntype: bouncer.tasks\ntags: [bouncer, tasks]\n---\n# Body\n';

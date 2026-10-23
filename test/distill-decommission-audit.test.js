@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 
 const DISTILL_SECTIONS = ['Invariants', 'Gotchas', 'Decisions'];
 const DISPOSITIONS = new Set(['retain-context', 'migrate', 'obsolete']);

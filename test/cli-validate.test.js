@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { readDoc } = require('../scripts/lib/frontmatter');
+const { runCli } = require('../packages/cli/dist/cli');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
 const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -256,7 +256,7 @@ test('validate without --blueprint → exits 2 and does not report ok:true', () 
 });
 
 test('validateBlueprint with planDraft combined with gate → rejects', () => {
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   assert.throws(
     () => validateBlueprint({ repoRoot, blueprintDir: BP_REL, gate: 'plan', planDraft: true }),
@@ -369,7 +369,7 @@ const { execFileSync } = require('node:child_process');
 
 const { coordinate } = require('./helpers/coordinator-fence');
 
-const { reviseTaskScope } = require('../scripts/lib/scope');
+const { reviseTaskScope } = require('../packages/cli/dist/scope');
 
 test('validate --gate commit with a revised coordinator scope → judges staged paths against it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
@@ -523,7 +523,7 @@ test('validate --gate execute in a worker cwd → judges the leased task', () =>
   });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
   const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   writeCurrent({
     repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
   });
@@ -620,7 +620,7 @@ test('blueprint review mode with a missing task review.md → does not emit S17'
 });
 
 test('validate --gate plan on a freshly scaffolded blueprint → reports G20 for the missing task command and terminal node', () => {
-  const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+  const { scaffoldEpic, scaffoldBlueprint } = require('../packages/cli/dist/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const ts = '2026-07-01T00:00:00+09:00';
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: ts, description: 'Auth epic description' });
@@ -636,7 +636,7 @@ test('validate --gate plan on a freshly scaffolded blueprint → reports G20 for
 });
 
 test('validate --gate plan on a blueprint without verification_policy → raises no G20 for the same shape', () => {
-  const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+  const { scaffoldEpic, scaffoldBlueprint } = require('../packages/cli/dist/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const ts = '2026-07-01T00:00:00+09:00';
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: ts, description: 'Auth epic description' });
@@ -651,7 +651,7 @@ test('validate --gate plan on a blueprint without verification_policy → raises
 });
 
 test('validate --gate plan with an uncontracted check-doc-shape verify → reports G20 on the task file naming the path', () => {
-  const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+  const { scaffoldEpic, scaffoldBlueprint } = require('../packages/cli/dist/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const ts = '2026-07-01T00:00:00+09:00';
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: ts, description: 'Auth epic description' });
@@ -669,7 +669,7 @@ test('validate --gate plan with an uncontracted check-doc-shape verify → repor
   const docShapeG20 = (failures) => failures
     .filter((f) => f.code === 'G20' && /check-doc-shape/.test(f.message));
 
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const draft = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
   const { io, buf } = capture();
   const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'plan'], io);

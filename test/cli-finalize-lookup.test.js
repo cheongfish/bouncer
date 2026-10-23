@@ -6,9 +6,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
-const { worktreePathFor } = require('../scripts/lib/runtime-state');
-const { computeDiffSha } = require('../scripts/lib/comprehension');
+const { runCli } = require('../packages/cli/dist/cli');
+const { worktreePathFor } = require('../packages/cli/dist/runtime-state');
+const { computeDiffSha } = require('../packages/cli/dist/comprehension');
 
 const BLUEPRINT = '.bouncer/context/epics/e/blueprints/b';
 

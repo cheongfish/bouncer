@@ -7,12 +7,12 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const { runCli } = require('../scripts/lib/cli');
-const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
-const { renderDoc } = require('../scripts/lib/render');
-const { validateBlueprint } = require('../scripts/lib/validate');
-const { captureReviewSnapshot } = require('../scripts/lib/review-snapshot');
+const { runCli } = require('../packages/cli/dist/cli');
+const { scaffoldEpic, scaffoldBlueprint } = require('../packages/cli/dist/scaffold');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
+const { renderDoc } = require('../packages/cli/dist/render');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
+const { captureReviewSnapshot } = require('../packages/cli/dist/review-snapshot');
 
 const TS = '2026-07-01T00:00:00+09:00';
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -139,7 +139,7 @@ function makeFixture({ taskMode = false, contract } = {}) {
     return file;
   };
   fx.record = (value, extra = {}) => {
-    const { recordReview } = require('../scripts/lib/review-record');
+    const { recordReview } = require('../packages/cli/dist/review-record');
     return recordReview({
       repoRoot: repo,
       blueprintDir: BP_REL,
@@ -170,7 +170,7 @@ function assertRejectedUntouched(fx, before, result, reason) {
 }
 
 test('review-record module → is loadable', () => {
-  const { recordReview } = require('../scripts/lib/review-record');
+  const { recordReview } = require('../packages/cli/dist/review-record');
   assert.equal(typeof recordReview, 'function');
 });
 
@@ -372,7 +372,7 @@ test('accept-risk when the resulting ledger fails G21 → is review-ledger-inval
 test('--task on blueprint review_scope → is not allowed', () => {
   const fx = makeFixture();
   const before = fs.readFileSync(fx.reviewPath);
-  const { recordReview } = require('../scripts/lib/review-record');
+  const { recordReview } = require('../packages/cli/dist/review-record');
   const result = recordReview({
     repoRoot: fx.repo,
     blueprintDir: BP_REL,
@@ -446,7 +446,7 @@ test('in-progress ledger with --status accepted → is review-ledger-invalid', (
 });
 
 test('blueprint round contract → max delta count equals REPAIR_WAVE_LIMIT', () => {
-  const { BLUEPRINT_ROUND_CONTRACT, REPAIR_WAVE_LIMIT } = require('../scripts/lib/validate-sections');
+  const { BLUEPRINT_ROUND_CONTRACT, REPAIR_WAVE_LIMIT } = require('../packages/cli/dist/validate-sections');
   const maxDelta = Math.max(...BLUEPRINT_ROUND_CONTRACT.sequences.map(
     (s) => s.split(',').filter((m) => m === 'delta').length,
   ));
@@ -842,7 +842,7 @@ test('같은 file이어도 symbol이 다른 finding 기록 → warnings 키가 �
 });
 
 test('symbol이 비었거나 모양이 틀린 항목 → findingMergeCandidates가 건너뛰고 던지지 않는다', () => {
-  const { findingMergeCandidates } = require('../scripts/lib/validate-sections');
+  const { findingMergeCandidates } = require('../packages/cli/dist/validate-sections');
   const blank = [{ ...SS_FINDING, symbol: ' ' }, { ...CT_FINDING, symbol: ' ' }, null, 'x', { id: 'Z', file: 3, symbol: 'f' }];
   assert.deepStrictEqual(findingMergeCandidates(blank), []);
   assert.deepStrictEqual(findingMergeCandidates('not-array'), []);

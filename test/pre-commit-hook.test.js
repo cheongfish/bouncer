@@ -8,8 +8,8 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const {
   installPreCommitHook,
   internalCommitEnv,
-} = require('../scripts/lib/pre-commit-hook');
-const { writeCurrent } = require('../scripts/lib/current');
+} = require('../packages/cli/dist/pre-commit-hook');
+const { writeCurrent } = require('../packages/cli/dist/current');
 const yaml = require('js-yaml');
 
 const LAUNCHER = path.resolve(__dirname, '..', 'scripts', 'bouncer');

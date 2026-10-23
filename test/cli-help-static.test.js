@@ -8,12 +8,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { COMMAND_USAGE } = require('../scripts/lib/cli-usage');
+const { COMMAND_USAGE } = require('../packages/cli/dist/cli-usage');
 
 // 자식 프로세스에서 runCli를 실행해 결과와 적재된 scripts/lib 모듈 basename을 JSON으로 받는다.
 // 같은 프로세스의 require.cache는 앞선 테스트가 오염시키므로 적재 범위는 격리해 관측한다.
 const HELP_PROBE = `
-  const { runCli } = require('./scripts/lib/cli');
+  const { runCli } = require(../packages/cli/dist/cli');
   let out = '', err = '';
   const code = runCli(process.argv.slice(1), { out: (s) => { out += s; }, err: (s) => { err += s; } });
   const loaded = Object.keys(require.cache)
@@ -65,7 +65,7 @@ test('빈 git 저장소에서 init --help → exit 0이고 .bouncer를 만들지
   try {
     assert.strictEqual(spawnSync('git', ['init', '-q'], { cwd: dir }).status, 0);
     const probe = spawnSync(process.execPath, ['-e',
-      HELP_PROBE.replace("'./scripts/lib/cli'", JSON.stringify(path.join(repoRoot, 'scripts/lib/cli'))),
+      HELP_PROBE.replace("../packages/cli/dist/cli'", JSON.stringify(path.join(repoRoot, 'scripts/lib/cli'))),
       'init', '--help'], { cwd: dir, encoding: 'utf8' });
     assert.strictEqual(probe.status, 0, probe.stderr);
     assert.strictEqual(JSON.parse(probe.stdout).code, 0);

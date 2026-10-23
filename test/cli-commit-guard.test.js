@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
-const { writeCurrent } = require('../scripts/lib/current');
+const { runCli } = require('../packages/cli/dist/cli');
+const { writeCurrent } = require('../packages/cli/dist/current');
 const yaml = require('js-yaml');
 
 const BP = '.bouncer/context/epics/001-x/blueprints/001-y';
@@ -90,7 +90,7 @@ test('commit-guard --staged with files outside affected_paths → blocks', () =>
 });
 
 test('commit-guard when evaluate throws → exits 1', () => {
-  const { runCommitGuard } = require('../scripts/lib/cli-commit-guard-command');
+  const { runCommitGuard } = require('../packages/cli/dist/cli-commit-guard-command');
   let err = '';
   const code = runCommitGuard({
     argv: ['--staged'],
@@ -105,7 +105,7 @@ test('commit-guard when evaluate throws → exits 1', () => {
 });
 
 test('commit-guard with --repo → passes the repo to evaluate', () => {
-  const { runCommitGuard } = require('../scripts/lib/cli-commit-guard-command');
+  const { runCommitGuard } = require('../packages/cli/dist/cli-commit-guard-command');
   let seen;
   const code = runCommitGuard({
     argv: ['--staged', '--repo', '/tmp/guard-repo'],
@@ -122,7 +122,7 @@ test('commit-guard with --repo → passes the repo to evaluate', () => {
 
 // --command-stdin 모드: 훅이 명령 원문을 stdin으로 넘기고 판정은 evaluateCommit이 한다.
 function runStdin(extra) {
-  const { runCommitGuard } = require('../scripts/lib/cli-commit-guard-command');
+  const { runCommitGuard } = require('../packages/cli/dist/cli-commit-guard-command');
   let err = '';
   const calls = [];
   const code = runCommitGuard({

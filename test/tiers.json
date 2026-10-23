@@ -106,6 +106,7 @@
     "plan-prerequisites.test.js",
     "plan-inspect.test.js",
     "plugin-root.test.js",
+    "runtime-layout.test.js",
     "pre-commit-hook.test.js",
     "print-dispatch.test.js",
     "public-name-regression.test.js",

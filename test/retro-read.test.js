@@ -5,11 +5,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readTranscript, normalizeJsonlLine } = require('../scripts/lib/retro-read');
+const { readTranscript, normalizeJsonlLine } = require('../packages/cli/dist/retro-read');
 
 // CLI 모듈은 lib 단언이 먼저 실패하도록 지연 로드한다.
 function loadCli() {
-  return require('../scripts/lib/cli-retro-command');
+  return require('../packages/cli/dist/cli-retro-command');
 }
 
 function tmp() {

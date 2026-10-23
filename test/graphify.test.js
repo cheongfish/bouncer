@@ -16,13 +16,13 @@ const {
   checkGraphifyCompatibility,
   upgradeGraphify,
   GRAPHIFY_LOCK_REL,
-} = require('../scripts/lib/graphify');
+} = require('../packages/cli/dist/graphify');
 const {
   applyExcludeDirs,
   defaultExecGraphify,
   writeFilteredGraph,
-} = require('../scripts/lib/graph-exec');
-const { makeAllowed, makeFinalizeAllowed } = require('../scripts/lib/scope');
+} = require('../packages/cli/dist/graph-exec');
+const { makeAllowed, makeFinalizeAllowed } = require('../packages/cli/dist/scope');
 
 test('venvBinRel called for each platform → returns POSIX-relative paths', () => {
   assert.strictEqual(venvBinRel('win32'), '.bouncer/.venv/Scripts/graphify.exe');

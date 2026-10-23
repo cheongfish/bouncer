@@ -5,7 +5,7 @@ const path = require('node:path');
 const { loadModuleGraph, findCycles, reachable } = require('./helpers/module-graph');
 const { FEATURE_AREAS } = require('./helpers/feature-areas');
 
-const LIB_DIR = path.join(__dirname, '..', 'scripts', 'src', 'lib');
+const LIB_DIR = path.join(__dirname, '..', 'packages', 'cli', 'src');
 const graph = loadModuleGraph(LIB_DIR);
 
 // 하위 모듈이 전이적으로 닿으면 안 되는 상위 계층(접두 일치 또는 정확히 일치).

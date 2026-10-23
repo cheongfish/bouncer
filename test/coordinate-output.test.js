@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { compactCoordinateOutput } = require('../scripts/lib/coordinate-output');
+const { compactCoordinateOutput } = require('../packages/cli/dist/coordinate-output');
 
 const lease = (status) => ({ id: 'L', generation: 1, seq: 1, status });
 const tasks = [

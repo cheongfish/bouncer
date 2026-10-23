@@ -6,16 +6,16 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const {
   coordinateNext, NEXT_FAILURE_HINTS, attachJudgeContext,
-} = require('../scripts/lib/coordinate-next');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { renderDoc } = require('../scripts/lib/render');
+} = require('../packages/cli/dist/coordinate-next');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { renderDoc } = require('../packages/cli/dist/render');
 
-const __coordinatorMod = require('../scripts/lib/coordinator');
-const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const __coordinatorMod = require('../packages/cli/dist/coordinator');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 const { coordinate } = require('./helpers/coordinator-fence');
 
 function git(cwd, args) {

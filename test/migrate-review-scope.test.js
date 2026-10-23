@@ -5,9 +5,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { migrateReviewScope } = require('../scripts/lib/migrate-review-scope');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { runCli } = require('../packages/cli/dist/cli');
+const { migrateReviewScope } = require('../packages/cli/dist/migrate-review-scope');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 

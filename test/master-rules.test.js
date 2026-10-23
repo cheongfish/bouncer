@@ -7,7 +7,7 @@ const path = require('node:path');
 const { after } = require('node:test');
 const { execFileSync } = require('node:child_process');
 const { checkDocShape } = require('../scripts/check-doc-shape');
-const { init } = require('../scripts/lib/init');
+const { init } = require('../packages/cli/dist/init');
 const { createGitTemplate } = require('./helpers/git-fixture');
 
 const root = path.join(__dirname, '..');

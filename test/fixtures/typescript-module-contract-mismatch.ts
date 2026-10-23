@@ -11,8 +11,8 @@
 const time = (
   process.env.NODE_TEST_CONTEXT
     ? { nowIsoKst: (_date?: Date): string => '' }
-    : require('../../scripts/src/lib/time')
-) as typeof import('../../scripts/src/lib/time');
+    : require('../../packages/cli/src/time')
+) as typeof import('../../packages/cli/src/time');
 
 // 공급자 nowIsoKst는 string을 반환한다. number로 받으면 경계 검사가 살아 있을 때만 실패한다.
 const mismatched: number = time.nowIsoKst(new Date());

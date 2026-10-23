@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 const { createGitTemplate } = require('./helpers/git-fixture');
 
 const { fence: __fence, coordinate } = require('./helpers/coordinator-fence');
@@ -766,7 +766,7 @@ test('coordinate integrate without --task → returns integrated array', () => {
 
 test('CLI coordinate repair with repeated --review-finding → collects them into ledger findings', () => {
   const drive = preparedDrive();
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';
@@ -783,7 +783,7 @@ test('CLI coordinate repair with repeated --review-finding → collects them int
 
 test('CLI coordinate repair --review-finding after the final discovery round → final-review-single-round and exit 1', () => {
   const drive = preparedDrive();
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';
@@ -809,7 +809,7 @@ test('CLI coordinate repair --review-finding after the final discovery round →
 
 test('CLI coordinate repair --review-finding after the final discovery round with review_contract brief → exits 0', () => {
   const drive = preparedDrive();
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';
@@ -831,7 +831,7 @@ test('CLI coordinate repair --review-finding after the final discovery round wit
 
 test('CLI coordinate repair with an empty --review-finding → rejects', () => {
   const drive = preparedDrive();
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';
@@ -1097,7 +1097,7 @@ process.stdout.write('{"type":"result","result":"REPORT","is_error":false}\\n');
     fs.mkdirSync(cwd);
     const outDir = path.join(root, 'out');
     fs.mkdirSync(outDir);
-    const result = require('../scripts/lib/print-dispatch').runPrintDispatch({
+    const result = require('../packages/cli/dist/print-dispatch').runPrintDispatch({
       repoRoot: root, role: 'coordinator', cwd, inputFile: out.input_file, outDir,
       deps: { agentBin, agentsDir },
     });
@@ -1438,7 +1438,7 @@ test('coordinate CLI bootstrap on a scoped_terminal light plan → light ledger,
  */
 function terminalFailedCliDrive() {
   const drive = preparedDrive();
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
   const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: drive.integration, encoding: 'utf8' }).trim();
   const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));

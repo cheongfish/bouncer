@@ -8,11 +8,7 @@
     "hooks/",
     "references/",
     "rules/",
-    "scripts/bouncer",
-    "scripts/bouncer-root",
-    "scripts/build-stamp.js",
-    "scripts/lib/",
-    "scripts/vendor/",
+    "packages/cli/",
     "resources/",
     "skills/",
     "AGENTS.md",
@@ -35,24 +31,21 @@
   "engines": {
     "node": ">=24"
   },
-  "bin": {
-    "bouncer": "scripts/bouncer",
-    "bouncer-root": "scripts/bouncer-root"
-  },
+  "workspaces": ["packages/cli"],
   "scripts": {
     "test": "node --test test/*.test.js",
     "test:unit": "node scripts/test-tier.js unit",
     "test:integration": "node scripts/test-tier.js integration",
     "check:emit": "node scripts/check-emit.js",
-    "test:coverage": "node --test test/*.test.js --experimental-test-coverage --test-coverage-include=scripts/lib/** --test-coverage-lines=94 --test-coverage-branches=82 --test-coverage-functions=96",
+    "test:coverage": "node --test test/*.test.js --experimental-test-coverage --test-coverage-include=packages/cli/dist/** --test-coverage-lines=94 --test-coverage-branches=82 --test-coverage-functions=96",
     "ci": "npm run check:emit && npm run test:coverage && npm run test:unit && npm run lint && npm run lint:docs && npm run lint:context-comments && npm run typecheck && npm run lint:test-names && npm audit --audit-level=high",
     "lint": "eslint .",
     "lint:docs": "node scripts/check-doc-shape.js",
     "lint:test-names": "node scripts/check-test-names.js",
     "lint:context-comments": "node scripts/check-context-comments.js",
-    "setup": "git config commit.template .gitmessage && git config core.hooksPath .githooks && echo \"commit.template and core.hooksPath set — git commit (without -m) opens the team template; pre-commit runs lint and the scripts/lib emit check\"",
-    "build": "tsc && node scripts/build-stamp.js --write",
-    "typecheck": "tsc --noEmit",
+    "setup": "git config commit.template .gitmessage && git config core.hooksPath .githooks && echo \"commit.template and core.hooksPath set — git commit (without -m) opens the team template; pre-commit runs lint and the packages/cli/dist emit check\"",
+    "build": "npm run build --workspace=@cheongfish/bouncer",
+    "typecheck": "tsc --noEmit -p packages/cli/tsconfig.json",
     "pretest": "npm run build",
     "verify:security": "npm test && npm audit --audit-level=high",
     "verify:strict": "npm test && npm run typecheck && npm run lint"

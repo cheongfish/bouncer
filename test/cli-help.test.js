@@ -3,8 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
-const { runCli } = require('../scripts/lib/cli');
-const { NAMED_AGENTS } = require('../scripts/lib/codex-agents');
+const { runCli } = require('../packages/cli/dist/cli');
+const { NAMED_AGENTS } = require('../packages/cli/dist/codex-agents');
 
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
@@ -396,7 +396,7 @@ test('coordinate report --help → report outcome enum을 나열한다', () => {
 });
 
 test('coordinate --help → coordinate registry usage를 stdout에 출력한다', () => {
-  const { coordinate } = require('../scripts/lib/cli-git-commands.js');
+  const { coordinate } = require('../packages/cli/dist/cli-git-commands.js');
   const r = capture(['coordinate', '--help']);
   assert.strictEqual(r.code, 0);
   assert.strictEqual(r.err, '');
@@ -432,7 +432,7 @@ test('필수 플래그가 빠진 coordinate report → 해당 subcommand usage�
 });
 
 test('알 수 없는 coordinate subcommand → 전체 coordinate usage를 덧붙인다', () => {
-  const { coordinate } = require('../scripts/lib/cli-git-commands.js');
+  const { coordinate } = require('../packages/cli/dist/cli-git-commands.js');
   const r = capture(['coordinate', 'nope', '--blueprint', 'x']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /command must be/);

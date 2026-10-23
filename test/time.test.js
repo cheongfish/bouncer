@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { nowIsoKst } = require('../scripts/lib/time');
+const { nowIsoKst } = require('../packages/cli/dist/time');
 
 test('nowIsoKst → formats with +09:00 offset', () => {
   // 2026-08-03T00:00:00.000Z == 2026-08-03T09:00:00.000+09:00

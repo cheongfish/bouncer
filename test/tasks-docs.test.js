@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   listTasksDocs, expectedTasksId, expectedTaskDocIds, isNumberedTasksBasename,
-} = require('../scripts/lib/tasks-docs');
+} = require('../packages/cli/dist/tasks-docs');
 const { loadModuleGraph, reachable } = require('./helpers/module-graph');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';

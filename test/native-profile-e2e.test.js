@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const { validateBlueprint } = require('../scripts/lib/validate');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -83,7 +83,7 @@ test('execute validation with recorded evidence → reruns the configured comman
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'execute' });
   assert.strictEqual(res.ok, false);
   assert.ok(res.failures.some((failure) => failure.code === 'G13'));
-  const verification = require('../scripts/lib/frontmatter')
+  const verification = require('../packages/cli/dist/frontmatter')
     .readDoc(path.join(repo, BP_REL, 'verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'failed');
 });
@@ -93,7 +93,7 @@ test('execute validation with recorded evidence → reruns the configured comman
 // 개발 체크아웃에서만 동작하는 경로가 생기지 않게 한다.
 test('the coordinator lifecycle through the shipped CLI surface → runs end to end', () => {
   const { execFileSync } = require('node:child_process');
-  const { runCli } = require('../scripts/lib/cli');
+  const { runCli } = require('../packages/cli/dist/cli');
 
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-native-coordinate-')));
   const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();

@@ -375,9 +375,9 @@ function applyRegistryPlan(repoRoot: string, plan: RegistryPlan, timestamp: stri
 }
 
 function defaultLauncherPath() {
-  // 빌드된 init.js 기준 scripts/bouncer. source ts의 __dirname이 아니라
-  // emit 위치라야 설치 hook이 테스트·패키지 런처와 같은 파일을 가리킨다.
-  return path.resolve(__dirname, '..', 'bouncer');
+  // dist에서 한 단계 위가 package root다. source ts의 __dirname이 아니라 emit 위치를
+  // 기준으로 삼아 hook이 checkout과 npm package가 공유하는 launcher를 가리킨다.
+  return path.resolve(__dirname, '..', 'bin', 'bouncer');
 }
 
 /**
@@ -387,7 +387,7 @@ function defaultLauncherPath() {
  * @param {object} opts
  * @param {string} opts.repoRoot - 대상 저장소
  * @param {boolean} [opts.want] - true일 때만 설치
- * @param {string} [opts.launcherPath] - 생략 시 scripts/bouncer
+ * @param {string} [opts.launcherPath] - 생략 시 package의 bin/bouncer
  * @returns {object} `preCommitHook`과 있으면 `preCommitHookWarning`, 아니면 빈 객체
  */
 function preCommitHookFields({

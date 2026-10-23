@@ -9,7 +9,7 @@ const {
   captureReviewSnapshot,
   loadReviewSnapshot,
   checkReviewSnapshotCurrent,
-} = require('../scripts/lib/review-snapshot');
+} = require('../packages/cli/dist/review-snapshot');
 
 // 실제 Git 저장소를 쓰는 integration 테스트다. 기대 값은 fixture에서 직접 만든 내용과
 // 줄 수에서 계산하며 구현의 출력에서 가져오지 않는다.

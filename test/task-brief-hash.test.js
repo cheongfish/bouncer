@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { taskBriefHash } = require('../scripts/lib/task-brief-hash');
+const { taskBriefHash } = require('../packages/cli/dist/task-brief-hash');
 
 test('taskBriefHash → ignores lifecycle keys and YAML quoting, not body or other keys', () => {
   const base = '---\nbouncer:\n  status: ready\n  affected_paths:\n    - a.ts\n---\nbrief\n';

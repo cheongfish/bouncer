@@ -6,13 +6,13 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { parseIntentBody } = require('../scripts/lib/templates');
-const { validateBlueprint } = require('../scripts/lib/validate');
-const { prepareFinalizeDigest } = require('../scripts/lib/finalize-digest');
-const { finalize } = require('../scripts/lib/finalize');
-const { runCli } = require('../scripts/lib/cli');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
-const { computeDiffSha } = require('../scripts/lib/comprehension');
+const { parseIntentBody } = require('../packages/cli/dist/templates');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
+const { prepareFinalizeDigest } = require('../packages/cli/dist/finalize-digest');
+const { finalize } = require('../packages/cli/dist/finalize');
+const { runCli } = require('../packages/cli/dist/cli');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
+const { computeDiffSha } = require('../packages/cli/dist/comprehension');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const { registerFixtureEpic } = require('./helpers/epic-registry');
 
@@ -595,7 +595,7 @@ greet()
   fs.writeFileSync(path.join(repoRoot, 'src/a.js'), 'module.exports = 1;\n');
   git(['add', '-A']);
   git(['commit', '-m', 'change\n\nBouncer-Task: TASKS-001\n']);
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   writeCurrent({ repoRoot, blueprint: BP_REL, base: rangeBase });
   return { repoRoot, blueprintDir: BP_REL };
 }

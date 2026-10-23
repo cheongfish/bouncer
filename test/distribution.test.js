@@ -92,7 +92,7 @@ test('the package contents → contain only the plugin runtime surface and host 
   for (const file of required) assert.ok(files.includes(file), `missing package file: ${file}`);
   assert.ok(!files.includes('rules/governance.md'), 'rules/governance.md must not be packaged');
   // 배포본의 plan 게이트는 이 compiled leaf를 require한다. 빠지면 설치본의 validate가 로드 실패한다.
-  const leaf = require('../scripts/lib/doc-shape-contracts');
+  const leaf = require('../packages/cli/dist/doc-shape-contracts');
   assert.strictEqual(typeof leaf.classifyDocPath, 'function');
   assert.strictEqual(typeof leaf.pathContractFor, 'function');
 
@@ -138,15 +138,15 @@ test('the coordinator runtime and agent → ship in the package without their de
   assert.deepStrictEqual(leaked, [], `coordinator development files leaked:\n${leaked.join('\n')}`);
 
   // 배포되는 coordinator 런타임은 node_modules 없이 로드돼야 한다.
-  const coordinator = require('../scripts/lib/coordinator');
+  const coordinator = require('../packages/cli/dist/coordinator');
   assert.deepStrictEqual(
     Object.keys(coordinator).sort(),
     ['COORDINATE_FAILURE_HINTS', 'coordinate', 'withCoordinateFailureHints'],
   );
   assert.strictEqual(typeof coordinator.coordinate, 'function', 'coordinator.coordinate is not shipped');
   // 이동한 helper의 정본 모듈도 같은 배포본에서 로드돼야 한다.
-  const ledger = require('../scripts/lib/coordinator-ledger');
-  const worker = require('../scripts/lib/coordinator-worker');
+  const ledger = require('../packages/cli/dist/coordinator-ledger');
+  const worker = require('../packages/cli/dist/coordinator-worker');
   for (const [mod, name] of [
     [ledger, 'loadLedger'], [ledger, 'projectCheckpoint'], [ledger, 'assertLeaseShape'],
     [worker, 'reportPathFor'], [worker, 'workerCommitEvidence'], [worker, 'ensureIntegrationCwd'],
@@ -243,7 +243,7 @@ test('every host install → the package ships the Graphify compatibility manife
 // host마다 다른 coordinator 입력을 실행하지 않는다. `.codex/`는 pack에서 빠지므로
 // 저장소 생성본과 md→toml 변환 결과를 여기서 맞춘다.
 test('coordinator Markdown and generated Codex TOML → share the checkpoint ledger contract', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
   const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
   const checkedIn = fs.readFileSync(tomlPath, 'utf8');

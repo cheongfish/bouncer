@@ -10,7 +10,7 @@ const {
   newestMtimeUnder, runGraphifyUpdate, partOutDir, resolveGraphScopes,
   normalizeGraphPaths,
   SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT,
-} = require('../scripts/lib/session-graph');
+} = require('../packages/cli/dist/session-graph');
 
 function compatible() {
   return { status: 'compatible', warnings: [], reasons: [] };

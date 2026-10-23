@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 
 const WORKER_IDENTITY =
   "You are the dispatched bouncer-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.";
@@ -98,7 +98,7 @@ process.exit(${printExit});
 }
 
 function runPrint(tree, extra = {}) {
-  const printDispatch = require('../scripts/lib/print-dispatch');
+  const printDispatch = require('../packages/cli/dist/print-dispatch');
   return printDispatch.runPrintDispatch({
     repoRoot: tree.root,
     role: extra.role || 'reviewer',
@@ -423,7 +423,7 @@ test('context-reviewer prompt → uses the worker identity line, role body, and 
 });
 
 test('coordinator prompt with a buildCoordinatorInput file → carries it verbatim at the end', () => {
-  const { buildCoordinatorInput } = require('../scripts/lib/coordinator-input');
+  const { buildCoordinatorInput } = require('../packages/cli/dist/coordinator-input');
   const tree = makeTree();
   try {
     const text = buildCoordinatorInput({
@@ -489,7 +489,7 @@ function withBouncerHome(value, fn) {
 
 /** deps.agentsDir 없이 실행해 기본 자산 루트 해석 경로를 탄다. */
 function runPrintWithDefaultAssets(tree) {
-  const printDispatch = require('../scripts/lib/print-dispatch');
+  const printDispatch = require('../packages/cli/dist/print-dispatch');
   return printDispatch.runPrintDispatch({
     repoRoot: tree.root,
     role: 'reviewer',

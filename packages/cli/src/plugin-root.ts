@@ -53,7 +53,11 @@ const REQUIRED_ASSET_FILES = ['AGENTS.md'] as const;
 function readCandidate(host: BouncerHost, root: string): PluginCandidate | null {
   const absolute = path.resolve(root);
   try {
-    if (!fs.statSync(path.join(absolute, 'scripts', 'bouncer')).isFile()) return null;
+    const launcher = path.join(absolute, 'packages', 'cli', 'bin', 'bouncer');
+    const legacyLauncher = path.join(absolute, 'scripts', 'bouncer');
+    const hasPackageLauncher = fs.existsSync(launcher) && fs.statSync(launcher).isFile();
+    const hasLegacyLauncher = fs.existsSync(legacyLauncher) && fs.statSync(legacyLauncher).isFile();
+    if (!hasPackageLauncher && !hasLegacyLauncher) return null;
     // statSync가 던지면(없음·권한) 바깥 catch가 후보 탈락으로 흡수한다. 후보 탐색에서
     // 읽을 수 없는 설치본은 "유효하지 않음"과 같은 결과이므로 안전하다.
     for (const dir of REQUIRED_ASSET_DIRS) {
@@ -71,7 +75,9 @@ function readCandidate(host: BouncerHost, root: string): PluginCandidate | null 
           version?: unknown;
         };
         const version = parseVersion(metadata.version);
-        if (metadata.name === 'bouncer' && version) return { host, path: absolute, version };
+        if ((metadata.name === 'bouncer' || metadata.name === '@cheongfish/bouncer') && version) {
+          return { host, path: absolute, version };
+        }
       } catch {
         // 다음 명시적 metadata 형식을 확인한다.
       }
@@ -175,9 +181,8 @@ export function resolvePluginAssetRoot(options: AssetRootOptions = {}): string {
     if (!candidate) throw new Error('BOUNCER_HOME is not a valid Bouncer plugin root');
     return candidate.path;
   }
-  // 이 파일은 빌드 출력 scripts/lib 안에서 실행되므로 두 단계 위가 플러그인 루트다.
-  // 자산 경로의 상대 `../..`는 여기 한 곳에만 둔다(다음 blueprint에서 런타임을 분리할 때 바꿀 지점).
-  const runtime = readCandidate('claude', options.runtimeRoot ?? path.join(__dirname, '..', '..'));
+  // 이 파일은 package dist에서 실행된다. package가 plugin root 아래에 놓인 배포 구조를 유지한다.
+  const runtime = readCandidate('claude', options.runtimeRoot ?? path.join(__dirname, '..', '..', '..'));
   if (runtime) return runtime.path;
   const installed = findPluginCandidates(options)[0];
   if (installed) return installed.path;

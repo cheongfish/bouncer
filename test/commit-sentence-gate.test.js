@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const { validateBlueprint } = require('../scripts/lib/validate');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 const TS = '2026-07-01T00:00:00+09:00';

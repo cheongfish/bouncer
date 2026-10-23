@@ -8,7 +8,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
-const { resolveSymbol } = require('../scripts/lib/symbol-index');
+const { resolveSymbol } = require('../packages/cli/dist/symbol-index');
 
 const dirs = [];
 
@@ -165,6 +165,29 @@ test('scripts/src → wins over corresponding scripts/lib emit and generated-onl
   const generatedOnly = resolveSymbol({ repoRoot: repo, symbol: 'generatedOnly' });
   assert.equal(generatedOnly.status, 'unresolved');
   assert.ok(generatedOnly.candidates.every((item) => item.role === 'generated'));
+});
+
+test('package source, dist, and vendor paths → classify source, generated, and vendor roles', () => {
+  const repo = tmpRepo();
+  writeFile(repo, 'packages/cli/src/app.ts', 'export function packageFn() { return 1; }\n');
+  writeFile(repo, 'packages/cli/dist/app.js', 'function packageFn() { return 1; }\n');
+  writeFile(repo, 'packages/cli/dist/generatedOnly.js', 'function generatedOnly() { return 2; }\n');
+  writeFile(repo, 'packages/cli/vendor/copy.js', 'function vendorOnly() { return 3; }\n');
+
+  const packageFn = resolveSymbol({ repoRoot: repo, symbol: 'packageFn' });
+  assert.equal(packageFn.status, 'resolved');
+  assert.equal(packageFn.symbol_ref.path, 'packages/cli/src/app.ts');
+  assert.ok(packageFn.diagnostics.some((item) => (
+    item.role === 'generated' && item.symbol_ref.path === 'packages/cli/dist/app.js'
+  )));
+
+  const generatedOnly = resolveSymbol({ repoRoot: repo, symbol: 'generatedOnly' });
+  assert.equal(generatedOnly.status, 'unresolved');
+  assert.ok(generatedOnly.candidates.every((item) => item.role === 'generated'));
+
+  const vendorOnly = resolveSymbol({ repoRoot: repo, symbol: 'vendorOnly' });
+  assert.equal(vendorOnly.status, 'unresolved');
+  assert.ok(vendorOnly.candidates.every((item) => item.role === 'vendor'));
 });
 
 test('deleted current definition and missing → names are unresolved', () => {

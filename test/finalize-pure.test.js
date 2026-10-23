@@ -4,11 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 const { loadModuleGraph, reachable } = require('./helpers/module-graph');
-const { buildCommitMessage, buildFinalizeCommitMessage } = require('../scripts/lib/commit-message');
-const { buildTaskContext } = require('../scripts/lib/finalize-explain');
-const { summarizeDrive, summarizeDriveIssues } = require('../scripts/lib/finalize-digest');
-const { makeAllowed, isUnder } = require('../scripts/lib/scope');
-const { buildStableProvenance, COMMIT_SHA_LEN } = require('../scripts/lib/commit-sha');
+const { buildCommitMessage, buildFinalizeCommitMessage } = require('../packages/cli/dist/commit-message');
+const { buildTaskContext } = require('../packages/cli/dist/finalize-explain');
+const { summarizeDrive, summarizeDriveIssues } = require('../packages/cli/dist/finalize-digest');
+const { makeAllowed, isUnder } = require('../packages/cli/dist/scope');
+const { buildStableProvenance, COMMIT_SHA_LEN } = require('../packages/cli/dist/commit-sha');
 
 const graph = loadModuleGraph(path.join(__dirname, '..', 'scripts', 'src', 'lib'));
 const NEW = ['git-ops', 'commit-message', 'finalize-collect', 'finalize-checks', 'finalize-explain'];
@@ -828,7 +828,7 @@ test('lowercase package names in ordinary sentence positions → authored fields
 // 경로, 패키지 이름, backtick 인용은 blueprint Intent와 두 task 필드에서
 // 똑같이 통과하고, 형식 결함은 기존 오류 문구로 계속 거절된다.
 test('identifiers and malformed shapes in an authored sentence → the check accepts identifiers and rejects only malformed shapes', () => {
-  const { normalizeAuthoredLines, parseIntentBody } = require('../scripts/lib/templates');
+  const { normalizeAuthoredLines, parseIntentBody } = require('../packages/cli/dist/templates');
   const accepted = [
     'branch 이름을 CLI helper 한 곳에서 계산함.',
     'integrationBranch 값을 재계산 없이 사용함.',
@@ -911,7 +911,7 @@ test('an absent or malformed blueprint Intent → finalize rejects it', () => {
 
 // --- coordinator provenance -------------------------------------------------
 
-const { buildCoordinatorProvenance } = require('../scripts/lib/finalize-collect');
+const { buildCoordinatorProvenance } = require('../packages/cli/dist/finalize-collect');
 
 const LEDGER = {
   version: 1,

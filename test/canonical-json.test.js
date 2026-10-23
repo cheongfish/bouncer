@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { canonicalJson, sha256Canonical } = require('../scripts/lib/canonical-json');
+const { canonicalJson, sha256Canonical } = require('../packages/cli/dist/canonical-json');
 
 // 통합 전(approval-snapshot 복사본) 코드로 계산한 값을 그대로 고정한다.
 const input = { b: [3, { y: null, x: 'é' }], a: 1 };

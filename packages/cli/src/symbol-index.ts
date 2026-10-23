@@ -1342,14 +1342,15 @@ class Collector {
 
 /**
  * generated/test/vendor를 먼저 적용하고 남은 것만 source로 둔다.
- * 확장자나 `src` 경로만으로 source를 단정하지 않는다. `scripts/lib/**`는
- * 대응 `scripts/src/**`가 없어도 emit 트리이므로 generated다.
+ * 확장자나 `src` 경로만으로 source를 단정하지 않는다. package dist와 legacy
+ * scripts/lib emit은 대응 source가 없어도 generated다.
  *
  * @param {string} relPosix - 저장소 상대 posix 경로
  * @returns {SymbolRole} vendor, test, generated, source 중 하나
  */
 function classifyRole(relPosix: string): SymbolRole {
   if (hasDirPrefix(relPosix, 'vendor')
+    || hasDirPrefix(relPosix, 'packages/cli/vendor')
     || hasDirPrefix(relPosix, 'scripts/vendor')
     || hasDirPrefix(relPosix, 'node_modules')) {
     return 'vendor';
@@ -1357,7 +1358,7 @@ function classifyRole(relPosix: string): SymbolRole {
   if (hasDirPrefix(relPosix, 'test') || hasDirPrefix(relPosix, 'tests') || isTestFileName(relPosix)) {
     return 'test';
   }
-  if (hasDirPrefix(relPosix, 'scripts/lib')) {
+  if (hasDirPrefix(relPosix, 'packages/cli/dist') || hasDirPrefix(relPosix, 'scripts/lib')) {
     return 'generated';
   }
   return 'source';

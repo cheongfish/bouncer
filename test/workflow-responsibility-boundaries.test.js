@@ -7,7 +7,7 @@ const { builtinModules } = require('node:module');
 const ts = require('typescript');
 const { loadModuleGraph, findCycles, reachable } = require('./helpers/module-graph');
 
-const LIB = path.join(__dirname, '..', 'scripts', 'src', 'lib');
+const LIB = path.join(__dirname, '..', 'packages', 'cli', 'src');
 const PURE = ['finalize-digest-model', 'context-review-transitions', 'context-review-projection'];
 const CONTRACTS = ['coordinator-command-contracts', 'context-review-contracts'];
 const RULES = [

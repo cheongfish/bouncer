@@ -7,7 +7,7 @@ const { performance } = require('node:perf_hooks');
 
 const MODULES = ['coordinator', 'scope', 'finalize', 'verification', 'validate', 'measure-source-boundaries'];
 const COVERAGE_ARGS = [
-  '--experimental-test-coverage', '--test-coverage-include=scripts/lib/**',
+  '--experimental-test-coverage', '--test-coverage-include=packages/cli/dist/**',
   '--test-coverage-lines=94', '--test-coverage-branches=82', '--test-coverage-functions=96',
 ];
 
@@ -27,7 +27,7 @@ function countLf(content) {
  * @returns {string[]} 고유 대상 basename 목록
  */
 function directRequires(source) {
-  return [...new Set([...source.matchAll(/require\(['"]\.\.\/scripts\/lib\/([^'"/]+)['"]\)/g)].map((m) => m[1]))].sort();
+  return [...new Set([...source.matchAll(/require\(['"]\.\.\/packages\/cli\/dist\/([^'"/]+)['"]\)/g)].map((m) => m[1]))].sort();
 }
 
 /** 파일 목록의 기존 표 집계와 재귀 총량을 만든다.
@@ -35,8 +35,8 @@ function directRequires(source) {
  * @returns {object} 최상위·재귀 소스, 테스트, 직접 require 집계
  */
 function summarizeInventory(files) {
-  const source = files.filter((f) => /^scripts\/src\/lib\/.*\.ts$/.test(f.path));
-  const top = source.filter((f) => !f.path.slice('scripts/src/lib/'.length).includes('/'));
+  const source = files.filter((f) => /^packages\/cli\/src\/.*\.ts$/.test(f.path));
+  const top = source.filter((f) => !f.path.slice('packages/cli/src/'.length).includes('/'));
   const tests = files.filter((f) => /^test\/[^/]+\.test\.js$/.test(f.path));
   const byTest = tests.map((f) => directRequires(String(f.content)));
   return {
@@ -172,7 +172,7 @@ function walk(root, dir) {
  */
 function probeModule(repo, mod) {
   const rel = mod === 'measure-source-boundaries'
-    ? 'scripts/measure-source-boundaries.js' : `scripts/lib/${mod}.js`;
+    ? 'scripts/measure-source-boundaries.js' : `packages/cli/dist/${mod}.js`;
   if (!fs.existsSync(path.join(repo, rel))) {
     if (mod === 'measure-source-boundaries') return { status: 'absent', exports: [] };
     throw new Error(`required probe module missing: ${rel}`);
@@ -198,10 +198,10 @@ function snapshot(repo, output) {
   const git = (args) => requireSuccess(`git ${args[0]}`, run('git', args, repo)).stdout.trim();
   const revision = git(['rev-parse', '--verify', 'HEAD^{commit}']);
   if (!/^[0-9a-f]{40}$/.test(revision)) throw new Error('revision is not a full commit SHA');
-  const dirty = git(['status', '--porcelain', '--untracked-files=no', '--', 'scripts/src/lib', 'test']);
+  const dirty = git(['status', '--porcelain', '--untracked-files=no', '--', 'packages/cli/src', 'test']);
   if (dirty) throw new Error(`tracked source is dirty:\n${dirty}`);
 
-  const all = [...walk(repo, 'scripts/src/lib'), ...walk(repo, 'test')];
+  const all = [...walk(repo, 'packages/cli/src'), ...walk(repo, 'test')];
   const files = all.filter((f) => f.endsWith('.ts') || f.endsWith('.js')).map((rel) => ({
     path: rel,
     content: fs.readFileSync(path.join(repo, rel)),
@@ -276,8 +276,8 @@ function validateInventory(report, inventory) {
     return [cells[0], cells];
   }));
   const specs = [
-    ['scripts/src/lib/*.ts 모듈 수', (s) => s.inventory.topLevel.files],
-    ['scripts/src/lib/*.ts 합계 줄 수', (s) => s.inventory.topLevel.lines],
+    ['packages/cli/src/*.ts 모듈 수', (s) => s.inventory.topLevel.files],
+    ['packages/cli/src/*.ts 합계 줄 수', (s) => s.inventory.topLevel.lines],
     ['test/*.test.js 파일 수', (s) => s.inventory.test.files],
     ['test/*.test.js 합계 줄 수', (s) => s.inventory.test.lines],
     ['coverage lines', (s) => `${s.coverage.lines}%`],

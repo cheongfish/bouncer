@@ -6,13 +6,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { runCli } = require('../scripts/lib/cli');
-const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
-const { computePlanSnapshot, computePlanParts } = require('../scripts/lib/plan-snapshot');
-const { validateBlueprint } = require('../scripts/lib/validate');
-const crState = require('../scripts/lib/context-review-state');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { findingFingerprint } = require('../scripts/lib/validate-sections');
+const { runCli } = require('../packages/cli/dist/cli');
+const { scaffoldEpic, scaffoldBlueprint } = require('../packages/cli/dist/scaffold');
+const { computePlanSnapshot, computePlanParts } = require('../packages/cli/dist/plan-snapshot');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
+const crState = require('../packages/cli/dist/context-review-state');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { findingFingerprint } = require('../packages/cli/dist/validate-sections');
 
 const TS = '2026-07-01T00:00:00+09:00';
 
@@ -30,14 +30,14 @@ test('순수 리뷰 모듈을 독립 로드 → 파일·프로세스·저장·sn
       if (direct && denied.includes(request)) throw new Error('forbidden dependency: ' + request);
       return original.call(this, request, parent, ...args);
     };
-    require('./scripts/lib/context-review-transitions');
-    require('./scripts/lib/context-review-projection');
+    require('./packages/cli/dist/context-review-transitions');
+    require('./packages/cli/dist/context-review-projection');
   `], { cwd: path.join(__dirname, '..'), encoding: 'utf8' });
   assert.equal(probe.status, 0, probe.stderr);
 });
 
 test('순수 처분과 next state 계산 → 입력을 보존하고 명시 동의와 인증 digest를 반영한다', () => {
-  const transitions = require('../scripts/lib/context-review-transitions');
+  const transitions = require('../packages/cli/dist/context-review-transitions');
   const findings = Object.freeze([Object.freeze({
     id: 'CR-pure', status: 'open', actionability: 'must_fix',
   })]);
@@ -77,8 +77,8 @@ test('순수 처분과 next state 계산 → 입력을 보존하고 명시 동�
 });
 
 test('순수 marker 투영 → 원문과 파싱 입력을 보존하고 다른 키 변경은 거절한다', () => {
-  const { projectMarker, validateMarker } = require('../scripts/lib/context-review-projection');
-  const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+  const { projectMarker, validateMarker } = require('../packages/cli/dist/context-review-projection');
+  const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
   const original = '---\nbouncer:\n  context_review:\n    rounds: []\n---\n## Findings\n- none\n';
   const before = parseFrontmatter(original).data;
   const saved = structuredClone(before);

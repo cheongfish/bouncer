@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 // 종류 분류와 경로 계약 표는 plan 게이트와 공유하는 빌드 산출 leaf다(scripts/src/lib/doc-shape-contracts.ts).
-const { classifyDocPath, pathContractFor, PATH_CONTRACTS } = require('./lib/doc-shape-contracts');
+const { classifyDocPath, pathContractFor, PATH_CONTRACTS } = require('../packages/cli/dist/doc-shape-contracts');
 
 // HTML 주석의 backtick만 치환하는 내부 표식이다. 주석을 통째로 비우면 code span의
 // 닫힘 표식까지 사라져 뒤의 실제 링크가 코드로 오인된다. 표식은 fence 규칙에는
@@ -907,7 +907,7 @@ function runCli(argv = [], opts = {}) {
     if (contract.rejectionTable) {
       // 지원 reason은 이 모듈에서만 읽는다(CLI 전체를 적재하지 않는다). 빌드 산출물이므로 표가 있는
       // 문서를 검사할 때에만 지연 적재한다.
-      const { FINAL_REVIEW_REJECTION_REASONS } = require('./lib/coordinator-repair');
+      const { FINAL_REVIEW_REJECTION_REASONS } = require('../packages/cli/dist/coordinator-repair');
       checkRejectionTables(markdown, contract.rejectionTable.required, FINAL_REVIEW_REJECTION_REASONS, result.errors);
     }
     // 마지막 H2 규칙은 종류가 있는 문서에만 적용한다.
