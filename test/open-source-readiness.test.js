@@ -13,7 +13,7 @@ const sha256 = (rel) =>
 // 반입 고지는 루트 Apache-2.0와 별개 저작권이므로, 공개 전환이 이 세 파일을
 // 지우거나 고치면 제3자 조건을 깨뜨린다. 해시는 현재 커밋된 바이트를 고정한다.
 const THIRD_PARTY = {
-  'scripts/vendor/js-yaml.LICENSE':
+  'packages/cli/vendor/js-yaml.LICENSE':
     'a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550',
   'references/stop-slop/LICENSE':
     '2e2b2beaf41cc0ce28485455a62aed81777cdcdf68702e142427aef1cd720f2c',

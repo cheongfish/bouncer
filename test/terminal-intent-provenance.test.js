@@ -382,7 +382,7 @@ test('terminal intent provenance with selection, commits, freshness, and graph s
   const session = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ cwd: repo }),
     encoding: 'utf8',
-    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '..', 'scripts', 'bouncer') },
+    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '..', 'packages', 'cli', 'bin', 'bouncer') },
   });
   // hooks/session-graph.js는 항상 exit(0)이므로 status만으로는 건강 동기화를
   // 보장하지 못한다. 건강한 sync는 graphSyncWarnings를 stderr에 쓰지 않는다.

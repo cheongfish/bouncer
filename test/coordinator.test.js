@@ -140,7 +140,7 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   return dispatched;
 }
 
-const COORDINATOR_SRC_DIR = path.join(__dirname, '..', 'scripts', 'src', 'lib');
+const COORDINATOR_SRC_DIR = path.join(__dirname, '..', 'packages', 'cli', 'src');
 
 test('fan-in 모듈 의존 경계 → commands와 prepare로 런타임 역참조하지 않음', () => {
   const graph = loadModuleGraph(COORDINATOR_SRC_DIR);

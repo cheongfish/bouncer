@@ -10,7 +10,7 @@ const { summarizeDrive, summarizeDriveIssues } = require('../packages/cli/dist/f
 const { makeAllowed, isUnder } = require('../packages/cli/dist/scope');
 const { buildStableProvenance, COMMIT_SHA_LEN } = require('../packages/cli/dist/commit-sha');
 
-const graph = loadModuleGraph(path.join(__dirname, '..', 'scripts', 'src', 'lib'));
+const graph = loadModuleGraph(path.join(__dirname, '..', 'packages', 'cli', 'src'));
 const NEW = ['git-ops', 'commit-message', 'finalize-collect', 'finalize-checks', 'finalize-explain'];
 
 test('delivery consumers and new modules → never reach finalize', () => {

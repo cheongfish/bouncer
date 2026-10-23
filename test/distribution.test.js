@@ -47,7 +47,7 @@ function bareRequires(file) {
 
 test('shipped code → requires nothing from node_modules', () => {
   const offenders = [];
-  for (const dir of ['scripts', 'hooks']) {
+  for (const dir of ['packages/cli/bin', 'packages/cli/dist', 'hooks']) {
     for (const file of jsFilesUnder(dir)) {
       if (file.includes(`${path.sep}vendor${path.sep}`)) continue;
       for (const spec of bareRequires(file)) {
@@ -72,14 +72,14 @@ test('the package contents → contain only the plugin runtime surface and host 
     'hooks/hooks.json',
     'references/coding-standards/index.md',
     'references/implementation/index.md',
-    'scripts/bouncer',
-    'scripts/bouncer-root',
-    'scripts/build-stamp.js',
-    'scripts/lib/cli.js',
-    'scripts/lib/coordinator.js',
-    'scripts/lib/doc-shape-contracts.js',
-    'scripts/lib/scope.js',
-    'scripts/vendor/js-yaml.js',
+    'packages/cli/bin/bouncer',
+    'packages/cli/bin/bouncer-root',
+    'packages/cli/bin/build-stamp.js',
+    'packages/cli/dist/cli.js',
+    'packages/cli/dist/coordinator.js',
+    'packages/cli/dist/doc-shape-contracts.js',
+    'packages/cli/dist/scope.js',
+    'packages/cli/vendor/js-yaml.js',
     'skills/bouncer-run/SKILL.md',
     'AGENTS.md',
     '.agents/plugins/marketplace.json',
@@ -101,7 +101,7 @@ test('the package contents → contain only the plugin runtime surface and host 
     '.codex/',
     'test/',
     'docs/',
-    'scripts/src/',
+    'packages/cli/src/',
     'CHANGELOG.md',
     'eslint.config.js',
     'tsconfig.json',
@@ -129,11 +129,11 @@ test('the master rules and their links → every linked file is shipped in the p
 // 로컬 `.codex/` 시드가 섞여 들어가면 설치본이 개발 체크아웃에 의존하게 된다.
 test('the coordinator runtime and agent → ship in the package without their development sources', () => {
   const files = packageFiles();
-  for (const file of ['scripts/lib/coordinator.js', 'scripts/lib/scope.js', 'agents/bouncer-coordinator.md']) {
+  for (const file of ['packages/cli/dist/coordinator.js', 'packages/cli/dist/scope.js', 'agents/bouncer-coordinator.md']) {
     assert.ok(files.includes(file), `missing coordinator surface: ${file}`);
   }
-  const leaked = files.filter((file) => file === 'scripts/src/lib/coordinator.ts'
-    || file === 'scripts/src/lib/scope.ts'
+  const leaked = files.filter((file) => file === 'packages/cli/src/coordinator.ts'
+    || file === 'packages/cli/src/scope.ts'
     || file.startsWith('.codex/agents/'));
   assert.deepStrictEqual(leaked, [], `coordinator development files leaked:\n${leaked.join('\n')}`);
 
@@ -156,7 +156,7 @@ test('the coordinator runtime and agent → ship in the package without their de
 });
 
 test('the vendored yaml module → provides load and dump', () => {
-  const yaml = require('../scripts/vendor/js-yaml');
+  const yaml = require('../packages/cli/vendor/js-yaml');
   assert.strictEqual(typeof yaml.load, 'function');
   assert.strictEqual(typeof yaml.dump, 'function');
   const roundTripped = yaml.load(yaml.dump({ a: [1, 2], b: 'x' }));
@@ -212,15 +212,15 @@ function compareVersion(left, right) {
 }
 
 test('vendored js-yaml and the installed package → match at a safe minimum version', () => {
-  // Claude Code는 npm install을 돌리지 않으므로 런타임은 scripts/vendor 복사본이다.
+  // Claude Code는 npm install을 돌리지 않으므로 런타임은 packages/cli/vendor 복사본이다.
   // 개발 의존성만 올려두고 벤더를 낡은 4.3.0에 두면 audit를 통과해도 배포본이
   // 취약하다. 설치본 버전·dist 바이트·README 표기를 한 번에 묶어 드리프트를 막는다.
   const installedVersion = readJson('node_modules/js-yaml/package.json').version;
-  const vendoredBytes = fs.readFileSync(path.join(root, 'scripts/vendor/js-yaml.js'));
+  const vendoredBytes = fs.readFileSync(path.join(root, 'packages/cli/vendor/js-yaml.js'));
   const installedDistBytes = fs.readFileSync(
     path.join(root, 'node_modules/js-yaml/dist/js-yaml.js'),
   );
-  const vendorReadme = fs.readFileSync(path.join(root, 'scripts/vendor/README.md'), 'utf8');
+  const vendorReadme = fs.readFileSync(path.join(root, 'packages/cli/vendor/README.md'), 'utf8');
 
   assert.ok(compareVersion(installedVersion, '4.3.2') >= 0);
   assert.deepStrictEqual(vendoredBytes, installedDistBytes);
@@ -230,10 +230,10 @@ test('vendored js-yaml and the installed package → match at a safe minimum ver
 test('every host install → the package ships the Graphify compatibility manifest', () => {
   const files = packageFiles();
   assert.ok(
-    files.includes('resources/graphify-compat.json'),
-    'missing package file: resources/graphify-compat.json',
+    files.includes('packages/cli/resources/graphify-compat.json'),
+    'missing package file: packages/cli/resources/graphify-compat.json',
   );
-  const manifest = readJson('resources/graphify-compat.json');
+  const manifest = readJson('packages/cli/resources/graphify-compat.json');
   assert.strictEqual(manifest.schema_version, 1);
   assert.strictEqual(manifest.package, 'graphifyy');
   assert.strictEqual(manifest.install_spec, 'graphifyy==0.9.56');

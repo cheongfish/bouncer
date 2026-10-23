@@ -82,7 +82,7 @@ const SDD_TYPE_RE = new RegExp('\\b' + ['s', 'dd'].join('') + '\\.');
 // 옮겨도 표식과 함께 옮기면 통과한다. 이 파일 자신이 표식 리터럴을 갖지 않도록 조각을 이어 만든다.
 const LEGACY_DETECTOR_MARKER_RE = new RegExp('^// ' + ['public-name', 'legacy-input-detector'].join(': ') + '$', 'm');
 // 표식이 유효한 위치: 생성본(scripts/lib)은 추적되지 않으므로 TypeScript 소스만 해당한다.
-const LEGACY_DETECTOR_SOURCE_RE = /^scripts\/src\/lib\/[^/]+\.ts$/;
+const LEGACY_DETECTOR_SOURCE_RE = /^packages\/cli\/src\/[^/]+\.ts$/;
 
 function trackedTextFiles() {
   const raw = execFileSync('git', ['ls-files', '-z'], { cwd: root });
@@ -136,9 +136,9 @@ test('legacy detector marker → at least one tracked file declares it', () => {
   assert.ok(markedDetectorFiles().length >= 1, 'no tracked file carries the legacy detector marker');
 });
 
-test('legacy detector marker → appears only in scripts/src/lib/*.ts', () => {
+test('legacy detector marker → appears only in packages/cli/src/*.ts', () => {
   const misplaced = markedDetectorFiles().filter((file) => !LEGACY_DETECTOR_SOURCE_RE.test(file));
-  assert.deepStrictEqual(misplaced, [], `marker outside scripts/src/lib:\n${misplaced.join('\n')}`);
+  assert.deepStrictEqual(misplaced, [], `marker outside packages/cli/src:\n${misplaced.join('\n')}`);
 });
 
 test('legacy detector marker → every marked file really contains a legacy string', () => {

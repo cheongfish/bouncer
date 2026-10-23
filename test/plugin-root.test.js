@@ -382,7 +382,7 @@ test('pure command from a copy without scripts/lib → prints the exact build gu
   assert.strictEqual(result.status, 1);
   assert.strictEqual(
     result.stderr,
-    `bouncer: packages/cli/dist is missing; run \`npm run build\` in ${path.join(tmp, 'packages', 'cli')}\n`,
+    `bouncer: packages/cli/dist is missing; run \`npm run build\` in ${tmp}\n`,
   );
 });
 

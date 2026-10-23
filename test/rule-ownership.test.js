@@ -419,7 +419,7 @@ test('each ownership locator → lives only in its declared owner', () => {
   // 이전이 진행 중인 동안 owner는 rule 문서와 코드 파일에 걸쳐 있다. migration BP 열로
   // 경로를 고정하면 같은 BP의 일부만 옮긴 중간 commit이 전부 거짓 실패한다.
   // 대신 행이 선언한 current owner를 기준으로 locator 존재를 확인하고, 이중 정본
-  // leak은 `.md` owner 사이에서만 거절한다. 코드 owner(`scripts/src/lib/*.ts`)는
+  // leak은 `.md` owner 사이에서만 거절한다. 코드 owner(`packages/cli/src/*.ts`)는
   // 식별자 문자열이 구현에 여러 번 나와 leak 오류가 되므로 자기 행 locator 존재만 본다.
   const ownerPaths = [...new Set(ownership.map((row) => stripTicks(row['current owner'])))];
   const normalizedOwners = new Map(
@@ -460,8 +460,8 @@ test('governance rule file → is deleted and no ownership row keeps it as curre
   for (const row of bp4Rows) {
     const owner = stripTicks(row['current owner']);
     assert.ok(
-      owner.startsWith('scripts/src/lib/'),
-      `BP4 row ${row.id} current owner must start with scripts/src/lib/`,
+      owner.startsWith('packages/cli/src/'),
+      `BP4 row ${row.id} current owner must start with packages/cli/src/`,
     );
   }
 });

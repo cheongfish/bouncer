@@ -1442,7 +1442,7 @@ test('Bouncer pre-commit hook is installed → commitTask succeeds', () => {
   assert.equal(
     installPreCommitHook({
       repoRoot: repo,
-      launcherPath: path.resolve(__dirname, '..', 'scripts', 'bouncer'),
+      launcherPath: path.resolve(__dirname, '..', 'packages', 'cli', 'bin', 'bouncer'),
     }).preCommitHook,
     'installed',
   );

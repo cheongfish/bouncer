@@ -259,7 +259,7 @@ test('a parse error in one file → does not fabricate candidates from other fil
 });
 
 const TYPESCRIPT_BLOCKER = path.join(__dirname, 'helpers', 'typescript-blocker.js');
-const SHIPPED_LIB = path.join(__dirname, '..', 'scripts', 'lib');
+const SHIPPED_LIB = path.join(__dirname, '..', 'packages', 'cli', 'dist');
 
 /**
  * 주어진 `lib` 디렉터리의 `symbol-index.js`를 `typescript` 해석이 막힌 자식 프로세스에서

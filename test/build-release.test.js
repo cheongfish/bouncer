@@ -148,14 +148,14 @@ test('(d) real repo tree → matches pack list, ships lib, has no node_modules, 
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(listRelFiles(out), packPaths(root));
   for (const rel of [
-    path.join('scripts', 'lib', 'cli.js'),
-    path.join('scripts', 'lib', 'commit-hook.js'),
-    path.join('scripts', 'lib', 'session-graph.js'),
+    path.join('packages', 'cli', 'dist', 'cli.js'),
+    path.join('packages', 'cli', 'dist', 'commit-hook.js'),
+    path.join('packages', 'cli', 'dist', 'session-graph.js'),
   ]) {
     assert.ok(fs.existsSync(path.join(out, rel)), `missing ${rel}`);
   }
   assert.equal(fs.existsSync(path.join(out, 'node_modules')), false);
-  const help = spawnSync(process.execPath, [path.join(out, 'scripts', 'bouncer'), '--help'], {
+  const help = spawnSync(process.execPath, [path.join(out, 'packages', 'cli', 'bin', 'bouncer'), '--help'], {
     env: { ...process.env, BOUNCER_HOME: out },
     encoding: 'utf8',
   });

@@ -140,7 +140,7 @@ function forbiddenReach(graph, from, forbidden) {
 }
 
 test('tasks-docs transitive reach over the source graph → contains no upper-layer module', () => {
-  const graph = loadModuleGraph(path.join(__dirname, '..', 'scripts', 'src', 'lib'));
+  const graph = loadModuleGraph(path.join(__dirname, '..', 'packages', 'cli', 'src'));
   assert.deepEqual(forbiddenReach(graph, 'tasks-docs', UPPER_LAYERS), []);
 });
 

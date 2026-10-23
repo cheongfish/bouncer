@@ -757,7 +757,7 @@ test('SessionStart → reports partial state on stderr and exits zero', () => {
   const result = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ cwd: repo }),
     encoding: 'utf8',
-    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '../scripts/bouncer') },
+    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '../packages/cli/bin/bouncer') },
   });
 
   assert.strictEqual(result.status, 0);
@@ -773,7 +773,7 @@ test('SessionStart → reports legacy state with corrective command and exits ze
   const result = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ cwd: repo }),
     encoding: 'utf8',
-    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '../scripts/bouncer') },
+    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '../packages/cli/bin/bouncer') },
   });
 
   assert.strictEqual(result.status, 0);
@@ -783,7 +783,7 @@ test('SessionStart → reports legacy state with corrective command and exits ze
 });
 
 const checkoutRoot = path.join(__dirname, '..');
-const realRuntime = path.join(checkoutRoot, 'scripts', 'bouncer');
+const realRuntime = path.join(checkoutRoot, 'packages', 'cli', 'bin', 'bouncer');
 
 // 훅을 자식 프로세스로 실행한다. 런타임은 env의 BOUNCER_BIN으로만 지정한다.
 function runSessionHook(repo, env) {
@@ -820,7 +820,7 @@ test('BOUNCER_BIN is relative and PATH has only node → status 0 and runtime no
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
   const result = runSessionHook(repo, {
     PATH: path.dirname(process.execPath),
-    BOUNCER_BIN: 'scripts/bouncer',
+    BOUNCER_BIN: 'packages/cli/bin/bouncer',
   });
   assert.strictEqual(result.status, 0);
   assert.match(result.stderr, /runtime not found/);

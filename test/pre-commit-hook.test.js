@@ -12,7 +12,7 @@ const {
 const { writeCurrent } = require('../packages/cli/dist/current');
 const yaml = require('js-yaml');
 
-const LAUNCHER = path.resolve(__dirname, '..', 'scripts', 'bouncer');
+const LAUNCHER = path.resolve(__dirname, '..', 'packages', 'cli', 'bin', 'bouncer');
 const BP = '.bouncer/context/epics/001-x/blueprints/001-y';
 
 function gitEnv(extra) {

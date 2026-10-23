@@ -15,7 +15,7 @@ const { runCli } = require('../packages/cli/dist/cli');
 const digestModel = require('../packages/cli/dist/finalize-digest-model');
 
 test('finalize digest model runtime imports → stay within pure snapshot helpers', () => {
-  const modelPath = path.join(__dirname, '..', 'scripts', 'lib', 'finalize-digest-model');
+  const modelPath = path.join(__dirname, '..', 'packages', 'cli', 'dist', 'finalize-digest-model');
   const probe = [
     'const before = new Set(Object.keys(require.cache));',
     `require(${JSON.stringify(modelPath)});`,
