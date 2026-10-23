@@ -23,7 +23,12 @@ bouncer:
 1. `finalize-closeout` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
 2. 아래 legacy epic은 `legacy`로 그대로 두고 조회·이력에만 쓴다. 승인·검증 해시와 trailer 연결을 바꾸지 않는다.
 
+3. R-X3 범위에서 사용자 확인 이후 이해 기록 메타데이터 생성의 task 수용 기준과 전용 검증을 만족한다.
+4. R-X4 범위에서 보존 digest 기반 PR 본문 초안 생성의 task 수용 기준과 전용 검증을 만족한다.
+5. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
+
 ## Out of scope
+- 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
 - 실행 중 커밋 규칙 → `drive-execution`
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
@@ -46,3 +51,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 
 ## Blueprints
 - [release-main-outside-scope](blueprints/release-main-outside-scope/index.md): `finalize release-main`이 `outside_scope`로 분류한 terminal만 남은 drive를 정리하고, `drive-not-closed`에 `cause`·`next`·`tasks`를 싣는다.
+- [closeout-record-generation](blueprints/closeout-record-generation/index.md) — 마감 이해 기록과 PR 본문 초안 자동 생성; R-X3·R-X4 처리.
