@@ -18,6 +18,8 @@ import pathOverlapMod = require('./path-overlap');
 const { pathsOverlap } = pathOverlapMod;
 import leaseMod = require('./lease');
 const { revokeLease, isValidLease, isValidLeaseSeq } = leaseMod;
+import validateSections = require('./validate-sections');
+const { SECTION_DEFS, extractPathCandidates } = validateSections;
 import type { Task as CanonicalTask, Ledger as CanonicalLedger } from './execution-contracts';
 
 function isUnder(file: unknown, entry: unknown): boolean {
@@ -765,6 +767,130 @@ function trackedScopeViolations(
 }
 
 /**
+ * scope 경로 한 항목을 비교용으로 정규화한다(앞 `./` 제거, 끝 `/` 제거).
+ * revise의 "새 경로" 판정, 겹침 판정, 축소 경고가 같은 규칙을 써야 서로 다른
+ * 표기가 다른 경로로 갈리지 않는다.
+ *
+ * @param {string} raw - 정규화 전 경로
+ * @returns {string} 정규화한 경로
+ */
+function normalizeScopeEntry(raw: string): string {
+  let p = raw;
+  while (p.startsWith('./')) p = p.slice(2);
+  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+  return p;
+}
+
+// Do not touch 제목 정규식은 validate-sections의 SECTION_DEFS가 정본이다(영문·한국어 제목).
+// 여기서 복제하면 제목 규칙이 갈라져 G/S 검사와 revise가 다른 절을 보게 된다.
+const DO_NOT_TOUCH_HEADING_RE = (SECTION_DEFS.find((def) => def.key === 'doNotTouch') as { re: RegExp }).re;
+
+type DoNotTouchLine = { index: number; tokens: string[] };
+
+/**
+ * task 본문에서 Do not touch 절(제목 다음 줄부터 다음 `## ` 제목 앞까지)의 줄을 모은다.
+ * 절이 여러 개면 모두 대상이다. HTML 주석 안의 줄과 제목 줄은 판정·편집 대상이 아니므로
+ * 건너뛰어 바이트 그대로 둔다.
+ *
+ * @param {string[]} lines - 본문을 `\n`으로 나눈 줄
+ * @returns {DoNotTouchLine[]} 절 안 줄의 인덱스와 `extractPathCandidates` 토큰
+ */
+function doNotTouchLines(lines: string[]): DoNotTouchLine[] {
+  const out: DoNotTouchLine[] = [];
+  let inSection = false;
+  let inComment = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const wasInComment = inComment;
+    // 한 줄에서 열고 닫는 주석도 그 줄 전체를 주석 줄로 본다(줄 단위 보수적 판정).
+    if (line.includes('<!--') && !line.includes('-->', line.indexOf('<!--'))) inComment = true;
+    if (wasInComment) {
+      if (line.includes('-->')) inComment = false;
+      continue;
+    }
+    if (line.includes('<!--')) continue;
+    if (/^##\s/.test(line)) {
+      inSection = DO_NOT_TOUCH_HEADING_RE.test(line.trim());
+      continue;
+    }
+    if (inSection) out.push({ index: i, tokens: extractPathCandidates(line) });
+  }
+  return out;
+}
+
+/**
+ * 한 줄에서 해제 토큰의 출현을 지운다. 백틱으로 감싼 출현과 앞뒤가 공백·`,`·`;`·줄 경계인
+ * 민 단어 출현만 대상이다. 지운 출현 뒤에 `, `가 있으면 함께 지우고, 없고 앞에 `, `가
+ * 있으면 그것을 지워 목록 구분자가 남지 않게 한다.
+ *
+ * @param {string} line - 편집할 줄
+ * @param {Set<string>} released - 정규화한 해제 토큰 집합
+ * @returns {string} 편집한 줄(출현이 없으면 입력과 같은 문자열)
+ */
+function removeReleasedTokens(line: string, released: Set<string>): string {
+  const ranges: Array<[number, number]> = [];
+  for (const m of line.matchAll(/`[^`]+`|[^\s,;]+/g)) {
+    const raw = m[0];
+    const isSpan = raw.startsWith('`') && raw.endsWith('`') && raw.length > 2;
+    // 백틱이 섞인 민 단어(`a`b 등)는 extractPathCandidates도 후보로 보지 않는다.
+    if (!isSpan && raw.includes('`')) continue;
+    const value = toPosix((isSpan ? raw.slice(1, -1) : raw).trim()).replace(/^\.\//, '');
+    if (released.has(value)) ranges.push([m.index as number, (m.index as number) + raw.length]);
+  }
+  // 뒤에서부터 지워야 앞 출현의 인덱스가 유효하다.
+  let edited = line;
+  for (const [start, end] of ranges.reverse()) {
+    if (edited.startsWith(', ', end)) edited = edited.slice(0, start) + edited.slice(end + 2);
+    else if (edited.slice(0, start).endsWith(', ')) edited = edited.slice(0, start - 2) + edited.slice(end);
+    else edited = edited.slice(0, start) + edited.slice(end);
+  }
+  return edited;
+}
+
+/**
+ * Do not touch 충돌을 판정하고 해제 편집을 계산한다. 파일은 쓰지 않는다 — 판정이 끝나기 전에
+ * 바이트를 바꾸면 거절된 revise가 흔적을 남긴다.
+ *
+ * 충돌 토큰 = 절의 토큰 중 새 경로 하나 이상과 겹치는 것. 해제 값이 충돌 토큰이 아니면
+ * `release-do-not-touch-unknown`을 먼저, 해제되지 않은 충돌이 남으면
+ * `scope-do-not-touch-conflict`를 낸다. 해제는 scope를 넓히지 않고 본문 편집만 허용한다.
+ *
+ * @param {string} body - task 문서 본문
+ * @param {string[]} fresh - 정규화한 새 경로(직전 scope에 정확히 같은 값이 없는 것)
+ * @param {string[]} released - 정규화·중복 제거한 해제 값(입력 순서)
+ * @returns 거절이면 `{ ok: false, reason, paths }`, 아니면 편집한 본문
+ */
+function planDoNotTouchRelease(body: string, fresh: string[], released: string[]):
+  { ok: false; reason: string; paths: string[] } | { ok: true; body: string } {
+  const lines = body.split('\n');
+  const sectionLines = doNotTouchLines(lines);
+  const conflicts: string[] = [];
+  for (const { tokens } of sectionLines) {
+    for (const token of tokens) {
+      if (conflicts.includes(token)) continue;
+      const base = normalizeScopeEntry(token);
+      if (fresh.some((p) => pathsOverlap(base, p))) conflicts.push(token);
+    }
+  }
+  const unknown = released.filter((value) => !conflicts.includes(value));
+  if (unknown.length > 0) return { ok: false, reason: 'release-do-not-touch-unknown', paths: unknown };
+  const remaining = conflicts.filter((token) => !released.includes(token));
+  if (remaining.length > 0) return { ok: false, reason: 'scope-do-not-touch-conflict', paths: remaining };
+  if (released.length === 0) return { ok: true, body };
+
+  const releasedSet = new Set(released);
+  const drop = new Set<number>();
+  for (const { index, tokens } of sectionLines) {
+    if (!tokens.some((token) => releasedSet.has(token))) continue;
+    const edited = removeReleasedTokens(lines[index], releasedSet);
+    // 경로가 하나도 남지 않은 줄은 빈 껍데기라 지운다. 해제 토큰이 없던 줄은 위에서 걸러져 보존된다.
+    if (extractPathCandidates(edited).length === 0) drop.add(index);
+    else lines[index] = edited;
+  }
+  return { ok: true, body: lines.filter((_line, i) => !drop.has(i)).join('\n') };
+}
+
+/**
  * coordinator가 실행 중 발견한 필수 경로로 task scope를 갱신한다.
  * task 문서와 ledger를 같은 revision으로 옮기고, 이유 없는 변경은 거절한다.
  * 저장소 밖·`.bouncer/`·`.git/`·트리 전체 표기는 scope로 받지 않는다. 단 직전 승인
@@ -773,14 +899,22 @@ function trackedScopeViolations(
  * `paths`는 task scope를 전달한 집합 전체로 교체한다(추가가 아니다). 이전 범위에서
  * 빠졌는데 새 집합이 덮지 못한 경로가 있으면 성공 결과에 `warnings`로 알린다.
  *
+ * task 문서의 Do not touch 절이 새 경로(직전 scope에 정확히 같은 값이 없는 경로)와 겹치면
+ * `scope-do-not-touch-conflict`로 거절한다. `releaseDoNotTouch`로 겹치는 항목을 하나씩
+ * 명시하면 frontmatter 갱신과 같은 파일 쓰기에서 그 토큰을 본문에서 지운다. 충돌 항목이
+ * 아닌 해제 값은 `release-do-not-touch-unknown`이다. 거절은 문서·원장을 쓰지 않는다.
+ * `releaseDoNotTouch`는 unknown으로 받아 비어 있지 않은 문자열만 쓴다.
+ *
  * @returns {{ok: true, revision: string, previous: string[], paths: string[],
- *   revoked?: string[],
+ *   revoked?: string[], releasedDoNotTouch?: string[],
  *   warnings?: Array<{code: 'scope-paths-dropped', paths: string[]}>}
  *   | {ok: false, reason: string}}
  */
-function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths, reason, exec }: {
+function reviseTaskScope({
+  repoRoot, blueprint, task, paths: nextPaths, newPaths, reason, exec, releaseDoNotTouch,
+}: {
   repoRoot: unknown; blueprint: unknown; task: unknown; paths: unknown; newPaths?: unknown; reason: unknown;
-  exec?: TrackedExec;
+  exec?: TrackedExec; releaseDoNotTouch?: unknown;
 }) {
   const taskId = coordinatorTaskId(task);
   if (!taskId) return { ok: false, reason: 'task-required' };
@@ -794,6 +928,9 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths
   // 최종 scope는 --paths ∪ --new-path다(중복은 한 번만).
   const next = [...new Set([...existing, ...created])];
   if (next.length === 0) return { ok: false, reason: 'scope-paths-required' };
+  // 해제 값은 Do not touch 토큰과 같은 정규화(toPosix, 앞 `./` 제거)로 맞춘다. 순서를 지키고 중복은 지운다.
+  const released = [...new Set(strings(releaseDoNotTouch).map((v) => toPosix(v.trim()).replace(/^\.\//, '')))]
+    .filter((v) => v !== '');
   const globs = globScopePaths(next);
   if (globs.length > 0) {
     return { ok: false, reason: 'scope-path-glob', paths: globs };
@@ -849,6 +986,15 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths
       }
     }
 
+    // Do not touch 판정은 추적 검사 뒤, 잠금 재확인 앞이다. 이 절은 런타임이 강제하지 않아
+    // 승인 scope를 넓혀도 worker가 brief의 금지 항목과 부딪쳐 blocked를 보고했다. 새 경로(직전
+    // scope에 정확히 같은 값이 없는 것)와 겹치는 항목은 해제 플래그로 하나씩 명시해야 하고,
+    // 해제 편집은 아래 frontmatter 갱신과 같은 writeFileSync에 실린다. 거절은 아무것도 쓰지 않는다.
+    const previousNormalized = previous.map(normalizeScopeEntry);
+    const fresh = [...new Set(next.map(normalizeScopeEntry))].filter((p) => !previousNormalized.includes(p));
+    const release = planDoNotTouchRelease(doc.body, fresh, released);
+    if (!release.ok) return release;
+
     // 문서를 먼저 쓰면 안 된다. 여기서 잠금을 잃은 writer는 ledger에 결코 기록되지
     // 않을 revision을 문서에만 남기고, 그 task는 ledger와 어긋난 stale 상태가 된다.
     // 손으로 고칠 일은 아니다 — nextRevision은 원장 revision만의 함수이고 여기서
@@ -859,10 +1005,12 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths
 
     bouncer.affected_paths = next;
     bouncer.scope_revision = revision;
-    fs.writeFileSync(docAbs, renderDoc(doc.data, doc.body));
+    fs.writeFileSync(docAbs, renderDoc(doc.data, release.body));
 
+    // 해제가 없으면 키를 두지 않아 기존 decision·결과와 바이트가 같다.
+    const releasedKey = released.length > 0 ? { releasedDoNotTouch: released } : {};
     const decision = {
-      task: taskId, kind: 'scope', reason: why, previous, next, revision,
+      task: taskId, kind: 'scope', reason: why, previous, next, revision, ...releasedKey,
     };
     entry.scope = { revision, paths: next };
     entry.decisions = [...(entry.decisions || []), decision];
@@ -875,12 +1023,7 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths
     // scope 충돌: 새 경로가 다른 prepared·recorded active lease와 겹치면
     // seq가 큰 쪽(후발)만 같은 잠금 안에서 revoke한다. revision 기록은 유지한다.
     const revoked: string[] = [];
-    const normalize = (raw: string): string => {
-      let p = raw;
-      while (p.startsWith('./')) p = p.slice(2);
-      if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
-      return p;
-    };
+    const normalize = normalizeScopeEntry;
     const pathSetOf = (task: LedgerTask): string[] | null => {
       if (task.scope && Array.isArray(task.scope.paths)) return task.scope.paths;
       if (Array.isArray(task.affected_paths)) return task.affected_paths;
@@ -930,6 +1073,7 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, newPaths
       revision,
       previous,
       paths: next,
+      ...releasedKey,
       ...(revoked.length > 0 ? { revoked } : {}),
       // 경고가 없으면 키를 두지 않아 기존 성공 결과와 바이트가 같다.
       ...(dropped.length > 0

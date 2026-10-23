@@ -1473,3 +1473,141 @@ test('numeric epic with a slug blueprint in frontmatter → message generation a
   };
   assert.throws(() => buildCommitMessage({ blueprintIndex: { data: { title: 'B' } } }, taskUnit), /blueprint_id/);
 });
+
+// ── reviseTaskScope: Do not touch 충돌 판정과 해제 ──────────────────────────
+const DNT_PATHS = ['src/auth/', 'src/session/'];
+const DNT_SECTION_A = [
+  '## Do not touch',
+  '- `src/session/`, `docs/keep.md` — 다른 task 소유',
+  '- `README` — 기준 문서',
+  '',
+].join('\n');
+
+/** worker task 문서 본문 끝에 Do not touch 절을 덧붙이고 문서 절대 경로를 돌려준다. */
+function appendDoNotTouch({ worker, blueprint }, section) {
+  const docAbs = path.join(worker, blueprint, 'tasks/001/tasks.md');
+  const text = fs.readFileSync(docAbs, 'utf8');
+  fs.writeFileSync(docAbs, `${text.replace(/\n*$/, '\n')}\n${section}`);
+  return docAbs;
+}
+
+function reviseWith(fx, releaseDoNotTouch) {
+  return reviseTaskScope({
+    repoRoot: fx.worker,
+    blueprint: fx.blueprint,
+    task: '001',
+    paths: DNT_PATHS,
+    reason: 'session write discovered',
+    ...(releaseDoNotTouch ? { releaseDoNotTouch } : {}),
+  });
+}
+
+function doNotTouchTail(docAbs) {
+  const text = fs.readFileSync(docAbs, 'utf8');
+  return text.slice(text.indexOf('## Do not touch'));
+}
+
+function ledgerScopeDecision(fx) {
+  const ledgerFile = path.join(
+    fx.repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  return JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).decisions.find((d) => d.kind === 'scope');
+}
+
+test('reviseTaskScope with a Do not touch token overlapping a new path and no release → rejects and keeps the document bytes', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(fx, DNT_SECTION_A);
+  const before = fs.readFileSync(docAbs, 'utf8');
+  assert.deepStrictEqual(reviseWith(fx), {
+    ok: false, reason: 'scope-do-not-touch-conflict', paths: ['src/session/'],
+  });
+  assert.strictEqual(fs.readFileSync(docAbs, 'utf8'), before);
+});
+
+test('reviseTaskScope with a release value that is not a conflicting token → rejects with release-do-not-touch-unknown', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(fx, DNT_SECTION_A);
+  const before = fs.readFileSync(docAbs, 'utf8');
+  const result = reviseWith(fx, ['README']);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'release-do-not-touch-unknown');
+  assert.deepStrictEqual(result.paths, ['README']);
+  assert.strictEqual(fs.readFileSync(docAbs, 'utf8'), before);
+});
+
+test('reviseTaskScope releasing the conflicting token → removes it from the section and records releasedDoNotTouch', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(fx, DNT_SECTION_A);
+  const result = reviseWith(fx, ['src/session/']);
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.releasedDoNotTouch, ['src/session/']);
+  assert.strictEqual(doNotTouchTail(docAbs), [
+    '## Do not touch',
+    '- `docs/keep.md` — 다른 task 소유',
+    '- `README` — 기준 문서',
+    '',
+  ].join('\n'));
+  assert.deepStrictEqual(ledgerScopeDecision(fx).releasedDoNotTouch, ['src/session/']);
+});
+
+test('reviseTaskScope releasing a token that shares lines with other text → drops the token, the emptied line, and keeps prose lines', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(fx, [
+    '## Do not touch',
+    '- `docs/keep.md`, `src/session/` — 다른 task 소유',
+    '- `src/session/` — 중복 표기',
+    '- 모든 배포 스크립트 — 산문 금지',
+    '',
+  ].join('\n'));
+  const result = reviseWith(fx, ['src/session/']);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(doNotTouchTail(docAbs), [
+    '## Do not touch',
+    '- `docs/keep.md` — 다른 task 소유',
+    '- 모든 배포 스크립트 — 산문 금지',
+    '',
+  ].join('\n'));
+});
+
+test('reviseTaskScope with only a token overlapping the previous scope and no release → succeeds without a releasedDoNotTouch key', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(fx, '## Do not touch\n- `README`\n- `src/auth/login.ts`\n');
+  const bodyOf = (text) => text.replace(/^---\n[\s\S]*?\n---\n/, '');
+  const before = bodyOf(fs.readFileSync(docAbs, 'utf8'));
+  const result = reviseWith(fx);
+  assert.strictEqual(result.ok, true);
+  assert.ok(!('releasedDoNotTouch' in result));
+  assert.ok(!('releasedDoNotTouch' in ledgerScopeDecision(fx)));
+  assert.strictEqual(bodyOf(fs.readFileSync(docAbs, 'utf8')), before);
+});
+
+test('reviseTaskScope with a release value and no Do not touch section → rejects with release-do-not-touch-unknown', () => {
+  const fx = coordinatorFixture();
+  const result = reviseWith(fx, ['README']);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'release-do-not-touch-unknown');
+  assert.deepStrictEqual(result.paths, ['README']);
+});
+
+test('reviseTaskScope releasing a sub-path of a directory token → rejects because the token itself is not released', () => {
+  const fx = coordinatorFixture();
+  appendDoNotTouch(fx, '## Do not touch\n- `src/`\n');
+  const result = reviseWith(fx, ['src/session/']);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'release-do-not-touch-unknown');
+  assert.deepStrictEqual(result.paths, ['src/session/']);
+});
+
+test('reviseTaskScope with two Do not touch sections → judges both and edits only the section holding the released token', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(fx, '## Do not touch\n- `README`\n\n## 절대 수정 금지\n- `src/session/`\n');
+  const before = fs.readFileSync(docAbs, 'utf8');
+  assert.deepStrictEqual(reviseWith(fx), {
+    ok: false, reason: 'scope-do-not-touch-conflict', paths: ['src/session/'],
+  });
+  assert.strictEqual(fs.readFileSync(docAbs, 'utf8'), before);
+  const result = reviseWith(fx, ['src/session/']);
+  assert.strictEqual(result.ok, true);
+  const after = fs.readFileSync(docAbs, 'utf8');
+  assert.ok(after.endsWith('## Do not touch\n- `README`\n\n## 절대 수정 금지\n'));
+});
