@@ -57,6 +57,9 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    truncates, do not repeat the same truncated form — narrow the path/glob or
    switch to a named file before searching again. For each related function, call
    `bouncer intent --symbol <name> --repo "$PROJECT_ROOT"` once (default `--limit`).
+   When the change alters a contract or output, `rg` the tests that construct or
+   assert it and the documents that describe the same behavior before drafting;
+   the file:line hits go to Touch `근거` (`spec-authoring` fixes the rule).
    When the result is `ambiguous`, pick one candidate from the code-search evidence
    and re-call with `--candidate <candidate_ref>`; if evidence is insufficient, ask
    the user. If that re-call exits 1 for an unissued ref, re-search candidates for
