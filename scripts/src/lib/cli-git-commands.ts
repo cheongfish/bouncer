@@ -64,6 +64,42 @@ function cmdFinalize(rest: string[], io: CliIo) {
   const { releaseMain } = require('./finalize-release-main') as typeof import('./finalize-release-main');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { recordComprehension } = require('./finalize-comprehension') as typeof import('./finalize-comprehension');
+  // worktree-path는 문서가 내부 모듈(runtime-state)을 require하지 않도록 두는 읽기 전용 조회다.
+  // 파일·pointer·worktree를 만들지 않으며, 앞 토큰으로 가르지 않으면 기존 finalize 경로로 흘러
+  // blueprint 문서를 요구한다.
+  if (rest[0] === 'worktree-path') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+      io.err('usage: bouncer finalize worktree-path --blueprint <dir> [--repo <dir>]\n');
+      return 2;
+    }
+    // `--repo`(boolean true)를 경로로 쓰지 않는다. 다른 서브커맨드와 같은 규칙.
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    const { worktreePathFor } = require('./runtime-state') as typeof import('./runtime-state');
+    try {
+      io.out(`${worktreePathFor({ repoRoot, blueprint: f.blueprint })}\n`);
+      return 0;
+    } catch (error) {
+      // worktreePathFor는 blueprint id 파싱 실패·git 부재에서만 던지고 쓰기가 없다.
+      // 두 경우 모두 사용자에게 보일 결과가 같은 거절(1)이라 메시지를 그대로 전한다.
+      io.err(`finalize worktree-path: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+  // diff-sha는 explain.md의 diff_sha를 구할 때 쓰는 읽기 전용 조회다. computeDiffSha는 throw하지
+  // 않고 닫힌 reason 집합을 돌려주므로 결과를 그대로 JSON 한 줄로 낸다.
+  if (rest[0] === 'diff-sha') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.base !== 'string' || f.base === '') {
+      io.err('usage: bouncer finalize diff-sha --base <ref> [--repo <dir>]\n');
+      return 2;
+    }
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    const { computeDiffSha } = require('./comprehension') as typeof import('./comprehension');
+    const result = computeDiffSha({ repoRoot, base: f.base });
+    io.out(`${JSON.stringify(result)}\n`);
+    return result.ok ? 0 : 1;
+  }
   // prepare는 읽기 전용 digest. 기존 finalize --yes 경로와 인자를 섞지 않는다.
   if (rest[0] === 'prepare') {
     const f = parseFlags(rest.slice(1));

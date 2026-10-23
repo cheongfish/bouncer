@@ -61,6 +61,7 @@
     "cli-coordinate.test.js",
     "cli-metrics.test.js",
     "cli-current.test.js",
+    "cli-finalize-lookup.test.js",
     "cli-init.test.js",
     "cli-project-commands.test.js",
     "cli-ontology.test.js",

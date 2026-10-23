@@ -91,13 +91,11 @@ status published. Not a workflow entry point.
 
 4. **Compute `diff_sha`.** Prefer digest `range.diff_sha` when it is a
    non-null string. Only if the digest left it null, pass the entry's
-   `range_from` as `base` to `computeDiffSha`. Run from the **execute worktree
+   `range_from` as `--base`. Run from the **execute worktree
    root** (`cwd` = that worktree):
 
    ```bash
-   node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
-   console.log(JSON.stringify(computeDiffSha({ repoRoot: process.cwd(), base: process.argv[2] })));' \
-     "$(bouncer project-root)" <range_from>
+   bouncer finalize diff-sha --base <range_from>
    ```
 
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent

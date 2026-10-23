@@ -7,7 +7,7 @@ that the CLI did not return.
 
 ## Read and task selection
 
-Run `node "${BOUNCER_ROOT}/scripts/bouncer" current`. Selection is location-based
+Run `bouncer current`. Selection is location-based
 and uses only that CLI result:
 
 - From a nested execute worktree (`.worktrees/<epic-slug>/<blueprint-slug>`), or from

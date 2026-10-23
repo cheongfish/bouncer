@@ -201,6 +201,12 @@ test('usage → finalize prepare --blueprint를 나열한다', () => {
   assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
 });
 
+test('usage → finalize worktree-path와 diff-sha를 나열한다', () => {
+  const r = capture([]);
+  assert.match(r.out, /finalize\s+worktree-path --blueprint <dir> \[--repo <dir>\]/);
+  assert.match(r.out, /finalize\s+diff-sha --base <ref> \[--repo <dir>\]/);
+});
+
 test('usage → subagent-model과 codex-agents check를 나열한다', () => {
   const out = capture([]).out;
   assert.match(out, /subagent-model --agent <name> \[--provider <name>\]/);
