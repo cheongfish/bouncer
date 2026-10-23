@@ -1611,3 +1611,46 @@ test('reviseTaskScope with two Do not touch sections → judges both and edits o
   const after = fs.readFileSync(docAbs, 'utf8');
   assert.ok(after.endsWith('## Do not touch\n- `README`\n\n## 절대 수정 금지\n'));
 });
+
+test('reviseTaskScope with an inline HTML comment on a Do not touch item → still judges the item as a conflict', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(fx, '## Do not touch\n- `src/session/` <!-- 다른 task 소유 -->\n');
+  const before = fs.readFileSync(docAbs, 'utf8');
+  assert.deepStrictEqual(reviseWith(fx), {
+    ok: false, reason: 'scope-do-not-touch-conflict', paths: ['src/session/'],
+  });
+  assert.strictEqual(fs.readFileSync(docAbs, 'utf8'), before);
+});
+
+test('reviseTaskScope releasing a token on a line that also carries a comment → removes the token and keeps the comment bytes', () => {
+  const fx = coordinatorFixture();
+  const docAbs = appendDoNotTouch(
+    fx,
+    '## Do not touch\n- `src/session/` <!-- `src/session/` 메모 -->\n- `README` — 기준 문서\n',
+  );
+  const result = reviseWith(fx, ['src/session/']);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(
+    doNotTouchTail(docAbs),
+    '## Do not touch\n-  <!-- `src/session/` 메모 -->\n- `README` — 기준 문서\n',
+  );
+});
+
+test('reviseTaskScope with a comment that closes and reopens on one line → judges only the text outside the comments', () => {
+  const fx = coordinatorFixture();
+  const section = [
+    '## Do not touch',
+    '<!-- 보류',
+    '- `src/session/` 주석 안',
+    '--> `README` <!-- 다시 시작',
+    '- `src/session/` 여전히 주석 안 -->',
+    '',
+  ].join('\n');
+  const docAbs = appendDoNotTouch(fx, section);
+  const before = fs.readFileSync(docAbs, 'utf8');
+  // 주석 안쪽 `src/session/`은 판정 대상이 아니라서 충돌이 없고, 문서는 그대로 쓰인다.
+  const result = reviseWith(fx);
+  assert.strictEqual(result.ok, true);
+  assert.ok(!('releasedDoNotTouch' in result));
+  assert.ok(fs.readFileSync(docAbs, 'utf8').endsWith(before.slice(before.indexOf('## Do not touch'))));
+});

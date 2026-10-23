@@ -785,35 +785,61 @@ function normalizeScopeEntry(raw: string): string {
 // 여기서 복제하면 제목 규칙이 갈라져 G/S 검사와 revise가 다른 절을 보게 된다.
 const DO_NOT_TOUCH_HEADING_RE = (SECTION_DEFS.find((def) => def.key === 'doNotTouch') as { re: RegExp }).re;
 
-type DoNotTouchLine = { index: number; tokens: string[] };
+type DoNotTouchLine = { index: number; tokens: string[]; masked: string; startsInComment: boolean };
+
+/**
+ * 한 줄에서 HTML 주석 구간(`<!-- … -->`, 줄을 넘는 주석 포함)을 같은 길이의 공백으로 가린다.
+ * 주석 상태는 문자 단위로 추적해, 한 줄에서 주석이 닫혔다 다시 열려도(`--> <!--`) 주석 안쪽만
+ * 가려진다. 길이를 보존하므로 가린 줄에서 얻은 인덱스를 원본 줄에 그대로 쓸 수 있다.
+ *
+ * @param {string} line - 원본 줄
+ * @param {boolean} inComment - 이 줄이 주석 안에서 시작하는지
+ * @returns {{masked: string, inComment: boolean}} 가린 줄과 줄 끝의 주석 상태
+ */
+function maskHtmlComments(line: string, inComment: boolean): { masked: string; inComment: boolean } {
+  let masked = '';
+  let open = inComment;
+  let i = 0;
+  while (i < line.length) {
+    if (open) {
+      const end = line.indexOf('-->', i);
+      const stop = end === -1 ? line.length : end + 3;
+      masked += ' '.repeat(stop - i);
+      if (end !== -1) open = false;
+      i = stop;
+    } else {
+      const start = line.indexOf('<!--', i);
+      const stop = start === -1 ? line.length : start;
+      masked += line.slice(i, stop);
+      if (start !== -1) open = true;
+      i = stop;
+    }
+  }
+  return { masked, inComment: open };
+}
 
 /**
  * task 본문에서 Do not touch 절(제목 다음 줄부터 다음 `## ` 제목 앞까지)의 줄을 모은다.
- * 절이 여러 개면 모두 대상이다. HTML 주석 안의 줄과 제목 줄은 판정·편집 대상이 아니므로
- * 건너뛰어 바이트 그대로 둔다.
+ * 절이 여러 개면 모두 대상이다. 제목 줄과 주석 구간은 판정·편집 대상이 아니다: 토큰은 주석을
+ * 가린 줄에서만 뽑으므로, 주석이 붙은 항목도 충돌로 잡히고 주석 안쪽 경로는 잡히지 않는다.
  *
  * @param {string[]} lines - 본문을 `\n`으로 나눈 줄
- * @returns {DoNotTouchLine[]} 절 안 줄의 인덱스와 `extractPathCandidates` 토큰
+ * @returns {DoNotTouchLine[]} 절 안 줄의 인덱스, 주석을 가린 줄, 줄 시작 시점의 주석 상태, `extractPathCandidates` 토큰
  */
 function doNotTouchLines(lines: string[]): DoNotTouchLine[] {
   const out: DoNotTouchLine[] = [];
   let inSection = false;
   let inComment = false;
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const wasInComment = inComment;
-    // 한 줄에서 열고 닫는 주석도 그 줄 전체를 주석 줄로 본다(줄 단위 보수적 판정).
-    if (line.includes('<!--') && !line.includes('-->', line.indexOf('<!--'))) inComment = true;
-    if (wasInComment) {
-      if (line.includes('-->')) inComment = false;
+    const startsInComment = inComment;
+    const state = maskHtmlComments(lines[i], startsInComment);
+    inComment = state.inComment;
+    const { masked } = state;
+    if (/^##\s/.test(masked)) {
+      inSection = DO_NOT_TOUCH_HEADING_RE.test(masked.trim());
       continue;
     }
-    if (line.includes('<!--')) continue;
-    if (/^##\s/.test(line)) {
-      inSection = DO_NOT_TOUCH_HEADING_RE.test(line.trim());
-      continue;
-    }
-    if (inSection) out.push({ index: i, tokens: extractPathCandidates(line) });
+    if (inSection) out.push({ index: i, tokens: extractPathCandidates(masked), masked, startsInComment });
   }
   return out;
 }
@@ -821,15 +847,17 @@ function doNotTouchLines(lines: string[]): DoNotTouchLine[] {
 /**
  * 한 줄에서 해제 토큰의 출현을 지운다. 백틱으로 감싼 출현과 앞뒤가 공백·`,`·`;`·줄 경계인
  * 민 단어 출현만 대상이다. 지운 출현 뒤에 `, `가 있으면 함께 지우고, 없고 앞에 `, `가
- * 있으면 그것을 지워 목록 구분자가 남지 않게 한다.
+ * 있으면 그것을 지워 목록 구분자가 남지 않게 한다. 출현은 주석을 가린 줄에서 찾으므로
+ * 주석 안쪽 바이트는 건드리지 않는다.
  *
- * @param {string} line - 편집할 줄
+ * @param {string} line - 편집할 원본 줄
+ * @param {string} masked - 주석 구간을 같은 길이의 공백으로 가린 줄
  * @param {Set<string>} released - 정규화한 해제 토큰 집합
- * @returns {string} 편집한 줄(출현이 없으면 입력과 같은 문자열)
+ * @returns {string} 편집한 원본 줄(출현이 없으면 입력과 같은 문자열)
  */
-function removeReleasedTokens(line: string, released: Set<string>): string {
+function removeReleasedTokens(line: string, masked: string, released: Set<string>): string {
   const ranges: Array<[number, number]> = [];
-  for (const m of line.matchAll(/`[^`]+`|[^\s,;]+/g)) {
+  for (const m of masked.matchAll(/`[^`]+`|[^\s,;]+/g)) {
     const raw = m[0];
     const isSpan = raw.startsWith('`') && raw.endsWith('`') && raw.length > 2;
     // 백틱이 섞인 민 단어(`a`b 등)는 extractPathCandidates도 후보로 보지 않는다.
@@ -837,12 +865,17 @@ function removeReleasedTokens(line: string, released: Set<string>): string {
     const value = toPosix((isSpan ? raw.slice(1, -1) : raw).trim()).replace(/^\.\//, '');
     if (released.has(value)) ranges.push([m.index as number, (m.index as number) + raw.length]);
   }
-  // 뒤에서부터 지워야 앞 출현의 인덱스가 유효하다.
+  // 뒤에서부터 지워야 앞 출현의 인덱스가 유효하다. 구분자 판정은 가린 줄로 해서 주석 안쪽 `, `를 지우지 않는다.
   let edited = line;
+  let editedMask = masked;
+  const cut = (start: number, end: number): void => {
+    edited = edited.slice(0, start) + edited.slice(end);
+    editedMask = editedMask.slice(0, start) + editedMask.slice(end);
+  };
   for (const [start, end] of ranges.reverse()) {
-    if (edited.startsWith(', ', end)) edited = edited.slice(0, start) + edited.slice(end + 2);
-    else if (edited.slice(0, start).endsWith(', ')) edited = edited.slice(0, start - 2) + edited.slice(end);
-    else edited = edited.slice(0, start) + edited.slice(end);
+    if (editedMask.startsWith(', ', end)) cut(start, end + 2);
+    else if (editedMask.slice(0, start).endsWith(', ')) cut(start - 2, end);
+    else cut(start, end);
   }
   return edited;
 }
@@ -880,11 +913,13 @@ function planDoNotTouchRelease(body: string, fresh: string[], released: string[]
 
   const releasedSet = new Set(released);
   const drop = new Set<number>();
-  for (const { index, tokens } of sectionLines) {
+  for (const { index, tokens, masked, startsInComment } of sectionLines) {
     if (!tokens.some((token) => releasedSet.has(token))) continue;
-    const edited = removeReleasedTokens(lines[index], releasedSet);
-    // 경로가 하나도 남지 않은 줄은 빈 껍데기라 지운다. 해제 토큰이 없던 줄은 위에서 걸러져 보존된다.
-    if (extractPathCandidates(edited).length === 0) drop.add(index);
+    const edited = removeReleasedTokens(lines[index], masked, releasedSet);
+    const editedMasked = maskHtmlComments(edited, startsInComment).masked;
+    // 경로가 하나도 남지 않은 줄은 빈 껍데기라 지운다. 단 주석 바이트가 남은 줄은 주석을 지우지
+    // 않으려고 남긴다. 해제 토큰이 없던 줄은 위에서 걸러져 보존된다.
+    if (extractPathCandidates(editedMasked).length === 0 && editedMasked === edited) drop.add(index);
     else lines[index] = edited;
   }
   return { ok: true, body: lines.filter((_line, i) => !drop.has(i)).join('\n') };
