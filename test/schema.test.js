@@ -135,3 +135,12 @@ test('plan 관점 정본 → full은 4관점·light는 verifiability이고 delta
   assert.equal(schema.planDeltaPerspectiveOf('full'), 'combined');
   assert.equal(schema.planDeltaPerspectiveOf('light'), 'verifiability');
 });
+
+test('prerequisites merged_commit 형식 → 40자리 소문자 SHA만 받는다', () => {
+  const re = schema.PREREQUISITE_MERGED_COMMIT_RE;
+  assert.equal(re.test('a'.repeat(40)), true);
+  assert.equal(re.test('0123456789abcdef'.repeat(2) + '01234567'), true);
+  for (const bad of ['', 'a'.repeat(39), 'a'.repeat(41), 'A'.repeat(40), 'g'.repeat(40), ` ${'a'.repeat(40)}`]) {
+    assert.equal(re.test(bad), false, JSON.stringify(bad));
+  }
+});

@@ -22,6 +22,8 @@ const {
   expectedTasksId, expectedTaskDocIds,
   TASK_UNIT_BASENAMES, unitDocKind,
 } = tasksDocs;
+import planPrerequisites = require('./plan-prerequisites');
+const { prerequisiteFormatIssues } = planPrerequisites;
 import config = require('./config');
 const { DEFAULT_VERIFY_ALLOWLIST } = config;
 
@@ -221,6 +223,13 @@ function checkStructural(
     } else if (bouncer.review_scope !== 'blueprint') {
       add('S38', 'review_contract requires review_scope blueprint');
     }
+  }
+
+  // S39: prerequisites는 선택 키라 부재/[]는 통과하고 있는 값의 모양만 거절한다. 존재·순환·병합 여부는
+  // 구조 검사가 아니라 plan-prerequisites helper의 판정 데이터이며 이 task에서는 gate에 연결하지 않는다.
+  if (docType === 'bouncer.blueprint') {
+    const selfDir = toPosix(rel).replace(/\/index\.md$/, '');
+    for (const message of prerequisiteFormatIssues(bouncer.prerequisites, selfDir)) add('S39', message);
   }
 
   // S36: area·attribution은 선택 키라 부재는 통과하고 있는 값의 모양만 거절한다.

@@ -1172,6 +1172,67 @@ test('S38: review_contract without review_scope blueprint → is rejected', () =
   assert.deepStrictEqual(found.map((f) => f.message), ['review_contract requires review_scope blueprint']);
 });
 
+const SHA_A = 'a'.repeat(40);
+const OTHER_BP = '.bouncer/context/epics/001-auth/blueprints/002-signup';
+
+function s39For(patch) {
+  const failures = [];
+  const data = {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, ...patch },
+  };
+  checkStructural({ data, rel: `${BP_REL}/index.md` }, failures);
+  return failures.filter((f) => f.code === 'S39');
+}
+
+test('S39: prerequisites absent, empty, or well-formed → passes', () => {
+  assert.deepStrictEqual(s39For({}), []);
+  assert.deepStrictEqual(s39For({ prerequisites: [] }), []);
+  assert.deepStrictEqual(
+    s39For({ prerequisites: [{ blueprint: OTHER_BP, merged_commit: SHA_A }] }),
+    [],
+  );
+});
+
+test('S39: prerequisites is not an array → is rejected', () => {
+  for (const value of [null, 'x', { blueprint: OTHER_BP }]) {
+    assert.strictEqual(s39For({ prerequisites: value }).length, 1, JSON.stringify(value));
+  }
+});
+
+test('S39: entry is not an object with exactly the two keys → is rejected', () => {
+  for (const entry of [null, 'x', [], { blueprint: OTHER_BP }, { merged_commit: SHA_A },
+    { blueprint: OTHER_BP, merged_commit: SHA_A, extra: 1 }]) {
+    assert.strictEqual(s39For({ prerequisites: [entry] }).length, 1, JSON.stringify(entry));
+  }
+});
+
+test('S39: blueprint path is not a canonical blueprint directory → is rejected', () => {
+  for (const bp of ['', 'a/b', `${OTHER_BP}/`, `${OTHER_BP}/index.md`, OTHER_BP.replace(/\//g, '\\'),
+    `../${OTHER_BP}`, 7]) {
+    assert.strictEqual(
+      s39For({ prerequisites: [{ blueprint: bp, merged_commit: SHA_A }] }).length, 1, String(bp),
+    );
+  }
+});
+
+test('S39: merged_commit is not a 40-char lowercase sha → is rejected', () => {
+  for (const sha of ['', 'abc123', 'A'.repeat(40), 'g'.repeat(40), 'a'.repeat(39), 'a'.repeat(41), 5, null]) {
+    assert.strictEqual(
+      s39For({ prerequisites: [{ blueprint: OTHER_BP, merged_commit: sha }] }).length, 1, String(sha),
+    );
+  }
+});
+
+test('S39: same blueprint declared twice → is rejected once for the duplicate', () => {
+  const entry = { blueprint: OTHER_BP, merged_commit: SHA_A };
+  assert.strictEqual(s39For({ prerequisites: [entry, { ...entry, merged_commit: 'b'.repeat(40) }] }).length, 1);
+});
+
+test('S39: blueprint references itself → is rejected', () => {
+  assert.strictEqual(s39For({ prerequisites: [{ blueprint: BP_REL, merged_commit: SHA_A }] }).length, 1);
+});
+
 // S36: area·attribution은 선택 키다. 부재는 통과하고, 있는 값의 모양만 거절한다.
 function s36For(patch) {
   const failures = [];

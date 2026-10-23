@@ -111,6 +111,20 @@ display and default sort order — not execution authority.
   reviewed like an unmarked light one. S38 checks the value only: any value
   other than `brief`, or use without `review_scope: blueprint`, is S38.
 
+- Blueprint `bouncer.prerequisites` is optional: an array of
+  `{blueprint, merged_commit}`. `blueprint` is the canonical repository-relative
+  blueprint directory; `merged_commit` is the 40-char lowercase SHA of the
+  commit that actually merged that blueprint (for squash or rebase merges, the
+  resulting merge commit, not the original worker SHA). Absent or `[]` means no
+  prerequisites and existing plans are unchanged. S39 checks shape only: array
+  and entry form, canonical path, SHA form, duplicate blueprints, and
+  self-reference. The read-only helper `plan-prerequisites` reports missing
+  blueprints, cycles, and whether `git merge-base --is-ancestor <merged_commit>
+  HEAD` holds for the current checkout (non-ancestor is unmerged; other Git
+  failures are lookup errors, never a pass). It is not yet wired to approval or
+  gates, and nothing infers a prerequisite from document text or file names;
+  the brief explains why the declared SHA and path evidence the merge.
+
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
   validation (S28) checks shape; the plan gate (G19) checks missing ids,
