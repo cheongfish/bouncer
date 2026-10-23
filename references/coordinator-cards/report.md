@@ -35,8 +35,10 @@ does not match the active dispatch, read the stale report rule in
   impact, and Needs planning headings — an absent one reads as `none`, not a
   missing section. Changed files, Red run, and the required sections stay.
 - Before `accepted`, compare the Contract's storage location, state ownership,
-  and interface wording in the task brief with the report's changed files and
-  deviations. A mismatch is `rework` or `scope_revision`, never `accepted`.
+  and interface wording in the task brief with the report's changed files,
+  deviations, and `## Open choices`. An Open choice that narrows a Contract
+  condition (for example limiting an unconditional rule to a subset of tasks)
+  is a mismatch. A mismatch is `rework` or `scope_revision`, never `accepted`.
 - Turn each report into exactly one of: accepted, scope revision (`coordinate
   revise`), rework with a named cause, task/graph change, or terminal blocked.
   The `--outcome` values are `accepted`, `rework`, `scope_revision`,

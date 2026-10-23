@@ -21,6 +21,10 @@ The stdout Markdown is a draft for the root to review; the command reads only th
 posts a PR, and failed verification, outside_scope, deferred must_fix and drive issues stay visible
 in it. The root still reviews the final text and asks for publish consent as before.
 
+Write the summary, flow, and any extra body text with the Write tool or a quoted heredoc
+(`<<'EOF'`). An unquoted heredoc runs backtick spans such as `` `S39 <설명>` `` as command
+substitution and silently drops them from the body.
+
 ### Title (unchanged)
 
 Use digest `pr.title_prefix` plus one space and a Korean summary:
