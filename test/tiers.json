@@ -53,6 +53,7 @@
     "workflow-responsibility-boundaries.test.js"
   ],
   "integration": [
+    "release-runtime.test.js",
     "build-release.test.js",
     "ci-contract.test.js",
     "cli-commit-guard.test.js",

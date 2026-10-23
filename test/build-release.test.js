@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const yaml = require('js-yaml');
 
 const { buildReleaseTree } = require('../scripts/build-release');
 
@@ -180,37 +181,18 @@ test('(d) real repo tree → matches the plugin pack and excludes runtime files'
   assert.equal(fs.existsSync(path.join(out, 'node_modules')), false);
 });
 
-test('(e) release.yml → declares tag and develop-only dispatch contracts', () => {
+test('(e) release.yml → manual dispatch cannot reach publishing', () => {
   const src = fs.readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8');
-  assert.match(src, /bouncer--v\*/);
-  assert.match(src, /workflow_dispatch/);
-  assert.match(src, /github\.ref == 'refs\/heads\/develop'/);
-  const ciAt = src.indexOf('npm run ci');
-  const buildAt = src.indexOf('build-release.js');
-  const fetchAt = src.indexOf('git fetch --no-tags origin release');
-  const commitAt = src.search(/git(?:\s+-C\s+\S+)?\s+commit\b/);
-  assert.ok(ciAt >= 0, 'npm run ci missing');
-  assert.ok(buildAt > ciAt, 'npm run ci must run before build-release.js');
-  assert.ok(fetchAt >= 0, 'git fetch --no-tags origin release missing');
-  assert.ok(commitAt > fetchAt, 'fetch must run before the commit step');
-  assert.match(src, /HEAD:refs\/heads\/release/);
-  assert.doesNotMatch(src, /--force/);
-  // Publish run: 안에 ${{ github.* }} 를 두면 태그 이름(bouncer--v*)의 셸
-  // 메타문자가 contents: write job 에 주입된다. env: 로 넘긴 뒤 셸이
-  // 확장해야 하고, 표현식은 run: 스크립트 밖에만 둔다.
-  const publishStart = src.indexOf('name: Publish release branch');
-  assert.ok(publishStart >= 0, 'Publish release branch step missing');
-  const publishTail = src.slice(publishStart);
-  const runMatch = publishTail.match(/\n[ \t]+run:\s*\|[ \t]*\n([\s\S]*)/);
-  assert.ok(runMatch, 'Publish run script missing');
-  const publishRun = runMatch[1];
-  assert.doesNotMatch(publishRun, /\$\{\{\s*github\./);
-  assert.match(publishTail.slice(0, runMatch.index), /\$\{\{\s*github\.ref_name\s*\}\}/);
-  assert.match(publishRun, /release: \$\{?[A-Z_][A-Z0-9_]*\}? \(\$\{?short_sha\}?\)/);
-});
-
-test('(f) install.md → documents clone -b release and develop workflow_dispatch', () => {
-  const src = fs.readFileSync(path.join(root, 'docs', 'install.md'), 'utf8');
-  assert.match(src, /git clone -b release/);
-  assert.match(src, /gh workflow run release.yml --ref develop/);
+  const workflow = yaml.load(src);
+  assert.deepStrictEqual(workflow.on, { push: { tags: ['bouncer--v*'] }, workflow_dispatch: null });
+  assert.ok(workflow.jobs.prepare, 'prepare job missing');
+  assert.ok(workflow.jobs.publish, 'tag publish job missing');
+  assert.equal([].concat(workflow.jobs.publish.needs)[0], 'prepare');
+  assert.match(workflow.jobs.publish.if, /github\.event_name == 'push'/);
+  assert.equal(workflow.jobs.prepare.permissions.contents, 'read');
+  assert.equal(workflow.jobs.publish.permissions.contents, 'write');
+  assert.equal(workflow.jobs.publish.permissions['id-token'], 'write');
+  assert.equal(workflow.concurrency['cancel-in-progress'], false);
+  assert.ok(workflow.jobs.publish.steps.some((step) => step.uses === 'actions/download-artifact@v4'));
+  assert.ok(workflow.jobs.prepare.steps.some((step) => step.uses === 'actions/upload-artifact@v4'));
 });
