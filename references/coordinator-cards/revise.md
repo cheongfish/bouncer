@@ -14,6 +14,13 @@ the coordinator Hard guards (scope drift).
   A scope
   revision moves the task document and the ledger to one revision and is
   refused without a reason.
+- When a newly added path overlaps an entry of the brief's `## Do not touch`
+  section, revise is refused with `scope-do-not-touch-conflict` (`paths` lists
+  the entries). Judge each entry, then rerun with `--release-do-not-touch <entry>`
+  once per entry you accept to release; the same write removes it from the brief.
+  A `release-do-not-touch-unknown` refusal means a value is not an overlapping
+  entry: rerun with only the entries listed in the conflict's `paths`, spelled as
+  in the brief. Drop the path from `--paths` instead when the entry must stay.
 - A revision names repository source paths only — never an absolute or
   escaping path, the whole tree, `.git/`, or the `.bouncer/` governance tree —
   and inside that boundary there is no ceiling (`${BOUNCER_ROOT}/rules/commit-scope.md`).

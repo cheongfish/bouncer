@@ -1608,3 +1608,59 @@ test('coordinate revise with --new-path under a tracked directory → scope is -
   assert.strictEqual(code, 0, buf.err);
   assert.deepStrictEqual(JSON.parse(buf.out).paths, ['src/auth/', 'src/session/guard.ts']);
 });
+
+/** worker task 문서에 Do not touch 절을 덧붙인 새 drive를 만든다. */
+function driveWithDoNotTouch() {
+  const drive = preparedDrive();
+  const docFile = path.join(drive.worker, BP_REL, 'tasks/001/tasks.md');
+  const text = fs.readFileSync(docFile, 'utf8');
+  fs.writeFileSync(
+    docFile,
+    `${text.replace(/\n*$/, '\n')}\n## Do not touch\n- \`src/session/\`, \`docs/keep.md\` — other task\n- \`README\` — doc\n`,
+  );
+  return { ...drive, docFile };
+}
+
+const DNT_REVISE_ARGS = ['--task', '001', '--paths', 'src/auth/', '--paths', 'src/session/', '--reason', 'r'];
+
+test('coordinate revise with a Do not touch token overlapping a new path → exits 1 with scope-do-not-touch-conflict and the release hint', () => {
+  const { worker, repo, docFile } = driveWithDoNotTouch();
+  const before = fs.readFileSync(docFile, 'utf8');
+  const { code, buf } = revise(worker, DNT_REVISE_ARGS, [], repo);
+  assert.strictEqual(code, 1, buf.err);
+  const body = JSON.parse(buf.out);
+  assert.strictEqual(body.reason, 'scope-do-not-touch-conflict');
+  assert.deepStrictEqual(body.paths, ['src/session/']);
+  assert.match(body.cause, /Do not touch/);
+  assert.match(body.next, /--release-do-not-touch/);
+  assert.match(buf.err, /scope-do-not-touch-conflict/);
+  assert.strictEqual(fs.readFileSync(docFile, 'utf8'), before);
+});
+
+test('coordinate revise releasing a value that is not a conflicting token → exits 1 with release-do-not-touch-unknown', () => {
+  const { worker, repo } = driveWithDoNotTouch();
+  const { code, buf } = revise(worker, [...DNT_REVISE_ARGS, '--release-do-not-touch', 'README'], [], repo);
+  assert.strictEqual(code, 1, buf.err);
+  const body = JSON.parse(buf.out);
+  assert.strictEqual(body.reason, 'release-do-not-touch-unknown');
+  assert.deepStrictEqual(body.paths, ['README']);
+  assert.match(body.cause, /Do not touch/);
+  assert.match(body.next, /--release-do-not-touch/);
+});
+
+test('coordinate revise releasing the conflicting token → exits 0 and reports releasedDoNotTouch', () => {
+  const { worker, repo } = driveWithDoNotTouch();
+  const { code, buf } = revise(worker, [...DNT_REVISE_ARGS, '--release-do-not-touch', 'src/session/'], [], repo);
+  assert.strictEqual(code, 0, buf.err);
+  assert.deepStrictEqual(JSON.parse(buf.out).releasedDoNotTouch, ['src/session/']);
+});
+
+test('coordinate revise with a valueless --release-do-not-touch → exits 2 and keeps the task document', () => {
+  const { worker, repo, docFile } = driveWithDoNotTouch();
+  const before = fs.readFileSync(docFile, 'utf8');
+  const { code, buf } = revise(worker, [
+    '--task', '001', '--paths', 'src/auth/', '--paths', 'src/session/', '--release-do-not-touch', '--reason', 'r',
+  ], [], repo);
+  assert.strictEqual(code, 2, buf.err);
+  assert.strictEqual(fs.readFileSync(docFile, 'utf8'), before);
+});

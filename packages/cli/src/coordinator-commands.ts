@@ -1654,7 +1654,7 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Take paths from tracked files named in the failure evidence or debugger report, '
       + 'or pass a file to create with `--new-path` when its parent directory is tracked.',
   },
-  // 아래 10종은 `coordinate revise`(reviseTaskScope)만 내는 거절이다. 표에 없으면
+  // 아래 12종은 `coordinate revise`(reviseTaskScope)만 내는 거절이다. 표에 없으면
   // fallback 힌트가 붙어 coordinator가 거절 원인과 다음 행동을 알 수 없다.
   'scope-paths-required': {
     cause: '`coordinate revise` was called without any `--paths` entry.',
@@ -1671,6 +1671,23 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
       'A given scope path points outside the repository or into a path scope may not cover (such as ' +
       '`.bouncer/context/`).',
     next: 'Use repo-relative source or test paths only, then rerun `bouncer coordinate revise`.',
+  },
+  'scope-do-not-touch-conflict': {
+    cause:
+      'A `Do not touch` entry in the task brief overlaps a path this revise adds to the scope, so a worker ' +
+      'would hit a forbidden path.',
+    next:
+      'Pass each conflicting entry from `paths` as `--release-do-not-touch <path>` (repeat the flag) and ' +
+      'rerun `bouncer coordinate revise`, or drop that path from the scope.',
+  },
+  'release-do-not-touch-unknown': {
+    cause:
+      'A `--release-do-not-touch` value is not a `Do not touch` entry that overlaps a newly added scope ' +
+      'path.',
+    next:
+      'Pass `--release-do-not-touch` only for the conflicting entries listed in `paths` of a ' +
+      '`scope-do-not-touch-conflict` rejection, spelled exactly as in the brief, then rerun ' +
+      '`bouncer coordinate revise`.',
   },
   'task-document-missing': {
     cause: 'The task document for the named task cannot be found or read in this worktree.',

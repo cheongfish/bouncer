@@ -583,3 +583,10 @@ test('metrics help → snapshot 하위 명령 사용법을 보여준다', () => 
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /metrics snapshot --blueprint <dir>/);
 });
+
+test('coordinate revise --help → documents the Do not touch release flag and its rejection codes', () => {
+  const r = capture(['coordinate', 'revise', '--help']);
+  assert.match(r.out, /--release-do-not-touch <p>/);
+  assert.match(r.out, /scope-do-not-touch-conflict/);
+  assert.match(r.out, /release-do-not-touch-unknown/);
+});

@@ -673,6 +673,13 @@ function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: C
       !== collectPathValues(rest.slice(1), '--new-path').length) {
     return failCoordinateUsage(io, `coordinate ${command}: --new-path requires a value\n`, command);
   }
+  // --release-do-not-touch도 반복 플래그다. 값 없는 발생은 해제 의도를 알 수 없으므로
+  // 조용히 버리면 충돌 거절로 위장되어 원인이 흐려진다. usage(2)로 끝낸다.
+  if (command === 'revise'
+    && rest.slice(1).filter((tok) => tok === '--release-do-not-touch').length
+      !== collectPathValues(rest.slice(1), '--release-do-not-touch').length) {
+    return failCoordinateUsage(io, 'coordinate revise: --release-do-not-touch requires a value\n', command);
+  }
   if (command === 'worker-model' || command === 'worker-tokens') {
     const bad = checkWorkerFlags(f, command, io);
     if (bad !== undefined) return bad;
@@ -740,6 +747,7 @@ function coordinateRevise(rest: string[], f: CoordFlags, io: CliIo): number {
     task: typeof f.task === 'string' ? f.task : undefined,
     paths: collectPathValues(rest.slice(1)),
     newPaths: collectPathValues(rest.slice(1), '--new-path'),
+    releaseDoNotTouch: collectPathValues(rest.slice(1), '--release-do-not-touch'),
     reason: typeof f.reason === 'string' ? f.reason : undefined,
   }) as { ok: boolean; reason?: string; paths?: string[] };
   if (!result.ok) {
