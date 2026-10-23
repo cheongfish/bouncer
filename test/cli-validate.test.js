@@ -649,3 +649,35 @@ test('validate --gate plan on a blueprint without verification_policy → raises
   runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'plan'], io);
   assert.deepStrictEqual(JSON.parse(buf.out).failures.filter((f) => f.code === 'G20'), []);
 });
+
+test('validate --gate plan with an uncontracted check-doc-shape verify → reports G20 on the task file naming the path', () => {
+  const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const ts = '2026-07-01T00:00:00+09:00';
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: ts, description: 'Auth epic description' });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth', blueprintId: '001', name: 'login', timestamp: ts,
+  });
+  const tasksRel = `${BP_REL}/tasks/001/tasks.md`;
+  const abs = path.join(repo, tasksRel);
+  // draft 검사는 structural 실패가 없어야 G까지 가므로 scaffold의 빈 자리를 유효한 값으로 채운다.
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace(
+    '  affected_paths: []',
+    '  verify: node scripts/check-doc-shape.js docs/workflow.md\n  graph:\n    suggested_paths:\n      - src/\n'
+    + "    basis: 'manual: src/'\n  affected_paths:\n    - src/a.js",
+  ).replace(/<TODO[^>]*>/g, 'text').replace(/`text`/g, '`src/a.js`'));
+  const docShapeG20 = (failures) => failures
+    .filter((f) => f.code === 'G20' && /check-doc-shape/.test(f.message));
+
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const draft = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
+  const { io, buf } = capture();
+  const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'plan'], io);
+  assert.strictEqual(code, 1);
+  const g20 = docShapeG20(JSON.parse(buf.out).failures);
+  assert.strictEqual(g20.length, 1, buf.out);
+  assert.strictEqual(g20[0].file, tasksRel);
+  assert.ok(g20[0].message.includes('docs/workflow.md'), g20[0].message);
+  // draft와 정식 gate의 진단은 같다.
+  assert.deepStrictEqual(docShapeG20(draft.failures), g20);
+});

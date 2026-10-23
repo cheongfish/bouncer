@@ -2224,6 +2224,102 @@ test('plan gate scoped_terminal light → needs one independent commit task plus
   assert.ok(dependent.some((m) => /one independent commit task/.test(m)), JSON.stringify(dependent));
 });
 
+// check-doc-shape가 명시 문서를 받는 verify: 종류/경로 계약이 없는 문서는 실행 전에 G20으로 막는다.
+const DOC_SHAPE_REPO = path.join(__dirname, '..');
+function docShapeVerify(args, script = 'scripts/check-doc-shape.js') {
+  return `node ${script} ${args}`.trim();
+}
+
+function docShapeScoped(verify) {
+  return scopedPlanDocs([scopedCommit('001', { verify }), scopedTerminal('002', ['TASKS-001'])]);
+}
+
+function docShapeG20(verify, { draft = false, repoRoot = DOC_SHAPE_REPO } = {}) {
+  const failures = [];
+  const docs = docShapeScoped(verify);
+  if (draft) {
+    const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+    checkPlanDraft(docs, rels, failures, { repoRoot: undefined });
+  } else {
+    checkGate('plan', docs, rels, failures, { repoRoot });
+  }
+  return failures.filter((f) => f.code === 'G20' && /check-doc-shape/.test(f.message));
+}
+
+test('scoped_terminal verify with an uncontracted check-doc-shape target → G20 on the task naming the path, same for draft', () => {
+  const task = '.bouncer/context/epics/001-auth/blueprints/001-login/tasks/001/tasks.md';
+  const gate = docShapeG20(docShapeVerify('docs/workflow.md'));
+  assert.strictEqual(gate.length, 1, JSON.stringify(gate));
+  assert.strictEqual(gate[0].file, task);
+  assert.ok(gate[0].message.includes('docs/workflow.md'), gate[0].message);
+  // draft는 repoRoot 없이도 같은 상대 경로 진단을 낸다.
+  const draft = docShapeG20(docShapeVerify('docs/workflow.md'), { draft: true });
+  assert.deepStrictEqual(draft, gate);
+});
+
+test('scoped_terminal verify with kind or path-contract targets → accepted, mixed with an uncontracted one → rejected', () => {
+  assert.deepStrictEqual(docShapeG20(docShapeVerify('agents/bouncer-reviewer.md')), []);
+  assert.deepStrictEqual(
+    docShapeG20(docShapeVerify('skills/bouncer-run/references/drive-metrics.md')), [],
+  );
+  assert.deepStrictEqual(docShapeG20(docShapeVerify(
+    'agents/bouncer-reviewer.md skills/bouncer-run/references/drive-metrics.md',
+  )), []);
+  const mixed = docShapeG20(docShapeVerify('agents/bouncer-reviewer.md docs/workflow.md notes/x.md'));
+  assert.strictEqual(mixed.length, 1, JSON.stringify(mixed));
+  assert.ok(mixed[0].message.includes('docs/workflow.md') && mixed[0].message.includes('notes/x.md'));
+  assert.ok(!mixed[0].message.includes('agents/bouncer-reviewer.md'), mixed[0].message);
+});
+
+test('check-doc-shape verify spellings → ./ absolute script and quoted file args resolve to the same target', () => {
+  const abs = path.join(DOC_SHAPE_REPO, 'scripts', 'check-doc-shape.js');
+  assert.strictEqual(docShapeG20(docShapeVerify('docs/workflow.md', './scripts/check-doc-shape.js')).length, 1);
+  assert.strictEqual(docShapeG20(docShapeVerify('docs/workflow.md', abs)).length, 1);
+  assert.strictEqual(docShapeG20(docShapeVerify('"docs/workflow.md"')).length, 1);
+  assert.strictEqual(docShapeG20(docShapeVerify('./docs/workflow.md')).length, 1);
+  assert.deepStrictEqual(docShapeG20(docShapeVerify('"./agents/bouncer-reviewer.md"', abs)), []);
+  assert.deepStrictEqual(
+    docShapeG20(docShapeVerify(path.join(DOC_SHAPE_REPO, 'agents', 'bouncer-reviewer.md'))), [],
+  );
+  // 저장소 밖 절대 경로는 계약이 없다.
+  assert.strictEqual(docShapeG20(docShapeVerify('/tmp/outside.md')).length, 1);
+});
+
+test('check-doc-shape verify without explicit files or with other commands → no new G20', () => {
+  assert.deepStrictEqual(docShapeG20(docShapeVerify('')), []);
+  assert.deepStrictEqual(docShapeG20('node --test test/doc-shape-cli.test.js docs/workflow.md'), []);
+  assert.deepStrictEqual(docShapeG20('npm run lint:docs docs/workflow.md'), []);
+  assert.deepStrictEqual(docShapeG20('node other/check-doc-shape.js docs/workflow.md'), []);
+  // 다른 argv 위반은 기존 단일 명령 G20이 맡고 새 진단은 중복하지 않는다.
+  assert.deepStrictEqual(docShapeG20(`${docShapeVerify('docs/workflow.md')} && node --test`), []);
+});
+
+test('check-doc-shape verify and the checker CLI → agree on which real files have a contract', () => {
+  const { runCli } = require('../scripts/check-doc-shape');
+  const quiet = { write() {} };
+  const files = [
+    'agents/bouncer-reviewer.md',
+    'skills/bouncer-run/references/drive-metrics.md',
+    'skills/bouncer-plan/SKILL.md',
+    'CHANGELOG.md',
+    'package.json',
+  ];
+  for (const file of files) {
+    const cliAccepts = runCli([file], { cwd: DOC_SHAPE_REPO, stdout: quiet, stderr: quiet }) === 0;
+    const gateAccepts = docShapeG20(docShapeVerify(file)).length === 0;
+    assert.strictEqual(gateAccepts, cliAccepts, file);
+  }
+});
+
+test('legacy blueprint with an uncontracted check-doc-shape verify → no G20', () => {
+  const failures = [];
+  const docs = scopedPlanDocs([scopedCommit('001', { verify: docShapeVerify('docs/workflow.md') })], {
+    noPolicy: true,
+  });
+  checkGate('plan', docs, rels, failures, { repoRoot: DOC_SHAPE_REPO });
+  assert.deepStrictEqual(failures.filter((f) => f.code === 'G20'), []);
+});
+
 test('plan gate verification_policy → absent stays legacy and an unknown value is rejected', () => {
   // 표식 없는 기존 계획: 명령 없는 단일 task도 topology 변경 없이 통과한다.
   assert.deepStrictEqual(g20Messages(scopedPlanDocs([planTaskDoc('001')], { noPolicy: true })), []);
