@@ -191,6 +191,10 @@ function targetInvalid(cause: unknown, next: string): Fail {
   return fail('context-review-target-invalid', cause, next);
 }
 
+// scale은 loadDispatch가 index.md에서 읽어 검증한 내부 값이다. 저장 payload(text)와 공개 CLI 출력에는
+// 들어가지 않는다 — recordReport가 delta 관점을 고를 때만 쓴다.
+type LoadedDispatch = Dispatch & { scale: 'full' | 'light' };
+
 /**
  * dispatch 파일을 읽어 blueprint·현재 snapshot·문서 집합과 대조한다.
  * skip·light·closed·다른 blueprint·stale digest는 모두 거절한다 — 오래된 payload로
@@ -199,9 +203,9 @@ function targetInvalid(cause: unknown, next: string): Fail {
  * @param {string} repoRoot - 저장소 루트
  * @param {string} bp - blueprint 상대 POSIX 경로
  * @param {string} dispatchFile - review-dispatch plan 출력 JSON 파일
- * @returns {Dispatch | Fail} 검증된 payload 정보 또는 거절
+ * @returns {LoadedDispatch | Fail} 검증된 payload 정보(+내부 scale) 또는 거절
  */
-function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Dispatch | Fail {
+function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): LoadedDispatch | Fail {
   let bytes: Buffer;
   try {
     bytes = fs.readFileSync(dispatchFile);
@@ -285,7 +289,9 @@ function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Dispa
     || !isDeepStrictEqual(payload.documents_content, partSnap.documents_content)) {
     return targetInvalid('dispatch parts/content differ from the current blueprint', next);
   }
-  return { sha256: sha256(bytes), digest: snap.digest, text: bytes.toString('utf8') };
+  // scale은 위에서 perspectives 목록 대조에 쓴 값과 같은 출처(index.md)다. light가 아니면 full로 읽는다.
+  const scale = meta.scale === 'light' ? 'light' : 'full';
+  return { sha256: sha256(bytes), digest: snap.digest, text: bytes.toString('utf8'), scale };
 }
 
 function isFail(value: unknown): value is Fail {

@@ -48,7 +48,7 @@ const { REVIEW_RISK_ENUM } = reviewPolicy;
 const BRIEF_SECURITY_RISKS = ['authentication', 'authorization', 'credential'];
 
 // 표식이 허용 밖 값일 때 dispatch가 legacy로 접지 않고 내는 거절 메시지. CLI도 같은 문구를 쓴다.
-const REVIEW_CONTRACT_INVALID = 'review-contract-invalid: review_contract must be brief';
+const REVIEW_CONTRACT_INVALID = schema.REVIEW_CONTRACT_INVALID_MESSAGE;
 
 type ExecFileSyncFn = (
   file: string,
@@ -530,22 +530,47 @@ function checkPreviousBinding(
   return null;
 }
 
+/** plan index 한 번 읽기의 결과. 계약 해석(contract)과 scale은 같은 data에서 나온다. */
+type PlanIndexRead = {
+  contract: 'brief' | 'legacy' | null;
+  scale: string;
+  /** 읽기·파싱 실패 사유. 있으면 contract는 legacy, scale은 full로 접혀 있다. */
+  readError: string | null;
+};
+
 /**
- * blueprint index.md에서 plan 리뷰 계약 표식을 읽는다. 읽기·파싱 실패는 legacy로 두고 흡수한다 —
- * 같은 파일의 실패는 뒤따르는 structural 검사와 scale 읽기가 지금과 같은 사유로 드러내기 때문에,
- * 여기서 사유를 바꾸면 표식 없는 blueprint의 거절 문구가 달라진다.
+ * blueprint index.md를 한 번만 읽어 plan 리뷰 계약 표식과 scale을 함께 얻는다.
+ * 읽기·파싱 실패는 계약을 legacy로 두고 사유만 `readError`에 담는다 — 구조 검사(S 코드)가
+ * 같은 파일의 실패를 먼저 드러내야 표식 없는 blueprint의 거절 문구가 바뀌지 않기 때문이다.
+ * 호출자는 structural 통과 뒤에도 readError가 남아 있으면 unreadable로 거절한다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} blueprintDir - blueprint 상대 경로
- * @returns {'brief' | 'legacy' | null} 표식 해석 결과. null은 허용 밖의 값이다
+ * @param {(file: string) => { data: unknown }} readIndex - index 읽기기(파일 I/O만 대체하는 seam)
+ * @returns {PlanIndexRead} contract는 'brief'|'legacy'|null(null은 허용 밖의 표식), scale은 기본 full
  */
-function readPlanReviewContract(repoRoot: string, blueprintDir: string): 'brief' | 'legacy' | null {
+function readPlanIndex(
+  repoRoot: string,
+  blueprintDir: string,
+  readIndex: (file: string) => { data: unknown },
+): PlanIndexRead {
+  let data: unknown;
   try {
-    const doc = readDoc(path.join(repoRoot, toPosix(blueprintDir), 'index.md'));
-    return planReviewContractOf((doc.data as { bouncer?: unknown } | null)?.bouncer);
-  } catch (_error) {
-    return 'legacy';
+    data = readIndex(path.join(repoRoot, toPosix(blueprintDir), 'index.md')).data;
+  } catch (error) {
+    // 읽기·파싱 실패만 흡수한다. 사유는 보존해 structural 통과 뒤 호출자가 그대로 드러낸다.
+    return {
+      contract: 'legacy',
+      scale: 'full',
+      readError: error instanceof Error ? error.message : String(error),
+    };
   }
+  const bouncer = (data as { bouncer?: { scale?: unknown } } | null)?.bouncer;
+  return {
+    contract: planReviewContractOf(bouncer),
+    scale: bouncer && typeof bouncer.scale === 'string' ? bouncer.scale : 'full',
+    readError: null,
+  };
 }
 
 /**
@@ -560,6 +585,7 @@ function readPlanReviewContract(repoRoot: string, blueprintDir: string): 'brief'
  *   - repoRoot: 저장소 루트
  *   - blueprintDir: blueprint 상대 경로
  *   - previous: 이전 plan payload. 증거 없는 최초 분류에서만 생략 가능(follow_up=full)
+ *   - deps.readIndex: blueprint index 읽기기. 생략하면 readDoc. 분류당 정확히 한 번 호출된다
  * @returns {PlanDispatchResult} 성공 시 strategy·cluster·근거와(single/clustered면)
  *   parts·scope_parts·follow_up. 실패 시 ok:false —
  *   S 코드가 있으면 'structural validation failed', draft 검사 실패면
@@ -568,15 +594,18 @@ function readPlanReviewContract(repoRoot: string, blueprintDir: string): 'brief'
  *   'previous-payload-invalid', 저장 최신 payload와 다르면 'previous-payload-stale'
  *   (모두 cause·next 포함)
  */
-function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
+function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
   repoRoot: string;
   blueprintDir: string;
   previous?: unknown;
+  deps?: { readIndex?: (file: string) => { data: unknown } };
 }): PlanDispatchResult {
   // 0. 표식 해석 실패는 light 여부와 무관하게 거절한다. 깨진 표식을 legacy로 접으면 리뷰
   //    전략이 조용히 바뀐다(fallback 없음). 표식은 선언된 값만 보고 크기·task 수로 추론하지
   //    않는다. 구조 검사(S38)보다 앞에 두어 값 오류가 항상 같은 사유로 돌아오게 한다.
-  const contract = readPlanReviewContract(repoRoot, blueprintDir);
+  //    index는 여기서 한 번만 읽고 계약과 scale을 모두 이 값에서 얻는다.
+  const index = readPlanIndex(repoRoot, blueprintDir, deps?.readIndex ?? readDoc);
+  const contract = index.contract;
   if (contract === null) return { ok: false, error: REVIEW_CONTRACT_INVALID };
 
   // 1. 구조·draft 실패를 축소 판정으로 덮지 않는다 — malformed review_risk·문서 부재·
@@ -594,18 +623,12 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
   }
 
   const bp = toPosix(blueprintDir);
-  const bpAbs = path.join(repoRoot, bp, 'index.md');
-  let scale = 'full';
-  try {
-    const bpDoc = readDoc(bpAbs);
-    const bouncer = (bpDoc.data as { bouncer?: { scale?: string } } | null)?.bouncer;
-    if (bouncer && typeof bouncer.scale === 'string') scale = bouncer.scale;
-  } catch (error) {
-    // index 파싱 실패는 validateBlueprint가 이미 잡았어야 한다. 여기까지 오면
-    // 레이스나 직접 호출이므로 축소 skip으로 위장하지 않는다.
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, error: `blueprint index unreadable: ${message}` };
+  // index 파싱 실패는 validateBlueprint가 이미 잡았어야 한다. 여기까지 오면
+  // 레이스나 직접 호출이므로 축소 skip으로 위장하지 않는다.
+  if (index.readError !== null) {
+    return { ok: false, error: `blueprint index unreadable: ${index.readError}` };
   }
+  const scale = index.scale;
 
   const marked = contract === 'brief';
 
@@ -889,36 +912,45 @@ function classifyExecuteReview({
     snapshot_path: captured.snapshot_path,
   };
 
-  const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
-    && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
-  const lightScale = scale === 'light';
-  // light는 크기 임계를 건너뛴다. full만 EXECUTE_SMALL_*로 single/parallel을 고른다.
-  const single = lightScale || small;
-  const strategy = single ? 'single' : 'parallel';
-  const perspectives = single
-    ? ['combined']
-    : ['spec_scope', 'correctness_tests', 'minimality_maintainability'];
-  if (risk.flags.length > 0) perspectives.push('security');
-
-  const briefSecurity = briefReview && risk.flags.some((flag) => BRIEF_SECURITY_RISKS.includes(flag));
-  const reasons = briefReview ? [
-    'review_contract brief — brief-compliance perspectives',
-    briefSecurity
-      ? `review_risk ${risk.flags.join(',')} adds security reviewer`
-      : 'review_risk has no authentication/authorization/credential — no security reviewer',
-  ] : [
-    lightScale
-      ? 'blueprint scale is light — single combined reviewer regardless of diff size'
-      : small
-        ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
-          + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
-        : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
-  ];
-  // 브리프 리뷰의 reasons는 위에서 완성했다(규모와 무관하게 두 관점 고정).
-  if (!briefReview) {
-    reasons.push(risk.flags.length > 0
-      ? `review_risk ${risk.flags.join(',')} adds security reviewer`
-      : 'review_risk empty — no security reviewer');
+  // 계약별 계산 분리: snapshot·stats·risk는 위에서 공통으로 만들었고, 아래는 선택된 계약의
+  // 전략·관점·reasons만 계산한다. legacy 값을 먼저 만들고 brief로 덮어쓰면 두 계약의 규칙이
+  // 한 변수에 섞여 어느 쪽이 최종인지 읽기 어렵다.
+  let strategy: 'single' | 'parallel';
+  let perspectives: string[];
+  const reasons: string[] = [];
+  if (briefReview) {
+    // 브리프 관점은 규모와 무관하게 두 관점 고정, security는 인증·인가·자격 위험일 때만 붙는다.
+    const briefSecurity = risk.flags.some((flag) => BRIEF_SECURITY_RISKS.includes(flag));
+    strategy = 'parallel';
+    perspectives = ['spec_scope', 'correctness_tests', ...(briefSecurity ? ['security'] : [])];
+    reasons.push(
+      'review_contract brief — brief-compliance perspectives',
+      briefSecurity
+        ? `review_risk ${risk.flags.join(',')} adds security reviewer`
+        : 'review_risk has no authentication/authorization/credential — no security reviewer',
+    );
+  } else {
+    const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
+      && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
+    const lightScale = scale === 'light';
+    // light는 크기 임계를 건너뛴다. full만 EXECUTE_SMALL_*로 single/parallel을 고른다.
+    const single = lightScale || small;
+    strategy = single ? 'single' : 'parallel';
+    perspectives = single
+      ? ['combined']
+      : ['spec_scope', 'correctness_tests', 'minimality_maintainability'];
+    if (risk.flags.length > 0) perspectives.push('security');
+    reasons.push(
+      lightScale
+        ? 'blueprint scale is light — single combined reviewer regardless of diff size'
+        : small
+          ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
+            + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
+          : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
+      risk.flags.length > 0
+        ? `review_risk ${risk.flags.join(',')} adds security reviewer`
+        : 'review_risk empty — no security reviewer',
+    );
   }
 
   // delta는 risk_flags·diff 통계를 discovery와 같게 두고 reviewer만 combined로
@@ -942,13 +974,11 @@ function classifyExecuteReview({
     ok: true,
     phase: 'execute',
     target: frozenTarget,
-    strategy: briefReview ? 'parallel' : strategy,
+    strategy,
     changed_files: stats.changed_files,
     changed_lines: stats.changed_lines,
     risk_flags: risk.flags,
-    perspectives: briefReview
-      ? ['spec_scope', 'correctness_tests', ...(briefSecurity ? ['security'] : [])]
-      : perspectives,
+    perspectives,
     reasons,
   };
 }

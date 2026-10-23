@@ -5,6 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import coordinator = require('./coordinator');
+import schema = require('./schema');
+import reviewRepairState = require('./review-repair-state');
+const { hasReviewRepairDecision, reviewRoundExists } = reviewRepairState;
 const { COORDINATE_FAILURE_HINTS } = coordinator;
 import coordinatorLedger = require('./coordinator-ledger');
 const { assertLeaseShape, loadLedgerBytes, projectCheckpoint } = coordinatorLedger;
@@ -465,39 +468,28 @@ function bouncerStatus(root: string, rel: string): unknown {
 }
 
 /**
- * root `review.md`에 discovery round가 기록돼 있는지 읽는다. 문서 부재·frontmatter
- * 없음·깨진 YAML·`rounds`가 배열이 아니면 없음으로 본다 — 판독 불가를 예외로
- * 올리면 final_review 분기가 막히고, 있음으로 꾸미면 delta를 잘못 연다.
+ * root review.md에 주어진 mode의 라운드가 있는지 tolerant 정책으로 읽는다. 문서 부재·frontmatter
+ * 없음·깨진 YAML·`rounds`가 배열이 아니면 없음으로 본다 — 판독 불가를 예외로 올리면 final_review
+ * 분기가 막히고, 있음으로 꾸미면 delta를 잘못 연다. 표식 blueprint는 delta 한 번으로 끝나므로
+ * delta 뒤 미accepted를 blocked로 가르는 기준이기도 하다.
  *
  * @param {string} integrationPath - integration worktree
  * @param {string} blueprint - blueprint 상대 경로
- * @returns {boolean} `bouncer.review.rounds[]`에 `mode: discovery`가 있으면 true
+ * @param {'discovery' | 'delta'} mode - 찾을 라운드 mode
+ * @returns {boolean} 해당 mode 라운드가 있으면 true
  */
-function rootReviewHasDiscoveryRound(integrationPath: string, blueprint: string): boolean {
-  const block = readBouncerBlock(path.join(integrationPath, blueprint, 'review.md'));
-  if (!block) return false;
-  const review = block.review;
-  if (!review || typeof review !== 'object') return false;
-  const rounds = (review as { rounds?: unknown }).rounds;
-  return Array.isArray(rounds)
-    && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'discovery');
+function rootReviewHasRoundTolerant(integrationPath: string, blueprint: string, mode: 'discovery' | 'delta'): boolean {
+  return reviewRoundExists(
+    { file: path.join(integrationPath, blueprint, 'review.md'), error_policy: 'tolerant' }, mode,
+  );
 }
 
-/**
- * root review.md의 `bouncer.review.rounds[]`에 `mode: delta`가 있는지 읽는다. 표식 blueprint는
- * delta 한 번으로 끝나므로 delta 뒤 미accepted를 blocked로 가르는 기준이다. 판독 불가는
- * rootReviewHasDiscoveryRound와 같은 이유로 없음으로 본다.
- *
- * @param {string} integrationPath - integration worktree
- * @param {string} blueprint - blueprint 상대 경로
- * @returns {boolean} delta 라운드가 있으면 true
- */
-function rootReviewHasDeltaRound(integrationPath: string, blueprint: string): boolean {
-  const block = readBouncerBlock(path.join(integrationPath, blueprint, 'review.md'));
-  const rounds = (block?.review as { rounds?: unknown } | undefined)?.rounds;
-  return Array.isArray(rounds)
-    && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'delta');
-}
+const rootReviewHasDiscoveryRound = (integrationPath: string, blueprint: string): boolean => (
+  rootReviewHasRoundTolerant(integrationPath, blueprint, 'discovery')
+);
+const rootReviewHasDeltaRound = (integrationPath: string, blueprint: string): boolean => (
+  rootReviewHasRoundTolerant(integrationPath, blueprint, 'delta')
+);
 
 type Built = Omit<NextOk, 'ok' | 'checkpoint' | 'cwd'> & { cwd: string };
 
@@ -780,7 +772,7 @@ function blueprintNext(ctx: {
       const contract = reviewContractAt(integrationCwd, blueprint);
       if (contract === null) {
         return ok({
-          scope: 'blueprint', action: 'blocked', reason: 'review-contract-invalid', cwd: integrationCwd,
+          scope: 'blueprint', action: 'blocked', reason: schema.REVIEW_CONTRACT_INVALID_REASON, cwd: integrationCwd,
         });
       }
       if (rootReviewHasDiscoveryRound(integrationCwd, blueprint)) {
@@ -791,10 +783,7 @@ function blueprintNext(ctx: {
         }
         // brief 표식은 discovery 뒤 리뷰 원인 repair 한 번과 그 뒤 delta 한 번을 허용한다. repair와
         // terminal 재검증이 끝나(allIntegrated) 여기 도달했고 delta가 아직 없으면 delta를 연다.
-        const repaired = (ledger.decisions || []).some((entry) => {
-          const item = entry as { kind?: unknown; failure?: { command?: unknown } } | null;
-          return item?.kind === 'repair' && item.failure?.command === 'review';
-        });
+        const repaired = hasReviewRepairDecision(ledger.decisions);
         if (repaired && !rootReviewHasDeltaRound(integrationCwd, blueprint)) {
           return ok({
             scope: 'blueprint', action: 'final_review', cwd: integrationCwd,

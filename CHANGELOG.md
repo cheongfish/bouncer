@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **plan 리뷰 관점·delta 기준 정본 통합** — `context-review`의 관점 이름 복제 목록을 없애고 `schema`의
+  `PLAN_FULL_PERSPECTIVES`를 쓴다. delta 관점은 관점 개수 추론 대신 `loadDispatch`가 검증한 scale로
+  `planDeltaPerspectiveOf`가 고른다(full `combined`, light `verifiability`). 저장 dispatch JSON과 CLI 출력은
+  그대로다.
+
 ### Added
 
 - **최종 리뷰 거절 코드 문서 검사** — `rules/cli.md`의 `coordinate repair` 거절 표(Condition·Reason)를

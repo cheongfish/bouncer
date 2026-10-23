@@ -2297,3 +2297,132 @@ test('review-dispatch --help → Enums에 기록용·보고용 finding status �
   assert.match(out, /finding status \(record input\): open\|resolved\|accepted/);
   assert.match(out, /finding status \(context-review\.md\): resolved\|accepted/);
 });
+
+// --- review-contract-deduplication: index 단일 읽기와 계약별 계산 분리 회귀 ---
+
+// readIndex seam은 파일 I/O만 대체한다. 분류 함수는 그대로 실행한다.
+function countingReadIndex(real) {
+  const files = [];
+  const readIndex = (file) => {
+    files.push(file);
+    return real(file);
+  };
+  return { readIndex, files };
+}
+
+const readDocForTest = require('../scripts/lib/frontmatter').readDoc;
+
+test('plan with a legacy full blueprint → reads the blueprint index exactly once', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const { readIndex, files } = countingReadIndex(readDocForTest);
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, deps: { readIndex } });
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(files, [path.join(repo, BP_REL, 'index.md')]);
+});
+
+test('plan with a brief light blueprint → reads the index once and keeps verifiability', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'], reviewContract: 'brief' });
+  const { readIndex, files } = countingReadIndex(readDocForTest);
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, deps: { readIndex } });
+  assert.strictEqual(result.ok, true);
+  assert.notStrictEqual(result.strategy, 'skip');
+  assert.strictEqual(files.length, 1);
+});
+
+test('plan with an unmarked light blueprint → reads the index once and returns skip', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  const { readIndex, files } = countingReadIndex(readDocForTest);
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, deps: { readIndex } });
+  assert.strictEqual(result.strategy, 'skip');
+  assert.strictEqual(files.length, 1);
+});
+
+test('plan with an invalid marker → rejects review-contract-invalid after one index read', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'], reviewContract: 'other' });
+  const { readIndex, files } = countingReadIndex(readDocForTest);
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, deps: { readIndex } });
+  assert.strictEqual(result.error, 'review-contract-invalid: review_contract must be brief');
+  assert.strictEqual(files.length, 1);
+});
+
+test('plan with a reader failure on a structurally valid tree → rejects blueprint index unreadable', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  let calls = 0;
+  const readIndex = () => {
+    calls += 1;
+    throw new Error('boom');
+  };
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, deps: { readIndex } });
+  assert.deepStrictEqual(result, { ok: false, error: 'blueprint index unreadable: boom' });
+  assert.strictEqual(calls, 1);
+});
+
+test('plan with a broken index file on disk → structural failure wins over the unreadable error', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  fs.writeFileSync(path.join(repo, BP_REL, 'index.md'), '---\n: : [broken\n---\n');
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'structural validation failed');
+});
+
+// 현재 분류 결과 matrix. 기대값은 리뷰 계약 규칙에서 유도한다: brief 관점은 task 없는
+// full 리뷰에만 적용되고, light는 계약과 무관하게 combined 하나이며, delta는 combined로 접는다.
+for (const scale of ['full', 'light']) {
+  for (const contract of ['legacy', 'brief']) {
+    for (const scope of ['root', 'task']) {
+      for (const mode of ['discovery', 'delta']) {
+        if (mode === 'delta' && scope === 'task') continue; // delta는 task 없는 리뷰 전용
+        test(`execute ${scale}/${contract}/${scope}/${mode} with a credential risk → returns the contract's classification`, () => {
+          const fx = markedRepo({ scale, unmarked: contract === 'legacy', big: true, risk: [['credential']] });
+          const out = classifyExecuteReview({
+            repoRoot: fx.repo, blueprintDir: BP_REL, taskId: scope === 'task' ? '001' : undefined,
+            base: fx.base, head: fx.head, reviewMode: mode,
+          });
+          const brief = contract === 'brief' && scale === 'full' && scope === 'root';
+          assert.strictEqual(out.ok, true);
+          assert.strictEqual(out.changed_files, 4);
+          assert.deepStrictEqual(out.risk_flags, ['credential']);
+          assert.strictEqual(out.target.task, scope === 'task' ? '001' : null);
+          if (mode === 'delta') {
+            assert.strictEqual(out.strategy, 'single');
+            assert.deepStrictEqual(out.perspectives, ['combined']);
+            assert.strictEqual(out.reasons.at(-1), 'delta review — single combined reviewer after discovery');
+          } else if (brief) {
+            assert.strictEqual(out.strategy, 'parallel');
+            assert.deepStrictEqual(out.perspectives, ['spec_scope', 'correctness_tests', 'security']);
+            assert.deepStrictEqual(out.reasons, [
+              'review_contract brief — brief-compliance perspectives',
+              'review_risk credential adds security reviewer',
+            ]);
+          } else if (scale === 'light') {
+            assert.strictEqual(out.strategy, 'single');
+            assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
+            assert.deepStrictEqual(out.reasons, [
+              'blueprint scale is light — single combined reviewer regardless of diff size',
+              'review_risk credential adds security reviewer',
+            ]);
+          } else {
+            assert.strictEqual(out.strategy, 'parallel');
+            assert.deepStrictEqual(out.perspectives,
+              ['spec_scope', 'correctness_tests', 'minimality_maintainability', 'security']);
+            assert.strictEqual(out.reasons[0], 'diff exceeds small thresholds (files=4, lines=4)');
+          }
+        });
+      }
+    }
+  }
+}
+
+test('execute with a missing blueprint index → rejects blueprint index unreadable before the marker check', () => {
+  const fx = markedRepo({});
+  fs.rmSync(path.join(fx.repo, BP_REL, 'index.md'));
+  const out = discover(fx);
+  assert.strictEqual(out.ok, false);
+  assert.ok(out.error.startsWith('blueprint index unreadable:'), out.error);
+});
