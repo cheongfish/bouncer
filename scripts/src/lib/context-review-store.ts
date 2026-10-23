@@ -246,7 +246,8 @@ function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Dispa
     return targetInvalid('review_contract brief requires a perspectives dispatch', next);
   }
   if (!marked && payload.strategy === 'perspectives') {
-    return targetInvalid('perspectives dispatch requires review_contract brief', next);
+    // 표식 없는 blueprint에는 perspectives 전략이 존재하지 않던 계약이라 구형 cause를 유지한다.
+    return targetInvalid('strategy perspectives has no context review', next);
   }
   // record가 round 관점을 대조하는 기준이 payload의 perspectives라서, 손으로 바꾼 목록이
   // 기준이 되지 못하게 scale이 정하는 값(full 4관점 / light verifiability)과 같아야 한다.
