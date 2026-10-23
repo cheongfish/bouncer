@@ -6,8 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { writeCurrent } = require('../scripts/lib/current');
+const { runCli } = require('../packages/cli/dist/cli');
+const { writeCurrent } = require('../packages/cli/dist/current');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -184,7 +184,7 @@ test('run preflight with a promotion_stopped ledger → marks it as not delegabl
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
   fs.writeFileSync(
@@ -453,7 +453,7 @@ function setBpStatus(repo, from, to) {
 }
 
 function writeLedger(repo, status) {
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
   fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
@@ -711,7 +711,7 @@ test('run preflight with a corrupt ledger file → falls back to the document st
   const repo = makeRepo();
   writePlanTree(repo, { bpStatus: 'draft' });
   setPointer(repo);
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
   fs.writeFileSync(paths.ledgerFile, '{not json');

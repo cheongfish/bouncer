@@ -4,8 +4,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const metrics = require('../scripts/lib/drive-metrics');
-const { runCli } = require('../scripts/lib/cli');
+const metrics = require('../packages/cli/dist/drive-metrics');
+const { runCli } = require('../packages/cli/dist/cli');
 
 const BLUEPRINT = '.bouncer/context/epics/098-a/blueprints/001-b';
 const DIGEST = 'a'.repeat(64);
@@ -510,7 +510,7 @@ test('metrics CLI summary → 원장의 worker-tokens를 worker_tokens로 낸다
   const repo = tmp();
   const { execFileSync } = require('node:child_process');
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const { ledgerFile } = coordinatorPathsFor({ repoRoot: repo, blueprint: BLUEPRINT });
   fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
   writeLedger(ledgerFile, {
@@ -658,7 +658,7 @@ test('summary → coordinator 토큰과 역할별 worker 토큰은 이중 합산
 function gitRepoWithLedger(decisions) {
   const repo = fs.realpathSync(tmp());
   require('node:child_process').execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  const { ledgerFile } = require('../scripts/lib/runtime-state').coordinatorPathsFor({
+  const { ledgerFile } = require('../packages/cli/dist/runtime-state').coordinatorPathsFor({
     repoRoot: repo, blueprint: BLUEPRINT,
   });
   fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });

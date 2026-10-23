@@ -5,15 +5,15 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
+const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../packages/cli/dist/init');
 const {
   setupGraphify,
   readGraphifyLock,
   GRAPHIFY_LOCK_REL,
-} = require('../scripts/lib/graphify');
-const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
-const { TEMPLATES } = require('../scripts/lib/templates');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+} = require('../packages/cli/dist/graphify');
+const { DEFAULT_VERIFY_ALLOWLIST } = require('../packages/cli/dist/config');
+const { TEMPLATES } = require('../packages/cli/dist/templates');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-'));
@@ -525,7 +525,7 @@ test('init on an already-initialized repo → reports gitignore suggestions', ()
 test('init install on a git repo → does not create worktree .bouncer/.venv', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
-  const { setupGraphify } = require('../scripts/lib/graphify');
+  const { setupGraphify } = require('../packages/cli/dist/graphify');
   const res = init({
     repoRoot: repo,
     timestamp: '2026-07-01T00:00:00.000Z',
@@ -780,7 +780,7 @@ test('init when .codex/ already exists → seeds five Codex tomls', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const { GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
     'bouncer-context-reviewer', 'bouncer-coordinator',
@@ -810,7 +810,7 @@ test('init with plugin markdown agents → seeds Codex named-agent toml from the
     timestamp: '2026-07-01T00:00:00.000Z',
     seedCodexAgents: true,
   });
-  const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const { GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
     'bouncer-context-reviewer', 'bouncer-coordinator',

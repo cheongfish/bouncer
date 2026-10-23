@@ -10,8 +10,8 @@ const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
   resolveCurrent, CurrentSelectionError,
   baseNamespaceKeys,
-} = require('../scripts/lib/current');
-const { init } = require('../scripts/lib/init');
+} = require('../packages/cli/dist/current');
+const { init } = require('../packages/cli/dist/init');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-current-'));
@@ -525,7 +525,7 @@ test('numbered tasks with ready/in_progress statuses → listReadyBlueprints cou
 });
 
 test('several ready/in_progress tasks → resolvePointerTask auto-selects the first by number order', () => {
-  const { resolvePointerTask } = require('../scripts/lib/current');
+  const { resolvePointerTask } = require('../packages/cli/dist/current');
   const repo = tmpRepo();
   const epicDir = '.bouncer/context/epics/001-pick';
   const bpDir = `${epicDir}/blueprints/001-p`;
@@ -575,7 +575,7 @@ test('several ready/in_progress tasks → resolvePointerTask auto-selects the fi
 });
 
 test('--task that does not match a document → resolvePointerTask fails', () => {
-  const { resolvePointerTask } = require('../scripts/lib/current');
+  const { resolvePointerTask } = require('../packages/cli/dist/current');
   const repo = tmpRepo();
   const epicDir = '.bouncer/context/epics/001-miss';
   const bpDir = `${epicDir}/blueprints/001-m`;
@@ -716,7 +716,7 @@ function legacyFile(repo) {
 }
 
 function writeNsFile(repo, blueprint, base, task) {
-  const { parsePathIds } = require('../scripts/lib/paths');
+  const { parsePathIds } = require('../packages/cli/dist/paths');
   const { epicId, blueprintId } = parsePathIds(blueprint);
   const abs = nsFile(repo, epicId, blueprintId);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -1033,11 +1033,11 @@ test('blueprint path without three-digit ids → writeCurrent rejects it', () =>
 
 // --- coordinator mode -------------------------------------------------------
 
-const { presentCurrent, resolveEffectiveTask } = require('../scripts/lib/current');
+const { presentCurrent, resolveEffectiveTask } = require('../packages/cli/dist/current');
 
 const { coordinate } = require('./helpers/coordinator-fence');
 
-const { reviseTaskScope } = require('../scripts/lib/scope');
+const { reviseTaskScope } = require('../packages/cli/dist/scope');
 
 function committedGitRepo() {
   const repo = tmpGitRepo();
@@ -1155,7 +1155,7 @@ test('explicit and legacy-default tasks → listTasksDocs attaches normalized ex
     fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
     fs.writeFileSync(path.join(repo, rel), `---\nbouncer:\n  id: TASKS-${id}\n${execution}---\n`);
   }
-  const { listTasksDocs } = require('../scripts/lib/tasks-docs');
+  const { listTasksDocs } = require('../packages/cli/dist/tasks-docs');
   assert.deepStrictEqual(
     listTasksDocs({ repoRoot: repo, blueprintDir: blueprint }).entries.map((e) => e.executionKind),
     ['commit', 'verification'],

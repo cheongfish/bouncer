@@ -7,12 +7,15 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 
-test('package.json → exposes the bouncer and bouncer-root bins', () => {
+test('runtime package and root package → expose bins only from the runtime workspace', () => {
   const pkg = readJson('package.json');
-  assert.strictEqual(pkg.name, 'bouncer');
-  assert.deepStrictEqual(pkg.bin, {
-    bouncer: 'scripts/bouncer',
-    'bouncer-root': 'scripts/bouncer-root',
+  const runtime = readJson('packages/cli/package.json');
+  assert.strictEqual(pkg.private, true);
+  assert.strictEqual(pkg.bin, undefined);
+  assert.strictEqual(runtime.name, '@cheongfish/bouncer');
+  assert.deepStrictEqual(runtime.bin, {
+    bouncer: 'bin/bouncer',
+    'bouncer-root': 'bin/bouncer-root',
   });
 });
 

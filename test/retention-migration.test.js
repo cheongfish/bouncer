@@ -11,7 +11,7 @@ const yaml = require('js-yaml');
 const {
   auditRetention,
   migrateRetention,
-} = require('../scripts/lib/retention-migration');
+} = require('../packages/cli/dist/retention-migration');
 
 const EPIC = '090';
 const BP_A = `.bouncer/context/epics/${EPIC}-retention-a/blueprints/001-alpha`;
@@ -343,7 +343,7 @@ test('migrateRetention → promotes Explain then deletes all four transient leav
   assert.equal(fs.existsSync(path.join(repo, `${BP_A}/index.md`)), true);
 
   // 기존 task_commits 바이트 동등 — 잘못된 commit_sha 를 합성하지 않는다.
-  const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+  const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
   const { data } = parseFrontmatter(explainAfter);
   assert.deepStrictEqual(data.bouncer.task_commits, existingCommits);
   assert.notEqual(explainAfter, explainBefore);

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { resolveSubagentModel } = require('../scripts/lib/subagents');
+const { resolveSubagentModel } = require('../packages/cli/dist/subagents');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-subagents-'));

@@ -4,8 +4,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { crossDriveConflicts, otherDriveTasks } = require('../scripts/lib/cross-drive');
-const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const { crossDriveConflicts, otherDriveTasks } = require('../packages/cli/dist/cross-drive');
+const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 const { coordinate } = require('./helpers/coordinator-fence');
 const { createGitTemplate } = require('./helpers/git-fixture');
 

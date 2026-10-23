@@ -6,9 +6,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { isGitCommit, evaluateCommit, evaluateStaged, realMainRepoCurrent } = require('../scripts/lib/commit-hook');
-const { checkCommitSafety } = require('../scripts/lib/commit-guard');
-const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
+const { isGitCommit, evaluateCommit, evaluateStaged, realMainRepoCurrent } = require('../packages/cli/dist/commit-hook');
+const { checkCommitSafety } = require('../packages/cli/dist/commit-guard');
+const { writeCurrent, clearCurrent } = require('../packages/cli/dist/current');
 
 test('isGitCommit with commit invocations → detects them', () => {
   assert.strictEqual(isGitCommit('git commit -m "x"'), true);
@@ -276,7 +276,7 @@ test('evaluateCommit with an out-of-scope commit hidden in a nested shell → bl
 });
 
 test('readAffectedPaths across numbered task documents → unions paths', () => {
-  const { readAffectedPaths } = require('../scripts/lib/commit-hook');
+  const { readAffectedPaths } = require('../packages/cli/dist/commit-hook');
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-union-'));
   const bp = BP;
@@ -304,7 +304,7 @@ test('readAffectedPaths across numbered task documents → unions paths', () => 
 });
 
 test('pointer task with or without a task document → narrows affected_paths; missing task keeps the union', () => {
-  const { readAffectedPaths, evaluateCommit } = require('../scripts/lib/commit-hook');
+  const { readAffectedPaths, evaluateCommit } = require('../packages/cli/dist/commit-hook');
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-narrow-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -457,7 +457,7 @@ test('evaluateCommit with an unparseable commit (fail-closed) → also inspects 
 });
 
 test('realTrackedModified → lists names from git diff HEAD --name-only', () => {
-  const { realTrackedModified } = require('../scripts/lib/commit-hook');
+  const { realTrackedModified } = require('../packages/cli/dist/commit-hook');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-tracked-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'tracked.txt'), 'one\n');
@@ -672,7 +672,7 @@ test('a boundary block with an empty staged list → reports the checkout, not a
 });
 
 test('parallel worktrees → isolate commit scope to each pointer task affected_paths', () => {
-  const { readAffectedPaths, evaluateCommit } = require('../scripts/lib/commit-hook');
+  const { readAffectedPaths, evaluateCommit } = require('../packages/cli/dist/commit-hook');
   const yaml = require('js-yaml');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-ns-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -783,7 +783,7 @@ test('evaluateCommit and readAffectedPaths with a worker lease and a pointer →
   writeCurrent({
     repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
   });
-  const { readAffectedPaths } = require('../scripts/lib/commit-hook');
+  const { readAffectedPaths } = require('../packages/cli/dist/commit-hook');
   assert.deepStrictEqual(
     readAffectedPaths({ repoRoot: worker002, blueprintDir: blueprint }),
     ['src/b/'],
@@ -867,7 +867,7 @@ test('evaluateCommit with lease scope and no pointer or a revoked lease → appl
     repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
   });
   clearCurrent({ repoRoot: repo });
-  assert.strictEqual(require('../scripts/lib/current').readCurrent({ repoRoot: worker002 }), null);
+  assert.strictEqual(require('../packages/cli/dist/current').readCurrent({ repoRoot: worker002 }), null);
 
   const allow = evaluateCommit({
     command: 'git commit -m x',

@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+
+const packageRoot = path.join(__dirname, '..');
+const cliEntry = path.join(packageRoot, 'dist', 'cli.js');
+if (!fs.existsSync(cliEntry)) {
+  process.stderr.write(
+    `bouncer: packages/cli/dist is missing; run \`npm run build\` in ${path.join(packageRoot, '..', '..')}\n`,
+  );
+  process.exit(1);
+}
+
+// npm tarball에는 src가 없으므로 source hash 검사는 checkout에서만 수행한다.
+const sourceDir = path.join(packageRoot, 'src');
+if (fs.existsSync(sourceDir) && !require('./build-stamp').checkBuildFresh(packageRoot).ok) {
+  process.stderr.write(
+    `bouncer: stale-build: packages/cli/dist does not match packages/cli/src; `
+    + `run \`npm run build\` in ${path.join(packageRoot, '..', '..')}\n`,
+  );
+  process.exit(1);
+}
+
+const { runCli } = require('../dist/cli');
+process.exit(runCli(process.argv.slice(2)));

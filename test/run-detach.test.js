@@ -6,13 +6,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { writeCurrent, readCurrent } = require('../scripts/lib/current');
-const coordinatorMod = require('../scripts/lib/coordinator');
-const { coordinatorPathsFor, runtimePaths } = require('../scripts/lib/runtime-state');
-const { evaluateStaged } = require('../scripts/lib/commit-hook');
-const { coordinatorContext, reviseTaskScope } = require('../scripts/lib/scope');
-const { detachRun } = require('../scripts/lib/run-detach');
+const { runCli } = require('../packages/cli/dist/cli');
+const { writeCurrent, readCurrent } = require('../packages/cli/dist/current');
+const coordinatorMod = require('../packages/cli/dist/coordinator');
+const { coordinatorPathsFor, runtimePaths } = require('../packages/cli/dist/runtime-state');
+const { evaluateStaged } = require('../packages/cli/dist/commit-hook');
+const { coordinatorContext, reviseTaskScope } = require('../packages/cli/dist/scope');
+const { detachRun } = require('../packages/cli/dist/run-detach');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const { fence } = require('./helpers/coordinator-fence');
 
@@ -447,7 +447,7 @@ test('detached ledger → coordinate next refuses with run-detached', () => {
   const { repo, ledgerFile, integration } = drive();
   patchLedger(ledgerFile, (l) => { l.status = 'detached'; });
   const before = fs.readFileSync(ledgerFile);
-  const { coordinateNext } = require('../scripts/lib/coordinate-next');
+  const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
 
   const result = coordinateNext({ repoRoot: repo, blueprint: BP_REL, cwd: integration });
 

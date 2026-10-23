@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 'use strict';
-// 컴파일 산출물(scripts/lib)이 소스(scripts/src)와 어긋난 채 실행되는 것을 막는
+// 컴파일 산출물(dist)이 소스(src)와 어긋난 채 실행되는 것을 막는
 // plain JS helper. 이 검사를 scripts/src에 두면 검사 자체가 오래된 산출물로
 // 실행되므로 컴파일 대상 밖에 둔다.
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const STAMP_RELATIVE = path.join('scripts', 'lib', '.build-stamp');
+const STAMP_RELATIVE = path.join('dist', '.build-stamp');
 
 /**
- * scripts/src 아래 .ts 파일을 posix 상대 경로로 모은다.
+ * packages/cli/src 아래 .ts 파일을 posix 상대 경로로 모은다.
  *
  * @param {string} dir - 탐색할 디렉터리
  * @param {string} rel - dir의 root 기준 posix 상대 경로
@@ -35,7 +35,7 @@ function listTsFiles(dir, rel) {
  * @returns {string} `sha256:<64hex>`
  */
 function computeSourceHash(root) {
-  const files = [...listTsFiles(path.join(root, 'scripts', 'src'), 'scripts/src'), 'tsconfig.json'].sort();
+  const files = [...listTsFiles(path.join(root, 'src'), 'src'), 'tsconfig.json'].sort();
   const hash = crypto.createHash('sha256');
   for (const rel of files) {
     hash.update(`${rel}\0`);

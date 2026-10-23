@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { analyzeDriveShape, pathOverlapRatio } = require('../scripts/lib/dag-shape');
+const { analyzeDriveShape, pathOverlapRatio } = require('../packages/cli/dist/dag-shape');
 
 // 열린 commit task 한 건을 만든다. 경로는 id별로 달라 서로 충돌하지 않는다.
 function task(id, over = {}) {

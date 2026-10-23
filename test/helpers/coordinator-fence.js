@@ -3,8 +3,8 @@
 // fence 계산·자동 주입 wrapper를 한 곳에 모은다.
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const coordinatorMod = require('../../scripts/lib/coordinator');
-const { coordinatorPathsFor } = require('../../scripts/lib/runtime-state');
+const coordinatorMod = require('../../packages/cli/dist/coordinator');
+const { coordinatorPathsFor } = require('../../packages/cli/dist/runtime-state');
 
 const LEDGER_REL = '.bouncer/runtime/coordinator.json';
 

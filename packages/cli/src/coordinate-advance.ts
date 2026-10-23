@@ -76,7 +76,7 @@ const DEFAULT_MAX_STEPS = 20;
  * @returns {{ stdout: string, status: number }} 자식 stdout과 종료 코드
  */
 function defaultRunArgv(argv: string[], cwd: string): { stdout: string; status: number } {
-  const launcher = path.join(__dirname, '..', 'bouncer');
+  const launcher = path.join(__dirname, '..', 'bin', 'bouncer');
   const result = spawnSync(process.execPath, [launcher, ...argv.slice(1)], {
     cwd,
     encoding: 'utf8',

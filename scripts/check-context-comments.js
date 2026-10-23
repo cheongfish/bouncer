@@ -3,10 +3,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { findLegacyScaffoldComments } = require('./lib/templates');
-const { readCurrent } = require('./lib/current');
-const { parseFrontmatter } = require('./lib/frontmatter');
-const { listTasksDocs } = require('./lib/tasks-docs');
+const { findLegacyScaffoldComments } = require('../packages/cli/dist/templates');
+const { readCurrent } = require('../packages/cli/dist/current');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
+const { listTasksDocs } = require('../packages/cli/dist/tasks-docs');
 
 const CONTEXT_ROOT = '.bouncer/context';
 const TODO_RE = /<TODO:/;

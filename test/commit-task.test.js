@@ -8,13 +8,13 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { createGitTemplate } = require('./helpers/git-fixture');
-const { commitTask } = require('../scripts/lib/commit');
-const { buildCommitMessage } = require('../scripts/lib/commit-message');
-const { checkCommitSafety } = require('../scripts/lib/commit-guard');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
-const { readCurrent, writeCurrent } = require('../scripts/lib/current');
-const { recordVerificationResult } = require('../scripts/lib/verification');
-const { installPreCommitHook } = require('../scripts/lib/pre-commit-hook');
+const { commitTask } = require('../packages/cli/dist/commit');
+const { buildCommitMessage } = require('../packages/cli/dist/commit-message');
+const { checkCommitSafety } = require('../packages/cli/dist/commit-guard');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
+const { readCurrent, writeCurrent } = require('../packages/cli/dist/current');
+const { recordVerificationResult } = require('../packages/cli/dist/verification');
+const { installPreCommitHook } = require('../packages/cli/dist/pre-commit-hook');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -568,11 +568,11 @@ test('out-of-scope recovery → is return-to-plan standalone and coordinator-rev
 // --- coordinator mode -------------------------------------------------------
 
 
-const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 const { coordinate } = require('./helpers/coordinator-fence');
 
-const { coordinatorContext, reviseTaskScope, recordActualPaths } = require('../scripts/lib/scope');
-const { readDoc } = require('../scripts/lib/frontmatter');
+const { coordinatorContext, reviseTaskScope, recordActualPaths } = require('../packages/cli/dist/scope');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
 
 /**
  * bootstrap + prepare 로 실제 worktree를 연 뒤, 할당된 worker 안에서 commit
@@ -1389,7 +1389,7 @@ test('commitTask in a worker cwd while the pointer points elsewhere → commits 
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
   const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
   // commit gate는 verified + harness 증적을 요구한다. worker에만 status를 올린다.
-  const { recordVerificationResult } = require('../scripts/lib/verification');
+  const { recordVerificationResult } = require('../packages/cli/dist/verification');
   for (const id of ['001', '002']) {
     const srcDir = path.join(repo, blueprint, 'tasks', id);
     const dstDir = path.join(worker002, blueprint, 'tasks', id);

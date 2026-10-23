@@ -189,13 +189,13 @@ type CompatResult = {
   manifest: CompatManifest | null;
 };
 
-function pluginRootFromLib(): string {
-  // 컴파일 산출물은 scripts/lib. 플러그인 루트의 resources/·plugin.json 을 가리킨다.
+function packageRootFromDist(): string {
+  // 런타임 자산은 package files allowlist에 들어가므로 dist 기준 두 단계 위를 읽는다.
   return path.join(__dirname, '..', '..');
 }
 
 function defaultManifestPath(): string {
-  return path.join(pluginRootFromLib(), 'resources', 'graphify-compat.json');
+  return path.join(packageRootFromDist(), 'resources', 'graphify-compat.json');
 }
 
 function parseDottedVersion(text: string): string | null {
@@ -213,16 +213,14 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function readPluginVersion(): string {
-  for (const name of ['plugin.json', 'package.json']) {
-    try {
-      const body = JSON.parse(fs.readFileSync(path.join(pluginRootFromLib(), name), 'utf8')) as {
-        name?: unknown;
-        version?: unknown;
-      };
-      if (body.name === 'bouncer' && isNonEmptyString(body.version)) return body.version;
-    } catch (_e) {
-      // 다음 메타데이터 파일을 본다.
-    }
+  try {
+    const body = JSON.parse(fs.readFileSync(path.join(packageRootFromDist(), 'package.json'), 'utf8')) as {
+      name?: unknown;
+      version?: unknown;
+    };
+    if (body.name === '@cheongfish/bouncer' && isNonEmptyString(body.version)) return body.version;
+  } catch (_e) {
+    // 배포 package metadata가 없으면 호환성 lock에 안전한 sentinel을 기록한다.
   }
   return '0.0.0';
 }

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   parsePathIds, epicDirOf, isNumericContextId,
-} = require('../scripts/lib/paths');
+} = require('../packages/cli/dist/paths');
 
 const BP_NEW = '.bouncer/context/epics/014-numeric/blueprints/001-id-contract';
 
@@ -61,10 +61,10 @@ test('isNumericContextId with ids of various shapes → accepts only zero-padded
 });
 
 test('toPosix → 단일 정의이며 백슬래시와 비문자열 입력을 처리한다', () => {
-  const { toPosix } = require('../scripts/lib/posix-path');
+  const { toPosix } = require('../packages/cli/dist/posix-path');
   assert.strictEqual(toPosix('a\\b\\c.md'), 'a/b/c.md');
   assert.strictEqual(toPosix(undefined), 'undefined');
-  assert.strictEqual(require('../scripts/lib/paths').toPosix, toPosix);
+  assert.strictEqual(require('../packages/cli/dist/paths').toPosix, toPosix);
 });
 
 test('parsePathIds with slug paths → returns slug keys and kind', () => {

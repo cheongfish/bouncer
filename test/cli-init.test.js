@@ -4,9 +4,9 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { runCli } = require('../scripts/lib/cli');
-const { SUGGESTED_IGNORES } = require('../scripts/lib/init');
-const { RUNTIME_ARTIFACTS } = require('../scripts/lib/scope');
+const { runCli } = require('../packages/cli/dist/cli');
+const { SUGGESTED_IGNORES } = require('../packages/cli/dist/init');
+const { RUNTIME_ARTIFACTS } = require('../packages/cli/dist/scope');
 const { execFileSync } = require('node:child_process');
 
 function capture() {

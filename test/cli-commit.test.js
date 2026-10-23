@@ -7,10 +7,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { commitTask } = require('../scripts/lib/commit');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
-const { recordVerificationResult } = require('../scripts/lib/verification');
+const { runCli } = require('../packages/cli/dist/cli');
+const { commitTask } = require('../packages/cli/dist/commit');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
+const { recordVerificationResult } = require('../packages/cli/dist/verification');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -440,7 +440,7 @@ test('commit with modified or untracked finalization remainder and other out-of-
 // --- coordinator mode -------------------------------------------------------
 
 
-const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 const { coordinate } = require('./helpers/coordinator-fence');
 
 

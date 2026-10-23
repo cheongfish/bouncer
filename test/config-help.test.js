@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { runCli } = require('../scripts/lib/cli');
-const { NAMED_AGENTS } = require('../scripts/lib/codex-agents');
+const { runCli } = require('../packages/cli/dist/cli');
+const { NAMED_AGENTS } = require('../packages/cli/dist/codex-agents');
 
 const doc = fs.readFileSync(path.join(__dirname, '..', 'docs/configuration.md'), 'utf8');
 

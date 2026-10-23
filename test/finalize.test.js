@@ -8,12 +8,12 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { createGitTemplate } = require('./helpers/git-fixture');
-const { finalize } = require('../scripts/lib/finalize');
-const { readCurrent, writeCurrent } = require('../scripts/lib/current');
-const { collectTaskCommits } = require('../scripts/lib/finalize-collect');
-const { writeExplainTaskCommits } = require('../scripts/lib/finalize-explain');
-const { computeDiffSha } = require('../scripts/lib/comprehension');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
+const { finalize } = require('../packages/cli/dist/finalize');
+const { readCurrent, writeCurrent } = require('../packages/cli/dist/current');
+const { collectTaskCommits } = require('../packages/cli/dist/finalize-collect');
+const { writeExplainTaskCommits } = require('../packages/cli/dist/finalize-explain');
+const { computeDiffSha } = require('../packages/cli/dist/comprehension');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -1025,7 +1025,7 @@ test('--yes with transient docs → deletes them, keeps durable evidence, and st
     assert.strictEqual(Object.prototype.hasOwnProperty.call(row, 'id'), false);
   }
 
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const re = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(re.ok, true, JSON.stringify(re.failures, null, 2));
 });
@@ -1352,7 +1352,7 @@ test('a light blueprint with a missing context-review → finalize does not inve
   // scale는 approved와 같은 bouncer 맵에 둬야 한다 — 문자열 치환이 깨지면 fixture를 고친다.
   if (!/scale: light/.test(raw)) {
     const yaml = require('js-yaml');
-    const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+    const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
     const { data, body } = parseFrontmatter(fs.readFileSync(indexAbs, 'utf8'));
     data.bouncer.scale = 'light';
     fs.writeFileSync(indexAbs, `---\n${yaml.dump(data)}---\n${body}`);
@@ -1374,7 +1374,7 @@ test('a light blueprint with a missing context-review → finalize does not inve
 
 const { coordinate } = require('./helpers/coordinator-fence');
 
-const { parseFrontmatter: readFm } = require('../scripts/lib/frontmatter');
+const { parseFrontmatter: readFm } = require('../packages/cli/dist/frontmatter');
 
 function drivenBlueprint(repo) {
   fullBlueprint(repo);
@@ -1441,7 +1441,7 @@ test('legacy ledger branch fields → finalize resolves them from worktrees and 
 });
 
 function writeCoordinatorLedger(repo, tasks) {
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
   fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
@@ -1728,8 +1728,8 @@ function trailerPreferenceCase({ moved }) {
       ],
     }, null, 2)}\n`);
   }
-  const { writeCurrent } = require('../scripts/lib/current');
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { writeCurrent } = require('../packages/cli/dist/current');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trimEnd();
 
   // worker commit_sha는 가짜 — trailer가 정본이어야 한다.

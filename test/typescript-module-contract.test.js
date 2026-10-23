@@ -38,10 +38,10 @@ test('intentional export=/import=require signature → mismatch fails tsc --noEm
   assert.match(out, /Type 'string' is not assignable to type 'number'/);
 });
 
-const libSrc = path.join(root, 'scripts', 'src', 'lib');
+const libSrc = path.join(root, 'packages', 'cli', 'src');
 
 /**
- * `scripts/src/lib/*.ts` 중 최상위 `export =`를 가진 모듈을 디렉터리 스캔으로 모은다.
+ * `packages/cli/src/*.ts` 중 최상위 `export =`를 가진 모듈을 디렉터리 스캔으로 모은다.
  * 모듈 이름을 테스트에 고정하지 않아야 이름 변경·분리에 거짓 실패하지 않고,
  * 새로 추가된 `export =` 모듈도 자동으로 경계 검사에 들어온다.
  *
@@ -55,7 +55,7 @@ function exportAssignmentModules() {
     .map((name) => path.join(libSrc, name.slice(0, -'.ts'.length)).replace(/\\/g, '/'));
 }
 
-test('every scripts/src/lib export= module → typechecks through typeof import()', () => {
+test('every packages/cli/src export= module → typechecks through typeof import()', () => {
   const modules = exportAssignmentModules();
   // 스캔이 비면 fixture가 아무것도 검사하지 않고 통과하므로 먼저 막는다.
   assert.ok(modules.length > 0, `no export= module found under ${libSrc}`);

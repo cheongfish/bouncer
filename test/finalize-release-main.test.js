@@ -6,10 +6,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { renderDoc } = require('../scripts/lib/render');
-const { coordinatorPathsFor, worktreePathFor } = require('../scripts/lib/runtime-state');
-const { runCli } = require('../scripts/lib/cli');
-const { releaseMain } = require('../scripts/lib/finalize-release-main');
+const { renderDoc } = require('../packages/cli/dist/render');
+const { coordinatorPathsFor, worktreePathFor } = require('../packages/cli/dist/runtime-state');
+const { runCli } = require('../packages/cli/dist/cli');
+const { releaseMain } = require('../packages/cli/dist/finalize-release-main');
 
 const EPIC = '.bouncer/context/epics/084-drive-plan-copy-hygiene';
 const BP = `${EPIC}/blueprints/001-finalize-main-release`;

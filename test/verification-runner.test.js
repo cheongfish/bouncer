@@ -6,12 +6,12 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { readDoc } = require('../scripts/lib/frontmatter');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
 const {
   executeVerify, runVerification: runRawVerification, recordVerificationResult,
   parseVerifyArgv, isValidVerifyCommand, computeSourceDigest,
-} = require('../scripts/lib/verification');
-const { resolveVerificationTarget, runSelectedVerification, readVerifyCommand } = require('../scripts/lib/verification-target');
+} = require('../packages/cli/dist/verification');
+const { resolveVerificationTarget, runSelectedVerification, readVerifyCommand } = require('../packages/cli/dist/verification-target');
 const runVerification = (opts) => {
   if (opts.taskId !== undefined || opts.effectiveTask !== undefined) return runRawVerification(opts);
   if (opts.exec !== undefined || opts.scope !== undefined || opts.now !== undefined) {
@@ -22,9 +22,9 @@ const runVerification = (opts) => {
   }
   return runSelectedVerification(opts);
 };
-const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
-const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
-const { checkGate } = require('../scripts/lib/validate');
+const { DEFAULT_VERIFY_ALLOWLIST } = require('../packages/cli/dist/config');
+const { verifyLedgerPathFor } = require('../packages/cli/dist/runtime-state');
+const { checkGate } = require('../packages/cli/dist/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -532,7 +532,7 @@ bouncer:
 });
 
 test('readVerifyCommand → narrows to the pointer task document', () => {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('npm test');
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -640,7 +640,7 @@ bouncer:
 }
 
 test('runVerification → records evidence into the pointer tasks/002 unit only', () => {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('node -e "process.exit(0)"');
   // 루트 verification은 남겨 두고, 새 레이아웃 묶음도 만든다 — 포인터가
@@ -677,7 +677,7 @@ test('runVerification → records evidence into the pointer tasks/002 unit only'
 });
 
 test('runVerification → rejects missing unit verification.md without creating it', () => {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('node -e "process.exit(0)"');
   writeUnitTasks(repo, '001');
@@ -1093,7 +1093,7 @@ test('isValidVerifyCommand → accepts win32 npm.cmd against the default allowli
 });
 
 test('two linked worktrees → select distinct pointer task verification documents', () => {
-  const { writeCurrent, readCurrent } = require('../scripts/lib/current');
+  const { writeCurrent, readCurrent } = require('../packages/cli/dist/current');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verify-ns-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
@@ -1465,7 +1465,7 @@ test('identity field changes and corrupt/failed → records miss the cache', () 
 });
 
 test('explicit and pointer-derived scopes, and identity errors → reject before spawn', () => {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   const repo = setupRepo();
   writeTasks(repo, 'npm test');
   writeCurrent({
@@ -1585,7 +1585,7 @@ test('explicit and pointer-derived scopes, and identity errors → reject before
 });
 
 test('omitted scope with numbered unit missing epic_id → falls back to path key and runs exec once', () => {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   const repo = setupRepo();
   // coordinator integrate fixture처럼 id만 있고 epic/blueprint frontmatter가 없다.
   // provenance digit 거절 뒤 경로 숫자로 scope를 만들어야 한다.
@@ -1696,7 +1696,7 @@ bouncer:
 
 const {
   writeCurrent: __writeCurrent,
-} = require('../scripts/lib/current');
+} = require('../packages/cli/dist/current');
 const __resolveEntries = (repoRoot, blueprintDir, taskId) => resolveVerificationTarget({
   repoRoot, blueprintDir, taskId,
 }).entries;
@@ -1898,7 +1898,7 @@ function taskBouncer(repo, rel) {
 }
 
 function pointerOn(repo, nnn) {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   writeCurrent({
     repoRoot: repo,
     blueprint: BP_REL,

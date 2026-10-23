@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { advance } = require('../scripts/lib/coordinate-advance');
+const { advance } = require('../packages/cli/dist/coordinate-advance');
 
 /**
  * deps.next / deps.runArgv 큐를 만든다. 호출 순서가 스크립트와 어긋나면 throw한다.

@@ -14,7 +14,7 @@ const {
   splitTaskChunks,
   projectExplainSectionHashes,
   projectExplainSectionBodies,
-} = require('../scripts/lib/intent-provenance');
+} = require('../packages/cli/dist/intent-provenance');
 
 const dirs = [];
 

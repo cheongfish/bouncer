@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { advance } = require('../scripts/lib/coordinate-advance');
+const { advance } = require('../packages/cli/dist/coordinate-advance');
 
 // 통합 tier: 실제 git, 자식 프로세스(launcher)를 쓰므로 unit tier의 spawn guard 밖에 둔다.
 // --- 실제 launcher 경로: 설치 출력이 자식 stdout JSON을 오염시키지 않는다 -----------
@@ -13,7 +13,7 @@ test('prepare run through the real launcher with npm writing to stdout → advan
   const os = require('node:os');
   const path = require('node:path');
   const { execFileSync } = require('node:child_process');
-  const { coordinate } = require('../scripts/lib/coordinator');
+  const { coordinate } = require('../packages/cli/dist/coordinator');
 
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-advance-npm-')));
   const savedPath = process.env.PATH;

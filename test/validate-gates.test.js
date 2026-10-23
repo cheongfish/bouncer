@@ -10,11 +10,11 @@ const {
   parseTasksSections,
   extractPathCandidates,
   validateBlueprint,
-} = require('../scripts/lib/validate');
-const { parseExplainSections } = require('../scripts/lib/validate-sections');
-const { findingFingerprint } = require('../scripts/lib/validate-sections');
-const { TEMPLATES } = require('../scripts/lib/templates');
-const { readDoc } = require('../scripts/lib/frontmatter');
+} = require('../packages/cli/dist/validate');
+const { parseExplainSections } = require('../packages/cli/dist/validate-sections');
+const { findingFingerprint } = require('../packages/cli/dist/validate-sections');
+const { TEMPLATES } = require('../packages/cli/dist/templates');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
 const { writeEpicRegistry, registerFixtureEpic } = require('./helpers/epic-registry');
 
 /**
@@ -55,7 +55,7 @@ function repairDecision(task, wave, terminal, pathName) {
 }
 
 test('partial-close gate → requires two waves, failure evidence, untracked plan, and confirmation', () => {
-  const { checkPartialCloseEvidence } = require('../scripts/lib/validate-gates');
+  const { checkPartialCloseEvidence } = require('../packages/cli/dist/validate-gates');
   const wave1 = repairDecision('003', 1, '002', 'src/a.js');
   const wave2 = repairDecision('004', 2, '002', 'src/b.js');
   const evidence = {
@@ -663,7 +663,7 @@ test('execute gate G14 stored target.snapshot_id → absent, valid and malformed
 
 // 입력 보정은 record/close 경계에만 있다. 자동 id 형식이어도 수기로 틀린 fingerprint는 게이트가 거절한다.
 test('자동 id 형식 finding에 수기로 틀린 fingerprint → G14를 내지 않는다', () => {
-  const { normalizeFinding } = require('../scripts/lib/validate-sections');
+  const { normalizeFinding } = require('../packages/cli/dist/validate-sections');
   const withoutId = (f) => {
     const copy = { ...f };
     delete copy.id;
@@ -1553,7 +1553,7 @@ function writeTaskDirExecuteFixture(repo, { verifyCommand = 'node -e "process.ex
 
 function setPointerTask(repo, taskRel) {
   const { execFileSync } = require('node:child_process');
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
   execFileSync('git', [
     '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
@@ -2238,7 +2238,7 @@ function docShapeG20(verify, { draft = false, repoRoot = DOC_SHAPE_REPO } = {}) 
   const failures = [];
   const docs = docShapeScoped(verify);
   if (draft) {
-    const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+    const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
     checkPlanDraft(docs, rels, failures, { repoRoot: undefined });
   } else {
     checkGate('plan', docs, rels, failures, { repoRoot });
@@ -2344,7 +2344,7 @@ test('plan gate verification_policy → absent stays legacy and an unknown value
 });
 
 test('checkPlanDraft with scoped_terminal → reports the same G20 as the plan gate', () => {
-  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
   const failures = [];
   checkPlanDraft(scopedPlanDocs([planTaskDoc('001', { status: 'draft' })]), rels, failures, {});
   assert.ok(failures.some((f) => f.code === 'G20' && /bouncer\.verify/.test(f.message)), JSON.stringify(failures));
@@ -2365,7 +2365,7 @@ function draftTaskDoc(nnn, extra = {}, body = READY_BODY) {
 }
 
 function draftCodes(docs) {
-  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
   const failures = [];
   checkPlanDraft(docs, rels, failures, {});
   return failures.map((f) => f.code);
@@ -2432,7 +2432,7 @@ function g32Exec({ object = 0, ancestor = 0 } = {}) {
 }
 
 function g32Run(kind, repo, git) {
-  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
   const failures = [];
   const ctx = { repoRoot: repo, blueprintDir: G32_SELF, deps: { exec: git.exec } };
   if (kind === 'draft') {
@@ -2466,7 +2466,7 @@ for (const kind of ['draft', 'plan']) {
 }
 
 test('G32 failure through the hint table → carries the prerequisite recovery next', () => {
-  const { withGateFailureHints } = require('../scripts/lib/validate');
+  const { withGateFailureHints } = require('../packages/cli/dist/validate');
   const res = withGateFailureHints({
     ok: false, failures: [{ code: 'G32', message: 'declared prerequisite is not ready: x', file: 'bp/index.md' }],
   });
@@ -3112,7 +3112,7 @@ test('plan gate when two commit→commit edges share no paths → one dag-disjoi
 });
 
 test('checkPlanDraft when a serial overlap chain exists → same dag-serial-overlap warning', () => {
-  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
   const warnings = [];
   const failures = [];
   checkPlanDraft(planDocsWithTasks(serialChain()), rels, failures, { warnings });
@@ -3257,7 +3257,7 @@ test('plan task of verification kind with security Touch → no warning', () => 
 });
 
 test('checkPlanDraft with security Touch and empty review_risk → same review-risk-missing warning', () => {
-  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
   const warnings = [];
   checkPlanDraft(planDocsWithTasks([
     planTaskDoc('001', { affected_paths: ['src/auth/login.ts'] }, securityBody(['src/auth/login.ts'])),
@@ -3274,7 +3274,7 @@ test('execute gate with security Touch and empty review_risk → no review-risk-
 });
 
 test('SECURITY_PATH_TOKENS → exports the fixed token list', () => {
-  const { SECURITY_PATH_TOKENS } = require('../scripts/lib/validate-gates');
+  const { SECURITY_PATH_TOKENS } = require('../packages/cli/dist/validate-gates');
   assert.deepStrictEqual(SECURITY_PATH_TOKENS, [
     'auth', 'login', 'session', 'token', 'credential', 'secret',
     'password', 'permission', 'acl', 'oauth', 'jwt',
@@ -3474,7 +3474,7 @@ test('blueprint review with findings not an array → G21', () => {
 });
 
 test('isBlockingReviewFailure with open-in-accepted, open must_fix, open must_fix (no id), non-array, status invalid, actionability invalid, actionability missing, severity-invalid messages → true ×7, false', () => {
-  const { isBlockingReviewFailure } = require('../scripts/lib/validate-gates-shared');
+  const { isBlockingReviewFailure } = require('../packages/cli/dist/validate-gates-shared');
   for (const message of [
     'review finding F-1 open in accepted review',
     'review accepted with open must_fix F-1',

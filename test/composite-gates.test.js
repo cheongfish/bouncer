@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   COMPOSITE_GATES, compositeGateForCode, compositeGateForReason, compositeGateLabel, summarizeCompositeGates,
-} = require('../scripts/lib/composite-gates');
+} = require('../packages/cli/dist/composite-gates');
 
 test('COMPOSITE_GATES when read → seven gates cover every live G-code and boundary reason once', () => {
   assert.deepStrictEqual(COMPOSITE_GATES.map((g) => g.gate), [
