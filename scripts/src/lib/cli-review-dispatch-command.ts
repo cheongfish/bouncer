@@ -297,7 +297,7 @@ function blueprintDeltaRefusal(parsed: ParsedExecute): string | null {
   }
   const contract = schema.reviewContractOf(bouncer);
   if (contract === 'brief') return null;
-  if (contract === null) return 'review-dispatch execute: review-contract-invalid: review_contract must be brief\n';
+  if (contract === null) return `review-dispatch execute: ${schema.REVIEW_CONTRACT_INVALID_MESSAGE}\n`;
   return DELTA_NEEDS_TASK;
 }
 

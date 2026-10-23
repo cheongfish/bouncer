@@ -33,6 +33,9 @@ const {
   readBouncerBlock, isBlueprintReviewModeAt, reviewContractAt, ensureIntegrationCwd, currentScopePaths,
   normalizeSupplementPath, porcelainPaths,
 } = coordinatorWorker;
+import schema = require('./schema');
+import reviewRepairState = require('./review-repair-state');
+const { hasReviewRepairDecision, reviewRoundExists } = reviewRepairState;
 
 // 실패 복구 계열(repair·supplement 완료·partial-close·critical-recovery)의 정본이다.
 // coordinator-commands가 이 모듈을 가져오고, 이 모듈은 coordinator-commands·coordinator를 가져오지 않아
@@ -231,36 +234,29 @@ function latestSupplementDecision(ledger: Ledger): SupplementDecision | undefine
 }
 
 /**
- * blueprint 루트 `review.md`에 delta 라운드가 이미 있는지 읽는다. review-record의
- * helper가 아니라 문서를 직접 읽는 것은 그 모듈이 허용 시퀀스를 소유하기 때문이다.
- * 문서가 없으면 아직 라운드가 없는 것으로 본다.
+ * blueprint root `review.md`에 주어진 mode의 라운드가 이미 있는지 strict 정책으로 읽는다.
+ * 문서 부재(ENOENT)만 "라운드 없음"으로 흡수한다. YAML 파손 같은 다른 실패를 없음으로 접으면
+ * 이미 끝난 리뷰에 repair·supplement가 다시 열리므로 오류는 올린다.
  *
  * @param {string} integrationPath - integration worktree
  * @param {string} blueprint - blueprint 상대 경로
- * @returns {boolean} `bouncer.review.rounds[].mode`에 delta가 있으면 true
+ * @param {'discovery' | 'delta'} mode - 찾을 라운드 mode
+ * @returns {boolean} 해당 mode 라운드가 있으면 true
  */
-function rootReviewHasDelta(integrationPath: string, blueprint: string): boolean {
-  let data: unknown;
-  try {
-    data = readDoc(path.join(integrationPath, blueprint, 'review.md')).data;
-  } catch (error) {
-    // 문서 부재(ENOENT)만 "라운드 없음"으로 흡수한다. YAML 파손 같은 다른 실패를
-    // 없음으로 접으면 delta를 이미 쓴 리뷰에 supplement가 한 번 더 열린다.
-    if ((error as { code?: string }).code === 'ENOENT') return false;
-    throw error;
-  }
-  const bouncer = (data as { bouncer?: { review?: { rounds?: unknown } } } | undefined)?.bouncer;
-  const rounds = bouncer?.review?.rounds;
-  return Array.isArray(rounds)
-    && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'delta');
+function rootReviewHasRound(integrationPath: string, blueprint: string, mode: 'discovery' | 'delta'): boolean {
+  return reviewRoundExists(
+    { file: path.join(integrationPath, blueprint, 'review.md'), error_policy: 'strict' }, mode,
+  );
 }
+
+const rootReviewHasDelta = (integrationPath: string, blueprint: string): boolean => (
+  rootReviewHasRound(integrationPath, blueprint, 'delta')
+);
 
 /**
  * blueprint 최종 리뷰가 이미 discovery 한 라운드를 저장했는지 본다. 최종 리뷰는 그 한
  * 라운드로 끝나므로, 저장된 뒤에는 리뷰 원인 repair·supplement가 원장과 task를 쓰기
- * 전에 거절돼야 한다. 리뷰 모드 blueprint의 root `review.md`만 대상으로 하며, 문서 부재
- * (ENOENT)만 "라운드 없음"으로 흡수한다. YAML 파손을 없음으로 접으면 이미 끝난 리뷰에
- * repair가 다시 열리므로 다른 오류는 올린다.
+ * 전에 거절돼야 한다. 리뷰 모드 blueprint의 root `review.md`만 대상으로 한다.
  *
  * @param {string} integrationPath - integration worktree
  * @param {string} blueprint - blueprint 상대 경로
@@ -268,31 +264,7 @@ function rootReviewHasDelta(integrationPath: string, blueprint: string): boolean
  */
 function finalReviewDiscoveryStored(integrationPath: string, blueprint: string): boolean {
   if (!isBlueprintReviewModeAt(integrationPath, blueprint)) return false;
-  let data: unknown;
-  try {
-    data = readDoc(path.join(integrationPath, blueprint, 'review.md')).data;
-  } catch (error) {
-    if ((error as { code?: string }).code === 'ENOENT') return false;
-    throw error;
-  }
-  const rounds = (data as { bouncer?: { review?: { rounds?: unknown } } } | undefined)
-    ?.bouncer?.review?.rounds;
-  return Array.isArray(rounds)
-    && rounds.some((round) => (round as { mode?: unknown } | null)?.mode === 'discovery');
-}
-
-/**
- * 원장에 리뷰 원인 repair decision(`kind: 'repair'`, `failure.command: 'review'`)이 이미 있는지 본다.
- * 표식 blueprint의 최종 리뷰는 이 repair를 한 번만 허용하므로, 두 번째 접수를 가르는 기준이다.
- *
- * @param {Ledger} ledger - 열린 원장
- * @returns {boolean} 리뷰 원인 repair decision이 있으면 true
- */
-function hasReviewRepairDecision(ledger: Ledger): boolean {
-  return (ledger.decisions || []).some((entry) => {
-    const item = entry as { kind?: unknown; failure?: { command?: unknown } } | null;
-    return item?.kind === 'repair' && item.failure?.command === 'review';
-  });
+  return rootReviewHasRound(integrationPath, blueprint, 'discovery');
 }
 
 /**
@@ -314,11 +286,11 @@ function finalReviewGate(opts: {
 }): { ok: false; reason: string } | null {
   const { integrationPath, blueprint, ledger, supplement, newPaths } = opts;
   const contract = reviewContractAt(integrationPath, blueprint);
-  if (contract === null) return { ok: false, reason: 'review-contract-invalid' };
+  if (contract === null) return { ok: false, reason: schema.REVIEW_CONTRACT_INVALID_REASON };
   if (!finalReviewDiscoveryStored(integrationPath, blueprint)) return null;
   // supplement는 표식과 무관하게 discovery 뒤에 닫힌다. 수정 기회는 repair 한 번뿐이다.
   if (contract !== 'brief' || supplement) return { ok: false, reason: 'final-review-single-round' };
-  if (hasReviewRepairDecision(ledger) || rootReviewHasDelta(integrationPath, blueprint)) {
+  if (hasReviewRepairDecision(ledger.decisions) || rootReviewHasDelta(integrationPath, blueprint)) {
     return { ok: false, reason: 'final-review-single-round' };
   }
   // 새 경로는 승인된 affected_paths 밖이다. 최종 리뷰의 수정 1회는 승인 범위 안에서만 열린다.
@@ -1489,7 +1461,7 @@ function coordinateCriticalRecovery(ctx: RepairTaskCtx, support: RepairSupport):
  * 새 reason을 finalReviewGate에 추가하면 이 목록에도 넣어야 문서 표 검사가 따라온다.
  */
 const FINAL_REVIEW_REJECTION_REASONS: readonly string[] = Object.freeze([
-  'review-contract-invalid', 'final-review-single-round', 'final-review-repair-scope',
+  schema.REVIEW_CONTRACT_INVALID_REASON, 'final-review-single-round', 'final-review-repair-scope',
 ]);
 
 export = {

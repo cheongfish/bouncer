@@ -52,8 +52,8 @@ type RecordReviewResult = RecordReviewOk | RecordReviewFail;
 /** review_contract가 허용 밖 값일 때의 공통 거절. record와 accept-risk가 같은 답을 낸다. */
 function contractInvalid(): RecordReviewFail {
   return fail(
-    'review-contract-invalid',
-    'review_contract must be brief',
+    schema.REVIEW_CONTRACT_INVALID_REASON,
+    schema.REVIEW_CONTRACT_INVALID_CAUSE,
     'fix review_contract in the blueprint index.md (brief or omit it), then retry',
   );
 }

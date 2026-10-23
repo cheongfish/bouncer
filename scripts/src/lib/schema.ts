@@ -93,6 +93,12 @@ function verificationPolicyOf(bouncer: unknown): 'scoped_terminal' | 'legacy' | 
 // 없으므로 부재를 새 계약으로 읽지 않는다. plan 구조 해시에는 넣지 않는다.
 const REVIEW_CONTRACT_ENUM = ['brief'];
 
+// 표식이 허용 밖 값일 때의 거절 상수 정본. 분류기·coordinator·CLI가 같은 reason과 문구를 쓰도록
+// 여기 둔다. CLI는 분류기를 적재하기 전에 거절하므로 review-dispatch가 아니라 schema에서 가져와야 한다.
+const REVIEW_CONTRACT_INVALID_REASON = 'review-contract-invalid';
+const REVIEW_CONTRACT_INVALID_CAUSE = 'review_contract must be brief';
+const REVIEW_CONTRACT_INVALID_MESSAGE = `${REVIEW_CONTRACT_INVALID_REASON}: ${REVIEW_CONTRACT_INVALID_CAUSE}`;
+
 // 표식(review_contract: brief) blueprint의 plan 리뷰 관점. review-dispatch plan이 내는 값과
 // context-review가 round를 대조하는 기준이 같은 정본을 보도록 여기 둔다. full은 4관점 병렬,
 // light는 verifiability 하나다.
@@ -279,7 +285,8 @@ export = {
   LEGACY_GUIDANCE, detectLegacyFormat,
   BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
   VERIFICATION_POLICY_ENUM, verificationPolicyOf,
-  REVIEW_CONTRACT_ENUM, reviewContractOf, planReviewContractOf,
+  REVIEW_CONTRACT_ENUM, REVIEW_CONTRACT_INVALID_REASON, REVIEW_CONTRACT_INVALID_CAUSE,
+  REVIEW_CONTRACT_INVALID_MESSAGE, reviewContractOf, planReviewContractOf,
   PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,

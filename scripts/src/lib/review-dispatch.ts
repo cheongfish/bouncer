@@ -48,7 +48,7 @@ const { REVIEW_RISK_ENUM } = reviewPolicy;
 const BRIEF_SECURITY_RISKS = ['authentication', 'authorization', 'credential'];
 
 // 표식이 허용 밖 값일 때 dispatch가 legacy로 접지 않고 내는 거절 메시지. CLI도 같은 문구를 쓴다.
-const REVIEW_CONTRACT_INVALID = 'review-contract-invalid: review_contract must be brief';
+const REVIEW_CONTRACT_INVALID = schema.REVIEW_CONTRACT_INVALID_MESSAGE;
 
 type ExecFileSyncFn = (
   file: string,

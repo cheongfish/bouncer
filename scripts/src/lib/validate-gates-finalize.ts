@@ -123,7 +123,7 @@ function checkG21(
     ? (docs.blueprintIndex.data as Record<string, unknown>).bouncer
     : undefined;
   const reviewContract = reviewContractOf(blueprintBouncer);
-  if (reviewContract === null) add('review-contract-invalid: review_contract must be brief');
+  if (reviewContract === null) add(schema.REVIEW_CONTRACT_INVALID_MESSAGE);
   for (const message of collectFindingFailures({
     body: reviewDoc.body,
     findings: reviewMeta && reviewMeta.findings,
