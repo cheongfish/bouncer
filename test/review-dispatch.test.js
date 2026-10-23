@@ -447,6 +447,39 @@ test('plan with a perspectives previous payload → accepts it and reports a fol
   assert.strictEqual(again.follow_up, 'partial');
 });
 
+test('legacy blueprint with a non single/clustered previous strategy → returns the legacy rejection object', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  for (const strategy of ['perspectives', 'bogus']) {
+    const result = classifyPlanReview({
+      repoRoot: repo, blueprintDir: BP_REL, previous: { ...previousPayload(first), strategy },
+    });
+    assert.deepStrictEqual(result, {
+      ok: false,
+      reason: 'previous-payload-invalid',
+      cause: 'previous strategy must be single or clustered',
+      next: 'pass the unmodified JSON that review-dispatch plan printed for this blueprint',
+    }, strategy);
+  }
+});
+
+test('review_contract brief blueprint with a bogus previous strategy → keeps the three-strategy cause', () => {
+  for (const scale of ['full', 'light']) {
+    const repo = makeRepo();
+    writePlanTree(repo, { scale, tasks: ['001'], reviewContract: 'brief' });
+    const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+    const result = classifyPlanReview({
+      repoRoot: repo, blueprintDir: BP_REL, previous: { ...previousPayload(first), strategy: 'bogus' },
+    });
+    assert.strictEqual(result.reason, 'previous-payload-invalid', scale);
+    assert.strictEqual(result.cause, 'previous strategy must be single, clustered or perspectives', scale);
+    const ok = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: first });
+    assert.strictEqual(ok.ok, true, scale);
+    assert.strictEqual(ok.strategy, 'perspectives', scale);
+  }
+});
+
 test('plan with review_contract other → rejects with review-contract-invalid', () => {
   for (const scale of ['full', 'light']) {
     const repo = makeRepo();

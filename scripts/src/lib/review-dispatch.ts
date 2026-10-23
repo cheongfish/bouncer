@@ -345,16 +345,26 @@ function previousFail(reason: string, cause: string, next: string): PreviousFail
  * 내는 single/clustered/perspectives 성공 결과만 통과하며, 일부 필드만 골라 만든 축소본은 거절한다.
  *
  * @param {unknown} previous - --previous로 받은 JSON
+ * 표식 없는(legacy) blueprint는 perspectives 전략이 없던 시절의 계약이므로, 잘못된 전략에
+ * 구형 cause를 그대로 돌려준다. 복구 안내를 읽는 기존 호출자가 문구에 의존하기 때문이다.
+ *
+ * @param {unknown} previous - --previous로 받은 JSON
  * @param {string} bp - 현재 blueprint 상대 POSIX 경로
+ * @param {'brief' | 'legacy'} contract - blueprint의 plan 리뷰 계약 표식 해석 결과
  * @returns {PreviousFail | null} 형식 위반이면 invalid 실패, 정상이면 null
  */
-function checkPreviousShape(previous: unknown, bp: string): PreviousFail | null {
+function checkPreviousShape(previous: unknown, bp: string, contract: 'brief' | 'legacy'): PreviousFail | null {
   const next = 'pass the unmodified JSON that review-dispatch plan printed for this blueprint';
   const bad = (cause: string) => previousFail('previous-payload-invalid', cause, next);
   if (!isRecord(previous) || previous.ok !== true || previous.phase !== 'plan') {
     return bad('previous is not a successful plan payload');
   }
-  if (previous.strategy !== 'single' && previous.strategy !== 'clustered' && previous.strategy !== 'perspectives') {
+  if (contract === 'legacy') {
+    if (previous.strategy !== 'single' && previous.strategy !== 'clustered') {
+      return bad('previous strategy must be single or clustered');
+    }
+  } else if (previous.strategy !== 'single' && previous.strategy !== 'clustered'
+    && previous.strategy !== 'perspectives') {
     return bad('previous strategy must be single, clustered or perspectives');
   }
   const target = previous.target;
@@ -460,9 +470,15 @@ function checkPreviousContent(
  * @param {string} repoRoot - 저장소 루트
  * @param {string} bp - blueprint 상대 POSIX 경로
  * @param {unknown} previous - --previous로 받은 JSON(없으면 undefined)
+ * @param {'brief' | 'legacy'} contract - blueprint의 plan 리뷰 계약 표식 해석 결과
  * @returns {PreviousFail | null} 거절 사유, 통과하면 null
  */
-function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): PreviousFail | null {
+function checkPreviousBinding(
+  repoRoot: string,
+  bp: string,
+  previous: unknown,
+  contract: 'brief' | 'legacy',
+): PreviousFail | null {
   const recover = 'restore the stored payload from the cycle (latest_dispatch) and pass it as --previous';
 
   // 1. cycle state와 latest_dispatch 저장본은 context-review-state의 읽기 전용 helper로 읽는다.
@@ -493,7 +509,7 @@ function checkPreviousBinding(repoRoot: string, bp: string, previous: unknown): 
     return previousFail('previous-payload-required',
       'this blueprint already has review evidence, so a follow-up needs the recorded previous payload', recover);
   }
-  const shape = checkPreviousShape(previous, bp);
+  const shape = checkPreviousShape(previous, bp, contract);
   if (shape) return shape;
 
   // 3a. legacy: 마지막 round가 인증한 digest와 previous digest가 같아야 한다.
@@ -616,12 +632,12 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
   // 없으므로 깨진 previous로 skip 경로를 막지 않는다. single/clustered만 본다.
   // 저장된 리뷰 증거가 있으면 previous가 필수이고 latest_dispatch와 같아야 한다:
   // 누락을 최초(full)로 해석하면 후속 리뷰가 전체 리뷰로 되돌아 반복 한도가 무력해진다.
-  const bound = checkPreviousBinding(repoRoot, bp, previous);
+  const bound = checkPreviousBinding(repoRoot, bp, previous, contract);
   if (bound) return bound;
   let previousSnap: PreviousSnapshot = null;
   if (previous !== undefined) {
     // 증거 없는 최초 상태에서 준 previous도 같은 엄격한 모양이어야 한다.
-    const shape = checkPreviousShape(previous, bp);
+    const shape = checkPreviousShape(previous, bp, contract);
     if (shape) return shape;
     const prev = previous as Record<string, unknown>;
     previousSnap = prev.snapshot_version === undefined

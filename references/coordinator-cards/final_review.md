@@ -42,8 +42,9 @@ and Procedure step 6 (Close).
   `final-review-single-round`). In a blueprint with `review_contract: brief`
   (full blueprints only) the perspectives are `spec_scope` and
   `correctness_tests`, plus `security` only when `review_risk` has
-  `authentication`, `authorization`, or `credential`, and one repair and one
-  delta follow (see the marked flow below).
+  `authentication`, `authorization`, or `credential` (a legacy blueprint appends
+  `security` for any non-empty `review_risk`), and one repair and one delta
+  follow (see the marked flow below).
 - Give each reviewer every commit task brief (Goal & intent, Current behavior,
   Target behavior, Interface, Touch, Do not touch, Constraints, Checklist; an
   absent optional behavior section is omitted) and the blueprint Contract.
@@ -70,8 +71,9 @@ and Procedure step 6 (Close).
   approved paths, no `newPaths`); terminal re-verification; then `coordinate
   next` returns a delta `final_review` (`--mode delta`, `combined`, one
   reviewer); record it `accepted`, or `final-review-blocked` when a finding
-  remains. There is no second repair: report `final-review-repair-scope` and
-  `final-review-single-round` as blocked. Record `advisory` findings
+  remains. There is no second repair: it is refused as `final-review-single-round`
+  (`final-review-repair-scope` only when the first repair declares `newPaths`);
+  report the refusal as blocked. Record `advisory` findings
   `accepted`, or `deferred` with a `note`, and carry them as warnings in the
   final report. A marker problem surfaces as `review-contract-invalid`.
 - Legacy blueprint (no `review_contract: brief`): classify every finding after

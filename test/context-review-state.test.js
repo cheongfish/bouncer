@@ -1837,7 +1837,38 @@ test('표식 없는 blueprint에 perspectives dispatch → start가 target-inval
   const out = start(repo, markedDispatch(repo));
   assert.equal(out.code, 1);
   assert.equal(out.json.reason, 'context-review-target-invalid');
-  assert.equal(out.json.cause, 'perspectives dispatch requires review_contract brief');
+  assert.deepStrictEqual(out.json, {
+    ok: false,
+    reason: 'context-review-target-invalid',
+    cause: 'strategy perspectives has no context review',
+    next: 'rerun review-dispatch plan --blueprint <dir> and pass its JSON',
+  });
+  assert.equal(findState(repo), null);
+});
+
+test('표식 blueprint의 dispatch 관점 목록 순서·중복·누락·추가 변조 → start가 target-invalid로 거부한다', () => {
+  const tampered = {
+    reordered: ['scope_minimality', 'consistency', 'verifiability', 'risk_security'],
+    duplicated: ['consistency', 'consistency', 'verifiability', 'risk_security'],
+    missing: FULL_NAMES.slice(0, 3),
+    extra: [...FULL_NAMES, 'combined'],
+  };
+  for (const [label, names] of Object.entries(tampered)) {
+    const repo = makeRepo({ marked: true });
+    const out = start(repo, markedDispatch(repo, 'pd.json', names));
+    assert.equal(out.code, 1, label);
+    assert.equal(out.json.reason, 'context-review-target-invalid', label);
+    assert.equal(out.json.cause, `dispatch perspectives differ from ${FULL_NAMES.join(',')}`, label);
+    assert.equal(findState(repo), null, label);
+  }
+});
+
+test('표식 light blueprint의 dispatch 관점 목록 변조 → start가 target-invalid로 거부한다', () => {
+  const repo = makeRepo({ marked: true, scale: 'light' });
+  const out = start(repo, markedDispatch(repo, 'pd.json', ['verifiability', 'verifiability']));
+  assert.equal(out.json.reason, 'context-review-target-invalid');
+  assert.equal(out.json.cause, 'dispatch perspectives differ from verifiability');
+  assert.equal(findState(repo), null);
 });
 
 test('표식 blueprint에 single dispatch → start·record·restart·route가 각각 target-invalid로 거부한다', () => {

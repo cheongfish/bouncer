@@ -38,7 +38,15 @@ bouncer:
 16. `review_contract: brief` blueprint의 최종 리뷰 record는 `brief_clause`가 브리프 조항 참조(`tasks/<NNN> <브리프 섹션>` 또는 `Contract`로 시작)가 아닌 `must_fix` finding과 `deferred` `must_fix`가 남은 accepted 문서를 거절한다.
 17. `review_contract`가 없는 blueprint와 이미 저장된 단일 라운드 root `review.md`는 개편 전과 같은 관점·거절·G21 판정을 받는다.
 
+18. R-M3·R-A7·R-A8 범위에서 구형 계획 리뷰 거절 응답 복구의 task 수용 기준과 전용 검증을 만족한다.
+19. R-M1·R-A1·R-A2 범위에서 최종 리뷰 거절 코드 문서 검사 추가의 task 수용 기준과 전용 검증을 만족한다.
+20. R-A3·R-A4·R-A6 범위에서 리뷰 수정 상태 판독과 거절 상수 통합의 task 수용 기준과 전용 검증을 만족한다.
+21. R-A5·R-A10 범위에서 리뷰 분류의 단일 읽기와 계약별 계산 분리의 task 수용 기준과 전용 검증을 만족한다.
+22. R-A9·R-A11 범위에서 계획 리뷰 관점과 delta 기준의 정본 통합의 task 수용 기준과 전용 검증을 만족한다.
+23. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
+
 ## Out of scope
+- 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
 - gate가 나오는 계획 문서 형식 → `plan-workflow`
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
@@ -65,3 +73,5 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [doc-quality-gate-removal](blueprints/doc-quality-gate-removal/index.md) — plan gate의 문서 품질 코드(G10–G12·G18·G22·G25–G31)와 G14·G21 형식 메시지를 `validate-gates-*`에서 삭제하고 플러그인 문서를 맞춘다.
 - [composite-gate-output](blueprints/composite-gate-output/index.md) — `validate` 실패를 복합 gate 7개(`gates[]`)로 요약하고 commit·coordinator·hook의 경계 거절 reason에 같은 gate 이름을 붙인다.
 - [final-review-brief-compliance](blueprints/final-review-brief-compliance/index.md) — `review_contract: brief` blueprint의 최종 리뷰를 브리프 이행 판정 2관점으로 줄이고, 브리프 위반에 한해 리뷰 원인 repair 1회와 delta 1회를 `review-record`·`coordinator-repair`·`coordinate-next`에 허용한다.
+- [drive-review-compatibility](blueprints/drive-review-compatibility/index.md) — 리뷰 거절 응답 호환성과 설명 계약 복구; R-M1·R-M3·R-A1·R-A2·R-A7·R-A8 처리.
+- [review-contract-deduplication](blueprints/review-contract-deduplication/index.md) — 리뷰 계약 판정의 중복 제거; R-A3·R-A4·R-A5·R-A6·R-A9·R-A10·R-A11 처리.

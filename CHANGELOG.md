@@ -9,6 +9,10 @@
 
 ### Added
 
+- **최종 리뷰 거절 코드 문서 검사** — `rules/cli.md`의 `coordinate repair` 거절 표(Condition·Reason)를
+  `coordinator-repair`가 export한 지원 reason 목록과 `npm run lint:docs`가 대조한다. 알 수 없는 코드나 빠진
+  필수 행은 파일·코드와 함께 실패한다. 아울러 `rules/cli.md`와 final_review 카드의 legacy/brief 설명
+  (두 번째 repair는 `final-review-single-round`만, security·accepted 차이)을 코드에 맞춰 바로잡았다.
 - **`coordinate note` CLI와 coordinator 인계 절차** — `bouncer coordinate note --text <text> [--task <ddd>]`를
   fence 명령으로 등록하고 help·`rules/cli.md`에 추가했다. coordinator는 `continue`·`blocked`를 돌려주기 전에
   다음 세션에 넘길 판단을 note로 남기고, 세션 시작 시 checkpoint의 `notes`를 읽는다.
