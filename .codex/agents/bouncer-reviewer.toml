@@ -158,6 +158,7 @@ place” acceptance.
 The execute gate runs `npm run ci`, which runs these commands in order:
 
 - `npm run check:emit`
+- `npm run check:versions`
 - `npm run test:coverage`
 - `npm run test:unit`
 - `npm run lint`
