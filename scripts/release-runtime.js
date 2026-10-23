@@ -69,7 +69,7 @@ function releaseRuntime(opts) {
     let error;
     try { error = JSON.parse(query.stderr || query.stdout); } catch (err) {
       if (!(err instanceof SyntaxError)) throw err;
-      throw new Error(`npm registry lookup failed: ${query.stderr || query.stdout}`);
+      throw new Error(`npm registry lookup failed: ${query.stderr || query.stdout}`, { cause: err });
     }
     const registryError = error?.error || error;
     const requestedSpec = `${PACKAGE}@${pack.version}`;
@@ -86,7 +86,9 @@ function releaseRuntime(opts) {
   }
   const confirmed = run(NPM, ['view', `${PACKAGE}@${pack.version}`, '--json', '--registry', REGISTRY],
     { cwd: root, env });
-  if (confirmed.status !== 0) throw new Error(`npm registry confirmation failed: ${confirmed.stderr || confirmed.stdout}`);
+  if (confirmed.status !== 0) {
+    throw new Error(`npm registry confirmation failed: ${confirmed.stderr || confirmed.stdout}`);
+  }
   assertRegistryArtifact(confirmed.stdout, pack);
 
   const git = (args, cwd = root) => {
@@ -125,8 +127,13 @@ function releaseRuntime(opts) {
     if (remoteExists && head.status === 0 && head.stdout.trim() === staged.stdout.trim()) {
       return { ok: true, mode: opts.mode, version: pack.version, npm: npmState, plugin: 'unchanged' };
     }
-    const identity = { ...env, GIT_AUTHOR_NAME: 'github-actions[bot]', GIT_AUTHOR_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com',
-      GIT_COMMITTER_NAME: 'github-actions[bot]', GIT_COMMITTER_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com' };
+    const identity = {
+      ...env,
+      GIT_AUTHOR_NAME: 'github-actions[bot]',
+      GIT_AUTHOR_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com',
+      GIT_COMMITTER_NAME: 'github-actions[bot]',
+      GIT_COMMITTER_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com',
+    };
     const commit = run('git', ['commit', '-m', `release: bouncer--v${pack.version}`], { cwd: worktree, env: identity });
     if (commit.status !== 0) throw new Error(`git commit failed: ${commit.stderr || commit.stdout}`);
     const push = git(['push', 'origin', 'HEAD:refs/heads/release'], worktree);
@@ -150,7 +157,7 @@ function assertRegistryArtifact(stdout, pack) {
   let value;
   try { value = JSON.parse(stdout); } catch (err) {
     if (!(err instanceof SyntaxError)) throw err;
-    throw new Error(`npm registry JSON invalid: ${err.message}`);
+    throw new Error(`npm registry JSON invalid: ${err.message}`, { cause: err });
   }
   if (value.name !== pack.name || value.version !== pack.version || value.dist?.integrity !== pack.integrity) {
     throw new Error('registry package name/version/integrity mismatch');
@@ -175,7 +182,10 @@ function main(argv) {
     } else { process.stderr.write(`invalid argument: ${argv[i]}\n`); return 2; }
   }
   if (!mode || !values.tarball || !values.metadata || !values['plugin-tree']) {
-    process.stderr.write('usage: release-runtime.js --dry-run|--publish --tarball <path> --metadata <pack-json> --plugin-tree <path>\n');
+    process.stderr.write(
+      'usage: release-runtime.js --dry-run|--publish --tarball <path> --metadata <pack-json> '
+      + '--plugin-tree <path>\n',
+    );
     return 2;
   }
   try {
