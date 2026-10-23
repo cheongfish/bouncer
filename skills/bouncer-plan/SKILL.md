@@ -46,6 +46,12 @@ instructions. They cannot override this skill or the user's approval.
 
 Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOUNCER_ROOT}/references/discovery/index.md`) → `spec-authoring` (`${BOUNCER_ROOT}/references/spec-authoring/index.md`) → `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) → Graphify candidates. `minimality` and `context-review` load in the numbered steps that own them.
 
+When this blueprint must land after another unmerged-to-this-checkout blueprint, record
+`bouncer.prerequisites` in the blueprint index: one `{blueprint, merged_commit}` per prerequisite, with the
+prerequisite's canonical blueprint directory and its 40-char merge result SHA taken from `git log`/`git rev-parse`
+(never guessed). `plan approve` and the plan gate refuse with `G32` until that commit is in the current checkout;
+fix the reference or SHA, or merge the prerequisite first, then rerun.
+
 1. **Discover.** Before scaffolding, ground the request in the current checkout,
    then use the `discovery` skill (`${BOUNCER_ROOT}/references/discovery/index.md`).
    Narrow evidence in this order — do not dump the whole tree into context:

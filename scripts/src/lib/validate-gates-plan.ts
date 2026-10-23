@@ -15,6 +15,8 @@ import type {
   BlueprintDocs, BlueprintRels, FailureEntry, GateContext, GateStageCtx,
 } from './validate-gates-shared';
 import type { DocLeaf } from './validate-docs';
+import planPrerequisites = require('./plan-prerequisites');
+const { checkPrerequisites } = planPrerequisites;
 
 // 체인 경고 기준: 인접 edge의 경로 중첩률이 이 값 이상이면 "같은 파일을 이어서
 // 만지는" 직렬 구간으로 본다. 0.5는 한쪽 경로의 절반 이상이 겹친다는 뜻이다.
@@ -413,6 +415,48 @@ function checkScopedTerminalPolicy(
   }
 }
 
+// G32 복구 안내. gate hint(validate.ts)와 approvePlan이 같은 문장을 써야 두 경로의 next가 갈라지지 않는다.
+const PREREQUISITE_NEXT = 'Fix the missing blueprint reference or the merge result SHA in `bouncer.prerequisites`, '
+  + 'or bring the prerequisite merge into this checkout (merge or rebase onto it), then rerun the check.';
+
+/**
+ * 선언된 선행 blueprint가 준비되지 않은 항목을 G32 실패로 바꾼다.
+ * draft·정식 plan gate·approvePlan이 같은 함수를 불러야 세 경로가 서로 다른 답을 내지 않는다.
+ * 형식 오류(S39)는 구조 검사 몫이라 여기서 다시 내지 않는다. 선언이 없으면 Git을 부르지 않고 빈 배열이다.
+ * Git 조회 오류·object 부재는 통과로 접지 않고 원인을 구분해 실패로 보고한다.
+ *
+ * @param {object} args - 인자 묶음
+ * @param {string} args.repoRoot - 저장소 루트 절대 경로
+ * @param {string} args.blueprintDir - 저장소 상대 blueprint 디렉터리
+ * @param {string} args.file - 실패에 붙일 blueprint index 상대 경로
+ * @param {GitExec} [args.exec] - Git 실행 seam. 없으면 plan-prerequisites의 기본 실행기
+ * @returns {FailureEntry[]} 준비되지 않은 선행마다 한 건의 G32. 모두 준비됐거나 선언이 없으면 빈 배열
+ */
+function planPrerequisiteFailures({ repoRoot, blueprintDir, file, exec }: {
+  repoRoot: string;
+  blueprintDir: string;
+  file: string;
+  exec?: (args: string[]) => { status: number; stdout: string };
+}): FailureEntry[] {
+  const report = checkPrerequisites({ repoRoot, blueprintDir, exec });
+  const failures: FailureEntry[] = [];
+  const add = (detail: string): void => {
+    failures.push({ code: 'G32', message: `declared prerequisite is not ready: ${detail}`, file });
+  };
+  for (const entry of report.entries) {
+    if (!entry.blueprintFound) add(`${entry.blueprint} has no index.md`);
+    if (entry.commitState === 'object-missing') {
+      add(`${entry.blueprint} merge result ${entry.merged_commit} is not in this repository`);
+    } else if (entry.commitState === 'unmerged') {
+      add(`${entry.blueprint} merge result ${entry.merged_commit} is not an ancestor of the current checkout`);
+    } else if (entry.commitState === 'lookup-error') {
+      add(`${entry.blueprint} merge result ${entry.merged_commit} could not be checked (git lookup failed)`);
+    }
+  }
+  for (const cycle of report.cycles) add(`prerequisite cycle ${cycle.join(' -> ')}`);
+  return failures;
+}
+
 /**
  * plan gate 판정. G 코드·메시지·순서는 분리 전과 같다. 단계 선택만 진입점에 남긴다.
  *
@@ -472,7 +516,13 @@ function checkPlanGate(stage: GateStageCtx): void {
   }
   checkVerificationTaskGraph(tasksList, failures);
   checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
-  return;
+  // repoRoot 없이 부른 단위 호출은 선행 선언을 읽을 위치가 없어 건너뛴다(선언 없는 기존 경로와 같다).
+  if (stage.repoRoot && stage.blueprintDir) {
+    failures.push(...planPrerequisiteFailures({
+      repoRoot: stage.repoRoot, blueprintDir: stage.blueprintDir, file: rels.blueprintIndex,
+      exec: stage.deps && stage.deps.exec,
+    }));
+  }
 }
 
 /**
@@ -599,7 +649,7 @@ function checkTaskScope(
 
 /**
  * context review 전 계획 draft에 status 무관 plan 검사만 돌린다.
- * task마다 G5를 적용한 뒤 G19·G20 graph 검사를 이어 붙인다.
+ * task마다 G5를 적용한 뒤 G19·G20 graph 검사를 이어 붙이고, ctx에 repoRoot·blueprintDir가 있으면 G32도 낸다.
  * G1·G2·G3은 approved/ready status를 요구해 draft에서 항상 실패하므로 넣지 않는다.
  *
  * @param {BlueprintDocs} docs - 로드된 blueprint 문서 묶음
@@ -630,6 +680,13 @@ function checkPlanDraft(
   if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   checkVerificationTaskGraph(tasksList, failures);
   checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures);
+  // 정식 gate·approvePlan과 같은 helper를 쓴다. repoRoot가 없으면 선언을 읽을 수 없어 건너뛴다.
+  if (ctx.repoRoot && ctx.blueprintDir) {
+    failures.push(...planPrerequisiteFailures({
+      repoRoot: ctx.repoRoot, blueprintDir: ctx.blueprintDir, file: rels.blueprintIndex,
+      exec: ctx.deps && ctx.deps.exec,
+    }));
+  }
 }
 
-export { checkPlanGate, checkPlanDraft, SECURITY_PATH_TOKENS };
+export { checkPlanGate, checkPlanDraft, planPrerequisiteFailures, PREREQUISITE_NEXT, SECURITY_PATH_TOKENS };

@@ -29,6 +29,8 @@ import config = require('./config');
 const { readVerifyPolicy } = config;
 import validateGates = require('./validate-gates');
 const { checkGate, checkPlanDraft } = validateGates;
+import validateGatesPlan = require('./validate-gates-plan');
+const { PREREQUISITE_NEXT } = validateGatesPlan;
 import validateSections = require('./validate-sections');
 const {
   parseTasksSections, parseSections, extractPathCandidates,
@@ -80,6 +82,10 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     match: /approved scope changed after activation/,
     next: 'If the change is intended, get the user\'s explicit approval, then run '
       + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
+  },
+  {
+    code: 'G32',
+    next: PREREQUISITE_NEXT,
   },
   {
     code: 'S32',
@@ -443,7 +449,7 @@ function validateBlueprint({
     // 이 시점 failures는 S 코드뿐이다(S18은 위에서 이미 반환). S가 있으면 draft
     // 검사를 건너뛰어 한 결과에 S와 G가 섞이지 않게 한다.
     if (failures.length > 0) return withGateFailureHints({ ok: false, failures });
-    checkPlanDraft(docs, rels, failures, { warnings });
+    checkPlanDraft(docs, rels, failures, { warnings, repoRoot, blueprintDir, deps });
   } else if (gate) {
     // execute·commit 모두 포인터 task 단위만 본다(G6–G8).
     const taskUnit = (gate === 'execute' || gate === 'commit')

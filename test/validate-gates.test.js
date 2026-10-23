@@ -2296,6 +2296,77 @@ test('checkPlanDraft → reports G5, G19, G20 without status codes', () => {
   }
 });
 
+// G32 fixture: 선행 선언을 가진 blueprint index만 있는 임시 저장소와 호출을 기록하는 Git seam.
+const G32_SELF = '.bouncer/context/epics/e/blueprints/self';
+const G32_PRE = '.bouncer/context/epics/e/blueprints/earlier';
+const G32_SHA = 'c'.repeat(40);
+
+function g32Repo({ declare = true, preExists = true } = {}) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g32-'));
+  const write = (dir, lines) => {
+    fs.mkdirSync(path.join(repo, dir), { recursive: true });
+    fs.writeFileSync(path.join(repo, dir, 'index.md'), `---\nbouncer:\n  status: approved\n${lines}---\n# x\n`);
+  };
+  const decl = declare
+    ? `  prerequisites:\n    - blueprint: ${G32_PRE}\n      merged_commit: ${G32_SHA}\n` : '';
+  write(G32_SELF, decl);
+  if (preExists) write(G32_PRE, '');
+  return repo;
+}
+
+function g32Exec({ object = 0, ancestor = 0 } = {}) {
+  const calls = [];
+  const exec = (args) => {
+    calls.push(args);
+    const status = args[0] === 'rev-parse' ? object : ancestor;
+    return { status, stdout: '', stderr: '' };
+  };
+  return { exec, calls };
+}
+
+function g32Run(kind, repo, git) {
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const failures = [];
+  const ctx = { repoRoot: repo, blueprintDir: G32_SELF, deps: { exec: git.exec } };
+  if (kind === 'draft') {
+    checkPlanDraft(draftPlanDocs([draftTaskDoc('001')]), rels, failures, ctx);
+  } else {
+    checkGate('plan', planDocsWithTasks([planTaskDoc('001', { status: 'ready' })]), rels, failures, ctx);
+  }
+  return failures.filter((f) => f.code === 'G32');
+}
+
+for (const kind of ['draft', 'plan']) {
+  test(`${kind} with a prerequisite merge result outside the checkout → G32 on the blueprint index`, () => {
+    const out = g32Run(kind, g32Repo(), g32Exec({ ancestor: 1 }));
+    assert.strictEqual(out.length, 1);
+    assert.strictEqual(out[0].file, rels.blueprintIndex);
+    assert.ok(out[0].message.includes(G32_PRE) && out[0].message.includes(G32_SHA));
+  });
+
+  test(`${kind} with a missing prerequisite blueprint or git lookup error → G32 per cause`, () => {
+    assert.strictEqual(g32Run(kind, g32Repo({ preExists: false }), g32Exec()).length, 1);
+    assert.strictEqual(g32Run(kind, g32Repo(), g32Exec({ object: 1 })).length, 1);
+    assert.strictEqual(g32Run(kind, g32Repo(), g32Exec({ ancestor: 128 })).length, 1);
+  });
+
+  test(`${kind} with a merged prerequisite or no declaration → no G32 and no git call without declaration`, () => {
+    assert.deepStrictEqual(g32Run(kind, g32Repo(), g32Exec()), []);
+    const git = g32Exec({ ancestor: 1 });
+    assert.deepStrictEqual(g32Run(kind, g32Repo({ declare: false }), git), []);
+    assert.deepStrictEqual(git.calls, []);
+  });
+}
+
+test('G32 failure through the hint table → carries the prerequisite recovery next', () => {
+  const { withGateFailureHints } = require('../scripts/lib/validate');
+  const res = withGateFailureHints({
+    ok: false, failures: [{ code: 'G32', message: 'declared prerequisite is not ready: x', file: 'bp/index.md' }],
+  });
+  assert.ok(res.failures[0].next.includes('bouncer.prerequisites'));
+  assert.deepStrictEqual(res.gates.map((g) => g.gate), ['freshness-approval']);
+});
+
 test('plan gate → keeps per-task failure order G3 then task checks', () => {
   const docs = planDocsWithTasks([
     planTaskDoc('001', { status: 'draft', affected_paths: [] }),

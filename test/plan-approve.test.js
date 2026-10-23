@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 const { readDoc } = require('../scripts/lib/frontmatter');
@@ -25,11 +26,14 @@ function writeDoc(repo, rel, bouncer, extra = {}) {
 }
 
 // 기본 픽스처: 모두 draft, full, context-review accepted.
-function makeRepo({ scale, contextReview = 'accepted', epic = 'draft', t2 = 'draft', reviewContract } = {}) {
+function makeRepo({
+  scale, contextReview = 'accepted', epic = 'draft', t2 = 'draft', reviewContract, prerequisites,
+} = {}) {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-approve-')));
   writeDoc(repo, EPIC_REL, { status: epic });
   writeDoc(repo, BP_REL, {
     status: 'draft', ...(scale ? { scale } : {}), ...(reviewContract ? { review_contract: reviewContract } : {}),
+    ...(prerequisites ? { prerequisites } : {}),
   });
   if (contextReview) writeDoc(repo, CR_REL, { status: contextReview });
   writeDoc(repo, T1_REL, { status: 'draft', execution_kind: 'commit' });
@@ -351,4 +355,52 @@ test('epic은 slug이고 blueprint 디렉터리는 번호 접두 → plan-approv
   const r = approve(repo, `${SLUG_EPIC}/blueprints/001-registry-gates`);
   assert.strictEqual(r.code, 1);
   assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-target');
+});
+
+// 선행 병합 판정은 실제 git이 필요한 통합 시나리오다: 저장소를 git init하고 commit 하나를 만든다.
+function gitInit(repo) {
+  const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+  git('init', '-q');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'base');
+  return git('rev-parse', 'HEAD');
+}
+
+const PRE_REL = `${EPIC}/blueprints/002-pre/index.md`;
+
+test('선행 병합 commit이 현재 checkout에 없음 → plan-approve-prerequisite G32, 모든 파일 바이트·status 불변', () => {
+  const repo = makeRepo({ prerequisites: [{ blueprint: `${EPIC}/blueprints/002-pre`, merged_commit: 'a'.repeat(40) }] });
+  writeDoc(repo, PRE_REL, { status: 'approved' });
+  gitInit(repo);
+  const before = snapshot(repo);
+  const r = approve(repo);
+  assert.strictEqual(r.code, 1);
+  const res = JSON.parse(r.out);
+  assert.strictEqual(res.reason, 'plan-approve-prerequisite');
+  assert.ok(res.cause.some((c) => c.startsWith('G32 ') && c.includes('002-pre')));
+  assert.ok(res.next.includes('prerequisites'));
+  assert.deepEqual(snapshot(repo), before);
+  assert.strictEqual(statusOf(repo, BP_REL), 'draft');
+});
+
+test('선행 blueprint 문서 부재 → plan-approve-prerequisite, 모든 파일 바이트 불변', () => {
+  const repo = makeRepo({ prerequisites: [{ blueprint: `${EPIC}/blueprints/002-pre`, merged_commit: 'a'.repeat(40) }] });
+  const head = gitInit(repo);
+  fs.writeFileSync(path.join(repo, BP_REL), fs.readFileSync(path.join(repo, BP_REL), 'utf8').replace('a'.repeat(40), head));
+  const before = snapshot(repo);
+  const r = approve(repo);
+  assert.strictEqual(r.code, 1);
+  assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-prerequisite');
+  assert.deepEqual(snapshot(repo), before);
+});
+
+test('선행 병합 commit이 현재 HEAD의 조상 → 전이 성공', () => {
+  const repo = makeRepo();
+  writeDoc(repo, PRE_REL, { status: 'approved' });
+  const head = gitInit(repo);
+  writeDoc(repo, BP_REL, {
+    status: 'draft', prerequisites: [{ blueprint: `${EPIC}/blueprints/002-pre`, merged_commit: head }],
+  });
+  const r = approve(repo);
+  assert.strictEqual(r.code, 0, r.out);
+  assert.strictEqual(statusOf(repo, BP_REL), 'approved');
 });
