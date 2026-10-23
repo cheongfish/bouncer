@@ -190,8 +190,8 @@ type CompatResult = {
 };
 
 function packageRootFromDist(): string {
-  // 런타임 자산은 package files allowlist에 들어가므로 dist 기준 두 단계 위를 읽는다.
-  return path.join(__dirname, '..', '..');
+  // 런타임 자산(resources, package.json)은 packages/cli 아래에 있으므로 dist 기준 한 단계 위를 읽는다.
+  return path.join(__dirname, '..');
 }
 
 function defaultManifestPath(): string {
