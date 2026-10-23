@@ -64,7 +64,8 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 없어도 `graph-sync`의 `graphs[]`는 언제나 source·test 두 항목을
 보고합니다 — 미설정·무효 test 항목은 `action: skip-unconfigured`로 남고
 빌드·`missing`·SessionStart 경고 대상이 아닙니다. 빌드되는 그래프 수와
-보고되는 스코프 수가 다를 수 있습니다. 키가 있으면 문자열 배열이어야 하고,
+보고되는 스코프 수가 다를 수 있습니다. SessionStart 훅이 stderr에 쓰는 경고는 `bouncer graph-sync` JSON의
+`warnings` 필드(문자열 배열, 끝 개행 포함)와 같은 문구입니다. 키가 있으면 문자열 배열이어야 하고,
 절대 경로나 `..` 탈출이 있으면 그 값을 적용하지 않으며 `graph-sync` 결과의
 `skips`에 사유가 실립니다. `exclude_dirs`가 비어 있거나 없으면 JavaScript
 경로를 생성물로 추측해 지우지 않습니다 — `scripts/lib` 같은 생성 경로는

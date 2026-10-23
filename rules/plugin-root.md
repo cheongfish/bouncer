@@ -14,6 +14,12 @@ highest strict-semver version (then absolute path). `bouncer-root --select`
 prints numbered candidates and requires a TTY; `--host claude`, `--host codex`,
 or `--host antigravity` limits the search. `BOUNCER_HOME=/absolute/plugin/root`
 is a one-shot manual override and is validated before any candidate search.
+Reading plugin assets resolves in this order: `BOUNCER_HOME`, then the running
+runtime's own tree (when it passes validation), then host candidates. `bouncer-root --auto`
+keeps its order above. A valid root must contain the required assets (`agents/`,
+`skills/`, `rules/`, `references/`, `hooks/`, `AGENTS.md`). Pure commands
+(`commit-guard`, `current`, `project-root`, `validate`, `verify`, `graph-sync`) do
+not resolve a root, so they neither validate nor use `BOUNCER_HOME`.
 
 The launcher never infers a host from `BOUNCER_HOME`, does not search the cwd,
 and does not fall back to arbitrary home-directory scans. Provider selection is
@@ -26,8 +32,9 @@ freshness checks are rooted there; never substitute plugin root or an execute
 worktree cwd. When this repository dogfoods the plugin, plugin root and project
 root may be the same path — that is a normal input, not a special case.
 
-Hooks resolve independently from workflow launcher shells; they do not transmit
-plugin-root variables to those shells. Cursor hooks use relative paths.
+Hooks resolve independently from workflow launcher shells. A hook passes its own
+plugin root as `BOUNCER_HOME` to the child `bouncer` it spawns only; it does not
+transmit plugin-root variables to workflow shells.
 
 ## Master and product rules
 

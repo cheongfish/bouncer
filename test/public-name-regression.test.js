@@ -181,19 +181,12 @@ const INTERNAL_EXEC_PATTERNS = [
   /node\s+[^\n]*scripts\/bouncer\b/,
 ];
 
-// TASKS-001·002가 hooks/ 정리 때 지울 임시 허용 목록. 파일 경로와 줄 내용을 정확히
-// 일치시키며 디렉터리 전체는 면제하지 않는다.
-const INTERNAL_EXEC_TEMP_ALLOW = new Set([
-  "hooks/session-graph.js\tconst { syncSessionGraphs, graphSyncWarnings } = require('../scripts/lib/session-graph');",
-]);
-
 test('hooks·rules·skills·references·agents → 내부 경로를 실행하는 예시가 없다', () => {
   const offenders = [];
   for (const file of activeFiles()) {
     if (!/^(hooks|rules|skills|references|agents)\//.test(file) || !/\.(md|js)$/.test(file)) continue;
     for (const line of read(file).split('\n')) {
       if (!INTERNAL_EXEC_PATTERNS.some((re) => re.test(line))) continue;
-      if (INTERNAL_EXEC_TEMP_ALLOW.has(`${file}\t${line.trim()}`)) continue;
       offenders.push(`${file}: ${line.trim()}`);
     }
   }
