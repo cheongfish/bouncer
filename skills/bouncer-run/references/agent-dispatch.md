@@ -127,7 +127,7 @@ another task's data. Write it as UTF-8 to the assigned task worktree at
 `{payload_file, payload_sha256, cwd}`: a relative path, the lowercase 64-hex
 SHA-256 of the final file bytes, and the actual worktree cwd. The fallback still
 carries the full role body verbatim; the Cursor print `--input` file under
-`references/coordinator-cards/implement.md` follows the same hash and full-read
+`${BOUNCER_ROOT}/references/coordinator-cards/implement.md` follows the same hash and full-read
 duty.
 
 The receiver reads the file from its cwd, checks the SHA-256 of the bytes, and
