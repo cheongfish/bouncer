@@ -404,3 +404,38 @@ test('선행 병합 commit이 현재 HEAD의 조상 → 전이 성공', () => {
   assert.strictEqual(r.code, 0, r.out);
   assert.strictEqual(statusOf(repo, BP_REL), 'approved');
 });
+
+// 형식 오류 선언은 entries에서 빠지는 입력이라 G32 경로로는 잡히지 않는다. approvePlan이 formatIssues를
+// S39로 거절하고 어떤 문서도 쓰지 않는지, 주입 writeFile 호출 수와 문서 원문 Buffer로 관찰한다.
+const { approvePlan } = require('../scripts/lib/plan-approve');
+
+const PRE_DIR = `${EPIC}/blueprints/002-pre`;
+const FORMAT_CASES = {
+  'HEAD 문자열': [{ blueprint: PRE_DIR, merged_commit: 'HEAD' }],
+  '짧은 SHA': [{ blueprint: PRE_DIR, merged_commit: 'abc1234' }],
+  '자기참조': [{ blueprint: BP, merged_commit: 'a'.repeat(40) }],
+  '비정규 경로': [{ blueprint: `${PRE_DIR}/`, merged_commit: 'a'.repeat(40) }],
+  '추가 키': [{ blueprint: PRE_DIR, merged_commit: 'a'.repeat(40), note: 'x' }],
+  '중복 선언': [
+    { blueprint: PRE_DIR, merged_commit: 'a'.repeat(40) },
+    { blueprint: PRE_DIR, merged_commit: 'b'.repeat(40) },
+  ],
+};
+
+for (const [name, prerequisites] of Object.entries(FORMAT_CASES)) {
+  test(`선행 선언이 ${name} → plan-approve-prerequisite S39, 쓰기 0회, 모든 문서 Buffer 불변`, () => {
+    const repo = makeRepo({ prerequisites });
+    writeDoc(repo, PRE_REL, { status: 'approved' });
+    const rels = [EPIC_REL, BP_REL, CR_REL, T1_REL, T2_REL];
+    const before = rels.map((rel) => fs.readFileSync(path.join(repo, rel)));
+    let writes = 0;
+    // 모든 Git 조회를 "병합됨"으로 답해, 형식 거절이 없으면 승인이 통과하도록 둔다.
+    const exec = () => ({ status: 0, stdout: '' });
+    const r = approvePlan({ repoRoot: repo, blueprintDir: BP, deps: { writeFile: () => { writes += 1; }, exec } });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.reason, 'plan-approve-prerequisite');
+    assert.ok(r.cause.some((c) => c.startsWith('S39 ')), r.cause.join('\n'));
+    assert.strictEqual(writes, 0);
+    rels.forEach((rel, i) => assert.ok(before[i].equals(fs.readFileSync(path.join(repo, rel))), rel));
+  });
+}
