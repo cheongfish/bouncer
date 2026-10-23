@@ -531,3 +531,22 @@ test('agentsDir seam absent with an invalid BOUNCER_HOME → is plugin-root-unre
     fs.rmSync(tree.root, { recursive: true, force: true });
   }
 });
+
+test('agentsDir seam absent with a plugin version mismatch → keeps print failure and recovery message', () => {
+  const tree = makeTree();
+  const pluginRoot = makeFixturePluginRoot();
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.5.0' }));
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const result = runPrintWithDefaultAssets(tree);
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'plugin-root-unresolved');
+      assert.match(result.cause, /1\.5\.0/);
+      assert.match(result.cause, /1\.6\.0/);
+      assert.equal(result.next, 'set BOUNCER_HOME to the plugin install and retry');
+    });
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
+});

@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { runBouncerRoot } = require('../packages/cli/dist/bouncer-root');
-const { findPluginCandidates, resolvePluginAssetRoot } = require('../packages/cli/dist/plugin-root');
+const { findPluginCandidates, resolvePluginAssetRoot, resolvePluginRoot } = require('../packages/cli/dist/plugin-root');
 const repoPackage = path.join(__dirname, '..', 'packages', 'cli');
 const launcher = path.join(repoPackage, 'bin', 'bouncer');
 const repoScripts = path.join(repoPackage, 'bin');
@@ -23,15 +23,19 @@ function writeAssets(root) {
   fs.writeFileSync(path.join(root, 'AGENTS.md'), '# fixture\n');
 }
 
-function fixture(home, host, version, marketplace = 'chunjae-tools', metadata = 'plugin.json') {
+function fixture(home, host, version, marketplace = 'chunjae-tools', metadata = 'plugin.json', launcher = true) {
   const root = host === 'claude' || host === 'codex'
     ? path.join(home, `.${host}`, 'plugins', 'cache', marketplace, 'bouncer', version)
     : host === 'cursor'
       ? path.join(home, '.cursor', 'plugins', 'local', 'bouncer')
       : path.join(home, '.gemini', 'antigravity-ide', 'plugins', 'bouncer');
-  fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+  fs.mkdirSync(root, { recursive: true });
+  if (metadata.includes('/')) fs.mkdirSync(path.dirname(path.join(root, metadata)), { recursive: true });
   fs.writeFileSync(path.join(root, metadata), JSON.stringify({ name: 'bouncer', version }));
-  fs.writeFileSync(path.join(root, 'scripts', 'bouncer'), '#!/usr/bin/env node\n');
+  if (launcher) {
+    fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'scripts', 'bouncer'), '#!/usr/bin/env node\n');
+  }
   writeAssets(root);
   return root;
 }
@@ -52,15 +56,15 @@ function capture(argv, options) {
 
 test('BOUNCER_HOME, --host candidates, and all candidates → BOUNCER_HOME wins over --host, which wins over all', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
-  const codex = fixture(home, 'codex', '9.0.0');
-  const claude = fixture(home, 'claude', '1.0.0');
-  const override = fixture(home, 'antigravity', '2.0.0');
+  const codex = fixture(home, 'codex', '1.6.0');
+  const claude = fixture(home, 'claude', '1.6.0');
+  const override = fixture(home, 'antigravity', '1.6.0');
   assert.strictEqual(capture(['--host', 'claude'], { homeDir: home }).out, `${claude}\n`);
   assert.strictEqual(
     capture(['--host', 'claude'], { homeDir: home, env: { BOUNCER_HOME: override } }).out,
     `${override}\n`,
   );
-  assert.strictEqual(capture([], { homeDir: home }).out, `${codex}\n`);
+  assert.strictEqual(capture([], { homeDir: home }).out, `${[codex, claude, override].sort()[0]}\n`);
 });
 
 test('auto sorting → is strict semver descending then absolute path ascending', () => {
@@ -69,28 +73,56 @@ test('auto sorting → is strict semver descending then absolute path ascending'
   fixture(home, 'codex', '1.2.4');
   fixture(home, 'claude', 'not-semver');
   const codex = path.join(home, '.codex', 'plugins', 'cache', 'chunjae-tools', 'bouncer', '1.2.4');
-  assert.strictEqual(capture([], { homeDir: home }).out, `${codex}\n`);
-  assert.strictEqual(capture(['--host', 'claude'], { homeDir: home }).out, `${first}\n`);
+  assert.strictEqual(findPluginCandidates({ homeDir: home })[0].path, codex);
+  assert.strictEqual(findPluginCandidates({ homeDir: home }, 'claude')[0].path, first);
 });
 
 test('strict semver ordering with large numeric identifiers → does not lose precision', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   const newer = fixture(home, 'claude', '9007199254740993.0.0', 'z-marketplace');
   fixture(home, 'codex', '9007199254740992.0.0', 'a-marketplace');
-  assert.strictEqual(capture([], { homeDir: home }).out, `${newer}\n`);
+  assert.strictEqual(findPluginCandidates({ homeDir: home })[0].path, newer);
 });
 
-test('package metadata → is an accepted name/version source and participates in ordering', () => {
+test('package-only metadata → is rejected while host plugin manifest is accepted', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
   const packageCandidate = fixture(home, 'claude', '3.0.0', 'package-only', 'package.json');
-  fixture(home, 'codex', '2.0.0');
-  assert.strictEqual(capture([], { homeDir: home }).out, `${packageCandidate}\n`);
+  const hostManifest = fixture(home, 'codex', '1.6.0', 'host-manifest', '.codex-plugin/plugin.json');
+  assert.deepStrictEqual(findPluginCandidates({ homeDir: home }).map((candidate) => candidate.path), [hostManifest]);
+  assert.ok(fs.existsSync(packageCandidate));
+});
+
+test('asset-only matching plugin → resolves without a launcher and checks the runtime version', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-only-'));
+  const root = fixture(home, 'claude', '1.6.0', 'assets', 'plugin.json', false);
+  assert.strictEqual(resolvePluginAssetRoot({ env: { BOUNCER_HOME: root }, runtimeVersion: '1.6.0' }), root);
+});
+
+test('selected latest plugin with a different version → throws an identifiable mismatch without fallback', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-version-mismatch-'));
+  fixture(home, 'claude', '1.5.0', 'matching');
+  const latest = fixture(home, 'claude', '1.7.0', 'latest');
+  assert.throws(
+    () => resolvePluginRoot({ homeDir: home, env: {}, runtimeVersion: '1.6.0' }),
+    (error) => error.code === 'BOUNCER_PLUGIN_VERSION_MISMATCH'
+      && error.message.includes('1.7.0')
+      && error.message.includes('1.6.0')
+      && error.message.includes('matching npm runtime'),
+  );
+  const selected = capture(['--select'], {
+    homeDir: home,
+    isTTY: true,
+    readInput: () => '1',
+  });
+  assert.strictEqual(selected.code, 1);
+  assert.match(selected.err, /does not match runtime version/);
+  assert.ok(latest);
 });
 
 test('--select with non-TTY input or a TTY → rejects non-TTY input and selects the numbered candidate on a TTY', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
-  fixture(home, 'claude', '2.0.0');
-  const second = fixture(home, 'codex', '1.0.0');
+  fixture(home, 'claude', '1.6.0');
+  const second = fixture(home, 'codex', '1.6.0');
   const blocked = capture(['--select'], { homeDir: home, isTTY: false });
   assert.strictEqual(blocked.code, 1);
   assert.match(blocked.err, /TTY/);
@@ -107,7 +139,7 @@ test('--host with unsupported Cursor → rejects it', () => {
 
 test('CLI defaults → cover stdout, stderr, stdin selection, and selection errors', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
-  const candidate = fixture(home, 'claude', '1.0.0');
+  const candidate = fixture(home, 'claude', '1.6.0');
   const writes = [];
   const originalOut = process.stdout.write;
   const originalErr = process.stderr.write;
@@ -234,7 +266,7 @@ test('bouncer with lib/cli.js missing on the self-exec path → prints build gui
     recursive: true,
     filter: (src) => path.basename(src) !== 'cli.js',
   });
-  fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '9.9.9' }));
+  fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
   writeAssets(tmp);
   const res = spawnSync(process.execPath, [path.join(binDir, 'bouncer'), '--help'], {
     encoding: 'utf8',
@@ -257,6 +289,8 @@ function devCheckoutFixture(stamp) {
   const binDir = path.join(packageRoot, 'bin');
   fs.mkdirSync(path.join(packageRoot, 'src'), { recursive: true });
   fs.mkdirSync(binDir, { recursive: true });
+  // src 제거 뒤 dist/plugin-root.js가 런타임 version을 읽을 수 있도록 package metadata도 복사한다.
+  fs.copyFileSync(path.join(repoPackage, 'package.json'), path.join(packageRoot, 'package.json'));
   fs.writeFileSync(path.join(packageRoot, 'src', 'x.ts'), 'export const x = 1;\n');
   fs.writeFileSync(path.join(packageRoot, 'tsconfig.json'), '{}');
   for (const name of ['bouncer', 'bouncer-root', 'build-stamp.js']) {
@@ -268,7 +302,7 @@ function devCheckoutFixture(stamp) {
   fs.cpSync(path.join(repoPackage, 'vendor'), path.join(packageRoot, 'vendor'), { recursive: true });
   fs.rmSync(path.join(packageRoot, 'dist', '.build-stamp'), { force: true });
   if (stamp !== null) fs.writeFileSync(path.join(packageRoot, 'dist', '.build-stamp'), stamp);
-  fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '9.9.9' }));
+  fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
   writeAssets(tmp);
   return tmp;
 }
@@ -314,32 +348,23 @@ test('candidate missing a required asset → is excluded from findPluginCandidat
   assert.deepStrictEqual(findPluginCandidates({ homeDir: home }).map((c) => c.path), [full]);
 });
 
-test('resolvePluginAssetRoot with BOUNCER_HOME, runtimeRoot, and host candidates → prefers them in that order', () => {
+test('resolvePluginAssetRoot with BOUNCER_HOME and host candidates → prefers HOME and otherwise host', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-root-'));
-  const installed = fixture(home, 'claude', '1.0.0');
-  // 런타임 트리는 호스트 후보 탐색 범위 밖의 별도 홈에 둔다. 같은 홈에 두면 후보로도 잡혀 순서를 구분할 수 없다.
-  const runtime = fixture(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-runtime-')), 'claude', '2.0.0');
+  const installed = fixture(home, 'claude', '1.6.0', 'host', 'plugin.json', false);
   const override = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-home-'));
-  fs.writeFileSync(path.join(override, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '3.0.0' }));
-  fs.mkdirSync(path.join(override, 'scripts'));
-  fs.writeFileSync(path.join(override, 'scripts', 'bouncer'), '');
+  fs.writeFileSync(path.join(override, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
   writeAssets(override);
   assert.strictEqual(
-    resolvePluginAssetRoot({ env: { BOUNCER_HOME: override }, homeDir: home, runtimeRoot: runtime }),
+    resolvePluginAssetRoot({ env: { BOUNCER_HOME: override }, homeDir: home }),
     override,
   );
-  assert.strictEqual(resolvePluginAssetRoot({ env: {}, homeDir: home, runtimeRoot: runtime }), runtime);
-  assert.strictEqual(
-    resolvePluginAssetRoot({ env: {}, homeDir: home, runtimeRoot: path.join(home, 'missing') }),
-    installed,
-  );
+  assert.strictEqual(resolvePluginAssetRoot({ env: {}, homeDir: home }), installed);
 });
 
 test('resolvePluginAssetRoot with an invalid BOUNCER_HOME → throws without falling back', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-bad-home-'));
-  const runtime = fixture(home, 'claude', '1.0.0');
   assert.throws(
-    () => resolvePluginAssetRoot({ env: { BOUNCER_HOME: path.join(home, 'nope') }, homeDir: home, runtimeRoot: runtime }),
+    () => resolvePluginAssetRoot({ env: { BOUNCER_HOME: path.join(home, 'nope') }, homeDir: home }),
     { message: 'BOUNCER_HOME is not a valid Bouncer plugin root' },
   );
 });
@@ -347,8 +372,8 @@ test('resolvePluginAssetRoot with an invalid BOUNCER_HOME → throws without fal
 test('resolvePluginAssetRoot with no valid root at any step → throws the plugin-assets message', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-none-'));
   assert.throws(
-    () => resolvePluginAssetRoot({ env: {}, homeDir: home, runtimeRoot: path.join(home, 'missing') }),
-    { message: 'no valid Bouncer plugin root for plugin assets; set BOUNCER_HOME to the plugin install' },
+    () => resolvePluginAssetRoot({ env: {}, homeDir: home }),
+    { message: 'no valid Bouncer plugin roots found' },
   );
 });
 

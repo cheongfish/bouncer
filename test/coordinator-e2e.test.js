@@ -16,6 +16,15 @@ const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
 const { loadLedger } = require('../packages/cli/dist/coordinator-ledger');
 const { coordinate } = require('./helpers/coordinator-fence');
 
+function withBouncerHome(fn) {
+  const previous = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = path.join(__dirname, '..');
+  try { return fn(); } finally {
+    if (previous === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = previous;
+  }
+}
+
 const { readDoc } = require('../packages/cli/dist/frontmatter');
 const { renderDoc } = require('../packages/cli/dist/render');
 const { validateBlueprint } = require('../packages/cli/dist/validate');
@@ -1429,18 +1438,18 @@ test('light single-task drive → worker worktree 없이 integration에서 prepa
   assert.strictEqual(prepared.tasks[0].workerPath, integrationPath);
   assert.strictEqual(fs.existsSync(path.join(integrationPath, '..', 'workers')), false);
 
-  const implement = coordinateNext({
+  const implement = withBouncerHome(() => coordinateNext({
     repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
-  });
+  }));
   assert.strictEqual(implement.ok, true, JSON.stringify(implement));
   // dispatch 전이면 dispatch가 먼저다 — dispatch 후 implement inline을 본다.
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
-  const inline = coordinateNext({
+  const inline = withBouncerHome(() => coordinateNext({
     repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
-  });
+  }));
   assert.strictEqual(inline.action, 'implement');
   assert.strictEqual(inline.payload.inline, true);
   assert.strictEqual(inline.cwd, integrationPath);

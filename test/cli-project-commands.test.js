@@ -54,6 +54,15 @@ function capture(argv) {
   return { code, ...buf };
 }
 
+function withBouncerHome(fn) {
+  const previous = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = path.join(__dirname, '..');
+  try { return fn(); } finally {
+    if (previous === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = previous;
+  }
+}
+
 test('tracked active sources → contain no retired Distill public surface', () => {
   // 과거 context 기록은 계약 대상이 아니다. 추적된 실행·배포 source와 예제 설정만
   // 검사해, 역사 문서의 언급 때문에 재도입 방지 검사가 흔들리지 않게 한다.
@@ -1467,10 +1476,9 @@ test('subagent-model without --agent or with an unknown name → exits 2', () =>
 
 test('codex-agents check when in sync → reports in_sync JSON and does not write', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-check-'));
-  assert.strictEqual(
-    capture(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents']).code,
-    0,
-  );
+  assert.strictEqual(withBouncerHome(() => capture([
+    'init', '--repo', repo, '--no-graphify', '--seed-codex-agents',
+  ])).code, 0);
   const rel = '.codex/agents/bouncer-implementer.toml';
   const before = fs.readFileSync(path.join(repo, rel));
   const result = capture([
