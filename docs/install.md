@@ -128,8 +128,11 @@ git clone -b release <사내-git-url> ./bouncer-release
 올리지 않습니다. 커밋 가드는
 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
 밖 파일이 staged면 셸 실행을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
-**판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다. 훅은 상대 경로를
-쓰므로 아래 `BOUNCER_HOME`과 무관합니다.
+**판정이 같은 공개 명령**(`bouncer commit-guard`)입니다. 두 commit 훅과 SessionStart
+그래프 훅(`bouncer graph-sync`)은 내부 모듈을 읽지 않고 PATH의 `bouncer`
+또는 `BOUNCER_BIN`(절대 경로)을 호출하며, 자기 플러그인 루트를 `BOUNCER_HOME`으로
+자식 `bouncer`에 넘깁니다. 런타임이 없으면 commit 훅은 commit을 막고(fail-closed)
+SessionStart 훅은 경고만 내고 세션을 막지 않습니다.
 
 Cursor 설치 경로는 `bouncer-root --auto`의 지원 후보가 아닙니다. Cursor에서
 워크플로를 실행하려면 실제 플러그인 루트를 한 번 지정하세요.
@@ -139,7 +142,9 @@ export BOUNCER_HOME=/absolute/path/to/bouncer
 bouncer-root --auto
 ```
 
-`BOUNCER_HOME`은 그 셸의 launcher 호출에만 쓰이는 검증된 루트 오버라이드입니다.
+`BOUNCER_HOME`은 그 셸의 launcher 호출과 훅이 띄우는 `bouncer`에 쓰이는 검증된 루트
+오버라이드입니다. 순수 명령(`commit-guard`, `current`, `project-root`, `validate`,
+`verify`, `graph-sync`)은 루트를 해석하지 않으므로 이 값을 보지 않습니다.
 Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하세요. 이는
 루트 해석과 별개의 설정입니다.
 

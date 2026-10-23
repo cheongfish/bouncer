@@ -7,6 +7,8 @@ import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 import layout = require('./layout');
 const { CODEX_AGENTS_DIR } = layout;
+import pluginRoot = require('./plugin-root');
+const { resolvePluginAssetRoot } = pluginRoot;
 
 const NAMED_AGENTS = [
   'bouncer-reviewer',
@@ -25,10 +27,11 @@ const GENERATED_MARKER = '# bouncer-generated';
  * 플러그인 루트의 `agents/` 절대 경로를 돌려준다. print 디스패치와 Codex
  * 시드가 같은 기준을 써야 역할 문서와 TOML 소스가 갈라지지 않는다.
  *
- * @returns {string} `scripts/lib`에서 두 단계 위의 `agents/`
+ * @returns {string} 검증된 자산 루트(`resolvePluginAssetRoot`) 아래의 `agents/`
+ * @throws 자산 루트를 해석하지 못하면 resolver의 Error를 그대로 던진다
  */
 function pluginAgentsDir(): string {
-  return path.join(__dirname, '..', '..', 'agents');
+  return path.join(resolvePluginAssetRoot(), 'agents');
 }
 
 /**
@@ -167,7 +170,19 @@ function ensureCodexAgents({
   created: string[];
   agentsDir?: string;
 }): void {
-  const srcDir = agentsDir ?? pluginAgentsDir();
+  let srcDir: string;
+  if (agentsDir !== undefined) {
+    srcDir = agentsDir;
+  } else {
+    try {
+      srcDir = pluginAgentsDir();
+    } catch (error) {
+      // resolver가 던지는 Error(무효 BOUNCER_HOME, 유효 루트 없음)만 흡수한다. 자산이 없으면
+      // 아래 existsSync 분기처럼 시드를 건너뛰는 것이 원래 계약이다. 그 외는 다시 던진다.
+      if (!(error instanceof Error)) throw error;
+      return;
+    }
+  }
   if (!fs.existsSync(srcDir)) return;
   const destDir = path.join(repoRoot, CODEX_AGENTS_DIR);
   for (const name of NAMED_AGENTS) {

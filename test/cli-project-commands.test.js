@@ -161,6 +161,15 @@ test('graph-sync with an incompatible version → records version-incompatible w
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
 });
 
+test('graph-sync → JSON carries a warnings array', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-sync-warnings-'));
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/workflow.md'), '# custom\n');
+  const payload = JSON.parse(capture(['graph-sync', '--repo', repo]).out);
+  assert.ok(Array.isArray(payload.warnings));
+  assert.ok(payload.warnings.length > 0);
+});
+
 function intentGit(repo, args, extraEnv = {}) {
   return execFileSync('git', args, {
     cwd: repo,

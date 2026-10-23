@@ -6,8 +6,21 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { runBouncerRoot } = require('../scripts/lib/bouncer-root');
+const { findPluginCandidates, resolvePluginAssetRoot } = require('../scripts/lib/plugin-root');
 const launcher = path.join(__dirname, '..', 'scripts', 'bouncer');
 const repoScripts = path.join(__dirname, '..', 'scripts');
+
+/**
+ * 후보 검증이 요구하는 필수 자산 여섯 개(디렉터리 다섯 + AGENTS.md)를 root 아래에 만든다.
+ *
+ * @param {string} root - fixture 플러그인 루트
+ */
+function writeAssets(root) {
+  for (const dir of ['agents', 'skills', 'rules', 'references', 'hooks']) {
+    fs.mkdirSync(path.join(root, dir), { recursive: true });
+  }
+  fs.writeFileSync(path.join(root, 'AGENTS.md'), '# fixture\n');
+}
 
 function fixture(home, host, version, marketplace = 'chunjae-tools', metadata = 'plugin.json') {
   const root = host === 'claude' || host === 'codex'
@@ -18,6 +31,7 @@ function fixture(home, host, version, marketplace = 'chunjae-tools', metadata = 
   fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
   fs.writeFileSync(path.join(root, metadata), JSON.stringify({ name: 'bouncer', version }));
   fs.writeFileSync(path.join(root, 'scripts', 'bouncer'), '#!/usr/bin/env node\n');
+  writeAssets(root);
   return root;
 }
 
@@ -150,10 +164,10 @@ function runLauncherFixture(args, fixture, input = '') {
 test('bouncer with a selected installed plugin → delegates with args and streams intact', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-launcher-'));
   const fixture = launcherFixture(home, 'delegated stderr', 23);
-  const result = runLauncherFixture(['project-root', '--repo', '/tmp/example'], fixture, 'delegated stdin');
+  const result = runLauncherFixture(['plan', 'inspect', '--repo', '/tmp/example'], fixture, 'delegated stdin');
   assert.strictEqual(result.status, 23);
   assert.deepStrictEqual(JSON.parse(result.stdout), {
-    args: ['project-root', '--repo', '/tmp/example'],
+    args: ['plan', 'inspect', '--repo', '/tmp/example'],
     input: 'delegated stdin',
   });
   assert.strictEqual(result.stderr, 'delegated stderr');
@@ -199,6 +213,7 @@ test('bouncer-root with scripts/lib missing → prints build guidance', () => {
   fs.mkdirSync(scriptsDir, { recursive: true });
   fs.copyFileSync(path.join(repoScripts, 'bouncer'), path.join(scriptsDir, 'bouncer'));
   fs.copyFileSync(path.join(repoScripts, 'bouncer-root'), path.join(scriptsDir, 'bouncer-root'));
+  writeAssets(tmp);
   const res = spawnSync(process.execPath, [path.join(scriptsDir, 'bouncer-root'), '--auto'], {
     encoding: 'utf8',
     env: isolatedLauncherEnv(tmp),
@@ -220,6 +235,7 @@ test('bouncer with lib/cli.js missing on the self-exec path → prints build gui
     filter: (src) => path.basename(src) !== 'cli.js',
   });
   fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '9.9.9' }));
+  writeAssets(tmp);
   const res = spawnSync(process.execPath, [path.join(scriptsDir, 'bouncer'), '--help'], {
     encoding: 'utf8',
     env: isolatedLauncherEnv(tmp),
@@ -251,6 +267,7 @@ function devCheckoutFixture(stamp) {
   fs.rmSync(path.join(scriptsDir, 'lib', '.build-stamp'), { force: true });
   if (stamp !== null) fs.writeFileSync(path.join(scriptsDir, 'lib', '.build-stamp'), stamp);
   fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '9.9.9' }));
+  writeAssets(tmp);
   return tmp;
 }
 
@@ -283,4 +300,90 @@ test('bouncer-root on a checkout without scripts/src → skips the freshness che
   });
   assert.strictEqual(res.status, 0);
   assert.strictEqual(res.stdout.trim(), tmp);
+});
+
+test('candidate missing a required asset → is excluded from findPluginCandidates', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-assets-'));
+  const full = fixture(home, 'claude', '1.0.0', 'full');
+  const partial = fixture(home, 'claude', '2.0.0', 'partial');
+  fs.rmSync(path.join(partial, 'hooks'), { recursive: true });
+  const noAgentsDoc = fixture(home, 'codex', '3.0.0');
+  fs.rmSync(path.join(noAgentsDoc, 'AGENTS.md'));
+  assert.deepStrictEqual(findPluginCandidates({ homeDir: home }).map((c) => c.path), [full]);
+});
+
+test('resolvePluginAssetRoot with BOUNCER_HOME, runtimeRoot, and host candidates → prefers them in that order', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-root-'));
+  const installed = fixture(home, 'claude', '1.0.0');
+  // 런타임 트리는 호스트 후보 탐색 범위 밖의 별도 홈에 둔다. 같은 홈에 두면 후보로도 잡혀 순서를 구분할 수 없다.
+  const runtime = fixture(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-runtime-')), 'claude', '2.0.0');
+  const override = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-home-'));
+  fs.writeFileSync(path.join(override, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '3.0.0' }));
+  fs.mkdirSync(path.join(override, 'scripts'));
+  fs.writeFileSync(path.join(override, 'scripts', 'bouncer'), '');
+  writeAssets(override);
+  assert.strictEqual(
+    resolvePluginAssetRoot({ env: { BOUNCER_HOME: override }, homeDir: home, runtimeRoot: runtime }),
+    override,
+  );
+  assert.strictEqual(resolvePluginAssetRoot({ env: {}, homeDir: home, runtimeRoot: runtime }), runtime);
+  assert.strictEqual(
+    resolvePluginAssetRoot({ env: {}, homeDir: home, runtimeRoot: path.join(home, 'missing') }),
+    installed,
+  );
+});
+
+test('resolvePluginAssetRoot with an invalid BOUNCER_HOME → throws without falling back', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-bad-home-'));
+  const runtime = fixture(home, 'claude', '1.0.0');
+  assert.throws(
+    () => resolvePluginAssetRoot({ env: { BOUNCER_HOME: path.join(home, 'nope') }, homeDir: home, runtimeRoot: runtime }),
+    { message: 'BOUNCER_HOME is not a valid Bouncer plugin root' },
+  );
+});
+
+test('resolvePluginAssetRoot with no valid root at any step → throws the plugin-assets message', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-asset-none-'));
+  assert.throws(
+    () => resolvePluginAssetRoot({ env: {}, homeDir: home, runtimeRoot: path.join(home, 'missing') }),
+    { message: 'no valid Bouncer plugin root for plugin assets; set BOUNCER_HOME to the plugin install' },
+  );
+});
+
+test('pure command with a failing bouncer-root on PATH → runs the own CLI without resolving a root', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-pure-'));
+  const bin = path.join(home, 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(bin, 'bouncer-root'), '#!/usr/bin/env node\nprocess.exit(1);\n');
+  fs.chmodSync(path.join(bin, 'bouncer-root'), 0o755);
+  const result = runLauncherFixture(['current', '--help'], { bin });
+  assert.strictEqual(result.status, 0);
+  assert.ok(result.stdout.includes('Show the active blueprint pointer'));
+});
+
+test('pure command with an invalid BOUNCER_HOME and no bouncer-root on PATH → still succeeds', () => {
+  const result = spawnSync(process.execPath, [launcher, 'project-root', '--help'], {
+    encoding: 'utf8',
+    env: { ...process.env, BOUNCER_HOME: path.join(os.tmpdir(), 'bouncer-does-not-exist'), PATH: path.dirname(process.execPath) },
+  });
+  assert.strictEqual(result.status, 0);
+});
+
+test('pure command from a copy without scripts/lib → prints the exact build guidance', () => {
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-pure-nolib-')));
+  fs.mkdirSync(path.join(tmp, 'scripts'), { recursive: true });
+  fs.copyFileSync(launcher, path.join(tmp, 'scripts', 'bouncer'));
+  const result = spawnSync(process.execPath, [path.join(tmp, 'scripts', 'bouncer'), 'current'], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: path.dirname(process.execPath) },
+  });
+  assert.strictEqual(result.status, 1);
+  assert.strictEqual(result.stderr, `bouncer: scripts/lib is missing; run \`npm run build\` in ${tmp}\n`);
+});
+
+test('plugin asset readers in codex-agents and coordinate-next → do not climb two levels from __dirname', () => {
+  for (const file of ['codex-agents.ts', 'coordinate-next.ts']) {
+    const source = fs.readFileSync(path.join(repoScripts, 'src', 'lib', file), 'utf8');
+    assert.doesNotMatch(source, /__dirname\s*,\s*['"]\.\.(\/\.\.)?['"]/, file);
+  }
 });

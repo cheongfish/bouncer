@@ -172,3 +172,23 @@ test('mentions of .sdd / sdd.* → appear only in focused legacy-rejection tests
     `Unexpected .sdd / sdd.* references in:\n${offenders.join('\n')}`,
   );
 });
+
+// 문서·훅이 내부 경로(scripts/lib, scripts/bouncer)를 직접 실행하지 못하게 막는 패턴.
+// 공개 `bouncer` 명령만 쓰는 것이 배포 경계의 계약이다.
+const INTERNAL_EXEC_PATTERNS = [
+  /node\s+-e\b/,
+  /require\([^)]*scripts\/lib\//,
+  /node\s+[^\n]*scripts\/bouncer\b/,
+];
+
+test('hooks·rules·skills·references·agents → 내부 경로를 실행하는 예시가 없다', () => {
+  const offenders = [];
+  for (const file of activeFiles()) {
+    if (!/^(hooks|rules|skills|references|agents)\//.test(file) || !/\.(md|js)$/.test(file)) continue;
+    for (const line of read(file).split('\n')) {
+      if (!INTERNAL_EXEC_PATTERNS.some((re) => re.test(line))) continue;
+      offenders.push(`${file}: ${line.trim()}`);
+    }
+  }
+  assert.deepStrictEqual(offenders, [], `internal path execution in:\n${offenders.join('\n')}`);
+});

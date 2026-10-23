@@ -107,6 +107,10 @@ test('알 수 없는 명령 → 실패하지만 사용 가능한 명령을 알�
   assert.strictEqual(r.out, '');
 });
 
+test('usage → commit-guard 두 모드를 나열한다', () => {
+  assert.match(capture([]).out, /commit-guard --command-stdin \[--repo <dir>\]/);
+});
+
 test('usage → scaffold task --blueprint --id를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /task --blueprint <dir> --id <ddd>/);
@@ -199,6 +203,12 @@ test('usage → finalize prepare --blueprint를 나열한다', () => {
   assert.match(r.out, /finalize\s+partial-finalize --blueprint <dir>/);
   assert.match(r.out, /--allow-partial-merge --confirm-partial-merge/);
   assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
+});
+
+test('usage → finalize worktree-path와 diff-sha를 나열한다', () => {
+  const r = capture([]);
+  assert.match(r.out, /finalize\s+worktree-path --blueprint <dir> \[--repo <dir>\]/);
+  assert.match(r.out, /finalize\s+diff-sha --base <ref> \[--repo <dir>\]/);
 });
 
 test('usage → subagent-model과 codex-agents check를 나열한다', () => {

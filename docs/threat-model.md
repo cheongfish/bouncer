@@ -46,3 +46,7 @@ Bouncer 강제력은 실수(범위 밖 스테이징, 손기록 검증, verify �
 - pre-commit hook은 사용자가 `bouncer init --pre-commit-hook`에 동의했고
   `core.hooksPath`가 없으며, hook이 PATH의 `bouncer` 또는 설치 시점 런처를 찾을
   때만 `commit-guard`를 실행합니다. CLI를 못 찾으면 hook은 커밋을 허용합니다.
+- 플러그인 commit 훅(Claude·Codex `PreToolUse`, Cursor `beforeShellExecution`)은
+  반대로 fail-closed입니다. PATH의 `bouncer`나 `BOUNCER_BIN`을 찾지 못하거나 런타임이
+  실패해도 commit 명령을 막고 사유를 출력합니다. 위 git pre-commit hook은 지금처럼
+  fail-open입니다.

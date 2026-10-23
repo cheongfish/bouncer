@@ -307,3 +307,62 @@ test('reviewer gate-checked items → list each npm run ci command as its own ar
   const ci = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).scripts.ci;
   assert.deepStrictEqual(items, ci.split(' && '));
 });
+
+/**
+ * `readCandidate`를 통과하는 임시 플러그인 루트(필수 자산 여섯 개, scripts/bouncer, plugin.json).
+ *
+ * @returns {string} 임시 플러그인 루트
+ */
+function makeFixturePluginRoot() {
+  const pluginRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-asset-root-')));
+  for (const dir of ['agents', 'skills', 'rules', 'references', 'hooks', 'scripts']) {
+    fs.mkdirSync(path.join(pluginRoot, dir));
+  }
+  fs.writeFileSync(path.join(pluginRoot, 'AGENTS.md'), '# fixture\n');
+  fs.writeFileSync(path.join(pluginRoot, 'scripts', 'bouncer'), '');
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
+  return pluginRoot;
+}
+
+/**
+ * 테스트 동안만 BOUNCER_HOME을 바꾸고 끝나면 원래 값으로 되돌린다.
+ *
+ * @param {string} value - BOUNCER_HOME 값
+ * @param {() => void} fn - 본문
+ */
+function withBouncerHome(value, fn) {
+  const saved = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = value;
+  try {
+    fn();
+  } finally {
+    if (saved === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = saved;
+  }
+}
+
+test('pluginAgentsDir with a valid BOUNCER_HOME → is that root agents directory', () => {
+  const { pluginAgentsDir } = require('../scripts/lib/codex-agents');
+  const pluginRoot = makeFixturePluginRoot();
+  try {
+    withBouncerHome(pluginRoot, () => {
+      assert.strictEqual(pluginAgentsDir(), path.join(pluginRoot, 'agents'));
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
+});
+
+test('ensureCodexAgents with an unresolvable plugin root → skips seeding without throwing', () => {
+  const { ensureCodexAgents } = require('../scripts/lib/codex-agents');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-'));
+  const created = [];
+  try {
+    withBouncerHome(path.join(repo, 'does-not-exist'), () => {
+      ensureCodexAgents({ repoRoot: repo, created });
+    });
+    assert.deepStrictEqual(created, []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});

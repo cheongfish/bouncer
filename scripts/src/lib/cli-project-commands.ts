@@ -62,11 +62,14 @@ function cmdGraphSync(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { syncSessionGraphs } = require('./session-graph') as typeof import('./session-graph');
+  const { syncSessionGraphs, graphSyncWarnings } = require('./session-graph') as typeof import('./session-graph');
   const f = parseFlags(rest);
   const result = syncSessionGraphs({ repoRoot: (f.repo || process.cwd()) as string });
   // missing은 상태가 아니라 오류가 아니다(그래프 부재). failed만 종료 코드를 가른다.
-  io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
+  // warnings는 SessionStart 훅이 stderr에 그대로 쓰는 줄이다. 문구 정본을 graphSyncWarnings
+  // 한 곳에 두려고 훅이 아니라 여기서 계산해 JSON으로 넘긴다(끝 개행 포함).
+  const warnings = graphSyncWarnings(result);
+  io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result, warnings }, null, 2)}\n`);
   return result.failed.length === 0 ? 0 : 1;
 }
 
