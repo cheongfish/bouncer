@@ -209,6 +209,37 @@ follows:
 | `ambiguous` (exit 0, no `bundle_id`) | Reselect once from evidence; if still ambiguous, rerun with `--no-symbols` and continue. |
 | exit 1 or exit 2 | Stop role dispatch and report the failure. |
 
+The first call does not count toward the reselection limit. Only an `ambiguous`
+result earns one evidence-based reselection (a second call with a re-picked
+`--symbol <name> --candidate <ref>` set); a later `ambiguous` is never
+reselected again. Keep the existing `--symbol <name> --candidate <ref>` pairing
+order and add no attempt field or retry state.
+
+| Sequence | Result |
+| --- | --- |
+| first call `ambiguous` → reselect `ambiguous` | One `--no-symbols` call, then continue with its bundle. |
+| first call `ambiguous` → reselect `created` or `reused` | Continue with that bundle; no `--no-symbols` call. |
+| first call `created` or `reused` | Continue; no reselection. |
+| any call exits 1 or 2 (including the reselect or `--no-symbols` call) | Stop role dispatch and report the failure. |
+
+`created` versus `reused` follows the cache the task already has. The result is
+`reused` only when a valid previous cache has the same `task_brief_hash` and the
+same function set, blob hashes, and section hashes; it keeps `bundle_id` and
+`revision`. Any other case is `created`:
+
+| Previous cache | Current call | Result and `revision` |
+| --- | --- | --- |
+| valid, same brief hash, functions and sections unchanged | same set | `reused`, `revision` unchanged |
+| valid, brief hash differs (brief-only change) | same set | `created`, previous `revision` + 1 |
+| valid | function set or blob/section changed | `created`, previous `revision` + 1 |
+| valid, non-empty functions | `--no-symbols` (empty set) | cache miss, `created`, `revision` + 1 |
+| valid, empty | `--no-symbols`, same brief hash | `reused`, `revision` unchanged |
+| valid, empty | `--no-symbols`, different brief hash | `created`, `revision` + 1 (empty bundle is not exempt) |
+| missing, malformed, or symlink-escaped | any | `created`, `revision` 1 |
+
+Switching from a symbol set to `--no-symbols` can therefore raise the revision;
+pin whatever revision the single resolve returns for every later role.
+
 After `coordinate revise`, open a new `coordinate dispatch` and re-call
 `bouncer intent bundle` against the revised brief hash and the function set
 re-picked from the revised brief (`--no-symbols` when it is empty). When
