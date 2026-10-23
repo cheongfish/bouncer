@@ -33,7 +33,15 @@ bouncer:
 10. R-P5 범위에서 승인과 계획 게이트에 선행 병합 판정 연결의 task 수용 기준과 전용 검증을 만족한다.
 11. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
 
+12. review-compat-followups의 선행 형식 오류는 승인 쓰기 전 plan-approve-prerequisite으로 거절되고 모든 문서 bytes가 보존되며 선행 항목 판정이 일치한다.
+13. review-compat-followups의 snapshot은 외부 디렉터리·파일을 쓰지 않고 I/O 실패를 reason으로 반환하며 partial merge 저장 순서·실패 무변경과 문서 heading 음수 회귀가 통과한다.
+14. check-doc-shape 명시 문서 verify에 계약이 없으면 plan·draft가 같은 G20으로 거절하며 기존 argv·scoped_terminal 정책은 유지된다.
+15. 이월된 reviewer·schema·intent·인계·snapshot 출처·review/finalize CLI 문서 및 CHANGELOG 누락이 현행 계약과 일치하고 역할 TOML parity가 통과한다.
+16. 각 구현 task는 전용 검증을 사용하고 마지막 verification task는 전부 통합된 뒤 npm run ci를 수행한다. 한국어 브리프·커밋 규약과 비추적 scripts/lib 빌드 산출물 경계를 지킨다.
+17. REQUIREMENTS_REVIEW_COMPAT_FOLLOWUPS.md는 모든 task의 변경·stage·커밋 및 finalize remainder에서 제외한다.
+
 ## Out of scope
+- review-compat-followups는 closed 계획을 재개하지 않으며 요구사항 원본과 다른 로컬 제안 문서를 커밋하지 않는다.
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
 - 공통 리뷰 엔진과 execute·finalize 리뷰의 판정 기준·디스패치 → `gates-review`. 계획 작성의 소비자 조사·검증 가능성을 판정하는 plan context-review 기준은 이 epic에 포함한다.
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
@@ -64,3 +72,5 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [context-review-fix-restart](blueprints/context-review-fix-restart/index.md) — delta 뒤 열린 `must_fix` 대상 섹션을 고치면 `context-review restart`·`route`가 restart를 허용하고 skill 안내를 맞춘다.
 - [plan-review-perspectives](blueprints/plan-review-perspectives/index.md) — `review_contract: brief` blueprint의 plan 리뷰를 full 4관점 병렬(`perspectives`)과 light `verifiability` 1관점으로 바꾸고 수정 1회·delta 1회로 닫는다.
 - [drive-plan-quality](blueprints/drive-plan-quality/index.md) — 계획 영향 범위와 선행 병합 검증 강화; R-M2·R-P1·R-P2·R-P3·R-P4·R-P5 처리.
+
+- [review-compat-followups](blueprints/review-compat-followups/index.md) — 승인 형식·snapshot 경계·verify 계약 보강과 이월 문서 모순 및 변경 이력 누락을 처리한다.
