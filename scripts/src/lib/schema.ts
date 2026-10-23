@@ -106,6 +106,19 @@ const PLAN_FULL_PERSPECTIVES = ['consistency', 'scope_minimality', 'verifiabilit
 const PLAN_LIGHT_PERSPECTIVES = ['verifiability'];
 
 /**
+ * 표식 blueprint의 delta round가 가져야 하는 관점 이름을 검증된 scale로 고른다.
+ * full은 4관점을 하나로 합친 `combined`, light는 verifiability 하나다. 관점 개수로 light를
+ * 추론하지 않고 호출자가 loadDispatch로 검증한 scale만 받는다 — 잘못된 scale은 loadDispatch가
+ * 이미 거절하므로 여기서는 다시 검사하지 않는다.
+ *
+ * @param {'full' | 'light'} scale - loadDispatch가 검증한 blueprint scale
+ * @returns {string} delta round의 단일 관점 이름
+ */
+function planDeltaPerspectiveOf(scale: 'full' | 'light'): string {
+  return scale === 'light' ? PLAN_LIGHT_PERSPECTIVES[0] : 'combined';
+}
+
+/**
  * blueprint `bouncer` 블록의 plan 리뷰 계약 표식을 해석한다. scale을 보지 않는다 —
  * light도 표식을 가질 수 있고(light는 verifiability 한 관점으로 plan 리뷰를 받는다),
  * 크기·task 수로 표식을 추론하지 않기 위해서다.
@@ -287,7 +300,7 @@ export = {
   VERIFICATION_POLICY_ENUM, verificationPolicyOf,
   REVIEW_CONTRACT_ENUM, REVIEW_CONTRACT_INVALID_REASON, REVIEW_CONTRACT_INVALID_CAUSE,
   REVIEW_CONTRACT_INVALID_MESSAGE, reviewContractOf, planReviewContractOf,
-  PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES,
+  PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES, planDeltaPerspectiveOf,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,

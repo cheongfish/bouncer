@@ -128,3 +128,10 @@ test('review_contract on a light blueprint → reviewContractOf reads legacy and
   assert.equal(schema.planReviewContractOf({ review_contract: '' }), null);
   assert.equal(schema.planReviewContractOf({ scale: 'light', review_contract: 'other' }), null);
 });
+
+test('plan 관점 정본 → full은 4관점·light는 verifiability이고 delta 관점은 scale로만 정해진다', () => {
+  assert.deepEqual(schema.PLAN_FULL_PERSPECTIVES, ['consistency', 'scope_minimality', 'verifiability', 'risk_security']);
+  assert.deepEqual(schema.PLAN_LIGHT_PERSPECTIVES, ['verifiability']);
+  assert.equal(schema.planDeltaPerspectiveOf('full'), 'combined');
+  assert.equal(schema.planDeltaPerspectiveOf('light'), 'verifiability');
+});
