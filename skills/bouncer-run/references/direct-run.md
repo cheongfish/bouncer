@@ -57,8 +57,9 @@ judgment arguments. Never generate those values by hand.
 
 Do not record the judgment and do not recover by yourself. The ledger gains
 only the `session` decision. From then on the coordinator drives to the end;
-never resume direct mode. Run the steps in this order and stop at the first
-failure (`ok: false`); do not run a later step then.
+never resume direct mode. Run the steps in this order. A failure (`ok: false`)
+of step 2, 4, or 5 stops the handoff and no later step runs; a metrics failure of
+step 1 or 3 is reported and the handoff continues.
 
 | # | command | cwd | input | after success | on failure |
 | --- | --- | --- | --- | --- | --- |

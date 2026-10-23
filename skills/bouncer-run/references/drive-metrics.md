@@ -100,5 +100,5 @@ that puts the coordinator and each worker role side by side:
   | `worker_tokens_source` | Report |
   | --- | --- |
   | `ledger` | Live ledger sums; report `missing` as usual. A real worker `0` is an observation. |
-  | `snapshot` | Worker sums restored from the snapshot stored before cleanup; say they are preserved data and give its `recorded_at`. |
+  | `snapshot` | Worker sums restored from the snapshot stored before cleanup; say they are preserved data and give its `recorded_at`. The summary JSON has no such field; read `recorded_at` from the stored JSON file at the `path` that `metrics snapshot` returned. |
   | `unavailable` | No ledger and no snapshot: the worker sum `0` is not a measured total. Print the worker rows as unmeasurable. |
