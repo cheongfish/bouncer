@@ -27,8 +27,12 @@ bouncer:
 5. source는 추적하고 dist는 빌드로 생성하며 추적하지 않는다. 경로 이전 뒤 기존 strict TypeScript·coverage 임계값·지연 적재 계약을 유지한다.
 6. 변경 계약은 기존 테스트와 새 회귀 사례로 고정하고 종단 `npm run ci`로 확인한다. 테스트 이름과 real-process integration 배정을 유지한다.
 7. `.gitmessage`의 한국어 명사형 제목과 종결 문장 본문을 따르며 로컬 요구사항·인계 메모를 커밋하지 않는다.
+8. 루트 package version을 정본으로 runtime·manifest·lockfile을 검사하며 태그 버전 불일치는 외부 게시 전에 거부한다.
+9. 수동 release 실행은 외부 게시를 하지 않고, 태그 실행은 동일 npm version·integrity 확인 뒤 plugin branch를 게시한다.
+10. npm 인증은 trusted publishing으로 구성하고 설치·복구·개발 안내에 Bash와 PowerShell 절차를 제공한다. 외부 설정과 실제 배포에는 별도 승인을 받는다.
 
 ## Out of scope
+- 실제 npm 게시·trusted publisher 연결·원격 tag/push와 전체 호스트·OS 점진 배포는 별도 운영 승인 대상으로 둔다.
 - 공개 CLI 경계와 hook 소비자 이전은 기존 public-cli-boundary의 병합 결과를 재사용한다. 새 패키지화 blueprint는 남은 lint 두 건만 복구하고 기존 계약을 보존한다.
 - 워크플로 단계별 동작 변경 → 해당 단계 영역
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
@@ -48,3 +52,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 
 ## Blueprints
 - [runtime-packaging](blueprints/runtime-packaging/index.md): npm runtime workspace와 plugin release tree를 분리하고 두 배포물의 설치 실행을 검증한다.
+- [release-pipeline](blueprints/release-pipeline/index.md): 남은 resolver·pack 결합을 제거하고 버전 검사, npm 선행 게시, 수동 dry-run과 설치 문서를 완성한다.
