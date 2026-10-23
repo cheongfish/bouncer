@@ -15,6 +15,10 @@ interface ResolverOptions {
   homeDir?: string;
 }
 
+interface AssetRootOptions extends ResolverOptions {
+  runtimeRoot?: string;
+}
+
 const HOSTS: readonly BouncerHost[] = ['claude', 'codex', 'antigravity'];
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
@@ -41,10 +45,23 @@ function parseVersion(value: unknown): string | null {
   return typeof value === 'string' && SEMVER.test(value) ? value : null;
 }
 
+// 플러그인 자산 루트로 인정하려면 루트 바로 아래에 있어야 하는 디렉터리와 파일.
+// 메타데이터만 맞는 빈 디렉터리가 자산 루트로 뽑혀 역할 문서·카드를 못 찾는 일을 막는다.
+const REQUIRED_ASSET_DIRS = ['agents', 'skills', 'rules', 'references', 'hooks'] as const;
+const REQUIRED_ASSET_FILES = ['AGENTS.md'] as const;
+
 function readCandidate(host: BouncerHost, root: string): PluginCandidate | null {
   const absolute = path.resolve(root);
   try {
     if (!fs.statSync(path.join(absolute, 'scripts', 'bouncer')).isFile()) return null;
+    // statSync가 던지면(없음·권한) 바깥 catch가 후보 탈락으로 흡수한다. 후보 탐색에서
+    // 읽을 수 없는 설치본은 "유효하지 않음"과 같은 결과이므로 안전하다.
+    for (const dir of REQUIRED_ASSET_DIRS) {
+      if (!fs.statSync(path.join(absolute, dir)).isDirectory()) return null;
+    }
+    for (const file of REQUIRED_ASSET_FILES) {
+      if (!fs.statSync(path.join(absolute, file)).isFile()) return null;
+    }
     // 배포물마다 plugin manifest와 npm package metadata가 함께 오지 않을 수 있다.
     // 둘 중 하나의 Bouncer 식별자만 신뢰하고, 디렉터리 이름으로 정체를 추론하지 않는다.
     for (const metadataFile of ['plugin.json', 'package.json']) {
@@ -138,4 +155,31 @@ export function resolvePluginRoot(options: ResolverOptions = {}, host?: BouncerH
   const candidate = findPluginCandidates(options, host)[0];
   if (!candidate) throw new Error('no valid Bouncer plugin roots found');
   return candidate;
+}
+
+/**
+ * 플러그인 자산(`agents/`, `references/coordinator-cards/`)을 읽을 검증된 루트를 돌려준다.
+ * 순서는 `BOUNCER_HOME` → 런타임 자신의 트리 → 호스트 후보 첫 번째다. 런타임 트리를
+ * 중간에 두는 이유는 설치본에서 실행 중인 CLI가 자기 옆 자산을 우선 읽게 하되, 훅이 넘긴
+ * `BOUNCER_HOME`이 명시되면 그 값을 존중하기 위해서다. 런타임 트리가 검증에 실패하면
+ * (자산 없는 부분 배포 등) 조용히 다음 단계로 간다.
+ *
+ * @param {AssetRootOptions} [options] - `env`, `homeDir`, 테스트용 `runtimeRoot`
+ * @returns {string} 자산 루트 절대 경로
+ * @throws `BOUNCER_HOME`이 정의됐는데 무효이거나, 세 단계가 모두 실패하면 Error
+ */
+export function resolvePluginAssetRoot(options: AssetRootOptions = {}): string {
+  const env = options.env ?? process.env;
+  if (env.BOUNCER_HOME !== undefined) {
+    const candidate = readCandidate('claude', env.BOUNCER_HOME);
+    if (!candidate) throw new Error('BOUNCER_HOME is not a valid Bouncer plugin root');
+    return candidate.path;
+  }
+  // 이 파일은 빌드 출력 scripts/lib 안에서 실행되므로 두 단계 위가 플러그인 루트다.
+  // 자산 경로의 상대 `../..`는 여기 한 곳에만 둔다(다음 blueprint에서 런타임을 분리할 때 바꿀 지점).
+  const runtime = readCandidate('claude', options.runtimeRoot ?? path.join(__dirname, '..', '..'));
+  if (runtime) return runtime.path;
+  const installed = findPluginCandidates(options)[0];
+  if (installed) return installed.path;
+  throw new Error('no valid Bouncer plugin root for plugin assets; set BOUNCER_HOME to the plugin install');
 }

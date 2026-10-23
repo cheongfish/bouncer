@@ -2094,3 +2094,64 @@ test('blueprint next with an unclassified, stale, mismatched or incomplete outsi
     assert.notStrictEqual(r.action, 'done', label);
   }
 });
+
+/**
+ * `readCandidate`를 통과하는 임시 플러그인 루트. `dispatch` 카드 본문은 FIXTURE-CARD다.
+ *
+ * @returns {string} 임시 플러그인 루트
+ */
+function makeFixturePluginRoot() {
+  const pluginRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-card-asset-root-')));
+  for (const dir of ['agents', 'skills', 'rules', 'hooks', 'scripts']) {
+    fs.mkdirSync(path.join(pluginRoot, dir));
+  }
+  fs.mkdirSync(path.join(pluginRoot, 'references', 'coordinator-cards'), { recursive: true });
+  fs.writeFileSync(path.join(pluginRoot, 'references', 'coordinator-cards', 'dispatch.md'), 'FIXTURE-CARD');
+  fs.writeFileSync(path.join(pluginRoot, 'AGENTS.md'), '# fixture\n');
+  fs.writeFileSync(path.join(pluginRoot, 'scripts', 'bouncer'), '');
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
+  return pluginRoot;
+}
+
+/**
+ * 테스트 동안만 BOUNCER_HOME을 바꾸고 끝나면 원래 값으로 되돌린다.
+ *
+ * @param {string} value - BOUNCER_HOME 값
+ * @param {() => void} fn - 본문
+ */
+function withBouncerHome(value, fn) {
+  const saved = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = value;
+  try {
+    fn();
+  } finally {
+    if (saved === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = saved;
+  }
+}
+
+test('task next dispatch with a valid BOUNCER_HOME → default readCard serves that root card body', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/014-disp-fixture';
+  const drive = preparedCommitDrive('bouncer-next-card-root-', blueprint);
+  const pluginRoot = makeFixturePluginRoot();
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const r = nextOf(drive, { task: '001' });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.action, 'dispatch');
+      assert.strictEqual(r.card.body, 'FIXTURE-CARD');
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
+});
+
+test('task next dispatch with an invalid BOUNCER_HOME → is coordinator-card-missing', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/014-disp-invalid';
+  const drive = preparedCommitDrive('bouncer-next-card-bad-', blueprint);
+  withBouncerHome(path.join(drive.repo, 'does-not-exist'), () => {
+    const r = nextOf(drive, { task: '001' });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.reason, 'coordinator-card-missing');
+  });
+});

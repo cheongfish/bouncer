@@ -22,6 +22,7 @@ import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths } = runtime;
 import configMod = require('./config');
 import driveMetrics = require('./drive-metrics');
+import { resolvePluginAssetRoot } from './plugin-root';
 import { validOutsideScope } from './execution-contracts';
 import type {
   Lease as CanonicalLease, DispatchState as CanonicalDispatchState, Task as CanonicalTask,
@@ -172,18 +173,18 @@ function fail(reason: string): NextErr {
 }
 
 /**
- * 플러그인 루트의 계약 카드 한 장을 UTF-8 그대로 읽는다. 빌드 출력은
- * `scripts/lib`이므로 두 단계 위가 플러그인 루트다(`graphify.ts`의
- * `pluginRootFromLib`와 같은 기준). cwd·`--repo`·소비 저장소는 보지 않는다 —
+ * 플러그인 자산 루트(`resolvePluginAssetRoot`)의 계약 카드 한 장을 UTF-8
+ * 그대로 읽는다. cwd·`--repo`·소비 저장소는 보지 않는다 —
  * 카드는 플러그인이 배포하는 계약이지 사용자 저장소 문서가 아니다.
- * 파일이 없거나 읽기에 실패하면 fs 오류를 그대로 던진다.
+ * 루트 해석 실패는 resolver의 Error를, 파일이 없거나 읽기에 실패하면 fs 오류를 그대로
+ * 던진다. 호출부 `attachCard`가 둘을 같은 `coordinator-card-missing`으로 흡수한다.
  *
  * @param {CardId} id - 카드 id. 호출부가 CARD_IDS 안의 값만 넘긴다
  * @returns {string} 카드 파일 본문
  */
 function readPluginCard(id: CardId): string {
   return fs.readFileSync(
-    path.join(__dirname, '..', '..', 'references', 'coordinator-cards', `${id}.md`),
+    path.join(resolvePluginAssetRoot(), 'references', 'coordinator-cards', `${id}.md`),
     'utf8',
   );
 }

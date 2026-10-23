@@ -220,7 +220,19 @@ function runPrintDispatch({
     );
   }
 
-  const agentsDir = deps && deps.agentsDir ? deps.agentsDir : pluginAgentsDir();
+  let agentsDir: string;
+  if (deps && deps.agentsDir) {
+    agentsDir = deps.agentsDir;
+  } else {
+    try {
+      agentsDir = pluginAgentsDir();
+    } catch (error) {
+      // resolver의 Error(무효 BOUNCER_HOME, 유효 루트 없음)만 안내 가능한 실패로 바꾼다.
+      // 그 외 예외는 버그이므로 다시 던진다.
+      if (!(error instanceof Error)) throw error;
+      return fail('plugin-root-unresolved', error.message, 'set BOUNCER_HOME to the plugin install and retry');
+    }
+  }
   // agentsDir 부모 = 플러그인 루트. 테스트 seam의 임시 root와 프로덕션 설치
   // 루트가 같은 규칙으로 잡혀야 prompt의 Plugin root 줄이 탐색 없이 동작한다.
   const pluginRoot = path.resolve(path.dirname(agentsDir));
