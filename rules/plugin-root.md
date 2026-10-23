@@ -17,7 +17,7 @@ is a one-shot manual override and is validated before any candidate search.
 Reading plugin assets resolves in this order: `BOUNCER_HOME`, then the running
 runtime's own tree (when it passes validation), then host candidates. `bouncer-root --auto`
 keeps its order above. A valid root must contain the required assets (`agents/`,
-`skills/`, `rules/`, `references/`, `hooks/`, `AGENTS.md`). Pure commands
+`skills/`, `rules/`, `references/`, `hooks/`, `${BOUNCER_ROOT}/AGENTS.md`). Pure commands
 (`commit-guard`, `current`, `project-root`, `validate`, `verify`, `graph-sync`) do
 not resolve a root, so they neither validate nor use `BOUNCER_HOME`.
 
