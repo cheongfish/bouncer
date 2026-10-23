@@ -125,6 +125,22 @@ existing configs are never rewritten.
 `finalize release-main --blueprint <dir>` is main-checkout-only: it cleans
 main plan copies after a closed drive. A valid `outside_scope` terminal counts as closed
 (the payload carries `outside_scope`); `drive-not-closed` refusals carry `cause`, `next`, and `tasks`.
+Before the first cleanup mutation (and before a partial merge) it saves the ledger's worker
+token totals with `metrics snapshot`; a failed save refuses with `metrics-snapshot-write-failed`
+or `metrics-snapshot-invalid` and leaves main, the ledger, and the worktrees untouched. A rerun
+without a ledger keeps the stored snapshot and writes nothing.
+
+`metrics snapshot --blueprint <dir> [--repo <dir>]` reads the real ledger and writes
+`{version: 1, blueprint, recorded_at, ledger_sha256, worker_tokens}` atomically to
+`<git-common-dir>/bouncer/metrics-snapshots/<sha256(blueprint path)>.json` (the path must stay
+inside the common dir and not be a symlink). It prints `{ok: true, blueprint, path, ledger_sha256,
+reused}`: the same ledger hash is reused, a new hash refreshes the file, and without a ledger the
+stored snapshot is kept (`reused: true`). No ledger and no snapshot is `metrics-ledger-unavailable`
+and writes nothing. A bad flag is exit 2; a store or input failure is exit 1
+(`metrics-snapshot-invalid`, `metrics-snapshot-write-failed`). `metrics summary` adds
+`worker_tokens_source`: `ledger` when the ledger exists (a stale snapshot never replaces it),
+else `snapshot` when a valid snapshot exists, else `unavailable` (numbers stay 0). A broken
+snapshot is refused with `metrics-snapshot-invalid`, not read as 0.
 
 ## Context and task creation
 

@@ -499,6 +499,11 @@ test('summarize worker_tokens → 원장이 없거나 resolveLedger가 없으면
     metrics.summarize({ file: f.file, blueprint: BLUEPRINT, resolveLedger: () => f.ledgerFile }).worker_tokens, zero,
   );
   assert.deepStrictEqual(metrics.summarize({ file: f.file, blueprint: BLUEPRINT }).worker_tokens, zero);
+  // 숫자 계약은 0 그대로이고, 저장 snapshot이 없다는 사실은 source로 구별한다.
+  assert.strictEqual(
+    metrics.summarize({ file: f.file, blueprint: BLUEPRINT, resolveLedger: () => f.ledgerFile }).worker_tokens_source,
+    'unavailable',
+  );
 });
 
 test('metrics CLI summary → 원장의 worker-tokens를 worker_tokens로 낸다', () => {
@@ -646,4 +651,181 @@ test('summary → coordinator 토큰과 역할별 worker 토큰은 이중 합산
     },
   });
   assert.deepStrictEqual(summary.cache, { read: { total: 500, missing: 0 }, write: { total: 200, missing: 0 } });
+});
+
+// --- worker 집계 snapshot ---
+
+function gitRepoWithLedger(decisions) {
+  const repo = fs.realpathSync(tmp());
+  require('node:child_process').execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const { ledgerFile } = require('../scripts/lib/runtime-state').coordinatorPathsFor({
+    repoRoot: repo, blueprint: BLUEPRINT,
+  });
+  fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
+  if (decisions) writeLedger(ledgerFile, { integrated: [], decisions });
+  return { repo, ledgerFile };
+}
+
+function cli(repo, ...args) {
+  const buf = { out: '', err: '' };
+  const code = runCli([...args, '--repo', repo], {
+    out: (s) => { buf.out += s; }, err: (s) => { buf.err += s; },
+  });
+  return { code, json: buf.out ? JSON.parse(buf.out) : null, err: buf.err };
+}
+
+const worker = (tokens) => ({ kind: 'worker-model', role: 'implementer', model: 'inherit', task: '001', tokens });
+
+test('worker 100 토큰 원장에서 snapshot 저장 뒤 원장을 지우면 → summary가 snapshot의 100을 복원하고 source를 snapshot으로 낸다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  assert.strictEqual(saved.code, 0);
+  assert.strictEqual(saved.json.ok, true);
+  assert.strictEqual(saved.json.reused, false);
+  assert.strictEqual(saved.json.blueprint, BLUEPRINT);
+  assert.match(saved.json.ledger_sha256, /^[a-f0-9]{64}$/);
+  assert.ok(saved.json.path.startsWith(path.join(repo, '.git')), saved.json.path);
+  const live = cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT);
+  assert.strictEqual(live.json.worker_tokens_source, 'ledger');
+  fs.rmSync(ledgerFile);
+  const restored = cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT);
+  assert.strictEqual(restored.code, 0);
+  assert.strictEqual(restored.json.worker_tokens_source, 'snapshot');
+  assert.strictEqual(restored.json.worker_tokens.total, 100);
+  assert.deepStrictEqual(restored.json.worker_tokens, live.json.worker_tokens);
+});
+
+test('원장도 snapshot도 없는 summary → 0과 source unavailable을 낸다', () => {
+  const { repo } = gitRepoWithLedger(null);
+  const r = cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT);
+  assert.strictEqual(r.json.worker_tokens.total, 0);
+  assert.strictEqual(r.json.worker_tokens_source, 'unavailable');
+});
+
+test('원장이 남아 있으면 → 오래된 snapshot 대신 live 원장 값과 source ledger를 낸다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  writeLedger(ledgerFile, { integrated: [], decisions: [worker(5)] });
+  const r = cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT);
+  assert.strictEqual(r.json.worker_tokens.total, 5);
+  assert.strictEqual(r.json.worker_tokens_source, 'ledger');
+});
+
+test('같은 원장 hash로 snapshot을 다시 부르면 → reused true이고 파일 바이트가 그대로다', () => {
+  const { repo } = gitRepoWithLedger([worker(100)]);
+  const first = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const before = fs.readFileSync(first.json.path);
+  const second = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  assert.strictEqual(second.json.reused, true);
+  assert.strictEqual(second.json.ledger_sha256, first.json.ledger_sha256);
+  assert.deepStrictEqual(fs.readFileSync(second.json.path), before);
+});
+
+test('원장이 바뀐 뒤 snapshot을 부르면 → reused false로 새 hash와 새 합계를 저장한다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const first = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  writeLedger(ledgerFile, { integrated: [], decisions: [worker(100), worker(20)] });
+  const second = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  assert.strictEqual(second.json.reused, false);
+  assert.notStrictEqual(second.json.ledger_sha256, first.json.ledger_sha256);
+  assert.strictEqual(JSON.parse(fs.readFileSync(second.json.path, 'utf8')).worker_tokens.total, 120);
+});
+
+test('원장 없이 snapshot을 다시 부르면 → 기존 저장값을 보존하고 reused true를 낸다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const first = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const before = fs.readFileSync(first.json.path);
+  fs.rmSync(ledgerFile);
+  const again = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  assert.strictEqual(again.code, 0);
+  assert.strictEqual(again.json.reused, true);
+  assert.strictEqual(again.json.ledger_sha256, first.json.ledger_sha256);
+  assert.deepStrictEqual(fs.readFileSync(first.json.path), before);
+});
+
+test('snapshot도 원장도 없는 snapshot 요청 → metrics-ledger-unavailable로 거절하고 파일을 쓰지 않는다', () => {
+  const { repo } = gitRepoWithLedger(null);
+  const r = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  assert.strictEqual(r.code, 1);
+  assert.deepStrictEqual(r.json, { ok: false, reason: 'metrics-ledger-unavailable' });
+  assert.ok(!fs.existsSync(path.join(repo, '.git', 'bouncer', 'metrics-snapshots')));
+});
+
+test('깨진 JSON snapshot → summary와 snapshot이 metrics-snapshot-invalid로 거절하고 파일을 덮지 않는다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  fs.writeFileSync(saved.json.path, '{');
+  fs.rmSync(ledgerFile);
+  const summary = cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT);
+  assert.strictEqual(summary.code, 1);
+  assert.deepStrictEqual(summary.json, { ok: false, reason: 'metrics-snapshot-invalid' });
+  writeLedger(ledgerFile, { integrated: [], decisions: [worker(1)] });
+  assert.deepStrictEqual(cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT).json,
+    { ok: false, reason: 'metrics-snapshot-invalid' });
+  assert.strictEqual(fs.readFileSync(saved.json.path, 'utf8'), '{');
+});
+
+test('다른 blueprint의 내용을 담은 snapshot → metrics-snapshot-invalid로 거절한다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const body = JSON.parse(fs.readFileSync(saved.json.path, 'utf8'));
+  body.blueprint = '.bouncer/context/epics/098-a/blueprints/002-other';
+  fs.writeFileSync(saved.json.path, JSON.stringify(body));
+  fs.rmSync(ledgerFile);
+  assert.deepStrictEqual(cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT).json,
+    { ok: false, reason: 'metrics-snapshot-invalid' });
+});
+
+test('snapshot 파일이 범위 밖을 가리키는 symlink → metrics-snapshot-invalid로 거절한다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const outside = path.join(tmp(), 'outside.json');
+  fs.copyFileSync(saved.json.path, outside);
+  fs.rmSync(saved.json.path);
+  fs.symlinkSync(outside, saved.json.path);
+  fs.rmSync(ledgerFile);
+  assert.deepStrictEqual(cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT).json,
+    { ok: false, reason: 'metrics-snapshot-invalid' });
+});
+
+test('snapshot 디렉터리가 Git common dir 밖으로 향하는 symlink → snapshot이 metrics-snapshot-invalid로 거절하고 밖에 쓰지 않는다', () => {
+  const { repo } = gitRepoWithLedger([worker(100)]);
+  const outsideDir = tmp();
+  fs.mkdirSync(path.join(repo, '.git', 'bouncer'), { recursive: true });
+  fs.symlinkSync(outsideDir, path.join(repo, '.git', 'bouncer', 'metrics-snapshots'));
+  assert.deepStrictEqual(cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT).json,
+    { ok: false, reason: 'metrics-snapshot-invalid' });
+  assert.deepStrictEqual(fs.readdirSync(outsideDir), []);
+});
+
+test('writeFileSync가 실패하는 저장 → metrics-snapshot-write-failed로 거절하고 기존 snapshot을 그대로 둔다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const first = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const before = fs.readFileSync(first.json.path);
+  writeLedger(ledgerFile, { integrated: [], decisions: [worker(100), worker(9)] });
+  const failing = {
+    readFileSync: fs.readFileSync,
+    renameSync: fs.renameSync,
+    writeFileSync: () => { throw Object.assign(new Error('disk full'), { code: 'ENOSPC' }); },
+  };
+  const r = metrics.saveWorkerSnapshot({
+    commonGitDir: path.join(repo, '.git'), ledgerFile, blueprint: BLUEPRINT, fs: failing,
+  });
+  assert.deepStrictEqual(r, { ok: false, reason: 'metrics-snapshot-write-failed' });
+  assert.deepStrictEqual(fs.readFileSync(first.json.path), before);
+});
+
+test('deps.now 시계를 주입한 저장 → recorded_at이 그 시각이다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(1)]);
+  const r = metrics.saveWorkerSnapshot({
+    commonGitDir: path.join(repo, '.git'), ledgerFile, blueprint: BLUEPRINT,
+    now: () => new Date('2026-02-03T04:05:06.000Z'),
+  });
+  assert.strictEqual(JSON.parse(fs.readFileSync(r.path, 'utf8')).recorded_at, '2026-02-03T04:05:06.000Z');
+});
+
+test('metrics snapshot의 --blueprint 누락·모르는 플래그 → 각각 exit 1 invalid와 exit 2 usage를 낸다', () => {
+  const { repo } = gitRepoWithLedger(null);
+  assert.deepStrictEqual(cli(repo, 'metrics', 'snapshot').json, { ok: false, reason: 'invalid-metrics-input' });
+  assert.strictEqual(cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT, '--tokens', '1').code, 2);
 });

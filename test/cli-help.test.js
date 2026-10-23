@@ -563,3 +563,9 @@ test('usage → scaffold blueprint --order <n>와 v2 scaffold epic --name만 쓰
   assert.match(r.out, /blueprint --epic-dir <slug-epic> --order <n> --name <slug>/);
   assert.match(r.out, /epic --name <slug> --description <text>/);
 });
+
+test('metrics help → snapshot 하위 명령 사용법을 보여준다', () => {
+  const r = capture(['metrics', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /metrics snapshot --blueprint <dir>/);
+});

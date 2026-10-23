@@ -11,7 +11,9 @@ After `--yes`, run cleanup from the main worktree, not a checkout you are removi
 
 **Drive release.** From the main worktree run `bouncer finalize release-main --blueprint <pointer.blueprint>` before touching any worktree. `<pointer.blueprint>` is the blueprint value you passed to `finalize --yes` (the pointer is cleared by then). On `ok: true`, report `removed`, `restored`, and `preserved`. Then take the list from the finalize payload's `worktrees` field rather than re-deriving it and `git worktree remove --force` each path: remove the worker worktrees first, then the integration one, so a failure never orphans a worker under a removed parent. Report every path the removal did not clear.
 
-On `ok: false`, report `reason` and leave the worktrees and the ledger; do not run step 5 `--set`.
+`release-main` saves the drive's worker token totals (`bouncer metrics snapshot`) before it cleans anything, so `bouncer metrics summary --blueprint <pointer.blueprint>` still reports them after the ledger is gone (`worker_tokens_source: snapshot`). Take any summary you need for the report before removing worktrees.
+
+On `ok: false`, report `reason` and leave the worktrees and the ledger; do not run step 5 `--set`. A `metrics-snapshot-write-failed` or `metrics-snapshot-invalid` refusal means the snapshot was not saved: stop, remove nothing, and report it.
 
 **Detached run.** A ledger with `status: detached` (from `bouncer run detach`, which the user approved after a Git merge) is still a preserved drive: its ledger and worktrees are untouched and its pointer key was removed. If the user finalizes it, they first run `bouncer current --set <blueprint>`; `release-main` and `finalize` judge it by the same rules as any ledger (every task `integrated`). Detach itself is neither verification nor finalize, so do not report it as either.
 

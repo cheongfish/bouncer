@@ -22,7 +22,8 @@ const USAGE = `usage: bouncer metrics start --kind <${KINDS}> --blueprint <dir> 
   + '[--label <text>] [--target-digest <64hex>]\n'
   + '       bouncer metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>] '
   + '[--cache-read-tokens <n>] [--cache-write-tokens <n>] [--model <slug>] [--host-duration-ms <n>]\n'
-  + '       bouncer metrics summary --blueprint <dir>\n';
+  + '       bouncer metrics summary --blueprint <dir>\n'
+  + '       bouncer metrics snapshot --blueprint <dir>\n';
 
 // 모든 하위 명령이 받는 --repo 외 플래그 목록. 모르는 플래그는 오타라 usage(2)로 거절한다.
 const FLAGS: Record<string, string[]> = {
@@ -32,6 +33,7 @@ const FLAGS: Record<string, string[]> = {
     'model', 'host-duration-ms', 'repo',
   ],
   summary: ['blueprint', 'repo'],
+  snapshot: ['blueprint', 'repo'],
 };
 
 function emit(io: CliIo, result: { ok: boolean; reason?: string }): number {
@@ -48,6 +50,7 @@ function parseCount(raw: string | boolean | undefined): number | undefined {
 
 /**
  * `bouncer metrics` 핸들러. 기록은 main worktree의 drive-metrics.json에만 쓰고 원장은 읽기만 한다.
+ * 예외로 `snapshot`은 Git common dir의 worker 집계 snapshot 파일 하나만 쓴다.
  * 잘못된 사용(모르는 하위 명령·플래그)은 stderr usage와 2, 입력 값·기록 거절은 stdout JSON과 1이다.
  *
  * @param {string[]} rest - `metrics` 뒤 원시 argv
@@ -90,6 +93,19 @@ function cmdMetrics(rest: string[], io: CliIo): number {
     if (str('blueprint') === undefined) return emit(io, invalid);
     return emit(io, driveMetrics.summarize({
       file, blueprint: str('blueprint') as string, resolveLedger: ledgerFor,
+      commonGitDir: main.commonGitDir ?? null,
+    }));
+  }
+
+  if (sub === 'snapshot') {
+    // 정리 전에 worker 집계를 Git common dir에 보존한다. 저장 위치는 프로젝트 경로가 아니라
+    // runtimePaths가 계산한 common dir이다(worktree 제거로 사라지지 않는 자리).
+    const blueprint = str('blueprint');
+    if (blueprint === undefined || main.commonGitDir === undefined) return emit(io, invalid);
+    const ledgerFile = ledgerFor(blueprint);
+    if (ledgerFile === null) return emit(io, invalid);
+    return emit(io, driveMetrics.saveWorkerSnapshot({
+      commonGitDir: main.commonGitDir, ledgerFile, blueprint,
     }));
   }
 

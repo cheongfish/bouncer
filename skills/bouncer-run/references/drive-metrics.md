@@ -65,6 +65,11 @@ hash), then dispatch. Its session is a separate `coordinator-session`. The `summ
 handoff, and alone rather than chained with another command; a second call on a closed session
 returns `metrics-session-ended`.
 
+A direct session's token usage is not measurable: the host table above has no per-session usage for
+the root's own direct work. Close it with no token flags so it is stored as `null` with
+`tokens_unavailable_reason: "not-reported"`, and report it as 측정 불가 (unmeasurable). Never fill it
+with the root's whole-session host usage, which also covers the work outside the direct span.
+
 ## Closing report
 
 Before the terminal report, run `bouncer metrics summary --blueprint <dir>` and report one table
@@ -85,3 +90,15 @@ that puts the coordinator and each worker role side by side:
   (`host_duration_ms_total`); neither stands in for the other, and a value the host did not give is
   not invented. Cost keeps its existing fields and is not expanded here.
 - Open sessions are not completed totals; report them only as the `open` count.
+- Report each token cell with one of three states: observed (a number, including a real `0`),
+  not reported (`null` or `missing` above 0), or unmeasurable (the direct session above). Fill only
+  the usage fields the host in the table above really reports; when none came, leave it `null`
+  rather than waiting or inventing one. Do not add a collector for a host that has none.
+- Take the summary before the ledger is cleaned up, so that the worker rows survive. Print
+  `worker_tokens_source` beside the worker rows:
+
+  | `worker_tokens_source` | Report |
+  | --- | --- |
+  | `ledger` | Live ledger sums; report `missing` as usual. A real worker `0` is an observation. |
+  | `snapshot` | Worker sums restored from the snapshot stored before cleanup; say they are preserved data and give its `recorded_at`. |
+  | `unavailable` | No ledger and no snapshot: the worker sum `0` is not a measured total. Print the worker rows as unmeasurable. |

@@ -323,3 +323,9 @@ test('agent-dispatch.md copy → exit 0, and without the Intent bundle heading �
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// drive-metrics reference는 종류가 없어 경로 계약이 유일한 구조 검사다.
+test('CLI with the drive-metrics reference → applies its path contract and exits 0', () => {
+  const result = spawnCli(['skills/bouncer-run/references/drive-metrics.md']);
+  assert.strictEqual(result.status, 0, result.stderr || result.stdout);
+});
