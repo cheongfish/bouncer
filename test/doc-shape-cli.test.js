@@ -306,3 +306,20 @@ test('rules/cli.md with a correct rejection table and other backticked words →
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// agent-dispatch.md는 kind 없는 reference라 경로 계약만이 구조를 지킨다. 계약이 없으면
+// 내용과 무관하게 exit 1이 되므로, 실제 사본 통과와 제목 누락 거절을 함께 고정한다.
+test('agent-dispatch.md copy → exit 0, and without the Intent bundle heading → exit 1 naming it', () => {
+  const rel = 'skills/bouncer-run/references/agent-dispatch.md';
+  const { dir, abs, markdown } = copyDocToTmp(rel);
+  try {
+    assert.strictEqual(runInTmp([rel], dir).code, 0);
+    fs.writeFileSync(abs, markdown.replace(/^## Intent bundle$/m, 'Intent bundle (demoted)'));
+    const { code, err } = runInTmp([rel], dir);
+    assert.strictEqual(code, 1, err);
+    assert.ok(err.includes(rel), err);
+    assert.ok(err.includes('Intent bundle'), err);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -9,6 +9,11 @@
 
 ### Changed
 
+- **직접 실행·파일 전달·intent bundle 절차 명시** — 직접 실행 판정과 파일 기반 구현 payload 전달 계약에 더해,
+  `agent-dispatch.md`가 intent bundle 최초 호출은 재선택 횟수에 넣지 않고 `ambiguous`일 때만 근거 기반 재선택
+  1회 뒤 `--no-symbols`로 진행하며 exit 1/2는 중단한다고 밝힌다. `created`/`reused`/`revision` 조건(brief만
+  바뀌거나 함수 집합을 `--no-symbols`로 바꾸면 cache miss와 revision 증가)은 코드와 같게 표로 정리했다.
+  `coordinate note`(C1)는 기존 구현·문서·회귀 테스트로 충족되어 기능 추가가 없다.
 - **plan 리뷰 관점·delta 기준 정본 통합** — `context-review`의 관점 이름 복제 목록을 없애고 `schema`의
   `PLAN_FULL_PERSPECTIVES`를 쓴다. delta 관점은 관점 개수 추론 대신 `loadDispatch`가 검증한 scale로
   `planDeltaPerspectiveOf`가 고른다(full `combined`, light `verifiability`). 저장 dispatch JSON과 CLI 출력은

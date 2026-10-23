@@ -14,6 +14,10 @@ of recording.
   refused with `worker-commit-stamp-mismatch`, `worker-commit-missing`, or
   `worker-scope-dirty` and leaves the ledger unchanged. Call `advance` to
   commit, then report and record again.
+- Run the returned `record` `argv` unchanged and add only `--decision`. Write
+  the real `## Changed files` paths and the judgment, for example
+  `--decision "changed docs/a.md, docs/b.md; accepted: scope kept, verify passed"`.
+  Never hand-generate lease, generation, or ledger hash.
 - `record` stores the SHA and that decision, so provenance the ledger must
   keep travels inside the decision text.
 - Confirm `payload.report` and read only `payload.evidence` pointers whose

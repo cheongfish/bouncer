@@ -28,6 +28,22 @@ are always subagents. After the one start ACQ, open no per-task ACQ.
 Run `coordinate next` and `advance` from the integration cwd with `--task <ddd>`;
 run `report` and `record` from the worker `cwd` that `next` returned.
 
+Before an `accepted` report, check every item against the report file: Brief
+revision (`attempt`, `task_brief_hash`) equals the dispatch, Changed files stay
+inside the task's scope, Tests shows the assigned verify command passing, the
+Interface in the brief matches the changed files, and the worker commit exists
+(HEAD past `integrationHead`, `commit_sha` equal to HEAD's first 8 characters,
+no dirty file in scope). Any miss is `rework`, not `accepted`.
+
+Run the returned `report` / `record` argv as is: keep its `--attempt`,
+`--task-brief-hash`, lease, generation, and ledger fence, and only add the
+judgment arguments. Never generate those values by hand.
+
+```bash
+<returned report argv> --outcome accepted --summary "<verify passed, scope kept, commit stamped>"
+<returned record argv> --decision "<changed paths from Changed files>: <judgment>"
+```
+
 3. Hand off without returning to direct mode for a `must_fix` review round,
    attempt 2 or later `rework`, report outcomes `scope_revision`,
    `task_change`, or `blocked`, `critical-recovery`, `supplement`, stop reasons
@@ -39,11 +55,22 @@ run `report` and `record` from the worker `cwd` that `next` returned.
 
 ## Handoff
 
-Do not record the judgment and do not recover by yourself. Run `metrics end`
-for the root-direct session, then follow `SKILL.md` step 4: `coordinate
-session-open`, `coordinate status --write-input`, and the coordinator
-dispatch. The ledger gains only the `session` decision. From then on the
-coordinator drives to the end; never resume direct mode.
+Do not record the judgment and do not recover by yourself. The ledger gains
+only the `session` decision. From then on the coordinator drives to the end;
+never resume direct mode. Run the steps in this order and stop at the first
+failure (`ok: false`); do not run a later step then.
+
+| # | command | cwd | input | after success | on failure |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `metrics end --id <root-direct id>` (alone, once) | integration | id from `metrics start` | step 2 | report; never blocks the handoff |
+| 2 | `coordinate session-open` | integration | `--ledger-path` / `--ledger-hash` of the latest checkpoint | step 3 | stop and report |
+| 3 | `metrics start --kind coordinator-session` | integration | `--blueprint <dir>` | step 4 | report; never blocks |
+| 4 | `coordinate status --write-input` | integration | none; run after step 2 because `session-open` changes the ledger hash | step 5 | stop and report |
+| 5 | coordinator dispatch | integration | the file step 4 wrote | coordinator drives | stop and report |
+
+A status input written before `session-open` carries a stale ledger hash;
+regenerate it rather than reuse it. See `drive-metrics.md` and `SKILL.md`
+step 4.
 
 ## Prohibitions
 

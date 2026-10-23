@@ -378,7 +378,7 @@ failures are `{ ok: false, reason: unreadable|unsupported-schema }` (exit 1).
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
-`intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. `intent sections` is
+`intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. The result is `reused` only when a valid previous cache has the same brief hash, function set, blob hashes, and section hashes (`bundle_id` and `revision` unchanged); otherwise it is `created` with `revision` = previous valid `revision` + 1, or 1 when the previous cache is missing or invalid. A brief-only change or a switch to `--no-symbols` is a miss, and an empty bundle with a different brief hash also increments. The first call is not a reselection; an `ambiguous` result allows one evidence-based reselection, after which `--no-symbols` is used (see `skills/bouncer-run/references/agent-dispatch.md`). `coordinate note` (C1) already covers note use, checkpoint `notes`, and the fence above; no separate note feature is added. `intent sections` is
 read-only: it projects role-specific section bodies from that cache. Successful
 implementer responses also include `symbol_locations`, copied in bundle order
 from resolved (including historical) and unlinked entries; unresolved and

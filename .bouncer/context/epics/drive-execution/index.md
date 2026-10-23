@@ -23,7 +23,15 @@ bouncer:
 1. `drive-execution` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
 2. 아래 legacy epic은 `legacy`로 그대로 두고 조회·이력에만 쓴다. 승인·검증 해시와 trailer 연결을 바꾸지 않는다.
 
+3. R-D1·R-D2·R-D4 범위에서 직접 실행 판정 예시와 인계 순서 명시의 task 수용 기준과 전용 검증을 만족한다.
+4. R-D3 범위에서 파일 기반 구현 payload 전달 계약 명시의 task 수용 기준과 전용 검증을 만족한다.
+5. R-C1·R-C2·R-C3 범위에서 의도 묶음 재선택 한도와 재사용 조건 명시의 task 수용 기준과 전용 검증을 만족한다.
+6. R-X2 범위에서 원장 정리 전 작업자 측정 집계 보존의 task 수용 기준과 전용 검증을 만족한다.
+7. R-X1·R-X2 범위에서 측정 불가와 보존 집계의 보고 기준 명시의 task 수용 기준과 전용 검증을 만족한다.
+8. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
+
 ## Out of scope
+- 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
 - 검증 증적 재사용·gate 판정 → `gates-review`
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
@@ -59,3 +67,5 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [repair-resume-integrity](blueprints/repair-resume-integrity/index.md): `coordinate repair --resume-task`가 통합된 하위 task를 유지하고, rework `next`·`revise` 승인 경로·integration 직접 수정 안내를 고친다.
 - [terminal-reverify](blueprints/terminal-reverify/index.md): `coordinate reverify`가 실패한 terminal 검증만 같은 HEAD에서 다시 실행하고, repair wave를 쓰지 않는다.
 - [session-handoff-note](blueprints/session-handoff-note/index.md): `coordinate note`가 coordinator 세션 사이 자유 형식 note를 원장에 남기고, status checkpoint `notes`로 다음 세션에 넘긴다.
+- [direct-drive-contracts](blueprints/direct-drive-contracts/index.md) — 직접 실행과 구현 입력 전달 절차 명확화; R-D1·R-D2·R-D3·R-D4·R-C1·R-C2·R-C3 처리.
+- [metrics-retention](blueprints/metrics-retention/index.md) — 정리 이후 실행 측정값 보존; R-X1·R-X2 처리.
