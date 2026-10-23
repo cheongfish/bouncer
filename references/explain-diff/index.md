@@ -103,17 +103,21 @@ status published. Not a workflow entry point.
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent
    a hash.
 
-5. **Write one `bouncer.comprehension` entry.** Read `range_to` as digest
-   `range.head` (else the current `HEAD` sha). Keep the list at **exactly one**
-   blueprint entry — replace the sole item if refreshing, do **not** append a
-   second entry, and do **not** set a `task` field:
+5. **Record the `bouncer.comprehension` entry with the CLI.** After the user
+   answered the quiz, save the `finalize prepare` JSON to a file and run it from
+   the execute worktree root. Never hand-write the metadata:
 
-   ```yaml
-   - range_from: <digest range.base>
-     range_to: <digest range.head or HEAD sha>
-     diff_sha: <digest range.diff_sha or sha from step 4>
-     recorded_at: <ISO-8601, prefer KST offset>
+   ```bash
+   bouncer finalize comprehension --blueprint <dir> --digest <json-file> --confirm-quiz
    ```
+
+   The CLI writes exactly one blueprint entry (`range_from`, `range_to`,
+   `diff_sha`, KST `recorded_at`; no `task` field) and replaces the sole item.
+   Pass `--confirm-quiz` only after a real user answer. Refusals leave
+   `explain.md` bytes unchanged: `comprehension-consent-required`,
+   `comprehension-input-invalid`, `comprehension-target-stale` (digest no longer
+   matches the current HEAD/`diff_sha`). Later drift of an existing valid entry
+   uses `--refresh` instead (see above); it keeps `range_from`.
 
 6. **Publish.** Set `bouncer.status → published` on `explain.md` if it is not
    already. The published explain remains canonical context and requires no

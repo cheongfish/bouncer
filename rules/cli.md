@@ -18,9 +18,17 @@ bouncer execute prepare --blueprint <dir>
 bouncer commit --blueprint <dir> [--yes]
 bouncer finalize --blueprint <dir> [--yes]
 bouncer finalize release-main --blueprint <dir>
+bouncer finalize comprehension --blueprint <dir> --digest <json-file> (--confirm-quiz | --refresh)
 bouncer run preflight --blueprint <dir>
 bouncer run detach --blueprint <dir> --yes [--reason <text>]
 ```
+
+`finalize comprehension` records the single `explain.md` comprehension entry after
+a real user quiz answer. It validates `digest.blueprint` and `range.base/head`
+against the current HEAD and `computeDiffSha`. Refusals (exit 1, bytes unchanged):
+`comprehension-consent-required`, `comprehension-input-invalid`,
+`comprehension-target-stale`; flag errors exit 2. `--refresh` needs an existing
+valid entry and keeps `range_from`; it is mutually exclusive with `--confirm-quiz`.
 
 `run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
 every simulated wave has width 1, `parallel` for a single wave of width 2+,

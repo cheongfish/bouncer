@@ -74,3 +74,12 @@ test('빈 git 저장소에서 init --help → exit 0이고 .bouncer를 만들지
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('finalize comprehension --help → 기록 명령을 나열하고 쓰기·handler 적재 없이 exit 0', () => {
+  const { code, out, err, loaded } = probeCli(['finalize', 'comprehension', '--help']);
+  assert.strictEqual(code, 0);
+  assert.strictEqual(out, COMMAND_USAGE.finalize);
+  assert.ok(out.includes('comprehension --blueprint <dir> --digest <json-file>'));
+  assert.strictEqual(err, '');
+  assert.ok(!loaded.includes('finalize-comprehension.js'));
+});
