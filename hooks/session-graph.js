@@ -32,10 +32,10 @@ process.stdin.on('end', () => {
     );
     process.exit(0);
   }
-  let result = null;
+  let result;
   try {
     result = JSON.parse(r.stdout);
-  } catch (e) {
+  } catch {
     // JSON.parse는 SyntaxError만 던지지만 훅은 exit 0을 지켜야 하므로 어떤 오류든
     // result를 비워 아래에서 실패 사유 한 줄을 남기게 한다. graph-sync는 exit 1이어도
     // JSON을 내므로 파싱 실패는 런타임 자체의 실패다.
