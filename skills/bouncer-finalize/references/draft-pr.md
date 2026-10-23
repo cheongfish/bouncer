@@ -11,6 +11,16 @@ Do not pass `pr.labels` or any `--label` flag — leftover `pr.labels` in an
 existing config is ignored without error and never attached. Title and push
 order stay the same; body follows the section contract below.
 
+### Preserved-digest draft
+
+After cleanup the task documents are gone, so build the body from the digest kept through
+`--yes` instead of re-running `prepare`. Write the Korean `## 배경 · 변경 의도` and
+`## 주요 변경 내용` text to a summary file (and optionally a Mermaid source to a flow file), then run
+`bouncer finalize pr-body --digest <digest.json> --summary <summary.md> [--flow <flow.mmd>]`.
+The stdout Markdown is a draft for the root to review; the command reads only those files, never
+posts a PR, and failed verification, outside_scope, deferred must_fix and drive issues stay visible
+in it. The root still reviews the final text and asks for publish consent as before.
+
 ### Title (unchanged)
 
 Use digest `pr.title_prefix` plus one space and a Korean summary:

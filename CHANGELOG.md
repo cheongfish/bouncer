@@ -26,6 +26,9 @@
 
 ### Added
 
+- **보존 digest 기반 PR 본문 초안** — `bouncer finalize pr-body --digest --summary [--flow]`가 저장한 digest와
+  한국어 요약 파일로 PR 본문 Markdown을 stdout에 만든다. 검증 결과, outside_scope, deferred must_fix, 실행 이슈를
+  빠뜨리지 않고 task 문서가 정리된 뒤에도 같은 입력에서 같은 출력을 낸다. 파일 쓰기·Git 조회·PR 게시는 하지 않는다.
 - **최종 리뷰 거절 코드 문서 검사** — `rules/cli.md`의 `coordinate repair` 거절 표(Condition·Reason)를
   `coordinator-repair`가 export한 지원 reason 목록과 `npm run lint:docs`가 대조한다. 알 수 없는 코드나 빠진
   필수 행은 파일·코드와 함께 실패한다. 아울러 `rules/cli.md`와 final_review 카드의 legacy/brief 설명

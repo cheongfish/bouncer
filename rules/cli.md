@@ -19,6 +19,7 @@ bouncer commit --blueprint <dir> [--yes]
 bouncer finalize --blueprint <dir> [--yes]
 bouncer finalize release-main --blueprint <dir>
 bouncer finalize comprehension --blueprint <dir> --digest <json-file> (--confirm-quiz | --refresh)
+bouncer finalize pr-body --digest <json-file> --summary <markdown-file> [--flow <mermaid-file>]
 bouncer run preflight --blueprint <dir>
 bouncer run detach --blueprint <dir> --yes [--reason <text>]
 ```
@@ -29,6 +30,13 @@ against the current HEAD and `computeDiffSha`. Refusals (exit 1, bytes unchanged
 `comprehension-consent-required`, `comprehension-input-invalid`,
 `comprehension-target-stale`; flag errors exit 2. `--refresh` needs an existing
 valid entry and keeps `range_from`; it is mutually exclusive with `--confirm-quiz`.
+
+`finalize pr-body` prints a draft PR body (Markdown) to stdout from a saved v2 digest and a
+Korean summary file with `## 배경 · 변경 의도` and `## 주요 변경 내용` sections; `--flow` adds a
+Mermaid `로직 흐름` section. It is read-only: no file writes, Git lookups, ledger reads, or PR
+publishing, and the same inputs give byte-identical output. Unreadable files, invalid JSON, an
+invalid digest shape, or a missing summary section exit 1 with stderr only; a missing `--digest`,
+`--summary`, or a valueless `--flow` exits 2.
 
 `run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
 every simulated wave has width 1, `parallel` for a single wave of width 2+,

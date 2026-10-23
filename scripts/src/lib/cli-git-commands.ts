@@ -59,7 +59,7 @@ function cmdFinalize(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { prepareFinalizeDigest } = require('./finalize-digest') as typeof import('./finalize-digest');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { resolveExplainLinks } = require('./finalize-pr') as typeof import('./finalize-pr');
+  const { resolveExplainLinks, renderPrBody } = require('./finalize-pr') as typeof import('./finalize-pr');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { releaseMain } = require('./finalize-release-main') as typeof import('./finalize-release-main');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
@@ -80,6 +80,37 @@ function cmdFinalize(rest: string[], io: CliIo) {
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
+  }
+  // pr-body는 저장한 digest와 요약 파일만 읽어 stdout에 Markdown을 낸다. 원장·Git·task 문서를
+  // 읽거나 파일을 쓰지 않아 정리 뒤에도 같은 입력이 같은 출력을 낸다.
+  if (rest[0] === 'pr-body') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.digest !== 'string' || f.digest === '') {
+      io.err('finalize: --digest is required\n');
+      return 2;
+    }
+    if (typeof f.summary !== 'string' || f.summary === '') {
+      io.err('finalize: --summary is required\n');
+      return 2;
+    }
+    // --flow는 선택이지만 값 없이 주어지면 사용법 오류다(조용히 무시하면 흐름이 빠진 채 통과한다).
+    if (f.flow !== undefined && (typeof f.flow !== 'string' || f.flow === '')) {
+      io.err('finalize: --flow requires a file\n');
+      return 2;
+    }
+    const fs = require('node:fs') as typeof import('node:fs');
+    try {
+      const digest = JSON.parse(fs.readFileSync(f.digest, 'utf8'));
+      const summary = fs.readFileSync(f.summary, 'utf8');
+      const flow = typeof f.flow === 'string' ? fs.readFileSync(f.flow, 'utf8') : undefined;
+      io.out(renderPrBody({ digest, summary, flow }));
+      return 0;
+    } catch (error) {
+      // 파일 읽기·JSON 파싱·입력 검증 실패는 모두 사용자 입력 문제이며 같은 형식으로 거절한다.
+      // 쓰기가 없어 어느 경우든 남는 상태가 없으므로 구분 없이 흡수해도 안전하다.
+      io.err(`finalize pr-body: ${(error as { message?: string }).message || String(error)}\n`);
+      return 1;
+    }
   }
   // release-main은 메인 checkout 전용 정리. finalize --yes(integration 커밋)와
   // 섞이면 닫힌 사본을 커밋 대상으로 오인하므로, prepare/links와 같이 앞 토큰으로 가른다.

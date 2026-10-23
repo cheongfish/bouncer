@@ -83,3 +83,12 @@ test('finalize comprehension --help → 기록 명령을 나열하고 쓰기·ha
   assert.strictEqual(err, '');
   assert.ok(!loaded.includes('finalize-comprehension.js'));
 });
+
+test('finalize pr-body --help → 초안 명령을 나열하고 쓰기·handler 적재 없이 exit 0', () => {
+  const { code, out, err, loaded } = probeCli(['finalize', 'pr-body', '--help']);
+  assert.strictEqual(code, 0);
+  assert.strictEqual(out, COMMAND_USAGE.finalize);
+  assert.ok(out.includes('pr-body --digest <json-file> --summary <markdown-file>'));
+  assert.strictEqual(err, '');
+  assert.ok(!loaded.includes('finalize-pr.js'));
+});
