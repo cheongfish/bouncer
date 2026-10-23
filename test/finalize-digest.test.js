@@ -1323,3 +1323,35 @@ test('old trailer without registry → exact match behaves as before', () => {
   });
   assert.equal(missed.size, 0);
 });
+
+test('task documents deleted after finalize → pr-body renders the same body from the saved digest', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const digest = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(digest.ok, true, JSON.stringify(digest));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-prbody-'));
+  try {
+    const digestFile = path.join(dir, 'digest.json');
+    const summaryFile = path.join(dir, 'summary.md');
+    fs.writeFileSync(digestFile, JSON.stringify(digest));
+    fs.writeFileSync(summaryFile, '## 배경 · 변경 의도\n\n배경\n\n## 주요 변경 내용\n\n변경\n');
+    const run = () => {
+      let out = '';
+      let err = '';
+      const code = runCli(['finalize', 'pr-body', '--digest', digestFile, '--summary', summaryFile],
+        { out: (s) => { out += s; }, err: (s) => { err += s; } });
+      return { code, out, err };
+    };
+    const before = run();
+    assert.strictEqual(before.code, 0, before.err);
+    fs.rmSync(path.join(repoRoot, blueprintDir, 'tasks'), { recursive: true, force: true });
+    assert.strictEqual(prepareFinalizeDigest({ repoRoot, blueprintDir }).reason, 'task-documents-missing');
+    const after = run();
+    assert.strictEqual(after.code, 0, after.err);
+    assert.strictEqual(after.out, before.out);
+    assert.ok(after.out.startsWith('## 배경 · 변경 의도\n\n배경\n\n## 주요 변경 내용\n\n변경\n'));
+    assert.ok(after.out.includes('- true — passed'));
+    assert.ok(after.out.includes('## 리뷰 포인트'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

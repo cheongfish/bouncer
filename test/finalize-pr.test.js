@@ -901,3 +901,221 @@ test('failed verification without a classification → PR line carries no outsid
   }, { now: new Date('2026-09-24T01:00:00Z'), config: {} });
   assert.deepStrictEqual(draft.sections.verification, ['npm test — failed']);
 });
+
+// ---- finalize pr-body: 보존 digest + 요약 파일 → Markdown 초안 ----
+
+const SUMMARY_MD = [
+  '## 배경 · 변경 의도',
+  '',
+  '- 문제: 초안이 비어 있었다.',
+  '- 의도: digest에서 만든다.',
+  '',
+  '## 주요 변경 내용',
+  '',
+  '| 파일 | 변경 |',
+  '| --- | --- |',
+  '| `a.ts` | 렌더러 추가 |',
+  '',
+].join('\n');
+
+const ZERO_ISSUES = {
+  rework_reports: 0, debugger_calls: 0, repair_waves: 0,
+  fanin_verification_failures: 0, blocked: 0, deferred_must_fix: 0,
+};
+
+function prBodyDigest(over = {}) {
+  return {
+    ok: true,
+    version: 2,
+    blueprint: { dir: BP, stable_id: 'BP-1', title: 't', intent: [], commit_type: 'feat', scale: null },
+    range: { base: 'a'.repeat(40), head: 'b'.repeat(40), diff_sha: null },
+    git: { branch: 'work', pr_base: null },
+    tasks: [{
+      id: 'TASKS-001',
+      verification: { status: 'passed', command: 'node --test a', exit_code: 0, evidence_id: 'v1' },
+    }],
+    out_of_scope: [],
+    unverified: [],
+    blueprint_review: null,
+    pr: { sections: { related: [] } },
+    warnings: [],
+    drive_issues: { ...ZERO_ISSUES },
+    ...over,
+  };
+}
+
+// 임시 디렉터리에 입력 파일을 쓰고 CLI를 실행한다. 반환값은 종료 코드와 두 스트림이다.
+function runPrBody({ digest, summary = SUMMARY_MD, flow, rawDigest, extra = [], omit = [] }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-prbody-'));
+  try {
+    const digestFile = path.join(dir, 'digest.json');
+    const summaryFile = path.join(dir, 'summary.md');
+    fs.writeFileSync(digestFile, rawDigest !== undefined ? rawDigest : JSON.stringify(digest));
+    if (summary !== null) fs.writeFileSync(summaryFile, summary);
+    const argv = ['finalize', 'pr-body'];
+    if (!omit.includes('digest')) argv.push('--digest', digestFile);
+    if (!omit.includes('summary')) argv.push('--summary', summaryFile);
+    if (flow !== undefined) {
+      const flowFile = path.join(dir, 'flow.mmd');
+      fs.writeFileSync(flowFile, flow);
+      argv.push('--flow', flowFile);
+    }
+    argv.push(...extra);
+    let out = '';
+    let err = '';
+    const code = runCli(argv, { out: (s) => { out += s; }, err: (s) => { err += s; } });
+    return { code, out, err };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('minimal passed digest → pr-body prints only summary sections and the verification line', () => {
+  const r = runPrBody({ digest: prBodyDigest() });
+  assert.strictEqual(r.code, 0, r.err);
+  assert.strictEqual(r.err, '');
+  assert.strictEqual(r.out, [
+    '## 배경 · 변경 의도',
+    '',
+    '- 문제: 초안이 비어 있었다.',
+    '- 의도: digest에서 만든다.',
+    '',
+    '## 주요 변경 내용',
+    '',
+    '| 파일 | 변경 |',
+    '| --- | --- |',
+    '| `a.ts` | 렌더러 추가 |',
+    '',
+    '## 확인 방법',
+    '',
+    '- node --test a — passed',
+    '',
+  ].join('\n'));
+});
+
+test('same verify command in two tasks → pr-body lists it once', () => {
+  const task = (id) => ({
+    id, verification: { status: 'passed', command: 'node --test a', exit_code: 0, evidence_id: id },
+  });
+  const r = runPrBody({ digest: prBodyDigest({ tasks: [task('TASKS-001'), task('TASKS-002')] }) });
+  assert.strictEqual(r.code, 0, r.err);
+  assert.strictEqual(r.out.split('node --test a — passed').length - 1, 1);
+});
+
+test('failed outside_scope verification, deferred must_fix and drive issues → pr-body keeps each visible', () => {
+  const finding = {
+    id: 'F-1', status: 'deferred', actionability: 'must_fix', note: '나중에 고친다',
+  };
+  const digest = prBodyDigest({
+    tasks: [{
+      id: 'TASKS-001',
+      verification: {
+        status: 'failed', command: 'npm test', exit_code: 1, evidence_id: 'e1',
+        outside_scope: { kind: 'outside_scope', reason: 'vendor drift', evidence_id: 'e1' },
+      },
+    }],
+    out_of_scope: ['vendor 변경은 이 PR 밖이다'],
+    unverified: [{ kind: 'terminal-outside-scope', detail: 'vendor drift (evidence e1)' }],
+    blueprint_review: { findings: [finding] },
+    warnings: [{ kind: 'must-fix-deferred', id: 'F-1', note: '나중에 고친다' }],
+    drive_issues: { ...ZERO_ISSUES, rework_reports: 2, deferred_must_fix: 1 },
+    pr: { sections: { related: ['Explain: [explain.md](https://example.test/e.md)'] } },
+  });
+  const r = runPrBody({ digest });
+  assert.strictEqual(r.code, 0, r.err);
+  assert.strictEqual(r.out, [
+    '## 관련 이슈',
+    '',
+    '- Explain: [explain.md](https://example.test/e.md)',
+    '',
+    '## 배경 · 변경 의도',
+    '',
+    '- 문제: 초안이 비어 있었다.',
+    '- 의도: digest에서 만든다.',
+    '',
+    '## 주요 변경 내용',
+    '',
+    '| 파일 | 변경 |',
+    '| --- | --- |',
+    '| `a.ts` | 렌더러 추가 |',
+    '',
+    '## 리뷰 포인트',
+    '',
+    '- 미해결 must_fix: F-1: 나중에 고친다',
+    '- vendor 변경은 이 PR 밖이다',
+    '- terminal-outside-scope: vendor drift (evidence e1)',
+    '- 실행 이슈: rework_reports 2, deferred_must_fix 1',
+    '',
+    '## 확인 방법',
+    '',
+    '- npm test — failed (outside_scope, evidence e1)',
+    '',
+  ].join('\n'));
+  assert.ok(!r.out.includes('npm test — passed'));
+});
+
+test('flow file given → pr-body adds a mermaid 로직 흐름 section before review points', () => {
+  const digest = prBodyDigest({ out_of_scope: ['밖'] });
+  const withFlow = runPrBody({ digest, flow: 'flowchart TD\n  A --> B\n' });
+  assert.strictEqual(withFlow.code, 0, withFlow.err);
+  assert.ok(withFlow.out.includes([
+    '## 로직 흐름',
+    '',
+    '```mermaid',
+    'flowchart TD',
+    '  A --> B',
+    '```',
+    '',
+    '## 리뷰 포인트',
+  ].join('\n')));
+  const without = runPrBody({ digest });
+  assert.ok(!without.out.includes('로직 흐름'));
+});
+
+test('same inputs twice → pr-body output is byte-identical', () => {
+  const digest = prBodyDigest({ out_of_scope: ['밖'] });
+  assert.strictEqual(runPrBody({ digest, flow: 'graph TD\n A-->B' }).out,
+    runPrBody({ digest, flow: 'graph TD\n A-->B' }).out);
+});
+
+test('invalid JSON, wrong version or missing range → pr-body exits 1 with stderr only', () => {
+  const bad = [
+    runPrBody({ rawDigest: '{not json' }),
+    runPrBody({ digest: prBodyDigest({ version: 1 }) }),
+    runPrBody({ digest: prBodyDigest({ range: undefined }) }),
+    runPrBody({ digest: prBodyDigest({ tasks: [{ id: 'T', verification: { status: 5 } }] }) }),
+  ];
+  for (const r of bad) {
+    assert.strictEqual(r.code, 1);
+    assert.strictEqual(r.out, '');
+    assert.match(r.err, /^finalize pr-body: /);
+  }
+});
+
+test('summary missing a required heading or its body → pr-body exits 1', () => {
+  for (const summary of [
+    '## 배경 · 변경 의도\n\n본문\n',
+    '## 배경 · 변경 의도\n\n본문\n\n## 주요 변경 내용\n\n',
+    '내용만 있다\n',
+  ]) {
+    const r = runPrBody({ digest: prBodyDigest(), summary });
+    assert.strictEqual(r.code, 1, summary);
+    assert.strictEqual(r.out, '');
+    assert.match(r.err, /^finalize pr-body: /);
+  }
+});
+
+test('unreadable summary file → pr-body exits 1', () => {
+  const r = runPrBody({ digest: prBodyDigest(), summary: null });
+  assert.strictEqual(r.code, 1);
+  assert.match(r.err, /^finalize pr-body: /);
+});
+
+test('missing --digest or --summary → pr-body exits 2 as a usage error', () => {
+  const noDigest = runPrBody({ digest: prBodyDigest(), omit: ['digest'] });
+  assert.strictEqual(noDigest.code, 2);
+  assert.strictEqual(noDigest.err, 'finalize: --digest is required\n');
+  const noSummary = runPrBody({ digest: prBodyDigest(), omit: ['summary'] });
+  assert.strictEqual(noSummary.code, 2);
+  assert.strictEqual(noSummary.err, 'finalize: --summary is required\n');
+});

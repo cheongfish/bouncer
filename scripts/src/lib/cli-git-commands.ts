@@ -59,9 +59,11 @@ function cmdFinalize(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { prepareFinalizeDigest } = require('./finalize-digest') as typeof import('./finalize-digest');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { resolveExplainLinks } = require('./finalize-pr') as typeof import('./finalize-pr');
+  const { resolveExplainLinks, renderPrBody } = require('./finalize-pr') as typeof import('./finalize-pr');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { releaseMain } = require('./finalize-release-main') as typeof import('./finalize-release-main');
+  // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
+  const { recordComprehension } = require('./finalize-comprehension') as typeof import('./finalize-comprehension');
   // prepare는 읽기 전용 digest. 기존 finalize --yes 경로와 인자를 섞지 않는다.
   if (rest[0] === 'prepare') {
     const f = parseFlags(rest.slice(1));
@@ -78,6 +80,37 @@ function cmdFinalize(rest: string[], io: CliIo) {
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
+  }
+  // pr-body는 저장한 digest와 요약 파일만 읽어 stdout에 Markdown을 낸다. 원장·Git·task 문서를
+  // 읽거나 파일을 쓰지 않아 정리 뒤에도 같은 입력이 같은 출력을 낸다.
+  if (rest[0] === 'pr-body') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.digest !== 'string' || f.digest === '') {
+      io.err('finalize: --digest is required\n');
+      return 2;
+    }
+    if (typeof f.summary !== 'string' || f.summary === '') {
+      io.err('finalize: --summary is required\n');
+      return 2;
+    }
+    // --flow는 선택이지만 값 없이 주어지면 사용법 오류다(조용히 무시하면 흐름이 빠진 채 통과한다).
+    if (f.flow !== undefined && (typeof f.flow !== 'string' || f.flow === '')) {
+      io.err('finalize: --flow requires a file\n');
+      return 2;
+    }
+    const fs = require('node:fs') as typeof import('node:fs');
+    try {
+      const digest = JSON.parse(fs.readFileSync(f.digest, 'utf8'));
+      const summary = fs.readFileSync(f.summary, 'utf8');
+      const flow = typeof f.flow === 'string' ? fs.readFileSync(f.flow, 'utf8') : undefined;
+      io.out(renderPrBody({ digest, summary, flow }));
+      return 0;
+    } catch (error) {
+      // 파일 읽기·JSON 파싱·입력 검증 실패는 모두 사용자 입력 문제이며 같은 형식으로 거절한다.
+      // 쓰기가 없어 어느 경우든 남는 상태가 없으므로 구분 없이 흡수해도 안전하다.
+      io.err(`finalize pr-body: ${(error as { message?: string }).message || String(error)}\n`);
+      return 1;
+    }
   }
   // release-main은 메인 checkout 전용 정리. finalize --yes(integration 커밋)와
   // 섞이면 닫힌 사본을 커밋 대상으로 오인하므로, prepare/links와 같이 앞 토큰으로 가른다.
@@ -97,6 +130,49 @@ function cmdFinalize(rest: string[], io: CliIo) {
       allowPartialMerge: f['allow-partial-merge'] === true,
       confirmPartialMerge: f['confirm-partial-merge'] === true,
     });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  }
+  // comprehension은 사용자 quiz 확인 뒤 explain.md 기록만 쓴다. 앞 토큰으로 가르지 않으면
+  // 기존 finalize(--yes 커밋 경로)로 흘러 확인 없는 호출이 엉뚱한 결과를 낸다.
+  if (rest[0] === 'comprehension') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+      io.err('finalize: --blueprint is required\n');
+      return 2;
+    }
+    if (typeof f.digest !== 'string' || f.digest === '') {
+      io.err('finalize: --digest is required\n');
+      return 2;
+    }
+    // 두 flag는 상호배타: 최초 기록과 갱신은 서로 다른 전제를 가진다.
+    if (f['confirm-quiz'] === true && f.refresh === true) {
+      io.err('finalize: --confirm-quiz and --refresh are mutually exclusive\n');
+      return 2;
+    }
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    let digest: unknown;
+    try {
+      digest = JSON.parse(require('node:fs').readFileSync(f.digest, 'utf8'));
+    } catch (_e) {
+      // 읽기·JSON 파싱 실패는 digest 없음과 같다. 기록 모듈이 동의 → 입력 순서로 거절한다.
+      digest = undefined;
+    }
+    let result;
+    try {
+      result = recordComprehension({
+        repoRoot,
+        blueprintDir: f.blueprint,
+        digest,
+        // === true: 값이 붙은 `--confirm-quiz 1`은 동의로 치지 않는다.
+        confirmed: f['confirm-quiz'] === true,
+        refresh: f.refresh === true,
+      });
+    } catch (error) {
+      // 쓰기 실패(디스크·권한)는 거절 reason이 아니라 실행 실패다. 원본은 rename 전이라 온전하다.
+      io.err(`finalize: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
   }

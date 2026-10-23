@@ -394,6 +394,127 @@ function buildPrDraft(digest: unknown, opts: { now: Date; config: unknown }): Pr
   };
 }
 
+const SUMMARY_BACKGROUND = '배경 · 변경 의도';
+const SUMMARY_CHANGES = '주요 변경 내용';
+const DRIVE_ISSUE_KEYS = [
+  'rework_reports', 'debugger_calls', 'repair_waves',
+  'fanin_verification_failures', 'blocked', 'deferred_must_fix',
+] as const;
+
+/**
+ * 한국어 요약 Markdown에서 `## <heading>` 절의 본문을 꺼낸다. 다음 `## ` 헤딩 전까지가 본문이며
+ * 앞뒤 공백은 잘라 결정적 출력을 보장한다. 헤딩이 없거나 본문이 비면 null이다.
+ *
+ * @param {string} summary - 요약 파일 전문
+ * @param {string} heading - `## ` 뒤의 정확한 헤딩 문자열
+ * @returns {string | null}
+ */
+function extractSummarySection(summary: string, heading: string): string | null {
+  const lines = summary.replace(/\r\n/g, '\n').split('\n');
+  const start = lines.findIndex((line) => line.trimEnd() === `## ${heading}`);
+  if (start < 0) return null;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.startsWith('## '));
+  const body = (end < 0 ? rest : rest.slice(0, end)).join('\n').trim();
+  return body || null;
+}
+
+/**
+ * renderPrBody가 읽는 v2 digest의 최소 shape를 검사한다. 보존 digest는 파일에서 오므로
+ * 손상된 JSON이 빈 초안으로 조용히 통과하지 않게 range와 task verification만 확인한다.
+ *
+ * @param {Record<string, unknown>} digest - 파싱된 digest
+ * @returns {void} 위반하면 Error를 던진다
+ */
+function assertPrBodyDigest(digest: Record<string, unknown>): void {
+  if (digest.ok !== true || digest.version !== 2) {
+    throw new Error('digest must be a prepare digest with ok: true and version: 2');
+  }
+  const range = asRecord(digest.range);
+  if (typeof range.base !== 'string' || !range.base || typeof range.head !== 'string' || !range.head) {
+    throw new Error('digest.range.base and digest.range.head are required');
+  }
+  if (!Array.isArray(digest.tasks)) throw new Error('digest.tasks must be an array');
+  for (const entry of digest.tasks) {
+    const task = asRecord(entry);
+    if (task.verification === null || task.verification === undefined) continue;
+    const v = asRecord(task.verification);
+    const commandOk = v.command === null || v.command === undefined || typeof v.command === 'string';
+    if (typeof v.status !== 'string' || !commandOk) {
+      throw new Error('digest task verification needs a string status and a string or null command');
+    }
+  }
+}
+
+/**
+ * 보존한 finalize digest와 한국어 요약으로 PR 본문 Markdown 초안을 만든다. 순수 함수 —
+ * 파일·Git·원장·현재 task를 읽지 않으므로 정리 뒤에도 같은 입력이 같은 바이트를 낸다.
+ * 절 순서는 관련 이슈, 배경, 변경, 로직 흐름, 리뷰 포인트, 확인 방법이며 근거 없는 절은 생략한다.
+ * 실패한 검증은 `failed`로, 미해결 must_fix·실행 이슈는 리뷰 포인트에 그대로 남긴다.
+ *
+ * @param {object} input
+ * @param {unknown} input.digest - 파싱된 v2 digest
+ * @param {string} input.summary - `## 배경 · 변경 의도`, `## 주요 변경 내용` 절을 가진 요약 Markdown
+ * @param {string} [input.flow] - Mermaid 소스. 비었거나 없으면 로직 흐름 절을 생략한다
+ * @returns {string} 끝에 개행 하나를 가진 Markdown
+ * @throws 입력 shape 위반 또는 요약 절 누락 시 Error
+ */
+function renderPrBody(input: { digest: unknown; summary: string; flow?: string }): string {
+  const d = asRecord(input.digest);
+  assertPrBodyDigest(d);
+  const background = extractSummarySection(String(input.summary ?? ''), SUMMARY_BACKGROUND);
+  const changes = extractSummarySection(String(input.summary ?? ''), SUMMARY_CHANGES);
+  if (!background) throw new Error(`summary needs a non-empty "## ${SUMMARY_BACKGROUND}" section`);
+  if (!changes) throw new Error(`summary needs a non-empty "## ${SUMMARY_CHANGES}" section`);
+
+  const blocks: string[] = [];
+  const bullets = (items: string[]): string => items.map((item) => `- ${item}`).join('\n');
+
+  // 링크는 digest가 가진 것만 쓴다 — 경로에서 URL을 만들지 않는다.
+  const related = (Array.isArray(asRecord(asRecord(d.pr).sections).related)
+    ? asRecord(asRecord(d.pr).sections).related as unknown[] : [])
+    .filter((item): item is string => typeof item === 'string' && item !== '');
+  if (related.length) blocks.push(`## 관련 이슈\n\n${bullets(related)}`);
+  blocks.push(`## ${SUMMARY_BACKGROUND}\n\n${background}`);
+  blocks.push(`## ${SUMMARY_CHANGES}\n\n${changes}`);
+
+  const flow = typeof input.flow === 'string' ? input.flow.replace(/\r\n/g, '\n').trim() : '';
+  if (flow) blocks.push(`## 로직 흐름\n\n\`\`\`mermaid\n${flow}\n\`\`\``);
+
+  // 리뷰 포인트: 저장된 warnings와 blueprint_review 재계산을 합쳐 deferred must_fix를 빠뜨리지 않고
+  // (같은 문자열은 한 번), 나머지는 buildReviewPoints가 이미 must_fix 중복을 뺀 목록을 쓴다.
+  const mustFix: string[] = [];
+  const pushMustFix = (id: unknown, note: unknown): void => {
+    if (typeof id !== 'string' || !id) return;
+    const text = typeof note === 'string' && note ? `${id}: ${note}` : id;
+    if (!mustFix.includes(text)) mustFix.push(text);
+  };
+  for (const w of Array.isArray(d.warnings) ? d.warnings : []) {
+    pushMustFix(asRecord(w).id, asRecord(w).note);
+  }
+  for (const w of collectMustFixWarnings(asRecord(d.blueprint_review).findings)) pushMustFix(w.id, w.note);
+  const points = [
+    ...mustFix.map((text) => `미해결 must_fix: ${text}`),
+    ...buildReviewPoints({
+      out_of_scope: d.out_of_scope,
+      tasks: d.tasks,
+      unverified: d.unverified,
+      blueprint_review: d.blueprint_review,
+    }),
+  ];
+  const issues = asRecord(d.drive_issues);
+  const issueParts = DRIVE_ISSUE_KEYS
+    .filter((key) => typeof issues[key] === 'number' && (issues[key] as number) > 0)
+    .map((key) => `${key} ${issues[key]}`);
+  if (issueParts.length) points.push(`실행 이슈: ${issueParts.join(', ')}`);
+  if (points.length) blocks.push(`## 리뷰 포인트\n\n${bullets(points)}`);
+
+  const verification = buildVerificationLines(d.tasks as unknown[]);
+  if (verification.length) blocks.push(`## 확인 방법\n\n${bullets(verification)}`);
+
+  return `${blocks.join('\n\n')}\n`;
+}
+
 /**
  * links가 쓸 branch를 고른다. 원장 integrationBranch가 있으면 그것이 정본이고,
  * 없으면 호출 checkout의 실제 branch다(brief: resolveCheckoutBranch(repoRoot)).
@@ -550,4 +671,4 @@ function resolveExplainLinks({
   };
 }
 
-export = { buildPrDraft, resolveExplainLinks, parseGithubRemote };
+export = { buildPrDraft, renderPrBody, resolveExplainLinks, parseGithubRemote };
