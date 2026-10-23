@@ -329,3 +329,20 @@ test('CLI with the drive-metrics reference → applies its path contract and exi
   const result = spawnCli(['skills/bouncer-run/references/drive-metrics.md']);
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
 });
+
+// 정본 경로를 유지한 사본에서 필수 H2 하나를 H3로 내리면 경로 계약이 제목 누락을 거절해야 한다.
+test('drive-metrics reference copy without a required H2 → exit 1 naming the file path and the missing heading', () => {
+  const rel = 'skills/bouncer-run/references/drive-metrics.md';
+  const { dir, abs, markdown } = copyDocToTmp(rel);
+  try {
+    assert.strictEqual(runInTmp([rel], dir).code, 0);
+    const required = markdown.match(/^## (.+)$/m)[1];
+    fs.writeFileSync(abs, markdown.replace(/^## (.+)$/m, '### $1'));
+    const { code, err } = runInTmp([rel], dir);
+    assert.strictEqual(code, 1, err);
+    assert.ok(err.includes(rel), err);
+    assert.ok(err.includes(required), err);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

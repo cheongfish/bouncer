@@ -815,6 +815,125 @@ test('writeFileSync가 실패하는 저장 → metrics-snapshot-write-failed로 
   assert.deepStrictEqual(fs.readFileSync(first.json.path), before);
 });
 
+test('.git/bouncer가 외부 디렉터리 symlink이고 metrics-snapshots가 없는 저장 → metrics-snapshot-invalid로 거절하고 외부에 아무것도 만들지 않는다', () => {
+  const { repo } = gitRepoWithLedger([worker(100)]);
+  const outsideDir = tmp();
+  fs.symlinkSync(outsideDir, path.join(repo, '.git', 'bouncer'));
+  assert.deepStrictEqual(cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT).json,
+    { ok: false, reason: 'metrics-snapshot-invalid' });
+  assert.deepStrictEqual(fs.readdirSync(outsideDir), []);
+});
+
+test('temp 경로에 외부 파일 symlink가 놓인 재저장 → metrics-snapshot-write-failed로 거절하고 외부·기존 snapshot 바이트를 보존한다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const first = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  // 정상 저장은 자신의 temp를 남기지 않는다.
+  assert.deepStrictEqual(fs.readdirSync(path.dirname(first.json.path)), [path.basename(first.json.path)]);
+  const before = fs.readFileSync(first.json.path);
+  const outside = path.join(tmp(), 'outside.txt');
+  fs.writeFileSync(outside, 'outside bytes');
+  const planted = `${first.json.path}.${process.pid}.tmp`;
+  fs.symlinkSync(outside, planted);
+  writeLedger(ledgerFile, { integrated: [], decisions: [worker(100), worker(9)] });
+  const r = metrics.saveWorkerSnapshot({
+    commonGitDir: path.join(repo, '.git'), ledgerFile, blueprint: BLUEPRINT,
+  });
+  assert.deepStrictEqual(r, { ok: false, reason: 'metrics-snapshot-write-failed' });
+  assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'outside bytes');
+  assert.deepStrictEqual(fs.readFileSync(first.json.path), before);
+  // 남이 심은 symlink는 우리 temp가 아니므로 지우지 않는다.
+  assert.ok(fs.lstatSync(planted).isSymbolicLink());
+});
+
+// 실제 fs 메서드를 기본으로 두고 일부만 덮어쓰는 주입 객체. 기존 3-method 모양에 optional 메서드를 얹는다.
+function seam(overrides) {
+  return {
+    readFileSync: fs.readFileSync, writeFileSync: fs.writeFileSync, renameSync: fs.renameSync, ...overrides,
+  };
+}
+
+function savedThenChangedLedger() {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const first = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  writeLedger(ledgerFile, { integrated: [], decisions: [worker(100), worker(9)] });
+  const commonGitDir = path.join(repo, '.git');
+  return {
+    first, before: fs.readFileSync(first.json.path), dir: path.dirname(first.json.path),
+    save: (fsx) => metrics.saveWorkerSnapshot({ commonGitDir, ledgerFile, blueprint: BLUEPRINT, fs: fsx }),
+    commonGitDir,
+  };
+}
+
+const fsError = (code) => Object.assign(new Error(code), { code });
+
+test('경계 검사·snapshot 읽기에서 EACCES·EISDIR가 나는 저장 → 던지지 않고 metrics-snapshot-invalid를 반환한다', () => {
+  const f = savedThenChangedLedger();
+  const cases = {
+    'base realpath EACCES': { realpathSync: (p) => {
+      if (p === f.commonGitDir) throw fsError('EACCES');
+      return fs.realpathSync(p);
+    } },
+    'ancestor realpath EACCES': { realpathSync: (p) => {
+      if (p === f.dir) throw fsError('EACCES');
+      return fs.realpathSync(p);
+    } },
+    'ancestor lstat EACCES': { realpathSync: (p) => {
+      if (p === f.dir) throw fsError('ENOENT');
+      return fs.realpathSync(p);
+    }, lstatSync: (p) => {
+      if (p === f.dir) throw fsError('EACCES');
+      return fs.lstatSync(p);
+    } },
+    'file lstat EACCES': { lstatSync: (p) => {
+      if (p === f.first.json.path) throw fsError('EACCES');
+      return fs.lstatSync(p);
+    } },
+    'snapshot read EISDIR': { readFileSync: (p, enc) => {
+      if (p === f.first.json.path) throw fsError('EISDIR');
+      return fs.readFileSync(p, enc);
+    } },
+    'snapshot read EACCES': { readFileSync: (p, enc) => {
+      if (p === f.first.json.path) throw fsError('EACCES');
+      return fs.readFileSync(p, enc);
+    } },
+  };
+  for (const [name, overrides] of Object.entries(cases)) {
+    assert.deepStrictEqual(f.save(seam(overrides)), { ok: false, reason: 'metrics-snapshot-invalid' }, name);
+    assert.deepStrictEqual(fs.readFileSync(f.first.json.path), f.before, name);
+  }
+  assert.deepStrictEqual(fs.readdirSync(f.dir), [path.basename(f.first.json.path)]);
+});
+
+test('mkdir·temp 쓰기·rename이 실패하는 저장 → metrics-snapshot-write-failed이고 기존 snapshot과 temp 상태를 보존한다', () => {
+  for (const code of ['EACCES', 'ENOSPC']) {
+    const f = savedThenChangedLedger();
+    let writes = 0;
+    const r = f.save(seam({
+      mkdirSync: () => { throw fsError(code); },
+      writeFileSync: () => { writes += 1; },
+    }));
+    assert.deepStrictEqual(r, { ok: false, reason: 'metrics-snapshot-write-failed' }, code);
+    assert.strictEqual(writes, 0, code);
+    assert.deepStrictEqual(fs.readFileSync(f.first.json.path), f.before, code);
+    assert.deepStrictEqual(fs.readdirSync(f.dir), [path.basename(f.first.json.path)], code);
+  }
+  const w = savedThenChangedLedger();
+  assert.deepStrictEqual(w.save(seam({ writeFileSync: () => { throw fsError('EACCES'); } })),
+    { ok: false, reason: 'metrics-snapshot-write-failed' });
+  assert.deepStrictEqual(fs.readFileSync(w.first.json.path), w.before);
+  const rn = savedThenChangedLedger();
+  assert.deepStrictEqual(rn.save(seam({ renameSync: () => { throw fsError('EXDEV'); } })),
+    { ok: false, reason: 'metrics-snapshot-write-failed' });
+  assert.deepStrictEqual(fs.readFileSync(rn.first.json.path), rn.before);
+  // rename 실패 때 자신이 만든 temp는 지워진다.
+  assert.deepStrictEqual(fs.readdirSync(rn.dir), [path.basename(rn.first.json.path)]);
+});
+
+test('저장 중 프로그래밍 오류(TypeError) → I/O 실패로 삼키지 않고 그대로 던진다', () => {
+  const f = savedThenChangedLedger();
+  assert.throws(() => f.save(seam({ writeFileSync: () => { throw new TypeError('bug'); } })), TypeError);
+});
+
 test('deps.now 시계를 주입한 저장 → recorded_at이 그 시각이다', () => {
   const { repo, ledgerFile } = gitRepoWithLedger([worker(1)]);
   const r = metrics.saveWorkerSnapshot({
