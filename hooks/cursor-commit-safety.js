@@ -4,9 +4,11 @@
 // wearing Cursor's protocol instead of Claude Code's. Cursor decides from a
 // JSON object on stdout ({ permission: allow|deny|ask }) rather than from the
 // exit code, and its payload names the workspace `workspace_roots` rather than
-// `cwd`. Everything that decides *whether* a commit is in scope stays in
-// scripts/lib/commit-hook.js so both adapters cannot drift apart.
-const { evaluateCommit } = require('../scripts/lib/commit-hook');
+// `cwd`. Everything that decides *whether* a commit is in scope is delegated to
+// the public `bouncer commit-guard --command-stdin` CLI through the shared
+// runtime-cli.js, so both adapters cannot drift apart. The runtime's own stdout
+// is never forwarded: this hook's stdout must be exactly one JSON object.
+const { decideCommit } = require('./runtime-cli');
 
 function respond(permission, message) {
   const out = { permission };
@@ -30,16 +32,7 @@ process.stdin.on('end', () => {
   // not recognise still resolves a repository to inspect.
   const roots = Array.isArray(payload.workspace_roots) ? payload.workspace_roots : [];
   const repoRoot = roots[0] || payload.cwd || process.cwd();
-  let result;
-  try {
-    result = evaluateCommit({ command, repoRoot });
-  } catch (e) {
-    // Fail closed, for the same reason as the Claude Code adapter: by this
-    // point evaluateCommit has already returned early for non-commit commands
-    // and for "no active blueprint", so a throw means we could not prove an
-    // actual commit is in scope.
-    respond('deny', `commit-safety: internal error, blocking commit: ${e.message}`);
-  }
+  const result = decideCommit(command, repoRoot);
   if (result.block) respond('deny', result.reason);
   respond('allow');
 });

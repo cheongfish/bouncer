@@ -184,8 +184,6 @@ const INTERNAL_EXEC_PATTERNS = [
 // TASKS-001·002가 hooks/ 정리 때 지울 임시 허용 목록. 파일 경로와 줄 내용을 정확히
 // 일치시키며 디렉터리 전체는 면제하지 않는다.
 const INTERNAL_EXEC_TEMP_ALLOW = new Set([
-  "hooks/commit-safety.js\tconst { evaluateCommit } = require('../scripts/lib/commit-hook');",
-  "hooks/cursor-commit-safety.js\tconst { evaluateCommit } = require('../scripts/lib/commit-hook');",
   "hooks/session-graph.js\tconst { syncSessionGraphs, graphSyncWarnings } = require('../scripts/lib/session-graph');",
 ]);
 

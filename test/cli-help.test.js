@@ -107,6 +107,10 @@ test('알 수 없는 명령 → 실패하지만 사용 가능한 명령을 알�
   assert.strictEqual(r.out, '');
 });
 
+test('usage → commit-guard 두 모드를 나열한다', () => {
+  assert.match(capture([]).out, /commit-guard --command-stdin \[--repo <dir>\]/);
+});
+
 test('usage → scaffold task --blueprint --id를 나열한다', () => {
   const r = capture([]);
   assert.match(r.out, /task --blueprint <dir> --id <ddd>/);
