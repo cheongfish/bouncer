@@ -9,6 +9,11 @@
 
 ### Changed
 
+- **보존 집계·측정 불가 보고 기준 명시** — `drive-metrics.md`가 token 상태를 관측값/미보고/측정 불가로
+  구별하고, direct session은 root 전체 사용량으로 대체하지 않고 측정 불가로 보고한다고 밝힌다.
+  `worker_tokens_source`가 `ledger`/`snapshot`/`unavailable`일 때의 보고 방식(snapshot은 `recorded_at`과 보존
+  자료, unavailable의 worker 0은 완전한 합계가 아님)을 표로 정리했고, `bouncer-finalize`는 정리 전에
+  `metrics summary`를 확보해 보고하도록 안내한다. CLI 저장 schema는 바뀌지 않는다.
 - **직접 실행·파일 전달·intent bundle 절차 명시** — 직접 실행 판정과 파일 기반 구현 payload 전달 계약에 더해,
   `agent-dispatch.md`가 intent bundle 최초 호출은 재선택 횟수에 넣지 않고 `ambiguous`일 때만 근거 기반 재선택
   1회 뒤 `--no-symbols`로 진행하며 exit 1/2는 중단한다고 밝힌다. `created`/`reused`/`revision` 조건(brief만

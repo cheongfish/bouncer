@@ -773,6 +773,7 @@ function runRefLink(name, triggers) {
 // 링크 규칙을 테스트의 인라인 계약 대신 여기에 둔다. 새 검사 종류(문장 정규식 등)는
 // 넣지 않는다 — 문구 고정은 문서를 다듬을 때마다 깨질 뿐 구조를 지키지 못한다.
 const READONLY_ROLE_GUARDS = 'Hard guards (read-only)';
+const DRIVE_METRICS_HEADINGS = ['Per coordinator session', 'Per root-direct session', 'Closing report'];
 const AGENT_DISPATCH_HEADINGS = [
   'Lightweight and implement dispatch', 'Named implementer', 'Implementer fallback', 'Intent bundle',
   'Dispatch metadata and reports', 'Debugger dispatch', 'Worker model and token records', 'Worker hand-back',
@@ -815,6 +816,14 @@ const PATH_CONTRACTS = {
     headings: {
       required: AGENT_DISPATCH_HEADINGS,
       order: AGENT_DISPATCH_HEADINGS,
+    },
+  },
+  // run 스킬의 drive metrics reference: 종류가 없어 경로 계약이 유일한 구조 검사다. 기존 H2 절을
+  // 순서대로 고정하며 새 검사 종류는 넣지 않는다.
+  'skills/bouncer-run/references/drive-metrics.md': {
+    headings: {
+      required: DRIVE_METRICS_HEADINGS,
+      order: DRIVE_METRICS_HEADINGS,
     },
   },
   // 루트 마스터 규칙: 하드룰 절과 검증 reference 링크(실재해야 한다).
