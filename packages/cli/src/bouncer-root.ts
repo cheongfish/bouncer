@@ -1,5 +1,11 @@
 import fs from 'node:fs';
-import { findPluginCandidates, parseHost, resolvePluginRoot, type BouncerHost } from './plugin-root';
+import {
+  assertPluginVersion,
+  findPluginCandidates,
+  parseHost,
+  resolvePluginRoot,
+  type BouncerHost,
+} from './plugin-root';
 
 interface Io {
   out?: (text: string) => void;
@@ -41,6 +47,8 @@ export function runBouncerRoot(argv: string[], io: Io = {}): number {
     const input = (io.readInput ?? (() => fs.readFileSync(0, 'utf8')))().trim();
     const selected = /^\d+$/.test(input) ? candidates[Number(input) - 1] : undefined;
     if (!selected) { err('bouncer-root: invalid selection\n'); return 1; }
+    try { assertPluginVersion(selected); }
+    catch (error) { err(`bouncer-root: ${(error as Error).message}\n`); return 1; }
     out(`${selected.path}\n`);
     return 0;
   }

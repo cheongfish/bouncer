@@ -20,18 +20,20 @@
 
 ## Install
 
-다른 프로젝트에 스킬·훅이 붙지 않도록 **project 또는 local scope** 설치를 권장합니다.
-호스트별 절차는 [install.md](docs/install.md)에 있습니다.
+`bouncer` CLI runtime은 npm package이고 스킬·훅은 호스트 plugin입니다. 먼저
+Node.js 24 이상과 Git을 확인하고, 사용할 plugin과 **같은 버전**의 runtime을
+설치하세요. 기본은 전역 설치입니다. 호스트별 명령과 복구 절차는
+[install.md](docs/install.md)에 있습니다.
 
 ```
+npm install --global @cheongfish/bouncer@1.6.0
 /plugin marketplace add cheongfish/bouncer#release
 /plugin install bouncer@cheongfish-tools
 ```
 
-```bash
-claude plugin install bouncer@cheongfish-tools --scope project   # 팀 공유
-claude plugin install bouncer@cheongfish-tools --scope local     # 본인만
-```
+plugin 설치는 runtime을 설치하지 않습니다. 두 버전이 다르면 `bouncer`가
+plugin 자산을 읽기 전에 중단합니다. 같은 버전을 설치하거나
+`BOUNCER_HOME`을 그 runtime 버전과 일치하는 plugin root로 지정하세요.
 
 ## Quickstart
 

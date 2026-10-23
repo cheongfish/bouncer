@@ -206,10 +206,18 @@ function attachCard(result: NextOk | NextErr, readCard: (id: CardId) => string):
   let body: string;
   try {
     body = readCard(id);
-  } catch (_error) {
+  } catch (error) {
     // 카드 읽기의 모든 실패(ENOENT·EACCES·EISDIR, 주입 seam의 throw)를 같은 거절로 흡수한다.
     // 어느 경우든 이 action의 계약을 줄 수 없다는 결과는 같고, 원장·worktree는 이
     // 함수가 건드리지 않으므로 흡수해도 상태가 어긋나지 않는다. 안내는 hint가 맡는다.
+    if (error instanceof Error && 'code' in error
+      && error.code === 'BOUNCER_PLUGIN_VERSION_MISMATCH') {
+      return {
+        ...fail('coordinator-card-missing'),
+        cause: error.message,
+        next: 'Install the matching npm runtime version or repair BOUNCER_HOME to the matching plugin install.',
+      };
+    }
     return fail('coordinator-card-missing');
   }
   return { ...result, card: { id, body } };

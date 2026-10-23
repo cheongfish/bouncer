@@ -774,6 +774,7 @@ test('task next에서 accepted report → record', () => {
 test('task next에서 brief가 그대로인 scope_revision → revise', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/016-rev';
   const drive = preparedCommitDrive('bouncer-next-rev-', blueprint);
+  const pluginRoot = makeFixturePluginRoot(true);
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
@@ -784,10 +785,16 @@ test('task next에서 brief가 그대로인 scope_revision → revise', () => {
     outcome: 'scope_revision', summary: 'need paths',
   });
   assert.strictEqual(reported.ok, true, JSON.stringify(reported));
-  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
-  assert.strictEqual(r.action, 'revise');
-  assertCardFor(r);
-  assert.strictEqual(r.judge.kind, 'scope-revision');
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+      assert.strictEqual(r.action, 'revise');
+      assertCardFor(r);
+      assert.strictEqual(r.judge.kind, 'scope-revision');
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
 });
 
 // F-SS-001: 보고 뒤 brief가 바뀌면 개정이 끝난 상태다. mismatch blocked가 아니라
@@ -2100,13 +2107,22 @@ test('blueprint next with an unclassified, stale, mismatched or incomplete outsi
  *
  * @returns {string} 임시 플러그인 루트
  */
-function makeFixturePluginRoot() {
+function makeFixturePluginRoot(copyCurrentCards = false) {
   const pluginRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-card-asset-root-')));
   for (const dir of ['agents', 'skills', 'rules', 'hooks', 'scripts']) {
     fs.mkdirSync(path.join(pluginRoot, dir));
   }
   fs.mkdirSync(path.join(pluginRoot, 'references', 'coordinator-cards'), { recursive: true });
-  fs.writeFileSync(path.join(pluginRoot, 'references', 'coordinator-cards', 'dispatch.md'), 'FIXTURE-CARD');
+  if (copyCurrentCards) {
+    for (const id of CARD_ACTIONS) {
+      fs.copyFileSync(
+        path.join(CARD_DIR, `${id}.md`),
+        path.join(pluginRoot, 'references', 'coordinator-cards', `${id}.md`),
+      );
+    }
+  } else {
+    fs.writeFileSync(path.join(pluginRoot, 'references', 'coordinator-cards', 'dispatch.md'), 'FIXTURE-CARD');
+  }
   fs.writeFileSync(path.join(pluginRoot, 'AGENTS.md'), '# fixture\n');
   fs.writeFileSync(path.join(pluginRoot, 'scripts', 'bouncer'), '');
   fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
@@ -2154,4 +2170,23 @@ test('task next dispatch with an invalid BOUNCER_HOME → is coordinator-card-mi
     assert.strictEqual(r.ok, false);
     assert.strictEqual(r.reason, 'coordinator-card-missing');
   });
+});
+
+test('task next dispatch with a plugin version mismatch → keeps card-missing reason and recovery details', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/014-disp-mismatch';
+  const drive = preparedCommitDrive('bouncer-next-card-mismatch-', blueprint);
+  const pluginRoot = makeFixturePluginRoot();
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.5.0' }));
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const result = nextOf(drive, { task: '001' });
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'coordinator-card-missing');
+      assert.match(result.cause, /1\.5\.0/);
+      assert.match(result.cause, /1\.6\.0/);
+      assert.match(result.next, /matching npm runtime version/);
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
 });

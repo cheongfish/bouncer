@@ -366,3 +366,21 @@ test('ensureCodexAgents with an unresolvable plugin root → skips seeding witho
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test('ensureCodexAgents with a plugin version mismatch → propagates the resolver error', () => {
+  const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-version-'));
+  const pluginRoot = makeFixturePluginRoot();
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.5.0' }));
+  try {
+    withBouncerHome(pluginRoot, () => {
+      assert.throws(
+        () => ensureCodexAgents({ repoRoot: repo, created: [] }),
+        { code: 'BOUNCER_PLUGIN_VERSION_MISMATCH' },
+      );
+    });
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
+});

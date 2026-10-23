@@ -13,11 +13,10 @@ export interface PluginCandidate {
 interface ResolverOptions {
   env?: NodeJS.ProcessEnv;
   homeDir?: string;
+  runtimeVersion?: string;
 }
 
-interface AssetRootOptions extends ResolverOptions {
-  runtimeRoot?: string;
-}
+type AssetRootOptions = ResolverOptions;
 
 const HOSTS: readonly BouncerHost[] = ['claude', 'codex', 'antigravity'];
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
@@ -53,22 +52,21 @@ const REQUIRED_ASSET_FILES = ['AGENTS.md'] as const;
 function readCandidate(host: BouncerHost, root: string): PluginCandidate | null {
   const absolute = path.resolve(root);
   try {
-    const launcher = path.join(absolute, 'packages', 'cli', 'bin', 'bouncer');
-    const legacyLauncher = path.join(absolute, 'scripts', 'bouncer');
-    const hasPackageLauncher = fs.existsSync(launcher) && fs.statSync(launcher).isFile();
-    const hasLegacyLauncher = fs.existsSync(legacyLauncher) && fs.statSync(legacyLauncher).isFile();
-    if (!hasPackageLauncher && !hasLegacyLauncher) return null;
-    // statSync가 던지면(없음·권한) 바깥 catch가 후보 탈락으로 흡수한다. 후보 탐색에서
-    // 읽을 수 없는 설치본은 "유효하지 않음"과 같은 결과이므로 안전하다.
+    // 자산 배포판은 실행 파일을 포함하지 않을 수 있어, 자산과 manifest만 검증한다.
     for (const dir of REQUIRED_ASSET_DIRS) {
       if (!fs.statSync(path.join(absolute, dir)).isDirectory()) return null;
     }
     for (const file of REQUIRED_ASSET_FILES) {
       if (!fs.statSync(path.join(absolute, file)).isFile()) return null;
     }
-    // 배포물마다 plugin manifest와 npm package metadata가 함께 오지 않을 수 있다.
-    // 둘 중 하나의 Bouncer 식별자만 신뢰하고, 디렉터리 이름으로 정체를 추론하지 않는다.
-    for (const metadataFile of ['plugin.json', 'package.json']) {
+    // npm package.json은 runtime 설치본의 신원만 설명한다. host가 설치한 자산 루트의
+    // plugin manifest 또는 루트 manifest만 자산 버전의 출처로 인정한다.
+    for (const metadataFile of [
+      'plugin.json',
+      '.claude-plugin/plugin.json',
+      '.codex-plugin/plugin.json',
+      '.cursor-plugin/plugin.json',
+    ]) {
       try {
         const metadata = JSON.parse(fs.readFileSync(path.join(absolute, metadataFile), 'utf8')) as {
           name?: unknown;
@@ -153,38 +151,62 @@ export function findPluginCandidates(options: ResolverOptions = {}, host?: Bounc
 
 export function resolvePluginRoot(options: ResolverOptions = {}, host?: BouncerHost): PluginCandidate {
   const env = options.env ?? process.env;
+  const runtimeVersion = options.runtimeVersion ?? readRuntimeVersion();
+  let candidate: PluginCandidate | undefined;
   if (env.BOUNCER_HOME !== undefined) {
-    const candidate = readCandidate(host ?? 'claude', env.BOUNCER_HOME);
+    candidate = readCandidate(host ?? 'claude', env.BOUNCER_HOME) ?? undefined;
     if (!candidate) throw new Error('BOUNCER_HOME is not a valid Bouncer plugin root');
-    return candidate;
+  } else {
+    candidate = findPluginCandidates(options, host)[0];
+    if (!candidate) throw new Error('no valid Bouncer plugin roots found');
   }
-  const candidate = findPluginCandidates(options, host)[0];
-  if (!candidate) throw new Error('no valid Bouncer plugin roots found');
+  assertPluginVersion(candidate, runtimeVersion);
   return candidate;
 }
 
 /**
- * 플러그인 자산(`agents/`, `references/coordinator-cards/`)을 읽을 검증된 루트를 돌려준다.
- * 순서는 `BOUNCER_HOME` → 런타임 자신의 트리 → 호스트 후보 첫 번째다. 런타임 트리를
- * 중간에 두는 이유는 설치본에서 실행 중인 CLI가 자기 옆 자산을 우선 읽게 하되, 훅이 넘긴
- * `BOUNCER_HOME`이 명시되면 그 값을 존중하기 위해서다. 런타임 트리가 검증에 실패하면
- * (자산 없는 부분 배포 등) 조용히 다음 단계로 간다.
+ * 선택된 자산 후보가 이 runtime과 같은 release인지 확인한다.
+ * 후보 정렬과 검증을 분리해 가장 최신 설치가 불일치하면 과거 후보로 우회하지 않는다.
  *
- * @param {AssetRootOptions} [options] - `env`, `homeDir`, 테스트용 `runtimeRoot`
+ * @param {PluginCandidate} candidate - 선택된 host plugin 후보
+ * @param {string} [runtimeVersion] - 테스트용 runtime version. 생략하면 package.json을 읽는다
+ * @returns {void} 일치하면 반환하고, 다르면 식별 가능한 Error를 던진다
+ */
+export function assertPluginVersion(candidate: PluginCandidate, runtimeVersion = readRuntimeVersion()): void {
+  if (candidate.version === runtimeVersion) return;
+  const error = new Error(
+    `Bouncer plugin version ${candidate.version} does not match runtime version ${runtimeVersion}; `
+    + 'install the matching npm runtime version or repair BOUNCER_HOME to the matching plugin install',
+  ) as Error & { code: string };
+  error.code = 'BOUNCER_PLUGIN_VERSION_MISMATCH';
+  throw error;
+}
+
+/**
+ * 설치된 CLI package.json의 버전을 읽는다. 자산 manifest와 runtime의 비교 기준은
+ * 실제 실행 중인 npm package에 고정해 배포본 간 불일치를 선택 직후 드러낸다.
+ *
+ * @returns {string} 유효한 strict semver runtime version
+ */
+function readRuntimeVersion(): string {
+  const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')) as {
+    version?: unknown;
+  };
+  const version = parseVersion(metadata.version);
+  if (!version) throw new Error('Bouncer runtime package.json has an invalid version');
+  return version;
+}
+
+/**
+ * 플러그인 자산(`agents/`, `references/coordinator-cards/`)을 읽을 검증된 루트를 돌려준다.
+ * 순서는 `BOUNCER_HOME` → strict-semver가 가장 높은 host 후보이며, 선택된 설치의
+ * version은 runtime package version과 일치해야 한다. runtime tree는 자산 설치 여부를
+ * 증명하지 않으므로 후보로 추론하지 않는다.
+ *
+ * @param {AssetRootOptions} [options] - `env`, `homeDir`, resolver 테스트용 `runtimeVersion`
  * @returns {string} 자산 루트 절대 경로
- * @throws `BOUNCER_HOME`이 정의됐는데 무효이거나, 세 단계가 모두 실패하면 Error
+ * @throws 명시 root가 무효이거나 후보가 없거나 선택된 plugin/runtime version이 다르면 Error
  */
 export function resolvePluginAssetRoot(options: AssetRootOptions = {}): string {
-  const env = options.env ?? process.env;
-  if (env.BOUNCER_HOME !== undefined) {
-    const candidate = readCandidate('claude', env.BOUNCER_HOME);
-    if (!candidate) throw new Error('BOUNCER_HOME is not a valid Bouncer plugin root');
-    return candidate.path;
-  }
-  // 이 파일은 package dist에서 실행된다. package가 plugin root 아래에 놓인 배포 구조를 유지한다.
-  const runtime = readCandidate('claude', options.runtimeRoot ?? path.join(__dirname, '..', '..', '..'));
-  if (runtime) return runtime.path;
-  const installed = findPluginCandidates(options)[0];
-  if (installed) return installed.path;
-  throw new Error('no valid Bouncer plugin root for plugin assets; set BOUNCER_HOME to the plugin install');
+  return resolvePluginRoot(options).path;
 }

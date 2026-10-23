@@ -180,6 +180,7 @@ function ensureCodexAgents({
       // resolver가 던지는 Error(무효 BOUNCER_HOME, 유효 루트 없음)만 흡수한다. 자산이 없으면
       // 아래 existsSync 분기처럼 시드를 건너뛰는 것이 원래 계약이다. 그 외는 다시 던진다.
       if (!(error instanceof Error)) throw error;
+      if ('code' in error && error.code === 'BOUNCER_PLUGIN_VERSION_MISMATCH') throw error;
       return;
     }
   }
