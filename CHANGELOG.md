@@ -31,6 +31,10 @@
 
 ### Added
 
+- **`finalize comprehension` 기록 CLI** — `bouncer finalize comprehension --blueprint --digest (--confirm-quiz |
+  --refresh) [--repo]`가 사용자 퀴즈 응답 뒤 `explain.md`의 comprehension 항목 하나를 기록한다.
+  `--confirm-quiz` 없이 쓰거나 digest가 현재 HEAD·diff와 다르면 파일을 바꾸지 않고 `comprehension-consent-required`·
+  `comprehension-input-invalid`·`comprehension-target-stale`로 거절하며, `--refresh`는 기존 유효 항목만 갱신한다.
 - **보존 digest 기반 PR 본문 초안** — `bouncer finalize pr-body --digest --summary [--flow]`가 저장한 digest와
   한국어 요약 파일로 PR 본문 Markdown을 stdout에 만든다. 검증 결과, outside_scope, deferred must_fix, 실행 이슈를
   빠뜨리지 않고 task 문서가 정리된 뒤에도 같은 입력에서 같은 출력을 낸다. 파일 쓰기·Git 조회·PR 게시는 하지 않는다.
@@ -55,6 +59,16 @@
 
 ### Fixed
 
+- **표식 없는 plan의 이전 perspectives payload 거절 응답 복원** — `review-dispatch plan --previous`가 표식 없는
+  (legacy) blueprint에서 `perspectives` strategy의 이전 payload를 받으면 기존 `previous-payload-invalid`의
+  `cause`·`next`를 담은 거절 객체로 돌려준다. 새 legacy 동작이나 reason은 추가하지 않는다.
+- **선행 선언·집계 저장·verify 사전 검사 보강** — 형식이 틀린 `bouncer.prerequisites`는 `plan approve`가 어떤 문서도
+  쓰기 전에 거절한다. 집계 snapshot은 저장 경계 밖 경로에 쓰지 않고 저장에 실패해도 기존 상태를 보존한다.
+  `node scripts/check-doc-shape.js <문서>`를 verify로 쓰는 task가 종류/경로 계약 없는 문서를 명시하면 실행 전에
+  plan gate·draft가 `G20`으로 거절한다.
+- **리뷰 안내·CLI 요약 정정** — 최종 리뷰의 두 번째 repair는 `final-review-single-round`, 첫 repair의 `newPaths`는
+  `final-review-repair-scope`로 구분해 적고, `rules/cli.md`의 plan perspectives·brief/legacy security·delta
+  조건, intent cache의 `function_ref` 재사용 조건, comprehension `--repo` synopsis를 코드와 맞췄다.
 - **`finalize release-main`의 outside_scope 마감 drive 정리** — `finalize --yes`가 유효한 `outside_scope` terminal을
   완료로 보고 닫은 drive를 `release-main`도 정리하고 성공 payload에 `outside_scope`를 싣는다. 그 밖의
   `drive-not-closed` 거절은 `cause`·`next`·`tasks`를 담아 이유와 다음 행동을 알린다.

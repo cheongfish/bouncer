@@ -87,9 +87,11 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             `newPaths`), terminal re-verification, then `coordinate next`
             returns a delta `final_review` (`--mode delta`, `combined`, one
             reviewer) that ends `accepted` or, when a finding remains,
-            `final-review-blocked`. There is no second repair:
-            `final-review-repair-scope` and `final-review-single-round`
-            are reported as blocked. `advisory` findings are `accepted` or
+            `final-review-blocked`. There is no second repair: a second
+            `coordinate repair` is refused as `final-review-single-round`
+            (a first repair that declares `newPaths` outside the approved
+            paths is refused separately as `final-review-repair-scope`);
+            both are reported as blocked. `advisory` findings are `accepted` or
             `deferred` with a `note` and appear as warnings in the final
             report. In a blueprint without that mark (legacy), under a
             coordinator drive in blueprint review mode there is no
