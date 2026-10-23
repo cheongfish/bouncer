@@ -811,6 +811,11 @@ const PATH_CONTRACTS = {
     links: [{ href: 'references/verification/index.md', resolve: true }],
   },
   // 제품 규칙 문서: 소유 절 제목.
+  // coordinate repair의 거절 표(조건·reason 두 열)는 runCli가 coordinator-repair의 지원 reason과
+  // 대조한다. 필수 행은 두 거절 경로를 각각 설명하는 reason이다.
+  'rules/cli.md': {
+    rejectionTable: { required: ['final-review-single-round', 'final-review-repair-scope'] },
+  },
   'rules/commit-scope.md': {
     headings: {
       required: ['Commit unit and staging', 'Approved and ledger scope', 'Worktree and enforcement layers'],
@@ -990,6 +995,41 @@ function requireLastH2(shape, expected, errors) {
 }
 
 /**
+ * 문서의 `| Condition | Reason |` 표를 모아 reason 셀의 백틱 식별자를 대조한다.
+ * 이 두 열 표만 대상이다 — 다른 표나 본문의 백틱 단어는 코드로 해석하지 않는다.
+ * 표마다 알 수 없는 reason과 빠진 필수 reason을 오류로 낸다. 표가 하나도 없어도 오류다.
+ *
+ * @param {string} markdown - 문서 본문
+ * @param {string[]} required - 표마다 있어야 하는 reason
+ * @param {string[]} supported - coordinator-repair가 내는 지원 reason 목록
+ * @param {string[]} errors - 오류 누적 배열
+ * @returns {void}
+ */
+function checkRejectionTables(markdown, required, supported, errors) {
+  const lines = markdown.split(/\r?\n/);
+  const cells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
+  let tables = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const header = lines[i].trim().startsWith('|') ? cells(lines[i]) : [];
+    if (header.length !== 2 || header[0] !== 'Condition' || header[1] !== 'Reason') continue;
+    tables += 1;
+    const reasons = [];
+    // 구분선 다음 줄부터 `|`로 시작하는 연속 줄이 표 본문이다.
+    for (let j = i + 2; j < lines.length && lines[j].trim().startsWith('|'); j += 1) {
+      const match = /`([^`]+)`/.exec(cells(lines[j])[1] || '');
+      if (match) reasons.push(match[1]);
+    }
+    for (const reason of reasons) {
+      if (!supported.includes(reason)) errors.push(`rejection table reason is not a supported code: ${reason}`);
+    }
+    for (const reason of required) {
+      if (!reasons.includes(reason)) errors.push(`rejection table is missing required reason: ${reason}`);
+    }
+  }
+  if (tables === 0) errors.push('missing rejection table with Condition and Reason columns');
+}
+
+/**
  * cwd 아래에서 기본 스캔 대상 Markdown을 모은다.
  * skills·agents·references 트리를 걷되, classifyDocPath가 계약을 아는
  * 파일만 남긴다 — companion md에 subskill 계약을 씌우면 전부 거짓 실패한다.
@@ -1081,6 +1121,12 @@ function runCli(argv = [], opts = {}) {
 
     const contract = mergeContracts(kind ? contractForKind(kind, markdown) : null, pathContract);
     const result = checkDocShape(markdown, { ...contract, filePath: abs });
+    if (contract.rejectionTable) {
+      // 지원 reason은 이 모듈에서만 읽는다(CLI 전체를 적재하지 않는다). 빌드 산출물이므로 표가 있는
+      // 문서를 검사할 때에만 지연 적재한다.
+      const { FINAL_REVIEW_REJECTION_REASONS } = require('./lib/coordinator-repair');
+      checkRejectionTables(markdown, contract.rejectionTable.required, FINAL_REVIEW_REJECTION_REASONS, result.errors);
+    }
     // 마지막 H2 규칙은 종류가 있는 문서에만 적용한다.
     if (kind) {
       const lastExpected = kind === 'workflow'

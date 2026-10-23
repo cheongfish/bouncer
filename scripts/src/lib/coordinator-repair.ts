@@ -1483,6 +1483,16 @@ function coordinateCriticalRecovery(ctx: RepairTaskCtx, support: RepairSupport):
   ledger, integration.ledgerFile);
 }
 
+/**
+ * finalReviewGate가 낼 수 있는 거절 reason의 읽기 전용 목록. 문서 lint(check-doc-shape)가
+ * rules/cli.md의 거절 표를 이 목록과 대조한다. 값만 노출하며 repair나 원장 쓰기를 일으키지 않는다.
+ * 새 reason을 finalReviewGate에 추가하면 이 목록에도 넣어야 문서 표 검사가 따라온다.
+ */
+const FINAL_REVIEW_REJECTION_REASONS: readonly string[] = Object.freeze([
+  'review-contract-invalid', 'final-review-single-round', 'final-review-repair-scope',
+]);
+
 export = {
+  FINAL_REVIEW_REJECTION_REASONS,
   supplementDone, coordinateRepair, coordinatePartialClose, coordinateCriticalRecovery,
 };

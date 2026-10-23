@@ -496,9 +496,19 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it. In a `review_contract: brief` blueprint the final review
 allows one `--review-finding` repair (all violation findings, approved paths,
-no `newPaths`) before the one delta; a second repair is refused as
-`final-review-repair-scope` and `final-review-single-round` and reported
-`final-review-blocked`.
+no `newPaths`) before the one delta. A legacy blueprint (no marker) allows no
+repair after the discovery round; its `must_fix` findings are carried as
+`deferred` and only a `blocked` finding stops for `review accept-risk`. The
+CLI refuses a review-caused repair or supplement with one of these reasons
+(`review-contract-invalid` is a marker problem):
+
+| Condition | Reason |
+| --- | --- |
+| Legacy blueprint after discovery, any supplement after discovery, or a brief blueprint whose repair or delta already ran | `final-review-single-round` |
+| First brief repair that declares `newPaths` outside the approved paths | `final-review-repair-scope` |
+
+A second repair therefore returns `final-review-single-round` only; a still
+open finding after the delta is reported `final-review-blocked`.
 `--kind` accepts only `product` (default) or `supplement`.
 
 When a terminal CI failure came from the environment only (a missing tool, a
