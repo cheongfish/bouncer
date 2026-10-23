@@ -114,8 +114,9 @@ no file changed); plan the blueprint under a registry epic instead. An already
 approved blueprint is unaffected.
 A blueprint that declares `bouncer.prerequisites` must have every merge result
 commit in the current checkout's HEAD history. `plan approve` refuses with
-`plan-approve-prerequisite` (exit 1, no file changed; `cause` lists `G32` lines
-naming each prerequisite path and reason), and the plan draft check and plan
+`plan-approve-prerequisite` (exit 1, no file changed; `cause` lists `S39` lines
+for a malformed declaration, or `G32` lines naming each prerequisite path and
+reason for merge state), and the plan draft check and plan
 gate report the same `G32` (composite gate `freshness-approval`). Recover by
 fixing the missing reference or the merge result SHA, or by merging/rebasing
 the prerequisite into this checkout, then rerun. A Git lookup error is a
@@ -483,7 +484,7 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
 `failures` (G5, G19, G20, and G32 for a declared prerequisite) when the draft fails. G20 also
-statically rejects a task `bouncer.verify` of the form `node scripts/check-doc-shape.js <doc>...` that names a
+statically rejects, for every task (any `verification_policy`) in the plan draft check and plan gate, a `bouncer.verify` of the form `node scripts/check-doc-shape.js <doc>...` that names a
 document with neither a kind nor a path contract (the checker would exit 1); it reads only the argument strings,
 and a verify with no document argument (default scan) passes. Invalid argv is exit 2.
 `dispatch print` runs one Cursor print process. It returns JSON for success

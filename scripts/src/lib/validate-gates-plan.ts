@@ -327,11 +327,11 @@ function docShapeTargetsWithoutContract(verify: string, repoRoot: string | undef
  * 같은 전체 명령 배정, terminal 개수가 1이 아님, terminal이 구현 task를 (간접 포함)
  * 기다리지 않음, 새 light에서 구현이 하나가 아니거나 독립이 아님. 검증 뒤 구현
  * node는 checkVerificationTaskGraph가 이미 거절하므로 중복 보고하지 않는다.
+ * 정책과 무관하게 모든 task verify가 check-doc-shape에 계약 없는 문서를 명시하면 실행 전에 거절한다.
  *
  * @param {DocLeaf | undefined} blueprintIndex - blueprint index.md 문서
  * @param {DocLeaf[]} tasksList - blueprint의 모든 tasks.md
  * @param {boolean} isLight - blueprint scale이 light인지
- * 구현 task verify가 check-doc-shape에 계약 없는 문서를 명시하면 실행 전에 거절한다.
  *
  * @param {FailureEntry[]} failures - G20 결과 누적 배열
  * @param {string | undefined} repoRoot - verify의 절대 경로 인자를 저장소 상대로 바꿀 루트(선택)
@@ -354,6 +354,23 @@ function checkScopedTerminalPolicy(
       file: bpFile,
     });
     return;
+  }
+
+  // check-doc-shape 대상 사전 검사는 정책과 무관하게 모든 task verify에 적용한다. legacy 계획도
+  // 계약 없는 문서를 실행 시점에야 exit 1로 알게 되면 안 되기 때문이다. verify가 없거나 파싱 불가한
+  // 명령은 docShapeTargetsWithoutContract가 빈 배열을 돌려주므로 선택 verify와 argv 위반은 건드리지 않는다.
+  for (const doc of tasksList) {
+    const data = asData(doc);
+    const verify = data && data.bouncer ? (data.bouncer as Record<string, unknown>).verify : undefined;
+    if (typeof verify !== 'string') continue;
+    const uncontracted = docShapeTargetsWithoutContract(verify, repoRoot);
+    if (uncontracted.length > 0) {
+      failures.push({
+        code: 'G20',
+        message: `check-doc-shape verify target has no kind or path contract: ${uncontracted.join(', ')}`,
+        file: doc.rel,
+      });
+    }
   }
   if (policy === 'legacy') return;
 
@@ -392,16 +409,6 @@ function checkScopedTerminalPolicy(
         message: `scoped_terminal commit task must not run the terminal full-suite command: ${normalize(verify)}`,
         file: doc.rel,
       });
-    } else {
-      // 위 분기가 이미 거절한 명령은 중복 보고하지 않는다. 파싱 가능한 단일 명령만 대상 문서를 본다.
-      const uncontracted = docShapeTargetsWithoutContract(verify, repoRoot);
-      if (uncontracted.length > 0) {
-        failures.push({
-          code: 'G20',
-          message: `check-doc-shape verify target has no kind or path contract: ${uncontracted.join(', ')}`,
-          file: doc.rel,
-        });
-      }
     }
   }
 

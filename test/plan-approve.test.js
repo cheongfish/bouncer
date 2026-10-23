@@ -410,19 +410,38 @@ test('선행 병합 commit이 현재 HEAD의 조상 → 전이 성공', () => {
 const { approvePlan } = require('../scripts/lib/plan-approve');
 
 const PRE_DIR = `${EPIC}/blueprints/002-pre`;
+// 항목마다 [선언, 해당 항목을 지목해야 하는 S39 cause 문장]. 사유가 빠진 일반 거절과 구분하려는 기대값이다.
 const FORMAT_CASES = {
-  'HEAD 문자열': [{ blueprint: PRE_DIR, merged_commit: 'HEAD' }],
-  '짧은 SHA': [{ blueprint: PRE_DIR, merged_commit: 'abc1234' }],
-  '자기참조': [{ blueprint: BP, merged_commit: 'a'.repeat(40) }],
-  '비정규 경로': [{ blueprint: `${PRE_DIR}/`, merged_commit: 'a'.repeat(40) }],
-  '추가 키': [{ blueprint: PRE_DIR, merged_commit: 'a'.repeat(40), note: 'x' }],
+  'HEAD 문자열': [
+    [{ blueprint: PRE_DIR, merged_commit: 'HEAD' }],
+    'S39 prerequisites[0].merged_commit must be a 40-char lowercase sha',
+  ],
+  '짧은 SHA': [
+    [{ blueprint: PRE_DIR, merged_commit: 'abc1234' }],
+    'S39 prerequisites[0].merged_commit must be a 40-char lowercase sha',
+  ],
+  '자기참조': [
+    [{ blueprint: BP, merged_commit: 'a'.repeat(40) }],
+    'S39 prerequisites[0].blueprint must not reference itself',
+  ],
+  '비정규 경로': [
+    [{ blueprint: `${PRE_DIR}/`, merged_commit: 'a'.repeat(40) }],
+    'S39 prerequisites[0].blueprint must be a canonical blueprint directory',
+  ],
+  '추가 키': [
+    [{ blueprint: PRE_DIR, merged_commit: 'a'.repeat(40), note: 'x' }],
+    'S39 prerequisites[0] must have exactly blueprint and merged_commit',
+  ],
   '중복 선언': [
-    { blueprint: PRE_DIR, merged_commit: 'a'.repeat(40) },
-    { blueprint: PRE_DIR, merged_commit: 'b'.repeat(40) },
+    [
+      { blueprint: PRE_DIR, merged_commit: 'a'.repeat(40) },
+      { blueprint: PRE_DIR, merged_commit: 'b'.repeat(40) },
+    ],
+    'S39 prerequisites[1].blueprint duplicates an earlier entry',
   ],
 };
 
-for (const [name, prerequisites] of Object.entries(FORMAT_CASES)) {
+for (const [name, [prerequisites, expectedCause]] of Object.entries(FORMAT_CASES)) {
   test(`선행 선언이 ${name} → plan-approve-prerequisite S39, 쓰기 0회, 모든 문서 Buffer 불변`, () => {
     const repo = makeRepo({ prerequisites });
     writeDoc(repo, PRE_REL, { status: 'approved' });
@@ -434,7 +453,8 @@ for (const [name, prerequisites] of Object.entries(FORMAT_CASES)) {
     const r = approvePlan({ repoRoot: repo, blueprintDir: BP, deps: { writeFile: () => { writes += 1; }, exec } });
     assert.strictEqual(r.ok, false);
     assert.strictEqual(r.reason, 'plan-approve-prerequisite');
-    assert.ok(r.cause.some((c) => c.startsWith('S39 ')), r.cause.join('\n'));
+    assert.deepStrictEqual(r.cause, [expectedCause]);
+    assert.ok(r.next.startsWith('Fix the missing blueprint reference or the merge result SHA'), r.next);
     assert.strictEqual(writes, 0);
     rels.forEach((rel, i) => assert.ok(before[i].equals(fs.readFileSync(path.join(repo, rel))), rel));
   });

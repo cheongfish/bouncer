@@ -118,7 +118,8 @@ display and default sort order — not execution authority.
   resulting merge commit, not the original worker SHA). Absent or `[]` means no
   prerequisites and existing plans are unchanged. S39 checks shape only: array
   and entry form, canonical path, SHA form, duplicate blueprints, and
-  self-reference. The read-only helper `plan-prerequisites` reports missing
+  self-reference. `plan approve` also refuses an S39 format error with
+  `plan-approve-prerequisite` before writing anything. The read-only helper `plan-prerequisites` reports missing
   blueprints, cycles, and whether `git merge-base --is-ancestor <merged_commit>
   HEAD` holds for the current checkout (non-ancestor is unmerged; other Git
   failures are lookup errors, never a pass). Plan approval refuses an unmerged

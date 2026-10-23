@@ -65,7 +65,7 @@
 - **선행 선언·집계 저장·verify 사전 검사 보강** — 형식이 틀린 `bouncer.prerequisites`는 `plan approve`가 어떤 문서도
   쓰기 전에 거절한다. 집계 snapshot은 저장 경계 밖 경로에 쓰지 않고 저장에 실패해도 기존 상태를 보존한다.
   `node scripts/check-doc-shape.js <문서>`를 verify로 쓰는 task가 종류/경로 계약 없는 문서를 명시하면 실행 전에
-  plan gate·draft가 `G20`으로 거절한다.
+  plan gate·draft가 모든 task verify(`verification_policy` 무관)에 대해 `G20`으로 거절한다.
 - **리뷰 안내·CLI 요약 정정** — 최종 리뷰의 두 번째 repair는 `final-review-single-round`, 첫 repair의 `newPaths`는
   `final-review-repair-scope`로 구분해 적고, `rules/cli.md`의 plan perspectives·brief/legacy security·delta
   조건, intent cache의 `function_ref` 재사용 조건, comprehension `--repo` synopsis를 코드와 맞췄다.

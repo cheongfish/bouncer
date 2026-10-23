@@ -2311,13 +2311,24 @@ test('check-doc-shape verify and the checker CLI → agree on which real files h
   }
 });
 
-test('legacy blueprint with an uncontracted check-doc-shape verify → no G20', () => {
+test('legacy blueprint with an uncontracted check-doc-shape verify → G20 naming the path', () => {
   const failures = [];
   const docs = scopedPlanDocs([scopedCommit('001', { verify: docShapeVerify('docs/workflow.md') })], {
     noPolicy: true,
   });
   checkGate('plan', docs, rels, failures, { repoRoot: DOC_SHAPE_REPO });
-  assert.deepStrictEqual(failures.filter((f) => f.code === 'G20'), []);
+  const g20 = failures.filter((f) => f.code === 'G20');
+  assert.strictEqual(g20.length, 1, JSON.stringify(g20));
+  assert.ok(g20[0].message.endsWith(': docs/workflow.md'), g20[0].message);
+});
+
+test('legacy blueprint with a contracted or absent check-doc-shape verify → no G20', () => {
+  for (const verify of [docShapeVerify('agents/bouncer-reviewer.md'), undefined]) {
+    const failures = [];
+    const docs = scopedPlanDocs([scopedCommit('001', { verify })], { noPolicy: true });
+    checkGate('plan', docs, rels, failures, { repoRoot: DOC_SHAPE_REPO });
+    assert.deepStrictEqual(failures.filter((f) => f.code === 'G20'), [], String(verify));
+  }
 });
 
 test('plan gate verification_policy → absent stays legacy and an unknown value is rejected', () => {
