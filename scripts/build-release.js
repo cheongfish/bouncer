@@ -3,6 +3,7 @@
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { syncVersions } = require('./sync-versions');
 
 // Windows 에서 npm 은 npm.cmd 이다. spawnSync 는 PATHEXT 를 셸처럼 펼치지
 // 않으므로 check-emit.js 와 같이 확장자를 직접 고른다.
@@ -110,13 +111,16 @@ function parsePackFileList(stdout) {
  * npm run build 후 npm pack 목록의 각 파일을 outDir 에 같은 상대 경로로 복사한다.
  * 실패하면 Error 를 throw 하고, 이 함수가 만든 --out 파일은 남기지 않는다.
  *
- * @param {{root: string, outDir: string, deps?: {run?: Function}}} opts - 패키지 루트, 산출 디렉터리, 테스트 seam
+ * @param {{root: string, outDir: string, deps?: {run?: Function, checkVersions?: Function}}} opts
+ *   패키지 루트, 산출 디렉터리, 외부 실행 및 버전 검사 seam
  * @returns {{ok: true, out: string, files: number}} 성공 시 절대 out 과 복사 파일 수
  */
 function buildReleaseTree(opts) {
   const root = opts && opts.root;
   const outDir = opts && opts.outDir;
   const run = (opts && opts.deps && opts.deps.run) || defaultRun;
+  const checkVersions = (opts && opts.deps && opts.deps.checkVersions)
+    || ((repoRoot) => syncVersions({ root: repoRoot, mode: 'check' }));
 
   if (outDir == null || String(outDir).trim() === '') {
     throw new Error('outDir is required');
@@ -124,6 +128,9 @@ function buildReleaseTree(opts) {
 
   const rootAbs = path.resolve(root || process.cwd());
   const outAbs = path.resolve(outDir);
+
+  // 버전 drift가 있으면 빌드와 out 생성 모두 시작하지 않아 잘못된 배포물을 막는다.
+  checkVersions(rootAbs);
 
   if (isNonEmptyDir(outAbs)) {
     throw new Error(`outDir is not empty: ${outAbs}`);

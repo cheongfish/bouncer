@@ -200,6 +200,7 @@ test('marketplace and plugin manifests → agree on name and version', () => {
   const mkt = readJson('.claude-plugin/marketplace.json');
   const plugin = readJson('.claude-plugin/plugin.json');
   const lock = readJson('package-lock.json');
+  const cli = readJson('packages/cli/package.json');
   const entry = mkt.plugins.find((p) => p.name === 'bouncer');
   assert.strictEqual(entry.version, expectedVersion);
   assert.strictEqual(plugin.version, expectedVersion);
@@ -210,6 +211,8 @@ test('marketplace and plugin manifests → agree on name and version', () => {
   assert.strictEqual(plugin.version, pkg.version);
   assert.strictEqual(pkg.version, lock.version);
   assert.strictEqual(pkg.version, lock.packages[''].version);
+  assert.strictEqual(cli.version, expectedVersion);
+  assert.strictEqual(lock.packages['packages/cli'].version, expectedVersion);
 });
 
 test('plugin.json → carries author attribution for release tagging', () => {

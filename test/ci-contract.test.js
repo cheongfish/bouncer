@@ -74,6 +74,7 @@ fs.writeFileSync(path.join('packages', 'cli', 'dist', 'app.js'), 'module.exports
 // 맞고, lint:test-names는 typecheck 뒤·audit 앞에 둔다.
 const CI_STEP_ORDER = [
   'check:emit',
+  'check:versions',
   'test:coverage',
   'test:unit',
   'lint',
@@ -113,6 +114,8 @@ function stepIndex(steps, name) {
 test('package.json → exposes context comment lint and ordered ci', () => {
   const pkg = readJson('package.json');
   assert.match(pkg.scripts['check:emit'], /scripts\/check-emit\.js/);
+  assert.match(pkg.scripts['check:versions'], /scripts\/sync-versions\.js --check/);
+  assert.match(pkg.scripts['sync:versions'], /scripts\/sync-versions\.js --write/);
   assert.match(pkg.scripts['lint:docs'], /scripts\/check-doc-shape\.js/);
   assert.match(pkg.scripts['lint:context-comments'], /scripts\/check-context-comments\.js/);
   assert.strictEqual(pkg.scripts.test, 'node --test test/*.test.js');

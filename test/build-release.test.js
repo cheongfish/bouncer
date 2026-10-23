@@ -102,7 +102,7 @@ fs.writeFileSync(path.join(__dirname, 'lib', 'a.js'), 'module.exports = 1;\\n');
 
 test('(a) fixture tree → matches npm pack list and includes gitignored lib/a.js', () => {
   const { pkg, out } = makeIgnoredLibFixture();
-  const result = buildReleaseTree({ root: pkg, outDir: out });
+  const result = buildReleaseTree({ root: pkg, outDir: out, deps: { checkVersions: () => {} } });
   assert.strictEqual(result.ok, true);
   assert.ok(fs.existsSync(path.join(out, 'lib', 'a.js')), 'lib/a.js missing from out tree');
   assert.deepStrictEqual(listRelFiles(out), packPaths(pkg));
@@ -129,6 +129,7 @@ test('(c) build status 1 → throws and does not create outDir', () => {
       root: pkg,
       outDir,
       deps: {
+        checkVersions: () => {},
         run: (_command, args) => {
           if (args[0] === 'run' && args[1] === 'build') {
             return { status: 1, stdout: '', stderr: 'build failed' };
@@ -140,6 +141,32 @@ test('(c) build status 1 → throws and does not create outDir', () => {
     (err) => err instanceof Error && /build/i.test(err.message),
   );
   assert.equal(fs.existsSync(outDir), false);
+});
+
+test('(g) version check failure → skips build and leaves outDir absent', () => {
+  const { pkg } = makeIgnoredLibFixture();
+  const outDir = path.join(tmp('bouncer-release-versionfail-'), 'missing');
+  let buildCalls = 0;
+  assert.throws(
+    () => buildReleaseTree({
+      root: pkg,
+      outDir,
+      deps: {
+        checkVersions: () => { throw new Error('version drift'); },
+        run: (_command, args) => {
+          buildCalls += 1;
+          return {
+            status: 0,
+            stdout: args[0] === 'pack' ? '[{"files":[]}]' : '',
+            stderr: '',
+          };
+        },
+      },
+    }),
+    /version drift/,
+  );
+  assert.strictEqual(buildCalls, 0);
+  assert.strictEqual(fs.existsSync(outDir), false);
 });
 
 test('(d) real repo tree → matches the plugin pack and excludes runtime files', () => {

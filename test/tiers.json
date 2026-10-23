@@ -127,6 +127,7 @@
     "verification-runner.test.js",
     "master-rules.test.js",
     "symbol-index.test.js",
-    "source-boundary-measurement.test.js"
+    "source-boundary-measurement.test.js",
+    "version-sync.test.js"
   ]
 }
