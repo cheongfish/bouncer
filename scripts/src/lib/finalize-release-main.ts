@@ -10,7 +10,8 @@ const { epicDirOf, toPosix } = paths;
 import layout = require('./layout');
 const { CONTEXT_ROOT } = layout;
 import runtimeState = require('./runtime-state');
-const { runtimePaths, worktreePathFor } = runtimeState;
+const { runtimePaths, worktreePathFor, coordinatorPathsFor } = runtimeState;
+import driveMetrics = require('./drive-metrics');
 import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
 import current = require('./current');
@@ -60,7 +61,34 @@ type ReleaseMainDeps = {
   nextBlueprint: (opts: { repoRoot: string; blueprintDir: string }) => NextList;
   worktreePathFor: (opts: { repoRoot: string; blueprint: string }) => string;
   git: (args: string[]) => string;
+  // 정리 전 worker 토큰 집계 보존 seam. 거절 reason을 그대로 응답에 싣는다.
+  saveMetricsSnapshot: (args: { repoRoot: string; blueprint: string }) => { ok: boolean; reason?: string };
 };
+
+/**
+ * 실제 원장의 worker 집계를 Git common dir snapshot으로 저장한다(release-main 기본 구현).
+ * common dir나 원장 경로를 풀 수 없으면 보존을 보장할 수 없으므로 저장 실패로 돌려 정리를 막는다.
+ *
+ * @param {object} args - 저장 입력
+ * @param {string} args.repoRoot - 메인 checkout 루트
+ * @param {string} args.blueprint - 정규형 blueprint 경로
+ * @returns {{ok: boolean, reason?: string}} 저장 결과. 실패 reason은 driveMetrics의 거절 코드
+ */
+function saveMetricsSnapshotDefault({ repoRoot, blueprint }: { repoRoot: string; blueprint: string }):
+  { ok: boolean; reason?: string } {
+  const failed = { ok: false, reason: 'metrics-snapshot-write-failed' };
+  const rt = runtimePaths({ repoRoot });
+  if (rt.unavailable || !rt.commonGitDir) return failed;
+  let ledgerFile: string;
+  try {
+    ledgerFile = coordinatorPathsFor({ repoRoot, blueprint }).ledgerFile;
+  } catch (_error) {
+    // blueprint 경로에서 id를 못 뽑는 입력 오류만 온다(이미 정규형 검사를 통과한 값이라 드물다).
+    return failed;
+  }
+  const saved = driveMetrics.saveWorkerSnapshot({ commonGitDir: rt.commonGitDir, ledgerFile, blueprint });
+  return saved.ok ? { ok: true } : { ok: false, reason: saved.reason };
+}
 
 /**
  * 분류된 outside_scope terminal을 뺀 "아직 통합되지 않은" task id를 정렬해 돌려준다.
@@ -321,6 +349,7 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
     nextBlueprint,
     worktreePathFor,
     git: gitDefault,
+    saveMetricsSnapshot: saveMetricsSnapshotDefault,
     ...deps,
   };
 
@@ -442,6 +471,9 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
           ok: false, reason: 'partial-merge-main-dirty', paths: dirty.map((line) => line.slice(3)),
         } as ReleaseMainResult;
       }
+      // 모든 거절 판정이 끝난 뒤 첫 mutation(merge) 전에 worker 집계를 보존한다.
+      const savedPartial = d.saveMetricsSnapshot({ repoRoot: root, blueprint: bp });
+      if (!savedPartial.ok) return { ok: false, reason: savedPartial.reason ?? 'metrics-snapshot-write-failed' };
       try {
         git(['merge', '--no-commit', '--no-ff', integrationHead]);
         git(['commit', '-m', `[partial] ${bp}`, '-m', `Handoff: ${handoff.path}`]);
@@ -546,6 +578,14 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
   } catch (_error) {
     // 예상 miss가 아닌 git·읽기 실패. 파일을 바꾸지 않고 JSON으로만 거절한다.
     return { ok: false, reason: 'blueprint-not-closed' };
+  }
+  // 6. 기존 거절 판정이 모두 끝났다. 정리(첫 mutation) 전에 worker 토큰 집계를 Git common dir에
+  // 보존한다 — 원장은 worktree 제거와 함께 사라지고, 이후 `metrics summary`는 이 snapshot만 본다.
+  // 실패하면 아무것도 지우지 않고 거절해 main·원장·worktree를 그대로 둔다. 원장 없는 재실행은
+  // 새 값을 만들 수 없으므로 호출하지 않고 기존 snapshot을 보존한다.
+  if (hasLedger) {
+    const saved = d.saveMetricsSnapshot({ repoRoot: root, blueprint: bp });
+    if (!saved.ok) return { ok: false, reason: saved.reason ?? 'metrics-snapshot-write-failed' };
   }
   for (const action of actions) {
     if (action.kind === 'skip') continue;

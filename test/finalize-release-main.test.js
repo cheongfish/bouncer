@@ -699,3 +699,117 @@ test('valid classification plus another open drive state → drive-not-closed wi
     assert.equal(porcelain(fx.main), beforeStatus);
   }
 });
+
+// --- 정리 전 worker 집계 보존 ---
+
+const workerRecord = { kind: 'worker-model', role: 'implementer', model: 'inherit', task: '001', tokens: 100 };
+
+function withWorkerLedger(fx) {
+  const prev = JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8'));
+  writeLedger(fx.ledgerFile, { ...prev, decisions: [workerRecord] });
+}
+
+function summaryOf(fx) {
+  const buf = { out: '', err: '' };
+  runCli(['metrics', 'summary', '--blueprint', fx.bp, '--repo', fx.main], {
+    out: (t) => { buf.out += t; }, err: (t) => { buf.err += t; },
+  });
+  return JSON.parse(buf.out);
+}
+
+test('a closed drive with worker tokens → snapshot is saved before cleanup and summary survives ledger removal', () => {
+  const fx = makeFixture();
+  withWorkerLedger(fx);
+  let bpExistedAtSave = null;
+  const res = runRelease(fx, {
+    deps: {
+      saveMetricsSnapshot: (args) => {
+        bpExistedAtSave = fs.existsSync(path.join(fx.main, fx.bp, 'index.md'));
+        return releaseMainDefaultSave(args);
+      },
+    },
+  });
+  assert.equal(res.ok, true);
+  assert.equal(bpExistedAtSave, true);
+  assert.equal(fs.existsSync(path.join(fx.main, fx.bp, 'index.md')), false);
+  git(fx.main, ['worktree', 'remove', '--force', fx.integration]);
+  const summary = summaryOf(fx);
+  assert.equal(summary.worker_tokens_source, 'snapshot');
+  assert.equal(summary.worker_tokens.total, 100);
+});
+
+// deps.saveMetricsSnapshot을 덮지 않은 기본 저장과 같은 동작을 실제 CLI로 얻는다.
+function releaseMainDefaultSave({ repoRoot, blueprint }) {
+  const buf = { out: '', err: '' };
+  runCli(['metrics', 'snapshot', '--blueprint', blueprint, '--repo', repoRoot], {
+    out: (t) => { buf.out += t; }, err: (t) => { buf.err += t; },
+  });
+  return JSON.parse(buf.out);
+}
+
+test('snapshot save fails → release-main rejects and leaves main tree, porcelain, and ledger bytes unchanged', () => {
+  const fx = makeFixture();
+  withWorkerLedger(fx);
+  const treeBefore = snapshot(fx.main);
+  const porcelainBefore = porcelain(fx.main);
+  const ledgerBefore = fs.readFileSync(fx.ledgerFile);
+  const integrationBefore = snapshot(fx.integration);
+  const res = runRelease(fx, {
+    deps: { saveMetricsSnapshot: () => ({ ok: false, reason: 'metrics-snapshot-write-failed' }) },
+  });
+  assert.deepEqual(res, { ok: false, reason: 'metrics-snapshot-write-failed' });
+  assert.deepEqual(snapshot(fx.main), treeBefore);
+  assert.equal(porcelain(fx.main), porcelainBefore);
+  assert.deepEqual(fs.readFileSync(fx.ledgerFile), ledgerBefore);
+  assert.deepEqual(snapshot(fx.integration), integrationBefore);
+  assert.equal(fs.existsSync(fx.integration), true);
+});
+
+test('an invalid stored snapshot → release-main rejects with metrics-snapshot-invalid and cleans nothing', () => {
+  const fx = makeFixture();
+  withWorkerLedger(fx);
+  const saved = releaseMainDefaultSave({ repoRoot: fx.main, blueprint: fx.bp });
+  fs.writeFileSync(saved.path, '{');
+  const treeBefore = snapshot(fx.main);
+  const res = runRelease(fx);
+  assert.deepEqual(res, { ok: false, reason: 'metrics-snapshot-invalid' });
+  assert.deepEqual(snapshot(fx.main), treeBefore);
+});
+
+test('existing refusals → run before the save and never call it', () => {
+  const fx = makeFixture();
+  const prev = JSON.parse(fs.readFileSync(fx.ledgerFile, 'utf8'));
+  writeLedger(fx.ledgerFile, { ...prev, tasks: [{ id: '001', status: 'verifying' }] });
+  let calls = 0;
+  const res = runRelease(fx, { deps: { saveMetricsSnapshot: () => { calls += 1; return { ok: true }; } } });
+  assert.equal(res.reason, 'drive-not-closed');
+  assert.equal(calls, 0);
+});
+
+test('a rerun without a ledger → keeps the stored snapshot and does not call the save', () => {
+  const fx = makeFixture();
+  withWorkerLedger(fx);
+  const first = runRelease(fx);
+  assert.equal(first.ok, true);
+  git(fx.main, ['worktree', 'remove', '--force', fx.integration]);
+  const stored = path.join(fx.main, '.git', 'bouncer', 'metrics-snapshots');
+  const before = snapshot(stored);
+  assert.equal(Object.keys(before).length, 1);
+  let calls = 0;
+  const second = runRelease(fx, { deps: { saveMetricsSnapshot: () => { calls += 1; return { ok: false }; } } });
+  assert.equal(second.ok, true);
+  assert.equal(calls, 0);
+  assert.deepEqual(snapshot(stored), before);
+  assert.equal(summaryOf(fx).worker_tokens.total, 100);
+});
+
+test('a rerun with the same ledger hash → reuses the stored snapshot bytes', () => {
+  const fx = makeFixture();
+  withWorkerLedger(fx);
+  const stored = path.join(fx.main, '.git', 'bouncer', 'metrics-snapshots');
+  const saved = releaseMainDefaultSave({ repoRoot: fx.main, blueprint: fx.bp });
+  const before = snapshot(stored);
+  assert.equal(runRelease(fx).ok, true);
+  assert.deepEqual(snapshot(stored), before);
+  assert.equal(saved.reused, false);
+});

@@ -113,18 +113,28 @@ function writeMetrics(file: string, data: MetricsFile): void {
 type LedgerRead =
   | { ok: true; snapshot: LedgerSnapshot | null; decisions: unknown[] }
   | Failure;
+// 작업자 집계 snapshot 저장·읽기가 쓰는 파일 I/O. 테스트가 저장 실패를 주입하는 seam이다.
+type SnapshotFs = {
+  readFileSync: {
+    (file: string): Buffer;
+    (file: string, encoding: BufferEncoding): string;
+  };
+  writeFileSync: (file: string, data: string) => void;
+  renameSync: (from: string, to: string) => void;
+};
 
 /**
  * 원장의 진행 snapshot을 읽는다. 원장은 읽기만 한다. 원장이 아직 없으면 snapshot은 null이고,
  * 깨진 원장은 진행 차이를 추정하지 않고 `metrics-ledger-invalid`로 거절한다.
  *
  * @param {string} ledgerFile - integration worktree의 coordinator.json 경로
+ * @param {SnapshotFs} [fsx] - 읽기 seam. 기본은 node:fs
  * @returns {LedgerRead} snapshot과 decision 배열, 또는 거절
  */
-function readLedgerSnapshot(ledgerFile: string): LedgerRead {
+function readLedgerSnapshot(ledgerFile: string, fsx: SnapshotFs = fs): LedgerRead {
   let bytes: Buffer;
   try {
-    bytes = fs.readFileSync(ledgerFile);
+    bytes = fsx.readFileSync(ledgerFile);
   } catch (error) {
     if (isEnoentError(error)) return { ok: true, snapshot: null, decisions: [] };
     throw error;
@@ -311,6 +321,7 @@ type CacheSummary = {
   read: { total: number; missing: number };
   write: { total: number; missing: number };
 };
+type WorkerTokensSource = 'ledger' | 'snapshot' | 'unavailable';
 type WorkerTokensTotal = { total: number; missing: number };
 type WorkerTokensSummary = WorkerTokensTotal & {
   by_role: Record<'implementer' | 'reviewer' | 'debugger', WorkerTokensTotal>;
@@ -357,7 +368,9 @@ function observe(sum: KindSummary, totalKey: TotalKey, missingKey: MissingKey, v
  * 일부만 있으면 알려진 합과 `*_missing`을 함께 낸다. cost_total은 기존 입력 호환으로 0 시작을 유지한다.
  * worker_tokens는 원장의 `worker-model`·`worker-tokens` decision에서 따로 합산한다. coordinator
  * 총량에 이미 포함됐는지 알 수 없으므로 `kinds`에 더하지 않는다. 원장이 없거나 resolveLedger가
- * 없으면 0이고, 깨진 원장은 `metrics-ledger-invalid`로 거절한다.
+ * 없으면 0이고, 깨진 원장은 `metrics-ledger-invalid`로 거절한다. 원장 파일이 없으면 정리 전에 저장한
+ * snapshot(`commonGitDir` 아래)으로 복원하고, 그것도 없을 때만 0이다. 출처는 `worker_tokens_source`
+ * (`ledger`|`snapshot`|`unavailable`)로 구별해 복원값과 실제 0이 섞이지 않게 한다.
  * cache read·write는 kind와 무관하게 blueprint 전체 합을 최상위 `cache`에 낸다. 숫자만 합산하고
  * `null`·필드 부재(필드가 생기기 전 기록)는 `missing`으로 센다. `0`은 값이다.
  *
@@ -365,9 +378,10 @@ function observe(sum: KindSummary, totalKey: TotalKey, missingKey: MissingKey, v
  */
 function summarize(opts: {
   file: string; blueprint: string; resolveLedger?: (blueprint: string) => string | null;
+  commonGitDir?: string | null;
 }): {
   ok: true; blueprint: string; kinds: Record<string, KindSummary>; cache: CacheSummary;
-  worker_tokens: WorkerTokensSummary;
+  worker_tokens: WorkerTokensSummary; worker_tokens_source: WorkerTokensSource;
 } | Failure {
   const current = readMetrics(opts.file);
   if (current.ok === false) return current;
@@ -407,37 +421,43 @@ function summarize(opts: {
       sum.tasks_completed += s.tasks_completed.length;
     }
   }
-  const workerTokens = summarizeWorkerTokens(opts.resolveLedger?.(blueprint) ?? null);
+  const workerTokens = summarizeWorkerTokens(
+    opts.resolveLedger?.(blueprint) ?? null, opts.commonGitDir ?? null, blueprint,
+  );
   if (workerTokens.ok === false) return workerTokens;
-  return { ok: true, blueprint, kinds, cache, worker_tokens: workerTokens.summary };
+  return {
+    ok: true, blueprint, kinds, cache,
+    worker_tokens: workerTokens.summary, worker_tokens_source: workerTokens.source,
+  };
 }
 
-/**
- * 원장 decision에서 하위 에이전트 토큰을 합산한다. 키 `(task, role, perspective)`마다
- * `runs`(worker-model 수)와 `reported`(숫자 tokens가 달린 worker-model + worker-tokens 수)를
- * 세어, 누락은 `max(0, runs - reported)`다. 늦게 온 worker-tokens가 같은 키의 토큰 없는
- * worker-model을 메우므로 한 호출이 두 번 세이지 않는다. 호스트가 주지 않은 값은 만들지 않는다.
- *
- * @param {string | null} ledgerFile - 원장 경로. null이면 기록 없음으로 본다
- * @returns {{ok: true, summary: WorkerTokensSummary} | Failure} 합계 또는 깨진 원장 거절
- */
-function summarizeWorkerTokens(ledgerFile: string | null):
-  { ok: true; summary: WorkerTokensSummary } | Failure {
-  const roles = ['implementer', 'reviewer', 'debugger'] as const;
-  const summary: WorkerTokensSummary = {
+const WORKER_ROLES = ['implementer', 'reviewer', 'debugger'] as const;
+
+function emptyWorkerSummary(): WorkerTokensSummary {
+  return {
     total: 0, missing: 0,
     by_role: {
       implementer: { total: 0, missing: 0 }, reviewer: { total: 0, missing: 0 },
       debugger: { total: 0, missing: 0 },
     },
   };
-  if (ledgerFile === null) return { ok: true, summary };
-  const ledger = readLedgerSnapshot(ledgerFile);
-  if (ledger.ok === false) return ledger;
-  const counts = new Map<string, { role: typeof roles[number]; runs: number; reported: number }>();
-  for (const d of ledger.decisions) {
+}
+
+/**
+ * 원장 decision 배열에서 하위 에이전트 토큰을 합산한다. 키 `(task, role, perspective)`마다
+ * `runs`(worker-model 수)와 `reported`(숫자 tokens가 달린 worker-model + worker-tokens 수)를
+ * 세어, 누락은 `max(0, runs - reported)`다. 늦게 온 worker-tokens가 같은 키의 토큰 없는
+ * worker-model을 메우므로 한 호출이 두 번 세이지 않는다. 호스트가 주지 않은 값은 만들지 않는다.
+ *
+ * @param {unknown[]} decisions - 원장 decisions
+ * @returns {WorkerTokensSummary} 합계와 역할별 합계
+ */
+function sumWorkerDecisions(decisions: unknown[]): WorkerTokensSummary {
+  const summary = emptyWorkerSummary();
+  const counts = new Map<string, { role: typeof WORKER_ROLES[number]; runs: number; reported: number }>();
+  for (const d of decisions) {
     if (!isRecord(d) || (d.kind !== 'worker-model' && d.kind !== 'worker-tokens')) continue;
-    const role = roles.find((r) => r === d.role);
+    const role = WORKER_ROLES.find((r) => r === d.role);
     if (role === undefined) continue;
     const key = JSON.stringify([d.task ?? '', role, d.perspective ?? '']);
     const entry = counts.get(key) ?? { role, runs: 0, reported: 0 };
@@ -454,7 +474,189 @@ function summarizeWorkerTokens(ledgerFile: string | null):
     summary.by_role[role].missing += missing;
     summary.missing += missing;
   }
-  return { ok: true, summary };
+  return summary;
+}
+
+/**
+ * worker 집계의 출처를 정해 합산한다. 우선순위는 live 원장 → 저장 snapshot → unavailable이다.
+ * 원장 파일이 있으면(깨졌으면 거절) 언제나 원장이 이기므로 오래된 snapshot이 live 자료를
+ * 대신하지 않는다. 원장이 없을 때만 snapshot을 읽고, 깨진 snapshot은 0으로 접지 않고 거절한다.
+ *
+ * @param {string | null} ledgerFile - 원장 경로. null이면 원장 없음으로 본다
+ * @param {string | null} commonGitDir - snapshot 저장소가 있는 Git common dir. null이면 snapshot 없음
+ * @param {string} blueprint - 정규화된 blueprint 경로
+ * @returns {{ok: true, summary: WorkerTokensSummary, source: WorkerTokensSource} | Failure}
+ *   합계와 출처, 또는 깨진 원장·snapshot 거절
+ */
+function summarizeWorkerTokens(ledgerFile: string | null, commonGitDir: string | null, blueprint: string):
+  { ok: true; summary: WorkerTokensSummary; source: WorkerTokensSource } | Failure {
+  const ledger: LedgerRead = ledgerFile === null
+    ? { ok: true, snapshot: null, decisions: [] } : readLedgerSnapshot(ledgerFile);
+  if (ledger.ok === false) return ledger;
+  if (ledger.snapshot !== null) {
+    return { ok: true, summary: sumWorkerDecisions(ledger.decisions), source: 'ledger' };
+  }
+  if (commonGitDir !== null) {
+    const saved = loadWorkerSnapshot({ commonGitDir, blueprint });
+    if (saved.ok === false) return saved;
+    if (saved.snapshot !== null) {
+      return { ok: true, summary: saved.snapshot.worker_tokens, source: 'snapshot' };
+    }
+  }
+  return { ok: true, summary: emptyWorkerSummary(), source: 'unavailable' };
+}
+
+type WorkerSnapshotFile = {
+  version: 1; blueprint: string; recorded_at: string; ledger_sha256: string;
+  worker_tokens: WorkerTokensSummary;
+};
+
+/**
+ * snapshot 파일 경로. 파일명은 blueprint 경로(UTF-8)의 SHA-256이라 blueprint 문자열이
+ * 경로 조각으로 새지 않는다. 프로젝트 경로가 아니라 Git common dir 아래다 — worktree
+ * 정리와 `git clean`이 지우지 못하는 자리여야 정리 뒤에도 살아남는다.
+ *
+ * @param {string} commonGitDir - `git rev-parse --git-common-dir`의 절대 경로
+ * @param {string} blueprint - blueprint 경로(정규화 전이어도 된다)
+ * @returns {string} snapshot 파일 절대 경로
+ */
+function workerSnapshotPath(commonGitDir: string, blueprint: string): string {
+  const name = createHash('sha256').update(normalizeBlueprint(blueprint), 'utf8').digest('hex');
+  return path.join(commonGitDir, 'bouncer', 'metrics-snapshots', `${name}.json`);
+}
+
+// realpath가 상위가 아닌 곳으로 새는지 본다(심볼릭 링크로 common dir 밖을 가리키는 경우).
+function isInsideReal(child: string, parent: string): boolean {
+  const rel = path.relative(parent, child);
+  return rel === '' || (!rel.startsWith(`..${path.sep}`) && rel !== '..' && !path.isAbsolute(rel));
+}
+
+/**
+ * snapshot 파일 자리가 Git common dir 안쪽이고 파일 자체가 symlink가 아닌지 검사한다.
+ * 상위 디렉터리가 아직 없으면(ENOENT) 만들 자리이므로 통과다. 그 밖의 I/O 오류는 삼키지 않는다.
+ *
+ * @param {string} commonGitDir - Git common dir
+ * @param {string} file - workerSnapshotPath 결과
+ * @returns {boolean} 경계 안쪽이고 symlink가 아니면 true
+ */
+function snapshotLocationSafe(commonGitDir: string, file: string): boolean {
+  const base = fs.realpathSync(commonGitDir);
+  try {
+    if (!isInsideReal(fs.realpathSync(path.dirname(file)), base)) return false;
+  } catch (error) {
+    if (!isEnoentError(error)) throw error;
+    return true;
+  }
+  try {
+    return !fs.lstatSync(file).isSymbolicLink();
+  } catch (error) {
+    // 파일이 아직 없는 것만 "첫 저장"으로 본다.
+    if (isEnoentError(error)) return true;
+    throw error;
+  }
+}
+
+function isWorkerTotal(value: unknown): boolean {
+  return isRecord(value) && Number.isSafeInteger(value.total) && Number.isSafeInteger(value.missing);
+}
+
+function isWorkerSnapshotFile(value: unknown, blueprint: string): value is WorkerSnapshotFile {
+  if (!isRecord(value) || value.version !== 1 || value.blueprint !== blueprint
+    || typeof value.recorded_at !== 'string'
+    || typeof value.ledger_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.ledger_sha256)) return false;
+  const tokens = value.worker_tokens;
+  return isWorkerTotal(tokens) && isRecord((tokens as Record<string, unknown>).by_role)
+    && WORKER_ROLES.every((r) => isWorkerTotal(((tokens as Record<string, unknown>).by_role as
+      Record<string, unknown>)[r]));
+}
+
+/**
+ * 저장된 worker 집계 snapshot을 읽는다. 파일 없음만 "snapshot 없음"이고, 경계 밖·symlink·
+ * 깨진 JSON·다른 blueprint·모양 불일치는 `metrics-snapshot-invalid`다 — 복원값으로
+ * 잘못된 숫자를 내느니 거절해야 한다.
+ *
+ * @param {object} opts - 읽기 입력
+ * @param {string} opts.commonGitDir - Git common dir
+ * @param {string} opts.blueprint - blueprint 경로
+ * @param {SnapshotFs} [opts.fs] - 읽기 seam
+ * @returns {{ok: true, snapshot: WorkerSnapshotFile | null} | Failure} snapshot 또는 거절
+ */
+function loadWorkerSnapshot(opts: { commonGitDir: string; blueprint: string; fs?: SnapshotFs }):
+  { ok: true; snapshot: WorkerSnapshotFile | null } | Failure {
+  const invalid: Failure = { ok: false, reason: 'metrics-snapshot-invalid' };
+  const file = workerSnapshotPath(opts.commonGitDir, opts.blueprint);
+  if (!snapshotLocationSafe(opts.commonGitDir, file)) return invalid;
+  let raw: string;
+  try {
+    raw = (opts.fs ?? fs).readFileSync(file, 'utf8');
+  } catch (error) {
+    if (isEnoentError(error)) return { ok: true, snapshot: null };
+    throw error;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_error) {
+    // SyntaxError만 온다. 깨진 파일은 invalid로 접는다.
+    return invalid;
+  }
+  return isWorkerSnapshotFile(parsed, normalizeBlueprint(opts.blueprint))
+    ? { ok: true, snapshot: parsed } : invalid;
+}
+
+/**
+ * 실제 원장에서 worker 집계와 원장 SHA-256을 읽어 snapshot으로 atomic 저장한다.
+ * 같은 원장 hash의 snapshot은 다시 쓰지 않고(`reused: true`), 새 원장이면 갱신한다.
+ * 원장이 없으면 새 값을 만들지 않는다: 유효한 기존 snapshot은 그대로 보존해 돌려주고,
+ * 둘 다 없으면 `metrics-ledger-unavailable`이다. 기존 snapshot이 깨졌으면 덮어쓰지 않고
+ * `metrics-snapshot-invalid`로 거절한다. 저장 I/O 실패는 `metrics-snapshot-write-failed`다.
+ *
+ * @param {object} opts - 저장 입력
+ * @param {string} opts.commonGitDir - Git common dir
+ * @param {string | null} opts.ledgerFile - integration 원장 경로. null이면 원장 없음
+ * @param {string} opts.blueprint - blueprint 경로
+ * @param {{readFileSync: Function, writeFileSync: Function, renameSync: Function}} [opts.fs] - I/O seam
+ * @param {Clock} [opts.now] - 시계 seam
+ * @returns {{ok: true, blueprint: string, path: string, ledger_sha256: string, reused: boolean} | Failure}
+ *   저장(또는 재사용)된 snapshot 정보 또는 거절 사유
+ */
+function saveWorkerSnapshot(opts: {
+  commonGitDir: string; ledgerFile: string | null; blueprint: string; fs?: SnapshotFs; now?: Clock;
+}): { ok: true; blueprint: string; path: string; ledger_sha256: string; reused: boolean } | Failure {
+  const fsx = opts.fs ?? fs;
+  const blueprint = normalizeBlueprint(opts.blueprint);
+  const file = workerSnapshotPath(opts.commonGitDir, blueprint);
+  const existing = loadWorkerSnapshot({ commonGitDir: opts.commonGitDir, blueprint, fs: fsx });
+  if (existing.ok === false) return existing;
+  const ledger: LedgerRead = opts.ledgerFile === null
+    ? { ok: true, snapshot: null, decisions: [] } : readLedgerSnapshot(opts.ledgerFile, fsx);
+  if (ledger.ok === false) return ledger;
+  if (ledger.snapshot === null) {
+    if (existing.snapshot === null) return { ok: false, reason: 'metrics-ledger-unavailable' };
+    return { ok: true, blueprint, path: file, ledger_sha256: existing.snapshot.ledger_sha256, reused: true };
+  }
+  const hash = ledger.snapshot.ledger_sha256;
+  if (existing.snapshot !== null && existing.snapshot.ledger_sha256 === hash) {
+    return { ok: true, blueprint, path: file, ledger_sha256: hash, reused: true };
+  }
+  const data: WorkerSnapshotFile = {
+    version: 1, blueprint, recorded_at: (opts.now ?? (() => new Date()))().toISOString(),
+    ledger_sha256: hash, worker_tokens: sumWorkerDecisions(ledger.decisions),
+  };
+  const temporary = `${file}.${process.pid}.tmp`;
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    // mkdir 뒤에 다시 검사한다: 중간 디렉터리가 symlink였다면 이제야 드러난다.
+    if (!snapshotLocationSafe(opts.commonGitDir, file)) return { ok: false, reason: 'metrics-snapshot-invalid' };
+    fsx.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
+    fsx.renameSync(temporary, file);
+  } catch (error) {
+    // 파일 시스템 오류(code가 문자열인 Error)만 "저장 실패"로 접는다. 호출자는 이 거절로
+    // 정리를 멈추므로 안전하다. 그 밖의 예외(프로그래밍 오류)는 삼키지 않는다.
+    if (!(error instanceof Error) || typeof (error as { code?: unknown }).code !== 'string') throw error;
+    return { ok: false, reason: 'metrics-snapshot-write-failed' };
+  }
+  return { ok: true, blueprint, path: file, ledger_sha256: hash, reused: false };
 }
 
 /**
@@ -487,5 +689,5 @@ function listCoordinatorSessions(opts: { file: string; blueprint: string }): Arr
 
 export = {
   EXCEPTION_KINDS, isException, metricsFilePath, startSession, endSession, summarize,
-  listCoordinatorSessions,
+  listCoordinatorSessions, saveWorkerSnapshot,
 };
