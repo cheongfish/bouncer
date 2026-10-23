@@ -66,15 +66,16 @@ refused with exit code 2 before a single file is written.
 
 What shrinks (five things only):
 
-1. **Plan documents** — `--scale light` writes four documents: blueprint
-   `index.md`, `tasks/001/{tasks,verification}.md`, and root `review.md`. It
-   creates no `context-review.md`, so `/bouncer-plan` runs no context review on
-   a light blueprint without the `bouncer.review_contract: brief` marker. A
-   marked light blueprint also gets a `context-review.md` and one
-   `verifiability` plan review (no delta beyond that single perspective); the
-   file is outside the budget. The four
-   scaffolded documents total **100 lines or fewer**. The run-side final review
-   of a marked light blueprint stays the same as an unmarked light one.
+1. **Plan documents** — a newly scaffolded `--scale light` blueprint carries the
+   `bouncer.review_contract: brief` marker and gets five initial documents:
+   blueprint `index.md`, `tasks/001/{tasks,verification}.md`, root `review.md`,
+   and `context-review.md`. It receives one `verifiability` plan review (no
+   delta beyond that single perspective). Every document except
+   `context-review.md` totals **100 lines or fewer**; `context-review.md` is
+   outside the budget. An existing light blueprint without the marker has only
+   the four documents (no `context-review.md`), so `/bouncer-plan` runs no
+   context review on it. The run-side final review of a marked light blueprint
+   stays the same as an unmarked light one.
 2. **Task sections** — a light task body requires only `Goal & intent`, `Touch`,
    and `Checklist` as an authoring rule. `Interface` and `Do not touch` are
    neither templated nor demanded. Approved scope is untouched: **G3–G5**
@@ -90,23 +91,24 @@ What shrinks (five things only):
 5. **Quiz size** — light quiz sizing is owned by
    `${BOUNCER_ROOT}/references/explain-diff/index.md`.
 
-The shrunken **scaffold** stays four documents, but a light blueprint that
+The shrunken **scaffold** is five initial documents on a new light blueprint,
+and a light blueprint that
 declares `bouncer.verification_policy: scoped_terminal` (every newly scaffolded
-blueprint does) is not complete at four: it needs exactly one independent
+blueprint does) is not complete there: it needs exactly one independent
 implementation task plus one terminal verification task that depends on it
 (`bouncer scaffold task --execution-kind verification --depends-on TASKS-001
 --verify <full command>`, two more documents, outside the 100-line scaffold
 budget). The implementation task carries its own task-only `bouncer.verify`;
-the terminal task carries the full-suite command. A light blueprint without the
-marker keeps the legacy single-task contract and its four documents.
+the terminal task carries the full-suite command. An existing light blueprint
+without the marker keeps the legacy single-task contract and its four documents.
 
 What stays the same:
 
 - Task document set: when `review_scope` is `blueprint`, `tasks/<NNN>/{tasks,verification}.md` plus root `review.md` and `explain.md` are still authored and gated; when `review_scope` is absent, `tasks/<NNN>/{tasks,verification,review}.md` and `explain.md` are still authored and gated.
 - Ordinary commit-task gate judgments **G1–G8** and **G13–G17** that remain are unchanged in the light path
   (G16 comprehension at finalize; G17 staged scope at commit).
-  G4 and G15 are retired. Only the missing `context-review.md` and the
-  three-section task body differ, and both differences follow from the document
+  G4 and G15 are retired. Only the missing `context-review.md` (an unmarked
+  existing light blueprint) and the three-section task body differ, and both differences follow from the document
   set above rather than from any agent judgment.
 
 Returning to `full` on an already-scaffolded light blueprint

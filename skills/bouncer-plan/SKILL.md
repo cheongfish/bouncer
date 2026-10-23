@@ -136,11 +136,12 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `bouncer epic add-domain --slug <s> --reason <text> --yes`. Existing blueprints
    are not moved after a promotion.
    **Light scaffold.** When this step received a light declaration, add
-   `--scale light` to the blueprint command. That creates only four documents:
-   blueprint `index.md`, `tasks/001/{tasks,verification}.md`, and root
-   `review.md` — no `context-review.md` (100 lines or fewer total) unless the
-   blueprint carries the `review_contract: brief` marker, in which case it also
-   gets a `context-review.md` that the 100-line budget does not count. The new
+   `--scale light` to the blueprint command. That creates five initial
+   documents: blueprint `index.md`, `tasks/001/{tasks,verification}.md`, root
+   `review.md`, and a `context-review.md` (the new blueprint carries the
+   `review_contract: brief` marker). Everything except `context-review.md` is
+   100 lines or fewer in total; the `context-review.md` is not counted. An
+   existing light blueprint without the marker has only the first four. The new
    blueprint also records `bouncer.verification_policy: scoped_terminal`, so a
    light plan is complete only with one terminal verification task: run
    `bouncer scaffold task --blueprint <dir> --id 002 --execution-kind
@@ -260,12 +261,12 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
 
 5. **Review.** **Skip this entire step when the blueprint's
    `bouncer.scale` is `light` and it has no `bouncer.review_contract` marker** —
-   that blueprint has no `context-review.md`
-   (scaffold does not create one). Do
+   that existing blueprint has no `context-review.md`
+   (a new light scaffold always carries the marker). Do
    not scaffold the document just to run the judgment, and do not substitute a
    lighter inline review or an empty accepted `context-review.md`; go to step
    6. Light matches CLI `strategy: skip` — do not invent reviewer calls. On a
-   light plan the user's `affected_paths` confirmation and and G3–G5
+   unmarked light plan the user's `affected_paths` confirmation and G3–G5
    carry approved scope.
 
    For a `scale: full` blueprint, or a light blueprint with the marker, after `affected_paths` confirmation, read: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`. A blueprint without the marker has strategy `single` (one `combined` reviewer; older `clustered` payloads are only read). A marked blueprint has strategy `perspectives`: call one reviewer per entry of the payload `perspectives` in one message, in parallel (full: `consistency`, `scope_minimality`, `verifiability`, `risk_security`; light: `verifiability` only), and never merge or split them. Follow-ups, routing, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or digest mismatch, stop without reviewers and report. Behavioral brief: the `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while an actionable finding remains unresolved. An open `must_fix` after delta stops for the user; accepted-risk needs explicit user consent.

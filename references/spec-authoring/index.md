@@ -225,7 +225,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
        is the signal to set `scale` back to `full` rather than to smuggle those
        rules into Goal & intent — a path you must protect has nowhere to live in a
        light task, and a Do not touch section must exist to protect any path.
-       The scaffolded light plan set is budgeted at 100 lines
+       The scaffolded light plan set (five initial documents) is budgeted at
+       100 lines excluding `context-review.md`
        (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`). A
        `scoped_terminal` light plan adds one terminal verification task
        (verification only, no source Touch) that depends on the one
