@@ -121,9 +121,11 @@ display and default sort order — not execution authority.
   self-reference. The read-only helper `plan-prerequisites` reports missing
   blueprints, cycles, and whether `git merge-base --is-ancestor <merged_commit>
   HEAD` holds for the current checkout (non-ancestor is unmerged; other Git
-  failures are lookup errors, never a pass). It is not yet wired to approval or
-  gates, and nothing infers a prerequisite from document text or file names;
-  the brief explains why the declared SHA and path evidence the merge.
+  failures are lookup errors, never a pass). Plan approval refuses an unmerged
+  or missing prerequisite, and the plan draft check and plan gate report the
+  same finding as `G32`. Nothing infers a prerequisite from document text or
+  file names; the brief explains why the declared SHA and path evidence the
+  merge.
 
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
