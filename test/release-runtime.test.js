@@ -90,11 +90,19 @@ function remoteFor(root) {
  * npm 응답만 가짜로 바꾸고 Git은 로컬 bare remote에서 실제 실행한다.
  *
  * @param {string[]} calls - 실행 순서를 기록할 배열
- * @param {{existing?: boolean, failPublish?: boolean, version?: string}} options - registry 시나리오
+ * 실제 npm(libnpmpublish)은 게시 시 semver.clean으로 +build metadata를 버린 버전을 저장하므로,
+ * 성공 `npm view` 응답의 version도 기본적으로 그 저장 형태를 돌려준다. registryVersion은
+ * registry가 정규화 결과와 다른 버전을 응답하는 시나리오를 만들 때만 쓴다.
+ *
+ * @param {string[]} calls - 실행 순서를 기록할 배열
+ * @param {string} integrity - registry가 응답할 dist.integrity
+ * @param {{existing?: boolean, failPublish?: boolean, version?: string, registryVersion?: string}} options
+ *   - registry 시나리오
  * @returns {(command: string, args: string[], opts: object) => object} deps.run
  */
 function npmAndGit(calls, integrity, options = {}) {
   const version = options.version || '1.2.3';
+  const stored = options.registryVersion || version.split('+')[0];
   return (command, args, opts) => {
     calls.push(`${command} ${args.join(' ')}`);
     if (command === 'git') {
@@ -107,7 +115,7 @@ function npmAndGit(calls, integrity, options = {}) {
       } }) };
     }
     if (args[0] === 'publish' && options.failPublish) return { status: 1, stdout: '', stderr: 'denied' };
-    return { status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer', version,
+    return { status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer', version: stored,
       dist: { integrity } }), stderr: '' };
   };
 }
@@ -310,6 +318,18 @@ test('(m) tag with build metadata matching every manifest → publishes', () => 
   }, deps: { run: npmAndGit([], input.integrity, { version: input.version }) } });
   assert.equal(result.version, '1.2.3-alpha.1+build.7');
   assert.equal(result.plugin, 'pushed');
+});
+
+test('(m2) registry stores a version other than the build-stripped tag → throws before Git', () => {
+  const input = fixture('1.2.3-alpha.1+build.7');
+  const calls = [];
+  assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: {
+    GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/tags/bouncer--v1.2.3-alpha.1+build.7',
+  }, deps: { run: npmAndGit(calls, input.integrity, {
+    version: input.version, registryVersion: '1.2.3-alpha.2',
+  }) } }),
+  /registry package name\/version\/integrity mismatch/);
+  assert.deepEqual(calls.map((c) => c.split(' ').slice(0, 2).join(' ')), ['npm view', 'npm publish', 'npm view']);
 });
 
 test('(n) numeric prerelease with leading zero → throws before the first external call', () => {

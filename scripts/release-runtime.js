@@ -152,6 +152,10 @@ function releaseRuntime(opts) {
 
 /**
  * registry 응답이 요청한 불변 산출물인지 확인한다. 무결성 누락도 재게시 사유가 아니라 거부다.
+ * npm(libnpmpublish)은 게시할 때 semver.clean으로 +build metadata를 버린 버전을 저장하므로,
+ * version은 pack.version이 아니라 그 저장 형태와 정확히 비교한다. semver는 직접 dependency가
+ * 아니어서 새로 추가하지 않는다. 이 함수에 오는 pack.version은 이미 isStrictSemver를 통과했으므로
+ * 첫 `+` 이후를 자르는 것이 semver.clean과 같은 결과다. prerelease 등 그 밖의 차이는 그대로 거부한다.
  *
  * @param {string} stdout - npm view JSON 응답
  * @param {{name: string, version: string, integrity: string}} pack - pack metadata
@@ -163,8 +167,9 @@ function assertRegistryArtifact(stdout, pack) {
     if (!(err instanceof SyntaxError)) throw err;
     throw new Error(`npm registry JSON invalid: ${err.message}`, { cause: err });
   }
+  const storedVersion = pack.version.split('+')[0];
   // null/배열 등 객체가 아닌 성공 응답은 속성 접근 TypeError가 아니라 명시적 불일치로 거부한다.
-  if (!value || typeof value !== 'object' || value.name !== pack.name || value.version !== pack.version
+  if (!value || typeof value !== 'object' || value.name !== pack.name || value.version !== storedVersion
     || value.dist?.integrity !== pack.integrity) {
     throw new Error('registry package name/version/integrity mismatch');
   }
