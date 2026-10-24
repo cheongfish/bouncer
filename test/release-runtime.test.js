@@ -23,21 +23,34 @@ test.after(() => temps.forEach((dir) => fs.rmSync(dir, { recursive: true, force:
  * @returns {{root: string, tarball: string, metadata: string, pluginTree: string, version: string}}
  *   격리된 유효 입력 묶음
  */
-function fixture() {
+function fixture(version = '1.2.3') {
   const base = temp();
   const root = path.join(base, 'repo');
   const pluginTree = path.join(base, 'plugin');
-  fs.mkdirSync(path.join(root, 'packages/cli'), { recursive: true });
   fs.mkdirSync(pluginTree);
-  fs.writeFileSync(path.join(root, 'packages/cli/package.json'), JSON.stringify({ version: '1.2.3' }));
-  fs.writeFileSync(path.join(pluginTree, 'package.json'), JSON.stringify({ version: '1.2.3' }));
+  // syncVersions TARGETS가 요구하는 모든 manifest를 만들어 fixture 누락이 목표 Red보다 먼저 터지지 않게 한다.
+  const manifests = {
+    'package.json': { version },
+    'packages/cli/package.json': { version },
+    'package-lock.json': { version, packages: { '': { version }, 'packages/cli': { version } } },
+    'plugin.json': { version },
+    '.claude-plugin/plugin.json': { version },
+    '.claude-plugin/marketplace.json': { plugins: [{ name: 'bouncer', version }] },
+    '.codex-plugin/plugin.json': { version },
+    '.cursor-plugin/plugin.json': { version },
+  };
+  for (const [rel, data] of Object.entries(manifests)) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), JSON.stringify(data));
+  }
+  fs.writeFileSync(path.join(pluginTree, 'package.json'), JSON.stringify({ version }));
   fs.writeFileSync(path.join(pluginTree, 'plugin.txt'), 'plugin\n');
   const tarball = path.join(base, 'runtime.tgz');
   fs.writeFileSync(tarball, 'immutable package bytes');
   const integrity = `sha512-${crypto.createHash('sha512').update(fs.readFileSync(tarball)).digest('base64')}`;
   const metadata = path.join(base, 'metadata.json');
-  fs.writeFileSync(metadata, JSON.stringify([{ name: '@cheongfish/bouncer', version: '1.2.3', integrity }]));
-  return { root, tarball, metadata, pluginTree, version: '1.2.3', integrity };
+  fs.writeFileSync(metadata, JSON.stringify([{ name: '@cheongfish/bouncer', version, integrity }]));
+  return { root, tarball, metadata, pluginTree, version, integrity };
 }
 
 /**
@@ -77,10 +90,11 @@ function remoteFor(root) {
  * npm 응답만 가짜로 바꾸고 Git은 로컬 bare remote에서 실제 실행한다.
  *
  * @param {string[]} calls - 실행 순서를 기록할 배열
- * @param {{existing?: boolean, failPublish?: boolean}} options - registry 시나리오
+ * @param {{existing?: boolean, failPublish?: boolean, version?: string}} options - registry 시나리오
  * @returns {(command: string, args: string[], opts: object) => object} deps.run
  */
 function npmAndGit(calls, integrity, options = {}) {
+  const version = options.version || '1.2.3';
   return (command, args, opts) => {
     calls.push(`${command} ${args.join(' ')}`);
     if (command === 'git') {
@@ -89,11 +103,11 @@ function npmAndGit(calls, integrity, options = {}) {
     }
     if (args[0] === 'view' && !options.existing && calls.filter((x) => x.startsWith('npm view')).length === 1) {
       return { status: 1, stdout: '', stderr: JSON.stringify({ error: {
-        code: 'E404', pkgid: '@cheongfish/bouncer@1.2.3',
+        code: 'E404', pkgid: `@cheongfish/bouncer@${version}`,
       } }) };
     }
     if (args[0] === 'publish' && options.failPublish) return { status: 1, stdout: '', stderr: 'denied' };
-    return { status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer', version: '1.2.3',
+    return { status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer', version,
       dist: { integrity } }), stderr: '' };
   };
 }
@@ -227,4 +241,164 @@ test('(i) rejected remote push → reports failure after local commit', () => {
     { cwd: input.root, encoding: 'utf8' });
   assert.equal(branch.status, 0);
   assert.equal(branch.stdout, '');
+});
+
+const PUSH = { GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/tags/bouncer--v1.2.3' };
+
+/** 호출 이력만 기록하고 항상 성공을 돌려주는 deps.run을 만든다. */
+function recorder(calls) {
+  return { run: (command, args) => { calls.push(`${command} ${args[0]}`); return { status: 0, stdout: '', stderr: '' }; } };
+}
+
+test('(j) version metadata drift → throws before the first external call', () => {
+  const targets = ['package.json', 'packages/cli/package.json', 'plugin.json', '.claude-plugin/plugin.json',
+    '.claude-plugin/marketplace.json', '.codex-plugin/plugin.json', '.cursor-plugin/plugin.json'];
+  for (const rel of targets) {
+    const input = fixture();
+    const file = path.join(input.root, rel);
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/1\.2\.3/g, '1.2.9'));
+    const calls = [];
+    assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: recorder(calls) }), Error, rel);
+    assert.deepEqual(calls, [], rel);
+  }
+  const input = fixture();
+  const lock = path.join(input.root, 'package-lock.json');
+  const data = JSON.parse(fs.readFileSync(lock, 'utf8'));
+  data.packages['packages/cli'].version = '1.2.9';
+  fs.writeFileSync(lock, JSON.stringify(data));
+  const calls = [];
+  assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: recorder(calls) }), Error);
+  assert.deepEqual(calls, []);
+});
+
+test('(k) E404 with another or missing pkgid and partial summary → no publish', () => {
+  for (const error of [
+    { code: 'E404', pkgid: '@cheongfish/bouncer@1.2.4', summary: 'no match for @cheongfish/bouncer@1.2.3' },
+    { code: 'E404', summary: '@cheongfish/bouncer@1.2.3 is not in this registry' },
+  ]) {
+    const input = fixture();
+    const calls = [];
+    assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: {
+      run: (command, args) => {
+        calls.push(`${command} ${args[0]}`);
+        return { status: 1, stdout: '', stderr: JSON.stringify({ error }) };
+      } } }), /registry lookup failed/);
+    assert.deepEqual(calls, ['npm view']);
+  }
+});
+
+test('(l) top-level exact E404 object → publishes as a new version', () => {
+  const input = fixture();
+  remoteFor(input.root);
+  const calls = [];
+  const inner = npmAndGit(calls, input.integrity);
+  const result = releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: { run: (command, args, opts) => {
+    if (command === 'npm' && args[0] === 'view' && !calls.some((c) => c.startsWith('npm view'))) {
+      calls.push(`${command} ${args.join(' ')}`);
+      return { status: 1, stdout: '', stderr: JSON.stringify({ code: 'E404', pkgid: '@cheongfish/bouncer@1.2.3' }) };
+    }
+    return inner(command, args, opts);
+  } } });
+  assert.equal(result.npm, 'published');
+});
+
+test('(m) tag with build metadata matching every manifest → publishes', () => {
+  const input = fixture('1.2.3-alpha.1+build.7');
+  remoteFor(input.root);
+  const result = releaseRuntime({ ...input, mode: 'publish', env: {
+    GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/tags/bouncer--v1.2.3-alpha.1+build.7',
+  }, deps: { run: npmAndGit([], input.integrity, { version: input.version }) } });
+  assert.equal(result.version, '1.2.3-alpha.1+build.7');
+  assert.equal(result.plugin, 'pushed');
+});
+
+test('(n) numeric prerelease with leading zero → throws before the first external call', () => {
+  const input = fixture('1.2.3-01');
+  const calls = [];
+  assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: {
+    GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/tags/bouncer--v1.2.3-01',
+  }, deps: recorder(calls) }), Error);
+  assert.deepEqual(calls, []);
+});
+
+test('(o) registry failure matrix → blocks every later external write', () => {
+  const good = (input) => JSON.stringify({ name: '@cheongfish/bouncer', version: '1.2.3', dist: { integrity: input.integrity } });
+  const cases = [
+    { name: 'E401', first: { status: 1, stderr: '{"error":{"code":"E401"}}' }, calls: ['npm view'] },
+    { name: 'network', first: { status: 1, stderr: 'ECONNRESET' }, calls: ['npm view'] },
+    { name: 'corrupt JSON', first: (i) => ({ status: 0, stdout: `{${good(i)}` }), calls: ['npm view'] },
+    { name: 'null JSON', first: { status: 0, stdout: 'null' }, calls: ['npm view'] },
+    { name: 'missing name', first: (i) => ({ status: 0, stdout: JSON.stringify({ version: '1.2.3',
+      dist: { integrity: i.integrity } }) }), calls: ['npm view'] },
+    { name: 'wrong version', first: (i) => ({ status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer',
+      version: '1.2.4', dist: { integrity: i.integrity } }) }), calls: ['npm view'] },
+    { name: 'missing integrity', first: { status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer',
+      version: '1.2.3' }) }, calls: ['npm view'] },
+    { name: 'wrong integrity', first: { status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer',
+      version: '1.2.3', dist: { integrity: 'sha512-x' } }) }, calls: ['npm view'] },
+    { name: 'publish failure', first: { status: 1, stderr: '{"error":{"code":"E404","pkgid":"@cheongfish/bouncer@1.2.3"}}' },
+      second: { status: 1, stderr: 'denied' }, calls: ['npm view', 'npm publish'] },
+    { name: 'confirmation nonzero', first: { status: 0, stdout: 'ok' }, second: { status: 1, stderr: 'down' },
+      skipFirstAssert: true, calls: ['npm view', 'npm view'] },
+  ];
+  for (const item of cases) {
+    const input = fixture();
+    const calls = [];
+    const results = [item.first, item.second].filter(Boolean).map((r) => (typeof r === 'function' ? r(input) : r));
+    // 확인 단계 불일치 시나리오: 첫 조회는 정상, 게시 후 확인 응답이 다른 산출물이면 Git을 막아야 한다.
+    if (item.name === 'confirmation nonzero') results[0] = { status: 0, stdout: good(input) };
+    let index = 0;
+    assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: { run: (command, args) => {
+      calls.push(`${command} ${args[0]}`);
+      const out = results[Math.min(index, results.length - 1)];
+      index += 1;
+      return { status: 0, stdout: '', stderr: '', ...out };
+    } } }), Error, item.name);
+    assert.deepEqual(calls, item.calls, item.name);
+  }
+});
+
+test('(p) publish then mismatched confirmation → stops before any Git call', () => {
+  const input = fixture();
+  const calls = [];
+  assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: { run: (command, args) => {
+    calls.push(`${command} ${args[0]}`);
+    if (args[0] === 'view' && calls.length === 1) {
+      return { status: 1, stdout: '', stderr: '{"error":{"code":"E404","pkgid":"@cheongfish/bouncer@1.2.3"}}' };
+    }
+    if (args[0] === 'publish') return { status: 0, stdout: '', stderr: '' };
+    return { status: 0, stdout: JSON.stringify({ name: '@cheongfish/bouncer', version: '1.2.3',
+      dist: { integrity: 'sha512-other' } }), stderr: '' };
+  } } }), /mismatch/);
+  assert.deepEqual(calls, ['npm view', 'npm publish', 'npm view']);
+});
+
+test('(q) real git fetch failure → no worktree add, commit, or push and no remote branch', () => {
+  const input = fixture();
+  const bare = remoteFor(input.root);
+  const calls = [];
+  const inner = npmAndGit(calls, input.integrity, { existing: true });
+  assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: { run: (command, args, opts) => {
+    // ls-remote만 release ref가 있다고 응답시키고 fetch는 존재하지 않는 ref로 실제 Git에서 실패시킨다.
+    if (command === 'git' && args[0] === 'ls-remote') {
+      calls.push(`${command} ${args.join(' ')}`);
+      return { status: 0, stdout: 'abc\trefs/heads/release\n', stderr: '' };
+    }
+    return inner(command, args, opts);
+  } } }), /git fetch failed/);
+  assert.ok(calls.some((call) => call.startsWith('git fetch')));
+  for (const verb of ['git worktree add', 'git commit', 'git push']) {
+    assert.equal(calls.some((call) => call.startsWith(verb)), false, verb);
+  }
+  const branch = spawnSync('git', ['ls-remote', '--heads', bare], { cwd: input.root, encoding: 'utf8' });
+  assert.equal(branch.stdout, '');
+});
+
+test('(r) workflow_dispatch with matching tag → publish rejected before external calls', () => {
+  const input = fixture();
+  const calls = [];
+  assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: {
+    GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/tags/bouncer--v1.2.3',
+  }, deps: recorder(calls) }), /matching/);
+  assert.deepEqual(calls, []);
 });

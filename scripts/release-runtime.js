@@ -5,9 +5,11 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { isStrictSemver, syncVersions } = require('./sync-versions');
 
 const PACKAGE = '@cheongfish/bouncer';
 const REGISTRY = 'https://registry.npmjs.org';
+const TAG_PREFIX = 'refs/tags/bouncer--v';
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 /**
@@ -42,15 +44,18 @@ function releaseRuntime(opts) {
     throw new Error('metadata must be npm pack JSON');
   }
   const pack = meta[0];
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'packages/cli/package.json'), 'utf8'));
+  // 버전 정본은 루트 package.json이다. 별도 검사기를 만들지 않고 syncVersions check를 재사용해
+  // host manifest/lockfile drift를 어떤 외부 호출보다 먼저 막는다(drift면 여기서 throw).
+  const rootVersion = syncVersions({ root, mode: 'check' }).version;
   const pluginPkg = JSON.parse(fs.readFileSync(path.join(opts.pluginTree, 'package.json'), 'utf8'));
   const tag = env.GITHUB_REF || '';
-  if (pack.name !== PACKAGE || pkg.version !== pack.version || pluginPkg.version !== pack.version) {
+  if (pack.name !== PACKAGE || rootVersion !== pack.version || pluginPkg.version !== pack.version) {
     throw new Error('package name or root/plugin version mismatch');
   }
   if (opts.mode === 'publish') {
-    if (env.GITHUB_EVENT_NAME !== 'push' || !/^refs\/tags\/bouncer--v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag)
-      || tag.slice('refs/tags/bouncer--v'.length) !== pack.version) {
+    // 전체 SemVer 문자열(+build 포함)을 비교한다. 정규식 대신 정본 검사기를 써 두 경로가 갈라지지 않게 한다.
+    if (env.GITHUB_EVENT_NAME !== 'push' || !tag.startsWith(TAG_PREFIX)
+      || !isStrictSemver(tag.slice(TAG_PREFIX.length)) || tag.slice(TAG_PREFIX.length) !== pack.version) {
       throw new Error('publish requires a matching bouncer--v SemVer push tag');
     }
     const bytes = fs.readFileSync(path.resolve(opts.tarball));
@@ -72,9 +77,8 @@ function releaseRuntime(opts) {
       throw new Error(`npm registry lookup failed: ${query.stderr || query.stdout}`, { cause: err });
     }
     const registryError = error?.error || error;
-    const requestedSpec = `${PACKAGE}@${pack.version}`;
-    if (registryError?.code !== 'E404'
-      || (registryError.pkgid !== requestedSpec && !String(registryError.summary || '').includes(requestedSpec))) {
+    // 정확한 E404 + pkgid 일치만 "아직 없는 버전"이다. summary 같은 자유 문자열은 판정에 쓰지 않는다.
+    if (registryError?.code !== 'E404' || registryError.pkgid !== `${PACKAGE}@${pack.version}`) {
       throw new Error(`npm registry lookup failed: ${query.stderr || query.stdout}`);
     }
     const publish = run(NPM, ['publish', path.resolve(opts.tarball), '--access', 'public', '--registry', REGISTRY],
@@ -159,7 +163,9 @@ function assertRegistryArtifact(stdout, pack) {
     if (!(err instanceof SyntaxError)) throw err;
     throw new Error(`npm registry JSON invalid: ${err.message}`, { cause: err });
   }
-  if (value.name !== pack.name || value.version !== pack.version || value.dist?.integrity !== pack.integrity) {
+  // null/배열 등 객체가 아닌 성공 응답은 속성 접근 TypeError가 아니라 명시적 불일치로 거부한다.
+  if (!value || typeof value !== 'object' || value.name !== pack.name || value.version !== pack.version
+    || value.dist?.integrity !== pack.integrity) {
     throw new Error('registry package name/version/integrity mismatch');
   }
 }
