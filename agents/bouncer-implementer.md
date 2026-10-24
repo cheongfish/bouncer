@@ -209,7 +209,9 @@ task_brief_hash: <64 hex you received>
 - **Changed files** — every touched path with a one-line purpose, the path in
   backticks. All paths must be inside Touch / `affected_paths`.
 - **Checklist coverage** — each Checklist item mapped to `done` / `not done`
-  plus where it landed.
+  plus where it landed. When an item asks you to compare with or cite an
+  external source, name its URL and the date you opened it; a source you did not
+  open is `not done`, and the document must not claim the comparison.
 - **Tests** — the exact task-assigned command and its result of the last run,
   each in a line like ``- `<command>` — <result>``, plus the tests added or
   updated. The controller rejects the fan-in when this section lacks the
