@@ -26,7 +26,7 @@ Node.js 24 이상과 Git을 확인하고, 사용할 plugin과 **같은 버전**�
 [install.md](docs/install.md)에 있습니다.
 
 ```
-npm install --global @cheongfish/bouncer@1.6.0
+npm install --global @cheongfish/bouncer@1.6.1
 /plugin marketplace add cheongfish/bouncer#release
 /plugin install bouncer@cheongfish-tools
 ```

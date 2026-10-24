@@ -465,7 +465,7 @@ function makeFixturePluginRoot() {
   }
   fs.writeFileSync(path.join(root, 'AGENTS.md'), '# fixture\n');
   fs.writeFileSync(path.join(root, 'scripts', 'bouncer'), '');
-  fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
+  fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: require('../packages/cli/package.json').version }));
   writeRole(path.join(root, 'agents'), 'reviewer', 'FIXTURE-AGENT\n');
   return root;
 }

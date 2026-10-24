@@ -320,7 +320,7 @@ function makeFixturePluginRoot() {
   }
   fs.writeFileSync(path.join(pluginRoot, 'AGENTS.md'), '# fixture\n');
   fs.writeFileSync(path.join(pluginRoot, 'scripts', 'bouncer'), '');
-  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.6.0' }));
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: require('../packages/cli/package.json').version }));
   return pluginRoot;
 }
 

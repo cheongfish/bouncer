@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-10-24
+
 ### Changed
 
 - **선행 병합 판정을 승인과 계획 게이트에 연결** — `bouncer.prerequisites`를 선언한 blueprint는 선언된 병합

@@ -10,10 +10,15 @@
     {
       "name": "bouncer",
       "source": "./",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "description": "Spec-driven development workflow for parallel task execution and verified integration.",
       "category": "workflow",
-      "tags": ["spec-driven", "parallel-workflows", "verified-integration", "agent-workflow"],
+      "tags": [
+        "spec-driven",
+        "parallel-workflows",
+        "verified-integration",
+        "agent-workflow"
+      ],
       "author": {
         "name": "Kim Cheongwoon",
         "email": "rlq10324@chunjae.com"
