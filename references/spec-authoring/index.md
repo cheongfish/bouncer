@@ -173,8 +173,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
        a consumer-test omission; a changed behavior description whose related
        document is not surveyed is a document-survey omission.
      - **Touch** (size or shape contract): before planning an addition to a Touch
-       path, check whether a test or `scripts/check-doc-shape.js` pins that file's
-       size, headings, or step shape (`rg` the path in `test/` and `scripts/`). If
+       path, check whether a test or lint script pins that file's
+       size, headings, or step shape (`rg` the path in the project's test and script directories). If
        one does, plan a replacement or a different location in the task; an
        addition that the contract rejects only surfaces during execute and
        departs from the approved brief.

@@ -108,6 +108,23 @@ function parsePackFileList(stdout) {
 }
 
 /**
+ * 배포 트리에 넣을 package.json 본문을 만든다. 루트 package.json 은 개발용 scripts, workspaces,
+ * devDependencies 를 담고 있는데, 배포 트리에는 그 경로가 없으므로 신원 필드만 남긴다.
+ * 릴리스 workflow 와 게시 검사가 이 파일에서 plugin version 을 읽는다.
+ *
+ * @param {string} src - 루트 package.json 절대 경로
+ * @returns {string} 신원 필드만 담은 JSON 문자열(끝 개행 포함)
+ */
+function releasePackageJson(src) {
+  const pkg = JSON.parse(fs.readFileSync(src, 'utf8'));
+  const identity = {};
+  for (const key of ['name', 'version', 'private', 'description', 'license', 'repository', 'homepage', 'bugs']) {
+    if (pkg[key] !== undefined) identity[key] = pkg[key];
+  }
+  return `${JSON.stringify(identity, null, 2)}\n`;
+}
+
+/**
  * npm run build 후 npm pack 목록의 각 파일을 outDir 에 같은 상대 경로로 복사한다.
  * 실패하면 Error 를 throw 하고, 이 함수가 만든 --out 파일은 남기지 않는다.
  *
@@ -165,7 +182,8 @@ function buildReleaseTree(opts) {
       const src = path.join(rootAbs, rel);
       const dest = path.join(outAbs, rel);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.cpSync(src, dest);
+      if (rel === 'package.json') fs.writeFileSync(dest, releasePackageJson(src));
+      else fs.cpSync(src, dest);
     }
   } catch (err) {
     // 복사 도중 실패·예상 밖 예외를 가리지 않고, 부분 트리만 지운 뒤 그대로 올린다.

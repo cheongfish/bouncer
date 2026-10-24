@@ -138,10 +138,10 @@ copied. The section is optional and its absence does not make G16 fail.
 
 ## Guardrails
 
-- Prefer the finalize prepare digest and existing `computeDiffSha` API. Do not
-  invent a quiz engine or HTML UI.
-- Do not edit `scripts/lib/comprehension` or gate logic; call the existing API
-  (or reuse digest `range.diff_sha`).
+- Prefer the finalize prepare digest and its `range.diff_sha`. Do not invent a
+  quiz engine or HTML UI.
+- Do not edit the runtime's comprehension or gate logic; record through
+  `bouncer finalize comprehension` (or reuse digest `range.diff_sha`).
 - Do not block finalize on a wrong answer. G16 checks the record and hash match
   for the blueprint entry, not the grade. An unanswered quiz still aborts the
   caller.

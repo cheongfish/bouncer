@@ -1,8 +1,8 @@
 # Current pointer
 
 All workflows use the `bouncer current` CLI surface to read, set, or clear the
-active pointer. Never read or write a pointer file directly, call
-`scripts/lib/current`, reconstruct a blueprint/task path, or infer a candidate
+active pointer. Never read or write a pointer file directly, call runtime
+internals, reconstruct a blueprint/task path, or infer a candidate
 that the CLI did not return.
 
 ## Read and task selection

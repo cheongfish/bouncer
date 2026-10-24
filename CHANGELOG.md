@@ -17,6 +17,9 @@
   part 디렉터리를 cwd로 쓰는 graphify가 대상을 찾지 못했다. repo 루트를 절대 경로로 고정한 뒤 호출한다.
 - **Windows에서 graphify venv를 만들지 못하던 문제** — 설치가 `python3`만 실행했다. Windows는 `python`, `py -3`,
   `python3` 순서로 시도하고 uv fallback에도 같은 이름을 넘긴다. Linux·macOS 동작은 그대로다.
+- **배포 plugin 트리가 소스 경로와 개발용 package.json을 담던 문제** — 배포 문서 일곱 곳이 트리에 없는
+  `scripts/lib`·`scripts/src` 경로를 가리켰고, 트리의 `package.json`이 개발용 scripts와 workspaces를 그대로 담았다.
+  문서는 공개 CLI 명령과 개념 이름으로 바꾸고, 트리의 `package.json`은 신원 필드만 남긴다.
 
 ### Changed
 

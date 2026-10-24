@@ -181,6 +181,37 @@ test('(d) real repo tree → matches the plugin pack and excludes runtime files'
   assert.equal(fs.existsSync(path.join(out, 'node_modules')), false);
 });
 
+test('(h) fixture tree → package.json keeps only identity fields', () => {
+  const { pkg, out } = makeIgnoredLibFixture();
+  buildReleaseTree({ root: pkg, outDir: out, deps: { checkVersions: () => {} } });
+  const shipped = JSON.parse(fs.readFileSync(path.join(out, 'package.json'), 'utf8'));
+  assert.deepStrictEqual(shipped, { name: 'bouncer-release-fixture', version: '0.0.0', private: true });
+});
+
+test('(i) shipped plugin documents → do not point at runtime source paths', () => {
+  // 아래 파일은 경로를 설명 예시로만 쓴다(리뷰 fingerprint, task 문서 예시, validator 거절 대상 문자열).
+  const examples = new Set([
+    'agents/bouncer-reviewer.md',
+    'references/review/index.md',
+    'references/coordinator-cards/review.md',
+    'references/coordinator-cards/final_review.md',
+    'references/spec-authoring/review-rounds.md',
+    'references/spec-authoring/tasks.md',
+    'rules/cli.md',
+  ]);
+  const internal = /scripts\/(?:lib|src)\/|packages\/cli/;
+  const offenders = [];
+  for (const dir of ['agents', 'rules', 'references', 'skills']) {
+    const base = path.join(root, dir);
+    for (const rel of listRelFiles(base)) {
+      const key = `${dir}/${rel}`;
+      if (!rel.endsWith('.md') || examples.has(key)) continue;
+      if (internal.test(fs.readFileSync(path.join(base, rel), 'utf8'))) offenders.push(key);
+    }
+  }
+  assert.deepStrictEqual(offenders, []);
+});
+
 test('(e) release.yml → manual dispatch cannot reach publishing', () => {
   const src = fs.readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8');
   const workflow = yaml.load(src);
