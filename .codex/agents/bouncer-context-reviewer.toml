@@ -108,7 +108,10 @@ Each scope below is one judgment body. `combined` judges both; `local` /
 
 Walk epic → blueprint → tasks. Flag goal or scope that disagrees across those
 documents (a success criterion the tasks never open, a Touch path the epic put
-out of scope, Interface that drops a Contract rejection). Also judge Checklist
+out of scope, Interface that drops a Contract rejection). Flag a task whose
+Target behavior and Constraints disagree on an input or outcome of an
+irreversible external action (publish, push, delete): one allows an input that
+the other rejects only after the action ran. Also judge Checklist
 versus Interface mismatch inside one task document. When Checklist asserts
 `call count`, `absence of I/O`, or an `injected error`, flag an Interface that
 `does not define` the `injection parameter` name or shape. Separately — without

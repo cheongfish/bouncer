@@ -1,20 +1,88 @@
 # 설치
 
-Claude Code · Cursor · Codex · Antigravity가 **같은 플러그인 트리**를 읽습니다.
-설치 소스는 기본 브랜치가 아니라 빌드된 `release` 브랜치입니다. ref 없이
-기본 브랜치 URL을 원격 marketplace로 등록하면 설치 호스트가 빌드되지 않은
-트리를 받아 동작하지 않습니다. Claude Code는 marketplace 등록 때 `#release`
-ref를 붙이고, ref 지정 설치를 확인하지 않은 호스트는 `git clone -b release <url>`로
-그 브랜치를 받은 뒤 로컬 경로를 플러그인 소스로 등록합니다.
+Bouncer는 npm으로 설치하는 CLI runtime과 호스트가 설치하는 plugin으로
+구성됩니다. 두 배포물은 같은 버전이어야 합니다. plugin만 설치해도 CLI가
+설치되지는 않습니다. runtime은 Node.js 24 이상에서 실행하며 Git은 plugin
+설치와 저장소 작업에 필요합니다.
 
-개발 checkout을 로컬 경로로 쓰려면 먼저 `npm run build`를 실행하세요. 설치
-호스트는 clone만 하고 빌드하지 않습니다.
+## runtime 설치
 
-런타임에 `npm install`은 필요 없습니다. Claude Code는 플러그인을 클론만 하고
-의존성을 설치하지 않으므로, 필요한 `js-yaml`은 `scripts/vendor/`에 벤더링돼
-있습니다. 자세한 내용은 [`scripts/vendor/README.md`](../scripts/vendor/README.md)를
-보세요. Node 24에서 검증했습니다. 런타임 코드는 Node 표준 모듈만 쓰지만 더 낮은
-버전은 아직 확인하지 않았습니다.
+먼저 `node --version`이 `v24` 이상이고 `git --version`이 성공하는지
+확인하세요. npm registry에 게시된 버전은 운영자가 공개 완료를 확인한 뒤
+설치합니다. plugin release와 같은 버전을 고릅니다.
+
+Bash:
+
+```bash
+BOUNCER_VERSION=1.6.1
+npm view "@cheongfish/bouncer@$BOUNCER_VERSION" version
+npm install --global "@cheongfish/bouncer@$BOUNCER_VERSION"
+command -v bouncer
+command -v bouncer-root
+bouncer --help
+```
+
+PowerShell:
+
+```powershell
+$BouncerVersion = '1.6.1'
+npm view "@cheongfish/bouncer@$BouncerVersion" version
+npm install --global "@cheongfish/bouncer@$BouncerVersion"
+Get-Command bouncer
+Get-Command bouncer-root
+bouncer --help
+```
+
+`npm view`가 해당 package version에 대해 `E404`를 반환하면 아직 게시되지 않은
+것으로 보고 공개 설치를 시도하지 마세요. 네트워크·인증 오류는 게시 여부를
+판정하지 못하므로 중단하고 연결을 확인하세요. 개발·검증 목적으로 로컬
+checkout에서 만든 `.tgz`가 있다면 그 파일을 설치할 수 있습니다.
+저장소 루트에서 `npm ci`, `npm run build`,
+`npm pack --workspace=@cheongfish/bouncer --pack-destination ./runtime-tarball` 순으로
+실행한 뒤 생성된 `.tgz`의 절대 경로를 `npm install --global`에 전달합니다. 로컬
+tgz 설치는 registry 게시를 뜻하지 않으며, 해당 tgz와 같은 버전의 plugin을
+설치해야 합니다.
+
+전역 설치가 기본입니다. 프로젝트 안에만 runtime을 둘 수도 있습니다.
+Bash에서는 프로젝트의 `node_modules/.bin`을 PATH에 추가하고, 호스트가 그 PATH를
+상속하지 않는 경우 `BOUNCER_BIN`에 `bouncer` 실행 shim의 절대 경로를 지정합니다.
+PowerShell에서는 `node_modules/.bin/bouncer.cmd` shim을 사용하거나 개발 checkout의
+`packages/cli/bin/bouncer`를 `node`로 직접 실행합니다. plugin hook은 PATH의
+`bouncer` 또는 명시된 절대 `BOUNCER_BIN`을 호출합니다.
+
+```bash
+npm install --save-dev "@cheongfish/bouncer@$BOUNCER_VERSION"
+export PATH="$PWD/node_modules/.bin:$PATH"
+export BOUNCER_BIN="$PWD/node_modules/.bin/bouncer"
+```
+
+`npm config get bin-links`가 `false`이면 npm shim이 만들어지지 않습니다. 값을
+`true`로 바꾸고 같은 버전을 다시 설치하세요. Bash와 PowerShell 모두 다음을
+실행할 수 있습니다.
+
+```bash
+npm config set bin-links true
+npm install --global "@cheongfish/bouncer@$BOUNCER_VERSION"
+```
+
+```powershell
+npm config set bin-links true
+npm install --global "@cheongfish/bouncer@$BouncerVersion"
+```
+
+## 플러그인 설치
+
+CLI 설치 후 호스트 절차를 따라 `release` plugin을 설치합니다. 개발 checkout은
+아래 저장소 개발 절을 참고하세요. plugin version과 runtime version이 다르면
+자산을 읽기 전에 `BOUNCER_PLUGIN_VERSION_MISMATCH` 오류가 납니다. 두 배포물을
+같은 버전으로 설치하고, 여러 plugin이 보이는 환경에서는 `BOUNCER_HOME`을
+일치하는 plugin root의 절대 경로로 지정해 복구합니다.
+
+runtime이 없으면 plugin만으로 CLI 명령은 실행되지 않습니다. npm runtime을
+설치하고 셸 PATH에 `bouncer`와 `bouncer-root`가 보이는지 확인하세요. 전역
+설치 뒤에도 찾지 못하면 npm global prefix의 bin 디렉터리를 PATH에 추가하거나,
+호스트가 PATH를 전달하지 않는 hook에는 `BOUNCER_BIN`에 `bouncer` shim의 절대
+경로를 지정합니다.
 
 ## 파일럿 지원 현황
 
@@ -29,52 +97,79 @@ ref를 붙이고, ref 지정 설치를 확인하지 않은 호스트는 `git clo
 | Codex | 미검증 |
 | Antigravity | 미검증 |
 
-## 1.6.0 릴리스 검증 절차
+## 릴리스 검증 절차
 
-설치 smoke는 최종 브랜치나 작업 중인 커밋이 아니라 `release` 브랜치의 빌드
-산출물을 대상으로 한다. 태그 실행이면 그 태그가 가리키는 커밋에서 만든
-트리이다. 릴리스 운영자는 모든 task 커밋이 병합된 최종 HEAD에서 다음 순서를
-지킨다.
+게시 작업은 저장소 루트에서 실행하며, CI가 검사한 runtime tarball과 plugin tree를
+그대로 사용합니다. npm runtime이 확인된 뒤에만 plugin release branch가
+갱신됩니다.
 
-1. `release` 브랜치가 아직 없으면 버전 bump·태그 없이 병합 직후 기본 브랜치에서
-   workflow를 수동 실행해 첫 산출 브랜치를 만든다. GitHub는 기본 브랜치에 있는
-   workflow만 `workflow_dispatch`로 실행하므로 이 단계는 병합 뒤에만 가능하다.
+1. 루트 `package.json`의 version을 편집하고 `npm run sync:versions`를 실행합니다.
+   이어서 `npm run check:versions`, `npm ci`, `npm run ci`를 통과시킵니다.
+2. 수동 workflow 실행은 prepare 검증과 dry-run만 수행합니다. release branch에
+   쓰지 않고 npm에 게시하지 않는지 확인합니다.
 
    ```bash
    gh workflow run release.yml --ref develop
    ```
 
-   실행이 성공하고 `release` 브랜치가 생겼는지 확인한 뒤에만 아래 태그 절차로
-   간다.
-2. 최종 HEAD에서 `npm run ci`가 성공하는지 확인한다.
-3. `bouncer--v1.6.0`가 아직 없고 다른 커밋을 가리키는 기존 태그도 아님을
-   확인한다. 충돌하면 태그를 삭제하거나 강제로 이동하지 않고 중단한다.
-4. 검증한 최종 HEAD에 annotated 태그를 만든다.
+3. 정확한 version의 태그가 없고 최종 검증 HEAD를 가리키는지 확인합니다. 예를
+   들어 version이 `1.6.0`이면 태그는 `bouncer--v1.6.0`입니다. 다른 commit을
+   가리키는 기존 태그가 있으면 중단합니다.
+4. 별도 운영 승인을 받은 뒤에만 최종 HEAD에 정확한 annotated tag를 만들고
+   push합니다. workflow가 태그, root version, runtime pack, plugin tree의
+   version이 일치하는지 확인하고 OIDC로 npm 게시를 처리한 다음 plugin branch를
+   갱신합니다.
+5. 실행 결과에서 npm runtime의 registry 확인과 plugin branch 게시를 각각
+   확인합니다. 하나라도 실패하면 사용자에게 설치 완료를 안내하지 않습니다.
 
-   ```bash
-   git tag -a bouncer--v1.6.0 <merged-head>
-   ```
+### trusted publisher와 provenance 운영 조건
 
-5. 원격 태그 push 권한과 marketplace 설치 권한에 대해 별도 동의를 받은 뒤
-   태그를 push한다.
+최초 게시 전에 운영자가 npm과 GitHub 양쪽에서 다음을 준비하고 확인합니다. 둘 다
+외부 권한 작업이며, 이 문서와 로컬 검사는 설정 완료나 공개 상태를 증명하지
+않습니다. package 최초 공개와 태그 push는 별도 승인 후에 수행합니다.
 
-   ```bash
-   git push origin bouncer--v1.6.0
-   ```
+- npm package `@cheongfish/bouncer`의 trusted publisher 설정에는 실제 publish job과
+  같은 값을 넣습니다. owner는 `cheongfish`, repository는 `bouncer`, workflow
+  filename은 `release.yml`입니다. 이름은 `.github/workflows/`의 파일명이며
+  workflow의 표시 이름(`name: release`)이 아닙니다. 대소문자와 `.yml` 확장자까지
+  정확히 일치해야 합니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- 현재 publish job은 GitHub environment를 쓰지 않으므로 npm 쪽 environment 칸은
+  비워 둡니다. environment를 지정하려면 workflow에 같은 이름의 `environment:`를
+  먼저 추가해야 합니다.
+- 허용 action은 직접 publish입니다. workflow가 `scripts/release-runtime.js`를 통해
+  게시하므로 staged publish 승인을 요구하는 설정은 쓰지 않습니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- OIDC 게시는 publish job의 `id-token: write` 권한, GitHub-hosted runner
+  (`ubuntu-latest`; self-hosted runner는 공식 문서상 미지원), npm CLI 11.5.1
+  이상과 Node 22.14.0 이상이 필요합니다. workflow는 npm `^11.5.1`을 설치하고 token
+  없이 OIDC로 게시합니다. token fallback은 권장하지 않습니다. Node 24는 이
+  저장소의 선택이며 공식 최소 조건과 구별합니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- npm 쪽 설정은 저장할 때 검증되지 않아 오류가 게시 시점에야 드러나고, 새 설정은
+  첫 게시를 2일 안에 성공시키지 못하면 만료됩니다. 설정은 수정할 수 없고 삭제 후
+  다시 만들어야 합니다. 태그 push 직전에 등록하고 값을 다시 대조하세요.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- provenance는 OIDC 게시, 공개 source repository, 공개 package가 모두 충족될 때
+  자동 생성되므로 `--provenance` 플래그는 필요하지 않습니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)) 별도로
+  provenance 문서는 `package.json`의 공개 `repository`가 게시 source와
+  (대소문자까지) 일치해야 한다고 요구하며, 첫 게시에는 `--access public`이
+  필요합니다. `packages/cli/package.json`의 repository metadata가
+  `cheongfish/bouncer`를 가리키고 `publishConfig.access`가 `public`인지, 게시
+  명령이 `--access public`을 쓰는지 게시 전에 확인합니다.
+  ([npm provenance](https://docs.npmjs.com/generating-provenance-statements/))
+- 운영자가 직접 확인할 항목: package와 repository의 공개 여부, npm publisher 등록
+  값, 게시 후 registry의 provenance 표시. 위 조건은 2026-10-24에 두 공식 문서를
+  읽고 실제 workflow와 대조한 것입니다. 공식 조건은 바뀔 수 있으므로 게시 직전에
+  다시 확인합니다.
 
-6. 태그 push가 `release.yml`을 실행한다. workflow가 `npm run ci` 후 산출 트리를
-   `release`에 push했는지 확인한다. 실패하면 smoke를 시작하지 않는다.
-7. workflow 확인이 끝난 뒤에만 `release` 브랜치 기준으로 애플리케이션
-   저장소·모노레포·문서·설정 중심 저장소와 Claude Code·Cursor·Codex·
-   Antigravity의 12개 조합을 설치 smoke한다. 각 조합의 결과는 같은 태그의
-   GitHub Release에 기록한다.
-8. smoke가 끝나면 **같은 `bouncer--v1.6.0` 태그의 GitHub Release**에 태그
-   commit SHA와 12개 조합 각각의 성공 횟수·실패 횟수·사용자 개입 횟수를
-   남긴다. 태그 기준 smoke 전에는 모든 조합을 `미검증`으로 유지한다.
+이 문서는 registry 공개나 호스트 smoke 완료를 주장하지 않습니다.
 
-태그 push, 원격 설치, GitHub Release는 인증과 외부 권한이 필요한 운영 작업이다.
-이 문서 변경과 `npm test` 검증만으로는 태그·push·smoke·Release가 완료된 것으로
-간주하지 않는다.
+게시 재실행은 npm registry의 같은 name/version/integrity를 확인합니다. 이미 같은
+integrity가 있으면 npm publish를 건너뛰고 plugin branch 게시를 재개합니다. 버전이
+다르거나 integrity가 일치하지 않으면 중단합니다. `unpublish`, 태그 강제 이동,
+이미 공개한 version 덮어쓰기는 복구 방법으로 사용하지 않습니다.
 
 ## Claude Code
 
@@ -128,8 +223,11 @@ git clone -b release <사내-git-url> ./bouncer-release
 올리지 않습니다. 커밋 가드는
 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
 밖 파일이 staged면 셸 실행을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
-**판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다. 훅은 상대 경로를
-쓰므로 아래 `BOUNCER_HOME`과 무관합니다.
+**판정이 같은 공개 명령**(`bouncer commit-guard`)입니다. 두 commit 훅과 SessionStart
+그래프 훅(`bouncer graph-sync`)은 내부 모듈을 읽지 않고 PATH의 `bouncer`
+또는 `BOUNCER_BIN`(절대 경로)을 호출하며, 자기 플러그인 루트를 `BOUNCER_HOME`으로
+자식 `bouncer`에 넘깁니다. 런타임이 없으면 commit 훅은 commit을 막고(fail-closed)
+SessionStart 훅은 경고만 내고 세션을 막지 않습니다.
 
 Cursor 설치 경로는 `bouncer-root --auto`의 지원 후보가 아닙니다. Cursor에서
 워크플로를 실행하려면 실제 플러그인 루트를 한 번 지정하세요.
@@ -139,7 +237,9 @@ export BOUNCER_HOME=/absolute/path/to/bouncer
 bouncer-root --auto
 ```
 
-`BOUNCER_HOME`은 그 셸의 launcher 호출에만 쓰이는 검증된 루트 오버라이드입니다.
+`BOUNCER_HOME`은 그 셸의 launcher 호출과 훅이 띄우는 `bouncer`에 쓰이는 검증된 루트
+오버라이드입니다. 순수 명령(`commit-guard`, `current`, `project-root`, `validate`,
+`verify`, `graph-sync`)은 루트를 해석하지 않으므로 이 값을 보지 않습니다.
 Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하세요. 이는
 루트 해석과 별개의 설정입니다.
 
@@ -265,51 +365,80 @@ bouncer coordinate                          # 종료 코드로는 판정하지 �
 - [ ] Codex를 쓰는 저장소면 `.codex/agents/bouncer-coordinator.toml`이
   `# bouncer-generated`로 시작하는가
 
+## 저장소 개발 checkout 연결
+
+일반 설치에는 필요하지 않은 저장소 개발 절차입니다. checkout 루트에서
+`npm ci`와 `npm run build`를 실행합니다. Bash에서는 생성된 repo bin을 PATH
+앞에 두고 runtime 자산 루트를 checkout으로 고정합니다.
+
+```bash
+npm ci
+npm run build
+export PATH="$PWD/packages/cli/bin:$PATH"
+export BOUNCER_HOME="$PWD"
+bouncer --help
+```
+
+PowerShell에서는 npm이 만든 `.cmd` shim을 PATH에서 쓰거나, checkout의 Node bin을
+직접 호출합니다. `BOUNCER_HOME`은 plugin asset root이며 runtime executable을
+가리키지 않습니다.
+
+전역 설치의 `bouncer.cmd`는 PATH에서 실행하고, 프로젝트 local 설치는
+`node_modules/.bin/bouncer.cmd`를 실행합니다. npm shim이 없는 checkout 개발은
+아래처럼 Node로 repo bin을 직접 호출합니다.
+
+```powershell
+npm ci
+npm run build
+$env:PATH = "$PWD\packages\cli\bin;$env:PATH"
+$env:BOUNCER_HOME = (Get-Location).Path
+node .\packages\cli\bin\bouncer --help
+```
+
+### 빌드 오류 진단과 복구
+
+checkout의 `bouncer`와 `bouncer-root`는 두 가지 빌드 문제를 서로 다른 stderr로
+거부합니다. 둘 다 plugin 자산 루트(`BOUNCER_HOME`) 문제가 아니라 checkout의
+`packages/cli/dist` 문제이므로 `BOUNCER_HOME`을 바꾸지 말고 빌드하세요.
+
+- `packages/cli/dist is missing`: `dist/cli.js`가 없습니다. 아직 빌드하지 않았거나
+  `dist`를 지운 경우입니다.
+- `stale-build`: `dist`는 있지만 `packages/cli/src`와 build stamp가 맞지 않습니다.
+  소스를 바꾼 뒤 다시 빌드하지 않은 경우입니다.
+
+복구는 두 경우 모두 checkout 루트에서 빌드한 뒤 같은 명령을 다시 실행하는 것입니다.
+게시나 태그 push는 이 절차에 포함되지 않습니다.
+
+```bash
+npm ci
+npm run build
+export PATH="$PWD/packages/cli/bin:$PATH"
+export BOUNCER_HOME="$PWD"
+bouncer --help
+```
+
+```powershell
+npm ci
+npm run build
+$env:PATH = "$PWD\packages\cli\bin;$env:PATH"
+$env:BOUNCER_HOME = (Get-Location).Path
+node .\packages\cli\bin\bouncer --help
+```
+
+source(`packages/cli/src`)가 없는 npm 설치본은 freshness 검사를 건너뜁니다.
+tarball에는 소스가 없기 때문이며, 이 경우 `dist`가 없다는 오류는 설치가 불완전한
+것이므로 같은 version을 다시 설치하세요.
+
 ## 플러그인 루트 (`bouncer-root`)
 
-워크플로 셸은 PATH의 `bouncer-root`를 호출합니다. 설치 경로마다 그 실행 파일을
-등록하는 방법이 다릅니다.
-
-호스트 플러그인 설치는 저장소를 캐시 디렉터리로 복사하고 `npm install`을
-돌리지 않습니다. `package.json`의 `bin` 선언은 남아 있어도 호스트는
-`node_modules/.bin`에 `bouncer` / `bouncer-root`를 링크하지 않습니다.
-이 경로에서는 플러그인 루트의 `scripts/`를 PATH에 넣으세요.
-
-```bash
-export PATH="<plugin-root>/scripts:$PATH"
-```
-
-`<plugin-root>`는 호스트와 버전마다 다릅니다. 캐시 절대 경로를 문서에 고정하지
-마세요.
-
-`npm install <plugin-root>`는 선언된 `bin`을 그 프로젝트 `node_modules/.bin`에
-링크합니다. `-g` / `npm link`는 prefix `bin`에 링크합니다.
-
-확인: `bouncer-root --auto`가 절대 경로를 출력하면 등록된 것입니다. 등록 전에는
-셸이 `command not found`를 냅니다. 워크플로 셸 첫 줄은
-`BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?`이라서, PATH에 올리기 전에는
-여섯 워크플로가 그 줄에서 실패합니다.
-
-PATH를 바꿀 수 없으면 아래 둘 중 하나를 쓰세요. 둘 다 기본이 아닙니다.
-
-- 그 호출에만 `BOUNCER_HOME=/absolute/plugin/root`를 붙입니다. 상시 환경 변수가
-  아니라 한 번의 launcher 오버라이드입니다.
-- 플러그인 루트에서 `npm link` 또는 `npm install -g <plugin-root>`로 로컬 경로
-  bin을 전역 환경에 연결합니다. 패키지는 레지스트리에 없습니다.
-
-기본 실행은 모든 지원 설치 후보에서 최신 strict-semver 버전을 고릅니다.
-
-```bash
-bouncer-root --auto
-bouncer-root --select
-bouncer-root --host codex --auto
-```
-
-`--select`는 TTY에서만 번호 선택을 받습니다. 하나의 명시적 루트를 써야 하면
-그 명령에만 `BOUNCER_HOME=/absolute/plugin/root`를 붙이세요. Cursor 워크플로는
-지원 후보가 없으므로 같은 값을 셸 환경에 설정해야 합니다. 이 값은 provider를
-추론하지 않으며, Cursor와 Antigravity의 `subagents.provider` pin을 대체하지
-않습니다. 세부 규칙은 [`rules/plugin-root.md`](../rules/plugin-root.md)에 있습니다.
+`bouncer`는 runtime CLI이고 `bouncer-root`는 설치된 plugin asset root를
+찾습니다. 일반 설치에서는 npm package가 두 실행 파일을 제공합니다. 설치된
+plugin root는 `BOUNCER_HOME`으로 직접 지정하거나 `bouncer-root --auto`로 확인할
+수 있습니다. 자산 탐색은 명시한 `BOUNCER_HOME` 다음에 host 설치 후보를
+검사하며, runtime tree를 asset root로 추론하지 않습니다. 선택된 plugin과 runtime
+version이 다르면 오류를 내므로 같은 version을 다시 설치하세요. 순수 명령
+(`commit-guard`, `current`, `project-root`, `validate`, `verify`, `graph-sync`)은
+plugin root를 찾지 않아도 동작합니다.
 
 ## 선택: Graphify (경로 추천)
 
@@ -340,6 +469,11 @@ bouncer init --promote-graphify --no-graphify  # 켜기만
 `source_dirs`를 맞춘 뒤 세션을 다시 열면
 `graphify-out/source`가 갱신되고,
 `graphify.test_dirs`가 있으면 `graphify-out/test`도 함께 갱신됩니다.
+
+venv를 만들 때 쓰는 python은 플랫폼마다 다릅니다. Linux·macOS는 `python3`을 쓰고, Windows는
+`python`, `py -3`, `python3` 순서로 처음 실행되는 것을 씁니다. Windows에서 python.org 설치본은
+`python3`을 제공하지 않으므로 `python --version` 또는 `py -3 --version`이 성공하는지 먼저 확인하세요.
+셋 다 실패하면 init은 graphify를 꺼 둔 채 성공하고, 결과의 `reason`에 시도한 이름이 나옵니다.
 
 ### 오프라인·수동 폴백
 

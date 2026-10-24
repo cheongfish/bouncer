@@ -21,7 +21,7 @@ On `ok: false`, report `reason` and leave the worktrees and the ledger; do not r
 
 Resolve `worktreePathFor` for a single execute checkout, always with `--force`:
 ```bash
-WORKTREE_PATH="$(node -e "process.stdout.write(require('$(bouncer-root --auto)/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
+WORKTREE_PATH="$(bouncer finalize worktree-path --blueprint <pointer.blueprint>)"
 git worktree remove --force "${WORKTREE_PATH}"
 if [ "$(basename "$(dirname "$(dirname "${WORKTREE_PATH}")")")" = ".worktrees" ]; then rmdir "$(dirname "${WORKTREE_PATH}")" 2>/dev/null || true; fi
 ```

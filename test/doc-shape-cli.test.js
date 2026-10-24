@@ -348,7 +348,7 @@ test('drive-metrics reference copy without a required H2 → exit 1 naming the f
 });
 
 test('the shared contract leaf → classifies kinds and resolves path contracts the CLI relies on', () => {
-  const leaf = require('../scripts/lib/doc-shape-contracts');
+  const leaf = require('../packages/cli/dist/doc-shape-contracts');
   assert.strictEqual(leaf.classifyDocPath('agents/bouncer-reviewer.md'), 'agent');
   assert.strictEqual(leaf.classifyDocPath('./skills/bouncer-plan/SKILL.md'), 'workflow');
   assert.strictEqual(leaf.classifyDocPath('references/coding-standards/index.md'), 'subskill');

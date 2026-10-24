@@ -6,7 +6,7 @@ const {
   resolveComprehensionEntry,
   DIFF_EXCLUDED_PREFIXES,
   EXPLAIN_SECTION_DEFS,
-} = require('../scripts/lib/comprehension');
+} = require('../packages/cli/dist/comprehension');
 
 // Fake git: argv is the args after `git`. Callers inject this so unit tests
 // never spawn a real process.
@@ -167,7 +167,7 @@ const nodeFs = require('node:fs');
 const nodeOs = require('node:os');
 const nodePath = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 
 const BP = '.bouncer/context/epics/e/blueprints/b';
 
@@ -223,7 +223,7 @@ function cli(dir, argv) {
 }
 
 function recordDeps() {
-  const { recordComprehension } = require('../scripts/lib/finalize-comprehension');
+  const { recordComprehension } = require('../packages/cli/dist/finalize-comprehension');
   return recordComprehension;
 }
 
@@ -264,7 +264,7 @@ test('확인과 일치하는 digest → CLI가 현재 시각 entry 한 개를 �
     const out = JSON.parse(res.out);
     assert.strictEqual(out.ok, true);
     const text = nodeFs.readFileSync(r.explainPath, 'utf8');
-    const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+    const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
     const { data, body } = parseFrontmatter(text);
     assert.deepStrictEqual(data.bouncer.comprehension, [out.entry]);
     assert.strictEqual(data.bouncer.status, 'draft');
@@ -284,7 +284,7 @@ test('고정 now와 실제 범위 → 정확한 KST recorded_at·range·diff_sha
     });
     const expected = { range_from: r.base, range_to: r.head, diff_sha: digest.range.diff_sha, recorded_at: NOW_KST };
     assert.deepStrictEqual(result, { ok: true, entry: expected });
-    const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+    const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
     const written = parseFrontmatter(nodeFs.readFileSync(r.explainPath, 'utf8')).data.bouncer;
     assert.deepStrictEqual(written.comprehension, [expected]);
     assert.strictEqual(written.timestamp.toISOString ? written.timestamp.toISOString() : written.timestamp,

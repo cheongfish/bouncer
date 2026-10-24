@@ -3,6 +3,8 @@
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { syncVersions } = require('./sync-versions');
+const { resolveSpawn } = require('./spawn-win');
 
 // Windows 에서 npm 은 npm.cmd 이다. spawnSync 는 PATHEXT 를 셸처럼 펼치지
 // 않으므로 check-emit.js 와 같이 확장자를 직접 고른다.
@@ -17,11 +19,14 @@ const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
  * @returns {{status: number | null, stdout: string, stderr: string}} spawn 결과
  */
 function defaultRun(command, args, opts) {
-  const result = spawnSync(command, args, {
+  // Windows의 npm.cmd 는 shell 없이 spawn 하면 EINVAL 이므로 node 로 npm CLI 를 직접 실행한다.
+  const call = resolveSpawn(command, args);
+  const result = spawnSync(call.command, call.args, {
     cwd: opts.cwd,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
     env: process.env,
+    shell: call.shell,
   });
   return {
     status: result.status,
@@ -107,16 +112,36 @@ function parsePackFileList(stdout) {
 }
 
 /**
+ * 배포 트리에 넣을 package.json 본문을 만든다. 루트 package.json 은 개발용 scripts, workspaces,
+ * devDependencies 를 담고 있는데, 배포 트리에는 그 경로가 없으므로 신원 필드만 남긴다.
+ * 릴리스 workflow 와 게시 검사가 이 파일에서 plugin version 을 읽는다.
+ *
+ * @param {string} src - 루트 package.json 절대 경로
+ * @returns {string} 신원 필드만 담은 JSON 문자열(끝 개행 포함)
+ */
+function releasePackageJson(src) {
+  const pkg = JSON.parse(fs.readFileSync(src, 'utf8'));
+  const identity = {};
+  for (const key of ['name', 'version', 'private', 'description', 'license', 'repository', 'homepage', 'bugs']) {
+    if (pkg[key] !== undefined) identity[key] = pkg[key];
+  }
+  return `${JSON.stringify(identity, null, 2)}\n`;
+}
+
+/**
  * npm run build 후 npm pack 목록의 각 파일을 outDir 에 같은 상대 경로로 복사한다.
  * 실패하면 Error 를 throw 하고, 이 함수가 만든 --out 파일은 남기지 않는다.
  *
- * @param {{root: string, outDir: string, deps?: {run?: Function}}} opts - 패키지 루트, 산출 디렉터리, 테스트 seam
+ * @param {{root: string, outDir: string, deps?: {run?: Function, checkVersions?: Function}}} opts
+ *   패키지 루트, 산출 디렉터리, 외부 실행 및 버전 검사 seam
  * @returns {{ok: true, out: string, files: number}} 성공 시 절대 out 과 복사 파일 수
  */
 function buildReleaseTree(opts) {
   const root = opts && opts.root;
   const outDir = opts && opts.outDir;
   const run = (opts && opts.deps && opts.deps.run) || defaultRun;
+  const checkVersions = (opts && opts.deps && opts.deps.checkVersions)
+    || ((repoRoot) => syncVersions({ root: repoRoot, mode: 'check' }));
 
   if (outDir == null || String(outDir).trim() === '') {
     throw new Error('outDir is required');
@@ -124,6 +149,9 @@ function buildReleaseTree(opts) {
 
   const rootAbs = path.resolve(root || process.cwd());
   const outAbs = path.resolve(outDir);
+
+  // 버전 drift가 있으면 빌드와 out 생성 모두 시작하지 않아 잘못된 배포물을 막는다.
+  checkVersions(rootAbs);
 
   if (isNonEmptyDir(outAbs)) {
     throw new Error(`outDir is not empty: ${outAbs}`);
@@ -158,7 +186,8 @@ function buildReleaseTree(opts) {
       const src = path.join(rootAbs, rel);
       const dest = path.join(outAbs, rel);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.cpSync(src, dest);
+      if (rel === 'package.json') fs.writeFileSync(dest, releasePackageJson(src));
+      else fs.cpSync(src, dest);
     }
   } catch (err) {
     // 복사 도중 실패·예상 밖 예외를 가리지 않고, 부분 트리만 지운 뒤 그대로 올린다.

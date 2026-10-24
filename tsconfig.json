@@ -1,18 +1,3 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "moduleDetection": "force",
-    "rootDir": "scripts/src/lib",
-    "outDir": "scripts/lib",
-    "strict": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "declaration": false,
-    "sourceMap": false,
-    "types": ["node"]
-  },
-  "include": ["scripts/src/lib/**/*.ts"]
+  "extends": "./packages/cli/tsconfig.json"
 }

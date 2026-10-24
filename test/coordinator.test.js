@@ -6,12 +6,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readyWave, transition } = require('../scripts/lib/execution-dag');
+const { readyWave, transition } = require('../packages/cli/dist/execution-dag');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const { loadModuleGraph, reachable } = require('./helpers/module-graph');
 
-const __coordinatorMod = require('../scripts/lib/coordinator');
-const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const __coordinatorMod = require('../packages/cli/dist/coordinator');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 const { fence: __fence, coordinate, coordinateRaw } = require('./helpers/coordinator-fence');
 const { COORDINATE_FAILURE_HINTS, withCoordinateFailureHints } = __coordinatorMod;
 
@@ -23,11 +23,11 @@ const REVISE_HINTLESS_REASONS = [
   'unreadable-ledger', 'ledger-locked',
 ];
 
-const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
-const { writeCurrent } = require('../scripts/lib/current');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { renderDoc } = require('../scripts/lib/render');
-const { taskBriefHash } = require('../scripts/lib/task-brief-hash');
+const { validateCoordinatorLedger } = require('../packages/cli/dist/runtime-state');
+const { writeCurrent } = require('../packages/cli/dist/current');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { renderDoc } = require('../packages/cli/dist/render');
+const { taskBriefHash } = require('../packages/cli/dist/task-brief-hash');
 
 // 기본 저장소(init·로컬 identity·README 커밋)를 파일당 한 번만 만들고 테스트마다 복사한다.
 // identity는 저장소 로컬 config로 두어 호스트 전역 설정이 없어도 fan-in cherry-pick이 돈다.
@@ -140,7 +140,7 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   return dispatched;
 }
 
-const COORDINATOR_SRC_DIR = path.join(__dirname, '..', 'scripts', 'src', 'lib');
+const COORDINATOR_SRC_DIR = path.join(__dirname, '..', 'packages', 'cli', 'src');
 
 test('fan-in 모듈 의존 경계 → commands와 prepare로 런타임 역참조하지 않음', () => {
   const graph = loadModuleGraph(COORDINATOR_SRC_DIR);
@@ -317,7 +317,7 @@ test('readyWave with parallel_safe tasks, maxParallel and path/resource conflict
 });
 
 test('readCoordinatorPolicy with integers >= 1 and invalid max_parallel → accepts the integers and rejects the invalid value', () => {
-  const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = require('../scripts/lib/config');
+  const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = require('../packages/cli/dist/config');
   assert.strictEqual(DEFAULT_MAX_PARALLEL, 2);
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coord-policy-'));
   assert.deepStrictEqual(readCoordinatorPolicy(repo), { ok: true, maxParallel: 2 });
@@ -336,7 +336,7 @@ test('readCoordinatorPolicy with integers >= 1 and invalid max_parallel → acce
 });
 
 test('readWavesPerSession with absent, auto, integer and invalid values → resolves the cap or rejects', () => {
-  const { readWavesPerSession } = require('../scripts/lib/config');
+  const { readWavesPerSession } = require('../packages/cli/dist/config');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coord-wps-'));
   assert.deepStrictEqual(readWavesPerSession(repo), { ok: true, cap: 4 });
   writeCoordinatorConfig(repo, {});
@@ -502,7 +502,7 @@ test('verification integrate with a passing and a failing CI → runs CI without
   execFileSync('git', ['add', '-A'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
   const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   ledger.tasks[0].status = 'integrated';
@@ -694,7 +694,7 @@ test('verification integrate with a seeded terminal bundle → uses the real run
   fs.writeFileSync(path.join(repo, verificationRel), `---\ntype: bouncer.verification\ntitle: CI\ndescription: d\nresource: ${verificationRel}\ntags: [bouncer, verification]\ntimestamp: 2026-09-10T00:00:00+09:00\nbouncer:\n  id: VERIFY-002\n  epic_id: '013'\n  blueprint_id: '014'\n  status: pending\n---\n# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n`);
 
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
   const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   ledger.tasks[0].status = 'integrated';
@@ -762,7 +762,7 @@ test('bootstrap with a third integration plan version → rejects without creati
   const task = `${blueprint}/tasks/001/tasks.md`;
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, task), 'main plan bytes\n');
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint });
   fs.mkdirSync(path.dirname(paths.integrationPath), { recursive: true });
   execFileSync('git', ['worktree', 'add', '-b', 'feat/032-033-y', paths.integrationPath, 'HEAD'], { cwd: repo });
@@ -783,7 +783,7 @@ test('prepare with a legacy prepared worker branch → backfills it without rena
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'), '---\nbouncer:\n  depends_on: []\n---\n');
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' });
   execFileSync('git', ['worktree', 'add', '-b', 'legacy/015-016-001', paths.workerPath, 'HEAD'], { cwd: boot.integrationPath });
   const ledger = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
@@ -823,7 +823,7 @@ test('standalone branch and a later ready-wave conflict → create no coordinato
   const standaloneBlueprint = '.bouncer/context/epics/017-x/blueprints/018-y';
   fs.mkdirSync(path.join(repo, standaloneBlueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, standaloneBlueprint, 'tasks/001/tasks.md'), '---\nbouncer: {}\n---\n');
-  const { worktreePathFor, coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { worktreePathFor, coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const standalone = worktreePathFor({ repoRoot: repo, blueprint: standaloneBlueprint });
   fs.mkdirSync(path.dirname(standalone), { recursive: true });
   execFileSync('git', ['worktree', 'add', '-b', 'feat/017-018-y', standalone, 'HEAD'], { cwd: repo });
@@ -1037,7 +1037,7 @@ test('prepare with copy-failed on a second worker → removes the created first 
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
   // 002 worker를 미리 등록해 prepare가 재사용하게 하고, blueprint가 들어갈 자리의 조상을
   // 일반 파일로 막는다. 001 seed가 끝난 뒤 002의 cpSync만 결정적으로 실패한다.
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const worker1 = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
   const worker2 = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '002' }).workerPath;
   fs.mkdirSync(path.dirname(worker2), { recursive: true });
@@ -1166,7 +1166,7 @@ test('prepare with the ledger changing during seed → returns stale-ledger-chec
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
   commitIntegrationPackageLock(boot.integrationPath);
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   let mutated;
@@ -1197,7 +1197,7 @@ test('prepare with an npm failure → returns dependency-install-failed and remo
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
   commitIntegrationPackageLock(boot.integrationPath);
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const ledgerBefore = fs.readFileSync(ledgerFile);
@@ -1253,7 +1253,7 @@ test('prepare with the created worker vanishing during seed → returns unassign
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
   commitIntegrationPackageLock(boot.integrationPath);
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const ledgerBefore = fs.readFileSync(ledgerFile);
@@ -1280,7 +1280,7 @@ test('prepare after an interrupted create with a registered worker → reuses it
   ]);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
   fs.mkdirSync(path.dirname(worker), { recursive: true });
   execFileSync('git', ['worktree', 'add', '-b', 'bouncer/087-006-001', worker, 'HEAD'], {
@@ -3846,7 +3846,7 @@ test('coordinate repair from review findings on an integrated terminal verificat
   execFileSync('git', ['add', '-A'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';
@@ -3874,7 +3874,7 @@ test('coordinate repair from review findings without a terminal → uses the rep
   execFileSync('git', ['add', '-A'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';
@@ -3896,7 +3896,7 @@ function integratedRepairDrive(prefix, blueprint) {
   execFileSync('git', ['add', '-A'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';
@@ -3980,7 +3980,7 @@ test('repair stamping bouncer.verify without config.json → takes it from the t
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   fs.rmSync(path.join(repo, '.bouncer/config.json'), { force: true });
   fs.rmSync(path.join(boot.integrationPath, '.bouncer/config.json'), { force: true });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
   const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   ledger.tasks.find((entry) => entry.id === '001').status = 'integrated';
@@ -3998,7 +3998,7 @@ test('repair stamping bouncer.verify without config.json → takes it from the t
     boot.integrationPath, blueprint, 'tasks', repairId, 'tasks.md',
   ));
   assert.strictEqual(repairDoc.data.bouncer.verify, 'npm run verify:strict');
-  const { readVerifyCommand } = require('../scripts/lib/verification-target');
+  const { readVerifyCommand } = require('../packages/cli/dist/verification-target');
   assert.strictEqual(
     readVerifyCommand(boot.integrationPath, blueprint, repairId),
     'npm run verify:strict',
@@ -4121,7 +4121,7 @@ test('scoped_terminal repair with --verify and tracked paths plus a --new-path �
   assert.deepStrictEqual(out.repairTask.scope.paths, ['src/fix.js', 'src/new-guard.js']);
 
   // 만든 repair 문서가 plan gate의 G20(scoped_terminal 규칙)을 통과하는지 같은 문서로 확인한다.
-  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
   const leaf = (rel) => {
     const doc = readDoc(path.join(drive.integrationPath, rel));
     return { rel, data: doc.data, body: doc.body };
@@ -4186,7 +4186,7 @@ test('terminal verification failing after the repair scope was revised → failu
 });
 
 test('bootstrap with leftover scaffold comments → refuses before creating a worktree', () => {
-  const { coordinatorPathsFor, branchNamesFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor, branchNamesFor } = require('../packages/cli/dist/runtime-state');
   const git = (repo, args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
   const blueprint = '.bouncer/context/epics/084-x/blueprints/002-y';
   const bp = blueprint;
@@ -4991,7 +4991,7 @@ function supplementDrive(prefix, blueprint) {
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
   const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   for (const entry of seeded.tasks) entry.status = 'integrated';

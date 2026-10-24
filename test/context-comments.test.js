@@ -10,7 +10,7 @@ const {
   TEMPLATES,
   LEGACY_SCAFFOLD_COMMENT_BODIES,
   findLegacyScaffoldComments,
-} = require('../scripts/lib/templates');
+} = require('../packages/cli/dist/templates');
 
 const root = path.join(__dirname, '..');
 const checker = path.join(root, 'scripts', 'check-context-comments.js');

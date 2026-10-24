@@ -6,9 +6,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { writeCurrent } = require('../scripts/lib/current');
-const { worktreePathFor, coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const { runCli } = require('../packages/cli/dist/cli');
+const { writeCurrent } = require('../packages/cli/dist/current');
+const { worktreePathFor, coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -354,7 +354,7 @@ test('execute prepare without a subcommand → exits 2', () => {
   assert.match(result.err, /prepare/);
 });
 
-const { executePrepare } = require('../scripts/lib/execute-prepare');
+const { executePrepare } = require('../packages/cli/dist/execute-prepare');
 const { coordinate: __epCoordinate } = require('./helpers/coordinator-fence');
 
 test('a leased worker task with the pointer pointing elsewhere → executePrepare reports the leased worker task', () => {

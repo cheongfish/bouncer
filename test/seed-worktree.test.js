@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { seedWorktree, realGit, seedIntegration, seedCoordinatorWorker, releaseSeedManifest, prepareDependencies, linkLocalEnv } = require('../scripts/lib/seed-worktree');
+const { seedWorktree, realGit, seedIntegration, seedCoordinatorWorker, releaseSeedManifest, prepareDependencies, linkLocalEnv } = require('../packages/cli/dist/seed-worktree');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;

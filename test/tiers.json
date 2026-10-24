@@ -53,14 +53,17 @@
     "workflow-responsibility-boundaries.test.js"
   ],
   "integration": [
+    "release-runtime.test.js",
     "build-release.test.js",
     "ci-contract.test.js",
     "cli-commit-guard.test.js",
+    "hook-runtime-cli.test.js",
     "cli-help-static.test.js",
     "cli-commit.test.js",
     "cli-coordinate.test.js",
     "cli-metrics.test.js",
     "cli-current.test.js",
+    "cli-finalize-lookup.test.js",
     "cli-init.test.js",
     "cli-project-commands.test.js",
     "cli-ontology.test.js",
@@ -81,6 +84,7 @@
     "current.test.js",
     "cursor-plugin.test.js",
     "distribution.test.js",
+    "runtime-install-smoke.test.js",
     "doc-shape-cli.test.js",
     "execute-prepare.test.js",
     "finalize-digest.test.js",
@@ -104,6 +108,7 @@
     "plan-prerequisites.test.js",
     "plan-inspect.test.js",
     "plugin-root.test.js",
+    "runtime-layout.test.js",
     "pre-commit-hook.test.js",
     "print-dispatch.test.js",
     "public-name-regression.test.js",
@@ -121,8 +126,10 @@
     "typescript-module-contract.test.js",
     "validate-gates.test.js",
     "verification-runner.test.js",
+    "windows-npm.test.js",
     "master-rules.test.js",
     "symbol-index.test.js",
-    "source-boundary-measurement.test.js"
+    "source-boundary-measurement.test.js",
+    "version-sync.test.js"
   ]
 }

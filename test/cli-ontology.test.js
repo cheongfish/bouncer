@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 
 const roots = [];
 function repo() {
@@ -104,10 +104,10 @@ test('ontology repo below Git root → preserves core checkout validation with e
 });
 
 test('ontology dispatch → lazily loads core only for valid queries', () => {
-  const cliPath = path.resolve(__dirname, '../scripts/lib/cli.js');
+  const cliPath = path.resolve(__dirname, '../packages/cli/dist/cli.js');
   const probe = spawnSync(process.execPath, ['-e', `
     const cli = require(${JSON.stringify(cliPath)});
-    const core = require.resolve(${JSON.stringify(path.resolve(__dirname, '../scripts/lib/context-ontology.js'))});
+    const core = require.resolve(${JSON.stringify(path.resolve(__dirname, '../packages/cli/dist/context-ontology.js'))});
     const sink = { out() {}, err() {} };
     cli.runCli(['help'], sink);
     const helpLoaded = Boolean(require.cache[core]);

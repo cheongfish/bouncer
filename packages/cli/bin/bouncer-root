@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+
+const packageRoot = path.join(__dirname, '..');
+const rootEntry = path.join(packageRoot, 'dist', 'bouncer-root.js');
+if (!fs.existsSync(rootEntry)) {
+  process.stderr.write(
+    `bouncer: packages/cli/dist is missing; run \`npm run build\` in ${path.join(packageRoot, '..', '..')}\n`,
+  );
+  process.exit(1);
+}
+
+const sourceDir = path.join(packageRoot, 'src');
+if (fs.existsSync(sourceDir) && !require('./build-stamp').checkBuildFresh(packageRoot).ok) {
+  process.stderr.write(
+    `bouncer: stale-build: packages/cli/dist does not match packages/cli/src; `
+    + `run \`npm run build\` in ${path.join(packageRoot, '..', '..')}\n`,
+  );
+  process.exit(1);
+}
+
+const { runBouncerRoot } = require('../dist/bouncer-root');
+process.exit(runBouncerRoot(process.argv.slice(2)));

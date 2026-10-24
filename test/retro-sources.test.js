@@ -7,11 +7,11 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   listRetroSources, defaultRetroRoots, claudeProjectSlug,
-} = require('../scripts/lib/retro-sources');
+} = require('../packages/cli/dist/retro-sources');
 
 // CLI 모듈은 구현 전 red 단계에서도 lib 단언이 먼저 실패하도록 지연 로드한다.
 function loadCli() {
-  return require('../scripts/lib/cli-retro-command');
+  return require('../packages/cli/dist/cli-retro-command');
 }
 
 function tmp() {

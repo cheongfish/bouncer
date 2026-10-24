@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const registryLib = require('../scripts/lib/epic-registry');
-const { validateBlueprint } = require('../scripts/lib/validate');
+const registryLib = require('../packages/cli/dist/epic-registry');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
 const { writeEpicRegistry, COMMON_SLUGS } = require('./helpers/epic-registry');
 
 const {

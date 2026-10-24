@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { run } = require('../scripts/lib/cli-epic-command');
+const { run } = require('../packages/cli/dist/cli-epic-command');
 const { writeEpicRegistry } = require('./helpers/epic-registry');
 
 const TS = '2026-10-20T00:00:00.000+09:00';

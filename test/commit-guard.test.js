@@ -2,8 +2,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { checkCommitSafety } = require('../scripts/lib/commit-guard');
-const { isRuntimeArtifact } = require('../scripts/lib/scope');
+const { checkCommitSafety } = require('../packages/cli/dist/commit-guard');
+const { isRuntimeArtifact } = require('../packages/cli/dist/scope');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 

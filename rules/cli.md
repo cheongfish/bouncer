@@ -230,7 +230,7 @@ bouncer coordinate promote-stop --blueprint <dir> \
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> [--verify <argv>] [--new-path <p>]...
 bouncer coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--new-path <p>]... \
-  --reason <text>
+  [--release-do-not-touch <p>]... --reason <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
@@ -376,6 +376,14 @@ exits 2. All of these refuse before the ledger or task documents change.
 A `coordinate revise` refusal is written to stdout as JSON
 `{ ok: false, reason, paths?, cause, next }` with exit 1 (`paths` only when the
 reason lists paths, such as `scope-path-untracked`).
+A `coordinate revise` whose new scope paths (those not already in the previous
+scope) overlap an entry of the task brief's `Do not touch` section is refused
+with `scope-do-not-touch-conflict` (`paths` lists the overlapping entries). Name
+each one with `--release-do-not-touch <p>` (repeatable); the same write then
+removes that entry from the brief. A release value that is not an overlapping
+entry is refused with `release-do-not-touch-unknown`, and a valueless
+`--release-do-not-touch` exits 2. Both refusals leave the document and ledger
+unchanged.
 `coordinate next` returns `commit` when the task worktree has scope changes to
 commit; on a clean tree whose commit stamp is stale it returns a `blocked`
 action with reason `worker-commit-stamp-mismatch` instead.

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { checkPrerequisites, prerequisiteFormatIssues } = require('../scripts/lib/plan-prerequisites');
+const { checkPrerequisites, prerequisiteFormatIssues } = require('../packages/cli/dist/plan-prerequisites');
 
 const EPIC = '.bouncer/context/epics/plan-workflow';
 const SELF = `${EPIC}/blueprints/drive-plan-quality`;

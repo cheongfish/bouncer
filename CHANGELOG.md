@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-10-24
+
+### Fixed
+
+- **context index 템플릿 주석의 예시 링크를 S13이 목록으로 읽던 문제** — `.bouncer/context/index.md`의 HTML 주석
+  안 `epics/00x-slug` 예시가 없는 epic 디렉터리로 집계돼 `validate`가 실패했다. 목록을 모을 때 주석을 제외한다.
+- **`graph-sync --repo .`가 graphify 그래프를 만들지 못하던 문제** — 상대 경로 `--repo`가 그대로 scan target이 돼
+  part 디렉터리를 cwd로 쓰는 graphify가 대상을 찾지 못했다. repo 루트를 절대 경로로 고정한 뒤 호출한다.
+- **Windows에서 graphify venv를 만들지 못하던 문제** — 설치가 `python3`만 실행했다. Windows는 `python`, `py -3`,
+  `python3` 순서로 시도하고 uv fallback에도 같은 이름을 넘긴다. Linux·macOS 동작은 그대로다.
+- **배포 plugin 트리가 소스 경로와 개발용 package.json을 담던 문제** — 배포 문서 일곱 곳이 트리에 없는
+  `scripts/lib`·`scripts/src` 경로를 가리켰고, 트리의 `package.json`이 개발용 scripts와 workspaces를 그대로 담았다.
+  문서는 공개 CLI 명령과 개념 이름으로 바꾸고, 트리의 `package.json`은 신원 필드만 남긴다.
+- **Windows에서 npm 호출이 `EINVAL`·`ENOENT`로 실패하던 문제** — `build-release`, `check-emit`, `check-distribution`,
+  `release-runtime` 스크립트와 runtime의 verify 실행·worktree `npm ci`가 `npm.cmd`를 shell 없이 spawn했다.
+  Windows에서는 node 옆의 `npm-cli.js`(또는 `npm_execpath`)를 node로 직접 실행하고, 찾지 못하면 shell로 되돌린다.
+
 ### Changed
 
 - **선행 병합 판정을 승인과 계획 게이트에 연결** — `bouncer.prerequisites`를 선언한 blueprint는 선언된 병합

@@ -4,10 +4,19 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { runCli } = require('../scripts/lib/cli');
-const { SUGGESTED_IGNORES } = require('../scripts/lib/init');
-const { RUNTIME_ARTIFACTS } = require('../scripts/lib/scope');
+const { runCli } = require('../packages/cli/dist/cli');
+const { SUGGESTED_IGNORES } = require('../packages/cli/dist/init');
+const { RUNTIME_ARTIFACTS } = require('../packages/cli/dist/scope');
 const { execFileSync } = require('node:child_process');
+
+function withBouncerHome(fn) {
+  const previous = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = path.join(__dirname, '..');
+  try { return fn(); } finally {
+    if (previous === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = previous;
+  }
+}
 
 function capture() {
   const buf = { out: '', err: '' };
@@ -47,7 +56,9 @@ test('cli init --no-graphify → install을 건너뛰고 bin 없이 enabled true
 test('cli init --seed-codex-agents → named-agent toml을 쓴다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   const { io, buf } = capture();
-  const code = runCli(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents'], io);
+  const code = withBouncerHome(() => runCli(
+    ['init', '--repo', repo, '--no-graphify', '--seed-codex-agents'], io,
+  ));
   assert.strictEqual(code, 0);
   const body = parseOut(buf);
   assert.ok(body.created.some((p) => p.startsWith('.codex/')));

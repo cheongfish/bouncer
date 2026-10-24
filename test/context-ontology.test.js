@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { loadContextOntology, queryContextOntology } = require('../scripts/lib/context-ontology');
+const { loadContextOntology, queryContextOntology } = require('../packages/cli/dist/context-ontology');
 
 const roots = [];
 function repo() {

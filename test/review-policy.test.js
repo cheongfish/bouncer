@@ -1,9 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const reviewPolicy = require('../scripts/lib/review-policy');
-const reviewDispatch = require('../scripts/lib/review-dispatch');
-const { checkStructural } = require('../scripts/lib/validate');
+const reviewPolicy = require('../packages/cli/dist/review-policy');
+const reviewDispatch = require('../packages/cli/dist/review-dispatch');
+const { checkStructural } = require('../packages/cli/dist/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -46,7 +46,7 @@ test('enum 밖 review_risk → validate-structural이 S30으로 거절한다', (
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const reviewRepairState = require('../scripts/lib/review-repair-state');
+const reviewRepairState = require('../packages/cli/dist/review-repair-state');
 
 function reviewFile(source) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-repair-state-'));

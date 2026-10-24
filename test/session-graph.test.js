@@ -10,7 +10,7 @@ const {
   newestMtimeUnder, runGraphifyUpdate, partOutDir, resolveGraphScopes,
   normalizeGraphPaths,
   SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT,
-} = require('../scripts/lib/session-graph');
+} = require('../packages/cli/dist/session-graph');
 
 function compatible() {
   return { status: 'compatible', warnings: [], reasons: [] };
@@ -431,6 +431,25 @@ test('runGraphifyUpdate → uses part outDir as cwd and absolute scan path', () 
   assert.strictEqual(calls[0].opts.env.GRAPHIFY_OUT, partAbs);
 });
 
+test('runGraphifyUpdate with a relative repo root → still passes an absolute scan path and cwd', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-part-relative-'));
+  fs.mkdirSync(path.join(repo, 'src'));
+  const outDir = partOutDir(DEFAULT_SOURCE_OUT, 'src');
+  const relativeRepo = path.relative(process.cwd(), repo);
+  assert.ok(!path.isAbsolute(relativeRepo));
+  const calls = [];
+  runGraphifyUpdate(relativeRepo, 'src', outDir, {
+    bin: '/opt/custom/graphify',
+    exec: (cmd, args, opts) => {
+      calls.push({ args, opts });
+    },
+  });
+  assert.strictEqual(calls.length, 1);
+  assert.deepStrictEqual(calls[0].args, ['update', path.join(repo, 'src')]);
+  assert.strictEqual(calls[0].opts.cwd, path.join(repo, outDir));
+  assert.strictEqual(calls[0].opts.env.GRAPHIFY_OUT, path.join(repo, outDir));
+});
+
 test('runGraphifyUpdate exec first argument → is the resolved bin path', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-resolved-bin-'));
   fs.mkdirSync(path.join(repo, 'src'));
@@ -757,6 +776,7 @@ test('SessionStart → reports partial state on stderr and exits zero', () => {
   const result = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ cwd: repo }),
     encoding: 'utf8',
+    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '../packages/cli/bin/bouncer') },
   });
 
   assert.strictEqual(result.status, 0);
@@ -772,11 +792,78 @@ test('SessionStart → reports legacy state with corrective command and exits ze
   const result = spawnSync(process.execPath, [hook], {
     input: JSON.stringify({ cwd: repo }),
     encoding: 'utf8',
+    env: { ...process.env, BOUNCER_BIN: path.join(__dirname, '../packages/cli/bin/bouncer') },
   });
 
   assert.strictEqual(result.status, 0);
   assert.match(result.stderr, /legacy state/i);
   assert.match(result.stderr, /\/bouncer-init/);
+  assert.strictEqual(result.stdout, '');
+});
+
+const checkoutRoot = path.join(__dirname, '..');
+const realRuntime = path.join(checkoutRoot, 'packages', 'cli', 'bin', 'bouncer');
+
+// 훅을 자식 프로세스로 실행한다. 런타임은 env의 BOUNCER_BIN으로만 지정한다.
+function runSessionHook(repo, env) {
+  const hook = path.join(checkoutRoot, 'hooks', 'session-graph.js');
+  return spawnSync(process.execPath, [hook], {
+    input: JSON.stringify({ cwd: repo }),
+    encoding: 'utf8',
+    env,
+  });
+}
+
+// 지정한 stdout/exit를 내는 stub 런타임 파일을 만든다.
+function writeStubRuntime(stdout, status) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-stub-runtime-'));
+  const file = path.join(dir, 'bouncer');
+  fs.writeFileSync(
+    file,
+    `#!${process.execPath}\nprocess.stdout.write(${JSON.stringify(stdout)});process.exit(${status});\n`,
+    { mode: 0o755 },
+  );
+  return file;
+}
+
+test('legacy fixture → graph-sync warnings joined equal the hook stderr byte for byte', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  fs.mkdirSync(path.join(repo, ['.', 's', 'd', 'd'].join('')));
+  const sync = spawnSync(process.execPath, [realRuntime, 'graph-sync', '--repo', repo], { encoding: 'utf8' });
+  const warnings = JSON.parse(sync.stdout).warnings;
+  const hook = runSessionHook(repo, { ...process.env, BOUNCER_BIN: realRuntime });
+  assert.strictEqual(warnings.join(''), hook.stderr);
+});
+
+test('BOUNCER_BIN is relative and PATH has only node → status 0 and runtime not found', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  const result = runSessionHook(repo, {
+    PATH: path.dirname(process.execPath),
+    BOUNCER_BIN: 'packages/cli/bin/bouncer',
+  });
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stderr, /runtime not found/);
+  assert.strictEqual(result.stdout, '');
+});
+
+test('stub runtime prints non-JSON → status 0 and graph-sync failed', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  const stub = writeStubRuntime('not json', 0);
+  const result = runSessionHook(repo, { ...process.env, BOUNCER_BIN: stub });
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stderr, /graph-sync failed/);
+  assert.strictEqual(result.stdout, '');
+});
+
+test('stub runtime exits 1 with JSON warnings → status 0 and warnings on stderr', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  const stub = writeStubRuntime(
+    '{"ok":false,"failed":[{"name":"source","message":"x"}],"warnings":["warn-a\\n"]}',
+    1,
+  );
+  const result = runSessionHook(repo, { ...process.env, BOUNCER_BIN: stub });
+  assert.strictEqual(result.status, 0);
+  assert.strictEqual(result.stderr, 'warn-a\n');
   assert.strictEqual(result.stdout, '');
 });
 
@@ -920,3 +1007,29 @@ test('syncSessionGraphs with a leftover context graph.json → graphs and action
   assert.deepStrictEqual(shape(corrupt), shape(absent));
 });
 
+
+test('SessionStart hook given an unreadable PATH entry → exits 0 with one failed warning line', {
+  skip: typeof process.getuid !== 'function' || process.getuid() === 0,
+}, () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  const locked = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-locked-'));
+  fs.chmodSync(locked, 0o000);
+  const env = { ...process.env, PATH: `${locked}${path.delimiter}${path.dirname(process.execPath)}` };
+  delete env.BOUNCER_BIN;
+  const result = runSessionHook(repo, env);
+  fs.chmodSync(locked, 0o755);
+  assert.strictEqual(result.status, 0);
+  assert.strictEqual(result.stdout, '');
+  assert.match(result.stderr, /^session-graph: bouncer graph-sync failed \(.+\)\n$/);
+});
+
+test('SessionStart hook given a non-string cwd → exits 0 with one failed warning line', () => {
+  const stub = writeStubRuntime('{}', 0);
+  const result = spawnSync(process.execPath, [path.join(checkoutRoot, 'hooks', 'session-graph.js')], {
+    input: JSON.stringify({ cwd: 5 }),
+    encoding: 'utf8',
+    env: { ...process.env, BOUNCER_BIN: stub },
+  });
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stderr, /^session-graph: bouncer graph-sync failed \(.+\)\n$/);
+});

@@ -5,8 +5,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { scanLegacyScaffoldComments } = require('../scripts/lib/legacy-comments');
-const { findLegacyScaffoldComments } = require('../scripts/lib/templates');
+const { scanLegacyScaffoldComments } = require('../packages/cli/dist/legacy-comments');
+const { findLegacyScaffoldComments } = require('../packages/cli/dist/templates');
 
 const LEGACY = '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
 const AUTHOR = '<!-- 저자 메모 -->\n';

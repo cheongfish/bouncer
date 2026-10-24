@@ -21,8 +21,8 @@ integrated된 뒤 전체 CI를 한 번 실행해 `verification.md` 증적만 남
 source diff, reviewable commit, task `review.md`와 task별 review 단계,
 `affected_paths`를 만들지 않는다. `review_scope`가 `blueprint`이면 최종
 리뷰는 이 node가 `integrated`된 뒤에 한 번 열린다. 실패한 실행의 상태 전이 중
-verification task 상태 쓰기는 `scripts/src/lib/coordinator-commands.ts`가, terminal failure 복구는
-`scripts/src/lib/coordinator-repair.ts`가 소유한다.
+verification task 상태 쓰기는 `bouncer coordinate advance`가, terminal failure 복구는
+`bouncer coordinate repair`와 `reverify`가 소유한다.
 
 The plan gate emits a non-blocking `warnings` entry when a task's
 `affected_paths` count exceeds 20. That signal only advises splitting when

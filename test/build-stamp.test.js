@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { computeSourceHash } = require('../scripts/build-stamp');
+const { computeSourceHash } = require('../packages/cli/bin/build-stamp');
 
 /**
  * tmp 트리를 만든다. files는 [상대경로, 내용] 쌍이고 주어진 순서대로 쓴다.
@@ -23,8 +23,8 @@ function makeTree(files) {
 
 const BASE = [
   ['tsconfig.json', '{"a":1}'],
-  ['scripts/src/lib/a.ts', 'export const a = 1;\n'],
-  ['scripts/src/lib/sub/b.ts', 'export const b = 2;\n'],
+  ['src/a.ts', 'export const a = 1;\n'],
+  ['src/sub/b.ts', 'export const b = 2;\n'],
 ];
 
 test('same files written in a different order → same hash', () => {
@@ -40,6 +40,6 @@ test('tsconfig.json differs by one byte → hash differs', () => {
 });
 
 test('a .ts file renamed with the same bytes → hash differs', () => {
-  const renamed = BASE.map(([rel, body]) => [rel === 'scripts/src/lib/a.ts' ? 'scripts/src/lib/c.ts' : rel, body]);
+  const renamed = BASE.map(([rel, body]) => [rel === 'src/a.ts' ? 'src/c.ts' : rel, body]);
   assert.notStrictEqual(computeSourceHash(makeTree(BASE)), computeSourceHash(makeTree(renamed)));
 });

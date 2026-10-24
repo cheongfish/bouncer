@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const schema = require('../scripts/lib/schema');
+const schema = require('../packages/cli/dist/schema');
 
 test('OKF required fields → are exact', () => {
   assert.deepStrictEqual(schema.OKF_REQUIRED,

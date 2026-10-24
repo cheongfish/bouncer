@@ -11,7 +11,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { writeCurrent } = require('../scripts/lib/current');
+const { writeCurrent } = require('../packages/cli/dist/current');
 
 const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
@@ -151,6 +151,8 @@ test('launcher shell blocks → call bouncer directly and scope root resolution 
 function runCursorHook(payload, cwd) {
   const out = execFileSync(process.execPath, [path.join(root, 'hooks/cursor-commit-safety.js')], {
     input: JSON.stringify(payload), encoding: 'utf8', cwd,
+    // 훅은 공개 CLI를 spawn한다. 이 체크아웃의 런처를 명시해 PATH 설치 여부와 무관하게 한다.
+    env: { ...process.env, BOUNCER_BIN: path.join(root, 'packages/cli/bin/bouncer') },
   });
   return JSON.parse(out);
 }

@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
-const { writeCurrent } = require('../scripts/lib/current');
+const { runCli } = require('../packages/cli/dist/cli');
+const { writeCurrent } = require('../packages/cli/dist/current');
 const yaml = require('js-yaml');
 
 const BP = '.bouncer/context/epics/001-x/blueprints/001-y';
@@ -90,7 +90,7 @@ test('commit-guard --staged with files outside affected_paths → blocks', () =>
 });
 
 test('commit-guard when evaluate throws → exits 1', () => {
-  const { runCommitGuard } = require('../scripts/lib/cli-commit-guard-command');
+  const { runCommitGuard } = require('../packages/cli/dist/cli-commit-guard-command');
   let err = '';
   const code = runCommitGuard({
     argv: ['--staged'],
@@ -105,7 +105,7 @@ test('commit-guard when evaluate throws → exits 1', () => {
 });
 
 test('commit-guard with --repo → passes the repo to evaluate', () => {
-  const { runCommitGuard } = require('../scripts/lib/cli-commit-guard-command');
+  const { runCommitGuard } = require('../packages/cli/dist/cli-commit-guard-command');
   let seen;
   const code = runCommitGuard({
     argv: ['--staged', '--repo', '/tmp/guard-repo'],
@@ -118,4 +118,61 @@ test('commit-guard with --repo → passes the repo to evaluate', () => {
   });
   assert.equal(code, 0);
   assert.equal(seen, '/tmp/guard-repo');
+});
+
+// --command-stdin 모드: 훅이 명령 원문을 stdin으로 넘기고 판정은 evaluateCommit이 한다.
+function runStdin(extra) {
+  const { runCommitGuard } = require('../packages/cli/dist/cli-commit-guard-command');
+  let err = '';
+  const calls = [];
+  const code = runCommitGuard({
+    argv: extra.argv,
+    cwd: '/cwd',
+    readInput: () => 'git commit -m x',
+    evaluateCommand: (args) => {
+      calls.push(args);
+      if (extra.throws) throw new Error('boom');
+      return extra.result || { block: false };
+    },
+    stderr: (s) => { err += s; },
+  });
+  return { code, err, calls };
+}
+
+test('commit-guard --command-stdin when the command is allowed → exits 0', () => {
+  const r = runStdin({ argv: ['--command-stdin'] });
+  assert.equal(r.code, 0);
+  assert.equal(r.err, '');
+  assert.deepEqual(r.calls, [{ command: 'git commit -m x', repoRoot: '/cwd' }]);
+});
+
+test('commit-guard --command-stdin when the command is blocked → exits 1 with the reason', () => {
+  const r = runStdin({ argv: ['--command-stdin'], result: { block: true, reason: 'blocked: reason-x' } });
+  assert.equal(r.code, 1);
+  assert.equal(r.err, 'blocked: reason-x\n');
+});
+
+test('commit-guard --command-stdin when evaluateCommand throws → exits 1 with internal error', () => {
+  const r = runStdin({ argv: ['--command-stdin'], throws: true });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /commit-guard: internal error, blocking commit: boom/);
+});
+
+test('commit-guard with both --staged and --command-stdin → exits 2 with usage', () => {
+  const r = runStdin({ argv: ['--staged', '--command-stdin'] });
+  assert.equal(r.code, 2);
+  assert.equal(r.err, 'usage: bouncer commit-guard (--staged | --command-stdin) [--repo <dir>]\n\n');
+  assert.deepEqual(r.calls, []);
+});
+
+test('commit-guard with neither flag → exits 2 with the two-mode usage', () => {
+  const r = runStdin({ argv: [] });
+  assert.equal(r.code, 2);
+  assert.match(r.err, /^usage: bouncer commit-guard \(--staged \| --command-stdin\)/);
+});
+
+test('commit-guard --command-stdin --repo /x → evaluateCommand receives repoRoot /x', () => {
+  const r = runStdin({ argv: ['--command-stdin', '--repo', '/x'] });
+  assert.equal(r.code, 0);
+  assert.equal(r.calls[0].repoRoot, '/x');
 });

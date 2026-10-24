@@ -1,6 +1,6 @@
 # governance 규범 소유권
 
-BP4 구현 설명 이전 이후 기준선이다. BP2 규범의 현재 소유자는 `rules/planning.md`, 실행·commit 범위 규범은 `rules/commit-scope.md`, coordinator 역할은 `agents/bouncer-coordinator.md`, light 실행·quiz·canonical context는 `skills/bouncer-run/references/agent-dispatch.md`·`references/explain-diff/index.md`·`skills/bouncer-finalize/references/explain-quiz.md`이고, BP4 구현 설명은 `scripts/src/lib/*.ts` 함수 주석이 소유한다. 이 표는 정본 문장을 복제하지 않으며 current owner 경로의 heading·구절로만 단위를 가리킨다.
+BP4 구현 설명 이전 이후 기준선이다. BP2 규범의 현재 소유자는 `rules/planning.md`, 실행·commit 범위 규범은 `rules/commit-scope.md`, coordinator 역할은 `agents/bouncer-coordinator.md`, light 실행·quiz·canonical context는 `skills/bouncer-run/references/agent-dispatch.md`·`references/explain-diff/index.md`·`skills/bouncer-finalize/references/explain-quiz.md`이고, BP4 구현 설명은 `packages/cli/src/*.ts` 함수 주석이 소유한다. 이 표는 정본 문장을 복제하지 않으며 current owner 경로의 heading·구절로만 단위를 가리킨다.
 
 원본 파일 `rules/governance.md`가 삭제되어 digest 기준선이 없다. 구절 존재는 ownership 검사가 각 행이 선언한 current owner 경로로 확인한다. 그래서 owner가 여러 파일에 걸쳐도 검사 입력은 행마다 경로 하나다.
 
@@ -24,7 +24,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | --- | --- | --- | --- | --- | --- |
 | GOV-SIZING-ONE-COMMIT | `## Blueprint sizing rule` / `one reviewable commit` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · scripts/lib/templates.js | BP2 |
 | GOV-SIZING-VERIFY-SHAPE | `## Blueprint sizing rule` / `source diff` | `rules/planning.md` | shared rule | plan · scripts/lib/scaffold.js · test/validate-structural.test.js | BP2 |
-| GOV-SIZING-VERIFY-RUN | `function writeVerificationTaskStatus` / `integrated로 전이하지 않는다` | `scripts/src/lib/coordinator-commands.ts` | docs/code | scripts/lib/coordinator-commands.js | BP4 |
+| GOV-SIZING-VERIFY-RUN | `function writeVerificationTaskStatus` / `integrated로 전이하지 않는다` | `packages/cli/src/coordinator-commands.ts` | docs/code | scripts/lib/coordinator-commands.js | BP4 |
 | GOV-SIZING-PATH-WARNING | `## Blueprint sizing rule` / `exceeds 20` | `rules/planning.md` | docs/code | plan · test/validate-gates.test.js | BP2 |
 | GOV-SIZING-COMMIT-UNIT | `## Commit unit and staging` / `does not commit` | `rules/commit-scope.md` | shared rule | run · finalize | BP3 |
 | GOV-SIZING-STAGE-TASK | `## Commit unit and staging` / `candidate set` | `rules/commit-scope.md` | shared rule | scripts/lib/scope.js | BP3 |
@@ -41,7 +41,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-LIGHT-UNCHANGED-DOCS | `## Lightweight cycle` / `are still authored` | `rules/planning.md` | skill | plan · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-UNCHANGED-GATES | `## Lightweight cycle` / `G16 comprehension` | `rules/planning.md` | shared rule | plan · finalize · test/lightweight-cycle.test.js | BP2 |
 | GOV-LIGHT-CANONICAL-CONTEXT | `## Canonical context boundary` / `Canonical context remains` | `skills/bouncer-finalize/references/explain-quiz.md` | skill | finalize | BP3 |
-| GOV-LIGHT-SCALE-READ-SITES | `function scaffoldBlueprint` / `scale을 읽는 네 곳` | `scripts/src/lib/scaffold.ts` | docs/code | scripts/lib/scaffold.js · scripts/lib/validate-gates-plan.js · scripts/lib/validate-structural.js · test/lightweight-cycle.test.js | BP4 |
+| GOV-LIGHT-SCALE-READ-SITES | `function scaffoldBlueprint` / `scale을 읽는 네 곳` | `packages/cli/src/scaffold.ts` | docs/code | scripts/lib/scaffold.js · scripts/lib/validate-gates-plan.js · scripts/lib/validate-structural.js · test/lightweight-cycle.test.js | BP4 |
 | GOV-LIGHT-INLINE-LIMIT | `## Lightweight and implement dispatch` / `self-review pressure` | `skills/bouncer-run/references/agent-dispatch.md` | skill | test/lightweight-cycle.test.js | BP3 |
 | GOV-LIGHT-RETURN-FULL | `## Lightweight cycle` / `scaffold context-review` | `rules/planning.md` | shared rule | plan · references/spec-authoring/index.md · docs/workflow.md · test/lightweight-cycle.test.js | BP2 |
 | GOV-DAG-FIELDS | `## Task DAG and approved scope` / `default sort key` | `rules/planning.md` | shared rule | plan · coordinator · rules/document-schema.md · test/master-rules.test.js | BP2 |
@@ -51,7 +51,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-DAG-SCOPE-ESTIMATE | `## Approved and ledger scope` / `initial estimate` | `rules/commit-scope.md` | shared rule | plan · coordinator | BP3 |
 | GOV-COORD-TOPOLOGY | `## Approved and ledger scope` / `initial expected scope` | `rules/commit-scope.md` | shared rule | run · finalize · coordinator · test/workflow-safety-canon.test.js · test/master-rules.test.js · test/skill-bouncer-run.test.js | BP3 |
 | GOV-COORD-REVISION | `## Hard guards` / `refused without a reason` | `agents/bouncer-coordinator.md` | agent | coordinator · test/master-rules.test.js | BP3 |
-| GOV-COORD-LOCK | `function nextRevision` / `ledger lock` | `scripts/src/lib/scope.ts` | docs/code | scripts/lib/scope.js | BP4 |
+| GOV-COORD-LOCK | `function nextRevision` / `ledger lock` | `packages/cli/src/scope.ts` | docs/code | scripts/lib/scope.js | BP4 |
 | GOV-COORD-PATH-BOUNDARY | `## Approved and ledger scope` / `governance tree are refused. Inside that boundary` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js · test/agents.test.js | BP3 |
 | GOV-COORD-SCOPE-AUDIT | `## Approved and ledger scope` / `ledger's current scope instead of the approval snapshot, and refuses a commit` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js | BP3 |
 | GOV-COORD-COMMIT-WORKTREE | `## Worktree and enforcement layers` / `stays read-only` | `rules/commit-scope.md` | shared rule | run · finalize · coordinator · test/workflow-safety-canon.test.js | BP3 |
@@ -60,7 +60,7 @@ heading과 술어가 없는 안내 줄은 행이 아니다. 코드 owner 쪽은 
 | GOV-COORD-G17 | `## Worktree and enforcement layers` / `weaker of the three` | `rules/commit-scope.md` | shared rule | coordinator · test/master-rules.test.js | BP3 |
 | GOV-COORD-NO-LEDGER | `## Approved and ledger scope` / `Without a coordinator ledger` | `rules/commit-scope.md` | shared rule | plan | BP3 |
 | GOV-COORD-REPAIR | `## Hard guards` / `at most two dynamic repair` | `agents/bouncer-coordinator.md` | agent | coordinator · run | BP3 |
-| GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `scripts/src/lib/coordinator-repair.ts` | docs/code | scripts/lib/coordinator-repair.js | BP4 |
+| GOV-COORD-REPAIR-WRITE | `function writeRepairDocuments` / `한 write 단위` | `packages/cli/src/coordinator-repair.ts` | docs/code | scripts/lib/coordinator-repair.js | BP4 |
 | GOV-COORD-PARTIAL-CLOSE | `## Hard guards` / `partial_closed` | `agents/bouncer-coordinator.md` | agent | coordinator · run · finalize | BP3 |
 | GOV-DISPATCH-PAYLOAD | `## Intent bundle` / `never document headings, item numbers, or test names` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · test/skill-bouncer-surface.test.js | BP3 |
 | GOV-DISPATCH-METADATA | `## Dispatch metadata and reports` / `Pass only the five metadata fields above` | `skills/bouncer-run/references/agent-dispatch.md` | skill | coordinator · references/coordinator-cards/dispatch.md · references/coordinator-cards/implement.md · test/coordinate-next.test.js | BP3 |
@@ -98,14 +98,14 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | `agents/bouncer-coordinator.md:75` | coordinator | step. scope revision (`rules/commit-scope.md`) |
 | `rules/commit-scope.md:4, 8` | 없음 | 없음. 새 정본이 run·coordinator의 pointer 경유와 coordinator mutation 절차를 `agents/bouncer-coordinator.md`로 가리킨다 |
 | `rules/planning.md:4-5` | 없음 | 없음. 머리말이 실행 범위를 `rules/commit-scope.md`, mutation 절차를 `agents/bouncer-coordinator.md`로 가리킨다 |
-| `rules/planning.md:21` | 없음 | 없음. 실패 상태 전이를 `scripts/src/lib/coordinator-commands.ts`로 가리키는 pointer 문장이다 |
+| `rules/planning.md:21` | 없음 | 없음. 실패 상태 전이를 `packages/cli/src/coordinator-commands.ts`로 가리키는 pointer 문장이다 |
 | `rules/planning.md:107-108` | 없음 | 없음. 승인 scope 이전분은 `rules/commit-scope.md`, 개정 절차는 `agents/bouncer-coordinator.md`를 가리킨다 |
 | `rules/plugin-root.md:37` | 없음 | 없음. 조건부 product rule의 예시 열거이며 적재가 아니다 |
 | `references/spec-authoring/index.md:26` | plan | step 3. spec-authoring step 1이 제품 규칙 위치를 `rules/planning.md`로 가리킨다 |
 | `references/spec-authoring/index.md:190` | plan | step 3. light task 분기에서 `rules/planning.md` `## Lightweight cycle`을 가리킨다 |
 | `docs/workflow.md:133` | plan | 없음. 사용자 문서가 `rules/planning.md` `## Lightweight cycle`을 가리킨다. GOV-LIGHT-DOC-SET, GOV-LIGHT-G10, GOV-LIGHT-RETURN-FULL의 소비자이다 |
 | `test/lightweight-cycle.test.js:15` | 없음 | 없음. GOV-LIGHT-* planning locator를 읽는 characterization이다 |
-| `test/lightweight-cycle.test.js:29` | 없음 | 없음. GOV-LIGHT-INLINE-DISPATCH와 `scripts/src/lib/scaffold.ts`의 scale read-site locator |
+| `test/lightweight-cycle.test.js:29` | 없음 | 없음. GOV-LIGHT-INLINE-DISPATCH와 `packages/cli/src/scaffold.ts`의 scale read-site locator |
 | `test/lightweight-cycle.test.js:46` | 없음 | 없음. GOV-LIGHT-DECLARATION, GOV-LIGHT-RETURN-FULL |
 | `test/lightweight-cycle.test.js:87` | 없음 | 없음. GOV-LIGHT-DOC-SET, GOV-LIGHT-G10, GOV-LIGHT-SCALE-FLAG |
 | `test/lightweight-cycle.test.js:128` | 없음 | 없음. GOV-LIGHT-INLINE-DISPATCH. `execution_mode`가 없음을 run만 본다 |
@@ -137,7 +137,7 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 
 ## Locator 줄 범위
 
-줄 번호는 current owner 파일 바이트에서의 힌트이다. 식별자는 `source`의 heading과 구절이다. 접두어 `planning`은 `rules/planning.md`, `commit-scope`는 `rules/commit-scope.md`, `coordinator.ts`는 `scripts/src/lib/coordinator.ts`, `scope.ts`는 `scripts/src/lib/scope.ts`, `scaffold.ts`는 `scripts/src/lib/scaffold.ts`, `coordinator`는 `agents/bouncer-coordinator.md`, `dispatch`는 `skills/bouncer-run/references/agent-dispatch.md`, `explain-diff`는 `references/explain-diff/index.md`, `explain-quiz`는 `skills/bouncer-finalize/references/explain-quiz.md`를 가리킨다.
+줄 번호는 current owner 파일 바이트에서의 힌트이다. 식별자는 `source`의 heading과 구절이다. 접두어 `planning`은 `rules/planning.md`, `commit-scope`는 `rules/commit-scope.md`, `coordinator.ts`는 `packages/cli/src/coordinator.ts`, `scope.ts`는 `packages/cli/src/scope.ts`, `scaffold.ts`는 `packages/cli/src/scaffold.ts`, `coordinator`는 `agents/bouncer-coordinator.md`, `dispatch`는 `skills/bouncer-run/references/agent-dispatch.md`, `explain-diff`는 `references/explain-diff/index.md`, `explain-quiz`는 `skills/bouncer-finalize/references/explain-quiz.md`를 가리킨다.
 
 | unit | lines |
 | --- | --- |

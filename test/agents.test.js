@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 
 const root = path.join(__dirname, '..');
 const agentsDir = path.join(root, 'agents');
@@ -42,7 +42,7 @@ for (const name of AGENTS) {
 // 여기에는 문서 본문과 따로 관리되는 산출물(.codex TOML)의 일치만 남긴다.
 
 test('checked-in coordinator TOML → matches mdToCodexToml byte-for-byte', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   const generated = mdToCodexToml(markdown);
   const checkedIn = fs.readFileSync(
@@ -69,7 +69,7 @@ test('agent doc bodies → use English headings', () => {
 // 두 운반 경로(TOML, fallback 본문)가 같은 본문을 전달한다. fallback payload 계약
 // 자체는 test/subagents.test.js가 검사한다.
 test('all five role briefs → keep TOML parity with their Markdown source', () => {
-  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  const { mdToCodexToml } = require('../packages/cli/dist/codex-agents');
   for (const name of AGENTS) {
     const markdown = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
     const toml = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
@@ -78,7 +78,7 @@ test('all five role briefs → keep TOML parity with their Markdown source', () 
 });
 
 test('mdToCodexToml given a role doc → preserves name description body and readonly sandbox', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   for (const name of AGENTS) {
     const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
     const { data, body } = parseFrontmatter(md);
@@ -98,7 +98,7 @@ test('mdToCodexToml given a role doc → preserves name description body and rea
 });
 
 test('mdToCodexToml given the implementer doc → keeps the implementer role contract intact', () => {
-  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  const { mdToCodexToml } = require('../packages/cli/dist/codex-agents');
   const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
   const toml = mdToCodexToml(markdown);
 
@@ -116,7 +116,7 @@ test('mdToCodexToml given the implementer doc → keeps the implementer role con
 // 사본 재생성은 no-op이다. 불일치가 나면 init으로 다른 TOML까지 건드리지
 // 말고 이 단언이 실패하게 둔다.
 test('checked-in implementer TOML → matches mdToCodexToml byte-for-byte', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
   const generated = mdToCodexToml(markdown);
   const checkedInPath = path.join(root, '.codex/agents/bouncer-implementer.toml');
@@ -128,7 +128,7 @@ test('checked-in implementer TOML → matches mdToCodexToml byte-for-byte', () =
 });
 
 test('checked-in debugger and reviewer TOML → match mdToCodexToml byte-for-byte', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   for (const name of ['bouncer-debugger', 'bouncer-reviewer']) {
     const markdown = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
     const generated = mdToCodexToml(markdown);
@@ -140,7 +140,7 @@ test('checked-in debugger and reviewer TOML → match mdToCodexToml byte-for-byt
 
 // 마커 없는 TOML은 사용자가 관리한다 — ensureCodexAgents는 덮어쓰지 않는다.
 test('an unmarked implementer TOML → remains user-owned', () => {
-  const { ensureCodexAgents } = require('../scripts/lib/codex-agents');
+  const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-'));
   const rel = '.codex/agents/bouncer-implementer.toml';
   const owned = 'name = "my-implementer"\n';
@@ -306,4 +306,81 @@ test('reviewer gate-checked items → list each npm run ci command as its own ar
   // 기대값은 package.json의 ci 정의 자체에서 뽑는다 — 문서가 게이트 구성과 어긋나면 실패한다.
   const ci = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).scripts.ci;
   assert.deepStrictEqual(items, ci.split(' && '));
+});
+
+/**
+ * `readCandidate`를 통과하는 임시 플러그인 루트(필수 자산 여섯 개, scripts/bouncer, plugin.json).
+ *
+ * @returns {string} 임시 플러그인 루트
+ */
+function makeFixturePluginRoot() {
+  const pluginRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-asset-root-')));
+  for (const dir of ['agents', 'skills', 'rules', 'references', 'hooks', 'scripts']) {
+    fs.mkdirSync(path.join(pluginRoot, dir));
+  }
+  fs.writeFileSync(path.join(pluginRoot, 'AGENTS.md'), '# fixture\n');
+  fs.writeFileSync(path.join(pluginRoot, 'scripts', 'bouncer'), '');
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: require('../packages/cli/package.json').version }));
+  return pluginRoot;
+}
+
+/**
+ * 테스트 동안만 BOUNCER_HOME을 바꾸고 끝나면 원래 값으로 되돌린다.
+ *
+ * @param {string} value - BOUNCER_HOME 값
+ * @param {() => void} fn - 본문
+ */
+function withBouncerHome(value, fn) {
+  const saved = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = value;
+  try {
+    fn();
+  } finally {
+    if (saved === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = saved;
+  }
+}
+
+test('pluginAgentsDir with a valid BOUNCER_HOME → is that root agents directory', () => {
+  const { pluginAgentsDir } = require('../packages/cli/dist/codex-agents');
+  const pluginRoot = makeFixturePluginRoot();
+  try {
+    withBouncerHome(pluginRoot, () => {
+      assert.strictEqual(pluginAgentsDir(), path.join(pluginRoot, 'agents'));
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
+});
+
+test('ensureCodexAgents with an unresolvable plugin root → skips seeding without throwing', () => {
+  const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-'));
+  const created = [];
+  try {
+    withBouncerHome(path.join(repo, 'does-not-exist'), () => {
+      ensureCodexAgents({ repoRoot: repo, created });
+    });
+    assert.deepStrictEqual(created, []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('ensureCodexAgents with a plugin version mismatch → propagates the resolver error', () => {
+  const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-version-'));
+  const pluginRoot = makeFixturePluginRoot();
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.5.0' }));
+  try {
+    withBouncerHome(pluginRoot, () => {
+      assert.throws(
+        () => ensureCodexAgents({ repoRoot: repo, created: [] }),
+        { code: 'BOUNCER_PLUGIN_VERSION_MISMATCH' },
+      );
+    });
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
 });
