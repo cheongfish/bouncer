@@ -9,6 +9,11 @@
 
 ## [1.6.1] — 2026-10-24
 
+### Fixed
+
+- **context index 템플릿 주석의 예시 링크를 S13이 목록으로 읽던 문제** — `.bouncer/context/index.md`의 HTML 주석
+  안 `epics/00x-slug` 예시가 없는 epic 디렉터리로 집계돼 `validate`가 실패했다. 목록을 모을 때 주석을 제외한다.
+
 ### Changed
 
 - **선행 병합 판정을 승인과 계획 게이트에 연결** — `bouncer.prerequisites`를 선언한 blueprint는 선언된 병합

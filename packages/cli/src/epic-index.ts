@@ -166,12 +166,13 @@ function listLegacyEpicDirNames(repoRoot: string): string[] {
   return dirs;
 }
 
-/** 색인의 epic 링크 대상 이름 중 `keep`이 받아들이는 것만 모은다. */
+/** 색인의 epic 링크 대상 이름 중 `keep`이 받아들이는 것만 모은다. HTML 주석 안의 예시 링크는 목록이 아니다. */
 function collectIndexEpicDirs(text: string, keep: (name: string) => boolean): Set<string> {
   const listed = new Set<string>();
+  const visible = text.replace(/<!--[\s\S]*?-->/g, '');
   EPIC_LINK_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
-  while ((m = EPIC_LINK_RE.exec(text)) !== null) {
+  while ((m = EPIC_LINK_RE.exec(visible)) !== null) {
     if (keep(m[1])) listed.add(m[1]);
   }
   return listed;

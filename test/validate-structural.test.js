@@ -236,6 +236,19 @@ test('S13: bundle context index → lists a missing epic directory', () => {
   assert.ok(res.failures.some((f) => f.code === 'S13' && /missing epic/.test(f.message)));
 });
 
+test('S13: bundle context index template comment → its example link is not a listed epic', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const abs = path.join(repo, '.bouncer/context/index.md');
+  const comment = '<!-- 한 줄씩 추가합니다\n     * [00x 제목](epics/00x-slug/index.md) - 한 줄 설명 -->\n';
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('# Epics\n', `# Epics\n\n${comment}`));
+  const failures = require('../packages/cli/dist/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  assert.deepStrictEqual(failures, []);
+});
+
 test('S13: epic description → mismatch is reported as a summary mismatch', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
