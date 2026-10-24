@@ -13,6 +13,8 @@
 
 - **context index 템플릿 주석의 예시 링크를 S13이 목록으로 읽던 문제** — `.bouncer/context/index.md`의 HTML 주석
   안 `epics/00x-slug` 예시가 없는 epic 디렉터리로 집계돼 `validate`가 실패했다. 목록을 모을 때 주석을 제외한다.
+- **`graph-sync --repo .`가 graphify 그래프를 만들지 못하던 문제** — 상대 경로 `--repo`가 그대로 scan target이 돼
+  part 디렉터리를 cwd로 쓰는 graphify가 대상을 찾지 못했다. repo 루트를 절대 경로로 고정한 뒤 호출한다.
 
 ### Changed
 

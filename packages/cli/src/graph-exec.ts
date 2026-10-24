@@ -75,8 +75,11 @@ function runGraphifyUpdate(repoRoot: string, dir: string, outDir: string, opts: 
   // part outDir에 cwd를 격리해 graphify 고정
   // `<cwd>/graphify-out/manifest.json`이 repo root가 아니라 part 아래에
   // 생성되게 한다. scan target은 절대 경로 — cwd는 cache/output sandbox만.
-  const partAbs = path.join(repoRoot, outDir);
-  const scanAbs = path.join(repoRoot, dir);
+  // `--repo .`처럼 상대 경로가 오면 scan target도 상대가 된다. graphify는 part cwd에서 돌아
+  // 그 경로를 찾지 못하므로 먼저 절대 경로로 고정한다.
+  const rootAbs = path.resolve(repoRoot);
+  const partAbs = path.join(rootAbs, outDir);
+  const scanAbs = path.join(rootAbs, dir);
   fs.mkdirSync(partAbs, { recursive: true });
   const exec = ((opts && opts.exec) || execFileSync) as GraphifyExecFn;
   // 실행 대상은 해석기가 준 값만 — 여기 리터럴 'graphify'를 두지 않는다.

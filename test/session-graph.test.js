@@ -431,6 +431,25 @@ test('runGraphifyUpdate → uses part outDir as cwd and absolute scan path', () 
   assert.strictEqual(calls[0].opts.env.GRAPHIFY_OUT, partAbs);
 });
 
+test('runGraphifyUpdate with a relative repo root → still passes an absolute scan path and cwd', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-part-relative-'));
+  fs.mkdirSync(path.join(repo, 'src'));
+  const outDir = partOutDir(DEFAULT_SOURCE_OUT, 'src');
+  const relativeRepo = path.relative(process.cwd(), repo);
+  assert.ok(!path.isAbsolute(relativeRepo));
+  const calls = [];
+  runGraphifyUpdate(relativeRepo, 'src', outDir, {
+    bin: '/opt/custom/graphify',
+    exec: (cmd, args, opts) => {
+      calls.push({ args, opts });
+    },
+  });
+  assert.strictEqual(calls.length, 1);
+  assert.deepStrictEqual(calls[0].args, ['update', path.join(repo, 'src')]);
+  assert.strictEqual(calls[0].opts.cwd, path.join(repo, outDir));
+  assert.strictEqual(calls[0].opts.env.GRAPHIFY_OUT, path.join(repo, outDir));
+});
+
 test('runGraphifyUpdate exec first argument → is the resolved bin path', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-resolved-bin-'));
   fs.mkdirSync(path.join(repo, 'src'));
