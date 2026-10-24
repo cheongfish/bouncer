@@ -12,6 +12,8 @@ import scope = require('./scope');
 const { isUnder } = scope;
 import configMod = require('./config');
 const { readConfig, readWorktreeSetup, getVerifyAllowlist } = configMod;
+import windowsNpm = require('./windows-npm');
+const { resolveSpawn } = windowsNpm;
 import commandArgv = require('./command-argv');
 const { parseVerifyArgv, isValidVerifyCommand } = commandArgv;
 
@@ -441,10 +443,18 @@ function installDependencies(
     // 실행 host가 NODE_ENV=production 또는 omit=dev를 설정해도, execute의
     // 검증에는 devDependencies가 필요하다. 명시적으로 포함해 host 설정이
     // 새 worktree의 검증 가능 여부를 바꾸지 못하게 한다.
-    (deps.execFileSync || execFileSync)('npm', ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
-      cwd: worktreePath,
-      stdio: 'inherit',
-    });
+    const npmArgs = ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'];
+    if (deps.execFileSync) {
+      deps.execFileSync('npm', npmArgs, { cwd: worktreePath, stdio: 'inherit' });
+    } else {
+      // Windows에서는 npm.cmd를 shell 없이 spawn할 수 없어 node로 npm CLI를 직접 실행한다.
+      const call = resolveSpawn('npm', npmArgs);
+      execFileSync(call.command, call.args, {
+        cwd: worktreePath,
+        stdio: 'inherit',
+        ...(call.shell ? { shell: true } : {}),
+      });
+    }
   } catch (error) {
     return { ok: false, reason: 'dependency-install-failed', message: (error as { message: unknown }).message };
   }

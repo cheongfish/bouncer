@@ -20,6 +20,9 @@
 - **배포 plugin 트리가 소스 경로와 개발용 package.json을 담던 문제** — 배포 문서 일곱 곳이 트리에 없는
   `scripts/lib`·`scripts/src` 경로를 가리켰고, 트리의 `package.json`이 개발용 scripts와 workspaces를 그대로 담았다.
   문서는 공개 CLI 명령과 개념 이름으로 바꾸고, 트리의 `package.json`은 신원 필드만 남긴다.
+- **Windows에서 npm 호출이 `EINVAL`·`ENOENT`로 실패하던 문제** — `build-release`, `check-emit`, `check-distribution`,
+  `release-runtime` 스크립트와 runtime의 verify 실행·worktree `npm ci`가 `npm.cmd`를 shell 없이 spawn했다.
+  Windows에서는 node 옆의 `npm-cli.js`(또는 `npm_execpath`)를 node로 직접 실행하고, 찾지 못하면 shell로 되돌린다.
 
 ### Changed
 

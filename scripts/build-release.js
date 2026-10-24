@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { syncVersions } = require('./sync-versions');
+const { resolveSpawn } = require('./spawn-win');
 
 // Windows 에서 npm 은 npm.cmd 이다. spawnSync 는 PATHEXT 를 셸처럼 펼치지
 // 않으므로 check-emit.js 와 같이 확장자를 직접 고른다.
@@ -18,11 +19,14 @@ const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
  * @returns {{status: number | null, stdout: string, stderr: string}} spawn 결과
  */
 function defaultRun(command, args, opts) {
-  const result = spawnSync(command, args, {
+  // Windows의 npm.cmd 는 shell 없이 spawn 하면 EINVAL 이므로 node 로 npm CLI 를 직접 실행한다.
+  const call = resolveSpawn(command, args);
+  const result = spawnSync(call.command, call.args, {
     cwd: opts.cwd,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
     env: process.env,
+    shell: call.shell,
   });
   return {
     status: result.status,

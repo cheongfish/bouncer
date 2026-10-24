@@ -10,6 +10,7 @@ const { spawnSync } = require('node:child_process');
 const yaml = require('js-yaml');
 
 const { buildReleaseTree } = require('../scripts/build-release');
+const { resolveSpawn } = require('../scripts/spawn-win');
 
 const root = path.join(__dirname, '..');
 const script = path.join(root, 'scripts', 'build-release.js');
@@ -67,10 +68,12 @@ function listRelFiles(dir) {
  * @returns {string[]} 정렬된 pack 상대 경로
  */
 function packPaths(cwd) {
-  const result = spawnSync(npm, ['pack', '--dry-run', '--json'], {
+  const call = resolveSpawn(npm, ['pack', '--dry-run', '--json']);
+  const result = spawnSync(call.command, call.args, {
     cwd,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
+    shell: call.shell,
   });
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
   return JSON.parse(result.stdout)[0].files.map((file) => file.path).sort();

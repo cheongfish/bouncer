@@ -1,6 +1,7 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const { resolveSpawn } = require('./spawn-win');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -25,7 +26,10 @@ const runtimeForbiddenPrefixes = [
  * @returns {{status: number | null, stdout: string, stderr: string}} 실행 결과
  */
 function run(command, args, cwd, env = process.env) {
-  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+  const call = resolveSpawn(command, args);
+  const result = spawnSync(call.command, call.args, {
+    cwd, env, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, shell: call.shell,
+  });
   return { status: result.status, stdout: result.stdout || '', stderr: result.stderr || result.error?.message || '' };
 }
 

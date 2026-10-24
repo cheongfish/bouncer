@@ -3,6 +3,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 import config = require('./config');
 const { readVerifyPolicy } = config;
+import windowsNpm = require('./windows-npm');
+const { resolveSpawn } = windowsNpm;
 import commandArgv = require('./command-argv');
 const { parseVerifyArgv, isValidVerifyCommand } = commandArgv;
 import type { VerifyExec, VerifyExecOpts } from './verification-contracts';
@@ -103,7 +105,9 @@ function executeVerify(command: string, { cwd, exec, allowlist }: {
   try {
     let result: unknown;
     if (!exec) {
-      result = spawnSync(file, args, { ...runOpts, shell: false });
+      // npm/npx는 Windows에서 .cmd shim이라 shell:false로는 실행되지 않는다. node로 CLI를 직접 띄운다.
+      const call = resolveSpawn(file, args);
+      result = spawnSync(call.command, call.args, { ...runOpts, shell: call.shell });
     } else if (exec.length < 3) {
       // execSync 계약: 원문 command 문자열 + opts. argv를 이어 붙이면
       // 인용 인자가 깨지므로 호출자가 넘긴 원문을 그대로 준다.

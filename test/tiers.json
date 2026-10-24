@@ -126,6 +126,7 @@
     "typescript-module-contract.test.js",
     "validate-gates.test.js",
     "verification-runner.test.js",
+    "windows-npm.test.js",
     "master-rules.test.js",
     "symbol-index.test.js",
     "source-boundary-measurement.test.js",

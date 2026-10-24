@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { isStrictSemver, syncVersions } = require('./sync-versions');
+const { resolveSpawn } = require('./spawn-win');
 
 const PACKAGE = '@cheongfish/bouncer';
 const REGISTRY = 'https://registry.npmjs.org';
@@ -21,8 +22,9 @@ const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
  * @returns {{status: number | null, stdout: string, stderr: string}} 프로세스 결과
  */
 function defaultRun(command, args, opts) {
-  const result = spawnSync(command, args, {
-    cwd: opts.cwd, env: opts.env, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
+  const call = resolveSpawn(command, args);
+  const result = spawnSync(call.command, call.args, {
+    cwd: opts.cwd, env: opts.env, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, shell: call.shell,
   });
   return { status: result.status, stdout: result.stdout || '', stderr: result.stderr || result.error?.message || '' };
 }

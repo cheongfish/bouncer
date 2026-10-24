@@ -1,12 +1,16 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const { resolveSpawn } = require('./spawn-win');
 
 // argv 배열만 넘긴다. 셸 문자열은 경로·플래그 보간에 열려 있고, 이 검사는
 // CI·pre-commit이 같은 계약을 공유하므로 한곳의 interpolation 버그가 양쪽을 깨뜨린다.
 function run(command, args, opts) {
-  const result = spawnSync(command, args, {
+  // Windows의 npm.cmd 는 shell 없이 spawn 하면 EINVAL 이므로 node 로 npm CLI 를 직접 실행한다.
+  const call = resolveSpawn(command, args);
+  const result = spawnSync(call.command, call.args, {
     encoding: 'utf8',
+    shell: call.shell,
     ...opts,
   });
   if (result.error) {
