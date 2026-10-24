@@ -192,7 +192,11 @@ test('(e) release.yml → manual dispatch cannot reach publishing', () => {
   assert.equal(workflow.jobs.prepare.permissions.contents, 'read');
   assert.equal(workflow.jobs.publish.permissions.contents, 'write');
   assert.equal(workflow.jobs.publish.permissions['id-token'], 'write');
+  assert.equal(workflow.concurrency.group, 'release');
   assert.equal(workflow.concurrency['cancel-in-progress'], false);
+  const publishRun = workflow.jobs.publish.steps.map((step) => step.run || '').join('\n');
+  assert.ok(publishRun.includes('./package.json'), 'root_version must read the root package.json');
+  assert.equal(publishRun.includes('packages/cli/package.json'), false);
   assert.ok(workflow.jobs.publish.steps.some((step) => step.uses === 'actions/download-artifact@v4'));
   assert.ok(workflow.jobs.prepare.steps.some((step) => step.uses === 'actions/upload-artifact@v4'));
 });

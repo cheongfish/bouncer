@@ -98,26 +98,122 @@ test('asset-only matching plugin → resolves without a launcher and checks the 
   assert.strictEqual(resolvePluginAssetRoot({ env: { BOUNCER_HOME: root }, runtimeVersion: '1.6.0' }), root);
 });
 
+test('launcher-free host candidates → library and CLI auto/--select pick the matching candidate', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-launcher-free-'));
+  const root = fixture(home, 'claude', '1.6.0', 'assets', 'plugin.json', false);
+  assert.ok(!fs.existsSync(path.join(root, 'scripts', 'bouncer')));
+  const auto = capture([], { homeDir: home });
+  assert.strictEqual(auto.code, 0);
+  assert.strictEqual(auto.out, `${root}\n`);
+  const selected = capture(['--select'], { homeDir: home, isTTY: true, readInput: () => '1' });
+  assert.strictEqual(selected.code, 0);
+  assert.strictEqual(selected.out, `${root}\n`);
+  // 라이브러리 호출은 CLI 단언 뒤에 둔다: launcher 필수가 되살아나면 호출이 던지기 전에
+  // 선택값/exit 단언이 먼저 실패해 Red 지점이 명확해진다.
+  assert.strictEqual(resolvePluginRoot({ homeDir: home, env: {}, runtimeVersion: '1.6.0' }).path, root);
+  assert.strictEqual(resolvePluginAssetRoot({ homeDir: home, env: {}, runtimeVersion: '1.6.0' }), root);
+});
+
 test('selected latest plugin with a different version → throws an identifiable mismatch without fallback', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-version-mismatch-'));
-  fixture(home, 'claude', '1.5.0', 'matching');
-  const latest = fixture(home, 'claude', '1.7.0', 'latest');
-  assert.throws(
-    () => resolvePluginRoot({ homeDir: home, env: {}, runtimeVersion: '1.6.0' }),
-    (error) => error.code === 'BOUNCER_PLUGIN_VERSION_MISMATCH'
-      && error.message.includes('1.7.0')
-      && error.message.includes('1.6.0')
-      && error.message.includes('matching npm runtime'),
-  );
+  // 하위 후보를 실제 runtime(1.6.0)과 일치시켜야 "일치 후보가 있어도 fallback하지 않는다"가 증명된다.
+  const matching = fixture(home, 'claude', '1.6.0', 'matching', 'plugin.json', false);
+  const latest = fixture(home, 'claude', '1.7.0', 'latest', 'plugin.json', false);
+  assert.deepStrictEqual(findPluginCandidates({ homeDir: home }).map((c) => c.path), [latest, matching]);
+  const isMismatch = (error) => error.code === 'BOUNCER_PLUGIN_VERSION_MISMATCH'
+    && error.message.includes('1.7.0')
+    && error.message.includes('1.6.0')
+    && error.message.includes('matching npm runtime');
+  assert.throws(() => resolvePluginRoot({ homeDir: home, env: {}, runtimeVersion: '1.6.0' }), isMismatch);
+  assert.throws(() => resolvePluginAssetRoot({ homeDir: home, env: {}, runtimeVersion: '1.6.0' }), isMismatch);
+  const auto = capture([], { homeDir: home });
+  assert.strictEqual(auto.code, 1);
+  assert.strictEqual(auto.out, '');
+  assert.match(auto.err, /does not match runtime version/);
+  assert.ok(auto.err.includes('1.7.0') && auto.err.includes('1.6.0'));
+  assert.ok(auto.err.includes('install the matching npm runtime version'));
   const selected = capture(['--select'], {
     homeDir: home,
     isTTY: true,
     readInput: () => '1',
   });
   assert.strictEqual(selected.code, 1);
+  assert.strictEqual(selected.out, '');
   assert.match(selected.err, /does not match runtime version/);
-  assert.ok(latest);
+  assert.ok(selected.err.includes('1.7.0') && selected.err.includes('1.6.0'));
 });
+
+const NEGATIVE_CONTROLS = [
+  {
+    label: 'launcher requirement reintroduced',
+    file: 'plugin-root.ts',
+    anchor: '    for (const dir of REQUIRED_ASSET_DIRS) {',
+    // 자산 검증 앞에 launcher stat을 되살린다. 없으면 statSync가 던져 후보가 제외된다.
+    replacement: "    fs.statSync(path.join(absolute, 'scripts', 'bouncer'));\n    for (const dir of REQUIRED_ASSET_DIRS) {",
+    pattern: 'launcher-free host candidates',
+    failing: 'launcher-free host candidates',
+  },
+  {
+    label: 'version check removed',
+    file: 'plugin-root.ts',
+    anchor: '  assertPluginVersion(candidate, runtimeVersion);\n  return candidate;',
+    replacement: '  return candidate;',
+    pattern: 'selected latest plugin with a different version',
+    failing: 'selected latest plugin with a different version',
+  },
+];
+
+/**
+ * packages/cli를 격리 복사본에 옮겨 source를 mutation한 뒤 복사본에서 rebuild하고,
+ * 이 테스트 파일을 복사본의 test/ 에 두어 복사본 dist를 읽게 실행한다.
+ * 부모 저장소의 source/dist는 읽기만 한다.
+ *
+ * @param {object} control - NEGATIVE_CONTROLS 항목(anchor 치환과 실행할 테스트 이름 pattern)
+ * @returns {{build: object, run: object}} rebuild와 지정 테스트 실행의 spawnSync 결과
+ */
+function runNegativeControl(control) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-negative-control-'));
+  const copy = path.join(tmp, 'packages', 'cli');
+  for (const name of ['src', 'bin', 'vendor', 'package.json', 'tsconfig.json']) {
+    fs.cpSync(path.join(repoPackage, name), path.join(copy, name), { recursive: true });
+  }
+  fs.mkdirSync(path.join(tmp, 'test'));
+  fs.copyFileSync(path.join(__dirname, 'plugin-root.test.js'), path.join(tmp, 'test', 'plugin-root.test.js'));
+  // tsc와 @types/node 해석을 위해 부모 저장소 node_modules를 읽기 전용 심볼릭 링크로 노출한다.
+  fs.symlinkSync(path.join(__dirname, '..', 'node_modules'), path.join(tmp, 'node_modules'));
+  const target = path.join(copy, 'src', control.file);
+  const source = fs.readFileSync(target, 'utf8');
+  // anchor를 못 찾으면 mutation이 적용되지 않은 채 통과하는 skip 성공을 막기 위해 실패시킨다.
+  assert.ok(source.split(control.anchor).length === 2, `mutation anchor not found once: ${control.label}`);
+  fs.writeFileSync(target, source.replace(control.anchor, () => control.replacement));
+  const tsc = path.join(__dirname, '..', 'node_modules', 'typescript', 'bin', 'tsc');
+  const build = spawnSync(process.execPath, [tsc, '-p', path.join(copy, 'tsconfig.json')], { encoding: 'utf8' });
+  assert.strictEqual(build.status, 0, `rebuild of the isolated copy failed: ${build.stdout}${build.stderr}`);
+  // 부모 test runner의 NODE_TEST_CONTEXT를 물려받으면 자식이 자체 TAP 보고 대신 부모 하위 테스트로
+  // 동작해 실패가 exit 0·빈 stdout으로 가려지므로 제거한다.
+  const childEnv = { ...process.env, BOUNCER_NEGATIVE_CONTROL: '1', BOUNCER_HOME: '' };
+  delete childEnv.NODE_TEST_CONTEXT;
+  const run = spawnSync(process.execPath, [
+    '--test', '--test-reporter=tap', `--test-name-pattern=${control.pattern}`,
+    path.join(tmp, 'test', 'plugin-root.test.js'),
+  ], { encoding: 'utf8', env: childEnv });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return { build, run };
+}
+
+for (const control of NEGATIVE_CONTROLS) {
+  // 중첩 실행(복사본 안의 이 파일)이 다시 control을 만들지 않도록 환경 변수로 끈다.
+  test(`${control.label} in an isolated copy → the targeted test fails on its assertion and exits nonzero`, {
+    skip: process.env.BOUNCER_NEGATIVE_CONTROL === '1',
+    timeout: 240000,
+  }, () => {
+    const { run } = runNegativeControl(control);
+    assert.notStrictEqual(run.status, 0);
+    // module-load/빌드 실패가 아니라 지정 테스트의 단언 실패여야 목표 Red다.
+    assert.match(run.stdout, new RegExp(`^not ok \\d+ - ${control.failing}`, 'm'));
+    assert.match(run.stdout, /AssertionError|ERR_ASSERTION/);
+  });
+}
 
 test('--select with non-TTY input or a TTY → rejects non-TTY input and selects the numbered candidate on a TTY', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));

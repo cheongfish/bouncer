@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -69,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           tag_version="${GITHUB_REF#refs/tags/bouncer--v}"
-          root_version="$(node -p 'require("./packages/cli/package.json").version')"
+          root_version="$(node -p 'require("./package.json").version')"
           pack_version="$(node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"))[0];process.stdout.write(p.version)' "$INPUT_DIR/runtime-artifact/metadata.json")"
           plugin_version="$(node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(p.version)' "$INPUT_DIR/plugin-tree/package.json")"
           test "$tag_version" = "$root_version"

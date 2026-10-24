@@ -122,12 +122,49 @@ runtime이 없으면 plugin만으로 CLI 명령은 실행되지 않습니다. np
 5. 실행 결과에서 npm runtime의 registry 확인과 plugin branch 게시를 각각
    확인합니다. 하나라도 실패하면 사용자에게 설치 완료를 안내하지 않습니다.
 
-최초 게시 전에는 공개 `@cheongfish/bouncer` package 준비, GitHub trusted publisher
-연결, npm automation token이 아닌 OIDC 게시 권한, provenance가 요구하는 package
-설정과 workflow 조건을 운영자가 준비해야 합니다. trusted publisher 설정은 npm
-계정과 GitHub 저장소 양쪽의 외부 권한 작업입니다. package 최초 공개와 태그 push는
-별도 승인 후에 수행합니다. 이 문서는 registry 공개나 호스트 smoke 완료를 주장하지
-않습니다.
+### trusted publisher와 provenance 운영 조건
+
+최초 게시 전에 운영자가 npm과 GitHub 양쪽에서 다음을 준비하고 확인합니다. 둘 다
+외부 권한 작업이며, 이 문서와 로컬 검사는 설정 완료나 공개 상태를 증명하지
+않습니다. package 최초 공개와 태그 push는 별도 승인 후에 수행합니다.
+
+- npm package `@cheongfish/bouncer`의 trusted publisher 설정에는 실제 publish job과
+  같은 값을 넣습니다. owner는 `cheongfish`, repository는 `bouncer`, workflow
+  filename은 `release.yml`입니다. 이름은 `.github/workflows/`의 파일명이며
+  workflow의 표시 이름(`name: release`)이 아닙니다. 대소문자와 `.yml` 확장자까지
+  정확히 일치해야 합니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- 현재 publish job은 GitHub environment를 쓰지 않으므로 npm 쪽 environment 칸은
+  비워 둡니다. environment를 지정하려면 workflow에 같은 이름의 `environment:`를
+  먼저 추가해야 합니다.
+- 허용 action은 직접 publish입니다. workflow가 `scripts/release-runtime.js`를 통해
+  게시하므로 staged publish 승인을 요구하는 설정은 쓰지 않습니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- OIDC 게시는 publish job의 `id-token: write` 권한, GitHub-hosted runner
+  (`ubuntu-latest`; self-hosted runner는 공식 문서상 미지원), npm CLI 11.5.1
+  이상과 Node 22.14.0 이상이 필요합니다. workflow는 npm `^11.5.1`을 설치하고 token
+  없이 OIDC로 게시합니다. token fallback은 권장하지 않습니다. Node 24는 이
+  저장소의 선택이며 공식 최소 조건과 구별합니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- npm 쪽 설정은 저장할 때 검증되지 않아 오류가 게시 시점에야 드러나고, 새 설정은
+  첫 게시를 2일 안에 성공시키지 못하면 만료됩니다. 설정은 수정할 수 없고 삭제 후
+  다시 만들어야 합니다. 태그 push 직전에 등록하고 값을 다시 대조하세요.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/))
+- provenance는 OIDC 게시, 공개 source repository, 공개 package가 모두 충족될 때
+  자동 생성되므로 `--provenance` 플래그는 필요하지 않습니다.
+  ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)) 별도로
+  provenance 문서는 `package.json`의 공개 `repository`가 게시 source와
+  (대소문자까지) 일치해야 한다고 요구하며, 첫 게시에는 `--access public`이
+  필요합니다. `packages/cli/package.json`의 repository metadata가
+  `cheongfish/bouncer`를 가리키고 `publishConfig.access`가 `public`인지, 게시
+  명령이 `--access public`을 쓰는지 게시 전에 확인합니다.
+  ([npm provenance](https://docs.npmjs.com/generating-provenance-statements/))
+- 운영자가 직접 확인할 항목: package와 repository의 공개 여부, npm publisher 등록
+  값, 게시 후 registry의 provenance 표시. 위 조건은 2026-10-24에 두 공식 문서를
+  읽고 실제 workflow와 대조한 것입니다. 공식 조건은 바뀔 수 있으므로 게시 직전에
+  다시 확인합니다.
+
+이 문서는 registry 공개나 호스트 smoke 완료를 주장하지 않습니다.
 
 게시 재실행은 npm registry의 같은 name/version/integrity를 확인합니다. 이미 같은
 integrity가 있으면 npm publish를 건너뛰고 plugin branch 게시를 재개합니다. 버전이
@@ -357,6 +394,40 @@ $env:PATH = "$PWD\packages\cli\bin;$env:PATH"
 $env:BOUNCER_HOME = (Get-Location).Path
 node .\packages\cli\bin\bouncer --help
 ```
+
+### 빌드 오류 진단과 복구
+
+checkout의 `bouncer`와 `bouncer-root`는 두 가지 빌드 문제를 서로 다른 stderr로
+거부합니다. 둘 다 plugin 자산 루트(`BOUNCER_HOME`) 문제가 아니라 checkout의
+`packages/cli/dist` 문제이므로 `BOUNCER_HOME`을 바꾸지 말고 빌드하세요.
+
+- `packages/cli/dist is missing`: `dist/cli.js`가 없습니다. 아직 빌드하지 않았거나
+  `dist`를 지운 경우입니다.
+- `stale-build`: `dist`는 있지만 `packages/cli/src`와 build stamp가 맞지 않습니다.
+  소스를 바꾼 뒤 다시 빌드하지 않은 경우입니다.
+
+복구는 두 경우 모두 checkout 루트에서 빌드한 뒤 같은 명령을 다시 실행하는 것입니다.
+게시나 태그 push는 이 절차에 포함되지 않습니다.
+
+```bash
+npm ci
+npm run build
+export PATH="$PWD/packages/cli/bin:$PATH"
+export BOUNCER_HOME="$PWD"
+bouncer --help
+```
+
+```powershell
+npm ci
+npm run build
+$env:PATH = "$PWD\packages\cli\bin;$env:PATH"
+$env:BOUNCER_HOME = (Get-Location).Path
+node .\packages\cli\bin\bouncer --help
+```
+
+source(`packages/cli/src`)가 없는 npm 설치본은 freshness 검사를 건너뜁니다.
+tarball에는 소스가 없기 때문이며, 이 경우 `dist`가 없다는 오류는 설치가 불완전한
+것이므로 같은 version을 다시 설치하세요.
 
 ## 플러그인 루트 (`bouncer-root`)
 
