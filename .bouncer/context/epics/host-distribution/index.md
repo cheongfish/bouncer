@@ -30,6 +30,9 @@ bouncer:
 8. 루트 package version을 정본으로 runtime·manifest·lockfile을 검사하며 태그 버전 불일치는 외부 게시 전에 거부한다.
 9. 수동 release 실행은 외부 게시를 하지 않고, 태그 실행은 동일 npm version·integrity 확인 뒤 plugin branch를 게시한다.
 10. npm 인증은 trusted publishing으로 구성하고 설치·복구·개발 안내에 Bash와 PowerShell 절차를 제공한다. 외부 설정과 실제 배포에는 별도 승인을 받는다.
+11. 서로 다른 태그 게시를 직렬화하고 루트 정본 drift·정확하지 않은 E404·registry 산출물 불일치·확인 및 fetch 실패가 후속 게시를 차단한다.
+12. 설치 smoke는 현재 작업 내용으로 만든 snapshot의 builder 산출 plugin과 runtime tgz를 사용하고 local/global의 plugin 없는 current 및 실제 seed 파일을 검증한다.
+13. 이미 구현된 launcher-free·mismatch·manual 차단 계약은 격리 negative control과 정상 실행을 구분해 새 증거를 남기며 과거 Red 성공을 소급 주장하지 않는다.
 
 ## Out of scope
 - 실제 npm 게시·trusted publisher 연결·원격 tag/push와 전체 호스트·OS 점진 배포는 별도 운영 승인 대상으로 둔다.
@@ -53,3 +56,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 ## Blueprints
 - [runtime-packaging](blueprints/runtime-packaging/index.md): npm runtime workspace와 plugin release tree를 분리하고 두 배포물의 설치 실행을 검증한다.
 - [release-pipeline](blueprints/release-pipeline/index.md): 남은 resolver·pack 결합을 제거하고 버전 검사, npm 선행 게시, 수동 dry-run과 설치 문서를 완성한다.
+- [release-pipeline-followup](blueprints/release-pipeline-followup/index.md): 게시 경계와 builder 기반 설치 smoke의 잔여 결함을 수정하고 회귀 증거와 운영 문서를 보완한다.
