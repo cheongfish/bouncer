@@ -15,6 +15,8 @@
   안 `epics/00x-slug` 예시가 없는 epic 디렉터리로 집계돼 `validate`가 실패했다. 목록을 모을 때 주석을 제외한다.
 - **`graph-sync --repo .`가 graphify 그래프를 만들지 못하던 문제** — 상대 경로 `--repo`가 그대로 scan target이 돼
   part 디렉터리를 cwd로 쓰는 graphify가 대상을 찾지 못했다. repo 루트를 절대 경로로 고정한 뒤 호출한다.
+- **Windows에서 graphify venv를 만들지 못하던 문제** — 설치가 `python3`만 실행했다. Windows는 `python`, `py -3`,
+  `python3` 순서로 시도하고 uv fallback에도 같은 이름을 넘긴다. Linux·macOS 동작은 그대로다.
 
 ### Changed
 

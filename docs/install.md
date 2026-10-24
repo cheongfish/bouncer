@@ -470,6 +470,11 @@ bouncer init --promote-graphify --no-graphify  # 켜기만
 `graphify-out/source`가 갱신되고,
 `graphify.test_dirs`가 있으면 `graphify-out/test`도 함께 갱신됩니다.
 
+venv를 만들 때 쓰는 python은 플랫폼마다 다릅니다. Linux·macOS는 `python3`을 쓰고, Windows는
+`python`, `py -3`, `python3` 순서로 처음 실행되는 것을 씁니다. Windows에서 python.org 설치본은
+`python3`을 제공하지 않으므로 `python --version` 또는 `py -3 --version`이 성공하는지 먼저 확인하세요.
+셋 다 실패하면 init은 graphify를 꺼 둔 채 성공하고, 결과의 `reason`에 시도한 이름이 나옵니다.
+
 ### 오프라인·수동 폴백
 
 네트워크나 python이 없어 init 설치가 실패하면:

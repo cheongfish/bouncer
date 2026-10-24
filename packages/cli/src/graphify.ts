@@ -54,6 +54,51 @@ function uvBinFor(platform: string) {
   return platform === 'win32' ? 'uv.exe' : 'uv';
 }
 
+type PythonCommand = { file: string; args: string[] };
+
+// Windows의 python.org 설치본은 `python`과 `py` 런처만 두고 `python3`은 없거나 Store 별칭 stub이다.
+// 그 밖의 플랫폼은 기존처럼 `python3` 하나만 쓴다.
+function pythonCandidates(platform: string): PythonCommand[] {
+  if (platform === 'win32') {
+    return [
+      { file: 'python', args: [] },
+      { file: 'py', args: ['-3'] },
+      { file: 'python3', args: [] },
+    ];
+  }
+  return [{ file: 'python3', args: [] }];
+}
+
+// uv의 `--python` 값. 런처 `py`는 이름으로 넘길 수 없어 후보 중 첫 이름을 쓴다.
+function uvPythonFor(platform: string) {
+  return pythonCandidates(platform)[0].file;
+}
+
+/**
+ * 후보를 차례로 실행해 처음 성공한 결과를 돌려준다. 후보가 없거나 실패하면(Store stub의 비정상 종료 포함)
+ * 다음 후보로 넘어가고, 모두 실패하면 시도한 이름을 담아 던진다.
+ *
+ * @param {ExecFn} run - process 실행기
+ * @param {string} platform - 대상 플랫폼
+ * @param {string[]} args - python에 넘길 인자
+ * @param {object} options - run 옵션
+ * @returns {ReturnType<ExecFn>} 성공한 실행 결과
+ */
+function runPython(run: ExecFn, platform: string, args: string[], options: object) {
+  const tried: string[] = [];
+  let last: unknown;
+  for (const candidate of pythonCandidates(platform)) {
+    try {
+      return run(candidate.file, [...candidate.args, ...args], options as never);
+    } catch (e) {
+      tried.push([candidate.file, ...candidate.args].join(' '));
+      last = e;
+    }
+  }
+  if (tried.length === 1) throw last;
+  throw new Error(`no usable python (tried: ${tried.join(', ')}): ${catchMessageOrString(last)}`, { cause: last });
+}
+
 function removeCreatedVenvDir(venvDir: string, createdThisRun: boolean) {
   // 이번 실행이 mkdir/venv 한 디렉터리만 지운다. 이미 있던 잔해·공유 bouncer/ 는 건드리지 않는다.
   if (!createdThisRun) return;
@@ -381,9 +426,9 @@ function probePackageVersion(pipAbs: string, pkg: string, run: ExecFn): string |
   }
 }
 
-function pythonMeetsMinimum(minimum: string, run: ExecFn): boolean | null {
+function pythonMeetsMinimum(minimum: string, run: ExecFn, platform: string): boolean | null {
   try {
-    const out = run('python3', ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = runPython(run, platform, ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     const match = String(out || '').match(/(\d+)\.(\d+)/);
     if (!match) return null;
     const [minMaj, minMin] = String(minimum).split('.').map((n) => Number(n) || 0);
@@ -445,17 +490,20 @@ function recordLockFromInstall({
  * lock·manifest·실행 파일 버전을 비교한다. 조회 경로는 파일 읽기와 process
  * 실행만 허용하며 pip·venv·network 쓰기를 하지 않는다.
  *
- * @param {{ repoRoot?: string, exec?: typeof execFileSync, probeSkillVersion?: () => string | null }} opts
+ * @param {{ repoRoot?: string, exec?: typeof execFileSync, probeSkillVersion?: () => string | null,
+ *   platform?: string }} opts
  * @returns {CompatResult} compatible | version-incompatible
  */
 function checkGraphifyCompatibility({
   repoRoot,
   exec,
   probeSkillVersion,
+  platform,
 }: {
   repoRoot?: string;
   exec?: ExecFn;
   probeSkillVersion?: () => string | null;
+  platform?: string;
 } = {}): CompatResult {
   const root = typeof repoRoot === 'string' ? repoRoot : process.cwd();
   const run = typeof exec === 'function' ? exec : execFileSync;
@@ -483,7 +531,7 @@ function checkGraphifyCompatibility({
   }
   const lock = lockLoad.value;
   const reasons = lockMatchesManifest(lock, manifest);
-  const pythonOk = pythonMeetsMinimum(manifest.python_minimum, run);
+  const pythonOk = pythonMeetsMinimum(manifest.python_minimum, run, platform || process.platform);
   if (pythonOk === false) {
     reasons.push(`python < ${manifest.python_minimum}`);
   }
@@ -699,7 +747,7 @@ function createSeededVenv({
   replaceOnFallback: boolean;
 }): { ok: true; provider: 'python' | 'uv' } | { ok: false; reason: string } {
   try {
-    run('python3', ['-m', 'venv', venvDir], { cwd: root, stdio: 'pipe' });
+    runPython(run, plat, ['-m', 'venv', venvDir], { cwd: root, stdio: 'pipe' });
     return { ok: true, provider: 'python' };
   } catch (pythonError) {
     if (!replaceOnFallback) {
@@ -710,7 +758,7 @@ function createSeededVenv({
     removeDirIfExists(venvDir);
     const uvBin = uvBinFor(plat);
     try {
-      run(uvBin, ['venv', '--seed', '--relocatable', '--python', 'python3', venvDir], {
+      run(uvBin, ['venv', '--seed', '--relocatable', '--python', uvPythonFor(plat), venvDir], {
         cwd: root,
         stdio: 'pipe',
       });
