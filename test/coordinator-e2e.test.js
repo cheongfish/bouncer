@@ -10,6 +10,9 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
 const { execFileSync } = require('node:child_process');
 const __coordinatorMod = require('../packages/cli/dist/coordinator');
 const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;

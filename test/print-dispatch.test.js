@@ -6,6 +6,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
+
 const { runCli } = require('../packages/cli/dist/cli');
 
 const WORKER_IDENTITY =
@@ -542,7 +545,7 @@ test('agentsDir seam absent with a plugin version mismatch → keeps print failu
       assert.equal(result.ok, false);
       assert.equal(result.reason, 'plugin-root-unresolved');
       assert.match(result.cause, /1\.5\.0/);
-      assert.match(result.cause, /1\.6\.0/);
+      assert.match(result.cause, new RegExp(require('../packages/cli/package.json').version.replaceAll('.', '\\.')));
       assert.equal(result.next, 'set BOUNCER_HOME to the plugin install and retry');
     });
   } finally {

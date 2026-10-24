@@ -5,6 +5,9 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
 const { execFileSync } = require('node:child_process');
 const { runCli } = require('../packages/cli/dist/cli');
 const { createGitTemplate } = require('./helpers/git-fixture');
@@ -2183,7 +2186,7 @@ test('task next dispatch with a plugin version mismatch → keeps card-missing r
       assert.strictEqual(result.ok, false);
       assert.strictEqual(result.reason, 'coordinator-card-missing');
       assert.match(result.cause, /1\.5\.0/);
-      assert.match(result.cause, /1\.6\.0/);
+      assert.match(result.cause, new RegExp(require('../packages/cli/package.json').version.replaceAll('.', '\\.')));
       assert.match(result.next, /matching npm runtime version/);
     });
   } finally {
