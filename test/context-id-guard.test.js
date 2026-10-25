@@ -10,8 +10,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const srcRoot = path.join(root, 'scripts', 'src');
-const RESOLVER = path.join(srcRoot, 'lib', 'context-ids.ts');
+const srcRoot = path.join(root, 'packages', 'cli', 'src');
+const RESOLVER = path.join(srcRoot, 'context-ids.ts');
 
 const FORBIDDEN = [
   'epics\\/(\\d{3})', 'epics\\/\\d{3}',

@@ -10,7 +10,7 @@ const {
   verifyLedgerPathFor, intentBundlePathFor, coordinatorPathsFor,
   listNamespacePointers, pointerKeyFromBlueprint, removeNamespacePointer, branchNamesFor, resolveWorktreeBranch,
   validateCoordinatorLedger, parsePointerKey, approvalSnapshotPathFor,
-} = require('../scripts/lib/runtime-state');
+} = require('../packages/cli/dist/runtime-state');
 
 function copy(value) {
   return JSON.parse(JSON.stringify(value));
@@ -130,7 +130,7 @@ test('resolveWorktreeBranch with a registered branch or an occupied new branch �
 });
 
 test('repair ledger validation for partial close → requires two waves and the last CI failure', () => {
-  const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
+  const { validateCoordinatorLedger } = require('../packages/cli/dist/runtime-state');
   const base = {
     version: 1, blueprint: 'bp', base: 'main', integrationHead: 'abc', tasks: [],
     decisions: [], repairWaves: [], status: 'active',
@@ -177,7 +177,7 @@ function repairDecision(task, wave, revision, paths) {
 }
 
 test('partial-close repair decisions → require complete canonical task and global copies', () => {
-  const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
+  const { validateCoordinatorLedger } = require('../packages/cli/dist/runtime-state');
   const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
   const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
   const valid = {
@@ -217,7 +217,7 @@ test('partial-close repair decisions → require complete canonical task and glo
 });
 
 test('repair failure findings when present → must be a non-empty string array', () => {
-  const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
+  const { validateCoordinatorLedger } = require('../packages/cli/dist/runtime-state');
   const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
   const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
   const valid = {
@@ -779,8 +779,8 @@ test('coordinator ledger with malformed dispatch attempt metadata → rejects it
 });
 
 test('validateCoordinatorCheckpoint with a compact summary or bad ledger refs → accepts the summary and rejects the refs', () => {
-  const { validateCoordinatorCheckpoint, COORDINATOR_LEDGER_REL } = require('../scripts/lib/runtime-state');
-  const { LEDGER_REL } = require('../scripts/lib/coordinator-ledger');
+  const { validateCoordinatorCheckpoint, COORDINATOR_LEDGER_REL } = require('../packages/cli/dist/runtime-state');
+  const { LEDGER_REL } = require('../packages/cli/dist/coordinator-ledger');
   // MM-001: coordinator·runtime-state가 같은 상대 경로 정본을 공유한다.
   assert.strictEqual(LEDGER_REL, COORDINATOR_LEDGER_REL);
   assert.strictEqual(typeof validateCoordinatorCheckpoint, 'function');

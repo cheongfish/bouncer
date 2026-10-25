@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 const { GENERIC_SKILLS } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');

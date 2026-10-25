@@ -68,7 +68,7 @@ test('context reviewer doc → has exactly one heading per plan perspective', ()
 
 // route 도움말의 next_action 목록은 controller가 읽는 계약이다: close가 빠지면 본문 수정 경로를 못 찾는다.
 test('context-review help → lists close among the route next_action values', () => {
-  const { runCli } = require('../scripts/lib/cli');
+  const { runCli } = require('../packages/cli/dist/cli');
   let out = '';
   const code = runCli(['context-review', '--help'], { out: (s) => { out += s; }, err: () => {} });
   assert.strictEqual(code, 0);

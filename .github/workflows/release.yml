@@ -6,62 +6,77 @@ on:
       - 'bouncer--v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  release:
-    if: github.event_name == 'push' || github.ref == 'refs/heads/develop'
+  prepare:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      # checkout 직후 origin/release 만 본다. 원격 브랜치가 없으면 이 실패만
-      # 허용하고 아래 publish 단계가 orphan root commit 으로 간다. checkout 이
-      # 남긴 FETCH_HEAD 를 부모로 오인하지 않도록 종료 코드로만 분기한다.
-      - name: Fetch existing release branch
-        id: fetch_release
-        run: |
-          if git fetch --no-tags origin release; then
-            echo "has_parent=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_parent=false" >> "$GITHUB_OUTPUT"
-          fi
       - run: npm ci
+      - run: node scripts/sync-versions.js --check
       - run: npm run ci
-      - name: Build release tree
-        run: node scripts/build-release.js --out "$RUNNER_TEMP/release-tree"
-      - name: Publish release branch
+      - run: npm pack --workspace=@cheongfish/bouncer --dry-run --json
+      - run: npm pack --dry-run --json
+      - name: Build plugin tree
+        run: node scripts/build-release.js --out "$RUNNER_TEMP/plugin-tree"
+      - name: Pack runtime artifact
+        id: pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/runtime-artifact"
+          npm pack --workspace=@cheongfish/bouncer --json \
+            --pack-destination "$RUNNER_TEMP/runtime-artifact" > "$RUNNER_TEMP/runtime-artifact/metadata.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-inputs
+          path: |
+            ${{ runner.temp }}/runtime-artifact
+            ${{ runner.temp }}/plugin-tree
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/bouncer--v')
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Require OIDC capable npm
+        run: npm install --global npm@^11.5.1
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs
+          path: ${{ runner.temp }}/release-inputs
+      - name: Verify tag and publish in order
         env:
-          HAS_PARENT: ${{ steps.fetch_release.outputs.has_parent }}
-          RELEASE_TREE: ${{ runner.temp }}/release-tree
-          RELEASE_WT: ${{ runner.temp }}/release-wt
-          # 태그 이름(bouncer--v*) 에 셸 메타문자가 있어도 run: 로 주입되지
-          # 않게 Actions 가 치환한 값을 env 로만 넘긴다.
-          REF_NAME: ${{ github.ref_name }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          INPUT_ROOT: ${{ github.workspace }}
+          INPUT_DIR: ${{ runner.temp }}/release-inputs
         run: |
           set -euo pipefail
-          short_sha="$(git rev-parse --short HEAD)"
-          message="release: ${REF_NAME} (${short_sha})"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if [ "$HAS_PARENT" = "true" ]; then
-            git worktree add --detach "$RELEASE_WT" FETCH_HEAD
-          else
-            git worktree add --detach "$RELEASE_WT"
-            git -C "$RELEASE_WT" checkout --orphan release
-          fi
-
-          # 이전 release 에만 있던 파일을 지운다. add 만 하면 삭제분이 트리에 남아
-          # 산출물과 커밋이 달라진다.
-          git -C "$RELEASE_WT" rm -rf --quiet --ignore-unmatch .
-          find "$RELEASE_WT" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-
-          cp -a "$RELEASE_TREE"/. "$RELEASE_WT"/
-          git -C "$RELEASE_WT" add -A
-          git -C "$RELEASE_WT" commit -m "$message"
-          # 부모는 직전 release tip 이므로 fast-forward 이다. 강제 push 는 쓰지 않는다.
-          git -C "$RELEASE_WT" push origin HEAD:refs/heads/release
+          tag_version="${GITHUB_REF#refs/tags/bouncer--v}"
+          root_version="$(node -p 'require("./package.json").version')"
+          pack_version="$(node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"))[0];process.stdout.write(p.version)' "$INPUT_DIR/runtime-artifact/metadata.json")"
+          plugin_version="$(node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(p.version)' "$INPUT_DIR/plugin-tree/package.json")"
+          test "$tag_version" = "$root_version"
+          test "$tag_version" = "$pack_version"
+          test "$tag_version" = "$plugin_version"
+          tarball="$(find "$INPUT_DIR/runtime-artifact" -maxdepth 1 -name '*.tgz' -print -quit)"
+          test -n "$tarball"
+          node scripts/release-runtime.js --publish --tarball "$tarball" \
+            --metadata "$INPUT_DIR/runtime-artifact/metadata.json" \
+            --plugin-tree "$INPUT_DIR/plugin-tree"

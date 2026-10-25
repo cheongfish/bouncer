@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { readyWave, transition, normalizeOverlapPath, taskConflictDetail } = require('../scripts/lib/execution-dag');
+const { readyWave, transition, normalizeOverlapPath, taskConflictDetail } = require('../packages/cli/dist/execution-dag');
 
 test('taskConflictDetail with shared ancestor, resource, or missing paths → returns conflict evidence', () => {
   assert.deepStrictEqual(taskConflictDetail(

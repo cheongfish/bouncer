@@ -7,10 +7,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const { resolveTaskIntentBundle, projectRoleIntentSections } = require('../scripts/lib/intent-bundle');
-const { taskBriefHash } = require('../scripts/lib/task-brief-hash');
-const { intentBundlePathFor } = require('../scripts/lib/runtime-state');
-const { resolveIntentProvenance } = require('../scripts/lib/intent-provenance');
+const { resolveTaskIntentBundle, projectRoleIntentSections } = require('../packages/cli/dist/intent-bundle');
+const { taskBriefHash } = require('../packages/cli/dist/task-brief-hash');
+const { intentBundlePathFor } = require('../packages/cli/dist/runtime-state');
+const { resolveIntentProvenance } = require('../packages/cli/dist/intent-provenance');
 
 const dirs = [];
 

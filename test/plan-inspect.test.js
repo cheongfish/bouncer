@@ -6,9 +6,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { writeCurrent } = require('../scripts/lib/current');
-const { COMMON_EPICS } = require('../scripts/lib/epic-registry');
+const { runCli } = require('../packages/cli/dist/cli');
+const { writeCurrent } = require('../packages/cli/dist/current');
+const { COMMON_EPICS } = require('../packages/cli/dist/epic-registry');
 const { writeEpicRegistry } = require('./helpers/epic-registry');
 
 const EPICS = '.bouncer/context/epics';
@@ -338,7 +338,7 @@ test('plan without a subcommand → exits 2', () => {
 const {
   classifyRoutingPaths,
   summarizeRouting,
-} = require('../scripts/lib/plan-inspect');
+} = require('../packages/cli/dist/plan-inspect');
 
 test('classifyRoutingPaths with security/manifest/build/migration paths and near-misses → tags the matches and skips near-misses', () => {
   assert.deepStrictEqual(

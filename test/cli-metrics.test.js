@@ -4,8 +4,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const metrics = require('../scripts/lib/drive-metrics');
-const { runCli } = require('../scripts/lib/cli');
+const metrics = require('../packages/cli/dist/drive-metrics');
+const { runCli } = require('../packages/cli/dist/cli');
 
 const BLUEPRINT = '.bouncer/context/epics/098-a/blueprints/001-b';
 const DIGEST = 'a'.repeat(64);
@@ -510,7 +510,7 @@ test('metrics CLI summary → 원장의 worker-tokens를 worker_tokens로 낸다
   const repo = tmp();
   const { execFileSync } = require('node:child_process');
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const { ledgerFile } = coordinatorPathsFor({ repoRoot: repo, blueprint: BLUEPRINT });
   fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
   writeLedger(ledgerFile, {
@@ -658,7 +658,7 @@ test('summary → coordinator 토큰과 역할별 worker 토큰은 이중 합산
 function gitRepoWithLedger(decisions) {
   const repo = fs.realpathSync(tmp());
   require('node:child_process').execFileSync('git', ['init', '--quiet'], { cwd: repo });
-  const { ledgerFile } = require('../scripts/lib/runtime-state').coordinatorPathsFor({
+  const { ledgerFile } = require('../packages/cli/dist/runtime-state').coordinatorPathsFor({
     repoRoot: repo, blueprint: BLUEPRINT,
   });
   fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
@@ -947,4 +947,24 @@ test('metrics snapshot의 --blueprint 누락·모르는 플래그 → 각각 exi
   const { repo } = gitRepoWithLedger(null);
   assert.deepStrictEqual(cli(repo, 'metrics', 'snapshot').json, { ok: false, reason: 'invalid-metrics-input' });
   assert.strictEqual(cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT, '--tokens', '1').code, 2);
+});
+
+test('metrics summary의 report → BOUNCER_METRICS_REPORT=1일 때만 true다', () => {
+  const repo = tmp();
+  require('node:child_process').execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const run = (env) => {
+    const saved = process.env.BOUNCER_METRICS_REPORT;
+    if (env === undefined) delete process.env.BOUNCER_METRICS_REPORT;
+    else process.env.BOUNCER_METRICS_REPORT = env;
+    try {
+      const buf = { out: '' };
+      const io = { out: (s) => { buf.out += s; }, err: () => {} };
+      assert.strictEqual(runCli(['metrics', 'summary', '--blueprint', BLUEPRINT, '--repo', repo], io), 0);
+      return JSON.parse(buf.out).report;
+    } finally {
+      if (saved === undefined) delete process.env.BOUNCER_METRICS_REPORT;
+      else process.env.BOUNCER_METRICS_REPORT = saved;
+    }
+  };
+  assert.deepStrictEqual([run(undefined), run('0'), run('1')], [false, false, true]);
 });

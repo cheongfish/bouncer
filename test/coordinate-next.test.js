@@ -5,17 +5,20 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
 const { execFileSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 const { createGitTemplate } = require('./helpers/git-fixture');
 const {
   coordinateNext, NEXT_FAILURE_HINTS, attachJudgeContext,
-} = require('../scripts/lib/coordinate-next');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { renderDoc } = require('../scripts/lib/render');
+} = require('../packages/cli/dist/coordinate-next');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { renderDoc } = require('../packages/cli/dist/render');
 
-const __coordinatorMod = require('../scripts/lib/coordinator');
-const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const __coordinatorMod = require('../packages/cli/dist/coordinator');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 const { coordinate } = require('./helpers/coordinator-fence');
 
 function git(cwd, args) {
@@ -774,6 +777,7 @@ test('task next에서 accepted report → record', () => {
 test('task next에서 brief가 그대로인 scope_revision → revise', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/016-rev';
   const drive = preparedCommitDrive('bouncer-next-rev-', blueprint);
+  const pluginRoot = makeFixturePluginRoot(true);
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
   });
@@ -784,10 +788,16 @@ test('task next에서 brief가 그대로인 scope_revision → revise', () => {
     outcome: 'scope_revision', summary: 'need paths',
   });
   assert.strictEqual(reported.ok, true, JSON.stringify(reported));
-  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
-  assert.strictEqual(r.action, 'revise');
-  assertCardFor(r);
-  assert.strictEqual(r.judge.kind, 'scope-revision');
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+      assert.strictEqual(r.action, 'revise');
+      assertCardFor(r);
+      assert.strictEqual(r.judge.kind, 'scope-revision');
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
 });
 
 // F-SS-001: 보고 뒤 brief가 바뀌면 개정이 끝난 상태다. mismatch blocked가 아니라
@@ -2092,5 +2102,94 @@ test('blueprint next with an unclassified, stale, mismatched or incomplete outsi
     const r = assertNoWrite(drive, () => nextOf(drive));
     assert.strictEqual(r.action, expected, label);
     assert.notStrictEqual(r.action, 'done', label);
+  }
+});
+
+/**
+ * `readCandidate`를 통과하는 임시 플러그인 루트. `dispatch` 카드 본문은 FIXTURE-CARD다.
+ *
+ * @returns {string} 임시 플러그인 루트
+ */
+function makeFixturePluginRoot(copyCurrentCards = false) {
+  const pluginRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-card-asset-root-')));
+  for (const dir of ['agents', 'skills', 'rules', 'hooks', 'scripts']) {
+    fs.mkdirSync(path.join(pluginRoot, dir));
+  }
+  fs.mkdirSync(path.join(pluginRoot, 'references', 'coordinator-cards'), { recursive: true });
+  if (copyCurrentCards) {
+    for (const id of CARD_ACTIONS) {
+      fs.copyFileSync(
+        path.join(CARD_DIR, `${id}.md`),
+        path.join(pluginRoot, 'references', 'coordinator-cards', `${id}.md`),
+      );
+    }
+  } else {
+    fs.writeFileSync(path.join(pluginRoot, 'references', 'coordinator-cards', 'dispatch.md'), 'FIXTURE-CARD');
+  }
+  fs.writeFileSync(path.join(pluginRoot, 'AGENTS.md'), '# fixture\n');
+  fs.writeFileSync(path.join(pluginRoot, 'scripts', 'bouncer'), '');
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: require('../packages/cli/package.json').version }));
+  return pluginRoot;
+}
+
+/**
+ * 테스트 동안만 BOUNCER_HOME을 바꾸고 끝나면 원래 값으로 되돌린다.
+ *
+ * @param {string} value - BOUNCER_HOME 값
+ * @param {() => void} fn - 본문
+ */
+function withBouncerHome(value, fn) {
+  const saved = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = value;
+  try {
+    fn();
+  } finally {
+    if (saved === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = saved;
+  }
+}
+
+test('task next dispatch with a valid BOUNCER_HOME → default readCard serves that root card body', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/014-disp-fixture';
+  const drive = preparedCommitDrive('bouncer-next-card-root-', blueprint);
+  const pluginRoot = makeFixturePluginRoot();
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const r = nextOf(drive, { task: '001' });
+      assert.strictEqual(r.ok, true);
+      assert.strictEqual(r.action, 'dispatch');
+      assert.strictEqual(r.card.body, 'FIXTURE-CARD');
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
+});
+
+test('task next dispatch with an invalid BOUNCER_HOME → is coordinator-card-missing', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/014-disp-invalid';
+  const drive = preparedCommitDrive('bouncer-next-card-bad-', blueprint);
+  withBouncerHome(path.join(drive.repo, 'does-not-exist'), () => {
+    const r = nextOf(drive, { task: '001' });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.reason, 'coordinator-card-missing');
+  });
+});
+
+test('task next dispatch with a plugin version mismatch → keeps card-missing reason and recovery details', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/014-disp-mismatch';
+  const drive = preparedCommitDrive('bouncer-next-card-mismatch-', blueprint);
+  const pluginRoot = makeFixturePluginRoot();
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.5.0' }));
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const result = nextOf(drive, { task: '001' });
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'coordinator-card-missing');
+      assert.match(result.cause, /1\.5\.0/);
+      assert.match(result.cause, new RegExp(require('../packages/cli/package.json').version.replaceAll('.', '\\.')));
+      assert.match(result.next, /matching npm runtime version/);
+    });
+  } finally {
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
   }
 });

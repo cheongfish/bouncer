@@ -4,16 +4,28 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
 const { execFileSync } = require('node:child_process');
-const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
+const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../packages/cli/dist/init');
 const {
   setupGraphify,
   readGraphifyLock,
   GRAPHIFY_LOCK_REL,
-} = require('../scripts/lib/graphify');
-const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
-const { TEMPLATES } = require('../scripts/lib/templates');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+} = require('../packages/cli/dist/graphify');
+const { DEFAULT_VERIFY_ALLOWLIST } = require('../packages/cli/dist/config');
+const { TEMPLATES } = require('../packages/cli/dist/templates');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
+
+function withBouncerHome(fn) {
+  const previous = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = path.join(__dirname, '..');
+  try { return fn(); } finally {
+    if (previous === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = previous;
+  }
+}
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-'));
@@ -525,7 +537,7 @@ test('init on an already-initialized repo → reports gitignore suggestions', ()
 test('init install on a git repo → does not create worktree .bouncer/.venv', () => {
   const repo = tmpRepo();
   git(repo, ['init', '-b', 'main']);
-  const { setupGraphify } = require('../scripts/lib/graphify');
+  const { setupGraphify } = require('../packages/cli/dist/graphify');
   const res = init({
     repoRoot: repo,
     timestamp: '2026-07-01T00:00:00.000Z',
@@ -779,8 +791,8 @@ test('init without a .codex/ signal → does not seed Codex agents', () => {
 test('init when .codex/ already exists → seeds five Codex tomls', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
-  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const res = withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
+  const { GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
     'bouncer-context-reviewer', 'bouncer-coordinator',
@@ -799,18 +811,18 @@ test('init with an unmarked Codex toml → leaves it byte-for-byte unchanged', (
   fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
   const owned = 'name = "custom"\n';
   fs.writeFileSync(path.join(repo, rel), owned);
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
   assert.strictEqual(read(repo, rel), owned);
 });
 
 test('init with plugin markdown agents → seeds Codex named-agent toml from them', () => {
   const repo = tmpRepo();
-  const res = init({
+  const res = withBouncerHome(() => init({
     repoRoot: repo,
     timestamp: '2026-07-01T00:00:00.000Z',
     seedCodexAgents: true,
-  });
-  const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  }));
+  const { GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
     'bouncer-context-reviewer', 'bouncer-coordinator',
@@ -826,7 +838,7 @@ test('init with plugin markdown agents → seeds Codex named-agent toml from the
 test('init with generated and user-owned Codex files → refreshes generated toml and leaves user-owned files', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
   const generated = '.codex/agents/bouncer-reviewer.toml';
   const owned = '.codex/agents/bouncer-implementer.toml';
   fs.writeFileSync(path.join(repo, generated), '# bouncer-generated\nstale = true\n');
@@ -841,9 +853,9 @@ test('init with generated and user-owned Codex files → refreshes generated tom
 test('ready init with missing Codex toml → seeds it without touching Distill reason', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
   fs.rmSync(path.join(repo, '.codex/agents'), { recursive: true, force: true });
-  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const again = withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
   assert.strictEqual(again.reason, 'codex-agents-seeded');
   assert.ok(again.created.includes('.codex/agents/bouncer-reviewer.toml'));
   assert.ok(!again.created.includes('.bouncer/Distill.md'));

@@ -7,15 +7,15 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { prepareFinalizeDigest } = require('../scripts/lib/finalize-digest');
-const { resolveTaskCommits } = require('../scripts/lib/task-commits');
-const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
-const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
-const { runCli } = require('../scripts/lib/cli');
-const digestModel = require('../scripts/lib/finalize-digest-model');
+const { prepareFinalizeDigest } = require('../packages/cli/dist/finalize-digest');
+const { resolveTaskCommits } = require('../packages/cli/dist/task-commits');
+const { writeCurrent, clearCurrent } = require('../packages/cli/dist/current');
+const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
+const { runCli } = require('../packages/cli/dist/cli');
+const digestModel = require('../packages/cli/dist/finalize-digest-model');
 
 test('finalize digest model runtime imports → stay within pure snapshot helpers', () => {
-  const modelPath = path.join(__dirname, '..', 'scripts', 'lib', 'finalize-digest-model');
+  const modelPath = path.join(__dirname, '..', 'packages', 'cli', 'dist', 'finalize-digest-model');
   const probe = [
     'const before = new Set(Object.keys(require.cache));',
     `require(${JSON.stringify(modelPath)});`,

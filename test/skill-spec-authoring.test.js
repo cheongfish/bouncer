@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 const { readSkill } = require('./helpers/read-skill');
 
 const refsRoot = path.join(__dirname, '..', 'references', 'spec-authoring');
@@ -36,8 +36,8 @@ test('spec-authoring Mermaid examples → keep each child zoom within its parent
 // rounds 예제는 validator 소스가 아니라 이 파일이 고정점이다. 스키마가 바뀌면
 // 예제가 먼저 깨지게 해서 작성자가 형식을 역산하지 않게 한다.
 test('spec-authoring review-rounds example → passes collectFindingFailures', () => {
-  const { collectFindingFailures } = require('../scripts/lib/validate-sections');
-  const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+  const { collectFindingFailures } = require('../packages/cli/dist/validate-sections');
+  const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
   const md = fs.readFileSync(refPath('review-rounds.md'), 'utf8');
   const { data, body } = parseFrontmatter(md);
   const review = data.bouncer.review;

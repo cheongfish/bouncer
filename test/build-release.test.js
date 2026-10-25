@@ -7,8 +7,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const yaml = require('js-yaml');
 
 const { buildReleaseTree } = require('../scripts/build-release');
+const { resolveSpawn } = require('../scripts/spawn-win');
 
 const root = path.join(__dirname, '..');
 const script = path.join(root, 'scripts', 'build-release.js');
@@ -66,10 +68,12 @@ function listRelFiles(dir) {
  * @returns {string[]} 정렬된 pack 상대 경로
  */
 function packPaths(cwd) {
-  const result = spawnSync(npm, ['pack', '--dry-run', '--json'], {
+  const call = resolveSpawn(npm, ['pack', '--dry-run', '--json']);
+  const result = spawnSync(call.command, call.args, {
     cwd,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
+    shell: call.shell,
   });
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
   return JSON.parse(result.stdout)[0].files.map((file) => file.path).sort();
@@ -102,7 +106,7 @@ fs.writeFileSync(path.join(__dirname, 'lib', 'a.js'), 'module.exports = 1;\\n');
 
 test('(a) fixture tree → matches npm pack list and includes gitignored lib/a.js', () => {
   const { pkg, out } = makeIgnoredLibFixture();
-  const result = buildReleaseTree({ root: pkg, outDir: out });
+  const result = buildReleaseTree({ root: pkg, outDir: out, deps: { checkVersions: () => {} } });
   assert.strictEqual(result.ok, true);
   assert.ok(fs.existsSync(path.join(out, 'lib', 'a.js')), 'lib/a.js missing from out tree');
   assert.deepStrictEqual(listRelFiles(out), packPaths(pkg));
@@ -129,6 +133,7 @@ test('(c) build status 1 → throws and does not create outDir', () => {
       root: pkg,
       outDir,
       deps: {
+        checkVersions: () => {},
         run: (_command, args) => {
           if (args[0] === 'run' && args[1] === 'build') {
             return { status: 1, stdout: '', stderr: 'build failed' };
@@ -142,57 +147,90 @@ test('(c) build status 1 → throws and does not create outDir', () => {
   assert.equal(fs.existsSync(outDir), false);
 });
 
-test('(d) real repo tree → matches pack list, ships lib, has no node_modules, --help exits 0', () => {
+test('(g) version check failure → skips build and leaves outDir absent', () => {
+  const { pkg } = makeIgnoredLibFixture();
+  const outDir = path.join(tmp('bouncer-release-versionfail-'), 'missing');
+  let buildCalls = 0;
+  assert.throws(
+    () => buildReleaseTree({
+      root: pkg,
+      outDir,
+      deps: {
+        checkVersions: () => { throw new Error('version drift'); },
+        run: (_command, args) => {
+          buildCalls += 1;
+          return {
+            status: 0,
+            stdout: args[0] === 'pack' ? '[{"files":[]}]' : '',
+            stderr: '',
+          };
+        },
+      },
+    }),
+    /version drift/,
+  );
+  assert.strictEqual(buildCalls, 0);
+  assert.strictEqual(fs.existsSync(outDir), false);
+});
+
+test('(d) real repo tree → matches the plugin pack and excludes runtime files', () => {
   const out = path.join(tmp('bouncer-release-repo-'), 'tree');
   const result = buildReleaseTree({ root, outDir: out });
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(listRelFiles(out), packPaths(root));
-  for (const rel of [
-    path.join('scripts', 'lib', 'cli.js'),
-    path.join('scripts', 'lib', 'commit-hook.js'),
-    path.join('scripts', 'lib', 'session-graph.js'),
-  ]) {
-    assert.ok(fs.existsSync(path.join(out, rel)), `missing ${rel}`);
-  }
+  assert.ok(fs.existsSync(path.join(out, 'agents', 'bouncer-coordinator.md')));
+  assert.equal(fs.existsSync(path.join(out, 'packages', 'cli')), false);
+  assert.equal(fs.existsSync(path.join(out, 'scripts', 'lib')), false);
   assert.equal(fs.existsSync(path.join(out, 'node_modules')), false);
-  const help = spawnSync(process.execPath, [path.join(out, 'scripts', 'bouncer'), '--help'], {
-    env: { ...process.env, BOUNCER_HOME: out },
-    encoding: 'utf8',
-  });
-  assert.strictEqual(help.status, 0, help.stderr || help.stdout);
 });
 
-test('(e) release.yml → declares tag and develop-only dispatch contracts', () => {
+test('(h) fixture tree → package.json keeps only identity fields', () => {
+  const { pkg, out } = makeIgnoredLibFixture();
+  buildReleaseTree({ root: pkg, outDir: out, deps: { checkVersions: () => {} } });
+  const shipped = JSON.parse(fs.readFileSync(path.join(out, 'package.json'), 'utf8'));
+  assert.deepStrictEqual(shipped, { name: 'bouncer-release-fixture', version: '0.0.0', private: true });
+});
+
+test('(i) shipped plugin documents → do not point at runtime source paths', () => {
+  // 아래 파일은 경로를 설명 예시로만 쓴다(리뷰 fingerprint, task 문서 예시, validator 거절 대상 문자열).
+  const examples = new Set([
+    'agents/bouncer-reviewer.md',
+    'references/review/index.md',
+    'references/coordinator-cards/review.md',
+    'references/coordinator-cards/final_review.md',
+    'references/spec-authoring/review-rounds.md',
+    'references/spec-authoring/tasks.md',
+    'rules/cli.md',
+  ]);
+  const internal = /scripts\/(?:lib|src)\/|packages\/cli/;
+  const offenders = [];
+  for (const dir of ['agents', 'rules', 'references', 'skills']) {
+    const base = path.join(root, dir);
+    for (const rel of listRelFiles(base)) {
+      const key = `${dir}/${rel}`;
+      if (!rel.endsWith('.md') || examples.has(key)) continue;
+      if (internal.test(fs.readFileSync(path.join(base, rel), 'utf8'))) offenders.push(key);
+    }
+  }
+  assert.deepStrictEqual(offenders, []);
+});
+
+test('(e) release.yml → manual dispatch cannot reach publishing', () => {
   const src = fs.readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8');
-  assert.match(src, /bouncer--v\*/);
-  assert.match(src, /workflow_dispatch/);
-  assert.match(src, /github\.ref == 'refs\/heads\/develop'/);
-  const ciAt = src.indexOf('npm run ci');
-  const buildAt = src.indexOf('build-release.js');
-  const fetchAt = src.indexOf('git fetch --no-tags origin release');
-  const commitAt = src.search(/git(?:\s+-C\s+\S+)?\s+commit\b/);
-  assert.ok(ciAt >= 0, 'npm run ci missing');
-  assert.ok(buildAt > ciAt, 'npm run ci must run before build-release.js');
-  assert.ok(fetchAt >= 0, 'git fetch --no-tags origin release missing');
-  assert.ok(commitAt > fetchAt, 'fetch must run before the commit step');
-  assert.match(src, /HEAD:refs\/heads\/release/);
-  assert.doesNotMatch(src, /--force/);
-  // Publish run: 안에 ${{ github.* }} 를 두면 태그 이름(bouncer--v*)의 셸
-  // 메타문자가 contents: write job 에 주입된다. env: 로 넘긴 뒤 셸이
-  // 확장해야 하고, 표현식은 run: 스크립트 밖에만 둔다.
-  const publishStart = src.indexOf('name: Publish release branch');
-  assert.ok(publishStart >= 0, 'Publish release branch step missing');
-  const publishTail = src.slice(publishStart);
-  const runMatch = publishTail.match(/\n[ \t]+run:\s*\|[ \t]*\n([\s\S]*)/);
-  assert.ok(runMatch, 'Publish run script missing');
-  const publishRun = runMatch[1];
-  assert.doesNotMatch(publishRun, /\$\{\{\s*github\./);
-  assert.match(publishTail.slice(0, runMatch.index), /\$\{\{\s*github\.ref_name\s*\}\}/);
-  assert.match(publishRun, /release: \$\{?[A-Z_][A-Z0-9_]*\}? \(\$\{?short_sha\}?\)/);
-});
-
-test('(f) install.md → documents clone -b release and develop workflow_dispatch', () => {
-  const src = fs.readFileSync(path.join(root, 'docs', 'install.md'), 'utf8');
-  assert.match(src, /git clone -b release/);
-  assert.match(src, /gh workflow run release.yml --ref develop/);
+  const workflow = yaml.load(src);
+  assert.deepStrictEqual(workflow.on, { push: { tags: ['bouncer--v*'] }, workflow_dispatch: null });
+  assert.ok(workflow.jobs.prepare, 'prepare job missing');
+  assert.ok(workflow.jobs.publish, 'tag publish job missing');
+  assert.equal([].concat(workflow.jobs.publish.needs)[0], 'prepare');
+  assert.match(workflow.jobs.publish.if, /github\.event_name == 'push'/);
+  assert.equal(workflow.jobs.prepare.permissions.contents, 'read');
+  assert.equal(workflow.jobs.publish.permissions.contents, 'write');
+  assert.equal(workflow.jobs.publish.permissions['id-token'], 'write');
+  assert.equal(workflow.concurrency.group, 'release');
+  assert.equal(workflow.concurrency['cancel-in-progress'], false);
+  const publishRun = workflow.jobs.publish.steps.map((step) => step.run || '').join('\n');
+  assert.ok(publishRun.includes('./package.json'), 'root_version must read the root package.json');
+  assert.equal(publishRun.includes('packages/cli/package.json'), false);
+  assert.ok(workflow.jobs.publish.steps.some((step) => step.uses === 'actions/download-artifact@v4'));
+  assert.ok(workflow.jobs.prepare.steps.some((step) => step.uses === 'actions/upload-artifact@v4'));
 });

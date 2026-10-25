@@ -16,13 +16,13 @@ const {
   checkGraphifyCompatibility,
   upgradeGraphify,
   GRAPHIFY_LOCK_REL,
-} = require('../scripts/lib/graphify');
+} = require('../packages/cli/dist/graphify');
 const {
   applyExcludeDirs,
   defaultExecGraphify,
   writeFilteredGraph,
-} = require('../scripts/lib/graph-exec');
-const { makeAllowed, makeFinalizeAllowed } = require('../scripts/lib/scope');
+} = require('../packages/cli/dist/graph-exec');
+const { makeAllowed, makeFinalizeAllowed } = require('../packages/cli/dist/scope');
 
 test('venvBinRel called for each platform → returns POSIX-relative paths', () => {
   assert.strictEqual(venvBinRel('win32'), '.bouncer/.venv/Scripts/graphify.exe');
@@ -166,6 +166,81 @@ test('setupGraphify when a later step fails → removes the venv directory it cr
   assert.strictEqual(created.length, 1);
   assert.ok(!fs.existsSync(created[0]));
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
+});
+
+test('setupGraphify on win32 without python → falls back to the py launcher for the venv', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-win-py-'));
+  const venvDir = path.join(repo, '.bouncer/.venv');
+  const calls = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'win32',
+    exec: (file, args) => {
+      calls.push({ file, args });
+      if (file === 'python') throw new Error('spawn python ENOENT');
+      return '';
+    },
+  });
+  assert.strictEqual(r.status, 'installed');
+  assert.deepStrictEqual(calls[0], { file: 'python', args: ['-m', 'venv', venvDir] });
+  assert.deepStrictEqual(calls[1], { file: 'py', args: ['-3', '-m', 'venv', venvDir] });
+  assert.strictEqual(calls[2].file, path.join(venvDir, 'Scripts/pip.exe'));
+  assert.ok(!calls.some((c) => c.file === 'python3'));
+});
+
+test('setupGraphify on win32 with python available → uses python and never tries python3', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-win-python-'));
+  const calls = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'win32',
+    exec: (file, args) => {
+      calls.push({ file, args });
+      return '';
+    },
+  });
+  assert.strictEqual(r.status, 'installed');
+  assert.strictEqual(calls[0].file, 'python');
+  assert.ok(!calls.some((c) => c.file === 'py' || c.file === 'python3'));
+});
+
+test('setupGraphify on win32 with no python at all → names every candidate and asks uv for python', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-win-none-'));
+  const calls = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'win32',
+    exec: (file, args) => {
+      calls.push({ file, args });
+      throw new Error('not found');
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.deepStrictEqual(calls.slice(0, 3).map((c) => [c.file, ...c.args.slice(0, 1)]), [
+    ['python', '-m'],
+    ['py', '-3'],
+    ['python3', '-m'],
+  ]);
+  assert.strictEqual(calls[3].file, 'uv.exe');
+  assert.strictEqual(calls[3].args[calls[3].args.indexOf('--python') + 1], 'python');
+  assert.match(r.reason, /tried: python, py -3, python3/);
+});
+
+test('checkGraphifyCompatibility on win32 → probes the python version with python', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-compat-win-'));
+  writeLock(repo);
+  const probe = fakeProbeExec();
+  const calls = [];
+  checkGraphifyCompatibility({
+    repoRoot: repo,
+    platform: 'win32',
+    exec: (file, args) => {
+      calls.push({ file, args });
+      return probe(file, args);
+    },
+  });
+  const versionProbes = calls.filter((c) => c.args && c.args[0] === '--version' && /python/.test(c.file));
+  assert.deepStrictEqual(versionProbes.map((c) => c.file), ['python']);
 });
 
 test('setupGraphify with a venv directory it did not create → does not remove it', () => {

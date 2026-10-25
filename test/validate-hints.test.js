@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { GATE_FAILURE_HINTS, withGateFailureHints } = require('../scripts/lib/validate');
+const { GATE_FAILURE_HINTS, withGateFailureHints } = require('../packages/cli/dist/validate');
 
 test('GATE_FAILURE_HINTS when code and match agree → attaches next only', () => {
   assert.ok(Array.isArray(GATE_FAILURE_HINTS));

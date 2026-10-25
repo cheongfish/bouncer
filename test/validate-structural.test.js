@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { validateBlueprint, checkStructural, loadBlueprintDocs } = require('../scripts/lib/validate');
+const { validateBlueprint, checkStructural, loadBlueprintDocs } = require('../packages/cli/dist/validate');
 const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -236,6 +236,19 @@ test('S13: bundle context index → lists a missing epic directory', () => {
   assert.ok(res.failures.some((f) => f.code === 'S13' && /missing epic/.test(f.message)));
 });
 
+test('S13: bundle context index template comment → its example link is not a listed epic', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const abs = path.join(repo, '.bouncer/context/index.md');
+  const comment = '<!-- 한 줄씩 추가합니다\n     * [00x 제목](epics/00x-slug/index.md) - 한 줄 설명 -->\n';
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('# Epics\n', `# Epics\n\n${comment}`));
+  const failures = require('../packages/cli/dist/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  assert.deepStrictEqual(failures, []);
+});
+
 test('S13: epic description → mismatch is reported as a summary mismatch', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
@@ -244,7 +257,7 @@ test('S13: epic description → mismatch is reported as a summary mismatch', () 
   writeBundleIndex(repo);
   const abs = path.join(repo, '.bouncer/context/index.md');
   fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('auth epic', 'stale summary'));
-  const failures = require('../scripts/lib/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  const failures = require('../packages/cli/dist/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
   assert.ok(failures.some((f) => f.code === 'S13' && /summary mismatch/.test(f.message)));
 });
 
@@ -255,10 +268,10 @@ test('S13: malformed or invalid epic frontmatter → reports the source error', 
   const epicPath = path.join(repo, '.bouncer/context/epics/001-auth/index.md');
   writeRaw(repo, '.bouncer/context/epics/001-auth/index.md', '# malformed\n');
   writeBundleIndex(repo);
-  let failures = require('../scripts/lib/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  let failures = require('../packages/cli/dist/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
   assert.ok(failures.some((f) => f.code === 'S13' && /frontmatter/i.test(f.message)));
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', { ...epicDoc(), description: '   ' });
-  failures = require('../scripts/lib/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  failures = require('../packages/cli/dist/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
   assert.ok(failures.some((f) => f.code === 'S13' && /description/i.test(f.message)));
   assert.ok(fs.existsSync(epicPath));
 });
@@ -301,7 +314,7 @@ test('S13: legacy-only tree → fails without a canonical epic present', () => {
       'EPIC-001-auth' +
       '/index.md) - auth\n',
   );
-  const { checkEpicIndexConsistency } = require('../scripts/lib/epic-index');
+  const { checkEpicIndexConsistency } = require('../packages/cli/dist/epic-index');
   const failures = checkEpicIndexConsistency({ repoRoot: repo });
   assert.ok(failures.some((f) => f.code === 'S13' && /legacy-prefixed epic directory/.test(f.message)));
   assert.ok(failures.some((f) => f.code === 'S13' && /legacy-prefixed epic link/.test(f.message)));

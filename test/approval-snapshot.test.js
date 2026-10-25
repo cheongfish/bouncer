@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const { computeApprovalDigest } = require('../scripts/lib/approval-snapshot');
+const { computeApprovalDigest } = require('../packages/cli/dist/approval-snapshot');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 

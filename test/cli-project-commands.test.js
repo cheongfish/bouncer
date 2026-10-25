@@ -5,9 +5,12 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
 const { execFileSync, spawnSync } = require('node:child_process');
 
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 const { FEATURE_AREAS, loadedAreas, assertAreaKnown } = require('./helpers/feature-areas');
 const repoRoot = path.join(__dirname, '..');
 
@@ -34,7 +37,7 @@ function probeIntentCache(source) {
 // 속하는지는 여기서 고르지 않고 `feature-areas` 표가 판정한다 — 파일 이름이 바뀌어도 표 한 곳만 고친다.
 const INTENT_CACHE_FILTER = `
   var keys = Object.keys(require.cache)
-    .filter((p) => p.includes(require('path').join('scripts', 'lib') + require('path').sep))
+    .filter((p) => p.includes(require('path').join('packages', 'cli', 'dist') + require('path').sep))
     .map((p) => require('path').basename(p))
     .sort();
 `;
@@ -54,24 +57,33 @@ function capture(argv) {
   return { code, ...buf };
 }
 
+function withBouncerHome(fn) {
+  const previous = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = path.join(__dirname, '..');
+  try { return fn(); } finally {
+    if (previous === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = previous;
+  }
+}
+
 test('tracked active sources → contain no retired Distill public surface', () => {
   // 과거 context 기록은 계약 대상이 아니다. 추적된 실행·배포 source와 예제 설정만
   // 검사해, 역사 문서의 언급 때문에 재도입 방지 검사가 흔들리지 않게 한다.
   const retired = ['d', 'istill'].join('');
   const tracked = execFileSync('git', [
     'ls-files', '--',
-    'scripts/src/lib/layout.ts',
-    'scripts/lib/layout.js',
-    'scripts/src/lib/config.ts',
-    'scripts/lib/config.js',
-    'scripts/src/lib/cli-project-commands.ts',
-    'scripts/lib/cli-project-commands.js',
-    'scripts/src/lib/cli.ts',
-    'scripts/lib/cli.js',
-    'scripts/src/lib/validate-structural.ts',
-    'scripts/lib/validate-structural.js',
-    'scripts/src/lib/validate.ts',
-    'scripts/lib/validate.js',
+    'packages/cli/src/layout.ts',
+    'packages/cli/dist/layout.js',
+    'packages/cli/src/config.ts',
+    'packages/cli/dist/config.js',
+    'packages/cli/src/cli-project-commands.ts',
+    'packages/cli/dist/cli-project-commands.js',
+    'packages/cli/src/cli.ts',
+    'packages/cli/dist/cli.js',
+    'packages/cli/src/validate-structural.ts',
+    'packages/cli/dist/validate-structural.js',
+    'packages/cli/src/validate.ts',
+    'packages/cli/dist/validate.js',
     'config.example.json',
   ], { cwd: path.join(__dirname, '..'), encoding: 'utf8' })
     .trim()
@@ -159,6 +171,15 @@ test('graph-sync with an incompatible version → records version-incompatible w
   assert.strictEqual(payload.status, 'version-incompatible');
   assert.strictEqual(payload.action, 'skip-version-incompatible');
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
+});
+
+test('graph-sync → JSON carries a warnings array', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-sync-warnings-'));
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/workflow.md'), '# custom\n');
+  const payload = JSON.parse(capture(['graph-sync', '--repo', repo]).out);
+  assert.ok(Array.isArray(payload.warnings));
+  assert.ok(payload.warnings.length > 0);
 });
 
 function intentGit(repo, args, extraEnv = {}) {
@@ -334,10 +355,10 @@ test('CLI require, help, and a non-intent command → leave intent modules out o
   // symbol-index가 여기에 있으면 정적 import 회귀다.
   const cold = probeIntentCache(`
     'use strict';
-    require('./scripts/lib/cli');
+    require('./packages/cli/dist/cli');
     ${INTENT_CACHE_FILTER}
     const afterRequire = keys.slice();
-    const { runCli } = require('./scripts/lib/cli');
+    const { runCli } = require('./packages/cli/dist/cli');
     const sink = { out() {}, err() {} };
     runCli(['help'], sink);
     ${INTENT_CACHE_FILTER}
@@ -358,7 +379,7 @@ test('CLI require, help, and a non-intent command → leave intent modules out o
 test('help and unknown commands → load no feature areas', () => {
   for (const args of [['help'], ['--help'], ['-h'], ['nope'], ['toString']]) {
     const result = probeIntentCache(`
-      const { runCli } = require('./scripts/lib/cli');
+      const { runCli } = require('./packages/cli/dist/cli');
       runCli(${JSON.stringify(args)}, { out() {}, err() {} });
       ${INTENT_CACHE_FILTER}
       process.stdout.write(JSON.stringify({ keys }));
@@ -369,7 +390,7 @@ test('help and unknown commands → load no feature areas', () => {
 
 test('project-root → loads no feature areas', () => {
   const result = probeIntentCache(`
-    const { runCli } = require('./scripts/lib/cli');
+    const { runCli } = require('./packages/cli/dist/cli');
     runCli(['project-root'], { out() {}, err() {} });
     ${INTENT_CACHE_FILTER}
     process.stdout.write(JSON.stringify({ keys }));
@@ -379,7 +400,7 @@ test('project-root → loads no feature areas', () => {
 
 test('graphify-bin → avoids execution, verification, and delivery areas', () => {
   const result = probeIntentCache(`
-    const { runCli } = require('./scripts/lib/cli');
+    const { runCli } = require('./packages/cli/dist/cli');
     runCli(['graphify-bin'], { out() {}, err() {} });
     ${INTENT_CACHE_FILTER}
     process.stdout.write(JSON.stringify({ keys }));
@@ -394,7 +415,7 @@ test('graphify-bin → avoids execution, verification, and delivery areas', () =
 test('commit dispatch → loads delivery without execution modules', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-commit-lazy-'));
   const result = probeIntentCache(`
-    const { runCli } = require('./scripts/lib/cli');
+    const { runCli } = require('./packages/cli/dist/cli');
     runCli(['commit', '--repo', ${JSON.stringify(repo)}], { out() {}, err() {} });
     ${INTENT_CACHE_FILTER}
     process.stdout.write(JSON.stringify({ keys }));
@@ -406,7 +427,7 @@ test('commit dispatch → loads delivery without execution modules', () => {
 
 test('requiring cli-usage alone → loads only cli-usage', () => {
   const result = probeIntentCache(`
-    require('./scripts/lib/cli-usage');
+    require('./packages/cli/dist/cli-usage');
     ${INTENT_CACHE_FILTER}
     process.stdout.write(JSON.stringify({ keys }));
   `);
@@ -417,8 +438,8 @@ test('child process that requires intent-bundle first → loadedAreas reports th
   // 영역 판정 유효성: 의도 모듈이 실제로 적재되면 위 지연 로딩 단언이 실패해야 한다.
   const loaded = probeIntentCache(`
     'use strict';
-    require('./scripts/lib/intent-bundle');
-    require('./scripts/lib/cli');
+    require('./packages/cli/dist/intent-bundle');
+    require('./packages/cli/dist/cli');
     ${INTENT_CACHE_FILTER}
     process.stdout.write(JSON.stringify({ keys, code: null, out: '', err: '' }));
   `);
@@ -441,7 +462,7 @@ test('valid intent dispatch → loads dedicated command and provenance modules o
 
   const warm = probeIntentCache(`
     'use strict';
-    const { runCli } = require('./scripts/lib/cli');
+    const { runCli } = require('./packages/cli/dist/cli');
     let out = '';
     let err = '';
     const code = runCli(
@@ -473,7 +494,7 @@ test('rejected intent argv → exits 2 without loading provenance or symbol-inde
   ]) {
     const rejected = probeIntentCache(`
       'use strict';
-      const { runCli } = require('./scripts/lib/cli');
+      const { runCli } = require('./packages/cli/dist/cli');
       let out = '';
       let err = '';
       const code = runCli(
@@ -575,7 +596,7 @@ function seedIntentBundleRepo(bodyLine = 1) {
 }
 
 function intentBundleRecordPath(repo, taskFile) {
-  const { intentBundlePathFor } = require('../scripts/lib/runtime-state');
+  const { intentBundlePathFor } = require('../packages/cli/dist/runtime-state');
   const located = intentBundlePathFor({
     repoRoot: repo,
     taskRel: taskFile,
@@ -895,7 +916,7 @@ test('intent bundle ambiguous recovery with a secondary resolver throw → maps 
       }
       return origLoad.apply(this, arguments);
     };
-    const { runCli } = require('./scripts/lib/cli');
+    const { runCli } = require('./packages/cli/dist/cli');
     let out = '';
     let err = '';
     let code = 0;
@@ -933,7 +954,7 @@ test('rejected intent bundle argv → exits 2 without loading resolver modules',
   ]) {
     const rejected = probeIntentCache(`
       'use strict';
-      const { runCli } = require('./scripts/lib/cli');
+      const { runCli } = require('./packages/cli/dist/cli');
       let out = '';
       let err = '';
       const code = runCli(
@@ -956,7 +977,7 @@ test('valid intent bundle dispatch → loads bundle and provenance modules', () 
   const { repo, taskFile } = seedIntentBundleRepo();
   const warm = probeIntentCache(`
     'use strict';
-    const { runCli } = require('./scripts/lib/cli');
+    const { runCli } = require('./packages/cli/dist/cli');
     let out = '';
     let err = '';
     const code = runCli(
@@ -1458,10 +1479,9 @@ test('subagent-model without --agent or with an unknown name → exits 2', () =>
 
 test('codex-agents check when in sync → reports in_sync JSON and does not write', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-check-'));
-  assert.strictEqual(
-    capture(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents']).code,
-    0,
-  );
+  assert.strictEqual(withBouncerHome(() => capture([
+    'init', '--repo', repo, '--no-graphify', '--seed-codex-agents',
+  ])).code, 0);
   const rel = '.codex/agents/bouncer-implementer.toml';
   const before = fs.readFileSync(path.join(repo, rel));
   const result = capture([

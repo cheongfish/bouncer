@@ -269,7 +269,10 @@ same mutation argv right away.
    `rework`, `scope_revision`, or `task_change`, follow the `card` so runtime
    supplies the increased `attempt` and `payload.report`. After handling the
    stop, call `advance` again; on mismatch re-run `coordinate status` and
-   continue from that checkpoint.
+   continue from that checkpoint. `advance` does not re-run verify for a
+   reworked attempt: when its commit stops on stale verify evidence (`G23`),
+   run `bouncer verify --blueprint <dir>` from that worker cwd, then call
+   `advance` again.
 4. **Integrate** — `advance` already auto-runs `integrate` and
    `verification_node` when those are next — do not re-execute that argv by
    hand. Do not assemble fence or lease flags; wave fan-in already omits

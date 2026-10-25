@@ -5,10 +5,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync: realExec } = require('node:child_process');
-const { planImport, applyImport } = require('../scripts/lib/import-history');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { validateBlueprint } = require('../scripts/lib/validate');
-const { runCli } = require('../scripts/lib/cli');
+const { planImport, applyImport } = require('../packages/cli/dist/import-history');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
+const { runCli } = require('../packages/cli/dist/cli');
 
 const US = '\x1f';
 const LOG_FORMAT = '%H%x1f%s%x1f%aI%x1f%an';
@@ -697,7 +697,7 @@ test('planImport on a v2 registry without epicId → plans a slug epic with uniq
   assert.strictEqual(plan.ok, true);
   assert.strictEqual(plan.epicId, 'imported-history');
   assert.strictEqual(plan.epicDir, '.bouncer/context/epics/imported-history');
-  const { validateSlug } = require('../scripts/lib/context-ids');
+  const { validateSlug } = require('../packages/cli/dist/context-ids');
   const dirs = plan.entries.map((e) => e.blueprintDir);
   assert.strictEqual(new Set(dirs).size, dirs.length);
   for (const entry of plan.entries) {

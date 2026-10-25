@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const { migrateTaskLayout } = require('../scripts/lib/migrate-task-layout');
+const { migrateTaskLayout } = require('../packages/cli/dist/migrate-task-layout');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -142,7 +142,7 @@ test('a destination that already exists → aborts before any move', () => {
 });
 
 test('the active pointer → follows its task document, and other blueprints do not', () => {
-  const { writeCurrent, readCurrent } = require('../scripts/lib/current');
+  const { writeCurrent, readCurrent } = require('../packages/cli/dist/current');
   const { execFileSync } = require('node:child_process');
   const gitInit = (dir) => execFileSync('git', ['init', '--quiet'], { cwd: dir });
   const repoRoot = fixture();

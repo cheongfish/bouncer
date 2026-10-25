@@ -5,12 +5,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { createGitTemplate } = require('./helpers/git-fixture');
-const { planLegacyEpicMerge, migrateMergeLegacyEpics } = require('../scripts/lib/migrate-merge-legacy-epics');
-const { runCli } = require('../scripts/lib/cli');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { readEpicRegistry } = require('../scripts/lib/epic-registry');
-const { resolveTaskCommits } = require('../scripts/lib/task-commits');
-const { scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+const { planLegacyEpicMerge, migrateMergeLegacyEpics } = require('../packages/cli/dist/migrate-merge-legacy-epics');
+const { runCli } = require('../packages/cli/dist/cli');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { readEpicRegistry } = require('../packages/cli/dist/epic-registry');
+const { resolveTaskCommits } = require('../packages/cli/dist/task-commits');
+const { scaffoldEpic, scaffoldBlueprint } = require('../packages/cli/dist/scaffold');
 
 const EPICS = '.bouncer/context/epics';
 
@@ -231,7 +231,7 @@ function buildFixture(repo, { unresolvedRow = false } = {}) {
     const rel = `${EPICS}/${epic}/blueprints/${name}/tasks/001/tasks.md`;
     const doc = readDoc(path.join(repo, rel));
     doc.data.bouncer.affected_paths = ['scripts/src/lib/example.ts'];
-    fs.writeFileSync(path.join(repo, rel), require('../scripts/lib/render').renderDoc(doc.data, doc.body));
+    fs.writeFileSync(path.join(repo, rel), require('../packages/cli/dist/render').renderDoc(doc.data, doc.body));
   };
   bp('a', 'x', 1);
   bp('a', 'y', 2);

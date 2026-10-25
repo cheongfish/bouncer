@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const ids = require('../scripts/lib/context-ids');
+const ids = require('../packages/cli/dist/context-ids');
 
 const REGISTRY = {
   version: 2,

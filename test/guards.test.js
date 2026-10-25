@@ -9,7 +9,7 @@ const {
   isEnoentError,
   isFsCode,
   isSkippableFsError,
-} = require('../scripts/lib/guards');
+} = require('../packages/cli/dist/guards');
 
 test('isRecord with arrays, null and primitives → rejects them', () => {
   assert.strictEqual(isRecord({}), true);

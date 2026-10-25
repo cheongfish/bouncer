@@ -4,9 +4,9 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { CONTEXT_ROOT, scaffoldEpic: scaffoldEpicImpl, scaffoldBlueprint, scaffoldTask } = require('../scripts/lib/scaffold');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { runCli } = require('../scripts/lib/cli');
+const { CONTEXT_ROOT, scaffoldEpic: scaffoldEpicImpl, scaffoldBlueprint, scaffoldTask } = require('../packages/cli/dist/scaffold');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { runCli } = require('../packages/cli/dist/cli');
 const { writeEpicRegistry } = require('./helpers/epic-registry');
 
 const TS = '2026-07-01T00:00:00+09:00';
@@ -441,7 +441,7 @@ test('scaffold epic CLI with malformed existing frontmatter → rejects it witho
 });
 
 test('scaffoldExplain for finalize → creates explain.md once with empty comprehension', () => {
-  const { scaffoldExplain } = require('../scripts/lib/scaffold');
+  const { scaffoldExplain } = require('../packages/cli/dist/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -470,7 +470,7 @@ test('scaffoldExplain for finalize → creates explain.md once with empty compre
 });
 
 test('scaffoldContextReview with an existing file → refuses overwrite and leaves the file unchanged', () => {
-  const { scaffoldContextReview } = require('../scripts/lib/scaffold');
+  const { scaffoldContextReview } = require('../packages/cli/dist/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -487,7 +487,7 @@ test('scaffoldContextReview with an existing file → refuses overwrite and leav
 });
 
 test('scaffoldContextReview on a closed blueprint → refuses without writing the file', () => {
-  const { scaffoldContextReview } = require('../scripts/lib/scaffold');
+  const { scaffoldContextReview } = require('../packages/cli/dist/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -612,7 +612,7 @@ test('scaffoldBlueprint with a legacy-prefixed epic dir → rejects it', () => {
 // --- scale: light / full 분기 ---
 // full은 회귀 방지가 목적이다: 파일 목록과 본문이 템플릿과 바이트 단위로 같아야
 // light 분기가 기존 경로를 건드리지 않았음이 증명된다.
-const { templateBody } = require('../scripts/lib/templates');
+const { templateBody } = require('../packages/cli/dist/templates');
 
 function scaffoldWith(repo, scale) {
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -713,7 +713,7 @@ test('light task bodies → carry only the three gated sections', () => {
 });
 
 test('full tasks template → includes behavior sections and a symbol Touch table', () => {
-  const { TEMPLATES } = require('../scripts/lib/templates');
+  const { TEMPLATES } = require('../packages/cli/dist/templates');
   assert.match(TEMPLATES['tasks.md'], /^## Current behavior$/m);
   assert.match(TEMPLATES['tasks.md'], /^## Target behavior$/m);
   assert.match(
@@ -776,7 +776,7 @@ test('bouncer scaffold blueprint --scale light → exits 0 with five created pat
 
 // 허용값 안내는 reference가 정본이다. 템플릿은 finding 자리표시와 주석 부재만 남긴다.
 test('review templates → document rounds; only execute review documents deferred', () => {
-  const { TEMPLATES } = require('../scripts/lib/templates');
+  const { TEMPLATES } = require('../packages/cli/dist/templates');
   const open = '<' + '!--';
   assert.match(TEMPLATES['review.md'], /^- <finding>$/m);
   assert.match(TEMPLATES['context-review.md'], /^- <finding>$/m);
@@ -835,7 +835,7 @@ test('scaffoldTask for a verification node → explicitly creates it without rev
   assert.deepStrictEqual(created, [
     `${base}/tasks/002/tasks.md`, `${base}/tasks/002/verification.md`,
   ]);
-  const { listTasksDocs } = require('../scripts/lib/tasks-docs');
+  const { listTasksDocs } = require('../packages/cli/dist/tasks-docs');
   const entry = listTasksDocs({ repoRoot: repo, blueprintDir: base }).entries[1];
   assert.strictEqual(entry.executionKind, 'verification');
   assert.strictEqual(entry.review, undefined);
@@ -847,14 +847,14 @@ test('scaffoldTask for a verification node → explicitly creates it without rev
   assert.strictEqual(data.dependency_gate, 'integrated');
   assert.strictEqual(data.verify, 'node --test');
   assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/002/review.md`)), false);
-  const { loadBlueprintDocs } = require('../scripts/lib/validate');
+  const { loadBlueprintDocs } = require('../packages/cli/dist/validate');
   const loaded = loadBlueprintDocs({ repoRoot: repo, blueprintDir: base });
   assert.strictEqual(loaded.docs.taskUnits[1].review, undefined);
   assert.notStrictEqual(
     loaded.docs.taskUnits[1].verification,
     loaded.docs.taskUnits[1].review,
   );
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const validation = validateBlueprint({ repoRoot: repo, blueprintDir: base });
   assert.ok(
     !validation.failures.some((failure) => (
@@ -863,7 +863,7 @@ test('scaffoldTask for a verification node → explicitly creates it without rev
     JSON.stringify(validation.failures, null, 2),
   );
   const body = readDoc(path.join(repo, entry.tasks.rel)).body;
-  const { parseTasksSections, extractPathCandidates } = require('../scripts/lib/validate-sections');
+  const { parseTasksSections, extractPathCandidates } = require('../packages/cli/dist/validate-sections');
   const sections = parseTasksSections(body);
   assert.strictEqual(sections.touch.trim(), 'Source 변경 경로 없음.');
   assert.deepStrictEqual(extractPathCandidates(sections.touch), []);
@@ -993,7 +993,7 @@ test('new full and light blueprints → record review_contract brief after verif
 });
 
 test('new light blueprint plus a terminal verification task → plan gate sees no verification topology failure', () => {
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(repo, 'light');
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -1017,7 +1017,7 @@ test('new light blueprint plus a terminal verification task → plan gate sees n
 });
 
 test('new blueprint whose implementation task has no verify command → plan gate rejects it with G20', () => {
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(repo, undefined);
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -1034,7 +1034,7 @@ test('new blueprint whose implementation task has no verify command → plan gat
 });
 
 test('legacy blueprint without verification_policy → plan gate raises no G20 for a command-less task', () => {
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldWith(repo, undefined);
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -1188,7 +1188,7 @@ test('scaffoldBlueprint under a slug epic → writes slug ids and order in every
 test('scaffoldBlueprint under a slug epic → the new documents pass the structural check', () => {
   const repo = slugEpicRepo();
   scaffoldBlueprint({ repoRoot: repo, epicDir: SLUG_EPIC_DIR, order: 1, name: 'registry-gates', timestamp: TS });
-  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { validateBlueprint } = require('../packages/cli/dist/validate');
   const result = validateBlueprint({ repoRoot: repo, blueprintDir: `${SLUG_EPIC_DIR}/blueprints/registry-gates` });
   // 새로 scaffold한 tasks.md는 affected_paths가 비어 있어 S7이 나는 것이 정상(작성 전 자리표시)이다.
   assert.deepStrictEqual(result.failures.filter((f) => f.code !== 'S7'), []);

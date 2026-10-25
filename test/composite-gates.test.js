@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   COMPOSITE_GATES, compositeGateForCode, compositeGateForReason, compositeGateLabel, summarizeCompositeGates,
-} = require('../scripts/lib/composite-gates');
+} = require('../packages/cli/dist/composite-gates');
 
 test('COMPOSITE_GATES when read → seven gates cover every live G-code and boundary reason once', () => {
   assert.deepStrictEqual(COMPOSITE_GATES.map((g) => g.gate), [
@@ -29,7 +29,7 @@ test('COMPOSITE_GATES when read → seven gates cover every live G-code and boun
   assert.ok(Object.isFrozen(COMPOSITE_GATES));
   assert.strictEqual(compositeGateLabel('verification-evidence'), '검증 증적');
   // 소스의 G-code 리터럴이 모두 표에 있다: 새 G-code가 생기면 표 누락으로 실패한다
-  const srcDir = path.join(__dirname, '..', 'scripts', 'src', 'lib');
+  const srcDir = path.join(__dirname, '..', 'packages', 'cli', 'src');
   const sourceCodes = new Set(fs.readdirSync(srcDir)
     .filter((f) => /^validate-gates.*\.ts$/.test(f))
     .flatMap((f) => [...fs.readFileSync(path.join(srcDir, f), 'utf8').matchAll(/'(G\d+)'/g)].map((m) => m[1])));

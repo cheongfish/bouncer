@@ -7,14 +7,14 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
+const { runCli } = require('../packages/cli/dist/cli');
 const {
   classifyPlanReview,
   classifyExecuteReview,
   EXECUTE_SMALL_MAX_FILES,
   EXECUTE_SMALL_MAX_LINES,
-} = require('../scripts/lib/review-dispatch');
-const { validateBlueprint } = require('../scripts/lib/validate');
+} = require('../packages/cli/dist/review-dispatch');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
 const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
@@ -327,8 +327,8 @@ test('size constants → are exported from one module', () => {
 });
 
 test('snapshot contract → exposes the same pure digest helpers without I/O dependencies', () => {
-  const contractPath = require.resolve('../scripts/lib/plan-snapshot-contract');
-  const compatibility = require('../scripts/lib/plan-snapshot');
+  const contractPath = require.resolve('../packages/cli/dist/plan-snapshot-contract');
+  const compatibility = require('../packages/cli/dist/plan-snapshot');
   const Module = require('node:module');
   const originalLoad = Module._load;
   const blocked = new Set([
@@ -797,7 +797,7 @@ test('plan with four commit tasks → returns single combined', () => {
 });
 
 test('context-review template → guides new categories combined local global', () => {
-  const { LEGACY_SCAFFOLD_COMMENT_BODIES } = require('../scripts/lib/templates');
+  const { LEGACY_SCAFFOLD_COMMENT_BODIES } = require('../packages/cli/dist/templates');
   const guide = LEGACY_SCAFFOLD_COMMENT_BODIES.find((body) => body.includes('optional bouncer.context_review.rounds[]'));
   assert.ok(guide);
   assert.ok(guide.includes('category: combined | local | global | consistency | scope_minimality'));
@@ -1262,7 +1262,7 @@ test('review_contract brief on a light blueprint without a task → execute disc
 });
 
 // 사용법 거절은 분류기 모듈을 적재하지 않는다. 테스트 파일이 이미 require했으므로 먼저 캐시에서 지운다.
-const REVIEW_DISPATCH_PATH = require.resolve('../scripts/lib/review-dispatch');
+const REVIEW_DISPATCH_PATH = require.resolve('../packages/cli/dist/review-dispatch');
 function captureWithoutClassifier(argv) {
   delete require.cache[REVIEW_DISPATCH_PATH];
   const run = capture(argv);
@@ -2047,7 +2047,7 @@ test('plan with status, title and timestamp edits only → keeps the digest and 
 });
 
 test('plan with a document boundary shift → changes the digest', () => {
-  const { digestPlanContent } = require('../scripts/lib/plan-snapshot');
+  const { digestPlanContent } = require('../packages/cli/dist/plan-snapshot');
   const doc = (body) => ({ body, structure: {} });
   const joined = digestPlanContent(['a', 'b'], { a: doc('x'), b: doc('yz') });
   const shifted = digestPlanContent(['a', 'b'], { a: doc('xy'), b: doc('z') });
@@ -2084,7 +2084,7 @@ for (const [label, mutate] of [
       editTaskBouncer(repo, '001', mutate);
       // execution_kind를 바꾸면 draft 검사가 Interface 절 등을 따로 요구할 수 있어 gate 통과 여부와 무관하게
       // 구조 digest만 비교한다: 분류기가 실패하면 구조 입력을 직접 계산한다.
-      const { computePlanParts } = require('../scripts/lib/plan-snapshot');
+      const { computePlanParts } = require('../packages/cli/dist/plan-snapshot');
       const parts = computePlanParts({ repoRoot: repo, blueprintDir: BP_REL });
       assert.notStrictEqual(parts.structure_parts[TASK_001_REL], before.structure_parts[TASK_001_REL]);
       assert.strictEqual(parts.parts[TASK_001_REL], before.parts[TASK_001_REL]);
@@ -2310,7 +2310,7 @@ function countingReadIndex(real) {
   return { readIndex, files };
 }
 
-const readDocForTest = require('../scripts/lib/frontmatter').readDoc;
+const readDocForTest = require('../packages/cli/dist/frontmatter').readDoc;
 
 test('plan with a legacy full blueprint → reads the blueprint index exactly once', () => {
   const repo = makeRepo();

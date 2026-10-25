@@ -5,7 +5,7 @@ only defines the draft-PR choices and their consequences below.
 
 ACQ `finalize.pr` before push or `gh pr create`: A) draft PR (recommended when remote and `gh` work), B) local only, C) cancel outward steps but continue cleanup. Decline skips push/PR. With no remote or no `gh`, skip gracefully after local finalize without PR ACQ. On acceptance, render title and body from the prepare digest kept through `--yes`, then push and create a draft without a further confirmation; push/create failures report their reason without re-asking.
 
-Use `.bouncer/config.json` `pr.draft` with `scripts/lib/templates.js` (`pr.md`).
+Use `.bouncer/config.json` `pr.draft` with the runtime's built-in `pr.md` template.
 PR base comes from the prepare digest (`pr.base`), not from re-reading config.
 Do not pass `pr.labels` or any `--label` flag — leftover `pr.labels` in an
 existing config is ignored without error and never attached. Title and push

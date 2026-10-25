@@ -5,9 +5,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
-const { runCli } = require('../scripts/lib/cli');
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
+const { runCli } = require('../packages/cli/dist/cli');
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -93,7 +93,7 @@ test('verify with a configured command → executes it and records evidence', ()
   assert.strictEqual(verification.data.bouncer.verification.scope.kind, 'task');
   assert.strictEqual(verification.data.bouncer.verification.scope.key, 'EPIC-001/BP-001/TASK-001');
   assert.strictEqual(verification.data.bouncer.verification.evidence_id, payload.evidenceId);
-  const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
+  const { verifyLedgerPathFor } = require('../packages/cli/dist/runtime-state');
   const rel = `${BP_REL}/tasks/001/verification.md`;
   const paths = verifyLedgerPathFor({
     repoRoot: repo, verificationRel: rel, evidenceId: payload.evidenceId,
@@ -107,7 +107,7 @@ test('verify with a configured command → executes it and records evidence', ()
 });
 
 test('execute gate with a ready pointer commit task → promotes it and passes once', () => {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   const repo = setupRepo();
   const tasksPath = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
   fs.writeFileSync(
@@ -153,7 +153,7 @@ test('execute gate when verification fails → records failure and returns a gat
 });
 
 test('verify with a pointer task-dir unit → records evidence into it', () => {
-  const { writeCurrent } = require('../scripts/lib/current');
+  const { writeCurrent } = require('../packages/cli/dist/current');
   const { execFileSync } = require('node:child_process');
   const repo = setupRepo('node -e "process.exit(0)"');
   // 묶음 001은 그대로 두고, 새 묶음 002만 포인터로 지목한다.

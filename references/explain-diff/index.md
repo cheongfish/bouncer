@@ -91,13 +91,11 @@ status published. Not a workflow entry point.
 
 4. **Compute `diff_sha`.** Prefer digest `range.diff_sha` when it is a
    non-null string. Only if the digest left it null, pass the entry's
-   `range_from` as `base` to `computeDiffSha`. Run from the **execute worktree
+   `range_from` as `--base`. Run from the **execute worktree
    root** (`cwd` = that worktree):
 
    ```bash
-   node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
-   console.log(JSON.stringify(computeDiffSha({ repoRoot: process.cwd(), base: process.argv[2] })));' \
-     "$(bouncer project-root)" <range_from>
+   bouncer finalize diff-sha --base <range_from>
    ```
 
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent
@@ -140,10 +138,10 @@ copied. The section is optional and its absence does not make G16 fail.
 
 ## Guardrails
 
-- Prefer the finalize prepare digest and existing `computeDiffSha` API. Do not
-  invent a quiz engine or HTML UI.
-- Do not edit `scripts/lib/comprehension` or gate logic; call the existing API
-  (or reuse digest `range.diff_sha`).
+- Prefer the finalize prepare digest and its `range.diff_sha`. Do not invent a
+  quiz engine or HTML UI.
+- Do not edit the runtime's comprehension or gate logic; record through
+  `bouncer finalize comprehension` (or reuse digest `range.diff_sha`).
 - Do not block finalize on a wrong answer. G16 checks the record and hash match
   for the blueprint entry, not the grade. An unanswered quiz still aborts the
   caller.

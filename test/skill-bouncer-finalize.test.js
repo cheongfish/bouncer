@@ -26,7 +26,7 @@ function loadDocs() {
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'),
     'utf8',
   );
-  const { PR_TEMPLATE } = require('../scripts/lib/templates');
+  const { PR_TEMPLATE } = require('../packages/cli/dist/templates');
   const githubTpl = fs.readFileSync(path.join(root, '.github', 'pull_request_template.md'), 'utf8');
   const gitlabTpl = fs.readFileSync(
     path.join(root, '.gitlab', 'merge_request_templates', 'Default.md'),

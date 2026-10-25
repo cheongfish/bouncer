@@ -30,12 +30,12 @@
 | --- | --- | --- |
 | `bouncer` 래퍼 | `scripts/bouncer:81` | `./lib/cli` |
 | `bouncer-root` 래퍼 | `scripts/bouncer-root:27` | `./lib/bouncer-root` |
-| commit 훅 | `hooks/commit-safety.js:6`, `hooks/cursor-commit-safety.js:9` | `lib/commit-hook` |
-| 세션 그래프 훅 | `hooks/session-graph.js:8` | `lib/session-graph` |
+| commit 훅 | `hooks/commit-safety.js`, `hooks/cursor-commit-safety.js` | `bouncer` CLI(`commit-guard`), `hooks/runtime-cli.js` 경유 |
+| 세션 그래프 훅 | `hooks/session-graph.js` | `bouncer` CLI(`graph-sync`), `hooks/runtime-cli.js` 경유 |
 | `package.json` `bin` | `bouncer`→`scripts/bouncer`, `bouncer-root`→`scripts/bouncer-root` | 위 두 래퍼 |
 | 매니페스트 | `plugin.json`과 호스트 매니페스트 | `scripts/lib` 참조 없음 |
 
-훅은 상대 `require`를 쓰고, stale-build 검사는 두 bin 래퍼만 한다.
+훅은 `scripts/lib`를 `require`하지 않고 공개 `bouncer` CLI를 spawn하며, stale-build 검사는 두 bin 래퍼만 한다.
 
 ### 내부 helper export
 

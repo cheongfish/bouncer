@@ -6,9 +6,9 @@ const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
 const { execFileSync } = require('node:child_process');
-const { runCli } = require('../scripts/lib/cli');
-const { readCurrent, writeCurrent } = require('../scripts/lib/current');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
+const { runCli } = require('../packages/cli/dist/cli');
+const { readCurrent, writeCurrent } = require('../packages/cli/dist/current');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
 const { registerFixtureEpic } = require('./helpers/epic-registry');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -636,7 +636,7 @@ test('--replace 없이 같은 blueprint를 current --set 하면 → task와 base
 });
 
 test('current usage → parallel --set과 CURRENT_AMBIGUOUS --replace를 설명한다', () => {
-  const { current } = require('../scripts/lib/cli-current-command');
+  const { current } = require('../packages/cli/dist/cli-current-command');
   assert.match(current.usage, /parallel key/);
   assert.match(current.usage, /CURRENT_AMBIGUOUS/);
   assert.doesNotMatch(current.usage, /omitted, a conflict exits 2/);

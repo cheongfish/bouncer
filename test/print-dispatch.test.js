@@ -6,7 +6,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { runCli } = require('../scripts/lib/cli');
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
+
+const { runCli } = require('../packages/cli/dist/cli');
 
 const WORKER_IDENTITY =
   "You are the dispatched bouncer-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.";
@@ -98,7 +101,7 @@ process.exit(${printExit});
 }
 
 function runPrint(tree, extra = {}) {
-  const printDispatch = require('../scripts/lib/print-dispatch');
+  const printDispatch = require('../packages/cli/dist/print-dispatch');
   return printDispatch.runPrintDispatch({
     repoRoot: tree.root,
     role: extra.role || 'reviewer',
@@ -423,7 +426,7 @@ test('context-reviewer prompt → uses the worker identity line, role body, and 
 });
 
 test('coordinator prompt with a buildCoordinatorInput file → carries it verbatim at the end', () => {
-  const { buildCoordinatorInput } = require('../scripts/lib/coordinator-input');
+  const { buildCoordinatorInput } = require('../packages/cli/dist/coordinator-input');
   const tree = makeTree();
   try {
     const text = buildCoordinatorInput({
@@ -449,5 +452,104 @@ test('coordinator prompt with a buildCoordinatorInput file → carries it verbat
     assert.match(text, /read-only provenance: \/w\/main/);
   } finally {
     fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});
+
+/**
+ * `readCandidate`를 통과하는 임시 플러그인 루트: 필수 자산 여섯 개, scripts/bouncer, plugin.json,
+ * 그리고 본문이 FIXTURE-AGENT인 reviewer 역할 문서.
+ *
+ * @returns {string} 임시 플러그인 루트
+ */
+function makeFixturePluginRoot() {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-print-asset-root-')));
+  for (const dir of ['agents', 'skills', 'rules', 'references', 'hooks', 'scripts']) {
+    fs.mkdirSync(path.join(root, dir));
+  }
+  fs.writeFileSync(path.join(root, 'AGENTS.md'), '# fixture\n');
+  fs.writeFileSync(path.join(root, 'scripts', 'bouncer'), '');
+  fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: require('../packages/cli/package.json').version }));
+  writeRole(path.join(root, 'agents'), 'reviewer', 'FIXTURE-AGENT\n');
+  return root;
+}
+
+/**
+ * 테스트 동안만 BOUNCER_HOME을 바꾸고 끝나면 원래 값으로 되돌린다.
+ *
+ * @param {string} value - BOUNCER_HOME 값
+ * @param {() => void} fn - 본문
+ */
+function withBouncerHome(value, fn) {
+  const saved = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = value;
+  try {
+    fn();
+  } finally {
+    if (saved === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = saved;
+  }
+}
+
+/** deps.agentsDir 없이 실행해 기본 자산 루트 해석 경로를 탄다. */
+function runPrintWithDefaultAssets(tree) {
+  const printDispatch = require('../packages/cli/dist/print-dispatch');
+  return printDispatch.runPrintDispatch({
+    repoRoot: tree.root,
+    role: 'reviewer',
+    cwd: tree.cwd,
+    inputFile: tree.inputFile,
+    outDir: tree.outDir,
+    deps: { agentBin: tree.agentBin },
+  });
+}
+
+test('agentsDir seam absent with a valid BOUNCER_HOME → prompt uses that plugin root and role body', () => {
+  const tree = makeTree();
+  const pluginRoot = makeFixturePluginRoot();
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const result = runPrintWithDefaultAssets(tree);
+      assert.equal(result.ok, true);
+      const prompt = fs.readFileSync(path.join(tree.outDir, 'bouncer-reviewer.prompt.md'), 'utf8');
+      assert.ok(prompt.includes(ROOT_LINE(pluginRoot)));
+      assert.ok(prompt.includes('FIXTURE-AGENT'));
+    });
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
+  }
+});
+
+test('agentsDir seam absent with an invalid BOUNCER_HOME → is plugin-root-unresolved', () => {
+  const tree = makeTree();
+  try {
+    withBouncerHome(path.join(tree.root, 'does-not-exist'), () => {
+      const result = runPrintWithDefaultAssets(tree);
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'plugin-root-unresolved');
+      assert.equal(result.cause, 'BOUNCER_HOME is not a valid Bouncer plugin root');
+      assert.equal(result.next, 'set BOUNCER_HOME to the plugin install and retry');
+    });
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});
+
+test('agentsDir seam absent with a plugin version mismatch → keeps print failure and recovery message', () => {
+  const tree = makeTree();
+  const pluginRoot = makeFixturePluginRoot();
+  fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '1.5.0' }));
+  try {
+    withBouncerHome(pluginRoot, () => {
+      const result = runPrintWithDefaultAssets(tree);
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'plugin-root-unresolved');
+      assert.match(result.cause, /1\.5\.0/);
+      assert.match(result.cause, new RegExp(require('../packages/cli/package.json').version.replaceAll('.', '\\.')));
+      assert.equal(result.next, 'set BOUNCER_HOME to the plugin install and retry');
+    });
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+    fs.rmSync(pluginRoot, { recursive: true, force: true });
   }
 });

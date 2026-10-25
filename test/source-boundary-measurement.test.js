@@ -23,27 +23,27 @@ test('LF counting → handles CRLF, missing final LF, and empty files', () => {
 
 test('inventory → distinguishes top-level and recursive sources and deduplicates requires', () => {
   const files = [
-    { path: 'scripts/src/lib/a.ts', content: 'a\nb\n' },
-    { path: 'scripts/src/lib/nested/b.ts', content: 'c' },
-    { path: 'test/a.test.js', content: "require('../scripts/lib/a'); require('../scripts/lib/a');" },
+    { path: 'packages/cli/src/a.ts', content: 'a\nb\n' },
+    { path: 'packages/cli/src/nested/b.ts', content: 'c' },
+    { path: 'test/a.test.js', content: "require('../packages/cli/dist/a'); require('../packages/cli/dist/a');" },
   ];
   assert.deepEqual(summarizeInventory(files), {
     topLevel: { files: 1, lines: 2 }, recursive: { files: 2, lines: 2 },
     test: { files: 1, lines: 0 }, directRequireFiles: 1, directRequireTargets: ['a'],
   });
-  assert.deepEqual(directRequires("require('../scripts/lib/a'); require('../scripts/lib/a'); require('../scripts/lib/b');"), ['a', 'b']);
+  assert.deepEqual(directRequires("require('../packages/cli/dist/a'); require('../packages/cli/dist/a'); require('../packages/cli/dist/b');"), ['a', 'b']);
 });
 
 test('subprocess fixture → measures LF bytes and unique require targets from a checkout', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boundary-inventory-'));
   try {
-    fs.mkdirSync(path.join(dir, 'scripts/src/lib/nested'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'packages/cli/src/nested'), { recursive: true });
     fs.mkdirSync(path.join(dir, 'test'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'scripts/src/lib/a.ts'), Buffer.from('a\r\nb\r\n'));
-    fs.writeFileSync(path.join(dir, 'scripts/src/lib/nested/b.ts'), 'c');
-    fs.writeFileSync(path.join(dir, 'test/a.test.js'), "require('../scripts/lib/a'); require('../scripts/lib/a');");
+    fs.writeFileSync(path.join(dir, 'packages/cli/src/a.ts'), Buffer.from('a\r\nb\r\n'));
+    fs.writeFileSync(path.join(dir, 'packages/cli/src/nested/b.ts'), 'c');
+    fs.writeFileSync(path.join(dir, 'test/a.test.js'), "require('../packages/cli/dist/a'); require('../packages/cli/dist/a');");
     const modulePath = path.resolve(__dirname, '../scripts/measure-source-boundaries.js');
-    const code = `const fs=require('node:fs'); const p=require('node:path'); const m=require(${JSON.stringify(modulePath)}); const files=['scripts/src/lib/a.ts','scripts/src/lib/nested/b.ts','test/a.test.js'].map(path=>({path,content:fs.readFileSync(p.join(process.cwd(),path))})); process.stdout.write(JSON.stringify(m.summarizeInventory(files)));`;
+    const code = `const fs=require('node:fs'); const p=require('node:path'); const m=require(${JSON.stringify(modulePath)}); const files=['packages/cli/src/a.ts','packages/cli/src/nested/b.ts','test/a.test.js'].map(path=>({path,content:fs.readFileSync(p.join(process.cwd(),path))})); process.stdout.write(JSON.stringify(m.summarizeInventory(files)));`;
     const measured = runProbe(process.execPath, ['-e', code], dir);
     assert.deepEqual(measured, {
       topLevel: { files: 1, lines: 2 }, recursive: { files: 2, lines: 2 },
@@ -57,7 +57,7 @@ test('subprocess fixture → measures LF bytes and unique require targets from a
 test('test argv → uses sorted suite and shared coverage thresholds', () => {
   assert.deepEqual(buildTestArgv(['z.test.js', 'a.test.js'], false), ['--test', 'test/a.test.js', 'test/z.test.js']);
   assert.deepEqual(buildTestArgv(['b.test.js', 'a.test.js'], true), [
-    '--experimental-test-coverage', '--test-coverage-include=scripts/lib/**',
+    '--experimental-test-coverage', '--test-coverage-include=packages/cli/dist/**',
     '--test-coverage-lines=94', '--test-coverage-branches=82',
     '--test-coverage-functions=96', '--test-reporter=tap', '--test',
     'test/a.test.js', 'test/b.test.js',
@@ -103,8 +103,8 @@ test('comparison report → accepts matching snapshots and rejects altered measu
   assert.equal(compareReport(report), true);
   assert.throws(() => compareReport({ ...report, after: { ...report.after, definition: { suite: 'other' } } }));
   const md = [
-    '| scripts/src/lib/*.ts 모듈 수 | 2 | 2 | measured |',
-    '| scripts/src/lib/*.ts 합계 줄 수 | 30 | 30 | measured |',
+    '| packages/cli/src/*.ts 모듈 수 | 2 | 2 | measured |',
+    '| packages/cli/src/*.ts 합계 줄 수 | 30 | 30 | measured |',
     '| test/*.test.js 파일 수 | 4 | 4 | measured |',
     '| test/*.test.js 합계 줄 수 | 50 | 50 | measured |',
     '| coverage lines | 95% | 95% | measured |',

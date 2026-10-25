@@ -10,19 +10,31 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+// 설치된 plugin 캐시가 없는 환경(CI)에서도 이 checkout을 plugin root로 쓴다. 불일치 시나리오는 각 테스트가 직접 덮어쓴다.
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
 const { execFileSync } = require('node:child_process');
-const __coordinatorMod = require('../scripts/lib/coordinator');
+const __coordinatorMod = require('../packages/cli/dist/coordinator');
 const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
-const { loadLedger } = require('../scripts/lib/coordinator-ledger');
+const { loadLedger } = require('../packages/cli/dist/coordinator-ledger');
 const { coordinate } = require('./helpers/coordinator-fence');
 
-const { readDoc } = require('../scripts/lib/frontmatter');
-const { renderDoc } = require('../scripts/lib/render');
-const { validateBlueprint } = require('../scripts/lib/validate');
-const { finalize } = require('../scripts/lib/finalize');
-const { readCoordinatorLedger, reviseTaskScope } = require('../scripts/lib/scope');
-const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
-const { writeCurrent, resolveEffectiveTask } = require('../scripts/lib/current');
+function withBouncerHome(fn) {
+  const previous = process.env.BOUNCER_HOME;
+  process.env.BOUNCER_HOME = path.join(__dirname, '..');
+  try { return fn(); } finally {
+    if (previous === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = previous;
+  }
+}
+
+const { readDoc } = require('../packages/cli/dist/frontmatter');
+const { renderDoc } = require('../packages/cli/dist/render');
+const { validateBlueprint } = require('../packages/cli/dist/validate');
+const { finalize } = require('../packages/cli/dist/finalize');
+const { readCoordinatorLedger, reviseTaskScope } = require('../packages/cli/dist/scope');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
+const { writeCurrent, resolveEffectiveTask } = require('../packages/cli/dist/current');
 
 function git(cwd, args) {
   return execFileSync('git', args, {
@@ -713,7 +725,7 @@ test('repair task를 integrate함 → 증적 문서가 허용되어 integrated·
 });
 
 test('drive finalize 뒤 finalize release-main → main이 plan conflict 없이 integration branch를 merge함', () => {
-  const { releaseMain } = require('../scripts/lib/finalize-release-main');
+  const { releaseMain } = require('../packages/cli/dist/finalize-release-main');
   const epic = '.bouncer/context/epics/014-release';
   const blueprint = `${epic}/blueprints/004-drive`;
   const epicIndex = `${epic}/index.md`;
@@ -1289,9 +1301,9 @@ test('legacy blueprint without the marker → fan-in still runs the wave verific
 });
 
 test('scoped_terminal light drive → 구현 하나 통합까지 runner 0회, 종단 node에서 1회 뒤 done', () => {
-  const { recordReview } = require('../scripts/lib/review-record');
-  const { captureReviewSnapshot } = require('../scripts/lib/review-snapshot');
-  const { coordinateNext } = require('../scripts/lib/coordinate-next');
+  const { recordReview } = require('../packages/cli/dist/review-record');
+  const { captureReviewSnapshot } = require('../packages/cli/dist/review-snapshot');
+  const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
   const { repo, blueprint, terminalId } = makeScopedRepo('093', { light: true });
   const calls = [];
   const runVerification = (opts) => {
@@ -1392,8 +1404,8 @@ test('scoped_terminal light bootstrap → 구현 둘이거나 종단이 없으�
 });
 
 test('light single-task drive → worker worktree 없이 integration에서 prepare부터 done까지 진행됨', () => {
-  const { recordReview } = require('../scripts/lib/review-record');
-  const { coordinateNext } = require('../scripts/lib/coordinate-next');
+  const { recordReview } = require('../packages/cli/dist/review-record');
+  const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
   const epic = '.bouncer/context/epics/089-e2e';
   const blueprint = `${epic}/blueprints/001-light`;
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
@@ -1429,18 +1441,18 @@ test('light single-task drive → worker worktree 없이 integration에서 prepa
   assert.strictEqual(prepared.tasks[0].workerPath, integrationPath);
   assert.strictEqual(fs.existsSync(path.join(integrationPath, '..', 'workers')), false);
 
-  const implement = coordinateNext({
+  const implement = withBouncerHome(() => coordinateNext({
     repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
-  });
+  }));
   assert.strictEqual(implement.ok, true, JSON.stringify(implement));
   // dispatch 전이면 dispatch가 먼저다 — dispatch 후 implement inline을 본다.
   const dispatched = coordinate({
     command: 'dispatch', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
-  const inline = coordinateNext({
+  const inline = withBouncerHome(() => coordinateNext({
     repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
-  });
+  }));
   assert.strictEqual(inline.action, 'implement');
   assert.strictEqual(inline.payload.inline, true);
   assert.strictEqual(inline.cwd, integrationPath);
@@ -1451,7 +1463,7 @@ test('light single-task drive → worker worktree 없이 integration에서 prepa
 
   // 라운드는 실제로 동결한 상태에 묶여야 기록된다. 라운드 입력은 저장소 밖에 써서
   // 파일 자체가 작업 트리 변경(stale)이 되지 않게 한다.
-  const { captureReviewSnapshot } = require('../scripts/lib/review-snapshot');
+  const { captureReviewSnapshot } = require('../packages/cli/dist/review-snapshot');
   const baseSha = git(integrationPath, ['rev-parse', `${sha}~1`]);
   const frozen = captureReviewSnapshot({
     repoRoot: integrationPath, blueprintDir: blueprint, taskId: null, base: baseSha, head: sha,
@@ -1675,7 +1687,7 @@ test('terminal CI failure resumed past an integrated middle task → middle stay
 test('terminal CI failure classified outside_scope → next proceeds to done and finalize reports the failure without calling it verified', () => {
   const drive = terminalFailedE2eDrive('017');
   const { repo, blueprint, integrationPath } = drive;
-  const { coordinateNext } = require('../scripts/lib/coordinate-next');
+  const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
   const nextOf = () => coordinateNext({ repoRoot: repo, blueprint, cwd: integrationPath });
   // 분류 전에는 막힌다.
   assert.strictEqual(nextOf().reason, 'terminal-verification-failed');
@@ -1736,7 +1748,7 @@ test('커밋 전 accepted report가 거절됨 → coordinate advance가 task com
   process.chdir(integration);
   let advanced;
   try {
-    advanced = require('../scripts/lib/coordinate-advance').advance({
+    advanced = require('../packages/cli/dist/coordinate-advance').advance({
       repoRoot: repo, blueprint, task: '001',
       deps: {
         // next·advance는 실제 코드다. 외부 프로세스인 `bouncer commit`만 대신한다 — 실제 명령은

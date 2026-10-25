@@ -1,0 +1,33 @@
+{
+  "name": "@cheongfish/bouncer",
+  "version": "0.1.10",
+  "license": "Apache-2.0",
+  "description": "Deterministic runtime for the Bouncer plugin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cheongfish/bouncer.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "vendor/",
+    "resources/",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "bouncer": "bin/bouncer",
+    "bouncer-root": "bin/bouncer-root"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node bin/build-stamp.js --write",
+    "prepack": "npm run build"
+  }
+}
