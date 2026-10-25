@@ -88,6 +88,14 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 `bouncer current --set`은 `--base`가 없으면 `config.base_branch`를 쓰고,
 그 키가 없으면 현재 체크아웃 브랜치를 씁니다.
 
+### 드라이브 토큰·시간 보고
+
+`bouncer metrics`는 드라이브 중 세션별 토큰과 시간을 항상 `.bouncer/runtime/drive-metrics.json`
+(gitignore)에 기록합니다. 마감 보고에 그 표를 보일지는 설정 파일이 아니라 환경 변수가 정합니다.
+`BOUNCER_METRICS_REPORT=1`인 셸에서만 `bouncer metrics summary`가 `report: true`를 내고
+`/bouncer-run`·`/bouncer-finalize`가 표를 사용자에게 보고합니다. 변수가 없으면 `report: false`이고
+토큰·시간·비용 수치를 출력하지 않습니다. 비용 계산에는 위 `metrics.pricing`이 필요합니다.
+
 ## verify 래퍼 패턴
 
 `verify`는 **단일 실행 문자열**입니다. 런타임은 인용·공백을 보존한 argv로

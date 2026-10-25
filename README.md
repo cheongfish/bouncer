@@ -35,6 +35,16 @@ plugin 설치는 runtime을 설치하지 않습니다. 두 버전이 다르면 `
 plugin 자산을 읽기 전에 중단합니다. 같은 버전을 설치하거나
 `BOUNCER_HOME`을 그 runtime 버전과 일치하는 plugin root로 지정하세요.
 
+### 구조
+
+| 배포물 | 담는 것 | 배포 위치 |
+| --- | --- | --- |
+| runtime | `bouncer`·`bouncer-root` CLI (게이트, 검증, worktree, 마감) | npm `@cheongfish/bouncer` |
+| plugin | skills, rules, subagents, hooks, `AGENTS.md` | 이 저장소의 `release` 브랜치 |
+
+소스는 `packages/cli/`(runtime)와 저장소 루트의 plugin 자산으로 나뉩니다. plugin에는
+CLI 소스가 들어가지 않고, skill과 hook은 PATH의 공개 `bouncer` CLI만 호출합니다.
+
 ## Quickstart
 
 ```
@@ -78,7 +88,8 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 
 ## Requirements
 
-- Node.js 24에서 검증 (런타임은 표준 라이브러리 + 벤더링된 `js-yaml`)
+- Node.js 24 이상 (`engines`). 런타임은 표준 라이브러리와 벤더링된 `js-yaml`만 씁니다.
+- Git
 - Claude Code, Cursor, Codex, 또는 Antigravity
 - (선택) `gh`: finalize 시 draft PR 생성
 
@@ -86,7 +97,7 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 
 문서는 독자에 따라 두 곳에 있습니다. 목차는 [docs/README.md](docs/README.md)입니다.
 
-- **[`docs/`](docs/)** — 사람용. 설치, 워크플로, 설정.
+- **[`docs/`](docs/)** — 사람용. 설치, 워크플로, 설정, 릴리스([releasing.md](docs/releasing.md)).
 - **[`rules/`](rules/)** — 에이전트 런타임 정본. 스킬과 `AGENTS.md`가 인용하므로,
   고치면 에이전트 행동이 바뀝니다.
 
