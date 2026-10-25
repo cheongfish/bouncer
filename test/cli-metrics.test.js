@@ -948,3 +948,23 @@ test('metrics snapshot의 --blueprint 누락·모르는 플래그 → 각각 exi
   assert.deepStrictEqual(cli(repo, 'metrics', 'snapshot').json, { ok: false, reason: 'invalid-metrics-input' });
   assert.strictEqual(cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT, '--tokens', '1').code, 2);
 });
+
+test('metrics summary의 report → BOUNCER_METRICS_REPORT=1일 때만 true다', () => {
+  const repo = tmp();
+  require('node:child_process').execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const run = (env) => {
+    const saved = process.env.BOUNCER_METRICS_REPORT;
+    if (env === undefined) delete process.env.BOUNCER_METRICS_REPORT;
+    else process.env.BOUNCER_METRICS_REPORT = env;
+    try {
+      const buf = { out: '' };
+      const io = { out: (s) => { buf.out += s; }, err: () => {} };
+      assert.strictEqual(runCli(['metrics', 'summary', '--blueprint', BLUEPRINT, '--repo', repo], io), 0);
+      return JSON.parse(buf.out).report;
+    } finally {
+      if (saved === undefined) delete process.env.BOUNCER_METRICS_REPORT;
+      else process.env.BOUNCER_METRICS_REPORT = saved;
+    }
+  };
+  assert.deepStrictEqual([run(undefined), run('0'), run('1')], [false, false, true]);
+});

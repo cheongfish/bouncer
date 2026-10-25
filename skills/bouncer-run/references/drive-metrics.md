@@ -72,8 +72,10 @@ with the root's whole-session host usage, which also covers the work outside the
 
 ## Closing report
 
-Before the terminal report, run `bouncer metrics summary --blueprint <dir>` and report one table
-that puts the coordinator and each worker role side by side:
+Before the terminal report, run `bouncer metrics summary --blueprint <dir>`. Recording always
+happens; only the display is gated. Report the table below only when the result has `report: true`
+(the user set `BOUNCER_METRICS_REPORT=1`); with `report: false` print no token, time, or cost figure.
+The table puts the coordinator and each worker role side by side:
 
 | Row | Source | Tokens | Missing |
 | --- | --- | --- | --- |

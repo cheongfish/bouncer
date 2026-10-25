@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **드라이브 토큰·시간 표를 환경 변수로 켜도록 변경** — `bouncer metrics summary`가 `report` 필드를 내고,
+  `BOUNCER_METRICS_REPORT=1`일 때만 run·finalize가 표를 사용자에게 보고한다. 기록은 항상 남는다.
+
 ## [1.6.1] — 2026-10-24
 
 ### Fixed

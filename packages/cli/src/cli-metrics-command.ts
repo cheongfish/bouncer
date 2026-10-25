@@ -36,7 +36,7 @@ const FLAGS: Record<string, string[]> = {
   snapshot: ['blueprint', 'repo'],
 };
 
-function emit(io: CliIo, result: { ok: boolean; reason?: string }): number {
+function emit(io: CliIo, result: { ok: boolean; reason?: string; report?: boolean }): number {
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }
@@ -91,10 +91,13 @@ function cmdMetrics(rest: string[], io: CliIo): number {
 
   if (sub === 'summary') {
     if (str('blueprint') === undefined) return emit(io, invalid);
-    return emit(io, driveMetrics.summarize({
+    // `report`는 사용자에게 토큰·시간 표를 보일지 정하는 신호다. 기록은 항상 남기고, 표시만
+    // 벤치마크 셸이 BOUNCER_METRICS_REPORT=1로 켠다. skill 문서는 같고 이 출력만 달라진다.
+    const summary = driveMetrics.summarize({
       file, blueprint: str('blueprint') as string, resolveLedger: ledgerFor,
       commonGitDir: main.commonGitDir ?? null,
-    }));
+    });
+    return emit(io, summary.ok ? { ...summary, report: process.env.BOUNCER_METRICS_REPORT === '1' } : summary);
   }
 
   if (sub === 'snapshot') {

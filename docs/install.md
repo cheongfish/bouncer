@@ -50,6 +50,9 @@ PowerShell에서는 `node_modules/.bin/bouncer.cmd` shim을 사용하거나 개�
 `packages/cli/bin/bouncer`를 `node`로 직접 실행합니다. plugin hook은 PATH의
 `bouncer` 또는 명시된 절대 `BOUNCER_BIN`을 호출합니다.
 
+드라이브의 토큰·시간 표는 기본으로 보고하지 않습니다(기록은 항상 남습니다). 벤치마크처럼
+보고가 필요한 셸에서만 `BOUNCER_METRICS_REPORT=1`을 지정하세요.
+
 ```bash
 npm install --save-dev "@cheongfish/bouncer@$BOUNCER_VERSION"
 export PATH="$PWD/node_modules/.bin:$PATH"
