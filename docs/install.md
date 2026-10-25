@@ -14,7 +14,7 @@ Bouncer는 npm으로 설치하는 CLI runtime과 호스트가 설치하는 plugi
 Bash:
 
 ```bash
-BOUNCER_VERSION=1.6.1
+BOUNCER_VERSION=0.1.10
 npm view "@cheongfish/bouncer@$BOUNCER_VERSION" version
 npm install --global "@cheongfish/bouncer@$BOUNCER_VERSION"
 command -v bouncer
@@ -25,7 +25,7 @@ bouncer --help
 PowerShell:
 
 ```powershell
-$BouncerVersion = '1.6.1'
+$BouncerVersion = '0.1.10'
 npm view "@cheongfish/bouncer@$BouncerVersion" version
 npm install --global "@cheongfish/bouncer@$BouncerVersion"
 Get-Command bouncer
@@ -116,7 +116,7 @@ runtime이 없으면 plugin만으로 CLI 명령은 실행되지 않습니다. np
    ```
 
 3. 정확한 version의 태그가 없고 최종 검증 HEAD를 가리키는지 확인합니다. 예를
-   들어 version이 `1.6.0`이면 태그는 `bouncer--v1.6.0`입니다. 다른 commit을
+   들어 version이 `0.1.10`이면 태그는 `bouncer--v0.1.10`입니다. 다른 commit을
    가리키는 기존 태그가 있으면 중단합니다.
 4. 별도 운영 승인을 받은 뒤에만 최종 HEAD에 정확한 annotated tag를 만들고
    push합니다. workflow가 태그, root version, runtime pack, plugin tree의

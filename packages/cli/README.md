@@ -8,7 +8,7 @@ runtime과 같은 version이어야 합니다.
 선택하세요.
 
 ```bash
-npm install --global @cheongfish/bouncer@1.6.1
+npm install --global @cheongfish/bouncer@0.1.10
 ```
 
 프로젝트 local 설치도 지원합니다. 일반 터미널은 `node_modules/.bin`의 shim을
@@ -18,7 +18,7 @@ PATH에 추가할 수 있지만, plugin hook이 호스트 PATH를 상속하지 �
 runtime을 다시 설치해야 shim이 생성됩니다.
 
 ```bash
-npm install --save-dev @cheongfish/bouncer@1.6.1
+npm install --save-dev @cheongfish/bouncer@0.1.10
 ```
 
 PowerShell은 local 설치의 `node_modules/.bin/bouncer.cmd`를, 전역 설치는 PATH에

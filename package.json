@@ -1,6 +1,6 @@
 {
   "name": "bouncer",
-  "version": "1.6.1",
+  "version": "0.1.10",
   "private": true,
   "license": "Apache-2.0",
   "files": [

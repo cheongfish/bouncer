@@ -10,7 +10,7 @@
     {
       "name": "bouncer",
       "source": "./",
-      "version": "1.6.1",
+      "version": "0.1.10",
       "description": "Spec-driven development workflow for parallel task execution and verified integration.",
       "category": "workflow",
       "tags": [

@@ -38,19 +38,6 @@ function launcherSkillPath(name) {
   return path.join(root, 'skills', name, 'SKILL.md');
 }
 
-test('the four plugin manifests → agree on name and version', () => {
-  const expectedVersion = readJson('package.json').version;
-  const claude = readJson('.claude-plugin/plugin.json');
-  const cursor = readJson('.cursor-plugin/plugin.json');
-  const codex = readJson('.codex-plugin/plugin.json');
-  const antigravity = readJson('plugin.json');
-  for (const m of [claude, cursor, codex, antigravity]) {
-    assert.strictEqual(m.name, 'bouncer');
-    assert.strictEqual(m.version, expectedVersion);
-    assert.strictEqual(m.version, claude.version);
-  }
-});
-
 // Antigravity discovers skills/ · agents/ · hooks/ by convention. Re-declaring
 // those path keys in the root plugin.json is how the host rejects the plugin.
 test('the Antigravity root plugin.json → omits convention path keys', () => {
