@@ -9,7 +9,9 @@
 
 - 각 단계 직전에 진행 상황을 한 문장으로 알린다.
 - 성공에는 **outcome**, 변경 대상, 검증 결과, 다음 행동만 표시한다.
-- 실패에는 실패 **code**, 원인, 관련 경로, 복구 행동을 모두 표시한다.
+- 실패에는 원인, 관련 경로, 복구 행동을 모두 표시한다. 복합 gate가 있는 실패는 복합 gate 이름,
+  원인, 대상(`targets`), 복구 행동 1개(`next`) 순서로 쓰고 G-code나 reason은 `세부:`로 뒤에 붙인다.
+  복합 gate가 없는 실패(S 코드, 매핑하지 않은 reason)는 실패 **code**를 앞에 쓴다.
 - 일반 파일·항목 목록은 처음 8개만 표시하고, 나머지는 `… 외 N개`로 요약한다.
   승인, 실패, 위반 목록에는 이 제한을 적용하지 않는다.
 - raw JSON, raw CLI payload, 전체 stdout 및 전체 검증 출력은 표시하지 않는다.
@@ -20,7 +22,13 @@
 
 ### compact 실패 예시
 
-`실패 G7: 검증 명령이 종료 코드 1로 끝남 · 관련 경로: test/skill-output-contract.test.js · 복구: 실패한 테스트를 수정한 뒤 execute gate를 다시 실행`
+복합 gate가 있는 실패:
+
+`실패 검증 증적: 검증 명령이 종료 코드 1로 끝남 · 대상: …/tasks/001/verification.md · 복구: 실패한 테스트를 수정한 뒤 execute gate를 다시 실행 · 세부: G7`
+
+복합 gate가 없는 실패:
+
+`실패 S10: blueprintDir must be under .bouncer/context/epics · 관련 경로: <blueprintDir> · 복구: blueprint를 .bouncer/context/epics 아래 정본 경로로 옮긴 뒤 gate를 다시 실행`
 
 ## coordinator 실행
 
@@ -45,7 +53,7 @@
 
 `진행: 003 · integrated · bouncer-implementer · scope r2 개정(src/session/ 추가)`
 
-`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: /bouncer-finalize (.worktrees/001/001/integration)`
+`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: /bouncer-finalize (.worktrees/login/signup/integration)`
 
 SHA를 쓸 때는 출처를 접두로 붙인다: worker 브랜치 커밋은 `worker <branch>@<sha8>`, integration 커밋은 `integration <sha8>`. 둘은 `Bouncer-Worker-Commit` trailer로 연결되며 같은 SHA가 아니다.
 

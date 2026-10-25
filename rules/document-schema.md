@@ -63,6 +63,19 @@ task's acceptance criteria, not prose such as "run tests." Blueprint
 merely to make an implementation easier to fit. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
+Blueprint `bouncer.area` and `bouncer.attribution` are optional: `area` names the
+registry area the blueprint belongs to (a lowercase slug such as `ordering`) and
+`attribution` is one line saying why. `bouncer scaffold blueprint --area <a>
+--attribution <text>` writes them before `supersedes`. A present value of the
+wrong shape (non-string or non-slug `area`; non-string, blank, or multi-line
+`attribution`) is S36; absence passes, and the registry lookup is not a
+structural check.
+A blueprint in a slug-format directory carries `bouncer.order`, a positive
+integer unique within its epic (`bouncer scaffold blueprint --order <n>`).
+A missing or invalid `order`, a duplicate `order`, a path that mixes number and
+slug segments or breaks the slug rule (lowercase kebab-case, at most 40
+characters, not digits only, no three-digit prefix), and a copied document that
+reuses a sibling's id are S37. Numbered-format blueprints are not checked by S37.
 Graphify query candidates, `grep` results, and `bouncer intent` results are advisory input; do
 not store them in frontmatter. No code reads leftover `bouncer.scope_evidence`
 or `bouncer.graph` on older task documents.
@@ -84,6 +97,36 @@ display and default sort order — not execution authority.
   `bouncer.verify`, and exactly one `verification` task (the mandatory terminal
   node) must depend, directly or transitively, on every commit task. An unknown
   value is rejected by the plan gate (G20).
+
+- Blueprint `bouncer.review_contract` is optional; `brief` is the only value and
+  absence means legacy. A `brief` blueprint's task-less final review uses the
+  brief-compliance perspectives (`spec_scope`, `correctness_tests`, plus
+  `security` only for `authentication`/`authorization`/`credential` risk) and
+  accepts a task-less `--mode delta`. New full blueprints are scaffolded with it;
+  a light blueprint may carry it too, and then its plan review is the single
+  `verifiability` perspective (`planReviewContractOf` reads the marker without
+  looking at `scale`; full plan review runs `consistency`, `scope_minimality`,
+  `verifiability`, `risk_security`). `reviewContractOf`, the run-side reader,
+  returns `'legacy'` for every light blueprint, so a marked light run is
+  reviewed like an unmarked light one. S38 checks the value only: any value
+  other than `brief`, or use without `review_scope: blueprint`, is S38.
+
+- Blueprint `bouncer.prerequisites` is optional: an array of
+  `{blueprint, merged_commit}`. `blueprint` is the canonical repository-relative
+  blueprint directory; `merged_commit` is the 40-char lowercase SHA of the
+  commit that actually merged that blueprint (for squash or rebase merges, the
+  resulting merge commit, not the original worker SHA). Absent or `[]` means no
+  prerequisites and existing plans are unchanged. S39 checks shape only: array
+  and entry form, canonical path, SHA form, duplicate blueprints, and
+  self-reference. `plan approve` also refuses an S39 format error with
+  `plan-approve-prerequisite` before writing anything. The read-only helper `plan-prerequisites` reports missing
+  blueprints, cycles, and whether `git merge-base --is-ancestor <merged_commit>
+  HEAD` holds for the current checkout (non-ancestor is unmerged; other Git
+  failures are lookup errors, never a pass). Plan approval refuses an unmerged
+  or missing prerequisite, and the plan draft check and plan gate report the
+  same finding as `G32`. Nothing infers a prerequisite from document text or
+  file names; the brief explains why the declared SHA and path evidence the
+  merge.
 
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
@@ -155,7 +198,7 @@ and sha256. `restart_count` is also anchored in the blueprint-root
 corrupt. Only an accepted record or close returns the canonical `rounds`/`findings`
 projection (`resolved` or `accepted` with a note; accepted must_fix findings carry `accepted_risk: true`). `close` and an accepted record also certify the current snapshot: the runtime
 `closure.closure_target_digest` and `bouncer.context_review.closure_target_digest`
-hold the same 64 lowercase hex value, G18 compares it before the last round
+hold the same 64 lowercase hex value, a context review record check compares it before the last round
 digest, and a document without it falls back to the round digest. A malformed
 value is a structural error and is never replaced by the current content. A
 `restart` archives the earlier closure and starts the new cycle without one.
@@ -174,8 +217,9 @@ bundle: `explain.md` (written at finalize), `context-review.md` (plan
 document consistency), and `review.md` (final review in blueprint review
 mode). After finalize deletes task leaves, `explain.md`
 `bouncer.task_commits` writes `{ task, sha, intent_anchor }` rows:
-`task` is `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`,
-and `sha` stays 8-char hex. Leftover `bouncer.coordinator`, `## 이해 상태`,
+`task` is `<epic-slug>/<bp-slug>/<ddd>`, `intent_anchor` is `task-<ddd>`,
+and `sha` stays 8-char hex. Rows written before `bouncer migrate context-slugs`
+keep the old `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>` form, which readers still accept. Leftover `bouncer.coordinator`, `## 이해 상태`,
 `quiz_score`, and `disposition` on older explain documents are ignored when
 reading.
 

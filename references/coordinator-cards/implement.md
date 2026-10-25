@@ -41,7 +41,9 @@ When `payload.promoted_patch` is present, it points to the saved dirty-work patc
 When `.bouncer/config.json` has `subagents.provider: "cursor"` and
 `subagents.dispatch: "print"`, write only a `--input` text file. Pass cwd
 as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
-Do not read `${BOUNCER_ROOT}/agents/*.md`.
+Do not read `${BOUNCER_ROOT}/agents/*.md`. The `--input` file is a file payload:
+the same hash check and full read in `agent-dispatch.md` (Implementer file
+payload) apply, and the wrapper still prepends the role body.
 
 `--input` file, in this order:
 

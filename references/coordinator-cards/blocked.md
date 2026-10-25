@@ -26,11 +26,23 @@ from the coordinator Procedure step 5 (Judge) and Hard guards.
 
 ## Terminal CI repair
 
+- If a terminal failure was caused by the environment only and no code has to
+  change, first run `bouncer coordinate reverify --task <terminal>`. It re-runs
+  the terminal verification without a repair wave and is refused with
+  `reverify-source-moved` or `reverify-worktree-dirty` when the source changed.
+  When the code has to change, use `repair`.
 - Terminal CI recovery runs through `bouncer coordinate repair`: supply the
   failing command, its summary, and why the repair stays inside the Blueprint.
   Its refusal is final; never start another wave by hand. Terminal CI failure
   may add at most two dynamic repair tasks. After a second repair still fails,
   automatic execution stops.
+- Repair `--paths` come from tracked files named in the failure evidence or
+  debugger report; a file to create goes in `--new-path` under a tracked
+  directory. On `scoped_terminal` pass `--verify <argv>` that checks only the
+  failing files. A refusal (`scope-path-untracked`,
+  `scope-new-path-parent-missing`, `repair-verify-required`,
+  `repair-verify-not-single-argv`, `repair-verify-is-terminal`) changes
+  nothing: correct the input and retry.
 - Before adding a task, classify the cause. Code owned by an integrated task is
   reworked on that task: `coordinate repair --task <terminal> --resume-task
   <ddd>` (no new task, DAG and scope unchanged, new lease generation). A cause,

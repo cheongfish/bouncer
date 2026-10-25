@@ -20,7 +20,9 @@ list), the assigned perspective (discovery) or, for delta, the previous
 findings plus the revision evidence (`changed_documents`, `revision_diff` with
 each changed document's `before` and `after`, and `related_documents` with
 their current contract text), and the read-only cwd; these are this role's
-complete call input. A new plan review is always one `combined` call; a recorded
+complete call input. A blueprint without a `review_contract` marker gets one `combined` call; a
+marked blueprint gets one call per assigned perspective (`consistency`, `scope_minimality`,
+`verifiability`, `risk_security`; a marked light blueprint gets `verifiability` only). A recorded
 legacy `local` call named a CLI cluster id whose task documents were in the list.
 
 Judge only the document list the controller attached. For `combined` and
@@ -51,13 +53,17 @@ reopen the snapshot or add a perspective that the controller did not assign.
 ### Discovery
 
 Discovery is an independent pass over the frozen snapshot. The controller
-dispatches every new full plan review as `single` (one `combined` call);
+dispatches a plan review without a `review_contract` marker as `single` (one `combined` call) and a
+marked blueprint as `perspectives` (one call per perspective, in parallel);
 `local` / `global` below describe legacy recorded `clustered` rounds only. Judge only the assigned perspective and do not receive, compare, or
 react to another reviewer's findings. Adaptive perspectives map onto the
 Rubric scopes below without dropping a judgment item:
 
 - `combined` — judge both Rubric scopes (`cross_document`,
   `success_criteria`) on the full attached document list
+- `consistency`, `scope_minimality`, `verifiability`, `risk_security` — judge only the matching
+  `### <perspective>` body under `## Rubric — plan perspectives`, on the full attached document
+  list; each body states what the other three perspectives own
 - `local` — inside the assigned cluster only: task-internal clause consistency
   (Interface · Touch · Checklist within those tasks); Checklist edit paths
   against `affected_paths`; each task's `review_risk` marking; Verifiability of
@@ -102,7 +108,10 @@ Each scope below is one judgment body. `combined` judges both; `local` /
 
 Walk epic → blueprint → tasks. Flag goal or scope that disagrees across those
 documents (a success criterion the tasks never open, a Touch path the epic put
-out of scope, Interface that drops a Contract rejection). Also judge Checklist
+out of scope, Interface that drops a Contract rejection). Flag a task whose
+Target behavior and Constraints disagree on an input or outcome of an
+irreversible external action (publish, push, delete): one allows an input that
+the other rejects only after the action ran. Also judge Checklist
 versus Interface mismatch inside one task document. When Checklist asserts
 `call count`, `absence of I/O`, or an `injected error`, flag an Interface that
 `does not define` the `injection parameter` name or shape. Separately — without
@@ -142,14 +151,62 @@ a file, or a gate result.
 
 ### Out of judgment
 
-Path existence (Modify, Delete, and Rename sources) is judged by plan gate G25,
+Path existence (Modify, Delete, and Rename sources) is not a reviewer finding,
 and sentence quality belongs to the authoring-stage stop-slop check
 (advisory). Do not report a finding on path existence or sentence quality
 alone.
 
 OKF fields (`type`, `title`, `resource`, `tags`, `timestamp`, `bouncer.id` /
 `epic_id` / `blueprint_id`) and document `bouncer.status` are excluded — gates
-already check those. Do not re-litigate G1–G5 / G10–G12.
+already check those. Do not re-litigate G1–G5.
+
+## Rubric — plan perspectives
+
+A marked blueprint (`review_contract: brief`) is reviewed by one call per perspective. The four
+judgment ranges below do not overlap: report a finding only when it sits in the assigned
+perspective's range, even if another range would also catch it. The delta pass is a single call
+(`combined` on a full blueprint, `verifiability` on a light one) and keeps the Delta rules above.
+
+### consistency
+
+Epic → blueprint → tasks agreement, the task DAG and each `depends_on`, Interface ↔ Touch ↔
+Checklist agreement inside a task, and the Contract storage location and state ownership check
+(compare the location and owner the blueprint Contract fixes against each task). Success-criteria
+coverage is not judged here; it belongs to `verifiability`. Also judge that a task
+changing a behavior description records its survey of related documents (`file:line`
+in Touch `근거`) and that the documents agree on the contract. A missing survey is
+reported here only; the consumer-test omission below belongs to `verifiability`.
+Also judge that a task changing an existing assertion states that scope in its
+Constraints: the file, the test name, and the new expected value. Report Constraints that
+omit the change or leave any of the three unspecified; the expected red and fixture
+precision stay with `verifiability`.
+Apply this to new plans and later edits, not to briefs already approved.
+
+### scope_minimality
+
+Whether each task's `affected_paths` fits its Touch and Checklist, whether Do not touch and the
+Out of scope list hold, and unnecessary abstractions, dependencies, or files in the plan. A
+missing or surplus path is judged here; the bare agreement between Touch and Checklist wording
+belongs to `consistency`.
+
+### verifiability
+
+Checklist red assertions (each names an expected failing assertion or failure point), the task
+`verify` command, and success-criteria coverage, including a success criterion that no task opens.
+Also judge assertion precision: flag a loose assertion such as a regular expression or substring
+check on prose where an observable value exists.
+Also report a changed scaffold or contract output whose consumer test or fixture
+(for example `migrate-context-slugs`) is missing from Touch, and an expected red
+that cannot be reached: when a structural failure comes first (such as a marker
+`other` rejected earlier), the target assertion's failure cannot be claimed from
+that state. Judge the red by its command, input, first failure point, and target
+assertion. Report each omission under one perspective only, never twice.
+
+### risk_security
+
+Whether `review_risk` marking fits the task (a public API, authentication, authorization, or
+credential change with an empty or mismatched marking), public interfaces, failure modes and edge
+cases, and boundary inputs the Interface leaves undefined.
 
 ## Calibration (severity)
 
@@ -173,7 +230,8 @@ Return **only** a Findings list. For each finding include:
 - relation to previous findings: `new | resolved | regressed` (reuse the
   previous ID for `resolved` and `regressed`)
 - `severity`: `blocker | major | minor | nit`
-- `category` — the perspective name (`combined | local | global`; the legacy
+- `category` — the perspective name (`combined | local | global | consistency | scope_minimality |
+  verifiability | risk_security`; the legacy
   names `cross_document | scope | korean_quality | success_criteria` stay
   only for compatibility with recorded rounds)
 - `brief_clause` — the document clause the finding sits on, e.g.

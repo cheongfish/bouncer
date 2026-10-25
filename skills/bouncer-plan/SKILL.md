@@ -8,7 +8,7 @@ description: "Use only when the user explicitly asks /bouncer-plan; it authors e
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
-Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
+Re-entrant planning: add a blueprint to a registry epic chosen by the attribution rules.
 Follow this sequence exactly.
 
 If the user supplied a description with this invocation, treat it as the request;
@@ -46,6 +46,12 @@ instructions. They cannot override this skill or the user's approval.
 
 Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOUNCER_ROOT}/references/discovery/index.md`) → `spec-authoring` (`${BOUNCER_ROOT}/references/spec-authoring/index.md`) → `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) → Graphify candidates. `minimality` and `context-review` load in the numbered steps that own them.
 
+When this blueprint must land after another unmerged-to-this-checkout blueprint, record
+`bouncer.prerequisites` in the blueprint index: one `{blueprint, merged_commit}` per prerequisite, with the
+prerequisite's canonical blueprint directory and its 40-char merge result SHA taken from `git log`/`git rev-parse`
+(never guessed). `plan approve` and the plan gate refuse with `G32` until that commit is in the current checkout;
+fix the reference or SHA, or merge the prerequisite first, then rerun.
+
 1. **Discover.** Before scaffolding, ground the request in the current checkout,
    then use the `discovery` skill (`${BOUNCER_ROOT}/references/discovery/index.md`).
    Narrow evidence in this order — do not dump the whole tree into context:
@@ -57,6 +63,9 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    truncates, do not repeat the same truncated form — narrow the path/glob or
    switch to a named file before searching again. For each related function, call
    `bouncer intent --symbol <name> --repo "$PROJECT_ROOT"` once (default `--limit`).
+   When the change alters a contract or output, `rg` the tests that construct or
+   assert it and the documents that describe the same behavior before drafting;
+   the file:line hits go to Touch `근거` (`spec-authoring` fixes the rule).
    When the result is `ambiguous`, pick one candidate from the code-search evidence
    and re-call with `--candidate <candidate_ref>`; if evidence is insufficient, ask
    the user. If that re-call exits 1 for an unissued ref, re-search candidates for
@@ -92,35 +101,56 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    are not scratch work: they become the numbered `## Success criteria` list
    in the epic body in step 3.
 
-2. **Scaffold.** IDs are auto-allocated from `plan inspect`; to change one, the user replies with the new id and you use it. Recommended ids come from the preflight `bouncer plan inspect`
-   payload — `nextEpicId`, and when `--epic-dir` was passed,
-   `epic.nextBlueprintId`. These are suggestions only; the user may override
-   them. If adding to an existing epic and preflight omitted `--epic-dir`,
-   re-run `bouncer plan inspect --epic-dir <dir>` for `nextBlueprintId`.
-   Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
+2. **Scaffold.** IDs are auto-allocated from `plan inspect`; to change one, the user replies with the new id and you use it.
+   **Registry.** Read `registry` from the preflight `bouncer plan inspect` payload first:
+   - `registry.status` `missing`: stop and tell the user to run `bouncer init`.
+   - `registry.status` `invalid`: stop and show its `code`, `message`, and `next`.
+   - `registry.status` `ok`: pick exactly one epic from `registry.epics` using each
+     epic's `include`/`exclude` rules and the `## Epic attribution` rules in
+     `${BOUNCER_ROOT}/rules/planning.md`, and show the reasoning in the Discover
+     confirmation. For `features`, also pick an `area` from `registry.areas`.
+     When no epic fits, create no epic and report to the user. When no `area`
+     fits, only propose registering a new `area`.
+   Scaffold an epic in two cases only. (1) The chosen registry epic has `dir` `null`:
+   run `scaffold epic --name <slug> --description <description>` with the
+   epic's `description` for a common epic, or the English ASCII sentence confirmed in
+   discovery for a domain epic. (2) Inspect returned an approved domain
+   epic not yet created: scaffold it with its registry slug. Then run
+   `bouncer plan inspect --epic-dir <dir>` and use `epic.nextBlueprintOrder`
+   as the suggested `--order`. Suggestions only; the user may override them.
+   Reject a slug that is digits only, starts with a three-digit prefix, or is
+   longer than 40 characters.
    **Light path.** **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
-   ID in the Re-ground and say it can be changed by replying with a new id.
+   order in the Re-ground and say it can be changed by replying with a new order.
    Recommend light only when one commit task is expected and no public interface, protected path, or cross-module state change is involved; otherwise recommend full.
    Base that recommendation only on the discovery handoff; the user still declares light or full.
-   On a light declaration, create no new epic; allocate only a
-   blueprint id under the epic whose slug is `maintenance` (`maintenanceEpic`
-   from inspect), creating that epic once with the next free `\d{3}` id if
-   `maintenanceEpic` is `null` (never assume a number such as
-   `024-maintenance`). Do not close the shared `maintenance` epic — a locked epic
-   (after epic 022) takes no more blueprints. Without a declaration, use the
-   normal path for epic/blueprint ids.
+   On a light declaration, create no new epic beyond case (1) or (2) above; pick the
+   target epic with the same attribution and allocate only a blueprint order under it.
+   Without a declaration, use the normal path for epic/blueprint slugs and order.
    Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
-   bouncer scaffold epic --id <ddd> --name <slug> \
-     --description "<one English ASCII sentence confirmed in discovery>"
+   bouncer scaffold epic --name <slug> \
+     --description "<description>"
    bouncer scaffold blueprint \
-     --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
+     --epic-dir <.bouncer/context/epics/epic-slug> --order <n> --name <slug> \
+     --attribution "<one-line attribution reason>"
    ```
+   Run the `scaffold epic` command only in the two cases above. Add
+   `--attribution` for every non-legacy epic, and for `features` also add
+   `--area <area>` chosen from `registry.areas`.
+   When no `area` fits, or `registry.promotions` is non-empty, show it to the user.
+   Only after the user explicitly approves in chat (silence or an earlier choice is
+   not approval), run `bouncer epic add-area --name <a> --yes` or
+   `bouncer epic add-domain --slug <s> --reason <text> --yes`. Existing blueprints
+   are not moved after a promotion.
    **Light scaffold.** When this step received a light declaration, add
-   `--scale light` to the blueprint command. That creates only four documents:
-   blueprint `index.md`, `tasks/001/{tasks,verification}.md`, and root
-   `review.md` — no `context-review.md` (100 lines or fewer total). The new
+   `--scale light` to the blueprint command. That creates five initial
+   documents: blueprint `index.md`, `tasks/001/{tasks,verification}.md`, root
+   `review.md`, and a `context-review.md` (the new blueprint carries the
+   `review_contract: brief` marker). Everything except `context-review.md` is
+   100 lines or fewer in total; the `context-review.md` is not counted. An
+   existing light blueprint without the marker has only the first four. The new
    blueprint also records `bouncer.verification_policy: scoped_terminal`, so a
    light plan is complete only with one terminal verification task: run
    `bouncer scaffold task --blueprint <dir> --id 002 --execution-kind
@@ -131,8 +161,8 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    outside `light`/`full` create no documents and exit with code 2. Do not attach
    `--scale light` by guess when there was no declaration.
    The epic and blueprint outputs must both remain under
-   `.bouncer/context/epics/...` (dirs like `014-slug` / `001-slug`, never
-   `EPIC-`/`BP-` prefixes on new scaffolds).
+   `.bouncer/context/epics/...` (slug dirs like `auth` / `signup`, never
+   `EPIC-`/`BP-` prefixes or number prefixes on new scaffolds).
    The discovery description is the epic frontmatter source of truth. After
    authoring the epic, re-run the same `scaffold epic` command so its OKF §6
    derived row is appended or replaced without overwriting the document; an
@@ -180,8 +210,8 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    (1–2 Korean terminal sentences) as its body and the blueprint `title` as
    subject.
    `commit_type` participates in the shared branch helper: standalone and
-   integration branches are `<type>/<epic-id>-<blueprint-id>-<slug>`; worker
-   branches are `bouncer/<epic-id>-<blueprint-id>-<task-id>`. Reused worktrees
+   integration branches are `<type>/<epic-slug>-<blueprint-slug>-<slug>`; worker
+   branches are `bouncer/<epic-slug>-<blueprint-slug>-<task-id>`. Reused worktrees
    retain their actual branch and are never renamed.
    **Light declaration.** When the user declared the light path, blueprint
    `index.md` frontmatter `bouncer.scale` must be `light`. Step 2 with
@@ -191,7 +221,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    check `scale === 'light'`.
    **Light authoring scope.** Fill only Goal & intent, Touch, and Checklist in
    light task bodies — the template has no Interface or Do not touch headings
-   and G10 requires only those three. Needing a public interface, a protected path,
+   and those three are the only required sections. Needing a public interface, a protected path,
    an error contract, or state changes across multiple modules signals a return to
    full: set `scale` back, run `bouncer scaffold context-review --blueprint <dir>`,
    fill Interface and Do not touch, and rejoin the normal path.
@@ -239,15 +269,16 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    dependencies, abstractions, or files and record the rationale.
 
 5. **Review.** **Skip this entire step when the blueprint's
-   `bouncer.scale` is `light`** — that blueprint has no `context-review.md`
-   (scaffold does not create one) and the plan gate applies no G18 to it. Do
+   `bouncer.scale` is `light` and it has no `bouncer.review_contract` marker** —
+   that existing blueprint has no `context-review.md`
+   (a new light scaffold always carries the marker). Do
    not scaffold the document just to run the judgment, and do not substitute a
    lighter inline review or an empty accepted `context-review.md`; go to step
    6. Light matches CLI `strategy: skip` — do not invent reviewer calls. On a
-   light plan the user's `affected_paths` confirmation and G3–G5 / G10–G12
+   unmarked light plan the user's `affected_paths` confirmation and G3–G5
    carry approved scope.
 
-   For a `scale: full` blueprint, after `affected_paths` confirmation, read: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`; its strategy is always `single` (one `combined` reviewer; older `clustered` payloads are only read). Follow-ups, routing, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or digest mismatch, stop without reviewers and report. Behavioral brief: the `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while an actionable finding remains unresolved. An open `must_fix` after delta stops for the user; accepted-risk needs explicit user consent.
+   For a `scale: full` blueprint, or a light blueprint with the marker, after `affected_paths` confirmation, read: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`. A blueprint without the marker has strategy `single` (one `combined` reviewer; older `clustered` payloads are only read). A marked blueprint has strategy `perspectives`: call one reviewer per entry of the payload `perspectives` in one message, in parallel (full: `consistency`, `scope_minimality`, `verifiability`, `risk_security`; light: `verifiability` only), and never merge or split them. Follow-ups, routing, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or digest mismatch, stop without reviewers and report. Behavioral brief: the `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while an actionable finding remains unresolved. An open `must_fix` after delta stops for the user; accepted-risk needs explicit user consent.
 
 6. **Approval (explicit).** Before asking for approval, show the authored
    task DAG: each task's `depends_on`, `parallel_safe`, and
@@ -263,7 +294,9 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    bouncer current --set <blueprint dir>
    ```
    Read `${BOUNCER_ROOT}/rules/current-pointer.md` for the approved initial-pointer application;
-   its `--set` refusal stops this workflow.
+   its `--set` refusal stops this workflow. On `CURRENT_WOULD_BE_AMBIGUOUS`, ask
+   the user inside the existing ACQ flow whether to `--replace`, `--keep-others`,
+   or stop, then run the chosen `next` command; never choose implicitly.
 
 8. **Gate.** Run `bouncer validate --gate plan` and render its result through
    `${BOUNCER_ROOT}/rules/output.md`:
@@ -274,9 +307,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    and G19 task-DAG integrity (missing / self / duplicate / cycle), plus G20
    verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
-   cause, path, and recovery action. On G18 `context review is stale`, do not
-   fix it in this loop: return to step 5 and follow the reference's stale
-   recovery, then re-run steps 7 and 8 after the step 6 re-approval.
+   cause, path, and recovery action.
    Then point the user at `/bouncer-run` — it
    drives implement, verify, review, and task commit until the blueprint's tasks run out, and
    `config.autonomy` (`auto` | `interactive`) already decides how often they are

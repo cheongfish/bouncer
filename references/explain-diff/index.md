@@ -91,29 +91,31 @@ status published. Not a workflow entry point.
 
 4. **Compute `diff_sha`.** Prefer digest `range.diff_sha` when it is a
    non-null string. Only if the digest left it null, pass the entry's
-   `range_from` as `base` to `computeDiffSha`. Run from the **execute worktree
+   `range_from` as `--base`. Run from the **execute worktree
    root** (`cwd` = that worktree):
 
    ```bash
-   node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
-   console.log(JSON.stringify(computeDiffSha({ repoRoot: process.cwd(), base: process.argv[2] })));' \
-     "$(bouncer project-root)" <range_from>
+   bouncer finalize diff-sha --base <range_from>
    ```
 
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent
    a hash.
 
-5. **Write one `bouncer.comprehension` entry.** Read `range_to` as digest
-   `range.head` (else the current `HEAD` sha). Keep the list at **exactly one**
-   blueprint entry — replace the sole item if refreshing, do **not** append a
-   second entry, and do **not** set a `task` field:
+5. **Record the `bouncer.comprehension` entry with the CLI.** After the user
+   answered the quiz, save the `finalize prepare` JSON to a file and run it from
+   the execute worktree root. Never hand-write the metadata:
 
-   ```yaml
-   - range_from: <digest range.base>
-     range_to: <digest range.head or HEAD sha>
-     diff_sha: <digest range.diff_sha or sha from step 4>
-     recorded_at: <ISO-8601, prefer KST offset>
+   ```bash
+   bouncer finalize comprehension --blueprint <dir> --digest <json-file> --confirm-quiz
    ```
+
+   The CLI writes exactly one blueprint entry (`range_from`, `range_to`,
+   `diff_sha`, KST `recorded_at`; no `task` field) and replaces the sole item.
+   Pass `--confirm-quiz` only after a real user answer. Refusals leave
+   `explain.md` bytes unchanged: `comprehension-consent-required`,
+   `comprehension-input-invalid`, `comprehension-target-stale` (digest no longer
+   matches the current HEAD/`diff_sha`). Later drift of an existing valid entry
+   uses `--refresh` instead (see above); it keeps `range_from`.
 
 6. **Publish.** Set `bouncer.status → published` on `explain.md` if it is not
    already. The published explain remains canonical context and requires no
@@ -123,9 +125,10 @@ status published. Not a workflow entry point.
 
 `/bouncer-finalize` may add an optional `## Tasks` section immediately before
 deleting task documents. It writes one subsection per task. Headings use the
-stable Task ID form `` ### EPIC-ddd/BP-ddd/TASK-ddd · `sha8` `` when a trailer
-SHA is known, `` ### EPIC-ddd/BP-ddd/TASK-ddd `` when the ID exists without SHA,
-or legacy `### Task NNN` when a stable ID cannot be built. Each subsection
+stable Task ID form `` ### <epic-slug>/<bp-slug>/ddd · `sha8` `` when a trailer
+SHA is known, `` ### <epic-slug>/<bp-slug>/ddd `` when the ID exists without SHA
+(documents written before `bouncer migrate context-slugs` keep the old
+`EPIC-ddd/BP-ddd/TASK-ddd` form, which is only read), or legacy `### Task NNN` when a stable ID cannot be built. Each subsection
 copies the authored `Goal & intent`, `Current behavior`, `Target behavior`,
 `Interface`, `Touch`, and `Constraints` sections (Current/Target only when
 present). Do not touch is not preserved. The copied bodies retain the author's
@@ -135,10 +138,10 @@ copied. The section is optional and its absence does not make G16 fail.
 
 ## Guardrails
 
-- Prefer the finalize prepare digest and existing `computeDiffSha` API. Do not
-  invent a quiz engine or HTML UI.
-- Do not edit `scripts/lib/comprehension` or gate logic; call the existing API
-  (or reuse digest `range.diff_sha`).
+- Prefer the finalize prepare digest and its `range.diff_sha`. Do not invent a
+  quiz engine or HTML UI.
+- Do not edit the runtime's comprehension or gate logic; record through
+  `bouncer finalize comprehension` (or reuse digest `range.diff_sha`).
 - Do not block finalize on a wrong answer. G16 checks the record and hash match
   for the blueprint entry, not the grade. An unanswered quiz still aborts the
   caller.

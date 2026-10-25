@@ -143,7 +143,7 @@ def resolve_verify_command(repo_root: str, pointer: Pointer | None) -> str:
 On a long procedure, number the body steps (`# 1.` `# 2.`) and, at each
 non-obvious decision, leave the rationale in that same place.
 
-Contra examples from this repository (`scripts/lib/validate.js`). Each
+Contra examples drawn from the Bouncer runtime's validation code. Each
 pair comments the same code — **Bad** restates what; **Good** records why.
 
 **Bad** (restates the next line):

@@ -89,13 +89,16 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
 3. **PR.** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). Use the prepare digest kept from step 1 for title prefix and body sections; do not recompute them. **ACQ — PR (`finalize.pr`):** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
 
-4. **Cleanup.** After `--yes`, read [cleanup-handoff.md](./references/cleanup-handoff.md): from the main worktree run `finalize release-main`, then `git worktree remove --force`. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
+4. **Cleanup.** Before the worktrees go, run `bouncer metrics summary --blueprint <pointer.blueprint>` once.
+   Only when it returns `report: true`, report it as the "Closing report" section of the bouncer-run skill's
+   drive-metrics reference, with `worker_tokens_source` and `missing` beside the worker rows; a direct
+   session's tokens stay unmeasurable. With `report: false` print no token, time, or cost figure. After `--yes`, read [cleanup-handoff.md](./references/cleanup-handoff.md): from the main worktree run `finalize release-main`, then `git worktree remove --force`. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 
 5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) runs `--set` from `release-main` `next` without asking.
    Read `${BOUNCER_ROOT}/rules/current-pointer.md` for that pointer change.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
-   work plans a sibling Blueprint in the same Epic or a new Epic via
-   `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
+   work plans a sibling Blueprint in the same Epic or the registry epic chosen by
+   the attribution rules via `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
    by the cleanup-handoff contract — do not arbitrarily `--set` an open sibling.
    Render through `${BOUNCER_ROOT}/rules/output.md`: explain/quiz outcome, remainder commit and
    resulting `closed` state, `integration` (`complete`, `openTasks`,

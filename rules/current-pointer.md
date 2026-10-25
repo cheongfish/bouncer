@@ -1,16 +1,16 @@
 # Current pointer
 
 All workflows use the `bouncer current` CLI surface to read, set, or clear the
-active pointer. Never read or write a pointer file directly, call
-`scripts/lib/current`, reconstruct a blueprint/task path, or infer a candidate
+active pointer. Never read or write a pointer file directly, call runtime
+internals, reconstruct a blueprint/task path, or infer a candidate
 that the CLI did not return.
 
 ## Read and task selection
 
-Run `node "${BOUNCER_ROOT}/scripts/bouncer" current`. Selection is location-based
+Run `bouncer current`. Selection is location-based
 and uses only that CLI result:
 
-- From a nested execute worktree (`.worktrees/<epic-id>/<blueprint-id>`), or from
+- From a nested execute worktree (`.worktrees/<epic-slug>/<blueprint-slug>`), or from
   a uniquely corresponding legacy flat worktree (`.worktrees/<blueprint-id>`),
   the CLI returns the worktree-local namespace pointer.
 - From the base checkout, the CLI returns the pointer only when exactly one
@@ -42,7 +42,12 @@ copy or synchronize a pointer into either checkout.
 
 Use `bouncer current --set <blueprint> [--task <NNN>]` only with the CLI value
 that names the selected blueprint or task. Default `--set` adds or updates that
-namespace key and leaves other keys in place. `--replace` deletes the uniquely
+namespace key. At the base checkout, a `--set` that would add a new key beside
+an existing one is refused with `CURRENT_WOULD_BE_AMBIGUOUS` (exit 1, pointer
+unchanged, `next` lists the commands) because the base would then select
+nothing. State the choice explicitly: `--replace` swaps the uniquely selected
+key, `--keep-others` deliberately keeps parallel keys. Updating the same key
+(including `--task`) and worktree `--set` are never refused. `--replace` deletes the uniquely
 selected key, then writes the target; at a multi-pointer base it returns
 `CURRENT_AMBIGUOUS` and changes nothing. `--set` runs the plan gate and must be
 allowed to refuse the move; never bypass that gate. Initial blueprint setup
@@ -51,7 +56,10 @@ follows the exception below.
 
 `--clear` (owned by `bouncer finalize --yes`) removes only the currently
 selected key. Workflows do not write a replacement empty pointer, and they do
-not clear every namespace key in the Git common directory.
+not clear every namespace key in the Git common directory. The one other
+deletion is `bouncer run detach --blueprint <dir> --yes`: after explicit user
+approval it removes exactly that blueprint's key (nothing else, no legacy file)
+and keeps the ledger. It never moves or writes a pointer.
 
 The legacy file `bouncer/current` remains readable. The first successful
 `--set` migrates it into the target namespace key and deletes the legacy file
@@ -66,4 +74,6 @@ candidates are the ready set in `current.coordinator`, not the next task
 number. These coordinator exceptions never authorize a next-blueprint move.
 The finalize next-blueprint handoff runs `--set` without asking, only for the
 same-epic `next` returned by `bouncer finalize release-main`; a plan-gate
-refusal leaves the pointer cleared and is reported.
+refusal, including `CURRENT_WOULD_BE_AMBIGUOUS`, writes nothing,
+is reported with its code, and is never answered with `--replace` or
+`--keep-others` on the user's behalf.

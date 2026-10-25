@@ -37,7 +37,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
      rule below: whole flow here, with the chart fence in this body.
    - **blueprint**: what this unit delivers as one review / PR. Set `title`
      (and `bouncer.commit_type` if not `feat`) for the finalize remainder
-     subject and shared standalone/integration branch (`<type>/<epic-id>-<blueprint-id>-<slug>`). Write the
+     subject and shared standalone/integration branch (`<type>/<epic-slug>-<blueprint-slug>-<slug>`). Write the
      blueprint `## Intent` as 1–2 Korean terminal sentences; finalize uses it
      as the remainder body. Do **not** set task-only authored fields on the
      blueprint. The Contract is contract only — no implementation code.
@@ -145,9 +145,9 @@ body content only; never edits harness-owned frontmatter fields. Used from
        `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
        `변경` is `Create`, `Modify`, `Delete`, or `Rename`. Wrap path and
        symbol cells in backticks. Write a `Rename` path cell as
-       `` `old` → `new` ``. The plan gate (G25) fails a `Modify`, `Delete`, or
-       `Rename` old path that is absent from the repository and from every
-       predecessor task's `Create` or `Rename` new path, and fails any path that is
+       `` `old` → `new` ``. A `Modify`, `Delete`, or
+       `Rename` old path must not be absent from the repository and from every
+       predecessor task's `Create` or `Rename` new path, and no path may be
        absolute or resolves outside the repository. List only symbols
        tied to the entry point, state change, or verification point, and give
        the selection reason in `근거`. When the symbol name is not yet
@@ -164,12 +164,24 @@ body content only; never edits harness-owned frontmatter fields. Used from
        *constructs or asserts* that shape, with `Modify` — even if the owning
        production module is under Do not touch. Import absence is not absence
        of blast radius.
+     - **Touch** (consumer survey): for a contract or output change, `rg` every
+       test that constructs or asserts it and every document describing the same
+       behavior (SKILL, references, role docs), and record each hit as `file:line`
+       in `근거`. Do not duplicate the shape-fixture duty above; this extends it.
+       Judgment cases: a scaffold output change whose consumer fixture
+       (for example the `migrate-context-slugs` test) is missing from Touch is
+       a consumer-test omission; a changed behavior description whose related
+       document is not surveyed is a document-survey omission.
      - **Touch** (size or shape contract): before planning an addition to a Touch
-       path, check whether a test or `scripts/check-doc-shape.js` pins that file's
-       size, headings, or step shape (`rg` the path in `test/` and `scripts/`). If
+       path, check whether a test or lint script pins that file's
+       size, headings, or step shape (`rg` the path in the project's test and script directories). If
        one does, plan a replacement or a different location in the task; an
        addition that the contract rejects only surfaces during execute and
        departs from the approved brief.
+     - **Touch** (generated artifact): when a task changes a source file that
+       generates an artifact, list the generated artifact path in both `Touch`
+       and `affected_paths`. Put the parity test in that task's `bouncer.verify`
+       and the command that regenerates the artifact in its Checklist.
      - **Judgable prose**: ban undecidable verbs such as `개선한다` or
        `적절히 처리한다`. Replace them with observable outcomes a gate or
        test can accept or reject.
@@ -179,6 +191,11 @@ body content only; never edits harness-owned frontmatter fields. Used from
        approval.
      - **Do not touch**: paths only; must not overlap `affected_paths`.
        Carry epic and blueprint Out of scope into this list.
+     - **Constraints** (existing assertions): when a task may change an existing
+       assertion, bound it by file, test name, and new expected value. A blanket
+       "update related tests" is not a bound. Keep the red run already recorded
+       against the baseline apart from the expected red to be run at
+       implementation time.
      - **Constraints**: the rules that hold inside the allowed paths —
        compatibility promises, contracts to preserve, conventions to keep.
        Anything you cannot express as a path belongs here, not in Do not
@@ -187,6 +204,11 @@ body content only; never edits harness-owned frontmatter fields. Used from
        it fails → implement. Write expected assertions, constants, and
        commands as literal code blocks; this is where implementation detail
        deferred from the blueprint Contract lands. Name the acceptance criteria and the verify command.
+     - **Checklist** (reachable red): an expected red states the reproduction
+       command, the input, the first failure point reached, and the target
+       assertion. When a structural failure (for example a marker `other`
+       rejected before the target assertion runs) comes first, do not claim the
+       target assertion fails from that state; change the input or the order.
      - **Checklist** (expected red): every red step names the
        `expected failing assertion` or failure point. Unless the brief requires
        it, `module-load failure` is not expected red.
@@ -212,16 +234,17 @@ body content only; never edits harness-owned frontmatter fields. Used from
      - **tasks on a light blueprint**: when blueprint `bouncer.scale` is
        `light`, the required sections are **three** — Goal & intent, Touch,
        Checklist. The scaffolded body has no Interface / Do not touch / Constraints
-       headings and you do not add them; G10 asks for the three only. Write
+       headings and you do not add them; the three are the only required sections. Write
        them shorter, not vaguer: Goal & intent is one or two sentences that
        name the acceptance condition, Touch keeps the per-file table rows
-       (it still has to justify every `affected_paths` entry for G11), and the
+       (it still has to justify every `affected_paths` entry), and the
        Checklist keeps the failing-test-first ordering. Needing a public interface,
        a protected path, an error contract, or state changes across multiple modules
        is the signal to set `scale` back to `full` rather than to smuggle those
        rules into Goal & intent — a path you must protect has nowhere to live in a
-       light task, and G12 can only judge a Do not touch section that exists.
-       The scaffolded light plan set is budgeted at 100 lines
+       light task, and a Do not touch section must exist to protect any path.
+       The scaffolded light plan set (five initial documents) is budgeted at
+       100 lines excluding `context-review.md`
        (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`). A
        `scoped_terminal` light plan adds one terminal verification task
        (verification only, no source Touch) that depends on the one
@@ -243,7 +266,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
    then stop. No filler sections, no summary that restates the section above it,
    no boilerplate kept because the skeleton had a heading for it. A section with
    nothing real to say is shorter, not padded. Do not leave leftover scaffold
-   guidance HTML comments in plan documents (G22).
+   guidance HTML comments in plan documents.
 4. After editing, the calling command runs validation; if it reports a failure
    tied to a field you touched, fix the body and re-run.
 

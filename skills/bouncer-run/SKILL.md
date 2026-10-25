@@ -63,6 +63,12 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+repair의 `--paths`는 실패 증거·debugger 보고에 나온 integration HEAD 추적 파일에서만
+가져오고(없는 파일은 `--new-path`, 부모 디렉터리가 추적돼야 한다), `scoped_terminal`에서는
+원인 파일만 검사하는 단일 명령을 `--verify`로 넘긴다. 어긋나면 CLI가 쓰기 전에 거절한다.
+
+terminal 실패가 환경 문제뿐이고 코드는 바뀌지 않았다면 `coordinate reverify --task <terminal>`로 repair wave 없이
+재검증하고, 코드가 바뀌어야 하면 `repair`를 쓴다.
 terminal 실패는 새 repair task를 만들기 전에 원인을 먼저 가른다. 원인이 이미 통합된 task의
 코드이면 `coordinate repair --task <terminal> --resume-task <ddd>`로 그 기존 task를 승인
 scope 안에서 재배정한다(task 수·ID·DAG·scope 불변, lease generation 갱신, 현재 integration
@@ -218,12 +224,22 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
-   not as your own re-judgment, plus the `metrics summary` token and time table: coordinator and each worker role
-   side by side (never summed together), real wall time apart from host duration, a `null` total
-   shown as unreported and every missing count shown, never as 0. This skill does not enter finalize.
+   not as your own re-judgment. Only when `metrics summary` returns `report: true`, add its token and time
+   table: coordinator and each worker role side by side (never summed together), real wall time apart
+   from host duration, a `null` total shown as unreported and every missing count shown, never as 0.
+   With `report: false` print no token, time, or cost figure. This skill does not enter finalize.
    `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
    경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
    그대로 출력한다.
+
+   **병합 뒤 남은 실행 상태.** 구현을 Git으로 이미 병합했는데 integration ledger가 남아
+   메인 커밋이 `main-worktree-source-write`로 막히면, 사용자에게 상태를 보고하고
+   `bouncer run detach --blueprint <dir> --yes`를 실행해도 되는지 먼저 묻는다.
+   사용자가 명시적으로 승인한 뒤에만 실행한다. detach는 ledger·worktree·branch를
+   지우지 않고 이 blueprint의 포인터 key 하나만 지우며, 검증 성공이나 finalize가
+   아니다. 병합 여부는 detach의 조건도 증거도 아니다. 이후 finalize하려면
+   `bouncer current --set <dir>` 뒤 `/bouncer-finalize`를 쓴다. 이 스킬은 승인 없이
+   detach를 실행하지 않는다.
 
 ## ACQ (AskUserQuestion) gates
 

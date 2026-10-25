@@ -20,8 +20,9 @@ node는 `tasks.md`와 `verification.md`만 scaffold하고, 선행 구현 task가
 integrated된 뒤 전체 CI를 한 번 실행해 `verification.md` 증적만 남긴다.
 source diff, reviewable commit, task `review.md`와 task별 review 단계,
 `affected_paths`를 만들지 않는다. `review_scope`가 `blueprint`이면 최종
-리뷰는 이 node가 `integrated`된 뒤에 한 번 열린다. 실패한 실행의 상태 전이는
-`scripts/src/lib/coordinator.ts`가 소유한다.
+리뷰는 이 node가 `integrated`된 뒤에 한 번 열린다. 실패한 실행의 상태 전이 중
+verification task 상태 쓰기는 `bouncer coordinate advance`가, terminal failure 복구는
+`bouncer coordinate repair`와 `reverify`가 소유한다.
 
 The plan gate emits a non-blocking `warnings` entry when a task's
 `affected_paths` count exceeds 20. That signal only advises splitting when
@@ -65,23 +66,24 @@ refused with exit code 2 before a single file is written.
 
 What shrinks (five things only):
 
-1. **Plan documents** — `--scale light` writes four documents: blueprint
-   `index.md`, `tasks/001/{tasks,verification}.md`, and root `review.md`. It
-   creates no `context-review.md`, so `/bouncer-plan` runs no context review on
-   a light blueprint and the plan gate applies no **G18** there. The four
-   scaffolded documents total **100 lines or fewer**.
-2. **Gated task sections** — **G10** requires only `Goal & intent`, `Touch`,
-   and `Checklist` on a light blueprint. `Interface` and `Do not touch` are
+1. **Plan documents** — a newly scaffolded `--scale light` blueprint carries the
+   `bouncer.review_contract: brief` marker and gets five initial documents:
+   blueprint `index.md`, `tasks/001/{tasks,verification}.md`, root `review.md`,
+   and `context-review.md`. It receives one `verifiability` plan review (no
+   delta beyond that single perspective). Every document except
+   `context-review.md` totals **100 lines or fewer**; `context-review.md` is
+   outside the budget. An existing light blueprint without the marker has only
+   the four documents (no `context-review.md`), so `/bouncer-plan` runs no
+   context review on it. The run-side final review of a marked light blueprint
+   stays the same as an unmarked light one.
+2. **Task sections** — a light task body requires only `Goal & intent`, `Touch`,
+   and `Checklist` as an authoring rule. `Interface` and `Do not touch` are
    neither templated nor demanded. Approved scope is untouched: **G3–G5**
-   (G4 is retired), and **G11** judge an ordinary commit task exactly as they
-   judge a full one, so an empty `affected_paths` still fails.
-   **G12** stays wired on light and judges a `Do not touch` section the same
-   way when one is present — the light template ships none, so a light plan
-   normally gives it nothing to judge.
+   (G4 is retired) judge an ordinary commit task exactly as they judge a
+   full one, so an empty `affected_paths` still fails.
 3. **Epic allocation** — do not open a new epic. Stack the blueprint under the
-   shared **maintenance epic** (slug `maintenance`). If that epic is missing,
-   create it once with normal numbering, then keep stacking blueprints under it.
-   Never close that epic.
+   registry epic by attribution, chosen with the rules in `## Epic attribution`
+   below. Never create or pick a shared catch-all epic for light work.
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
    by `skills/bouncer-run/references/agent-dispatch.md`. A light ledger
    `/bouncer-run` drive follows
@@ -89,24 +91,25 @@ What shrinks (five things only):
 5. **Quiz size** — light quiz sizing is owned by
    `${BOUNCER_ROOT}/references/explain-diff/index.md`.
 
-The shrunken **scaffold** stays four documents, but a light blueprint that
+The shrunken **scaffold** is five initial documents on a new light blueprint,
+and a light blueprint that
 declares `bouncer.verification_policy: scoped_terminal` (every newly scaffolded
-blueprint does) is not complete at four: it needs exactly one independent
+blueprint does) is not complete there: it needs exactly one independent
 implementation task plus one terminal verification task that depends on it
 (`bouncer scaffold task --execution-kind verification --depends-on TASKS-001
 --verify <full command>`, two more documents, outside the 100-line scaffold
 budget). The implementation task carries its own task-only `bouncer.verify`;
-the terminal task carries the full-suite command. A light blueprint without the
-marker keeps the legacy single-task contract and its four documents.
+the terminal task carries the full-suite command. An existing light blueprint
+without the marker keeps the legacy single-task contract and its four documents.
 
 What stays the same:
 
 - Task document set: when `review_scope` is `blueprint`, `tasks/<NNN>/{tasks,verification}.md` plus root `review.md` and `explain.md` are still authored and gated; when `review_scope` is absent, `tasks/<NNN>/{tasks,verification,review}.md` and `explain.md` are still authored and gated.
-- Ordinary commit-task gate judgments **G1–G8** and **G11–G17** are unchanged in the light path
+- Ordinary commit-task gate judgments **G1–G8** and **G13–G17** that remain are unchanged in the light path
   (G16 comprehension at finalize; G17 staged scope at commit).
-  G4 and G15 are retired. Only **G18** (not applied) and the **G10** section list
-  differ, and both differences follow from the document set above rather than
-  from any agent judgment.
+  G4 and G15 are retired. Only the missing `context-review.md` (an unmarked
+  existing light blueprint) and the three-section task body differ, and both differences follow from the document
+  set above rather than from any agent judgment.
 
 Returning to `full` on an already-scaffolded light blueprint
 means authoring the missing sections and running
@@ -151,6 +154,44 @@ or single task. A general title does not widen approved scope — concrete chang
 scope, acceptance criteria, affected paths, and task breakdown live in the
 Blueprint and task documents.
 
-Epic and blueprint directories stay under `.bouncer/context/epics/` as
-`ddd-slug` (for example `014-auth` / `001-signup`). New scaffolds never use
-`EPIC-` or `BP-` prefixes on directory names.
+Epic and blueprint directories stay under `.bouncer/context/epics/` as a plain
+slug (for example `auth` / `signup`): lowercase kebab-case, at most 40
+characters, never digits only and never starting with a three-digit prefix.
+A blueprint's position among its siblings is the frontmatter `bouncer.order`
+(a positive integer unique within the epic), not a directory prefix.
+`bouncer plan inspect --epic-dir <dir>` reports `epic.nextBlueprintOrder` as the
+suggested value. The stable IDs are `<epic-slug>/<bp-slug>` and
+`<epic-slug>/<bp-slug>/<ddd>` (task number stays three digits); branches are
+`<type>/<epic-slug>-<bp-slug>-<slug>` and worktrees are
+`.worktrees/<epic-slug>/<bp-slug>`. The registry (v2) keeps `legacy_id` and
+`blueprint_aliases` for old numbers. New scaffolds never use `EPIC-` or `BP-`
+prefixes. The numbered form (`014-auth` / `001-signup`, `EPIC-<ddd>/BP-<ddd>`) is
+only read in a repository that has not run `bouncer migrate context-slugs [--yes]`
+yet and in old commit trailers.
+
+## Epic attribution
+
+Every blueprint, full or light, joins one epic from the registry
+(`registry.epics` in `bouncer plan inspect`). Apply these rules in order and
+stop at the first that holds:
+
+1. When the acceptance criteria center on the behavior of one domain feature,
+   attribute to that domain epic if it exists, otherwise to `features` with an
+   `area`. This holds even when the change edits common-layer files.
+2. When it changes authentication, authorization, or the account model itself,
+   attribute to `identity-access`.
+3. When it changes the shared user-facing frame, design system,
+   internationalization, or accessibility, attribute to `interface`.
+4. When it changes a data foundation shared by two or more features, attribute
+   to `data`; an external boundary goes to `integration`; a shared module or
+   architecture boundary goes to `core`.
+5. When product behavior stays the same and only build, deploy, or environment
+   changes, attribute to `foundation`.
+6. When it changes testing, observability, or operations tooling itself,
+   attribute to `quality-ops`.
+7. When none applies, create no epic and report to the user.
+
+When a change touches several epics, pick the one the acceptance criteria center
+on as the primary epic. Security, performance, bug-fix, and refactoring work
+attributes by the target feature. Inactive epics and `legacy` epics are never
+candidates.
