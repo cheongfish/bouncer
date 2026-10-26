@@ -45,6 +45,8 @@ function fixture(version = '1.2.3') {
   }
   fs.writeFileSync(path.join(pluginTree, 'package.json'), JSON.stringify({ version }));
   fs.writeFileSync(path.join(pluginTree, 'plugin.json'), JSON.stringify({ version }));
+  fs.mkdirSync(path.join(pluginTree, '.claude-plugin'));
+  fs.writeFileSync(path.join(pluginTree, '.claude-plugin', 'marketplace.json'), '{}');
   fs.writeFileSync(path.join(pluginTree, 'plugin.txt'), 'plugin\n');
   const tarball = path.join(base, 'runtime.tgz');
   fs.writeFileSync(tarball, 'immutable package bytes');
@@ -441,5 +443,14 @@ test('(r) workflow_dispatch with matching tag → publish rejected before extern
   assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: {
     GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/tags/bouncer--v1.2.3',
   }, deps: recorder(calls) }), /matching/);
+  assert.deepEqual(calls, []);
+});
+
+test('(q) plugin tree without .claude-plugin/marketplace.json → stops before any external call', () => {
+  const input = fixture();
+  fs.rmSync(path.join(input.pluginTree, '.claude-plugin'), { recursive: true });
+  const calls = [];
+  assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: recorder(calls) }),
+    /missing \.claude-plugin\/marketplace\.json/);
   assert.deepEqual(calls, []);
 });

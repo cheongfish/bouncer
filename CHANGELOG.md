@@ -10,6 +10,19 @@
 
 ## [Unreleased]
 
+## [0.1.15]
+
+Runtime-only release. Plugin `0.1.12` supports this runtime through
+`runtimeCompatibility: ">=0.1.14 <0.2.0"`.
+
+### Fixed
+
+- `release` 브랜치에서 `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `.agents/`가
+  빠져 Claude marketplace 등록이 실패하던 문제를 고칩니다. release workflow가 숨김 파일을
+  artifact에 포함하고, 게시 전에 `.claude-plugin/marketplace.json`을 확인합니다.
+
+## [0.1.14]
+
 ### Added
 
 - Runtime `0.1.14`의 plan·execute 성공 payload에 `agent_dispatch` 설정 메타데이터를 기록합니다.
