@@ -1,0 +1,21 @@
+{
+  "name": "bouncer",
+  "displayName": "Bouncer",
+  "description": "Spec-driven development workflow for parallel task execution and verified integration.",
+  "version": "0.1.12",
+  "runtimeCompatibility": ">=0.1.14 <0.2.0",
+  "author": {
+    "name": "Kim Cheongwoon",
+    "email": "rlq10324@chunjae.com"
+  },
+  "homepage": "https://github.com/cheongfish/bouncer",
+  "repository": "https://github.com/cheongfish/bouncer",
+  "keywords": [
+    "spec-driven",
+    "governance",
+    "workflow",
+    "gates"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/cursor-hooks.json"
+}

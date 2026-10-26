@@ -1,0 +1,28 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "cheongfish-tools",
+  "description": "Cheongfish plugins for agentic software development",
+  "owner": {
+    "name": "Kim Cheongwoon",
+    "email": "rlq10324@chunjae.com"
+  },
+  "plugins": [
+    {
+      "name": "bouncer",
+      "source": "./",
+      "version": "0.1.12",
+      "description": "Spec-driven development workflow for parallel task execution and verified integration.",
+      "category": "workflow",
+      "tags": [
+        "spec-driven",
+        "parallel-workflows",
+        "verified-integration",
+        "agent-workflow"
+      ],
+      "author": {
+        "name": "Kim Cheongwoon",
+        "email": "rlq10324@chunjae.com"
+      }
+    }
+  ]
+}
