@@ -14,6 +14,29 @@ test('plugin-root contract → points PATH install at docs/install.md', () => {
   assert.match(contract, /docs\/install\.md/);
 });
 
+test('retired repository-memory shards → are absent', () => {
+  for (const rel of ['.bouncer/Distill.md', '.bouncer/distill/core.md']) {
+    assert.equal(fs.existsSync(path.join(root, rel)), false, rel);
+  }
+});
+
+test('active runtime and example config → contain no retired repository-memory surface', () => {
+  const retired = ['dis', 'till'].join('');
+  const paths = [
+    'packages/cli/src/layout.ts', 'packages/cli/dist/layout.js',
+    'packages/cli/src/config.ts', 'packages/cli/dist/config.js',
+    'packages/cli/src/cli-project-commands.ts', 'packages/cli/dist/cli-project-commands.js',
+    'packages/cli/src/cli.ts', 'packages/cli/dist/cli.js',
+    'packages/cli/src/validate-structural.ts', 'packages/cli/dist/validate-structural.js',
+    'packages/cli/src/validate.ts', 'packages/cli/dist/validate.js', 'config.example.json',
+  ];
+  const files = trackedTextFiles().filter((rel) => paths.includes(rel));
+  assert.deepStrictEqual(
+    files.filter((rel) => new RegExp(retired, 'i').test(read(rel))),
+    [],
+  );
+});
+
 /**
  * Records, not authored surfaces. `.bouncer/context/` holds captured evidence —
  * verification.md quotes whatever the verify command printed, which for this

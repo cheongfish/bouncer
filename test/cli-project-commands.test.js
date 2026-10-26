@@ -66,36 +66,6 @@ function withBouncerHome(fn) {
   }
 }
 
-test('tracked active sources → contain no retired Distill public surface', () => {
-  // 과거 context 기록은 계약 대상이 아니다. 추적된 실행·배포 source와 예제 설정만
-  // 검사해, 역사 문서의 언급 때문에 재도입 방지 검사가 흔들리지 않게 한다.
-  const retired = ['d', 'istill'].join('');
-  const tracked = execFileSync('git', [
-    'ls-files', '--',
-    'packages/cli/src/layout.ts',
-    'packages/cli/dist/layout.js',
-    'packages/cli/src/config.ts',
-    'packages/cli/dist/config.js',
-    'packages/cli/src/cli-project-commands.ts',
-    'packages/cli/dist/cli-project-commands.js',
-    'packages/cli/src/cli.ts',
-    'packages/cli/dist/cli.js',
-    'packages/cli/src/validate-structural.ts',
-    'packages/cli/dist/validate-structural.js',
-    'packages/cli/src/validate.ts',
-    'packages/cli/dist/validate.js',
-    'config.example.json',
-  ], { cwd: path.join(__dirname, '..'), encoding: 'utf8' })
-    .trim()
-    .split('\n')
-    .filter(Boolean);
-  const matches = tracked.filter((rel) => new RegExp(retired, 'i').test(
-    fs.readFileSync(path.join(__dirname, '..', rel), 'utf8'),
-  ));
-
-  assert.deepStrictEqual(matches, []);
-});
-
 test('retired distill command → is rejected', () => {
   const retired = capture([['d', 'istill'].join('')]);
   assert.strictEqual(retired.code, 2);

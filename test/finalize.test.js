@@ -378,44 +378,36 @@ test('no Distill files → finalize completes the remainder', () => {
   assert.ok(!res.staged.some((rel) => /Distill|distill/.test(rel)));
 });
 
-test('Distill paths outside affected_paths → finalize rejects them', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo);
-  const g = fakeGit(['.bouncer/Distill.md'], []);
-  const res = finalize({
-    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
-  });
-  assert.strictEqual(res.ok, false);
-  assert.strictEqual(res.reason, 'out-of-scope');
-  assert.deepStrictEqual(res.violations, ['.bouncer/Distill.md']);
-  assert.strictEqual(g.calls.staged, null);
-});
+test('retired repository-memory paths outside affected_paths → finalize rejects before staging', () => {
+  const cases = [
+    { path: '.bouncer/Distill.md', prepare: () => {} },
+    {
+      path: '.bouncer/distill/core.md',
+      prepare: (repo) => writeRegisteredDistillShard(repo),
+    },
+    {
+      path: '.bouncer/distill/unregistered.md',
+      prepare: (repo) => {
+        writeRegisteredDistillShard(repo);
+        fs.writeFileSync(path.join(repo, '.bouncer/distill/unregistered.md'), '## Decisions\n\nunregistered shard\n');
+      },
+    },
+  ];
 
-test('a Distill shard outside affected_paths → finalize rejects it', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo);
-  writeRegisteredDistillShard(repo);
-  const shard = '.bouncer/distill/core.md';
-  const g = fakeGit([shard], []);
-  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
-  assert.strictEqual(res.ok, false);
-  assert.strictEqual(res.reason, 'out-of-scope');
-  assert.deepStrictEqual(res.violations, [shard]);
-  assert.strictEqual(g.calls.committed, null);
-});
-
-test('an unregistered Distill shard outside affected_paths → finalize rejects it', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo);
-  writeRegisteredDistillShard(repo);
-  const shard = '.bouncer/distill/unregistered.md';
-  fs.writeFileSync(path.join(repo, shard), '## Decisions\n\nunregistered shard\n');
-  const g = fakeGit([shard], []);
-  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
-  assert.strictEqual(res.ok, false);
-  assert.strictEqual(res.reason, 'out-of-scope');
-  assert.deepStrictEqual(res.violations, [shard]);
-  assert.strictEqual(g.calls.committed, null);
+  for (const { path: rel, prepare } of cases) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    fullBlueprint(repo);
+    prepare(repo);
+    const g = fakeGit([rel], []);
+    const res = finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+    });
+    assert.strictEqual(res.ok, false, rel);
+    assert.strictEqual(res.reason, 'out-of-scope', rel);
+    assert.deepStrictEqual(res.violations, [rel], rel);
+    assert.strictEqual(g.calls.staged, null, rel);
+    assert.strictEqual(g.calls.committed, null, rel);
+  }
 });
 
 test('dry-run → reports staged files and blueprint message without committing', () => {

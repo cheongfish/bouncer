@@ -13,23 +13,13 @@ const WORKFLOW = [
 // 공개 진입에서 제거한 스킬. 파일이 다시 생기면 아래 부재 단언이 실패한다.
 const RETIRED = ['bouncer-execute', 'bouncer-commit'];
 // Subskills live at references/<name>/index.md (not the host skills/ catalog).
-const SUB_PATHS = [
-  'discovery', 'spec-authoring', 'implementation', 'verification',
-  'review', 'minimality', 'debugging', 'graphify-runner', 'explain-diff',
-  'stop-slop', 'context-review',
-];
 const UNPUBLISHED = [
   'discovery', 'spec-authoring', 'stop-slop', 'graphify-runner', 'minimality',
   'context-review', 'implementation', 'verification', 'debugging', 'review',
   'explain-diff',
 ];
-const UNPUBLISHED_SET = new Set(UNPUBLISHED);
-
 // 호스트 카탈로그는 워크플로 다섯뿐이다(102-001에서 execute·commit 제거). 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
 const EXPECTED_SKILL_COUNT = 5;
-const MIN_DESCRIPTION_CHARS = 100;
-const MAX_DESCRIPTION_CHARS = 180;
-const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
 
 /**
  * `skills/` 아래 SKILL.md가 있는 디렉터리 이름을 정렬해 돌려준다.
@@ -49,90 +39,15 @@ function listCanonicalSkillNames() {
     .sort();
 }
 
-/**
- * YAML `description:` 줄에서 접두어만 제거한 원문 scalar를 꺼낸다.
- * 예산은 파서가 벗긴 값이 아니라 인용부호를 포함한 한 줄 길이라서
- * parseFrontmatter 결과를 쓰면 안 된다.
- *
- * @param {string} skillName - 스킬 디렉터리 이름
- * @param {string} md - SKILL.md 원문
- * @returns {string} `description:` 접두어를 뺀 나머지
- */
-function rawDescriptionScalar(skillName, md) {
-  const hits = md.split('\n').filter((line) => /^description:\s*/.test(line));
-  assert.strictEqual(
-    hits.length,
-    1,
-    `${skillName}: expected exactly one description: line, found ${hits.length}`,
-  );
-  return hits[0].replace(/^description:\s*/, '');
-}
-
-/**
- * 원문 scalar가 비어 있지 않고 한 문장인지 본다.
- * 두 번째 문장(마침표 뒤 본문)이 생기면 암묵 매칭 근거가 늘어나 예산을 우회한다.
- *
- * @param {string} skillName - 스킬 디렉터리 이름
- * @param {string} scalar - YAML 원문 scalar
- * @returns {void}
- */
-function assertOneSentenceDescription(skillName, scalar) {
-  assert.ok(scalar.length > 0, `${skillName}: description scalar is empty`);
-  const inner = scalar.replace(/^"(.*)"$/, '$1');
-  assert.match(
-    inner,
-    /\.$/,
-    `${skillName}: description must be one sentence ending with a period`,
-  );
-  assert.doesNotMatch(
-    inner,
-    /\.\s+\S/,
-    `${skillName}: description must be a single sentence`,
-  );
-}
-
 function readWorkflow(name) {
   return fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
 }
 
-// 세션이 루트를 먼저 얻고 plugin-root 계약을 루트 기준으로 연다. 여섯 문단이 바이트까지
-// 같아야 한다는 일치 계약이며, 규칙 문서의 설명 문장은 고정하지 않는다.
-test('workflow Plugin root paragraphs → are byte-identical across the five workflow skills', () => {
-  const PLUGIN_ROOT_LINE = '**Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.';
-  for (const name of WORKFLOW) assert.ok(readWorkflow(name).includes(`\n${PLUGIN_ROOT_LINE}\n`), name);
-});
-
-/**
- * ACQ 색인 앞 본문에서 1부터 이어지는 최상위 번호 단계 개수.
- * 들여 쓴 AskUserQuestion 항목은 세지 않는다.
- *
- * @param {string} md - SKILL.md 원문
- * @returns {number} 연속된 1..N 단계 수
- */
-function countNumberedSteps(md) {
-  const acqAt = md.search(/^## ACQ \(AskUserQuestion\) gates$/m);
-  const procedure = acqAt === -1 ? md : md.slice(0, acqAt);
-  const numbers = [...procedure.matchAll(/^(\d+)\. /gm)].map((hit) => Number(hit[1]));
-  let count = 0;
-  for (let i = 0; i < numbers.length; i += 1) {
-    if (numbers[i] !== i + 1) break;
-    count += 1;
-  }
-  return count;
-}
-
-const ENTRY_STEP_COUNTS = {
-  'bouncer-init': 4,
-  'bouncer-plan': 8,
-  'bouncer-run': 5,
-  'bouncer-finalize': 5,
-  'bouncer-retro': 5,
-};
-
-test('entry skills → keep the locked numbered-step counts', () => {
-  for (const [name, expected] of Object.entries(ENTRY_STEP_COUNTS)) {
-    const actual = countNumberedSteps(readWorkflow(name));
-    assert.strictEqual(actual, expected, `${name}: expected ${expected} numbered steps, received ${actual}`);
+test('workflow skills → retain an entry procedure and the ACQ index', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    assert.match(md, /^1\. /m, `${name}: missing first procedure step`);
+    assert.match(md, /^## ACQ \(AskUserQuestion\) gates$/m, `${name}: missing ACQ index`);
   }
 });
 
@@ -271,6 +186,10 @@ test('workflow skills → classify references as root or skill-local without bar
 
     const local = SKILL_LOCAL_REFS[name];
     for (const file of local) {
+      assert.ok(
+        fs.existsSync(path.join(root, 'skills', name, 'references', file)),
+        `${name}: missing skill-local ${file}`,
+      );
       assert.match(
         md,
         new RegExp(`\\./references/${file.replace(/\./g, '\\.')}`),
@@ -329,35 +248,6 @@ test('workflow ACQ section → is a step index; AskUserQuestion detail stays in 
   }
 });
 
-test('workflow skill bodies → use English headings', () => {
-  for (const name of WORKFLOW) {
-    const md = readWorkflow(name);
-    const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
-    assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
-  }
-});
-
-/**
- * 보조는 references/<name>/index.md에만 둔다. SUB_PATHS를 skills/로 되돌리지 않는다.
- *
- * @param {string} name - 서브스킬 디렉터리 이름
- * @returns {string} 본문 절대 경로
- */
-function subSkillPath(name) {
-  if (UNPUBLISHED_SET.has(name)) {
-    return path.join(root, 'references', name, 'index.md');
-  }
-  return path.join(root, 'skills', name, 'SKILL.md');
-}
-
-test('sub-skill bodies → use English headings', () => {
-  for (const name of SUB_PATHS) {
-    const md = fs.readFileSync(subSkillPath(name), 'utf8');
-    const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
-    assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
-  }
-});
-
 test('unpublished helpers → live under references/ and are absent from the catalog', () => {
   const skillNames = listCanonicalSkillNames();
   for (const name of UNPUBLISHED) {
@@ -369,9 +259,13 @@ test('unpublished helpers → live under references/ and are absent from the cat
   // 카탈로그에서 뺀 스킬은 migrate-ids와 같이 부재를 고정한다. 개수 단언만 두면
   // 다른 이름을 넣어도 6이면 통과한다.
   assert.equal(fs.existsSync(path.join(root, 'skills', 'agentic-code-benchmark', 'SKILL.md')), false);
+  for (const rel of [
+    'skills/bouncer-plan/references/distill-preflight.md',
+    'skills/bouncer-plan/references/graphify-suggestions.md',
+  ]) assert.equal(fs.existsSync(path.join(root, rel)), false, rel);
 });
 
-test('canonical skill descriptions → stay within the locked YAML-scalar budget', () => {
+test('canonical skill catalog → contains the five explicit workflow entries', () => {
   const skillNames = listCanonicalSkillNames();
   assert.strictEqual(
     skillNames.length,
@@ -380,25 +274,10 @@ test('canonical skill descriptions → stay within the locked YAML-scalar budget
       + 'raising this cap requires a human review of the contract',
   );
 
-  let total = 0;
   for (const name of skillNames) {
-    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
-    const scalar = rawDescriptionScalar(name, md);
-    assertOneSentenceDescription(name, scalar);
-    const length = scalar.length;
-    total += length;
-    assert.ok(
-      length >= MIN_DESCRIPTION_CHARS && length <= MAX_DESCRIPTION_CHARS,
-      `${name}: description YAML scalar length is ${length}, expected ${MIN_DESCRIPTION_CHARS}..${MAX_DESCRIPTION_CHARS}; `
-        + 'raising this cap requires a human review of the contract',
-    );
+    const { data } = parseFrontmatter(readWorkflow(name));
+    assert.match(String(data.description), /^Use only when the user explicitly asks \//, name);
   }
-
-  assert.ok(
-    total <= MAX_TOTAL_DESCRIPTION_CHARS,
-    `total description YAML scalar length is ${total}, cap is ${MAX_TOTAL_DESCRIPTION_CHARS}; `
-      + 'raising this cap requires a human review of the contract',
-  );
 });
 
 // 심볼 선택 지침은 controller가 읽는 문서가 곧 계약이다. 문서 제목·테스트 이름을

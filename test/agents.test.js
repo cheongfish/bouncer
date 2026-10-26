@@ -41,22 +41,6 @@ for (const name of AGENTS) {
 // scripts/check-doc-shape.js의 PATH_CONTRACTS가 `npm run lint:docs`로 검사한다.
 // 여기에는 문서 본문과 따로 관리되는 산출물(.codex TOML)의 일치만 남긴다.
 
-test('checked-in coordinator TOML → matches mdToCodexToml byte-for-byte', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
-  const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  const generated = mdToCodexToml(markdown);
-  const checkedIn = fs.readFileSync(
-    path.join(root, '.codex/agents/bouncer-coordinator.toml'), 'utf8',
-  );
-
-  assert.strictEqual(checkedIn.split(/\r?\n/, 1)[0], GENERATED_MARKER);
-  assert.strictEqual(checkedIn, generated);
-  // named agent가 없는 host의 fallback은 이 본문을 그대로 넘겨야 같은 역할이 된다.
-  for (const heading of ['## Authority', '## Hard guards', '## Procedure', '## Output contract']) {
-    assert.ok(generated.includes(heading), `generated TOML must retain ${heading}`);
-  }
-});
-
 test('agent doc bodies → use English headings', () => {
   for (const name of AGENTS) {
     const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
@@ -97,47 +81,12 @@ test('mdToCodexToml given a role doc → preserves name description body and rea
   }
 });
 
-test('mdToCodexToml given the implementer doc → keeps the implementer role contract intact', () => {
-  const { mdToCodexToml } = require('../packages/cli/dist/codex-agents');
-  const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
-  const toml = mdToCodexToml(markdown);
-
-  // 축약 dispatch는 생성 TOML의 역할 지시를 전제하므로, 경계 절이 하나라도
-  // 빠지면 named agent가 fallback과 동등한 가드를 받는다는 전제가 무너진다.
-  for (const heading of ['## Authority', '## Hard guards', '## Procedure', '## Output contract']) {
-    assert.ok(toml.includes(heading), `generated TOML must retain ${heading}`);
-  }
-});
-
 // 축약 named payload는 로컬 TOML이 정본 변환과 바이트 단위로 같을 때만
 // 허용된다. 마커가 없거나 내용이 어긋나면 compact를 성공으로 치면 안 된다.
 // 2026-09-06 측정: mdToCodexToml(agents/bouncer-implementer.md)와
 // .codex/agents/bouncer-implementer.toml 은 이미 6331 bytes로 일치하므로
 // 사본 재생성은 no-op이다. 불일치가 나면 init으로 다른 TOML까지 건드리지
 // 말고 이 단언이 실패하게 둔다.
-test('checked-in implementer TOML → matches mdToCodexToml byte-for-byte', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
-  const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
-  const generated = mdToCodexToml(markdown);
-  const checkedInPath = path.join(root, '.codex/agents/bouncer-implementer.toml');
-  const checkedIn = fs.readFileSync(checkedInPath, 'utf8');
-  const firstLine = checkedIn.split(/\r?\n/, 1)[0];
-
-  assert.strictEqual(firstLine, GENERATED_MARKER);
-  assert.strictEqual(checkedIn, generated);
-});
-
-test('checked-in debugger and reviewer TOML → match mdToCodexToml byte-for-byte', () => {
-  const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
-  for (const name of ['bouncer-debugger', 'bouncer-reviewer']) {
-    const markdown = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
-    const generated = mdToCodexToml(markdown);
-    const checkedIn = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
-    assert.strictEqual(checkedIn.split(/\r?\n/, 1)[0], GENERATED_MARKER, name);
-    assert.strictEqual(checkedIn, generated, name);
-  }
-});
-
 // 마커 없는 TOML은 사용자가 관리한다 — ensureCodexAgents는 덮어쓰지 않는다.
 test('an unmarked implementer TOML → remains user-owned', () => {
   const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');

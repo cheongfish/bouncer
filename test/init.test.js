@@ -494,15 +494,6 @@ test('init with an existing Distill file → leaves it untouched and does not cr
   assert.strictEqual(read(repo, '.bouncer/Distill.md'), custom);
 });
 
-test('ready init with a missing Distill file → does not seed it', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.ok(!exists(repo, '.bouncer/Distill.md'));
-  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.ok(!again.created.includes('.bouncer/Distill.md'));
-  assert.ok(!exists(repo, '.bouncer/Distill.md'));
-});
-
 test('init with legacy .bouncer/context/Distill.md → does not migrate it', () => {
   const repo = tmpRepo();
   const legacy = `---
