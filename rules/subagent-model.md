@@ -30,12 +30,17 @@ limits.
    On Codex, a dispatch that forks the full conversation does not accept a model
    override, so when a slug is passed, set `fork_turns: "none"` on that same
    call.
+   A model rejection is not named-agent unavailability. Stop without an
+   automatic retry or fallback and tell the user the provider, role, configured
+   model name, host rejection reason, and where to correct the setting in
+   `.bouncer/config.json`. If the host explicitly returns a supported model
+   name, report that exact name; never invent an alias or replacement.
 2. Attempt the named dispatch. Do not skip it because the host is Codex.
    Only the item 7 opt-in replaces it.
-3. Only on a rejected model slug, retry that same named dispatch once with
-   `inherit`, and tell the user that the slug was refused.
-   A dispatch failure for another reason does not authorize this retry. The
-   retry also starts without conversation history.
+3. If the host rejects the configured model, stop and report the rejection as
+   described in item 1. Do not retry with `inherit`, a parent model, an alias,
+   or a generic fallback. A named-agent-unavailable result remains the distinct
+   fallback case in item 4.
 4. When named agents are unavailable, use the fallback explicitly selected by
    the calling workflow (inline skill/pass or a fresh generic subagent) with
    the same role brief. The same role brief is the entire body of the role

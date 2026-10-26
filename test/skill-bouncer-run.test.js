@@ -51,6 +51,8 @@ test('run skill → runs the coordinator model check before the named dispatch',
   const dispatchAt = paragraph.indexOf('Dispatch named');
   assert.ok(dispatchAt >= 0, 'subagent-model 문단에 Dispatch named 문구 없음');
   assert.ok(paragraph.indexOf(command) < dispatchAt, 'model check must precede Dispatch named');
+  assert.match(paragraph, /host rejects[\s\S]*stop without retry or fallback/i);
+  assert.match(paragraph, /additionalContext[\s\S]*report that\s+change to the user/i);
   // fallback은 같은 문단에서 공통 규칙(item 5)을 가리키고 "same coordinator brief" 라벨로
   // 대체되지 않아야 한다. 라벨만 남으면 축약 payload가 통과한다.
   const fallbackAt = paragraph.indexOf('When named agents are unavailable');
