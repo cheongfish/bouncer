@@ -10,6 +10,15 @@
 
 ## [Unreleased]
 
+## [0.1.12]
+
+Runtime-only release. Plugin `0.1.11` supports this runtime through
+`runtimeCompatibility: ">=0.1.11 <0.2.0"`.
+
+### Added
+
+- Global npm installation registers the npm executable directory in the user PATH.
+
 ## [0.1.10]
 
 npm 첫 공개 버전입니다. plugin 버전도 같은 `0.1.10`으로 시작합니다.

@@ -25,7 +25,7 @@ prepare 검증만 하고 `publish` job은 건너뜁니다.
 
 ## 일반 릴리스 순서
 
-예시는 `0.1.11`입니다.
+예시는 `0.1.12`입니다.
 
 1. runtime 변경이면 루트 `package.json`의 `version`을 올리고 `npm run sync:versions`로
    runtime lock metadata를 동기화합니다. plugin 자산이나 호환 범위를 변경할 때만
@@ -40,7 +40,7 @@ prepare 검증만 하고 `publish` job은 건너뜁니다.
 
    `sync:versions`는 plugin 버전을 runtime에 덮어쓰지 않습니다. 문서의 설치 예시도
    새 runtime을 가리키도록 직접 고칩니다.
-   `CHANGELOG.md`에 `## [0.1.11]` 항목을 추가합니다.
+   `CHANGELOG.md`에 `## [0.1.12]` 항목을 추가합니다.
 2. PR로 `develop`에 병합합니다.
 3. 수동 workflow 실행으로 prepare 검증과 dry-run을 확인합니다. release 브랜치에 쓰지 않고
    npm에 게시하지 않습니다.
@@ -58,8 +58,8 @@ prepare 검증만 하고 `publish` job은 건너뜁니다.
 
    ```bash
    git switch develop && git pull --ff-only
-   git tag -a bouncer--v0.1.11 -m "bouncer 0.1.11"
-   git push origin bouncer--v0.1.11
+   git tag -a bouncer--v0.1.12 -m "bouncer 0.1.12"
+   git push origin bouncer--v0.1.12
    ```
 
    workflow는 태그, 루트 version, runtime pack의 버전과 plugin의 runtime 호환 범위를

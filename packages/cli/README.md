@@ -8,7 +8,7 @@ runtime과 같은 version이어야 합니다.
 선택하세요.
 
 ```bash
-npm install --global @cheongfish/bouncer@0.1.11
+npm install --global @cheongfish/bouncer@0.1.12
 ```
 
 전역 설치는 npm prefix의 실행 파일 디렉터리를 사용자 PATH에 등록합니다. 새
@@ -21,7 +21,7 @@ PATH에 추가할 수 있지만, plugin hook이 호스트 PATH를 상속하지 �
 runtime을 다시 설치해야 shim이 생성됩니다.
 
 ```bash
-npm install --save-dev @cheongfish/bouncer@0.1.11
+npm install --save-dev @cheongfish/bouncer@0.1.12
 ```
 
 PowerShell은 local 설치의 `node_modules/.bin/bouncer.cmd`를, 전역 설치는 PATH에
