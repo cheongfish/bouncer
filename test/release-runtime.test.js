@@ -44,6 +44,7 @@ function fixture(version = '1.2.3') {
     fs.writeFileSync(path.join(root, rel), JSON.stringify(data));
   }
   fs.writeFileSync(path.join(pluginTree, 'package.json'), JSON.stringify({ version }));
+  fs.writeFileSync(path.join(pluginTree, 'plugin.json'), JSON.stringify({ version }));
   fs.writeFileSync(path.join(pluginTree, 'plugin.txt'), 'plugin\n');
   const tarball = path.join(base, 'runtime.tgz');
   fs.writeFileSync(tarball, 'immutable package bytes');

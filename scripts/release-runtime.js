@@ -50,9 +50,16 @@ function releaseRuntime(opts) {
   // host manifest/lockfile drift를 어떤 외부 호출보다 먼저 막는다(drift면 여기서 throw).
   const rootVersion = syncVersions({ root, mode: 'check' }).version;
   const pluginPkg = JSON.parse(fs.readFileSync(path.join(opts.pluginTree, 'package.json'), 'utf8'));
+  const pluginManifest = JSON.parse(fs.readFileSync(path.join(opts.pluginTree, 'plugin.json'), 'utf8'));
   const tag = env.GITHUB_REF || '';
-  if (pack.name !== PACKAGE || rootVersion !== pack.version || pluginPkg.version !== pack.version) {
-    throw new Error('package name or root/plugin version mismatch');
+  if (pack.name !== PACKAGE || rootVersion !== pack.version || pluginPkg.version !== pluginManifest.version) {
+    throw new Error('package name or runtime/plugin metadata mismatch');
+  }
+  const { assertPluginVersion } = require('../packages/cli/dist/plugin-root');
+  try {
+    assertPluginVersion({ version: pluginManifest.version, runtimeCompatibility: pluginManifest.runtimeCompatibility }, pack.version);
+  } catch (error) {
+    throw new Error(`plugin runtime compatibility check failed: ${error.message}`, { cause: error });
   }
   if (opts.mode === 'publish') {
     // 전체 SemVer 문자열(+build 포함)을 비교한다. 정규식 대신 정본 검사기를 써 두 경로가 갈라지지 않게 한다.

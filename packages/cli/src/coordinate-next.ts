@@ -215,7 +215,7 @@ function attachCard(result: NextOk | NextErr, readCard: (id: CardId) => string):
       return {
         ...fail('coordinator-card-missing'),
         cause: error.message,
-        next: 'Install the matching npm runtime version or repair BOUNCER_HOME to the matching plugin install.',
+        next: 'Install a compatible npm runtime version or repair BOUNCER_HOME to a compatible plugin install.',
       };
     }
     return fail('coordinator-card-missing');

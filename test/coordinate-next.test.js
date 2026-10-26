@@ -2182,7 +2182,7 @@ test('task next dispatch with a plugin version mismatch → keeps card-missing r
       assert.strictEqual(result.reason, 'coordinator-card-missing');
       assert.match(result.cause, /1\.5\.0/);
       assert.match(result.cause, new RegExp(require('../packages/cli/package.json').version.replaceAll('.', '\\.')));
-      assert.match(result.next, /matching npm runtime version/);
+      assert.match(result.next, /compatible npm runtime version/);
     });
   } finally {
     fs.rmSync(pluginRoot, { recursive: true, force: true });

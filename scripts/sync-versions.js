@@ -10,7 +10,8 @@ const TARGETS = [
     ['packages[""].version', data.packages && data.packages[''], 'version'],
     ['packages["packages/cli"].version', data.packages && data.packages['packages/cli'], 'version'],
   ]],
-  ['plugin.json', (data) => [['version', data, 'version']]],
+];
+const PLUGIN_TARGETS = [
   ['.claude-plugin/plugin.json', (data) => [['version', data, 'version']]],
   ['.claude-plugin/marketplace.json', (data) => {
     if (!Array.isArray(data.plugins)) throw new Error('plugins array missing');
@@ -77,9 +78,15 @@ function syncVersions(opts = {}) {
   const source = readJson(rootFile);
   const version = source.data.version;
   if (!isStrictSemver(version)) throw new Error(`${rootFile}:version: invalid strict SemVer 2.0`);
+  const pluginSource = readJson(path.join(root, 'plugin.json'));
+  const pluginVersion = pluginSource.data.version;
+  if (!isStrictSemver(pluginVersion)) throw new Error(`${path.join(root, 'plugin.json')}:version: invalid strict SemVer 2.0`);
 
   const edits = [];
-  for (const [rel, selectors] of TARGETS) {
+  for (const [rel, selectors, targetVersion] of [
+    ...TARGETS.map(([rel, selectors]) => [rel, selectors, version]),
+    ...PLUGIN_TARGETS.map(([rel, selectors]) => [rel, selectors, pluginVersion]),
+  ]) {
     const file = path.join(root, rel);
     const parsed = readJson(file);
     const fields = selectors(parsed.data);
@@ -87,8 +94,8 @@ function syncVersions(opts = {}) {
       if (!object || !Object.hasOwn(object, key)) {
         throw new Error(`${file}:${label}: required field missing`);
       }
-      if (object[key] !== version) {
-        edits.push({ file, rel, label, parsed, object, key });
+      if (object[key] !== targetVersion) {
+        edits.push({ file, rel, label, parsed, object, key, targetVersion });
       }
     }
   }
@@ -98,7 +105,7 @@ function syncVersions(opts = {}) {
 
   // 모든 파일과 필수 필드를 읽고 검증한 뒤에만 write 모드가 첫 교체를 한다.
   for (const edit of edits) {
-    edit.object[edit.key] = version;
+    edit.object[edit.key] = edit.targetVersion;
     try {
       fs.writeFileSync(edit.file, `${JSON.stringify(edit.parsed.data, null, 2)}\n`);
     } catch (err) {

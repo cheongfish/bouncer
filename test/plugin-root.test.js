@@ -132,9 +132,9 @@ test('selected latest plugin with a different version → throws an identifiable
   const auto = capture([], { homeDir: home });
   assert.strictEqual(auto.code, 1);
   assert.strictEqual(auto.out, '');
-  assert.match(auto.err, /does not match runtime version/);
+  assert.match(auto.err, /incompatible with runtime version/);
   assert.ok(auto.err.includes('1.7.0') && auto.err.includes(RUNTIME_VERSION));
-  assert.ok(auto.err.includes('install the matching npm runtime version'));
+  assert.ok(auto.err.includes('install a compatible npm runtime version'));
   const selected = capture(['--select'], {
     homeDir: home,
     isTTY: true,
@@ -142,7 +142,7 @@ test('selected latest plugin with a different version → throws an identifiable
   });
   assert.strictEqual(selected.code, 1);
   assert.strictEqual(selected.out, '');
-  assert.match(selected.err, /does not match runtime version/);
+  assert.match(selected.err, /incompatible with runtime version/);
   assert.ok(selected.err.includes('1.7.0') && selected.err.includes(RUNTIME_VERSION));
 });
 

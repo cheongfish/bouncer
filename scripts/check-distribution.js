@@ -182,10 +182,12 @@ function smoke({ root: sourceRoot = root } = {}) {
   const snapshot = path.join(temp, 'snapshot');
   const cache = path.join(temp, 'cache');
   const prefix = path.join(temp, 'prefix');
-  const env = { ...process.env, npm_config_cache: cache, npm_config_prefix: prefix,
-    npm_config_userconfig: path.join(temp, 'npmrc') };
+  const isolatedHome = path.join(temp, 'home');
+  const env = { ...process.env, HOME: isolatedHome, USERPROFILE: isolatedHome,
+    npm_config_cache: cache, npm_config_prefix: prefix, npm_config_userconfig: path.join(temp, 'npmrc') };
   try {
     fs.mkdirSync(snapshot);
+    fs.mkdirSync(isolatedHome);
     const listing = run('git', ['ls-files', '-z'], sourceRoot);
     if (listing.status !== 0) throw new Error(`git ls-files failed: ${listing.stderr}`);
     const files = listing.stdout.split('\0').filter(Boolean);

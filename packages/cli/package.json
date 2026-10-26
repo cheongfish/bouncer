@@ -1,6 +1,6 @@
 {
   "name": "@cheongfish/bouncer",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "license": "Apache-2.0",
   "description": "Deterministic runtime for the Bouncer plugin",
   "repository": {
@@ -28,6 +28,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && node bin/build-stamp.js --write",
+    "postinstall": "node bin/register-path.js",
     "prepack": "npm run build"
   }
 }

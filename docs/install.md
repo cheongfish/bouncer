@@ -1,7 +1,8 @@
 # 설치
 
 Bouncer는 npm으로 설치하는 CLI runtime과 호스트가 설치하는 plugin으로
-구성됩니다. 두 배포물은 같은 버전이어야 합니다. plugin만 설치해도 CLI가
+구성됩니다. plugin manifest의 `runtimeCompatibility` 범위가 두 배포물의 호환성을
+정합니다. plugin만 설치해도 CLI가
 설치되지는 않습니다. runtime은 Node.js 24 이상에서 실행하며 Git은 plugin
 설치와 저장소 작업에 필요합니다.
 
@@ -9,12 +10,12 @@ Bouncer는 npm으로 설치하는 CLI runtime과 호스트가 설치하는 plugi
 
 먼저 `node --version`이 `v24` 이상이고 `git --version`이 성공하는지
 확인하세요. npm registry에 게시된 버전은 운영자가 공개 완료를 확인한 뒤
-설치합니다. plugin release와 같은 버전을 고릅니다.
+설치합니다. 사용하는 plugin이 지원하는 runtime 버전을 고릅니다.
 
 Bash:
 
 ```bash
-BOUNCER_VERSION=0.1.10
+BOUNCER_VERSION=0.1.11
 npm view "@cheongfish/bouncer@$BOUNCER_VERSION" version
 npm install --global "@cheongfish/bouncer@$BOUNCER_VERSION"
 command -v bouncer
@@ -25,13 +26,18 @@ bouncer --help
 PowerShell:
 
 ```powershell
-$BouncerVersion = '0.1.10'
+$BouncerVersion = '0.1.11'
 npm view "@cheongfish/bouncer@$BouncerVersion" version
 npm install --global "@cheongfish/bouncer@$BouncerVersion"
 Get-Command bouncer
 Get-Command bouncer-root
 bouncer --help
 ```
+
+전역 설치는 npm prefix의 실행 파일 디렉터리를 사용자 PATH에 자동 등록합니다.
+Unix 계열은 셸 시작 파일에 추가하고, Windows는 사용자 PATH 환경 변수에 추가합니다.
+설치가 끝나면 새 터미널을 열어 적용하세요. 자동 등록이 실패하면 설치 출력의
+안내를 확인하고 아래처럼 PATH를 직접 추가할 수 있습니다.
 
 `npm view`가 해당 package version에 대해 `E404`를 반환하면 아직 게시되지 않은
 것으로 보고 공개 설치를 시도하지 마세요. 네트워크·인증 오류는 게시 여부를
@@ -40,7 +46,7 @@ checkout에서 만든 `.tgz`가 있다면 그 파일을 설치할 수 있습니�
 저장소 루트에서 `npm ci`, `npm run build`,
 `npm pack --workspace=@cheongfish/bouncer --pack-destination ./runtime-tarball` 순으로
 실행한 뒤 생성된 `.tgz`의 절대 경로를 `npm install --global`에 전달합니다. 로컬
-tgz 설치는 registry 게시를 뜻하지 않으며, 해당 tgz와 같은 버전의 plugin을
+tgz 설치는 registry 게시를 뜻하지 않으며, 해당 tgz와 호환되는 plugin을
 설치해야 합니다.
 
 전역 설치가 기본입니다. 프로젝트 안에만 runtime을 둘 수도 있습니다.
@@ -76,14 +82,15 @@ npm install --global "@cheongfish/bouncer@$BouncerVersion"
 ## 플러그인 설치
 
 CLI 설치 후 호스트 절차를 따라 `release` plugin을 설치합니다. 개발 checkout은
-아래 저장소 개발 절을 참고하세요. plugin version과 runtime version이 다르면
-자산을 읽기 전에 `BOUNCER_PLUGIN_VERSION_MISMATCH` 오류가 납니다. 두 배포물을
-같은 버전으로 설치하고, 여러 plugin이 보이는 환경에서는 `BOUNCER_HOME`을
-일치하는 plugin root의 절대 경로로 지정해 복구합니다.
+아래 저장소 개발 절을 참고하세요. runtime version이 plugin의
+`runtimeCompatibility` 범위에 없으면 자산을 읽기 전에
+`BOUNCER_PLUGIN_VERSION_MISMATCH` 오류가 납니다. 호환되는 runtime을 설치하고,
+여러 plugin이 보이는 환경에서는 `BOUNCER_HOME`을 호환되는 plugin root의 절대 경로로
+지정해 복구합니다.
 
 runtime이 없으면 plugin만으로 CLI 명령은 실행되지 않습니다. npm runtime을
 설치하고 셸 PATH에 `bouncer`와 `bouncer-root`가 보이는지 확인하세요. 전역
-설치 뒤에도 찾지 못하면 npm global prefix의 bin 디렉터리를 PATH에 추가하거나,
+자동 등록 뒤에도 찾지 못하면 npm global prefix의 bin 디렉터리를 PATH에 추가하거나,
 호스트가 PATH를 전달하지 않는 hook에는 `BOUNCER_BIN`에 `bouncer` shim의 절대
 경로를 지정합니다.
 

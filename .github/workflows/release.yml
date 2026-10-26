@@ -71,10 +71,8 @@ jobs:
           tag_version="${GITHUB_REF#refs/tags/bouncer--v}"
           root_version="$(node -p 'require("./package.json").version')"
           pack_version="$(node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"))[0];process.stdout.write(p.version)' "$INPUT_DIR/runtime-artifact/metadata.json")"
-          plugin_version="$(node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(p.version)' "$INPUT_DIR/plugin-tree/package.json")"
           test "$tag_version" = "$root_version"
           test "$tag_version" = "$pack_version"
-          test "$tag_version" = "$plugin_version"
           tarball="$(find "$INPUT_DIR/runtime-artifact" -maxdepth 1 -name '*.tgz' -print -quit)"
           test -n "$tarball"
           node scripts/release-runtime.js --publish --tarball "$tarball" \

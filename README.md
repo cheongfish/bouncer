@@ -21,19 +21,19 @@
 ## Install
 
 `bouncer` CLI runtime은 npm package이고 스킬·훅은 호스트 plugin입니다. 먼저
-Node.js 24 이상과 Git을 확인하고, 사용할 plugin과 **같은 버전**의 runtime을
+Node.js 24 이상과 Git을 확인하고, plugin의 runtime 호환 범위에 맞는 runtime을
 설치하세요. 기본은 전역 설치입니다. 호스트별 명령과 복구 절차는
 [install.md](docs/install.md)에 있습니다.
 
 ```
-npm install --global @cheongfish/bouncer@0.1.10
+npm install --global @cheongfish/bouncer@0.1.11
 /plugin marketplace add cheongfish/bouncer#release
 /plugin install bouncer@cheongfish-tools
 ```
 
-plugin 설치는 runtime을 설치하지 않습니다. 두 버전이 다르면 `bouncer`가
-plugin 자산을 읽기 전에 중단합니다. 같은 버전을 설치하거나
-`BOUNCER_HOME`을 그 runtime 버전과 일치하는 plugin root로 지정하세요.
+plugin 설치는 runtime을 설치하지 않습니다. runtime이 plugin의
+`runtimeCompatibility` 범위에 없으면 `bouncer`가 plugin 자산을 읽기 전에 중단합니다.
+호환되는 runtime을 설치하거나 `BOUNCER_HOME`을 호환되는 plugin root로 지정하세요.
 
 ### 구조
 

@@ -8,6 +8,7 @@ export interface PluginCandidate {
   host: BouncerHost;
   path: string;
   version: string;
+  runtimeCompatibility?: string;
 }
 
 interface ResolverOptions {
@@ -71,10 +72,15 @@ function readCandidate(host: BouncerHost, root: string): PluginCandidate | null 
         const metadata = JSON.parse(fs.readFileSync(path.join(absolute, metadataFile), 'utf8')) as {
           name?: unknown;
           version?: unknown;
+          runtimeCompatibility?: unknown;
         };
         const version = parseVersion(metadata.version);
         if ((metadata.name === 'bouncer' || metadata.name === '@cheongfish/bouncer') && version) {
-          return { host, path: absolute, version };
+          return {
+            host, path: absolute, version,
+            ...(typeof metadata.runtimeCompatibility === 'string'
+              ? { runtimeCompatibility: metadata.runtimeCompatibility } : {}),
+          };
         }
       } catch {
         // 다음 명시적 metadata 형식을 확인한다.
@@ -173,13 +179,37 @@ export function resolvePluginRoot(options: ResolverOptions = {}, host?: BouncerH
  * @returns {void} 일치하면 반환하고, 다르면 식별 가능한 Error를 던진다
  */
 export function assertPluginVersion(candidate: PluginCandidate, runtimeVersion = readRuntimeVersion()): void {
-  if (candidate.version === runtimeVersion) return;
+  const range = candidate.runtimeCompatibility;
+  const supported = range === undefined
+    ? candidate.version === runtimeVersion
+    : isRuntimeCompatible(runtimeVersion, range);
+  if (supported) return;
   const error = new Error(
-    `Bouncer plugin version ${candidate.version} does not match runtime version ${runtimeVersion}; `
-    + 'install the matching npm runtime version or repair BOUNCER_HOME to the matching plugin install',
+    `Bouncer plugin version ${candidate.version} is incompatible with runtime version ${runtimeVersion}`
+    + `${range === undefined ? '' : ` (supported: ${range})`}; `
+    + 'install a compatible npm runtime version or repair BOUNCER_HOME to a compatible plugin install',
   ) as Error & { code: string };
   error.code = 'BOUNCER_PLUGIN_VERSION_MISMATCH';
   throw error;
+}
+
+function isRuntimeCompatible(version: string, range: string): boolean {
+  // Deliberately accept only explicit comparator sets to keep manifest parsing predictable.
+  const clauses = range.trim().split(/\s+/);
+  if (clauses.length === 0 || clauses.some((clause) => !/^(>=|>|<=|<|=)\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(clause))) {
+    return false;
+  }
+  return clauses.every((clause) => {
+    const match = /^(>=|>|<=|<|=)(.+)$/.exec(clause);
+    if (!match || !parseVersion(match[2])) return false;
+    const order = compareSemverDesc(version, match[2]);
+    // compareSemverDesc returns positive when version sorts before the bound.
+    if (match[1] === '>=') return order <= 0;
+    if (match[1] === '>') return order < 0;
+    if (match[1] === '<=') return order >= 0;
+    if (match[1] === '<') return order > 0;
+    return order === 0;
+  });
 }
 
 /**
@@ -200,7 +230,8 @@ function readRuntimeVersion(): string {
 /**
  * 플러그인 자산(`agents/`, `references/coordinator-cards/`)을 읽을 검증된 루트를 돌려준다.
  * 순서는 `BOUNCER_HOME` → strict-semver가 가장 높은 host 후보이며, 선택된 설치의
- * version은 runtime package version과 일치해야 한다. runtime tree는 자산 설치 여부를
+ * `runtimeCompatibility`가 있으면 runtime version이 범위에 포함되어야 한다. 오래된
+ * manifest는 plugin version과 runtime version이 일치해야 한다. runtime tree는 자산 설치 여부를
  * 증명하지 않으므로 후보로 추론하지 않는다.
  *
  * @param {AssetRootOptions} [options] - `env`, `homeDir`, resolver 테스트용 `runtimeVersion`

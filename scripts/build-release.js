@@ -120,9 +120,11 @@ function parsePackFileList(stdout) {
  * @returns {string} 신원 필드만 담은 JSON 문자열(끝 개행 포함)
  */
 function releasePackageJson(src) {
-  const pkg = JSON.parse(fs.readFileSync(src, 'utf8'));
+  const root = path.dirname(src);
+  const pluginManifest = path.join(root, 'plugin.json');
+  const pkg = JSON.parse(fs.readFileSync(fs.existsSync(pluginManifest) ? pluginManifest : src, 'utf8'));
   const identity = {};
-  for (const key of ['name', 'version', 'private', 'description', 'license', 'repository', 'homepage', 'bugs']) {
+  for (const key of ['name', 'version', 'private', 'description', 'license', 'repository', 'homepage', 'bugs', 'runtimeCompatibility']) {
     if (pkg[key] !== undefined) identity[key] = pkg[key];
   }
   return `${JSON.stringify(identity, null, 2)}\n`;

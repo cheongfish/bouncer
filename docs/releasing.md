@@ -1,7 +1,8 @@
 # 릴리스
 
 유지보수자용 문서입니다. runtime(npm package `@cheongfish/bouncer`)과 plugin(`release`
-브랜치)을 같은 버전으로 함께 공개하는 절차를 설명합니다. 설치 방법은
+브랜치) 공개 절차를 설명합니다. runtime과 plugin은 독립된 버전을 사용하며
+plugin manifest의 `runtimeCompatibility`가 호환 관계를 선언합니다. 설치 방법은
 [install.md](install.md)에 있습니다.
 
 한 번 공개한 버전은 덮어쓸 수 없습니다. `unpublish`, 태그 강제 이동, 같은 버전 재공개는
@@ -14,9 +15,10 @@
 | runtime | npm `@cheongfish/bouncer` | 태그 push → `release.yml`이 OIDC로 게시 |
 | plugin | 저장소 `release` 브랜치 | 같은 workflow가 npm 게시 확인 뒤 새 커밋으로 갱신 |
 
-두 배포물은 항상 같은 버전입니다. 다르면 `bouncer`가 plugin 자산을 읽기 전에
-`BOUNCER_PLUGIN_VERSION_MISMATCH`로 중단합니다. 게시는 CI가 검사한 runtime tarball과
-plugin tree를 그대로 사용하고, npm runtime이 확인된 뒤에만 `release` 브랜치를 갱신합니다.
+plugin과 runtime 버전이 다를 수 있습니다. `runtimeCompatibility`가 누락된 과거 plugin은
+기존 동작과의 호환을 위해 정확히 같은 runtime 버전만 허용합니다. 게시는 CI가 검사한
+runtime tarball과 plugin tree를 그대로 사용하고, plugin의 호환 범위를 검증한 뒤
+npm runtime이 확인된 경우에만 `release` 브랜치를 갱신합니다.
 
 `release.yml`의 트리거는 `bouncer--v*` 태그 push입니다. 수동 실행(`workflow_dispatch`)은
 prepare 검증만 하고 `publish` job은 건너뜁니다.
@@ -25,8 +27,9 @@ prepare 검증만 하고 `publish` job은 건너뜁니다.
 
 예시는 `0.1.11`입니다.
 
-1. 작업 브랜치에서 루트 `package.json`의 `version`만 바꾸고 나머지를 동기화합니다.
-   버전 일치를 검사하는 단위 테스트는 없으므로 이 단계를 빠뜨리지 마세요.
+1. runtime 변경이면 루트 `package.json`의 `version`을 올리고 `npm run sync:versions`로
+   runtime lock metadata를 동기화합니다. plugin 자산이나 호환 범위를 변경할 때만
+   `plugin.json`과 host manifest의 plugin `version`을 올립니다.
 
    ```bash
    npm run sync:versions     # package-lock, plugin.json 4종, marketplace.json 동기화
@@ -35,9 +38,8 @@ prepare 검증만 하고 `publish` job은 건너뜁니다.
    npm run ci
    ```
 
-   `sync:versions`는 문서의 설치 예시 버전을 바꾸지 않습니다. `README.md`,
-   `packages/cli/README.md`, `docs/install.md`의 `@cheongfish/bouncer@<version>`과
-   `BOUNCER_VERSION`을 새 버전으로 직접 고칩니다.
+   `sync:versions`는 plugin 버전을 runtime에 덮어쓰지 않습니다. 문서의 설치 예시도
+   새 runtime을 가리키도록 직접 고칩니다.
    `CHANGELOG.md`에 `## [0.1.11]` 항목을 추가합니다.
 2. PR로 `develop`에 병합합니다.
 3. 수동 workflow 실행으로 prepare 검증과 dry-run을 확인합니다. release 브랜치에 쓰지 않고
@@ -50,7 +52,8 @@ prepare 검증만 하고 `publish` job은 건너뜁니다.
 
 4. 정확한 버전의 태그가 없고, 병합된 최종 검증 HEAD를 가리키는지 확인합니다. 태그는
    `bouncer--v<version>`입니다. 다른 커밋을 가리키는 기존 태그가 있으면 중단합니다.
-5. 별도 운영 승인을 받은 뒤에만 최종 HEAD에 annotated tag를 만들고 push합니다. 이 push가
+5. 별도 운영 승인을 받은 뒤에만 최종 HEAD에 annotated tag를 만들고 push합니다. plugin을
+   변경하지 않은 runtime 전용 릴리스라면 plugin 버전과 트리는 그대로 둡니다. 이 push가
    곧 npm 공개입니다.
 
    ```bash
@@ -59,7 +62,7 @@ prepare 검증만 하고 `publish` job은 건너뜁니다.
    git push origin bouncer--v0.1.11
    ```
 
-   workflow는 태그, 루트 version, runtime pack, plugin tree의 version이 모두 일치하는지
+   workflow는 태그, 루트 version, runtime pack의 버전과 plugin의 runtime 호환 범위를
    확인한 뒤 OIDC로 npm에 게시하고 `release` 브랜치를 갱신합니다.
 6. 결과를 각각 확인합니다. 하나라도 실패하면 사용자에게 설치 완료를 안내하지 않습니다.
 
