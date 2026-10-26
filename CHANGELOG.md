@@ -10,7 +10,7 @@
 
 ## [Unreleased]
 
-## [0.1.12]
+## [0.1.13]
 
 Runtime-only release. Plugin `0.1.11` supports this runtime through
 `runtimeCompatibility: ">=0.1.11 <0.2.0"`.

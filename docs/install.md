@@ -15,7 +15,7 @@ Bouncer는 npm으로 설치하는 CLI runtime과 호스트가 설치하는 plugi
 Bash:
 
 ```bash
-BOUNCER_VERSION=0.1.12
+BOUNCER_VERSION=0.1.13
 npm view "@cheongfish/bouncer@$BOUNCER_VERSION" version
 npm install --global "@cheongfish/bouncer@$BOUNCER_VERSION"
 command -v bouncer
@@ -26,7 +26,7 @@ bouncer --help
 PowerShell:
 
 ```powershell
-$BouncerVersion = '0.1.12'
+$BouncerVersion = '0.1.13'
 npm view "@cheongfish/bouncer@$BouncerVersion" version
 npm install --global "@cheongfish/bouncer@$BouncerVersion"
 Get-Command bouncer
