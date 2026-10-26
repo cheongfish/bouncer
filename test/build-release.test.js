@@ -226,6 +226,8 @@ test('(e) release.yml → manual dispatch cannot reach publishing', () => {
   assert.equal(workflow.jobs.prepare.permissions.contents, 'read');
   assert.equal(workflow.jobs.publish.permissions.contents, 'write');
   assert.equal(workflow.jobs.publish.permissions['id-token'], 'write');
+  const upload = workflow.jobs.prepare.steps.find((step) => /^actions\/upload-artifact@/.test(step.uses || ''));
+  assert.equal(upload.with['include-hidden-files'], true, 'hidden host manifests must reach publish');
   assert.equal(workflow.concurrency.group, 'release');
   assert.equal(workflow.concurrency['cancel-in-progress'], false);
   const publishRun = workflow.jobs.publish.steps.map((step) => step.run || '').join('\n');

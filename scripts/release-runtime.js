@@ -65,6 +65,10 @@ function releaseRuntime(opts) {
   const rootVersion = syncVersions({ root, mode: 'check' }).version;
   const pluginPkg = JSON.parse(fs.readFileSync(path.join(opts.pluginTree, 'package.json'), 'utf8'));
   const pluginManifest = JSON.parse(fs.readFileSync(path.join(opts.pluginTree, 'plugin.json'), 'utf8'));
+  // 숨김 디렉터리가 빠진 tree로 release 브랜치를 갱신하면 Claude marketplace 등록이 깨진다.
+  if (!fs.existsSync(path.join(opts.pluginTree, '.claude-plugin', 'marketplace.json'))) {
+    throw new Error('plugin tree is missing .claude-plugin/marketplace.json');
+  }
   const tag = env.GITHUB_REF || '';
   if (pack.name !== PACKAGE || rootVersion !== pack.version || pluginPkg.version !== pluginManifest.version) {
     throw new Error('package name or runtime/plugin metadata mismatch');
