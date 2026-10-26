@@ -311,6 +311,26 @@ test('(l) top-level exact E404 object → publishes as a new version', () => {
   assert.equal(result.npm, 'published');
 });
 
+test('(l2) npm 11 exact E404 output → publishes a missing version', () => {
+  const input = fixture();
+  remoteFor(input.root);
+  const calls = [];
+  const inner = npmAndGit(calls, input.integrity);
+  const output = [
+    'npm error code E404',
+    'npm error 404 No match found for version 1.2.3',
+    "npm error 404  The requested resource '@cheongfish/bouncer@1.2.3' could not be found or you do not have permission to access it.",
+  ].join('\n');
+  const result = releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: { run: (command, args, opts) => {
+    if (command === 'npm' && args[0] === 'view' && !calls.some((call) => call.startsWith('npm view'))) {
+      calls.push(`${command} ${args.join(' ')}`);
+      return { status: 1, stdout: '', stderr: output };
+    }
+    return inner(command, args, opts);
+  } } });
+  assert.equal(result.npm, 'published');
+});
+
 test('(m) tag with build metadata matching every manifest → publishes', () => {
   const input = fixture('1.2.3-alpha.1+build.7');
   remoteFor(input.root);

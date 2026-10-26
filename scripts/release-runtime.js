@@ -13,6 +13,20 @@ const REGISTRY = 'https://registry.npmjs.org';
 const TAG_PREFIX = 'refs/tags/bouncer--v';
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
+function isExactRegistryNotFound(output, pkgid) {
+  try {
+    const parsed = JSON.parse(output);
+    const error = parsed?.error || parsed;
+    return error?.code === 'E404' && error.pkgid === pkgid;
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err;
+    const version = pkgid.slice(pkgid.lastIndexOf('@') + 1);
+    return /(?:^|\n)npm error code E404(?:\r?\n|$)/.test(output)
+      && output.includes(`No match found for version ${version}`)
+      && output.includes(`'${pkgid}'`);
+  }
+}
+
 /**
  * 외부 명령을 셸 없이 실행한다. 명령과 인자는 고정 배열로 전달해 ref/path가 셸로 해석되지 않는다.
  *
@@ -83,14 +97,9 @@ function releaseRuntime(opts) {
   const query = run(NPM, ['view', `${PACKAGE}@${pack.version}`, '--json', '--registry', REGISTRY], { cwd: root, env });
   let npmState = 'verified-existing';
   if (query.status !== 0) {
-    let error;
-    try { error = JSON.parse(query.stderr || query.stdout); } catch (err) {
-      if (!(err instanceof SyntaxError)) throw err;
-      throw new Error(`npm registry lookup failed: ${query.stderr || query.stdout}`, { cause: err });
-    }
-    const registryError = error?.error || error;
-    // 정확한 E404 + pkgid 일치만 "아직 없는 버전"이다. summary 같은 자유 문자열은 판정에 쓰지 않는다.
-    if (registryError?.code !== 'E404' || registryError.pkgid !== `${PACKAGE}@${pack.version}`) {
+    // 정확한 E404 + pkgid 일치만 "아직 없는 버전"이다. npm 11은 --json 조회 실패를
+    // JSON 대신 구조화된 오류 문장으로 출력하므로 두 공식 출력을 같은 엄격도로 판별한다.
+    if (!isExactRegistryNotFound(query.stderr || query.stdout, `${PACKAGE}@${pack.version}`)) {
       throw new Error(`npm registry lookup failed: ${query.stderr || query.stdout}`);
     }
     const publish = run(NPM, ['publish', path.resolve(opts.tarball), '--access', 'public', '--registry', REGISTRY],
