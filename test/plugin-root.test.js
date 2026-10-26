@@ -126,7 +126,7 @@ test('selected latest plugin with a different version → throws an identifiable
   const isMismatch = (error) => error.code === 'BOUNCER_PLUGIN_VERSION_MISMATCH'
     && error.message.includes('1.7.0')
     && error.message.includes(RUNTIME_VERSION)
-    && error.message.includes('matching npm runtime');
+    && error.message.includes('compatible npm runtime');
   assert.throws(() => resolvePluginRoot({ homeDir: home, env: {}, runtimeVersion: RUNTIME_VERSION }), isMismatch);
   assert.throws(() => resolvePluginAssetRoot({ homeDir: home, env: {}, runtimeVersion: RUNTIME_VERSION }), isMismatch);
   const auto = capture([], { homeDir: home });
