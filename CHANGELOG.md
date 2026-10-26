@@ -10,6 +10,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- Runtime `0.1.14`의 plan·execute 성공 payload에 `agent_dispatch` 설정 메타데이터를 기록합니다.
+- Claude Agent 훅이 Bouncer의 다섯 named 역할에 설정 모델을 적용하고, 변경 사항을 사용자에게 알립니다.
+
+### Changed
+
+- Plugin `0.1.12`은 runtime 호환 하한을 `0.1.14`로 올리고, 호환 범위 기준으로
+  plugin과 runtime version을 판정합니다.
+- 명시 모델을 호스트가 거절하면 상속 모델로 재시도하지 않고 해당 호출을 중단합니다.
+- Review finding은 revise 전에 기록해 수정 결정의 근거를 보존합니다.
+
 ## [0.1.13]
 
 Runtime-only release. Plugin `0.1.11` supports this runtime through

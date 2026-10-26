@@ -2,9 +2,10 @@
 
 Bouncer는 npm으로 배포하는 CLI runtime과 호스트가 설치하는 plugin asset root로
 나뉩니다. `bouncer`와 `bouncer-root` 실행 파일은 runtime package 소유이며,
-plugin 설치는 실행 파일을 제공하지 않습니다. 같은 version의 runtime과 plugin을
-설치해야 합니다. 설치 방법은 [`docs/install.md`](../docs/install.md)의 plugin
-root 절을 따릅니다.
+plugin 설치는 실행 파일을 제공하지 않습니다. manifest의 `runtimeCompatibility`
+범위가 있으면 runtime version이 그 범위에 들어야 합니다. 범위가 없는 legacy
+manifest만 plugin과 runtime의 version이 같아야 합니다. 설치 방법은
+[`docs/install.md`](../docs/install.md)의 plugin root 절을 따릅니다.
 
 Workflow skill은 plugin 디렉터리에서 `bouncer` CLI를 실행합니다. runtime이
 설치되어 있고 shell에서 `bouncer-root`를 찾을 수 있을 때 각 독립 shell block은
@@ -20,8 +21,10 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 검색 범위를 제한할 수 있습니다. `BOUNCER_HOME=/absolute/plugin/root`는 asset
 root를 직접 지정하고 검증합니다. asset 탐색은 명시된 `BOUNCER_HOME`을 먼저
 검사한 뒤 host 후보를 찾습니다. runtime 자체 tree를 asset root로 추론하지
-않습니다. 선택된 plugin version은 설치된 runtime package version과 같아야 하며,
-다르면 asset을 읽기 전에 실패합니다. 유효한 root에는 `agents/`, `skills/`,
+않습니다. 선택된 plugin manifest의 `runtimeCompatibility`가 있으면 설치된 runtime
+version이 그 범위에 들어야 하며, 범위를 벗어나면 asset을 읽기 전에 실패합니다.
+범위가 없는 legacy manifest는 plugin과 runtime version이 같아야 합니다.
+유효한 root에는 `agents/`, `skills/`,
 `rules/`, `references/`, `hooks/`, `${BOUNCER_ROOT}/AGENTS.md`가 있어야 합니다.
 순수 명령(`commit-guard`, `current`, `project-root`, `validate`, `verify`,
 `graph-sync`)은 asset root를 찾지 않으므로 `BOUNCER_HOME`을 검사하거나 쓰지
@@ -32,8 +35,8 @@ root를 직접 지정하고 검증합니다. asset 탐색은 명시된 `BOUNCER_
 root를 가리키지 않습니다. `BOUNCER_HOME`은 plugin asset root를 가리키며 runtime
 executable을 가리키지 않습니다. runtime이 없다면 같은 version의 npm package를
 설치하고 실행 파일을 PATH에 연결해야 합니다. plugin 파일만으로는 CLI 명령을
-실행할 수 없습니다. version이 다르면 같은 version의 배포물을 설치하거나,
-해당 host plugin 설치를 가리키도록 `BOUNCER_HOME`을 설정합니다.
+실행할 수 없습니다. runtime version이 manifest 호환 범위에 들도록 runtime을
+설치하거나, 해당 host plugin 설치를 가리키도록 `BOUNCER_HOME`을 설정합니다.
 
 Launcher는 `BOUNCER_HOME`으로 host를 추정하지 않고 cwd나 임의 home 디렉터리를
 검색하지 않습니다. Provider 선택은 별도 설정이며 Cursor와 Antigravity 프로젝트는

@@ -1634,8 +1634,8 @@ const DISPATCH_CANON = [
     re: /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array\s+in\s+order/i,
   },
   {
-    label: 'implementer inherit retry does not reopen the attempt',
-    re: /retry\s+only\s+the\s+host\s+dispatch[\s\S]{0,120}`dispatch-already-active`[\s\S]{0,200}do\s+not\s+record\s+the\s+dispatch\s+model\s+a\s+second\s+time/,
+    label: 'implementer model rejection stops without retry and reports correction details',
+    re: /host\s+rejects\s+it,\s+stop\s+without\s+retry\s+or\s+fallback\s+and\s+report\s+provider,\s+role,\s+configured\s+model,\s+exact\s+host\s+reason,\s+and\s+config\s+correction\s+location/i,
   },
   {
     label: 'report_path stays outside metadata',

@@ -30,6 +30,19 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    return to `/bouncer-plan` step 3 **Author**; after the fix, restart from
    step 1 freeze.
 
+   Resolve `bouncer-context-reviewer` with
+   `bouncer subagent-model --agent bouncer-context-reviewer` before dispatch
+   and pass the resolved model to the named call. The retained payload's
+   `agent_dispatch` snapshot selects the configured `bouncer-context-reviewer`
+   model for each call; pass that model to the named dispatch. Immediately
+   before each call, compare the snapshot with current config and resolve again
+   when they differ, then pass the newly resolved model. Stop on
+   model rejection and tell the user provider, role, configured model, host's
+   exact reason, and where to correct `.bouncer/config.json`. Report a supported
+   model name only if the host explicitly returns it. Do not infer aliases or
+   retry with `inherit`. If Claude Code hook `additionalContext` changes
+   dispatch facts, tell the user the change.
+
    A blueprint without the `review_contract` marker is `strategy: single`, whatever the task
    count: dispatch one `bouncer-context-reviewer` call with perspective
    `combined` (both rubrics) and record round 1 with the `combined` perspective. A marked
@@ -64,13 +77,19 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    symbol under different categories) to decide whether to merge those too; record `severity_changes`; set `origin:
    discovery`; and decide `actionability` (`must_fix` or `advisory`) from the
    plan and the evidence.
-4. **Revise once** — As `/bouncer-plan` author, group all `must_fix`
+4. **Record** — Record the complete merged round with `bouncer context-review
+   record` and verify success before editing any judged document. On failure,
+   preserve current documents and reports, stop, and follow the reported
+   `reason` and `next`. Do not revise the documents or relabel an old report
+   with a new digest.
+5. **Revise once** — Only after Record succeeds, as `/bouncer-plan` author,
+   group all `must_fix`
    findings by target document and edit each document once (several edits in
    one pass are fine), so the revision is one pass over each document. Record each `advisory` finding as
    `accepted` with a note instead of editing for it. When no `must_fix`
    exists, skip the revision and the delta; the round sequence stays
    `discovery`. A body-only edit (no frontmatter structure, Interface or Touch
-   change) needs no further review round: certify it with `close` (step 6).
+   change) needs no further review round: certify it with `close` (step 7).
    Editing a task's `affected_paths`, `depends_on`,
    `parallel_safe`, `dependency_gate`, `exclusive_resources` or
    `execution_kind`, a blueprint's `scale` or `review_scope`, or adding or
@@ -81,7 +100,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    a task's Interface or Touch body keeps the structure but changes the
    contract, so `route` returns `delta`; body-only edits elsewhere return
    `close`.
-5. **Certify the delta** — After the revision, rerun `bouncer review-dispatch
+6. **Certify the delta** — After the revision, rerun `bouncer review-dispatch
    plan --blueprint <dir> --previous <stored-latest-payload.json>` (the
    payload the last `start`/`record`/`restart` stored; `--previous` is
    required once the cycle exists) and copy the new
@@ -108,7 +127,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    is `introduced_by_revision` with a revised passage as evidence, or
    `missed_critical` with `blocker` or `major` severity; its
    `first_seen_round` is 2. Update `last_seen_round` on returning findings.
-6. **Close** — Delta runs once; context review has no third round and no
+7. **Close** — Delta runs once; context review has no third round and no
    critical recovery. Mark findings the delta certified as `resolved`. When a
    `must_fix` finding stays open after the delta, fix its target section
    (the finding's `file` and `symbol`) if the user approves, then rerun

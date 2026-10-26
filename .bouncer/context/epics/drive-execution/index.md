@@ -30,6 +30,12 @@ bouncer:
 7. R-X1·R-X2 범위에서 측정 불가와 보존 집계의 보고 기준 명시의 task 수용 기준과 전용 검증을 만족한다.
 8. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
 
+9. model-dispatch-enforcement의 리뷰 metadata는 기존 provider별 모델 해석을 재사용하고 모델 변경만으로 문서 digest를 바꾸지 않으며 legacy payload를 읽는다.
+10. Claude의 다섯 Bouncer 역할 호출은 config 모델 누락·불일치를 보정해 알리고 관련 runtime 오류 시 호출을 차단하며 다른 도구·에이전트 입력을 보존한다.
+11. 모델 거절은 상속 재시도 없이 중단하고 설정 모델명과 원인을 사용자에게 표시한다. plan 리뷰의 record 성공 뒤에만 문서를 수정한다.
+12. 기능 구현 완료 후 plugin 0.1.12와 runtimeCompatibility >=0.1.14 <0.2.0을 동기화하고 runtime 0.1.14를 보존한다.
+13. 이 변경의 commit task는 전용 검증을, 마지막 verification task는 npm run ci를 실행한다. source 생성본 경계·한국어 브리프 및 커밋 규약을 유지한다.
+
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
 - 검증 증적 재사용·gate 판정 → `gates-review`
@@ -69,3 +75,5 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [session-handoff-note](blueprints/session-handoff-note/index.md): `coordinate note`가 coordinator 세션 사이 자유 형식 note를 원장에 남기고, status checkpoint `notes`로 다음 세션에 넘긴다.
 - [direct-drive-contracts](blueprints/direct-drive-contracts/index.md) — 직접 실행과 구현 입력 전달 절차 명확화; R-D1·R-D2·R-D3·R-D4·R-C1·R-C2·R-C3 처리.
 - [metrics-retention](blueprints/metrics-retention/index.md) — 정리 이후 실행 측정값 보존; R-X1·R-X2 처리.
+
+- [model-dispatch-enforcement](blueprints/model-dispatch-enforcement/index.md): 역할별 모델 metadata와 Claude 호출 훅, 모델 거절 및 리뷰 기록 순서를 정리한다.

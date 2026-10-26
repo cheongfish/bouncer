@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { resolveSubagentModel } = require('../packages/cli/dist/subagents');
+const { resolveSubagentModel, resolveSubagentDispatch } = require('../packages/cli/dist/subagents');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-subagents-'));
@@ -14,6 +14,25 @@ function writeConfig(repo, config) {
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(config));
 }
+
+test('resolveSubagentModel → assembles canonical dispatch metadata', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, SAMPLE);
+  assert.deepStrictEqual(
+    resolveSubagentDispatch({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+    { agent: 'bouncer-reviewer', provider: 'claude', model: 'claude-opus-4-6' },
+  );
+  assert.deepStrictEqual(
+    resolveSubagentDispatch({
+      repoRoot: repo, agentName: 'bouncer-reviewer', provider: 'codex',
+    }),
+    { agent: 'bouncer-reviewer', provider: 'codex', model: 'gpt-5.3-codex' },
+  );
+  assert.deepStrictEqual(
+    resolveSubagentDispatch({ repoRoot: repo, agentName: 'bouncer-implementer', provider: 'codex' }),
+    { agent: 'bouncer-implementer', provider: 'codex', model: null },
+  );
+});
 
 const SAMPLE = {
   subagents: {
@@ -457,7 +476,7 @@ test('resolveSubagentModel → miss for bouncer-coordinator yields null model', 
   );
 });
 
-// 슬러그 거절 재시도와 named-agent 부재 fallback 모두 같은 coordinator 역할을
+// 모델 거절 중단과 named-agent 부재 fallback 모두 같은 coordinator 역할을
 // 넘겨야 한다. 계약이 model 규칙에만 있고 fallback brief를 줄이면, 위임받은
 // 쪽이 worktree guard 없이 drive를 시작한다.
 test('coordinator dispatch → shares the model contract and keeps its full fallback brief', () => {
@@ -465,7 +484,7 @@ test('coordinator dispatch → shares the model contract and keeps its full fall
     path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',
   );
   assert.match(contract, /bouncer-coordinator/);
-  assert.match(contract, /rejected model slug[\s\S]{0,120}`inherit`/i);
+  assert.match(contract, /model rejection[\s\S]{0,160}stop/i);
   assert.match(contract, /named agents are unavailable/i);
   const coordinatorClause = contract.match(/`\/bouncer-run` resolves[\s\S]*?(?=\n\n)/)?.[0] || '';
   assert.match(coordinatorClause, /whole coordinator role/i);
@@ -502,7 +521,7 @@ test('dispatch history rule → item 1 isolates history independent of inherit',
   assert.ok(item1.includes('The only exception is an implementer continuing its own session for the first in-scope verify fix defined in `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`.'));
   assert.doesNotMatch(item1, /stays whatever the calling workflow specifies/);
   assert.doesNotMatch(item1, /parent-session inheritance/);
-  assert.ok(item3.includes('The retry also starts without conversation history.'));
+  assert.match(item3, /stop and report the rejection/i);
   assert.ok(agentDispatch.includes('Every new worker dispatch starts without conversation history (item 1 of that rule).'));
 });
 
@@ -695,12 +714,12 @@ test('verification-recovery debugger dispatch → links agent-dispatch and carri
 });
 
 // 공통 모델 규칙은 run worker의 payload·기록을 다시 적지 않고 정본을 조건부로 가리킨다.
-// 모델 resolve·inherit 재시도·whole-role fallback·foreground 경계는 그대로 남아야 한다.
+// 모델 resolve·거절 중단·whole-role fallback·foreground 경계를 함께 보존한다.
 test('subagent-model rule → points run workers at agent-dispatch without dropping its own boundaries', () => {
   const contract = readRepo('rules/subagent-model.md');
   const item4 = passage('rules/subagent-model.md', '4. When named agents are unavailable', '\n5. ');
   assert.match(item4, wrapped('read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`'));
   assert.doesNotMatch(contract, /worker-(?:model|tokens) --blueprint/);
-  assert.match(contract, /rejected model slug[\s\S]{0,120}`inherit`/i);
+  assert.match(contract, /model rejection[\s\S]{0,160}stop/i);
   assert.match(contract, /runs in the foreground/);
 });

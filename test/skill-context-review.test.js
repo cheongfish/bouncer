@@ -76,13 +76,17 @@ test('context-review help → lists close among the route next_action values', (
 });
 
 // 교착 회귀: delta 뒤 열린 must_fix를 고친 경우 CLI가 받는 경로(close·restart·user)만 안내해야 한다.
-// 6단계 Close 절과 route 목록의 must_fix 항목만 잘라 단언해 문서 다른 곳의 우연한 일치를 배제한다.
+// Close 단계 번호가 바뀌어도 의미상 제목을 찾아 route 목록의 must_fix와 분리한다.
 test('open must_fix after delta → guide names close, restart and accepted-risk user outcomes', () => {
   const md = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-plan', 'references', 'context-review.md'),
     'utf8',
   );
-  const close = md.slice(md.indexOf('6. **Close**'), md.indexOf('When the plan gate reports'));
+  const heading = md.match(/^\d+\. \*\*Close\*\*/m);
+  assert.ok(heading, 'Close step exists');
+  const rest = md.slice(heading.index);
+  const nextStep = rest.slice(heading[0].length).search(/^\d+\. \*\*/m);
+  const close = nextStep < 0 ? rest : rest.slice(0, heading[0].length + nextStep);
   const at = md.indexOf('- no round is recorded yet');
   const routeItem = md.slice(at, md.indexOf('\n- ', at + 1));
   assert.ok(!md.includes('does not resolve findings'));

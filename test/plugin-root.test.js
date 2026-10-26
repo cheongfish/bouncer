@@ -101,6 +101,22 @@ test('asset-only matching plugin → resolves without a launcher and checks the 
   assert.strictEqual(resolvePluginAssetRoot({ env: { BOUNCER_HOME: root }, runtimeVersion: RUNTIME_VERSION }), root);
 });
 
+test('plugin compatibility range → accepts runtime 0.1.14 and rejects 0.1.13', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-runtime-range-'));
+  const root = fixture(home, 'claude', '0.1.12', 'range', 'plugin.json', false);
+  fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({
+    name: 'bouncer',
+    version: '0.1.12',
+    runtimeCompatibility: '>=0.1.14 <0.2.0',
+  }));
+
+  assert.strictEqual(resolvePluginRoot({ env: { BOUNCER_HOME: root }, runtimeVersion: '0.1.14' }).path, root);
+  assert.throws(
+    () => resolvePluginRoot({ env: { BOUNCER_HOME: root }, runtimeVersion: '0.1.13' }),
+    (error) => error.code === 'BOUNCER_PLUGIN_VERSION_MISMATCH',
+  );
+});
+
 test('launcher-free host candidates → library and CLI auto/--select pick the matching candidate', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-launcher-free-'));
   const root = fixture(home, 'claude', RUNTIME_VERSION, 'assets', 'plugin.json', false);

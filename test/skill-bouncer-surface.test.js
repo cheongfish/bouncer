@@ -218,6 +218,28 @@ test('commands/ directory → is gone', () => {
   assert.ok(!fs.existsSync(path.join(root, 'commands')));
 });
 
+test('plan review procedure → confirms record success before revising documents', () => {
+  const skill = fs.readFileSync(path.join(root, 'skills/bouncer-plan/SKILL.md'), 'utf8');
+  const review = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/context-review.md'), 'utf8',
+  );
+  const executeReview = fs.readFileSync(
+    path.join(root, 'skills/bouncer-run/references/agent-dispatch.md'), 'utf8',
+  );
+  assert.match(skill, /bouncer subagent-model --agent\s*`?bouncer-context-reviewer/);
+  assert.match(review, /`agent_dispatch` snapshot/);
+  assert.match(review, /Immediately\s+before each call[\s\S]*current config[\s\S]*resolve again/i);
+  assert.match(executeReview, /execute `review-dispatch` payload's\s+`agent_dispatch` snapshot/);
+  assert.match(executeReview, /Immediately before each call, compare it with current config/);
+  const merge = review.indexOf('3. **Merge**');
+  const record = review.indexOf('**Record**', merge);
+  const revise = review.indexOf('**Revise once**', merge);
+  assert.ok(merge >= 0, 'Merge step missing');
+  assert.ok(record > merge, 'independent Record step must follow Merge');
+  assert.ok(revise > record, 'Revise must follow successful Record');
+  assert.ok(/verify success before editing/i.test(review));
+});
+
 test('GENERIC_SKILLS → does not list workflow skills', () => {
   for (const name of WORKFLOW) {
     assert.ok(!GENERIC_SKILLS.includes(name), name);
