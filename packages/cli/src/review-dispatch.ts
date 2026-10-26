@@ -33,6 +33,8 @@ const {
 } = schema;
 import reviewSnapshot = require('./review-snapshot');
 const { captureReviewSnapshot } = reviewSnapshot;
+import subagents = require('./subagents');
+const { resolveSubagentDispatch } = subagents;
 
 // Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
 // 복제하면 single/parallel 판정이 갈라진다. Plan은 항상 single이라 경계값이 없다.
@@ -90,6 +92,7 @@ type RevisionDiffEntry = {
 };
 
 type PlanDispatchReview = PlanDispatchBase & {
+  agent_dispatch: { agent: string; provider: string | null; model: string | null };
   // perspectives는 review_contract: brief 표식 blueprint의 관점 병렬 호출(full 4관점, light verifiability).
   strategy: 'single' | 'clustered' | 'perspectives';
   snapshot_version: number;
@@ -110,6 +113,7 @@ type PlanDispatchOk = PlanDispatchSkip | PlanDispatchReview;
 type ExecuteDispatchOk = {
   ok: true;
   phase: 'execute';
+  agent_dispatch: { agent: string; provider: string | null; model: string | null };
   // snapshot_id·snapshot_path는 동결한 최종 작업 트리 artifact를 가리킨다. 통계도
   // 같은 artifact에서 나오므로 리뷰어가 읽는 내용과 규모 분류가 어긋나지 않는다.
   target: {
@@ -700,6 +704,9 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
     related_documents: follow.related_documents,
     revision_diff: follow.revision_diff,
   };
+  const agentDispatch = resolveSubagentDispatch({
+    repoRoot, agentName: 'bouncer-context-reviewer',
+  });
 
   const commitTasks = loadCommitTaskSignals({ repoRoot, blueprintDir: bp });
   if (!commitTasks.ok) return commitTasks;
@@ -728,6 +735,7 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
       phase: 'plan',
       target: { digest: snapshot.digest, documents: snapshot.documents },
       strategy: 'perspectives',
+      agent_dispatch: agentDispatch,
       task_count: taskCount,
       clusters,
       perspectives: [...perspectives],
@@ -743,6 +751,7 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
     phase: 'plan',
     target: { digest: snapshot.digest, documents: snapshot.documents },
     strategy: 'single',
+    agent_dispatch: agentDispatch,
     task_count: taskCount,
     clusters,
     perspectives: ['combined'],
@@ -960,6 +969,7 @@ function classifyExecuteReview({
     return {
       ok: true,
       phase: 'execute',
+      agent_dispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
       target: frozenTarget,
       strategy: 'single',
       changed_files: stats.changed_files,
@@ -973,6 +983,7 @@ function classifyExecuteReview({
   return {
     ok: true,
     phase: 'execute',
+    agent_dispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
     target: frozenTarget,
     strategy,
     changed_files: stats.changed_files,

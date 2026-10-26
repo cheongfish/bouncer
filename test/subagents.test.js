@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { resolveSubagentModel } = require('../packages/cli/dist/subagents');
+const { resolveSubagentModel, resolveSubagentDispatch } = require('../packages/cli/dist/subagents');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-subagents-'));
@@ -14,6 +14,25 @@ function writeConfig(repo, config) {
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(config));
 }
+
+test('resolveSubagentModel → assembles canonical dispatch metadata', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, SAMPLE);
+  assert.deepStrictEqual(
+    resolveSubagentDispatch({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+    { agent: 'bouncer-reviewer', provider: 'claude', model: 'claude-opus-4-6' },
+  );
+  assert.deepStrictEqual(
+    resolveSubagentDispatch({
+      repoRoot: repo, agentName: 'bouncer-reviewer', provider: 'codex',
+    }),
+    { agent: 'bouncer-reviewer', provider: 'codex', model: 'gpt-5.3-codex' },
+  );
+  assert.deepStrictEqual(
+    resolveSubagentDispatch({ repoRoot: repo, agentName: 'bouncer-implementer', provider: 'codex' }),
+    { agent: 'bouncer-implementer', provider: 'codex', model: null },
+  );
+});
 
 const SAMPLE = {
   subagents: {

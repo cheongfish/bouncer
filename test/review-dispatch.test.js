@@ -385,6 +385,7 @@ test('plan with light scale → returns skip without perspectives', () => {
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.phase, 'plan');
   assert.strictEqual(result.strategy, 'skip');
+  assert.strictEqual(result.agent_dispatch, undefined);
   assert.deepStrictEqual(result.perspectives, []);
   assert.strictEqual(result.task_count, 1);
   // skip 응답에는 문서별 digest·follow_up 필드가 없다.
@@ -1125,6 +1126,7 @@ test('parallel diff와 review_risk에 --mode delta → strategy single, perspect
   assert.strictEqual(discovery.code, 0);
   const d = JSON.parse(discovery.out);
   assert.strictEqual(d.strategy, 'parallel');
+  assert.strictEqual(d.agent_dispatch.agent, 'bouncer-reviewer');
   const delta = capture([
     'review-dispatch', 'execute',
     '--blueprint', BP_REL, '--task', '001', '--base', base, '--head', head,
@@ -1139,6 +1141,7 @@ test('parallel diff와 review_risk에 --mode delta → strategy single, perspect
   assert.deepStrictEqual(json.changed_files, d.changed_files);
   assert.deepStrictEqual(json.changed_lines, d.changed_lines);
   assert.deepStrictEqual(json.risk_flags, d.risk_flags);
+  assert.deepStrictEqual(json.agent_dispatch, d.agent_dispatch);
   assert.strictEqual(json.reasons.length, d.reasons.length + 1);
 });
 
@@ -1609,6 +1612,14 @@ test('execute with an unknown task and bad ref → fails without perspectives', 
 test('CLI review-dispatch plan and execute → emit JSON exit contracts', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    subagents: {
+      provider: 'claude',
+      claude: { 'bouncer-context-reviewer': 'claude-plan-model' },
+      codex: { 'bouncer-reviewer': 'gpt-execute-model' },
+    },
+  }));
   const plan = capture([
     'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo,
   ]);
@@ -1617,6 +1628,13 @@ test('CLI review-dispatch plan and execute → emit JSON exit contracts', () => 
   const planJson = JSON.parse(plan.out);
   assert.strictEqual(planJson.ok, true);
   assert.strictEqual(planJson.strategy, 'single');
+  assert.deepStrictEqual(planJson.agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: 'claude-plan-model',
+  });
+  const firstPlanTarget = planJson.target;
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    subagents: { provider: 'codex', codex: { 'bouncer-reviewer': 'gpt-execute-model' } },
+  }));
 
   // CT-004: execute 성공(exit 0 + Execute JSON)과 분류 실패(exit 1 + ok:false)를
   // plan-only·argv exit 2만으로 대체하지 않는다.
@@ -1638,6 +1656,28 @@ test('CLI review-dispatch plan and execute → emit JSON exit contracts', () => 
   assert.strictEqual(executeJson.phase, 'execute');
   assert.strictEqual(executeJson.strategy, 'single');
   assert.deepStrictEqual(executeJson.perspectives, ['combined']);
+  assert.deepStrictEqual(executeJson.agent_dispatch, {
+    agent: 'bouncer-reviewer', provider: 'codex', model: 'gpt-execute-model',
+  });
+
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    subagents: {
+      provider: 'claude',
+      claude: { 'bouncer-context-reviewer': 'claude-updated-model' },
+      codex: { 'bouncer-reviewer': 'gpt-updated-model' },
+    },
+  }));
+  const updatedPlan = capture([
+    'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo,
+  ]);
+  assert.strictEqual(updatedPlan.code, 0);
+  const updatedPlanJson = JSON.parse(updatedPlan.out);
+  assert.deepStrictEqual(updatedPlanJson.target, firstPlanTarget);
+  assert.deepStrictEqual(updatedPlanJson.parts, planJson.parts);
+  assert.deepStrictEqual(updatedPlanJson.follow_up, planJson.follow_up);
+  assert.deepStrictEqual(updatedPlanJson.agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: 'claude-updated-model',
+  });
 
   const executeFail = capture([
     'review-dispatch', 'execute',
@@ -1648,6 +1688,7 @@ test('CLI review-dispatch plan and execute → emit JSON exit contracts', () => 
   const failJson = JSON.parse(executeFail.out);
   assert.strictEqual(failJson.ok, false);
   assert.ok(!('perspectives' in failJson) || failJson.perspectives === undefined);
+  assert.ok(!('agent_dispatch' in failJson));
 
   const usage = capture(['review-dispatch']);
   assert.strictEqual(usage.code, 2);

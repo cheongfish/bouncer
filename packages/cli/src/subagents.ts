@@ -99,4 +99,25 @@ function resolveSubagentModel({
   return { model: value, provider };
 }
 
-export = { resolveSubagentModel, SUBAGENT_PROVIDERS, SUBAGENT_DISPATCH_VALUES };
+/**
+ * 리뷰 payload에 설정 기반 역할 디스패치 정보를 만든다.
+ * 모델은 호출 직전에 확인할 설정값이며 실제 호스트 실행 모델을 증명하지 않는다.
+ *
+ * @param {{ repoRoot: string, agentName: string, provider?: string }} opts
+ * @returns {{ agent: string, provider: string | null, model: string | null }} canonical 역할과 설정값
+ */
+function resolveSubagentDispatch({
+  repoRoot,
+  agentName,
+  provider,
+}: {
+  repoRoot: string;
+  agentName: string;
+  provider?: string;
+}): { agent: string; provider: string | null; model: string | null } {
+  return { agent: agentName, ...resolveSubagentModel({ repoRoot, agentName, provider }) };
+}
+
+export = {
+  resolveSubagentModel, resolveSubagentDispatch, SUBAGENT_PROVIDERS, SUBAGENT_DISPATCH_VALUES,
+};

@@ -272,6 +272,18 @@ test('정상 fixture에서 start → exit 0과 cycle id를 반환하고 같은 s
   assert.equal(again.json.cycle.restart_count, 0);
 });
 
+test('agent_dispatch가 포함된 새 payload → start와 record가 성공한다', () => {
+  const repo = makeRepo();
+  const dispatch = dispatchFile(repo, 'dispatch.json', {
+    agent_dispatch: { agent: 'bouncer-context-reviewer', provider: 'claude', model: 'claude-opus-4-6' },
+  });
+  assert.equal(start(repo, dispatch).code, 0);
+  const recorded = record(
+    repo, dispatch, roundFile(repo, 'round.json', 1, 'discovery', []),
+  );
+  assert.equal(recorded.code, 0, recorded.out + recorded.err);
+});
+
 test('start → record → restart → 두 번째 restart는 한도 소진으로 거부되고 이전 finding을 보관한다', () => {
   const repo = makeRepo();
   const d = dispatchFile(repo);
