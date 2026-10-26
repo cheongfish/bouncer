@@ -49,27 +49,64 @@ test('인자 없이 bouncer를 실행하면 → usage를 출력하고 exit 0을 
   assert.strictEqual(r.err, '');
 });
 
-test('usage → task-layout migration을 나열한다', () => {
-  assert.match(capture([]).out, /task-layout \[--dry-run\]/);
-});
-
-test('usage → retention dry-run과 apply 형식을 나열한다', () => {
+test('usage → 명령별 형식 문구를 나열한다', () => {
   const out = capture([]).out;
-  assert.match(out, /migrate\s+retention\b/);
-  assert.match(out, /Audit closed blueprints for retention \(dry-run/);
-  assert.match(out, /retention --apply --blueprint <dir>/);
-});
-
-test('usage → review-scope migration 형식을 나열한다', () => {
-  assert.match(capture([]).out, /migrate\s+review-scope --blueprint <dir>/);
-});
-
-test('usage → context-slugs migration 형식을 나열한다', () => {
-  assert.match(capture([]).out, /migrate\s+context-slugs \[--yes\]/);
-});
-
-test('usage → merge-legacy-epics migration 형식을 나열한다', () => {
-  assert.match(capture([]).out, /migrate\s+merge-legacy-epics \[--yes\]/);
+  const expected = [
+    /task-layout \[--dry-run\]/,
+    /migrate\s+retention\b/,
+    /Audit closed blueprints for retention \(dry-run/,
+    /retention --apply --blueprint <dir>/,
+    /migrate\s+review-scope --blueprint <dir>/,
+    /migrate\s+context-slugs \[--yes\]/,
+    /migrate\s+merge-legacy-epics \[--yes\]/,
+    /commit-guard --command-stdin \[--repo <dir>\]/,
+    /task --blueprint <dir> --id <ddd>/,
+    /context-review --blueprint <dir>/,
+    /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--scale light\|full\]/,
+    /graph-sync Rebuild stale graphify source \+ test graphs/,
+    /run\s+preflight --blueprint <dir>/,
+    /detach --blueprint <dir> --yes \[--reason <text>\]/,
+    /current\s+\[--set <blueprint dir>.*\[--replace\].*\[--keep-others\]/s,
+    /intent\s+--symbol <function-name>/,
+    /\[--candidate <qualified-ref>\]/,
+    /\[--limit <1\.\.5>\]/,
+    /ontology\s+entity --entity <token> \[--repo <dir>\] \[--limit <1\.\.100>\]/,
+    /file --file <path>/,
+    /impact --file <path>/,
+    /finalize\s+prepare --blueprint <dir>/,
+    /finalize\s+links --blueprint <dir>/,
+    /finalize\s+release-main --blueprint <dir>/,
+    /finalize\s+comprehension --blueprint <dir> --digest <json-file>/,
+    /--confirm-quiz \| --refresh/,
+    /finalize\s+pr-body --digest <json-file> --summary <markdown-file>/,
+    /\[--flow <mermaid-file>\]/,
+    /finalize\s+partial-finalize --blueprint <dir>/,
+    /--allow-partial-merge --confirm-partial-merge/,
+    /finalize\s+--blueprint <dir> \[--yes\]/,
+    /finalize\s+worktree-path --blueprint <dir> \[--repo <dir>\]/,
+    /finalize\s+diff-sha --base <ref> \[--repo <dir>\]/,
+    /subagent-model --agent <name> \[--provider <name>\]/,
+    /codex-agents check --agent <name>/,
+    /review-dispatch\s+plan --blueprint <dir>/,
+    /review-dispatch\s+execute --blueprint <dir> \[--task <ddd>\] --base <sha> --head <sha>/,
+    /review record --blueprint <dir> \[--task <ddd>\] --round <json-file> \[--status <requested\|addressed\|accepted>\]/,
+    /review accept-risk --blueprint <dir> --finding <id> --note <text> --yes/,
+    /dispatch print --role <implementer\|reviewer\|debugger\|context-reviewer\|coordinator> --cwd <dir> --input <file> --out <dir>/,
+    /coordinate revoke/,
+    /--lease-id/,
+    /--generation/,
+    /coordinate integrate/,
+    /omit --task for the wave/,
+    /coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>/,
+    /coordinate repair --blueprint <dir> \[--task <ddd>\] --review-finding <id>/,
+    /\[--review-finding <id>\]\.\.\./,
+    /retro read --path <file> \[--max-chars <n>\]/,
+    /blueprint --epic-dir <slug-epic> --order <n> --name <slug>/,
+    /epic --name <slug> --description <text>/,
+  ];
+  for (const re of expected) assert.match(out, re, String(re));
+  // CI 형태는 종단 verification이 필수. 선택 [--task]로 적으면 coordinator의 task-required와 어긋난다.
+  assert.doesNotMatch(out, /\[--task <ddd>\] --failure-command/);
 });
 
 test('모든 subcommand가 → usage 텍스트에 나열된다', () => {
@@ -107,30 +144,6 @@ test('알 수 없는 명령 → 실패하지만 사용 가능한 명령을 알�
   assert.strictEqual(r.out, '');
 });
 
-test('usage → commit-guard 두 모드를 나열한다', () => {
-  assert.match(capture([]).out, /commit-guard --command-stdin \[--repo <dir>\]/);
-});
-
-test('usage → scaffold task --blueprint --id를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /task --blueprint <dir> --id <ddd>/);
-});
-
-test('usage → scaffold context-review --blueprint를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /context-review --blueprint <dir>/);
-});
-
-test('usage → scaffold blueprint --scale light|full을 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--scale light\|full\]/);
-});
-
-test('graph-sync help → source와 test scope를 명시한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test graphs/);
-});
-
 test('graph-suggest 실행 → unknown command로 exit 2를 낸다', () => {
   const r = capture(['graph-suggest', '--query', 'x']);
   assert.strictEqual(r.code, 2);
@@ -154,92 +167,12 @@ test('context-search → 알 수 없는 명령으로 exit 2를 낸다', () => {
   assert.match(stderr, /unknown command: context-search/);
 });
 
-test('usage → run preflight --blueprint를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /run\s+preflight --blueprint <dir>/);
-});
-
-test('usage → run detach --blueprint --yes를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /detach --blueprint <dir> --yes \[--reason <text>\]/);
-});
-
-test('usage → current --replace와 --keep-others를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /current\s+\[--set <blueprint dir>.*\[--replace\].*\[--keep-others\]/s);
-});
-
-test('usage → intent --symbol [--candidate] [--limit]를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /intent\s+--symbol <function-name>/);
-  assert.match(r.out, /\[--candidate <qualified-ref>\]/);
-  assert.match(r.out, /\[--limit <1\.\.5>\]/);
-});
-
-test('usage → ontology의 세 질의 signature를 나열한다', () => {
-  const out = capture([]).out;
-  assert.match(out, /ontology\s+entity --entity <token> \[--repo <dir>\] \[--limit <1\.\.100>\]/);
-  assert.match(out, /file --file <path>/);
-  assert.match(out, /impact --file <path>/);
-});
-
 test('intent가 공개된 뒤 알 수 없는 명령 → 여전히 거부된다', () => {
   const r = capture(['intet']);
   assert.equal(r.code, 2);
   assert.match(r.err, /unknown command: intet/);
   assert.match(r.err, /intent/);
   assert.equal(r.out, '');
-});
-
-test('usage → finalize prepare --blueprint를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /finalize\s+prepare --blueprint <dir>/);
-  assert.match(r.out, /finalize\s+links --blueprint <dir>/);
-  assert.match(r.out, /finalize\s+release-main --blueprint <dir>/);
-  assert.match(r.out, /finalize\s+comprehension --blueprint <dir> --digest <json-file>/);
-  assert.match(r.out, /--confirm-quiz \| --refresh/);
-  assert.match(r.out, /finalize\s+pr-body --digest <json-file> --summary <markdown-file>/);
-  assert.match(r.out, /\[--flow <mermaid-file>\]/);
-  assert.match(r.out, /finalize\s+partial-finalize --blueprint <dir>/);
-  assert.match(r.out, /--allow-partial-merge --confirm-partial-merge/);
-  assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
-});
-
-test('usage → finalize worktree-path와 diff-sha를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /finalize\s+worktree-path --blueprint <dir> \[--repo <dir>\]/);
-  assert.match(r.out, /finalize\s+diff-sha --base <ref> \[--repo <dir>\]/);
-});
-
-test('usage → subagent-model과 codex-agents check를 나열한다', () => {
-  const out = capture([]).out;
-  assert.match(out, /subagent-model --agent <name> \[--provider <name>\]/);
-  assert.match(out, /codex-agents check --agent <name>/);
-});
-
-test('usage → review-dispatch plan과 execute 형식을 나열한다', () => {
-  const out = capture([]).out;
-  assert.match(out, /review-dispatch\s+plan --blueprint <dir>/);
-  assert.match(
-    out,
-    /review-dispatch\s+execute --blueprint <dir> \[--task <ddd>\] --base <sha> --head <sha>/,
-  );
-});
-
-test('usage → review record 형식을 나열한다', () => {
-  const out = capture([]).out;
-  assert.match(
-    out,
-    /review record --blueprint <dir> \[--task <ddd>\] --round <json-file> \[--status <requested\|addressed\|accepted>\]/,
-  );
-});
-
-test('usage → review accept-risk 형식을 나열한다', () => {
-  const out = capture([]).out;
-  assert.match(
-    out,
-    /review accept-risk --blueprint <dir> --finding <id> --note <text> --yes/,
-  );
 });
 
 test('review accept-risk에 --finding 누락, --task, 알 수 없는 동사가 있으면 → exit 2로 거부한다', () => {
@@ -287,39 +220,6 @@ test('subcommand 없는 review-dispatch → stderr에 exit 2를 낸다', () => {
   assert.strictEqual(r.out, '');
 });
 
-test('usage → dispatch print 형식을 나열한다', () => {
-  const out = capture([]).out;
-  assert.match(
-    out,
-    /dispatch print --role <implementer\|reviewer\|debugger\|context-reviewer\|coordinator> --cwd <dir> --input <file> --out <dir>/,
-  );
-});
-
-
-test('usage → coordinate revoke와 lease 플래그를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /coordinate revoke/);
-  assert.match(r.out, /--lease-id/);
-  assert.match(r.out, /--generation/);
-  assert.match(r.out, /coordinate integrate/);
-  assert.match(r.out, /omit --task for the wave/);
-});
-
-test('usage → coordinate repair review-finding과 required-task CI 형식을 나열한다', () => {
-  const out = capture([]).out;
-  // CI 형태는 종단 verification이 필수. 선택 [--task]로 적으면 리뷰 형태와
-  // 같은 생략 규칙을 암시해 coordinator의 task-required와 어긋난다.
-  assert.match(
-    out,
-    /coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>/,
-  );
-  assert.doesNotMatch(out, /\[--task <ddd>\] --failure-command/);
-  assert.match(
-    out,
-    /coordinate repair --blueprint <dir> \[--task <ddd>\] --review-finding <id>/,
-  );
-  assert.match(out, /\[--review-finding <id>\]\.\.\./);
-});
 
 const COORDINATE_SUBCOMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
@@ -543,10 +443,6 @@ test('usage와 repair help → supplement kind를 나열한다', () => {
   assert.match(capture(['coordinate', 'next', '--help']).out, /Blueprint actions:[^\n]*supplement/);
 });
 
-test('usage → retro read --path [--max-chars]를 나열한다', () => {
-  assert.match(capture([]).out, /retro read --path <file> \[--max-chars <n>\]/);
-});
-
 test('context-review --help와 -h → usage를 stdout에 출력하고 exit 0을 낸다', () => {
   for (const flag of ['--help', '-h']) {
     const r = capture(['context-review', flag]);
@@ -570,12 +466,6 @@ test('context-review --help → json 예시 블록 3개와 finding status open|r
   const out = capture(['context-review', '--help']).out;
   assert.equal([...out.matchAll(/```json\n/g)].length, 3);
   assert.match(out, /open\|resolved\|accepted/);
-});
-
-test('usage → scaffold blueprint --order <n>와 v2 scaffold epic --name만 쓰는 형태를 나열한다', () => {
-  const r = capture([]);
-  assert.match(r.out, /blueprint --epic-dir <slug-epic> --order <n> --name <slug>/);
-  assert.match(r.out, /epic --name <slug> --description <text>/);
 });
 
 test('metrics help → snapshot 하위 명령 사용법을 보여준다', () => {

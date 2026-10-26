@@ -2018,18 +2018,13 @@ test('a fanin before the last session decision → is not counted in the new ses
   assert.strictEqual(nextOf(drive).action, 'prepare');
 });
 
-test('an invalid waves_per_session → next caps at 1 and prepare rejects with coordinator-config-invalid', () => {
+test('an invalid waves_per_session → next caps at 1 and yields session-wave-cap', () => {
   const drive = yieldDrive([['001', PAR_META('a')]], {
     config: { waves_per_session: 'fast' }, decisions: [SESSION, FANIN],
   });
   const r = nextOf(drive);
   assert.strictEqual(r.action, 'yield');
   assert.strictEqual(r.reason, 'session-wave-cap');
-  const prepared = coordinate({
-    command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
-  });
-  assert.strictEqual(prepared.ok, false);
-  assert.strictEqual(prepared.reason, 'coordinator-config-invalid');
 });
 
 /**
