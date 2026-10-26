@@ -278,7 +278,25 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    unmarked light plan the user's `affected_paths` confirmation and G3–G5
    carry approved scope.
 
-   For a `scale: full` blueprint, or a light blueprint with the marker, after `affected_paths` confirmation, read: [context-review.md](./references/context-review.md). Freeze with one `bouncer review-dispatch plan`, then `bouncer context-review start`. A blueprint without the marker has strategy `single` (one `combined` reviewer; older `clustered` payloads are only read). A marked blueprint has strategy `perspectives`: call one reviewer per entry of the payload `perspectives` in one message, in parallel (full: `consistency`, `scope_minimality`, `verifiability`, `risk_security`; light: `verifiability` only), and never merge or split them. Follow-ups, routing, records, restart: see the reference. On `ok: false`, `previous-payload-*`, or digest mismatch, stop without reviewers and report. Behavioral brief: the `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while an actionable finding remains unresolved. An open `must_fix` after delta stops for the user; accepted-risk needs explicit user consent.
+   For a `scale: full` blueprint, or a light blueprint with the marker, first
+   resolve `bouncer-context-reviewer` with `bouncer subagent-model --agent
+   bouncer-context-reviewer` and report it. A model rejection stops dispatch;
+   report the provider, role, configured model, host reason, and config location.
+   If Claude Code's hook adds `additionalContext` that changes dispatch facts,
+   pass that change to the user. Then, after `affected_paths` confirmation, read:
+   [context-review.md](./references/context-review.md). Freeze with one
+   `bouncer review-dispatch plan`, then `bouncer context-review start`. A
+   blueprint without the marker has strategy `single` (one `combined` reviewer;
+   older `clustered` payloads are only read). A marked blueprint has strategy
+   `perspectives`: call one reviewer per entry of the payload `perspectives` in
+   one message, in parallel (full: `consistency`, `scope_minimality`,
+   `verifiability`, `risk_security`; light: `verifiability` only), and never
+   merge or split them. Follow-ups, routing, records, restart: see the reference.
+   On `ok: false`, `previous-payload-*`, or digest mismatch, stop without
+   reviewers and report. Behavioral brief: the `context-review` skill
+   (`${BOUNCER_ROOT}/references/context-review/index.md`). Do not approve while
+   an actionable finding remains unresolved. An open `must_fix` after delta
+   stops for the user; accepted-risk needs explicit user consent.
 
 6. **Approval (explicit).** Before asking for approval, show the authored
    task DAG: each task's `depends_on`, `parallel_safe`, and

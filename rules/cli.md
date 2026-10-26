@@ -273,6 +273,11 @@ completion notice that arrives after the worker-model record (a missing
 `worker-model-perspective-invalid`, `tokens-invalid`, `model-invalid` (worker-model
 only), `task-outside-blueprint`; none writes the ledger. The recorded model is
 what the coordinator passed to the dispatch, not proof of the model the host ran.
+Plan and execute metadata are configuration observations only; they do not
+attest which model the host actually ran. A rejected configured model stops the
+named dispatch. Report provider, role, configured name, exact host reason, and
+the setting location; do not retry with `inherit` or invent an alias. When the
+host explicitly returns a supported model name, report that exact value.
 `metrics summary` adds `worker_tokens: {total, missing, by_role: {implementer,
 reviewer, debugger}}` from these decisions, per `(task, role, perspective)` key:
 `missing` is `max(0, worker-model records − reported tokens)` summed over keys,
@@ -444,11 +449,20 @@ retry sections. Do not assemble `intent_sections` by reading bundle sources.
 
 `subagent-model` prints one model slug, or `inherit`. Pass only that line into
 named dispatch; omit the model argument when the line is `inherit`. Do not
-parse it as `{ model, provider }` JSON. `codex-agents check` is read-only: it
+parse it as `{ model, provider }` JSON. The value is configuration metadata,
+not evidence of the model the host ran. A model rejection stops dispatch and
+must be reported with provider, role, configured name, exact host reason, and
+config correction location. `codex-agents check` is read-only: it
 prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 `next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
+
+Plan and execute `review-dispatch` payloads include `agent_dispatch: {agent,
+provider, model}` as a snapshot of current configured dispatch values. It is
+metadata, not proof of the host model. Plan review uses it to select
+`bouncer-context-reviewer`; resolve again immediately before dispatch if the
+current config no longer matches the payload.
 
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single`, or
 `perspectives` for a `review_contract: brief` blueprint; older stored `clustered`

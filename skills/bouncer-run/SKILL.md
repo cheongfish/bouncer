@@ -154,7 +154,11 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
 
 4. **Coordinator dispatch.** Just before dispatch, run
    `bouncer subagent-model --agent bouncer-coordinator` and report its output
-   to the user (`inherit` omits the model argument). Dispatch named `bouncer-coordinator` singly
+   to the user (`inherit` omits the model argument). If the host rejects the
+   configured model, stop without retry or fallback and report provider, role,
+   configured model, exact host reason, and config correction location. If
+   Claude Code hook `additionalContext` changes dispatch facts, report that
+   change to the user. Dispatch named `bouncer-coordinator` singly
    per `${BOUNCER_ROOT}/rules/subagent-model.md`. When named agents are unavailable, dispatch
    one generic subagent per item 5 of that rule: its payload carries the entire
    body of `${BOUNCER_ROOT}/agents/bouncer-coordinator.md` — every section from

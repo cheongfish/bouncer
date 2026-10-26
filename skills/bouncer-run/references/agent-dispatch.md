@@ -319,27 +319,28 @@ dispatch, and the dispatch receives that same value.
   `coordinate dispatch` argv as `--model <value>` (`next` does not put it in
   `argv`). That call records the dispatch model: the ledger keeps the argument
   you pass so it can be compared with `config.json` later, not proof of the
-  model the host ran. Pass the same value to the implementer dispatch. If a
-  slug rejection forces the `inherit` retry from
-  `${BOUNCER_ROOT}/rules/subagent-model.md` item 3, retry only the host
-  dispatch. Do not run `coordinate dispatch` again — the attempt is still
-  active (`dispatch-already-active`) and a second call would not be a retry —
-  and do not record the dispatch model a second time; the ledger keeps the slug
-  first passed, and you state the `inherit` retry in your own report to the
-  user. The implementer's worker record is `bouncer coordinate worker-model
+  model the host ran. Pass the same value to the implementer dispatch. If the
+  host rejects it, stop without retry or fallback and report provider, role,
+  configured model, exact host reason, and config correction location. If
+  Claude Code hook `additionalContext` changes dispatch facts, report the
+  change to the user. The implementer's worker record is `bouncer coordinate worker-model
   --blueprint <dir> --role implementer --model <value> --task <NNN> --tokens
   <n>`, written when the host reports the worker's tokens.
 - **Debugger.** Immediately before each debugger dispatch, record `bouncer
   coordinate worker-model --blueprint <dir> --role debugger --model <value>
-  --task <NNN>`. If a slug rejection forces the `inherit` retry, record the
-  retried value again.
-- **Reviewer, per task.** Immediately before each reviewer dispatch (one per
-  perspective), record `bouncer coordinate worker-model --blueprint <dir>
-  --role reviewer --model <value> --task <NNN> --perspective <name>`. If a slug
-  rejection forces the `inherit` retry, record the retried value again.
-- **Reviewer, final review.** The same record without `--task` (the final
-  review spans the blueprint): `--role reviewer --model <value> [--perspective
-  <name>]`, and the retried value again after an `inherit` retry.
+  --task <NNN>`. A rejected model stops dispatch; do not record a retry value.
+- **Reviewer, per task.** Use the execute `review-dispatch` payload's
+  `agent_dispatch` snapshot to select the reviewer model and pass it to each
+  perspective call. Immediately before each call, compare it with current config
+  and resolve again if they differ. Record `bouncer coordinate worker-model
+  --blueprint <dir> --role reviewer --model <value> --task <NNN> --perspective
+  <name>` immediately before dispatch. A model rejection stops dispatch; do not
+  record a retry value.
+- **Reviewer, final review.** Use the execute `review-dispatch` payload's
+  `agent_dispatch` snapshot, re-resolving immediately before dispatch if current
+  config differs. The same record without `--task` (the final review spans the
+  blueprint): `--role reviewer --model <value> [--perspective <name>]`. A
+  rejected model stops dispatch; do not record a retry value.
 
 Where each host puts a worker's final usage, and when it has none, is owned by
 the host usage table in [drive-metrics](./drive-metrics.md); read it when you
