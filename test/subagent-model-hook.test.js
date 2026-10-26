@@ -26,7 +26,7 @@ test('Bouncer Agent hook registered → hook file and Agent matcher are availabl
 function makeRuntime({ output = 'claude-opus-5-5', exit = 0, body } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subagent-model-'));
   const bin = path.join(dir, 'bouncer');
-  const script = body || `#!/bin/sh\nprintf '%s' "$MODEL_OUTPUT"\nexit "$MODEL_EXIT"\n`;
+  const script = body || '#!/bin/sh\nprintf \'%s\' "$MODEL_OUTPUT"\nexit "$MODEL_EXIT"\n';
   fs.writeFileSync(bin, script, { mode: 0o755 });
   return { bin, env: { BOUNCER_BIN: bin, MODEL_OUTPUT: output, MODEL_EXIT: String(exit) } };
 }

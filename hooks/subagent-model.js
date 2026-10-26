@@ -4,7 +4,7 @@
 const { runRuntime } = require('./runtime-cli');
 
 const ROLES = new Set(['reviewer', 'debugger', 'implementer', 'coordinator', 'context-reviewer']);
-const MODEL_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/@+\[\]-]*$/;
+const MODEL_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/@+\x5B\]-]*$/;
 const COMMAND_TIMEOUT_MS = 20000;
 
 /**
