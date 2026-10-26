@@ -124,7 +124,11 @@ function releasePackageJson(src) {
   const pluginManifest = path.join(root, 'plugin.json');
   const pkg = JSON.parse(fs.readFileSync(fs.existsSync(pluginManifest) ? pluginManifest : src, 'utf8'));
   const identity = {};
-  for (const key of ['name', 'version', 'private', 'description', 'license', 'repository', 'homepage', 'bugs', 'runtimeCompatibility']) {
+  const keys = [
+    'name', 'version', 'private', 'description', 'license', 'repository', 'homepage', 'bugs',
+    'runtimeCompatibility',
+  ];
+  for (const key of keys) {
     if (pkg[key] !== undefined) identity[key] = pkg[key];
   }
   return `${JSON.stringify(identity, null, 2)}\n`;

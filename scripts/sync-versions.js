@@ -80,7 +80,9 @@ function syncVersions(opts = {}) {
   if (!isStrictSemver(version)) throw new Error(`${rootFile}:version: invalid strict SemVer 2.0`);
   const pluginSource = readJson(path.join(root, 'plugin.json'));
   const pluginVersion = pluginSource.data.version;
-  if (!isStrictSemver(pluginVersion)) throw new Error(`${path.join(root, 'plugin.json')}:version: invalid strict SemVer 2.0`);
+  if (!isStrictSemver(pluginVersion)) {
+    throw new Error(`${path.join(root, 'plugin.json')}:version: invalid strict SemVer 2.0`);
+  }
 
   const edits = [];
   for (const [rel, selectors, targetVersion] of [

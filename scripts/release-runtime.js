@@ -57,7 +57,10 @@ function releaseRuntime(opts) {
   }
   const { assertPluginVersion } = require('../packages/cli/dist/plugin-root');
   try {
-    assertPluginVersion({ version: pluginManifest.version, runtimeCompatibility: pluginManifest.runtimeCompatibility }, pack.version);
+    assertPluginVersion({
+      version: pluginManifest.version,
+      runtimeCompatibility: pluginManifest.runtimeCompatibility,
+    }, pack.version);
   } catch (error) {
     throw new Error(`plugin runtime compatibility check failed: ${error.message}`, { cause: error });
   }
