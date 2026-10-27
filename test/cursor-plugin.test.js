@@ -66,6 +66,7 @@ test('cursor-hooks.json → registers commit safety on beforeShellExecution', ()
   const entries = hooks.hooks.beforeShellExecution;
   assert.ok(Array.isArray(entries), 'no beforeShellExecution entries');
   assert.ok(entries[0].command.includes('cursor-commit-safety.js'));
+  assert.strictEqual(entries[0].command, 'node ./hooks/cursor-commit-safety.js');
 });
 
 // Single-plugin repos only need plugin.json. marketplace.json is for
