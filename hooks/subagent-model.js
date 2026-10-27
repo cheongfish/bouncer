@@ -37,6 +37,36 @@ function parseLookup(text) {
 }
 
 /**
+ * 입력 모델이 `subagent-model --tier strong`이 돌려주는 strong 매핑 모델과 정확히 같은지 확인한다.
+ * review-dispatch가 리뷰어를 strong으로 올린 호출을 훅이 config 모델로 되돌리지 않게 하려는 예외 판정이다.
+ * 조회 미발견·시간 초과·비정상 종료·비JSON(옛 runtime 평문 포함)·source가 'tier'가 아님·모델 불일치는
+ * 모두 "확인 불가"로 보고 false를 돌려 기존 덮어쓰기로 돌아간다(차단하지 않는다).
+ *
+ * @param {string} role - 정규화 전 Bouncer 역할 이름(`reviewer` 등)
+ * @param {string} cwd - 저장소 경로
+ * @param {string} model - 호출이 지정한 모델
+ * @returns {boolean} strong 매핑 모델과 정확히 같으면 true
+ */
+function isStrongTierModel(role, cwd, model) {
+  const result = runRuntime([
+    'subagent-model', '--agent', `bouncer-${role}`, '--provider', 'claude', '--repo', cwd,
+    '--tier', 'strong', '--json',
+  ], { cwd, input: '', timeoutMs: COMMAND_TIMEOUT_MS });
+  if (!result.found || result.error || result.signal || result.status !== 0) return false;
+  let text = result.stdout;
+  if (text.endsWith('\r\n')) text = text.slice(0, -2);
+  else if (text.endsWith('\n')) text = text.slice(0, -1);
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (_error) {
+    // JSON.parse의 SyntaxError만 여기로 온다: --tier를 모르는 옛 runtime의 평문이므로 확인 불가로 처리한다.
+    return false;
+  }
+  return Boolean(parsed) && typeof parsed === 'object' && parsed.source === 'tier' && parsed.model === model;
+}
+
+/**
  * Bouncer Claude Agent 호출만 config의 모델·effort 설정에 맞춘다. 관련 호출의 조회 실패는
  * 모델 선택을 추측하지 않도록 종료 2로 막고, 비대상 payload는 그대로 통과한다.
  *
@@ -86,13 +116,19 @@ function handle(raw) {
 
   const previous = input.model;
   let replacement;
+  let keptStrong = false;
   if (model === 'inherit') {
     if (Object.hasOwn(input, 'model')) {
       replacement = { ...input };
       delete replacement.model;
     }
   } else if (previous !== model) {
-    replacement = { ...input, model };
+    // 리뷰어 두 역할만: 호출이 strong 매핑 모델을 지정했다면(review-dispatch의 상향) 되돌리지 않는다.
+    // 하향·임의 문자열은 여기서 false가 되어 기존대로 덮어쓰인다. 다른 역할은 두 번째 조회를 하지 않는다.
+    keptStrong = (role === 'reviewer' || role === 'context-reviewer')
+      && typeof previous === 'string' && previous !== ''
+      && isStrongTierModel(role, payload.cwd, previous);
+    if (!keptStrong) replacement = { ...input, model };
   }
   // effort가 null이면 설정이 effort를 지정하지 않은 것이므로 호출 측 값을 그대로 둔다.
   const effortChanged = effort !== null && input.effort !== effort;
@@ -112,9 +148,12 @@ function handle(raw) {
     : '';
   process.stdout.write(`${JSON.stringify({ hookSpecificOutput: {
     updatedInput: replacement || input,
-    additionalContext: `Bouncer ${role}의 Claude 모델 설정이 보정되었습니다: 이전값 ${oldValue}, `
-      + `설정 모델명 ${model}, 보정값 ${newValue}. 사용자에게 이 변경 사실을 한국어로 알려주세요.`
-      + `${effortNote}${notice}`,
+    // 모델을 그대로 둔 strong 통과 분기는 모델 보정 문구를 내지 않는다(effort·옛 runtime 안내만).
+    additionalContext: keptStrong
+      ? `Bouncer ${role}의 Claude 호출 설정이 보정되었습니다.${effortNote}${notice}`
+      : `Bouncer ${role}의 Claude 모델 설정이 보정되었습니다: 이전값 ${oldValue}, `
+        + `설정 모델명 ${model}, 보정값 ${newValue}. 사용자에게 이 변경 사실을 한국어로 알려주세요.`
+        + `${effortNote}${notice}`,
   } })}\n`);
   return 0;
 }

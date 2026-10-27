@@ -248,3 +248,118 @@ test('malformed JSON result → exit 2 with JSON-or-token message', () => {
     assert.match(result.stderr, /JSON 객체도 단일 모델 토큰도 아닙니다/, output);
   }
 });
+
+// --tier strong 호출에만 STRONG_OUTPUT/STRONG_EXIT로 따로 응답하는 가짜 bin. 호출마다 argv를 한 줄씩
+// CALL_LOG에 남겨 두 번째 조회의 횟수·형태를 단언할 수 있게 한다. STRONG_SLEEP이 있으면 그 호출만 지연한다.
+const TIER_BODY = '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$CALL_LOG"\n'
+  + 'case " $* " in *" --tier strong "*)\n'
+  + '  [ -n "$STRONG_SLEEP" ] && sleep "$STRONG_SLEEP"\n'
+  + '  printf \'%s\' "$STRONG_OUTPUT"; exit "${STRONG_EXIT:-0}";;\n'
+  + 'esac\nprintf \'%s\' "$MODEL_OUTPUT"\nexit "$MODEL_EXIT"\n';
+
+function tierRuntime({ first, strong, strongExit = 0, strongSleep = '' }) {
+  const rt = makeRuntime({ body: TIER_BODY, output: first });
+  const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'subagent-calls-')), 'calls');
+  Object.assign(rt.env, {
+    CALL_LOG: log, STRONG_OUTPUT: strong, STRONG_EXIT: String(strongExit), STRONG_SLEEP: strongSleep,
+  });
+  const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : []);
+  return { rt, calls };
+}
+
+const strongJson = (role, model = 'strong-model', extra = {}) => jsonOutput(role, model, null, {
+  tier: 'strong', source: 'tier', ...extra,
+});
+
+test('reviewer with strong-mapped model → model kept and strong lookup made once more', () => {
+  const { rt, calls } = tierRuntime({
+    first: jsonOutput('bouncer-reviewer', 'std-model', null), strong: strongJson('bouncer-reviewer'),
+  });
+  const result = invoke(payload('bouncer-reviewer', { model: 'strong-model' }), rt);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.equal(calls().length, 2);
+  assert.equal(calls()[1].includes('--tier strong'), true);
+});
+
+test('context-reviewer with strong-mapped model → model kept', () => {
+  const { rt, calls } = tierRuntime({
+    first: jsonOutput('bouncer-context-reviewer', 'std-model', null),
+    strong: strongJson('bouncer-context-reviewer'),
+  });
+  const result = invoke(payload('bouncer:bouncer-context-reviewer', { model: 'strong-model' }), rt);
+  assert.equal(result.stdout, '');
+  assert.equal(calls().length, 2);
+});
+
+test('strong-mapped model with effort mismatch → model kept and effort still corrected', () => {
+  const { rt } = tierRuntime({
+    first: jsonOutput('bouncer-reviewer', 'std-model', 'medium'), strong: strongJson('bouncer-reviewer'),
+  });
+  const result = parsedOutput(invoke(payload('bouncer-reviewer', { model: 'strong-model', effort: 'high' }), rt));
+  assert.equal(result.hookSpecificOutput.updatedInput.model, 'strong-model');
+  assert.equal(result.hookSpecificOutput.updatedInput.effort, 'medium');
+  assert.equal(result.hookSpecificOutput.additionalContext.includes('설정 모델명'), false);
+});
+
+test('reviewer with model other than strong mapping → config model replaces it', () => {
+  const { rt, calls } = tierRuntime({
+    first: jsonOutput('bouncer-reviewer', 'std-model', null), strong: strongJson('bouncer-reviewer'),
+  });
+  const result = parsedOutput(invoke(payload('bouncer-reviewer', { model: 'other-model' }), rt));
+  assert.equal(result.hookSpecificOutput.updatedInput.model, 'std-model');
+  assert.equal(calls().length, 2);
+});
+
+test('strong lookup failing, non-JSON, wrong source, or old token → config model replaces it', () => {
+  const cases = [
+    { strong: '', strongExit: 1 },
+    { strong: 'not json' },
+    { strong: strongJson('bouncer-reviewer', 'strong-model', { source: 'slot' }) },
+    { strong: 'strong-model' },
+  ];
+  for (const c of cases) {
+    const { rt } = tierRuntime({ first: jsonOutput('bouncer-reviewer', 'std-model', null), ...c });
+    const result = parsedOutput(invoke(payload('bouncer-reviewer', { model: 'strong-model' }), rt));
+    assert.equal(result.hookSpecificOutput.updatedInput.model, 'std-model', JSON.stringify(c));
+  }
+});
+
+test('strong lookup timeout → config model replaces it without blocking', () => {
+  const { rt } = tierRuntime({
+    first: jsonOutput('bouncer-reviewer', 'std-model', null), strong: strongJson('bouncer-reviewer'),
+    strongSleep: '30',
+  });
+  const result = parsedOutput(invoke(payload('bouncer-reviewer', { model: 'strong-model' }), rt));
+  assert.equal(result.hookSpecificOutput.updatedInput.model, 'std-model');
+});
+
+test('implementer with strong-named model → replaced without a strong lookup', () => {
+  const { rt, calls } = tierRuntime({
+    first: jsonOutput('bouncer-implementer', 'std-model', null), strong: strongJson('bouncer-implementer'),
+  });
+  const result = parsedOutput(invoke(payload('bouncer-implementer', { model: 'strong-model' }), rt));
+  assert.equal(result.hookSpecificOutput.updatedInput.model, 'std-model');
+  assert.equal(calls().length, 1);
+  assert.equal(calls()[0].includes('--tier'), false);
+});
+
+test('reviewer with empty or non-string model → no strong lookup', () => {
+  for (const model of ['', 7, null]) {
+    const { rt, calls } = tierRuntime({
+      first: jsonOutput('bouncer-reviewer', 'std-model', null), strong: strongJson('bouncer-reviewer'),
+    });
+    const result = parsedOutput(invoke(payload('bouncer-reviewer', { model }), rt));
+    assert.equal(result.hookSpecificOutput.updatedInput.model, 'std-model');
+    assert.equal(calls().length, 1);
+  }
+});
+
+test('reviewer with inherit config and explicit model → model removed without a strong lookup', () => {
+  const { rt, calls } = tierRuntime({
+    first: jsonOutput('bouncer-reviewer', 'inherit', null), strong: strongJson('bouncer-reviewer'),
+  });
+  const result = parsedOutput(invoke(payload('bouncer-reviewer', { model: 'strong-model' }), rt));
+  assert.equal(Object.hasOwn(result.hookSpecificOutput.updatedInput, 'model'), false);
+  assert.equal(calls().length, 1);
+});
