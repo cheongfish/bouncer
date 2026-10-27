@@ -149,7 +149,7 @@ an existing one) as `minor` by default, `major` when contract or public
 behavior changes. Do **not** apply this to docs-only or configuration-only
 diffs.
 
-## Rubric — Over-engineering (advisory → finding when actionable)
+## Rubric — Over-engineering (finding when actionable)
 
 Report a deletion / simplification finding only when the diff invents surface
 the brief did not need (Extra scope creep, a reinvented capability the

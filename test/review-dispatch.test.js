@@ -1162,8 +1162,11 @@ test('task 없는 execute에 --mode delta → usage exit 2이고 stdout JSON이 
 });
 
 // review_contract 표식 fixture. big=true면 임계값을 넘기는 4파일 diff, 아니면 1파일 diff를 커밋한다.
-function markedRepo({ reviewContract = 'brief', unmarked = false, scale = 'full', risk, big = false, tasks = ['001'] } = {}) {
+function markedRepo({
+  reviewContract = 'brief', unmarked = false, scale = 'full', risk, big = false, tasks = ['001'], config,
+} = {}) {
   const repo = makeRepo();
+  if (config) writeConfig(repo, config);
   writePlanTree(repo, { scale, tasks, reviewContract: unmarked ? undefined : reviewContract });
   if (risk !== undefined) {
     tasks.forEach((n, i) => writeCommitTask(repo, n, { reviewRisk: risk[i] ?? risk[0] }));
@@ -2420,7 +2423,10 @@ for (const scale of ['full', 'light']) {
       for (const mode of ['discovery', 'delta']) {
         if (mode === 'delta' && scope === 'task') continue; // delta는 task 없는 리뷰 전용
         test(`execute ${scale}/${contract}/${scope}/${mode} with a credential risk → returns the contract's classification`, () => {
-          const fx = markedRepo({ scale, unmarked: contract === 'legacy', big: true, risk: [['credential']] });
+          // provider와 등급 매핑을 고정해 등급 근거 줄이 실행 환경 설정에 흔들리지 않게 한다.
+          const fx = markedRepo({
+            scale, unmarked: contract === 'legacy', big: true, risk: [['credential']], config: STRONG_CLAUDE,
+          });
           const out = classifyExecuteReview({
             repoRoot: fx.repo, blueprintDir: BP_REL, taskId: scope === 'task' ? '001' : undefined,
             base: fx.base, head: fx.head, reviewMode: mode,
@@ -2437,17 +2443,18 @@ for (const scale of ['full', 'light']) {
           } else if (brief) {
             assert.strictEqual(out.strategy, 'parallel');
             assert.deepStrictEqual(out.perspectives, ['spec_scope', 'correctness_tests', 'security']);
-            // 뒤따르는 등급 근거 줄은 provider 설정에 따라 달라 앞 두 줄만 고정한다.
-            assert.deepStrictEqual(out.reasons.slice(0, 2), [
+            assert.deepStrictEqual(out.reasons, [
               'review_contract brief — brief-compliance perspectives',
               'review_risk credential adds security reviewer',
+              'reviewer tier strong — review_risk credential',
             ]);
           } else if (scale === 'light') {
             assert.strictEqual(out.strategy, 'single');
             assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
-            assert.deepStrictEqual(out.reasons.slice(0, 2), [
+            assert.deepStrictEqual(out.reasons, [
               'blueprint scale is light — single combined reviewer regardless of diff size',
               'review_risk credential adds security reviewer',
+              'reviewer tier strong — review_risk credential',
             ]);
           } else {
             assert.strictEqual(out.strategy, 'parallel');
