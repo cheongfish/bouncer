@@ -201,6 +201,7 @@ test('(i) shipped plugin documents → do not point at runtime source paths', ()
     'references/spec-authoring/review-rounds.md',
     'references/spec-authoring/tasks.md',
     'rules/cli.md',
+    'rules/planning.md',
   ]);
   const internal = /scripts\/(?:lib|src)\/|packages\/cli/;
   const offenders = [];

@@ -39,5 +39,5 @@ integrated`, 실행 가능한 전체-CI `verify`, source 경로가 없는 Touch�
 만들지 않는다.
 
 **Release-time documents.** Before locking `affected_paths`, follow the
-`Release-time documents` section of `rules/planning.md`: never add the version
+`Release-time documents` section of `${BOUNCER_ROOT}/rules/planning.md`: never add the version
 documents it lists to Touch, `affected_paths`, Checklist, or `bouncer.verify`.

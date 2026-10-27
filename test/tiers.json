@@ -24,6 +24,7 @@
     "legacy-comments.test.js",
     "open-source-readiness.test.js",
     "paths.test.js",
+    "plan-release-docs-rule.test.js",
     "plugin-doc-cites.test.js",
     "plugin-wiring.test.js",
     "retention-migration.test.js",
