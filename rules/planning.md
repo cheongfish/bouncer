@@ -195,3 +195,23 @@ When a change touches several epics, pick the one the acceptance criteria center
 on as the primary epic. Security, performance, bug-fix, and refactoring work
 attributes by the target feature. Inactive epics and `legacy` epics are never
 candidates.
+
+## Release-time documents
+
+Plan-stage documents (epic, blueprint, tasks) never plan to edit version
+documents. Do not put any of these files in Touch, `affected_paths`,
+Checklist, or `bouncer.verify`, and do not plan a change to them:
+
+- `CHANGELOG.md`
+- `package.json`
+- `packages/cli/package.json`
+- `package-lock.json`
+- `.claude-plugin/plugin.json`
+- `.claude-plugin/marketplace.json`
+- `.codex-plugin/plugin.json`
+- `.cursor-plugin/plugin.json`
+
+When a request asks for a version bump or a CHANGELOG entry, leave it out of
+the plan and tell the user in Korean: "버전 올림과 CHANGELOG 기록은 계획에 넣지
+않고 릴리스 시점에 따로 작성합니다." This is a documentation rule only; the plan
+gate does not check it, and a separate release task may still edit these files.
