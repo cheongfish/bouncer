@@ -22,6 +22,13 @@ limits.
    missing, empty, or non-string `model_tiers` value is not inheritance: the
    command rejects it as `tier-unmapped`.
    If the command exits 1, do not dispatch; report its code, provider, role, tier, and the config key to fix.
+   A reviewer dispatch reads the `review-dispatch` payload's
+   `reviewer_tier_applied`. When it is true (the tier is always `strong`),
+   re-resolve immediately before the call with
+   `bouncer subagent-model --agent <name> --tier <reviewer_tier>` so the raised
+   tier survives; when it is false, use the plain
+   `bouncer subagent-model --agent <name>` above. The payload's `agent_dispatch`
+   is a configuration snapshot, not proof of the host model.
    Pass the role effort by host. On Claude Code, pass the role effort as the Agent effort argument; the hook corrects it.
    On Codex, pass the role effort as the spawn reasoning_effort.
    (The custom agent TOML field is named `model_reasoning_effort`.)

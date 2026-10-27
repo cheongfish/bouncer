@@ -332,13 +332,15 @@ dispatch, and the dispatch receives that same value.
 - **Reviewer, per task.** Use the execute `review-dispatch` payload's
   `agent_dispatch` snapshot to select the reviewer model and pass it to each
   perspective call. Immediately before each call, compare it with current config
-  and resolve again if they differ. Record `bouncer coordinate worker-model
+  and resolve again if they differ; follow the payload's `reviewer_tier` /
+  `reviewer_tier_applied` procedure in `rules/subagent-model.md` item 1. Record `bouncer coordinate worker-model
   --blueprint <dir> --role reviewer --model <value> --task <NNN> --perspective
   <name>` immediately before dispatch. A model rejection stops dispatch; do not
   record a retry value.
 - **Reviewer, final review.** Use the execute `review-dispatch` payload's
   `agent_dispatch` snapshot, re-resolving immediately before dispatch if current
-  config differs. The same record without `--task` (the final review spans the
+  config differs and keeping the payload's `reviewer_tier` as
+  `rules/subagent-model.md` item 1 describes. The same record without `--task` (the final review spans the
   blueprint): `--role reviewer --model <value> [--perspective <name>]`. A
   rejected model stops dispatch; do not record a retry value.
 

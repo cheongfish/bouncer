@@ -454,7 +454,11 @@ source }`; on a resolution error (for example `tier-unmapped` or
 omit the model argument when it is `inherit`. The value is configuration metadata,
 not evidence of the model the host ran. A model rejection stops dispatch and
 must be reported with provider, role, configured name, exact host reason, and
-config correction location. `codex-agents check` is read-only: it
+config correction location. `subagent-model --agent <name> --tier <tier>`
+resolves the model for that call-level tier (for example `--tier strong`)
+instead of the role's own tier; the usage line above stays unchanged. A reviewer
+call uses it to keep the tier of its `review-dispatch` payload
+(`reviewer_tier`). `codex-agents check` is read-only: it
 prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 `next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
@@ -465,6 +469,10 @@ provider, model}` as a snapshot of current configured dispatch values. It is
 metadata, not proof of the host model. Plan review uses it to select
 `bouncer-context-reviewer`; resolve again immediately before dispatch if the
 current config no longer matches the payload.
+
+Plan (`single`, `perspectives`) and Execute (`discovery`, `delta`) reviewer
+`review-dispatch` payloads carry `reviewer_tier` and `reviewer_tier_applied`.
+Re-resolution before dispatch follows `rules/subagent-model.md` item 1.
 
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single`, or
 `perspectives` for a `review_contract: brief` blueprint; older stored `clustered`
