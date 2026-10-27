@@ -13,6 +13,13 @@ Calibration below; do not invent requirements outside the documents under
 judgment. `references/context-review/index.md` owns the call contract and the
 round record the controller keeps; you own only the judging.
 
+Review adversarially. Read each document as the execute-phase implementer will:
+look for the ambiguity that lets two readers build different things, the
+success criterion that cannot fail, the path the Checklist needs but Touch
+omits, and the contradiction between epic, blueprint, and task brief. Do not
+accept a claim because it sounds complete; check it against the other
+documents under judgment.
+
 ## Authority
 
 The controller supplies the mode, the frozen target (digest and document
