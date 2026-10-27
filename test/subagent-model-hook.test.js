@@ -47,6 +47,13 @@ function parsedOutput(result) {
   return JSON.parse(result.stdout);
 }
 
+// --json 응답 stub. effort를 명시해야 하므로 호출부가 항상 값(또는 null)을 넘긴다.
+function jsonOutput(role, model, effort, extra = {}) {
+  return JSON.stringify({
+    provider: 'claude', role, tier: null, model, effort, source: 'slot', ...extra,
+  });
+}
+
 test('missing Bouncer model → public CLI value fills model and preserves input', () => {
   const rt = makeRuntime();
   const result = parsedOutput(invoke(payload('bouncer-implementer'), rt));
@@ -74,7 +81,7 @@ test('canonical and plugin namespace names → both resolve the canonical CLI ro
 });
 
 test('same model → no input rewrite or context message', () => {
-  const rt = makeRuntime();
+  const rt = makeRuntime({ output: jsonOutput('bouncer-coordinator', 'claude-opus-5-5', null) });
   const result = invoke(payload('bouncer-coordinator', { model: 'claude-opus-5-5' }), rt);
   assert.equal(result.stdout, '');
 });
@@ -89,7 +96,7 @@ test('inherit with explicit model → removes model to restore inheritance', () 
 });
 
 test('inherit without explicit model → no rewrite', () => {
-  const rt = makeRuntime({ output: 'inherit' });
+  const rt = makeRuntime({ output: jsonOutput('bouncer-reviewer', 'inherit', null) });
   assert.equal(invoke(payload('bouncer-reviewer'), rt).stdout, '');
 });
 
@@ -156,4 +163,88 @@ test('cwd with invalid type → exit 2 without invoking runtime', () => {
   assert.equal(result.status, 2);
   assert.match(result.stderr, /저장소 경로.*다시 시도/);
   assert.match(result.stderr, /subagent-model --agent bouncer-reviewer --provider claude --repo <cwd>/);
+});
+
+const REVIEWER_JSON = '{"provider":"claude","role":"bouncer-reviewer","tier":"standard",'
+  + '"model":"claude-sonnet-5-5","effort":"medium","source":"tier"}';
+
+test('JSON with model and effort → updatedInput carries both', () => {
+  const result = parsedOutput(invoke(
+    { tool_name: 'Agent', cwd: os.tmpdir(), tool_input: { subagent_type: 'bouncer-reviewer', prompt: 'x' } },
+    makeRuntime({ output: REVIEWER_JSON }),
+  ));
+  assert.deepEqual(result.hookSpecificOutput.updatedInput, {
+    subagent_type: 'bouncer-reviewer', prompt: 'x', model: 'claude-sonnet-5-5', effort: 'medium',
+  });
+});
+
+test('missing input effort → context reports 누락 and corrected value', () => {
+  const result = parsedOutput(invoke(payload('bouncer-reviewer'), makeRuntime({ output: REVIEWER_JSON })));
+  assert.match(result.hookSpecificOutput.additionalContext, /effort 이전값 누락, 보정값 "medium"\./);
+});
+
+test('JSON inherit with effort → model key removed and effort set', () => {
+  const output = jsonOutput('bouncer-reviewer', 'inherit', 'medium');
+  const result = parsedOutput(invoke(
+    payload('bouncer-reviewer', { model: 'x', effort: 'high' }), makeRuntime({ output }),
+  ));
+  assert.equal(Object.hasOwn(result.hookSpecificOutput.updatedInput, 'model'), false);
+  assert.equal(result.hookSpecificOutput.updatedInput.effort, 'medium');
+});
+
+test('effort null with input effort and same model → empty stdout', () => {
+  const output = jsonOutput('bouncer-reviewer', 'claude-sonnet-5-5', null);
+  const result = invoke(payload('bouncer-reviewer', { model: 'claude-sonnet-5-5', effort: 'high' }),
+    makeRuntime({ output }));
+  assert.equal(result.stdout, '');
+});
+
+test('hook invocation → CLI argv ends with --json after --repo cwd', () => {
+  const argvOut = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'subagent-argv-')), 'argv');
+  const rt = makeRuntime({
+    body: '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$ARGV_OUT"\nprintf \'%s\' "$MODEL_OUTPUT"\n',
+    output: REVIEWER_JSON,
+  });
+  parsedOutput(invoke(payload('bouncer-reviewer'), { env: { ...rt.env, ARGV_OUT: argvOut } }));
+  const argv = fs.readFileSync(argvOut, 'utf8').split('\n').filter(Boolean);
+  assert.deepEqual(argv, [
+    'subagent-model', '--agent', 'bouncer-reviewer', '--provider', 'claude', '--repo', os.tmpdir(), '--json',
+  ]);
+});
+
+test('input effort differs → context reports both values and model is kept', () => {
+  const result = parsedOutput(invoke(
+    payload('bouncer-reviewer', { model: 'claude-sonnet-5-5', effort: 'high' }),
+    makeRuntime({ output: REVIEWER_JSON }),
+  ));
+  assert.match(result.hookSpecificOutput.additionalContext, /effort 이전값 "high", 보정값 "medium"\./);
+  assert.equal(result.hookSpecificOutput.updatedInput.model, 'claude-sonnet-5-5');
+});
+
+test('old runtime single token with same model → input kept and upgrade notice emitted', () => {
+  const result = parsedOutput(invoke(
+    payload('bouncer-reviewer', { model: 'claude-sonnet-5-5' }), makeRuntime({ output: 'claude-sonnet-5-5' }),
+  ));
+  assert.deepEqual(result.hookSpecificOutput.updatedInput, payload('bouncer-reviewer', {
+    model: 'claude-sonnet-5-5',
+  }).tool_input);
+  assert.match(result.hookSpecificOutput.additionalContext,
+    /--json을 지원하지 않아 roles 등급 해석·빈 등급 거절·effort 보정을 적용하지 못했습니다/);
+});
+
+test('malformed JSON result → exit 2 with JSON-or-token message', () => {
+  const bad = (patch) => {
+    const value = { provider: 'claude', role: 'bouncer-reviewer', tier: null, model: 'opus', effort: null, ...patch };
+    for (const key of Object.keys(patch)) if (patch[key] === undefined) delete value[key];
+    return JSON.stringify(value);
+  };
+  const outputs = [
+    '["claude-opus-5-5"]', '"x"', bad({ model: undefined }), bad({ model: null }), bad({ model: 'bad model' }),
+    bad({ effort: undefined }), bad({ effort: 'max' }), '{"model":"opus",\n"effort":null}', '{"a":1}\n{"b":2}',
+  ];
+  for (const output of outputs) {
+    const result = invoke(payload('bouncer-reviewer'), makeRuntime({ output }));
+    assert.equal(result.status, 2, output);
+    assert.match(result.stderr, /JSON 객체도 단일 모델 토큰도 아닙니다/, output);
+  }
 });

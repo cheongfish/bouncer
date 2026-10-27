@@ -5,10 +5,39 @@ const { runRuntime } = require('./runtime-cli');
 
 const ROLES = new Set(['reviewer', 'debugger', 'implementer', 'coordinator', 'context-reviewer']);
 const MODEL_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/@+\x5B\]-]*$/;
+const EFFORTS = new Set(['low', 'medium', 'high']);
 const COMMAND_TIMEOUT_MS = 20000;
 
 /**
- * Bouncer Claude Agent 호출만 config의 모델 슬롯에 맞춘다. 관련 호출의 조회 실패는
+ * 조회 stdout(끝 개행 하나 제거 후)을 해석한다. JSON 객체면 model·effort를 검증해 돌려주고,
+ * JSON이 아니면서 단일 토큰이면 `--json`을 모르는 옛 runtime으로 보고 model만 돌려준다.
+ * 배열·스칼라 JSON, 여러 줄, 검증 실패는 추측하지 않고 null로 거절한다.
+ *
+ * @param {string} text - 끝 개행 하나를 뗀 stdout
+ * @returns {{model: string, effort: string|null, legacy: boolean}|null} 해석 결과, 거절이면 null
+ */
+function parseLookup(text) {
+  if (text.includes('\r') || text.includes('\n')) return null;
+  let parsed;
+  let isJson = true;
+  try {
+    parsed = JSON.parse(text);
+  } catch (_error) {
+    // JSON.parse의 SyntaxError만 여기로 온다: 옛 runtime의 평문 토큰일 수 있어 아래에서 토큰 검사로 넘긴다.
+    isJson = false;
+  }
+  if (!isJson) {
+    return MODEL_TOKEN.test(text) ? { model: text, effort: null, legacy: true } : null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  if (typeof parsed.model !== 'string' || !MODEL_TOKEN.test(parsed.model)) return null;
+  if (!Object.hasOwn(parsed, 'effort')) return null;
+  if (parsed.effort !== null && !EFFORTS.has(parsed.effort)) return null;
+  return { model: parsed.model, effort: parsed.effort, legacy: false };
+}
+
+/**
+ * Bouncer Claude Agent 호출만 config의 모델·effort 설정에 맞춘다. 관련 호출의 조회 실패는
  * 모델 선택을 추측하지 않도록 종료 2로 막고, 비대상 payload는 그대로 통과한다.
  *
  * @param {string} raw - stdin에서 읽은 JSON payload
@@ -36,7 +65,7 @@ function handle(raw) {
   }
 
   const result = runRuntime([
-    'subagent-model', '--agent', canonical, '--provider', 'claude', '--repo', payload.cwd,
+    'subagent-model', '--agent', canonical, '--provider', 'claude', '--repo', payload.cwd, '--json',
   ], { cwd: payload.cwd, input: '', timeoutMs: COMMAND_TIMEOUT_MS });
   if (!result.found) return fail(role, `bouncer CLI를 찾지 못했습니다 (${result.reason}). CLI 설치 또는 BOUNCER_BIN을 확인하세요.`);
   if (result.error && result.error.code === 'ETIMEDOUT') {
@@ -46,12 +75,14 @@ function handle(raw) {
     const cause = result.error ? (result.error.code || result.error.name) : (result.signal || `exit ${result.status}`);
     return fail(role, `모델 조회 명령이 실패했습니다 (${cause}). Bouncer CLI 설정을 확인하세요.`);
   }
-  let model = result.stdout;
-  if (model.endsWith('\r\n')) model = model.slice(0, -2);
-  else if (model.endsWith('\n')) model = model.slice(0, -1);
-  if (!MODEL_TOKEN.test(model) || model.includes('\r') || model.includes('\n')) {
-    return fail(role, '모델 조회 결과가 단일 모델 토큰이 아닙니다. Bouncer CLI 출력을 확인하세요.');
+  let text = result.stdout;
+  if (text.endsWith('\r\n')) text = text.slice(0, -2);
+  else if (text.endsWith('\n')) text = text.slice(0, -1);
+  const lookup = parseLookup(text);
+  if (!lookup) {
+    return fail(role, '모델 조회 결과가 JSON 객체도 단일 모델 토큰도 아닙니다. Bouncer CLI 출력을 확인하세요.');
   }
+  const { model, effort, legacy } = lookup;
 
   const previous = input.model;
   let replacement;
@@ -63,15 +94,27 @@ function handle(raw) {
   } else if (previous !== model) {
     replacement = { ...input, model };
   }
-  if (!replacement) return 0;
+  // effort가 null이면 설정이 effort를 지정하지 않은 것이므로 호출 측 값을 그대로 둔다.
+  const effortChanged = effort !== null && input.effort !== effort;
+  if (effortChanged) replacement = { ...(replacement || input), effort };
+  const notice = legacy
+    ? ' runtime이 --json을 지원하지 않아 roles 등급 해석·빈 등급 거절·effort 보정을 적용하지 못했습니다. '
+      + 'BOUNCER_BIN을 최신 runtime으로 설정하세요.'
+    : '';
+  // 옛 runtime 안내는 보정이 없어도 알려야 하므로 replacement가 없어도 입력을 그대로 돌려준다.
+  if (!replacement && !notice) return 0;
 
   const oldValue = Object.hasOwn(input, 'model') ? JSON.stringify(previous) : '누락';
   const newValue = model === 'inherit' ? 'model 제거(상속)' : JSON.stringify(model);
-  const updatedInput = replacement;
+  const effortNote = effortChanged
+    ? ` effort 이전값 ${Object.hasOwn(input, 'effort') ? JSON.stringify(input.effort) : '누락'}, `
+      + `보정값 ${JSON.stringify(effort)}.`
+    : '';
   process.stdout.write(`${JSON.stringify({ hookSpecificOutput: {
-    updatedInput,
+    updatedInput: replacement || input,
     additionalContext: `Bouncer ${role}의 Claude 모델 설정이 보정되었습니다: 이전값 ${oldValue}, `
-      + `설정 모델명 ${model}, 보정값 ${newValue}. 사용자에게 이 변경 사실을 한국어로 알려주세요.`,
+      + `설정 모델명 ${model}, 보정값 ${newValue}. 사용자에게 이 변경 사실을 한국어로 알려주세요.`
+      + `${effortNote}${notice}`,
   } })}\n`);
   return 0;
 }
