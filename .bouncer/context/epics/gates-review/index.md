@@ -44,6 +44,8 @@ bouncer:
 21. R-A5·R-A10 범위에서 리뷰 분류의 단일 읽기와 계약별 계산 분리의 task 수용 기준과 전용 검증을 만족한다.
 22. R-A9·R-A11 범위에서 계획 리뷰 관점과 delta 기준의 정본 통합의 task 수용 기준과 전용 검증을 만족한다.
 23. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
+24. 코드 리뷰어는 적대적 자세로 반드시 수정할 것만 보고하며 `advisory`를 내지 않고, context-reviewer는 적대적 자세를 얻되 기존 보고 기준을 유지한다.
+25. `review-dispatch` plan·execute는 commit task 수 ≥ 3 또는 `review_risk`가 비어 있지 않을 때 `reviewer_tier: strong`을 계산하고, 사용자 config `review.min_reviewer_tier`로 상향만 허용하며, `strong` 매핑이 있을 때만 모델에 적용하고 Claude 훅은 strong 매핑 모델로의 상향만 통과시킨다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -75,3 +77,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [final-review-brief-compliance](blueprints/final-review-brief-compliance/index.md) — `review_contract: brief` blueprint의 최종 리뷰를 브리프 이행 판정 2관점으로 줄이고, 브리프 위반에 한해 리뷰 원인 repair 1회와 delta 1회를 `review-record`·`coordinator-repair`·`coordinate-next`에 허용한다.
 - [drive-review-compatibility](blueprints/drive-review-compatibility/index.md) — 리뷰 거절 응답 호환성과 설명 계약 복구; R-M1·R-M3·R-A1·R-A2·R-A7·R-A8 처리.
 - [review-contract-deduplication](blueprints/review-contract-deduplication/index.md) — 리뷰 계약 판정의 중복 제거; R-A3·R-A4·R-A5·R-A6·R-A9·R-A10·R-A11 처리.
+- [adversarial-review-tiering](blueprints/adversarial-review-tiering/index.md) — 리뷰어를 적대적 자세와 필수 수정 보고 기준으로 개정하고, 규모·위험으로 reviewer_tier를 계산해 모델에 적용하며 훅이 상향만 허용한다.
