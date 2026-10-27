@@ -35,6 +35,7 @@ bouncer:
 11. 모델 거절은 상속 재시도 없이 중단하고 설정 모델명과 원인을 사용자에게 표시한다. plan 리뷰의 record 성공 뒤에만 문서를 수정한다.
 12. 기능 구현 완료 후 plugin 0.1.12와 runtimeCompatibility >=0.1.14 <0.2.0을 동기화하고 runtime 0.1.14를 보존한다.
 13. 이 변경의 commit task는 전용 검증을, 마지막 verification task는 npm run ci를 실행한다. source 생성본 경계·한국어 브리프 및 커밋 규약을 유지한다.
+14. implementer 문서 Guardrails에 변경 ts·js 파일 eslint 실행, `eslint-disable` 우회 금지, task `verify` 비대체 항목이 있고 Codex TOML이 이와 동기화되며 테스트가 이를 고정한다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -77,3 +78,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [metrics-retention](blueprints/metrics-retention/index.md) — 정리 이후 실행 측정값 보존; R-X1·R-X2 처리.
 
 - [model-dispatch-enforcement](blueprints/model-dispatch-enforcement/index.md): 역할별 모델 metadata와 Claude 호출 훅, 모델 거절 및 리뷰 기록 순서를 정리한다.
+- [worker-lint-check](blueprints/worker-lint-check/index.md): 구현 worker가 report 전에 변경 파일에 eslint를 실행하는 절차를 implementer 문서에 추가한다.

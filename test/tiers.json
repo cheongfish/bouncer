@@ -21,6 +21,7 @@
     "frontmatter.test.js",
     "githooks.test.js",
     "guards.test.js",
+    "implementer-lint-step.test.js",
     "legacy-comments.test.js",
     "open-source-readiness.test.js",
     "paths.test.js",

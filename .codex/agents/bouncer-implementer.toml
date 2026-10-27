@@ -136,6 +136,9 @@ read code/tests/repo context needed to implement.
 - In ts and js files, keep every line within 120 characters (the `max-len`
   limit in `eslint.config.js`); wrap longer lines instead of letting them
   through, and never bypass the rule with `eslint-disable`.
+- Before you report, run `npx eslint <changed ts/js files>` on only the files
+  you changed and fix every finding; never bypass with `eslint-disable`; this
+  does not replace the task `verify` command.
 - Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
   unfinished task, not a smaller diff.
 - Never simplify away: input validation at trust boundaries, error handling
