@@ -472,7 +472,7 @@ current config no longer matches the payload.
 
 Plan (`single`, `perspectives`) and Execute (`discovery`, `delta`) reviewer
 `review-dispatch` payloads carry `reviewer_tier` and `reviewer_tier_applied`.
-Re-resolution before dispatch follows `rules/subagent-model.md` item 1.
+Re-resolution before dispatch follows `${BOUNCER_ROOT}/rules/subagent-model.md` item 1.
 
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single`, or
 `perspectives` for a `review_contract: brief` blueprint; older stored `clustered`

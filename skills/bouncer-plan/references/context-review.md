@@ -38,7 +38,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    before each call, compare the snapshot with current config and resolve again
    when they differ, then pass the newly resolved model. When the payload carries
    `reviewer_tier` / `reviewer_tier_applied`, re-resolve as
-   `rules/subagent-model.md` item 1 describes. Stop on
+   `${BOUNCER_ROOT}/rules/subagent-model.md` item 1 describes. Stop on
    model rejection and tell the user provider, role, configured model, host's
    exact reason, and where to correct `.bouncer/config.json`. Report a supported
    model name only if the host explicitly returns it. Do not infer aliases or

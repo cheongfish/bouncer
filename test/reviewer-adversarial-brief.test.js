@@ -11,7 +11,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-test('code reviewer is adversarial and reports only must-fix findings', () => {
+test('code reviewer docs → adversarial stance and must-fix-only reporting', () => {
   const reviewer = read('agents/bouncer-reviewer.md');
   const prompt = read('references/review/assets/reviewer-prompt.md');
   assert.match(reviewer, /Review adversarially/);
@@ -24,7 +24,7 @@ test('code reviewer is adversarial and reports only must-fix findings', () => {
   assert.match(prompt, /must-fix/);
 });
 
-test('context reviewer gains the adversarial stance but keeps its reporting bar', () => {
+test('context reviewer docs → adversarial stance with unchanged reporting bar', () => {
   const contextReviewer = read('agents/bouncer-context-reviewer.md');
   assert.match(contextReviewer, /Review adversarially/);
   assert.match(contextReviewer, /label, not a filter/);
