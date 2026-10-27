@@ -10,13 +10,22 @@ limits.
 `print`, item 7 applies and the dispatch is never a Task subagent.
 
 1. Resolve the named agent's model with `bouncer subagent-model --agent <name>`.
-   It prints one slug line, or `inherit` when the slot is missing or configured
-   as `inherit`. Pass only that printed line to the named dispatch; never treat
-   the command as returning provider metadata. When the output is `inherit`,
-   omit only the model argument so the named dispatch keeps parent-session model
-   inheritance.
-   `inherit`, `null`, and every non-string configured value have that inheritance
-   meaning; they are not a request to select a replacement model.
+   It prints one slug line, or `inherit` when the resolved value is `inherit`.
+   Pass only that printed line to the named dispatch. When the output is
+   `inherit`, omit only the model argument so the named dispatch keeps
+   parent-session model inheritance.
+   Run bouncer subagent-model --agent <name> --json to read provider, role, tier, model, effort, and source.
+   The model resolves in this order: the `subagents.<provider>.<agent>` slot,
+   then `model_tiers.<provider>.<tier>` for the role's tier. `inherit`, `null`,
+   and every non-string value of a `subagents.<provider>.<agent>` slot have that
+   inheritance meaning; they are not a request to select a replacement model. A
+   missing, empty, or non-string `model_tiers` value is not inheritance: the
+   command rejects it as `tier-unmapped`.
+   If the command exits 1, do not dispatch; report its code, provider, role, tier, and the config key to fix.
+   Pass the role effort by host. On Claude Code, pass the role effort as the Agent effort argument; the hook corrects it.
+   On Codex, pass the role effort as the spawn reasoning_effort.
+   (The custom agent TOML field is named `model_reasoning_effort`.)
+   On Cursor, do not pass the role effort; tell the user the configured effort was not applied because the model slug carries it.
    Every new dispatch starts without conversation history, whether the resolved
    model is a slug or `inherit`; this covers `bouncer-coordinator`,
    `bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`,

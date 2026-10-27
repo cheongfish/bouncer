@@ -507,6 +507,37 @@ test('Codex slug dispatch → item 1 requires fork_turns "none" with the model',
   assert.match(item1, /slug/);
 });
 
+test('model tier docs → item 1, cli.md, configuration.md state the tier/effort contract', () => {
+  const norm = (t) => t.replace(/\s+/g, ' ');
+  const item1 = norm(readRepo('rules/subagent-model.md').match(/\n1\. Resolve[\s\S]*?(?=\n2\. )/)?.[0] || '');
+  for (const sentence of [
+    'If the command exits 1, do not dispatch; report its code, provider, role, tier, and the config key to fix.',
+    'On Codex, pass the role effort as the spawn reasoning_effort.',
+    'On Cursor, do not pass the role effort; tell the user the configured effort was not applied because the model slug carries it.',
+    'On Claude Code, pass the role effort as the Agent effort argument; the hook corrects it.',
+    'Run bouncer subagent-model --agent <name> --json to read provider, role, tier, model, effort, and source.',
+  ]) {
+    assert.ok(item1.includes(sentence), sentence);
+  }
+  assert.ok(item1.includes('subagents.<provider>.<agent>'));
+  assert.ok(!item1.includes('and every non-string configured value have that inheritance'));
+
+  const cli = readRepo('rules/cli.md');
+  assert.ok(cli.includes('bouncer subagent-model --agent <name> [--provider <name>] [--json]'));
+  const para = cli.match(/`subagent-model` prints[\s\S]*?(?=\n\n)/)?.[0] || '';
+  assert.ok(para.includes('--json') && para.includes('exit 1'));
+  assert.ok(!para.includes('Do not\nparse it as'));
+  const reason = cli.match(/^`reason` is [\s\S]*?(?=\n\n)/m)?.[0] || '';
+  assert.ok(reason.includes('tier-unmapped') && reason.includes('role-config-invalid'));
+  assert.ok(cli.match(/`dispatch print` runs[\s\S]*?(?=\n\n)/)?.[0].includes('effort'));
+
+  const conf = readRepo('docs/configuration.md');
+  for (const t of ['model_tiers', 'roles.<agent>.effort', 'tier-unmapped',
+    'subagent-model --agent <name> --json', '직접 추가']) {
+    assert.ok(conf.includes(t), t);
+  }
+});
+
 test('dispatch history rule → item 1 isolates history independent of inherit', () => {
   const contract = fs.readFileSync(
     path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',

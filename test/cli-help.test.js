@@ -421,6 +421,8 @@ test('config --help/-h → subagents 키를 stdout에 출력하고 다른 argv�
     assert.strictEqual(r.code, 0, `config ${flag} exit`);
     assert.strictEqual(r.err, '');
     for (const v of ['subagents.provider', 'subagents.dispatch', 'subagents.<provider>.<agent>',
+      'model_tiers.<provider>.<tier>', 'roles.<agent>.tier', 'roles.<agent>.effort',
+      'strong | standard | light', 'low | medium | high',
       'claude', 'cursor', 'codex', 'antigravity', 'print', 'inherit', ...NAMED_AGENTS]) {
       assert.ok(r.out.includes(v), v);
     }

@@ -406,7 +406,7 @@ bouncer intent bundle --task <tasks.md> --no-symbols
 bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
 bouncer graphify-bin
 bouncer graph-sync
-bouncer subagent-model --agent <name> [--provider <name>]
+bouncer subagent-model --agent <name> [--provider <name>] [--json]
 bouncer config --help
 bouncer retro sources [--repo <dir>] [--limit <1..200>] [--claude-root <dir>] [--codex-root <dir>] [--cursor-root <dir>]
 bouncer retro read --path <file> [--max-chars <n>]
@@ -447,9 +447,11 @@ to rebuild, then retry sections. For `intent-task-invalid`, do not rebuild the
 bundle; correct `--task` to the canonical `tasks.md` path shown in `next` and
 retry sections. Do not assemble `intent_sections` by reading bundle sources.
 
-`subagent-model` prints one model slug, or `inherit`. Pass only that line into
-named dispatch; omit the model argument when the line is `inherit`. Do not
-parse it as `{ model, provider }` JSON. The value is configuration metadata,
+`subagent-model` prints one model slug, or `inherit`, as a single line without
+flags; with `--json` it prints one line `{ provider, role, tier, model, effort,
+source }`; on a resolution error (for example `tier-unmapped` or
+`role-config-invalid`) it exits 1. Pass only the model into named dispatch;
+omit the model argument when it is `inherit`. The value is configuration metadata,
 not evidence of the model the host ran. A model rejection stops dispatch and
 must be reported with provider, role, configured name, exact host reason, and
 config correction location. `codex-agents check` is read-only: it
@@ -510,10 +512,11 @@ statically rejects, for every task (any `verification_policy`) in the plan draft
 document with neither a kind nor a path contract (the checker would exit 1); it reads only the argument strings,
 and a verify with no document argument (default scan) passes. Invalid argv is exit 2.
 `dispatch print` runs one Cursor print process. It returns JSON for success
-(`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
+(`ok: true` with `report`; its `effort` field is the configured role effort,
+which Cursor does not apply) or `{ ok: false, reason, cause, next }` (exit 1).
 `reason` is `print-dispatch-disabled`, `agent-unavailable`,
 `agent-exit-nonzero`, `result-missing`, `result-error`, `report-missing`
-(the final `result` is absent or blank), `dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
+(the final `result` is absent or blank), `dispatch-input-invalid`, `role-document-invalid`, `tier-unmapped`, or `role-config-invalid`. Follow `next`; do not
 assemble the identity line, role body, or `agent --print` argv in the
 session. Invalid argv (`print` missing, unknown `--role`, duplicate or
 missing `--role`/`--cwd`/`--input`/`--out`) is exit 2.

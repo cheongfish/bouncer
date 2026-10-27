@@ -172,6 +172,14 @@ test('init → writes the exact config.json shape', () => {
         'bouncer-coordinator': 'inherit',
       },
     },
+    // 등급 예시는 전부 inherit(모델 고정 금지), 역할은 전부 standard/medium.
+    model_tiers: Object.fromEntries(['claude', 'cursor', 'codex', 'antigravity'].map((p) => [
+      p, { strong: 'inherit', standard: 'inherit', light: 'inherit' },
+    ])),
+    roles: Object.fromEntries([
+      'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
+      'bouncer-context-reviewer', 'bouncer-coordinator',
+    ].map((a) => [a, { tier: 'standard', effort: 'medium' }])),
   });
 });
 

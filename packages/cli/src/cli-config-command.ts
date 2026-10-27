@@ -31,6 +31,15 @@ Keys under "subagents" in .bouncer/config.json (read-only help; this command wri
                                 default: inherit (parent session model; missing, empty, or non-string also inherit)
     <agent>: ${NAMED_AGENTS.join(', ')}
 
+Keys for role tiers and effort (resolved by "bouncer subagent-model"):
+  model_tiers.<provider>.<tier> inherit | <host model slug>
+                                <tier>: strong | standard | light
+                                default: absent (when a role tier has no usable mapping here, the command exits 1 with tier-unmapped)
+  roles.<agent>.tier            strong | standard | light
+                                default: absent (no tier; the model falls back to inherit; "bouncer init" example: standard)
+  roles.<agent>.effort          low | medium | high
+                                default: absent (effort is null and not passed; "bouncer init" example: medium)
+
 Key under "metrics" (read by "bouncer metrics end"):
   metrics.pricing               { "<model slug>": { "input_per_mtok": <n>, "output_per_mtok": <n> } } | absent
                                 default: absent (cost is recorded as null with reason no-pricing)
