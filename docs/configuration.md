@@ -29,6 +29,7 @@
 | `model_tiers.<provider>.<tier>` | `"inherit"` \| 호스트 모델 slug. `<tier>`는 `strong`·`standard`·`light` | 역할 등급을 호스트 모델로 옮기는 표. `subagents` slot이 없을 때 `bouncer subagent-model`이 읽는다. 빈 값·비문자열이면 상속하지 않고 `tier-unmapped`로 거절 | 없음. 역할 등급에 매핑이 없으면 `tier-unmapped`. `bouncer init` 예시는 `"inherit"` |
 | `roles.<agent>.tier` | `strong` \| `standard` \| `light` | 에이전트가 쓰는 등급 | 없음. 없으면 등급 없음이라 모델은 상속. `bouncer init` 예시는 `"standard"` |
 | `roles.<agent>.effort` | `low` \| `medium` \| `high` | 디스패치에 넘기는 추론 effort | 없음. 없거나 `null`이면 effort를 넘기지 않음(`null`). `bouncer init` 예시는 `"medium"` |
+| `review.min_reviewer_tier` | `standard` \| `strong` (선택) | `bouncer review-dispatch`가 리뷰어 등급의 하한으로 읽는다. 등급은 리뷰 범위의 commit task 3개 이상이거나 `review_risk`가 비어 있지 않으면 `strong`, 아니면 `standard`이고, 이 키는 그 값을 올리기만 한다. `strong` 등급은 `model_tiers.<provider>.strong` 매핑이 있을 때만 `agent_dispatch.model`에 적용된다. 그 밖의 값(`light`·오타·비문자열)이면 `review-min-reviewer-tier-invalid`로 거절 | 없음. 규모와 위험만으로 등급을 정함 |
 | `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
 
 `bouncer init`은 새 config를 만들 때 `package.json`에 `scripts.build`가 있으면 `worktree.setup`을 `"npm run build"`로 넣습니다. 이미 있는 config에는 자동으로 들어가지 않으니 필요하면 직접 추가하세요.

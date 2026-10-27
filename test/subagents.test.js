@@ -945,3 +945,73 @@ test('tier of wrong type or with control characters → invalid with <invalid> t
     assert.strictEqual(r.tier, '<invalid>');
   }
 });
+
+// ---- 호출 단위 tier 인자 ----
+
+function callTierConfig(extra) {
+  return claudeConfig({
+    subagents: { provider: 'claude', claude: { [REVIEWER]: 'slot-model' } },
+    model_tiers: { claude: { strong: 'strong-model', standard: 'inherit' } },
+    ...extra,
+  });
+}
+
+test('call tier given with a slot slug → tier mapping wins over the slot', () => {
+  const repo = roleRepo(callTierConfig());
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER, provider: 'claude', tier: 'strong' });
+  assert.deepStrictEqual([r.ok, r.model, r.source, r.tier], [true, 'strong-model', 'tier', 'strong']);
+  const noTier = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER, provider: 'claude' });
+  assert.deepStrictEqual([noTier.ok, noTier.model, noTier.source, noTier.tier], [true, 'slot-model', 'slot', null]);
+});
+
+test('call tier without a mapping → tier-unmapped naming the config key', () => {
+  const repo = roleRepo(callTierConfig());
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER, provider: 'claude', tier: 'light' });
+  assert.deepStrictEqual(
+    [r.ok, r.code, r.next],
+    [false, 'tier-unmapped', 'model_tiers.claude.light'],
+  );
+});
+
+test('call tier outside the three names → role-config-invalid pointing at tier', () => {
+  const repo = roleRepo(callTierConfig());
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER, provider: 'claude', tier: 'bogus' });
+  assert.deepStrictEqual([r.ok, r.code, r.next], [false, 'role-config-invalid', 'tier']);
+});
+
+test('call tier mapped to inherit → null model with source tier', () => {
+  const repo = roleRepo(callTierConfig());
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER, provider: 'claude', tier: 'standard' });
+  assert.deepStrictEqual([r.ok, r.model, r.source], [true, null, 'tier']);
+});
+
+test('call tier with roles effort → effort is kept', () => {
+  const repo = roleRepo(callTierConfig({ roles: { [REVIEWER]: { effort: 'high' } } }));
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER, provider: 'claude', tier: 'strong' });
+  assert.deepStrictEqual([r.ok, r.effort], [true, 'high']);
+});
+
+test('call tier with unknown provider → source inherit', () => {
+  const repo = roleRepo({ model_tiers: { claude: { strong: 'strong-model' } } });
+  const keys = ['CLAUDE_PLUGIN_ROOT', 'PLUGIN_ROOT', 'CLAUDECODE', 'CODEX_THREAD_ID'];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  for (const k of keys) delete process.env[k];
+  try {
+    const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER, tier: 'strong' });
+    assert.deepStrictEqual([r.ok, r.model, r.source], [true, null, 'inherit']);
+  } finally {
+    for (const k of keys) {
+      if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
+    }
+  }
+});
+
+test('call tier on model and dispatch resolvers → same model, no extra keys', () => {
+  const repo = roleRepo(callTierConfig());
+  const args = { repoRoot: repo, agentName: REVIEWER, provider: 'claude', tier: 'strong' };
+  assert.deepStrictEqual(resolveSubagentModel(args), { model: 'strong-model', provider: 'claude' });
+  assert.deepStrictEqual(
+    resolveSubagentDispatch(args),
+    { agent: REVIEWER, provider: 'claude', model: 'strong-model' },
+  );
+});

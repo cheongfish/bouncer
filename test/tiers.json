@@ -31,6 +31,8 @@
     "retro-read.test.js",
     "review-policy.test.js",
     "retro-sources.test.js",
+    "reviewer-adversarial-brief.test.js",
+    "reviewer-tier-docs.test.js",
     "scaffold.test.js",
     "schema.test.js",
     "skill-bouncer-finalize.test.js",

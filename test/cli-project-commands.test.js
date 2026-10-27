@@ -1580,3 +1580,40 @@ test('codex-agents with a non-check verb or an unknown agent → rejects with ex
   assert.match(agent.err, /bouncer-implementer/);
   assert.strictEqual(agent.out, '');
 });
+
+function callTierRepo() {
+  return tierRepo({
+    subagents: { provider: 'claude', claude: { 'bouncer-reviewer': 'slot-model' } },
+    model_tiers: { claude: { strong: 'strong-model' } },
+  });
+}
+
+test('subagent-model --tier strong → prints the mapped slug over the slot', () => {
+  const result = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--tier', 'strong', '--repo', callTierRepo()]);
+  assert.deepStrictEqual([result.code, result.out, result.err], [0, 'strong-model\n', '']);
+});
+
+test('subagent-model --tier with no mapping → exits 1 with one stderr line', () => {
+  const result = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--tier', 'light', '--repo', callTierRepo()]);
+  assert.strictEqual(result.code, 1);
+  assert.strictEqual(result.out, '');
+  assert.strictEqual(result.err.trimEnd().split('\n').length, 1);
+  assert.match(result.err, /tier-unmapped/);
+});
+
+test('subagent-model --tier bogus, empty, repeated or without --agent → exits 2 with empty stdout', () => {
+  const repo = callTierRepo();
+  const base = ['subagent-model', '--agent', 'bouncer-reviewer', '--repo', repo];
+  const cases = [
+    [...base, '--tier', 'bogus'],
+    [...base, '--tier', ''],
+    [...base, '--tier'],
+    [...base, '--tier', 'strong', '--tier', 'light'],
+    ['subagent-model', '--tier', 'strong', '--repo', repo],
+  ];
+  for (const argv of cases) {
+    const result = capture(argv);
+    assert.strictEqual(result.code, 2, argv.join(' '));
+    assert.strictEqual(result.out, '', argv.join(' '));
+  }
+});

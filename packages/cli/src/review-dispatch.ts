@@ -34,7 +34,9 @@ const {
 import reviewSnapshot = require('./review-snapshot');
 const { captureReviewSnapshot } = reviewSnapshot;
 import subagents = require('./subagents');
-const { resolveSubagentDispatch } = subagents;
+const { resolveSubagentDispatch, resolveSubagentRole } = subagents;
+import config = require('./config');
+const { readConfig } = config;
 
 // Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
 // 복제하면 single/parallel 판정이 갈라진다. Plan은 항상 single이라 경계값이 없다.
@@ -44,6 +46,10 @@ const EXECUTE_SMALL_MAX_LINES = 200;
 // S30과 같은 허용 목록(review-policy 정본). validate-structural이 먼저 거절하지만
 // Execute 경로는 구조 게이트 없이 이 필드를 읽으므로 여기서도 동일 enum으로 막는다.
 const { REVIEW_RISK_ENUM } = reviewPolicy;
+
+// 리뷰어 등급 임계: 리뷰 범위의 commit task가 이 수 이상이면 strong 리뷰어를 쓴다.
+// 규모 기준을 한 곳에 두어 plan과 execute가 서로 다른 경계를 갖지 않게 한다.
+const REVIEWER_STRONG_MIN_TASKS = 3;
 
 // 브리프 이행 최종 리뷰가 security 관점을 붙이는 위험 집합. public_interface는 브리프
 // 이행 판정(spec_scope·correctness_tests)이 이미 다루므로 여기에 넣지 않는다.
@@ -64,6 +70,9 @@ type PlanCluster = {
   interface_keys: string[];
   touch_paths: string[];
 };
+
+type ReviewerTier = 'standard' | 'strong';
+type AgentDispatch = { agent: string; provider: string | null; model: string | null };
 
 type PlanDispatchBase = {
   ok: true;
@@ -92,7 +101,9 @@ type RevisionDiffEntry = {
 };
 
 type PlanDispatchReview = PlanDispatchBase & {
-  agent_dispatch: { agent: string; provider: string | null; model: string | null };
+  agent_dispatch: AgentDispatch;
+  reviewer_tier: ReviewerTier;
+  reviewer_tier_applied: boolean;
   // perspectives는 review_contract: brief 표식 blueprint의 관점 병렬 호출(full 4관점, light verifiability).
   strategy: 'single' | 'clustered' | 'perspectives';
   snapshot_version: number;
@@ -113,7 +124,9 @@ type PlanDispatchOk = PlanDispatchSkip | PlanDispatchReview;
 type ExecuteDispatchOk = {
   ok: true;
   phase: 'execute';
-  agent_dispatch: { agent: string; provider: string | null; model: string | null };
+  agent_dispatch: AgentDispatch;
+  reviewer_tier: ReviewerTier;
+  reviewer_tier_applied: boolean;
   // snapshot_id·snapshot_path는 동결한 최종 작업 트리 artifact를 가리킨다. 통계도
   // 같은 artifact에서 나오므로 리뷰어가 읽는 내용과 규모 분류가 어긋나지 않는다.
   target: {
@@ -712,6 +725,16 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
   if (!commitTasks.ok) return commitTasks;
 
   const taskCount = commitTasks.tasks.length;
+  // 등급은 모든 commit task의 review_risk 합집합과 task 수로 정한다. S30 위반은 축소하지 않고
+  // 그대로 돌려준다. 이 지점은 light 최초 계획 리뷰(skip)가 이미 반환한 뒤라 reviewer가 있는
+  // 경로뿐이다.
+  const planRisk = unionCommitReviewRisk({ repoRoot, blueprintDir: bp });
+  if (!planRisk.ok) return planRisk;
+  const planTier = decideReviewerTier({
+    repoRoot, agentName: 'bouncer-context-reviewer', baseDispatch: agentDispatch,
+    taskCount, riskFlags: planRisk.flags,
+  });
+  if (!planTier.ok) return planTier;
   // 모든 full 최초 계획 리뷰는 task 수와 무관하게 single combined reviewer 한 명이 읽는다.
   // clustered(local+global) 다중 호출은 비용 대비 효과가 낮아 신규 dispatch에서 제거했다 —
   // 과거 clustered payload는 checkPreviousShape·loadDispatch가 읽기 호환으로 계속 받는다.
@@ -735,12 +758,15 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
       phase: 'plan',
       target: { digest: snapshot.digest, documents: snapshot.documents },
       strategy: 'perspectives',
-      agent_dispatch: agentDispatch,
+      agent_dispatch: planTier.agent_dispatch,
+      reviewer_tier: planTier.reviewer_tier,
+      reviewer_tier_applied: planTier.reviewer_tier_applied,
       task_count: taskCount,
       clusters,
       perspectives: [...perspectives],
       reasons: [
         `review_contract brief — ${perspectives.join(', ')} plan review perspectives`,
+        ...planTier.reasons,
         ...migrationReasons,
       ],
       ...reviewFields,
@@ -751,12 +777,15 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
     phase: 'plan',
     target: { digest: snapshot.digest, documents: snapshot.documents },
     strategy: 'single',
-    agent_dispatch: agentDispatch,
+    agent_dispatch: planTier.agent_dispatch,
+    reviewer_tier: planTier.reviewer_tier,
+    reviewer_tier_applied: planTier.reviewer_tier_applied,
     task_count: taskCount,
     clusters,
     perspectives: ['combined'],
     reasons: [
       `commit task count ${taskCount} — single combined reviewer (every full plan review is single)`,
+      ...planTier.reasons,
       ...migrationReasons,
     ],
     ...reviewFields,
@@ -885,6 +914,16 @@ function classifyExecuteReview({
   }
   if (!risk.ok) return risk;
 
+  // task 범위 리뷰는 task 하나, blueprint 범위 리뷰는 blueprint의 commit task 수로 규모를 본다.
+  // 위험은 위에서 구한 risk.flags(task 범위는 그 task, blueprint 범위는 합집합)를 그대로 쓴다.
+  const tier = decideReviewerTier({
+    repoRoot, agentName: 'bouncer-reviewer',
+    baseDispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
+    taskCount: targetTask === null ? countCommitTasks(repoRoot, bp) : 1,
+    riskFlags: risk.flags,
+  });
+  if (!tier.ok) return tier;
+
   let resolvedBase: string;
   let resolvedHead: string;
   try {
@@ -965,11 +1004,14 @@ function classifyExecuteReview({
   // delta는 risk_flags·diff 통계를 discovery와 같게 두고 reviewer만 combined로
   // 접는다. security를 다시 붙이면 repair 뒤 토큰 절감 목적이 무너진다.
   if (reviewMode === 'delta') {
-    reasons.push('delta review — single combined reviewer after discovery');
+    // 등급 근거를 delta 안내보다 앞에 두어 delta 줄이 계속 마지막 reason이 되게 한다.
+    reasons.push(...tier.reasons, 'delta review — single combined reviewer after discovery');
     return {
       ok: true,
       phase: 'execute',
-      agent_dispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
+      agent_dispatch: tier.agent_dispatch,
+      reviewer_tier: tier.reviewer_tier,
+      reviewer_tier_applied: tier.reviewer_tier_applied,
       target: frozenTarget,
       strategy: 'single',
       changed_files: stats.changed_files,
@@ -980,10 +1022,13 @@ function classifyExecuteReview({
     };
   }
 
+  reasons.push(...tier.reasons);
   return {
     ok: true,
     phase: 'execute',
-    agent_dispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
+    agent_dispatch: tier.agent_dispatch,
+    reviewer_tier: tier.reviewer_tier,
+    reviewer_tier_applied: tier.reviewer_tier_applied,
     target: frozenTarget,
     strategy,
     changed_files: stats.changed_files,
@@ -991,6 +1036,122 @@ function classifyExecuteReview({
     risk_flags: risk.flags,
     perspectives,
     reasons,
+  };
+}
+
+/**
+ * 리뷰 범위의 규모와 위험으로 리뷰어 등급을 계산한다. 규칙은 한 곳에만 둔다:
+ * commit task 수가 `REVIEWER_STRONG_MIN_TASKS` 이상이거나 review_risk가 비어 있지 않으면
+ * strong, 아니면 standard. 사용자는 `review.min_reviewer_tier`로 하한만 올릴 수 있고
+ * 작성자 frontmatter에서 등급을 지정하는 경로는 없다(작성자가 자기 리뷰 강도를 낮추지 못하게).
+ *
+ * @param {{ taskCount: number, riskFlags: string[], min: ReviewerTier | null }} opts
+ *   - taskCount: 리뷰 범위의 commit task 수
+ *   - riskFlags: 범위의 review_risk 합집합(plan은 모든 commit task, execute는 risk.flags)
+ *   - min: `review.min_reviewer_tier` 하한. 없으면 null
+ * @returns {{ tier: ReviewerTier, reason: string }} 등급과 reasons에 실을 근거 한 줄
+ */
+function computeReviewerTier({ taskCount, riskFlags, min }: {
+  taskCount: number;
+  riskFlags: string[];
+  min: ReviewerTier | null;
+}): { tier: ReviewerTier; reason: string } {
+  const causes: string[] = [];
+  if (taskCount >= REVIEWER_STRONG_MIN_TASKS) {
+    causes.push(`commit task count ${taskCount} >= ${REVIEWER_STRONG_MIN_TASKS}`);
+  }
+  if (riskFlags.length > 0) causes.push(`review_risk ${riskFlags.join(',')}`);
+  if (min === 'strong') causes.push('review.min_reviewer_tier strong');
+  if (causes.length > 0) {
+    return { tier: 'strong', reason: `reviewer tier strong — ${causes.join('; ')}` };
+  }
+  return {
+    tier: 'standard',
+    reason: `reviewer tier standard — commit task count ${taskCount} < ${REVIEWER_STRONG_MIN_TASKS}`
+      + ' and review_risk empty',
+  };
+}
+
+/**
+ * 계산된 등급을 `agent_dispatch`에 적용한다. strong일 때만 호출 단위 tier로 역할을 다시 해석하고,
+ * standard는 역할의 기존 설정이 기본이라 slot을 낮추지 않도록 호출하지 않는다.
+ * strong이어도 매핑이 없거나 provider를 모르면(`source !== 'tier'`) 기존 해석을 그대로 두고
+ * 사유를 reasons에 남긴다 — 실패로 막지 않는 이유는 등급 매핑이 선택 설정이기 때문이다.
+ * `agent_dispatch`는 `{ agent, provider, model }` 키 집합을 유지한다.
+ *
+ * @param {{ repoRoot: string, agentName: string, baseDispatch: AgentDispatch, tier: ReviewerTier }} opts
+ * @returns {{ agent_dispatch: AgentDispatch, applied: boolean, notApplied: string | null }}
+ *   적용되면 매핑 결과와 applied true, 아니면 기존 dispatch와 applied false.
+ *   strong 미적용이면 notApplied에 reasons 한 줄이 실린다
+ */
+function applyReviewerTier({ repoRoot, agentName, baseDispatch, tier }: {
+  repoRoot: string;
+  agentName: string;
+  baseDispatch: AgentDispatch;
+  tier: ReviewerTier;
+}): { agent_dispatch: AgentDispatch; applied: boolean; notApplied: string | null } {
+  if (tier !== 'strong') return { agent_dispatch: baseDispatch, applied: false, notApplied: null };
+  const role = resolveSubagentRole({ repoRoot, agentName, tier: 'strong' });
+  if (role.ok && role.source === 'tier') {
+    return {
+      agent_dispatch: { agent: agentName, provider: role.provider, model: role.model },
+      applied: true,
+      notApplied: null,
+    };
+  }
+  // provider를 모르면 resolveSubagentRole은 오류 없이 inherit로 돌려주므로 코드를 여기서 붙인다.
+  const code = role.ok ? 'provider-unknown' : role.code;
+  const next = role.ok ? 'subagents.provider' : role.next;
+  return {
+    agent_dispatch: baseDispatch,
+    applied: false,
+    notApplied: `reviewer tier strong not applied: ${code} (fix: ${next})`,
+  };
+}
+
+/**
+ * `review.min_reviewer_tier`를 읽어 등급 계산·적용을 한 번에 한다. reviewer가 있는 경로만 부른다
+ * (light 최초 계획 리뷰 skip은 호출하지 않으므로 그 설정을 검사하지 않는다).
+ * 값이 standard/strong이 아니면(light·오타·비문자열) 하한이 조용히 무시되어 약한 리뷰가
+ * 나가지 않도록 성공 payload 없이 거절한다.
+ *
+ * @param {{ repoRoot: string, agentName: string, baseDispatch: AgentDispatch,
+ *   taskCount: number, riskFlags: string[] }} opts
+ * @returns {DispatchFail | { ok: true, agent_dispatch, reviewer_tier, reviewer_tier_applied, reasons }}
+ *   설정 오류면 `review-min-reviewer-tier-invalid`. 성공의 reasons는 등급 근거 한 줄이고,
+ *   strong 미적용이면 미적용 사유 한 줄이 뒤에 붙는다
+ */
+function decideReviewerTier({ repoRoot, agentName, baseDispatch, taskCount, riskFlags }: {
+  repoRoot: string;
+  agentName: string;
+  baseDispatch: AgentDispatch;
+  taskCount: number;
+  riskFlags: string[];
+}): DispatchFail | {
+  ok: true; agent_dispatch: AgentDispatch; reviewer_tier: ReviewerTier;
+  reviewer_tier_applied: boolean; reasons: string[];
+} {
+  const cfg = readConfig(repoRoot) ?? {};
+  const review = isRecord(cfg) ? cfg.review : undefined;
+  const rawMin = isRecord(review) ? review.min_reviewer_tier : undefined;
+  if (rawMin !== undefined && rawMin !== 'standard' && rawMin !== 'strong') {
+    return {
+      ok: false,
+      error: 'review config invalid',
+      reason: 'review-min-reviewer-tier-invalid',
+      next: 'review.min_reviewer_tier',
+    };
+  }
+  const { tier, reason } = computeReviewerTier({
+    taskCount, riskFlags, min: rawMin === undefined ? null : rawMin,
+  });
+  const applied = applyReviewerTier({ repoRoot, agentName, baseDispatch, tier });
+  return {
+    ok: true,
+    agent_dispatch: applied.agent_dispatch,
+    reviewer_tier: tier,
+    reviewer_tier_applied: applied.applied,
+    reasons: applied.notApplied === null ? [reason] : [reason, applied.notApplied],
   };
 }
 

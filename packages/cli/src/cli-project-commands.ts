@@ -171,10 +171,22 @@ function cmdSubagentModel(rest: string[], io: CliIo): number {
   const provider = typeof f.provider === 'string' && f.provider.length > 0
     ? f.provider
     : undefined;
+  // --tier는 호출 단위 등급이다. parseFlags는 반복 플래그를 마지막 값으로 덮고 값 없는 플래그를
+  // true로 두므로, 반복은 원시 argv로 세고 빈 값·boolean·세 값 밖은 사용법 오류(exit 2)로 거절한다.
+  let tier: string | undefined;
+  if ('tier' in f) {
+    const repeated = rest.filter((tok) => tok === '--tier').length > 1;
+    if (repeated || typeof f.tier !== 'string' || !['strong', 'standard', 'light'].includes(f.tier)) {
+      io.err('subagent-model: --tier must be given once as strong, standard or light\n');
+      return 2;
+    }
+    tier = f.tier;
+  }
   const result = resolveSubagentRole({
     repoRoot: (f.repo || process.cwd()) as string,
     agentName: named.agent,
     provider,
+    tier,
   });
   if (!result.ok) {
     // 설정 원문은 tier 표기(안전화된 값)만 싣는다 — 개행이 섞여도 stderr는 한 줄이다.

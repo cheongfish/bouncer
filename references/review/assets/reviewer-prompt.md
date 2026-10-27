@@ -110,8 +110,10 @@ test detects a defect without a run that shows it, and do not re-run tests.
 
 When mode is `discovery`, inspect the frozen target only through the assigned
 perspective. Do not receive or use other reviewers' findings, and do not report
-outside that perspective. Severity is a label, not a filter, within the assigned
-perspective. Do not report a style-only remark, a comment or
+outside that perspective. Review adversarially: assume the change is wrong until
+the snapshot proves otherwise, but report only must-fix findings — ones that
+must be fixed, with a concrete failure (input, path, or brief clause and what
+breaks) you can name. An empty Findings list is a valid result. Do not report a style-only remark, a comment or
 documentation-comment form, or anything the `npm run ci` commands listed in the
 role's Gate-checked items already decide.
 
@@ -171,8 +173,8 @@ Return **only** a Findings list. For each finding include:
 - summary and evidence (`file:line` or concrete diff reference)
 - `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; for a
   new delta finding, include its revision-diff location or false-acceptance path
-- actionability hint: `must_fix | advisory` (`advisory` only for a finding the
-  controller may accept with a note)
+- actionability hint: `must_fix`; do not emit `advisory` findings (the
+  controller may still lower one during disposition)
 
 Add one **Scope/task impact** line — `none`, or the paths and tasks the
 findings reach beyond the current `affected_paths`. Do **not** set review

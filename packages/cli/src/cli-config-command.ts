@@ -43,6 +43,12 @@ Keys for role tiers and effort (resolved by "bouncer subagent-model"):
                                 default: absent (effort is null and not passed)
                                 "bouncer init" example: medium
 
+Key under "review" (read by "bouncer review-dispatch"):
+  review.min_reviewer_tier      standard | strong
+                                default: absent (the tier follows commit task count and review_risk;
+                                this key can only raise it; any other value is rejected with
+                                review-min-reviewer-tier-invalid)
+
 Key under "metrics" (read by "bouncer metrics end"):
   metrics.pricing               { "<model slug>": { "input_per_mtok": <n>, "output_per_mtok": <n> } } | absent
                                 default: absent (cost is recorded as null with reason no-pricing)

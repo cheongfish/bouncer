@@ -94,17 +94,24 @@ function displayTier(tier: unknown): string | null {
  * `roles.<agent>` 검증은 조회한 역할에만 하며, slot이 이기거나 provider가 null이어도 한다
  * (나중에 slot을 지우는 순간 터지는 잠복 오류를 막는다).
  *
- * @param {{ repoRoot?: string, agentName?: string, provider?: string }} opts
+ * 호출 단위 `tier`(strong|standard|light)를 주면 slot과 `roles.<agent>.tier`를 모두 건너뛰고
+ * `model_tiers.<provider>.<tier>`로만 해석한다. 호출자가 역할 설정과 무관하게 등급을
+ * 고르는 경로(예: 리뷰 라운드별 등급)라서, 매핑이 비어도 다른 등급으로 대체하지 않고
+ * `tier-unmapped`로 거절한다. 세 값 밖의 tier는 `role-config-invalid`(next: `tier`)다.
+ *
+ * @param {{ repoRoot?: string, agentName?: string, provider?: string, tier?: string }} opts
  * @returns {RoleResolution} 성공 변형(model/effort/source) 또는 오류 변형(code/message/next)
  */
 function resolveSubagentRole({
   repoRoot,
   agentName,
   provider: providerArg,
+  tier: callTier,
 }: {
   repoRoot?: string;
   agentName?: string;
   provider?: string;
+  tier?: string;
 } = {}): RoleResolution {
   // 부재·깨진 JSON은 null → 빈 설정으로 본다(예전 resolveSubagentModel과 동일).
   const config = readConfig(repoRoot as string) ?? {};
@@ -114,6 +121,11 @@ function resolveSubagentRole({
   const invalid = (rawTier: unknown, message: string, next: string): RoleResolution => ({
     ok: false, provider, role, tier: displayTier(rawTier), code: 'role-config-invalid', message, next,
   });
+
+  // 호출 단위 tier는 세 값만 허용한다. 알 수 없는 값은 설정이 아닌 호출 오류지만 같은 오류 변형으로 낸다.
+  if (callTier !== undefined && !ROLE_TIERS.includes(callTier)) {
+    return invalid(callTier, 'tier must be strong, standard or light', 'tier');
+  }
 
   // 1. roles 검증 — 부재는 정상, 배열·null·원시값은 오류.
   const rolesRaw = isRecord(config) ? config.roles : undefined;
@@ -133,19 +145,20 @@ function resolveSubagentRole({
     return invalid(tierRaw, 'effort must be low, medium or high', `roles.${role}.effort`);
   }
   const effort = (effortRaw ?? null) as RoleEffort | null;
-  const tier = (tierRaw ?? null) as RoleTier | null;
+  // 호출 단위 tier가 있으면 roles의 등급을 덮어쓴다(검증은 위에서 roles 값에도 그대로 한다).
+  const tier = (callTier ?? tierRaw ?? null) as RoleTier | null;
 
   // 2. provider를 모르면 slot·등급 매핑을 볼 수 없다. effort는 모델과 무관하므로 싣는다.
   if (!provider) {
     return { ok: true, provider: null, role, tier, model: null, effort, source: 'inherit' };
   }
 
-  // 3. slot slug가 가장 우선. 'inherit'·빈 문자열·비문자열은 미설정과 같다.
+  // 3. slot slug가 가장 우선(호출 단위 tier가 없을 때). 'inherit'·빈 문자열·비문자열은 미설정과 같다.
   const subagents = isRecord(config) ? config.subagents : undefined;
   const block = isRecord(subagents) ? subagents[provider] : undefined;
   // 배열도 typeof object라 통과시켜, 인덱스 키 조회를 객체만 받도록 바꾸지 않는다.
   const slot = block && typeof block === 'object' ? (block as Record<string, unknown>)[role] : undefined;
-  if (typeof slot === 'string' && slot.length > 0 && slot !== 'inherit') {
+  if (callTier === undefined && typeof slot === 'string' && slot.length > 0 && slot !== 'inherit') {
     return { ok: true, provider, role, tier: null, model: slot, effort, source: 'slot' };
   }
 
@@ -173,13 +186,14 @@ function resolveSubagentRole({
  * `{ model: null }`로 수렴해 호출자가 부모 세션 model을 상속하게 한다.
  * 반환 모양은 review-dispatch의 `agent_dispatch`가 의존하므로 키를 더하지 않는다.
  *
- * @param {{ repoRoot: string, agentName: string, provider?: string }} opts
+ * @param {{ repoRoot: string, agentName: string, provider?: string, tier?: string }} opts
  * @returns {{ model: string | null, provider: string | null }}
  */
 function resolveSubagentModel(opts: {
   repoRoot?: string;
   agentName?: string;
   provider?: string;
+  tier?: string;
 } = {}): SubagentModelResult {
   const r = resolveSubagentRole(opts);
   return { model: r.ok ? r.model : null, provider: r.provider };
@@ -189,19 +203,21 @@ function resolveSubagentModel(opts: {
  * 리뷰 payload에 설정 기반 역할 디스패치 정보를 만든다.
  * 모델은 호출 직전에 확인할 설정값이며 실제 호스트 실행 모델을 증명하지 않는다.
  *
- * @param {{ repoRoot: string, agentName: string, provider?: string }} opts
+ * @param {{ repoRoot: string, agentName: string, provider?: string, tier?: string }} opts
  * @returns {{ agent: string, provider: string | null, model: string | null }} canonical 역할과 설정값
  */
 function resolveSubagentDispatch({
   repoRoot,
   agentName,
   provider,
+  tier,
 }: {
   repoRoot: string;
   agentName: string;
   provider?: string;
+  tier?: string;
 }): { agent: string; provider: string | null; model: string | null } {
-  return { agent: agentName, ...resolveSubagentModel({ repoRoot, agentName, provider }) };
+  return { agent: agentName, ...resolveSubagentModel({ repoRoot, agentName, provider, tier }) };
 }
 
 export = {
