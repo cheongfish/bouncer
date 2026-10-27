@@ -36,6 +36,7 @@ bouncer:
 12. 기능 구현 완료 후 plugin 0.1.12와 runtimeCompatibility >=0.1.14 <0.2.0을 동기화하고 runtime 0.1.14를 보존한다.
 13. 이 변경의 commit task는 전용 검증을, 마지막 verification task는 npm run ci를 실행한다. source 생성본 경계·한국어 브리프 및 커밋 규약을 유지한다.
 14. implementer 문서 Guardrails에 변경 ts·js 파일 eslint 실행, `eslint-disable` 우회 금지, task `verify` 비대체 항목이 있고 Codex TOML이 이와 동기화되며 테스트가 이를 고정한다.
+15. revoke된 worker의 최신 runtime report는 salvage 산출물로 보존되어 `salvage[]`·`worker-salvage` 결정에 경로가 남고, 리뷰어 Red run 입력은 최신 report에 Red run이 없을 때 그 보존본을 쓴다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -79,3 +80,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 
 - [model-dispatch-enforcement](blueprints/model-dispatch-enforcement/index.md): 역할별 모델 metadata와 Claude 호출 훅, 모델 거절 및 리뷰 기록 순서를 정리한다.
 - [worker-lint-check](blueprints/worker-lint-check/index.md): 구현 worker가 report 전에 변경 파일에 eslint를 실행하는 절차를 implementer 문서에 추가한다.
+- [salvage-red-run-report](blueprints/salvage-red-run-report/index.md): resume으로 지워지는 worker의 runtime report를 salvage로 보존하고 Red run 입력이 이를 쓰게 한다.
