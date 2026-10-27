@@ -75,12 +75,14 @@ type LedgerFail = { ok: false; reason: string };
 type OpenedLedger = { ok: true; ledger: Ledger; bytes: Buffer };
 
 // revoke된 worker 보존 결과. coordinator-commands의 salvageRevokedWorker 반환형과 같은 모양이다.
-type SalvageResult = { patch?: string; ref?: string; dirty_paths: string[]; head: string; generation: number };
+type SalvageResult = {
+  patch?: string; ref?: string; report?: string; dirty_paths: string[]; head: string; generation: number;
+};
 type SalvageEntry = SalvageResult & { task: string };
-// revoke된 worker를 지우기 전에 보존한 산출물 기록. patch·ref는 해당 산출물이 있을 때만 있다.
+// revoke된 worker를 지우기 전에 보존한 산출물 기록. patch·ref·report는 해당 산출물이 있을 때만 있다.
 type WorkerSalvageDecision = {
   task: string; kind: 'worker-salvage'; generation: number; head: string;
-  patch?: string; ref?: string; dirty_paths: string[];
+  patch?: string; ref?: string; report?: string; dirty_paths: string[];
 };
 
 /**
@@ -615,10 +617,10 @@ function resolveTerminalFailure({
       const partial = (error as { salvage?: SalvageResult }).salvage;
       return { ok: false, reason: 'worker-salvage-failed', task: item.id,
         message: (error as Error).message,
-        salvage: [...salvage, ...(partial?.patch ? [{ ...partial, task: item.id }] : [])] };
+        salvage: [...salvage, ...(partial?.patch || partial?.report ? [{ ...partial, task: item.id }] : [])] };
     }
     if (item.id === target.id) ownerHead = saved.head || null;
-    if (saved.patch || saved.ref) salvage.push({ ...saved, task: item.id });
+    if (saved.patch || saved.ref || saved.report) salvage.push({ ...saved, task: item.id });
   }
   const revision = nextLedgerRevision(ledger.revision);
   const failure: FailureEvidence = {
@@ -635,8 +637,8 @@ function resolveTerminalFailure({
       generation: target.lease?.generation ?? null,
     },
     reset_downstream: resetDownstream.map((entry) => entry.id),
-    salvaged: salvage.map(({ task: id, patch, ref, head, generation, dirty_paths }) => ({
-      task: id, patch, ref, head, generation, dirty_paths,
+    salvaged: salvage.map(({ task: id, patch, ref, report, head, generation, dirty_paths }) => ({
+      task: id, patch, ref, report, head, generation, dirty_paths,
     })),
   };
   return {
@@ -1219,7 +1221,7 @@ function coordinateRepair(ctx: RepairCtx, support: RepairSupport): RepairResult 
     for (const entry of salvage) {
       ledger.decisions.push({
         task: entry.task, kind: 'worker-salvage', generation: entry.generation, head: entry.head,
-        patch: entry.patch, ref: entry.ref, dirty_paths: entry.dirty_paths,
+        patch: entry.patch, ref: entry.ref, report: entry.report, dirty_paths: entry.dirty_paths,
       } satisfies WorkerSalvageDecision);
     }
     ledger.decisions.push(repairDecision);
@@ -1243,7 +1245,7 @@ function coordinateRepair(ctx: RepairCtx, support: RepairSupport): RepairResult 
       owner_generation: repairDecision.owner_generation,
       salvage_predecessor: repairDecision.salvage_predecessor,
       reset_downstream: repairDecision.reset_downstream,
-      salvage: salvage.map(({ task: id, patch, ref }) => ({ task: id, patch, ref })),
+      salvage: salvage.map(({ task: id, patch, ref, report }) => ({ task: id, patch, ref, report })),
     }, ledger, integration.ledgerFile);
   }
   const waves = ledger.repairWaves || [];
