@@ -10,7 +10,7 @@ const { readConfig } = config;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 import subagents = require('./subagents');
-const { resolveSubagentModel } = subagents;
+const { resolveSubagentRole } = subagents;
 import codexAgents = require('./codex-agents');
 const { pluginAgentsDir } = codexAgents;
 
@@ -26,6 +26,9 @@ type PrintDispatchOk = {
   ok: true;
   role: PrintRole;
   model: string | null;
+  // 설정값 그대로 보고만 한다. Cursor CLI에는 effort 인자가 없어 --model에 붙이지 않으며,
+  // controller가 "effort 미적용"을 알릴 근거로 쓴다.
+  effort: 'low' | 'medium' | 'high' | null;
   exit_code: number;
   report: string;
   prompt: string;
@@ -293,10 +296,21 @@ function runPrintDispatch({
     );
   }
 
-  const { model } = resolveSubagentModel({
+  // 등급 매핑이 비었거나 roles 설정이 잘못되면 다른 모델로 대체하지 않고 거절한다.
+  // prompt 파일을 쓰기 전에 걸러야 실패한 dispatch가 흔적을 남기지 않는다.
+  const resolved = resolveSubagentRole({
     repoRoot,
     agentName: `bouncer-${role}`,
   });
+  if (!resolved.ok) {
+    return fail(
+      resolved.code,
+      `${resolved.message} (provider=${resolved.provider ?? '-'} role=${resolved.role} `
+      + `tier=${resolved.tier ?? '-'})`,
+      `set ${resolved.next} in .bouncer/config.json, then retry \`bouncer dispatch print\``,
+    );
+  }
+  const { model, effort } = resolved;
 
   fs.mkdirSync(outDir, { recursive: true });
   const promptPath = path.join(outDir, `bouncer-${role}.prompt.md`);
@@ -384,6 +398,7 @@ function runPrintDispatch({
     ok: true,
     role: role as PrintRole,
     model,
+    effort,
     exit_code: 0,
     report,
     prompt: promptPath,

@@ -85,7 +85,7 @@ test('usage → 명령별 형식 문구를 나열한다', () => {
     /finalize\s+--blueprint <dir> \[--yes\]/,
     /finalize\s+worktree-path --blueprint <dir> \[--repo <dir>\]/,
     /finalize\s+diff-sha --base <ref> \[--repo <dir>\]/,
-    /subagent-model --agent <name> \[--provider <name>\]/,
+    /subagent-model --agent <name> \[--provider <name>\] \[--json\]/,
     /codex-agents check --agent <name>/,
     /review-dispatch\s+plan --blueprint <dir>/,
     /review-dispatch\s+execute --blueprint <dir> \[--task <ddd>\] --base <sha> --head <sha>/,

@@ -157,6 +157,45 @@ test('cursor-print-dispatch rule → documents the root line as one unwrapped sp
   assert.ok(rule.includes(ROOT_LINE('<absolute path>')));
 });
 
+function writeTierConfig(tree, role, modelTiers) {
+  fs.writeFileSync(
+    path.join(tree.root, '.bouncer', 'config.json'),
+    JSON.stringify({
+      subagents: { provider: 'cursor', dispatch: 'print', cursor: {} },
+      roles: { 'bouncer-reviewer': role },
+      model_tiers: { cursor: modelTiers },
+    }),
+  );
+}
+
+test('tier unmapped for cursor → fails with tier-unmapped and writes no prompt file', () => {
+  const tree = makeTree();
+  try {
+    writeTierConfig(tree, { tier: 'standard' }, {});
+    const result = runPrint(tree);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'tier-unmapped');
+    assert.equal(fs.existsSync(path.join(tree.outDir, 'bouncer-reviewer.prompt.md')), false);
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});
+
+test('tier mapped with effort → passes the slug to --model and keeps effort out of argv', () => {
+  const tree = makeTree();
+  try {
+    writeTierConfig(tree, { tier: 'standard', effort: 'medium' }, { standard: 'cursor-grok-4.6-high' });
+    const result = runPrint(tree);
+    assert.equal(result.ok, true);
+    const argv = JSON.parse(fs.readFileSync(path.join(tree.cwd, 'argv.json'), 'utf8'));
+    assert.equal(argv[argv.indexOf('--model') + 1], 'cursor-grok-4.6-high');
+    assert.equal(argv.includes('medium'), false);
+    assert.equal(result.effort, 'medium');
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});
+
 test('role slug is inherit/null → omits --model', () => {
   const tree = makeTree();
   try {

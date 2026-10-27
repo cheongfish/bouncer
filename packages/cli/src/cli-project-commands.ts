@@ -147,18 +147,21 @@ function requireNamedAgent(
 }
 
 /**
- * 설정된 named-agent model slug를 한 줄로 낸다. JSON `{model, provider}`를
- * 내면 지침이 provider를 dispatch 인자로 넘기는 경로가 생긴다.
+ * 설정된 named-agent의 model slug를 한 줄로 낸다. 기본 출력은 `<slug>` 또는 `inherit`
+ * 한 줄이라 호출자가 모델 인자를 그대로 쓰거나 생략한다. `--json`은 등급·effort·source를
+ * 함께 보고하는 한 줄 JSON이며 provider는 읽기 전용 보고일 뿐 dispatch 인자 경로가 아니다.
+ * 등급 매핑이 비었거나 roles 설정이 잘못되면 다른 모델로 대체하지 않고 stdout을 비운 채
+ * stderr 한 줄과 exit 1로 거절한다(`--json` 여부와 무관).
  *
  * @param {string[]} rest - `subagent-model` 뒤 argv
  * @param {CliIo} io - stdout/stderr 싱크
- * @returns {number} 성공 0, 사용법 2
+ * @returns {number} 성공 0, 설정 오류 1, 사용법 2
  */
 function cmdSubagentModel(rest: string[], io: CliIo): number {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { resolveSubagentModel } = require('./subagents') as typeof import('./subagents');
+  const { resolveSubagentRole } = require('./subagents') as typeof import('./subagents');
   const f = parseFlags(rest);
   const named = requireNamedAgent(f, 'subagent-model');
   if ('error' in named) {
@@ -168,13 +171,31 @@ function cmdSubagentModel(rest: string[], io: CliIo): number {
   const provider = typeof f.provider === 'string' && f.provider.length > 0
     ? f.provider
     : undefined;
-  const result = resolveSubagentModel({
+  const result = resolveSubagentRole({
     repoRoot: (f.repo || process.cwd()) as string,
     agentName: named.agent,
     provider,
   });
-  // null·inherit·비문자열은 라이브러리가 model:null로 수렴한다. stdout은
-  // inherit sentinel만 주어 호출자가 모델 인자를 생략하게 한다.
+  if (!result.ok) {
+    // 설정 원문은 tier 표기(안전화된 값)만 싣는다 — 개행이 섞여도 stderr는 한 줄이다.
+    io.err(
+      `subagent-model: ${result.code}: provider=${result.provider ?? '-'} role=${result.role} `
+      + `tier=${result.tier ?? '-'} ${result.message} (fix: ${result.next})\n`,
+    );
+    return 1;
+  }
+  if (f.json === true) {
+    // model:null은 inherit sentinel 문자열로 쓴다. 기본 출력과 같은 어휘를 유지한다.
+    io.out(`${JSON.stringify({
+      provider: result.provider,
+      role: result.role,
+      tier: result.tier,
+      model: result.model ?? 'inherit',
+      effort: result.effort,
+      source: result.source,
+    })}\n`);
+    return 0;
+  }
   io.out(`${result.model ?? 'inherit'}\n`);
   return 0;
 }

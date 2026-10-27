@@ -4,7 +4,9 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { resolveSubagentModel, resolveSubagentDispatch } = require('../packages/cli/dist/subagents');
+const {
+  resolveSubagentModel, resolveSubagentDispatch, resolveSubagentRole,
+} = require('../packages/cli/dist/subagents');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-subagents-'));
@@ -722,4 +724,193 @@ test('subagent-model rule → points run workers at agent-dispatch without dropp
   assert.doesNotMatch(contract, /worker-(?:model|tokens) --blueprint/);
   assert.match(contract, /model rejection[\s\S]{0,160}stop/i);
   assert.match(contract, /runs in the foreground/);
+});
+
+// --- resolveSubagentRole: 등급·effort 해석 ---
+const COORD = 'bouncer-coordinator';
+const REVIEWER = 'bouncer-reviewer';
+
+function roleRepo(config) {
+  const repo = tmpRepo();
+  writeConfig(repo, config);
+  return repo;
+}
+
+function claudeConfig(extra) {
+  return { subagents: { provider: 'claude', claude: {} }, ...extra };
+}
+
+const TIER_CLAUDE = { claude: { standard: 'claude-sonnet-5-5' } };
+
+test('tier set and slot unset → resolves the mapped tier model with effort', () => {
+  const repo = roleRepo(claudeConfig({
+    roles: { [COORD]: { tier: 'standard', effort: 'medium' } },
+    model_tiers: TIER_CLAUDE,
+  }));
+  assert.deepStrictEqual(
+    resolveSubagentRole({ repoRoot: repo, agentName: COORD }),
+    {
+      ok: true, provider: 'claude', role: COORD, tier: 'standard',
+      model: 'claude-sonnet-5-5', effort: 'medium', source: 'tier',
+    },
+  );
+});
+
+test('slot inherit with tier → source is tier', () => {
+  const cfg = claudeConfig({
+    roles: { [COORD]: { tier: 'standard', effort: 'medium' } },
+    model_tiers: TIER_CLAUDE,
+  });
+  cfg.subagents.claude[COORD] = 'inherit';
+  const r = resolveSubagentRole({ repoRoot: roleRepo(cfg), agentName: COORD });
+  assert.strictEqual(r.source, 'tier');
+  assert.strictEqual(r.model, 'claude-sonnet-5-5');
+});
+
+test('slot slug with tier → slot wins and effort still carried', () => {
+  const cfg = claudeConfig({
+    roles: { [COORD]: { tier: 'standard', effort: 'medium' } },
+    model_tiers: TIER_CLAUDE,
+  });
+  cfg.subagents.claude[COORD] = 'claude-opus-5-5';
+  const r = resolveSubagentRole({ repoRoot: roleRepo(cfg), agentName: COORD });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.source, 'slot');
+  assert.strictEqual(r.model, 'claude-opus-5-5');
+  assert.strictEqual(r.tier, null);
+  assert.strictEqual(r.effort, 'medium');
+});
+
+test('tier unmapped for provider → error variant while resolveSubagentModel stays null without throwing', () => {
+  const repo = roleRepo({
+    subagents: { provider: 'codex', codex: {} },
+    roles: { [COORD]: { tier: 'standard' } },
+    model_tiers: { codex: { strong: 'gpt-6.1-sol' } },
+  });
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: COORD });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'tier-unmapped');
+  assert.strictEqual(r.tier, 'standard');
+  assert.deepStrictEqual(
+    resolveSubagentModel({ repoRoot: repo, agentName: COORD }),
+    { model: null, provider: 'codex' },
+  );
+});
+
+test('tier outside the three names or effort max → role-config-invalid', () => {
+  for (const role of [{ tier: 'high' }, { effort: 'max' }]) {
+    const repo = roleRepo(claudeConfig({ roles: { [REVIEWER]: role }, model_tiers: TIER_CLAUDE }));
+    const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.code, 'role-config-invalid');
+  }
+});
+
+test('mapped value inherit → ok with null model and source tier', () => {
+  const repo = roleRepo(claudeConfig({
+    roles: { [COORD]: { tier: 'standard' } },
+    model_tiers: { claude: { standard: 'inherit' } },
+  }));
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: COORD });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.model, null);
+  assert.strictEqual(r.source, 'tier');
+});
+
+test('mapped value empty or non-string or mapping absent → tier-unmapped', () => {
+  const mappings = [
+    { claude: { standard: '' } },
+    { claude: { standard: 5 } },
+    undefined,
+    {},
+    'x',
+    { claude: [] },
+  ];
+  for (const model_tiers of mappings) {
+    const cfg = claudeConfig({ roles: { [COORD]: { tier: 'standard' } } });
+    if (model_tiers !== undefined) cfg.model_tiers = model_tiers;
+    const r = resolveSubagentRole({ repoRoot: roleRepo(cfg), agentName: COORD });
+    assert.strictEqual(r.ok, false, JSON.stringify(model_tiers));
+    assert.strictEqual(r.code, 'tier-unmapped', JSON.stringify(model_tiers));
+  }
+});
+
+test('roles or the role entry has the wrong shape → role-config-invalid', () => {
+  const shapes = [
+    { roles: [] },
+    { roles: null },
+    { roles: { [REVIEWER]: 'x' } },
+    { roles: { [REVIEWER]: null } },
+    { roles: { [REVIEWER]: [] } },
+  ];
+  for (const shape of shapes) {
+    const r = resolveSubagentRole({
+      repoRoot: roleRepo(claudeConfig(shape)), agentName: REVIEWER,
+    });
+    assert.strictEqual(r.ok, false, JSON.stringify(shape));
+    assert.strictEqual(r.code, 'role-config-invalid', JSON.stringify(shape));
+  }
+});
+
+test('slot slug wins but effort is invalid → role-config-invalid', () => {
+  const cfg = claudeConfig({ roles: { [REVIEWER]: { effort: 'max' } } });
+  cfg.subagents.claude[REVIEWER] = 'claude-opus-5-5';
+  const r = resolveSubagentRole({ repoRoot: roleRepo(cfg), agentName: REVIEWER });
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.code, 'role-config-invalid');
+});
+
+test('effort only without tier → inherit source with the effort', () => {
+  const repo = roleRepo(claudeConfig({ roles: { [REVIEWER]: { effort: 'low' } } }));
+  assert.deepStrictEqual(
+    resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER }),
+    {
+      ok: true, provider: 'claude', role: REVIEWER, tier: null,
+      model: null, effort: 'low', source: 'inherit',
+    },
+  );
+  const nullEffort = roleRepo(claudeConfig({
+    roles: { [COORD]: { tier: 'standard', effort: null } }, model_tiers: TIER_CLAUDE,
+  }));
+  assert.strictEqual(resolveSubagentRole({ repoRoot: nullEffort, agentName: COORD }).effort, null);
+});
+
+test('provider undeterminable with tier and effort → inherit carrying effort', () => {
+  const saved = {};
+  const keys = ['CLAUDE_PLUGIN_ROOT', 'PLUGIN_ROOT', 'CLAUDECODE', 'CODEX_THREAD_ID'];
+  for (const k of keys) { saved[k] = process.env[k]; delete process.env[k]; }
+  try {
+    const repo = roleRepo({
+      roles: { [COORD]: { tier: 'standard', effort: 'high' } }, model_tiers: TIER_CLAUDE,
+    });
+    assert.deepStrictEqual(
+      resolveSubagentRole({ repoRoot: repo, agentName: COORD }),
+      {
+        ok: true, provider: null, role: COORD, tier: 'standard',
+        model: null, effort: 'high', source: 'inherit',
+      },
+    );
+  } finally {
+    for (const k of keys) {
+      if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
+    }
+  }
+});
+
+test('tier null with effort → ok with null tier; null or array role entry → invalid', () => {
+  const repo = roleRepo(claudeConfig({ roles: { [REVIEWER]: { tier: null, effort: 'low' } } }));
+  const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.tier, null);
+  assert.strictEqual(r.effort, 'low');
+});
+
+test('tier of wrong type or with control characters → invalid with <invalid> tier', () => {
+  for (const tier of [7, 'a\nb']) {
+    const repo = roleRepo(claudeConfig({ roles: { [REVIEWER]: { tier } } }));
+    const r = resolveSubagentRole({ repoRoot: repo, agentName: REVIEWER });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.code, 'role-config-invalid');
+    assert.strictEqual(r.tier, '<invalid>');
+  }
 });
