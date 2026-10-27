@@ -2,7 +2,7 @@
   "version": 1,
   "hooks": {
     "beforeShellExecution": [
-      { "command": "./hooks/cursor-commit-safety.js" }
+      { "command": "node ./hooks/cursor-commit-safety.js" }
     ]
   }
 }

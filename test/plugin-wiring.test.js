@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
@@ -51,4 +52,88 @@ test('hooks.json → registers session-graph only on SessionStart', () => {
     'session-legacy-ids.js must not remain wired',
   );
   assert.equal(fs.existsSync(path.join(root, 'hooks', 'session-legacy-ids.js')), false);
+});
+
+/**
+ * 훅 등록 JSON의 모든 명령이 실행 비트에 의존하지 않는지 검사한다.
+ * `node `로 시작하는 명령은 대상 파일 존재만 보고, bare 명령(그 외)은 대상 파일의
+ * 소유자 실행 비트까지 본다. 플러그인 캐시 복사가 모드를 잃어도 node 경유 명령은 안전하다.
+ * 대상 경로를 확실히 뽑지 못하면 추측하지 않고 위반으로 보고한다.
+ *
+ * @param {object} hooksJson - hooks.json 또는 cursor-hooks.json 파싱 결과
+ * @param {string} rootDir - `${CLAUDE_PLUGIN_ROOT}`와 `./`를 풀 기준 디렉터리
+ * @returns {string[]} 위반 설명 목록. 비어 있으면 통과
+ */
+function hookCommandViolations(hooksJson, rootDir) {
+  const commands = [];
+  for (const entries of Object.values(hooksJson.hooks || {})) {
+    for (const entry of entries) {
+      if (typeof entry.command === 'string') commands.push(entry.command);
+      for (const hook of entry.hooks || []) commands.push(hook.command);
+    }
+  }
+  const violations = [];
+  for (const command of commands) {
+    const viaNode = command.startsWith('node ');
+    const operand = viaNode ? command.slice('node '.length) : command;
+    // 따옴표로 감싼 경로 하나, 또는 공백 없는 경로 하나만 허용한다.
+    const match = /^"([^"]+)"$/.exec(operand) || /^(\S+)$/.exec(operand);
+    if (!match) {
+      violations.push(`cannot extract target path from command: ${command}`);
+      continue;
+    }
+    const rel = match[1].replace('${CLAUDE_PLUGIN_ROOT}', rootDir);
+    const file = path.resolve(rootDir, rel);
+    let stat;
+    try {
+      stat = fs.statSync(file);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+      violations.push(`${file}: target file of "${command}" does not exist`);
+      continue;
+    }
+    if (!viaNode && !(stat.mode & 0o100)) {
+      violations.push(`${file}: bare command "${command}" needs the executable bit`);
+    }
+  }
+  return violations;
+}
+
+test('hooks → run through node or an executable file', { skip: process.platform === 'win32' }, () => {
+  assert.deepStrictEqual(hookCommandViolations(readJson('hooks/hooks.json'), root), []);
+  assert.deepStrictEqual(hookCommandViolations(readJson('hooks/cursor-hooks.json'), root), []);
+});
+
+test('hooks/subagent-model.js → has the owner executable bit', { skip: process.platform === 'win32' }, () => {
+  assert.ok(
+    fs.statSync(path.join(root, 'hooks/subagent-model.js')).mode & 0o100,
+    'hooks/subagent-model.js must be executable',
+  );
+});
+
+test('hookCommandViolations → classifies bare and node commands by target file', {
+  skip: process.platform === 'win32',
+}, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hook-violations-'));
+  fs.mkdirSync(path.join(dir, 'hooks'));
+  fs.mkdirSync(path.join(dir, 'with space'));
+  fs.writeFileSync(path.join(dir, 'hooks/plain.js'), '', { mode: 0o644 });
+  fs.writeFileSync(path.join(dir, 'hooks/exec.js'), '', { mode: 0o755 });
+  fs.writeFileSync(path.join(dir, 'with space/x.js'), '', { mode: 0o755 });
+  const one = (command) => hookCommandViolations({ hooks: { E: [{ hooks: [{ command }] }] } }, dir);
+  try {
+    assert.strictEqual(one('${CLAUDE_PLUGIN_ROOT}/hooks/plain.js').length, 1);
+    assert.strictEqual(one('${CLAUDE_PLUGIN_ROOT}/hooks/exec.js').length, 0);
+    assert.strictEqual(one('node "${CLAUDE_PLUGIN_ROOT}/hooks/plain.js"').length, 0);
+    assert.strictEqual(one('node "${CLAUDE_PLUGIN_ROOT}/hooks/missing.js"').length, 1);
+    assert.strictEqual(one('${CLAUDE_PLUGIN_ROOT}/with space/x.js').length, 1);
+    assert.strictEqual(one('node ./hooks/plain.js').length, 0);
+    assert.strictEqual(one('./hooks/plain.js').length, 1);
+    assert.strictEqual(one('./hooks/exec.js').length, 0);
+    // cursor 형태: entry에 command가 직접 있다.
+    assert.strictEqual(
+      hookCommandViolations({ hooks: { E: [{ command: './hooks/plain.js' }] } }, dir).length, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

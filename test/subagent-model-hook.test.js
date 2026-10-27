@@ -18,7 +18,7 @@ function runHook(payload, env = {}) {
 test('Bouncer Agent hook registered → hook file and Agent matcher are available', () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, 'hooks/hooks.json'), 'utf8'));
   const registered = config.hooks.PreToolUse.some((entry) => entry.matcher === 'Agent'
-    && entry.hooks.some((hook) => hook.command === '${CLAUDE_PLUGIN_ROOT}/hooks/subagent-model.js'));
+    && entry.hooks.some((hook) => hook.command === 'node "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-model.js"'));
   assert.equal(registered, true);
   assert.equal(fs.statSync(path.join(root, 'hooks/subagent-model.js')).isFile(), true);
 });

@@ -37,3 +37,7 @@ integrated`, 실행 가능한 전체-CI `verify`, source 경로가 없는 Touch�
 명시적 public 경로는 `bouncer scaffold task --execution-kind verification
 --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`이며 `review.md`는
 만들지 않는다.
+
+**Release-time documents.** Before locking `affected_paths`, follow the
+`Release-time documents` section of `${BOUNCER_ROOT}/rules/planning.md`: never add the version
+documents it lists to Touch, `affected_paths`, Checklist, or `bouncer.verify`.

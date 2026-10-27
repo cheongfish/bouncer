@@ -33,6 +33,8 @@ bouncer:
 11. 서로 다른 태그 게시를 직렬화하고 루트 정본 drift·정확하지 않은 E404·registry 산출물 불일치·확인 및 fetch 실패가 후속 게시를 차단한다.
 12. 설치 smoke는 현재 작업 내용으로 만든 snapshot의 builder 산출 plugin과 runtime tgz를 사용하고 local/global의 plugin 없는 current 및 실제 seed 파일을 검증한다.
 13. 이미 구현된 launcher-free·mismatch·manual 차단 계약은 격리 negative control과 정상 실행을 구분해 새 증거를 남기며 과거 Red 성공을 소급 주장하지 않는다.
+14. Claude·Cursor 훅 명령은 `node "<경로>"` 호출이거나 실행 비트(755)를 가진 파일이어서, 설치 복사로 실행 비트가 사라져도 훅이 동작하고 이를 회귀 테스트가 막는다.
+15. plan 단계 규칙 문서(`rules/planning.md`, `scope-confirm.md`)가 `CHANGELOG.md`와 버전 파일(`scripts/sync-versions.js` 대상)을 Touch·`affected_paths`·Checklist에 넣지 말고 릴리스 시점에 따로 갱신하라고 명시하며, 테스트가 그 지침의 존재를 고정한다(gate 검사는 아님).
 
 ## Out of scope
 - 실제 npm 게시·trusted publisher 연결·원격 tag/push와 전체 호스트·OS 점진 배포는 별도 운영 승인 대상으로 둔다.
@@ -57,3 +59,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [runtime-packaging](blueprints/runtime-packaging/index.md): npm runtime workspace와 plugin release tree를 분리하고 두 배포물의 설치 실행을 검증한다.
 - [release-pipeline](blueprints/release-pipeline/index.md): 남은 resolver·pack 결합을 제거하고 버전 검사, npm 선행 게시, 수동 dry-run과 설치 문서를 완성한다.
 - [release-pipeline-followup](blueprints/release-pipeline-followup/index.md): 게시 경계와 builder 기반 설치 smoke의 잔여 결함을 수정하고 회귀 증거와 운영 문서를 보완한다.
+- [hook-exec-bit](blueprints/hook-exec-bit/index.md): 훅 명령을 node 호출로 바꿔 실행 비트 의존을 없애고, plan 단계의 버전·CHANGELOG 문서 갱신을 금지하는 규칙을 둔다.
