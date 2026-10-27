@@ -34,6 +34,7 @@
     "retro-sources.test.js",
     "reviewer-adversarial-brief.test.js",
     "reviewer-tier-docs.test.js",
+    "salvage-report-docs.test.js",
     "scaffold.test.js",
     "schema.test.js",
     "skill-bouncer-finalize.test.js",

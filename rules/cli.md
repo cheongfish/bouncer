@@ -319,7 +319,9 @@ When `prepare` recreates a revoked worker it first preserves uncommitted
 changes (patch under integration `.bouncer/runtime/salvage/`) and unintegrated
 commits (`refs/bouncer/salvage/<task>/g<gen>-<short>`), records a
 `worker-salvage` decision, and lists them in the output `salvage` array
-(`task`, `patch`, `ref`). A clean worker adds no `salvage` key. If preserving
+(`task`, `patch`, `ref`, and `report`). A revoked worker's latest report is
+preserved as `.bouncer/runtime/salvage/<task>-g<gen>-<short>.report.md` and
+listed as `report`. A clean worker adds no `salvage` key. If preserving
 fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
 unchanged.
 `coordinate bootstrap` sets ledger `mode: light` only when blueprint

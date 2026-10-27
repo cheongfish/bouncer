@@ -49,6 +49,6 @@ export type OpenedLedger = { ok: true; ledger: Ledger; bytes: Buffer };
 export type PlannedWorker = { worker: string; branch: string; action: 'reuse' | 'create' };
 export type CreatedWorker = { worker: string; branch: string };
 export type SalvageResult = {
-  patch?: string; ref?: string; dirty_paths: string[]; head: string; generation: number;
+  patch?: string; ref?: string; report?: string; dirty_paths: string[]; head: string; generation: number;
 };
 export type SalvageEntry = SalvageResult & { task: string };

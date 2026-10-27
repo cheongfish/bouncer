@@ -45,7 +45,7 @@ import type { CoordinateCtx, CoordinateResult, PlannedWorker, CreatedWorker,
 const LEDGER_REL = coordinatorLedger.LEDGER_REL;
 type WorkerSalvageDecision = {
   task: string; kind: 'worker-salvage'; generation: number; head: string;
-  patch?: string; ref?: string; dirty_paths: string[];
+  patch?: string; ref?: string; report?: string; dirty_paths: string[];
 };
 
 /**
@@ -386,6 +386,72 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
  */
 
 /**
+ * revoke된 worker의 최신 runtime report를 integration의 salvage 디렉터리로 복사한다.
+ * worker의 `.bouncer/runtime/`은 worktree 제거와 함께 사라지므로, 새 attempt가 직전 red 실행
+ * 기록을 이어받도록 여기서 한 부 남긴다. "최신"은 파일명 `<task>-<attempt>.md`에서 `<attempt>`가
+ * `^\d{1,9}$`이고 숫자로 가장 큰 일반 파일이다(같은 값이면 파일명이 사전순으로 큰 쪽).
+ * 내용은 해석하지 않고 바이트 그대로 복사하며, 임시 파일에 쓴 뒤 `rename`해 대상 경로에
+ * 부분 내용이 남지 않게 한다. 같은 대상이 이미 있고 바이트가 같으면 no-op, 다르면 throw한다.
+ *
+ * @param {string} workerPath - revoke된 worker worktree 경로
+ * @param {string} destination - 복사 대상 절대 경로
+ * @param {string} taskId - task id (파일명 접두 일치 판정)
+ * @returns {string | undefined} 대상 경로. 후보가 없으면(디렉터리·파일 없음, symlink·비정규 파일 포함) undefined
+ * @throws 대상이 다른 내용으로 이미 있거나 읽기·쓰기·rename이 실패한 경우
+ */
+function copyLatestReport(workerPath: string, destination: string, taskId: string): string | undefined {
+  const dir = path.join(workerPath, '.bouncer/runtime/reports');
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch (error) {
+    // reports 디렉터리 부재(ENOENT/ENOTDIR)만 miss로 흡수한다: worker가 report를 쓰기 전에
+    // revoke된 정상 경로다. 권한 오류 등 나머지는 보존 실패로 올린다.
+    const code = (error as { code?: string }).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return undefined;
+    throw error;
+  }
+  // task id를 정규식에 끼우지 않으려고 접두·접미를 잘라 attempt를 읽는다.
+  const prefix = `${taskId}-`;
+  const candidates: Array<{ name: string; attempt: number }> = [];
+  for (const name of names) {
+    if (!name.startsWith(prefix) || !name.endsWith('.md')) continue;
+    const attempt = name.slice(prefix.length, -'.md'.length);
+    if (/^\d{1,9}$/.test(attempt)) candidates.push({ name, attempt: Number(attempt) });
+  }
+  candidates.sort((a, b) => b.attempt - a.attempt || (a.name < b.name ? 1 : -1));
+  const realDir = fs.realpathSync(dir);
+  let source: string | undefined;
+  for (const candidate of candidates) {
+    const file = path.join(dir, candidate.name);
+    // symlink·비정규 파일은 worker 밖 내용을 끌어올 수 있어 후보에서 뺀다(miss).
+    if (!fs.lstatSync(file).isFile()) continue;
+    if (path.dirname(fs.realpathSync(file)) !== realDir) continue;
+    source = file;
+    break;
+  }
+  if (!source) return undefined;
+  const bytes = fs.readFileSync(source);
+  if (fs.existsSync(destination)) {
+    if (!fs.readFileSync(destination).equals(bytes)) {
+      throw new Error(`salvage report ${destination} already exists with different content`);
+    }
+    return destination;
+  }
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  const temp = `${destination}.tmp-${process.pid}`;
+  try {
+    fs.writeFileSync(temp, bytes);
+    fs.renameSync(temp, destination);
+  } catch (error) {
+    // 임시 파일 정리는 best-effort다: 정리 실패가 원래 쓰기·rename 오류를 가리지 않게 한다.
+    try { fs.rmSync(temp, { force: true }); } catch (_cleanup) { /* 원래 오류를 우선한다 */ }
+    throw error;
+  }
+  return destination;
+}
+
+/**
  * revoke된 worker를 지우기 전에 사용자 작업을 보존한다. 보존 대상은 두 가지다.
  * 1) 미커밋 변경(추적 변경 + 미추적 파일): integration
  *    `.bouncer/runtime/salvage/<task>-g<gen>-<short>.patch`에 `git apply --binary`로
@@ -401,9 +467,9 @@ function promoteLightBootstrap({ repoRoot, blueprint, paths, integrationBranch, 
  * @param {string} integrationPath - integration checkout (patch·ref의 저장소)
  * @param {Task} item - revoke 후 재준비 대상
  * @param {string} integrationHead - 미통합 커밋 판정 기준
- * @returns {SalvageResult} 보존한 patch·ref와 dirty 경로, 읽은 worker HEAD와 lease generation.
+ * @returns {SalvageResult} 보존한 patch·ref·report와 dirty 경로, 읽은 worker HEAD와 lease generation.
  *   보존할 것이 없으면 dirty_paths는 빈 배열, 미등록 worker는 head가 빈 문자열
- * @throws patch 쓰기나 ref 생성 실패. 이미 쓴 patch 경로는 `error.patch`에 실린다
+ * @throws patch·report 쓰기나 ref 생성 실패. 이미 쓴 patch·report 경로는 `error.salvage`에 실린다
  */
 function salvageRevokedWorker(
   exec: Exec, integrationPath: string, item: Task, integrationHead: string,
@@ -479,6 +545,17 @@ function salvageRevokedWorker(
     fs.mkdirSync(path.dirname(patchFile), { recursive: true });
     fs.writeFileSync(patchFile, patch);
     result.patch = patchFile;
+  }
+
+  // report는 dirty_paths에 넣지 않는다: `.bouncer/runtime/` 산출물이지 사용자 작업이 아니다.
+  // ref보다 먼저 복사해, ref 단계가 실패해도 error.salvage가 이미 쓴 patch·report를 알린다.
+  try {
+    const report = copyLatestReport(workerPath, path.join(integrationPath, '.bouncer/runtime/salvage',
+      `${item.id}-g${generation}-${short}.report.md`), item.id);
+    if (report) result.report = report;
+  } catch (error) {
+    (error as { salvage?: SalvageResult }).salvage = result;
+    throw error;
   }
 
   if (toSalvage().length > 0) {
@@ -771,9 +848,12 @@ function prepareCoordinator({
             const partial = (error as { salvage?: SalvageResult }).salvage;
             return { ok: false as const, reason: 'worker-salvage-failed', task: item.id,
               message: (error as Error).message,
-              salvage: [...salvage, ...(partial?.patch ? [{ task: item.id, patch: partial.patch }] : [])] };
+              salvage: [...salvage, ...(partial?.patch || partial?.report ? [{
+                task: item.id, ...(partial.patch ? { patch: partial.patch } : {}),
+                ...(partial.report ? { report: partial.report } : {}),
+              }] : [])] };
           }
-          if (saved.patch || saved.ref) {
+          if (saved.patch || saved.ref || saved.report) {
             // head·generation은 salvage가 이미 읽은 값을 쓴다(재계산 없음). 출력 키 순서를
             // 예전과 같게 두려고 구조 분해 뒤 task 다음에 다시 붙인다.
             const { head, generation, ...kept } = saved;
@@ -847,7 +927,9 @@ function prepareCoordinator({
   const { ledger, ready, plannedWorkers, phase1Hash, light, integrationBranch } = planned;
   const salvaged = planned.salvage || [];
   // 보존 산출물은 phase 2·3이 실패해도 남으므로 실패 출력에도 위치를 싣는다.
-  const salvageView = salvaged.map((entry) => ({ task: entry.task, patch: entry.patch, ref: entry.ref }));
+  const salvageView = salvaged.map((entry) => ({
+    task: entry.task, patch: entry.patch, ref: entry.ref, report: entry.report,
+  }));
   const withSalvage = (result: unknown): unknown => (
     salvaged.length > 0 && result && typeof result === 'object'
       ? { ...(result as object), salvage: salvageView } : result);
@@ -943,7 +1025,7 @@ function prepareCoordinator({
     for (const entry of salvaged) {
       const decision: WorkerSalvageDecision = {
         task: entry.task, kind: 'worker-salvage', generation: entry.generation, head: entry.head,
-        patch: entry.patch, ref: entry.ref, dirty_paths: entry.dirty_paths,
+        patch: entry.patch, ref: entry.ref, report: entry.report, dirty_paths: entry.dirty_paths,
       };
       ledger.decisions.push(decision);
     }

@@ -6278,3 +6278,106 @@ test('integrate on a terminal with terminalFailure → still not-ready (reverify
   });
   assert.strictEqual(result.reason, 'not-ready');
 });
+
+// ---------------------------------------------------------------------------
+// revoke된 worker의 최신 runtime report 보존
+// ---------------------------------------------------------------------------
+
+/**
+ * worker의 `.bouncer/runtime/reports/`에 파일을 쓴다.
+ *
+ * @param {string} worker - worker worktree 경로
+ * @param {Record<string, string>} files - 파일명 → 내용
+ */
+function writeWorkerReports(worker, files) {
+  const dir = path.join(worker, '.bouncer/runtime/reports');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
+}
+
+const prepareAgain = (fx) => coordinate({
+  command: 'prepare', repoRoot: fx.repo, blueprint: fx.blueprint, cwd: fx.boot.integrationPath,
+  deps: { makeLeaseId: () => 'lease-b' },
+});
+
+test('prepare with a revoked worker holding several reports → copies the numerically latest one byte for byte', () => {
+  let head;
+  const fx = salvageFixture('report-latest', (worker) => {
+    head = gitOut(worker, 'rev-parse', 'HEAD');
+    writeWorkerReports(worker, {
+      '001-1.md': 'one\n', '001-2.md': 'two\n', '001-10.md': 'ten\n', '001-x.md': 'bad\n', '001-1.md.bak': 'bak\n',
+    });
+  });
+  const again = prepareAgain(fx);
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  const expected = path.join(fx.boot.integrationPath, '.bouncer/runtime/salvage', `001-g1-${head.slice(0, 8)}.report.md`);
+  assert.strictEqual(again.salvage[0].report, expected);
+  assert.strictEqual(fs.readFileSync(expected, 'utf8'), 'ten\n');
+  assert.deepStrictEqual(fs.readdirSync(path.dirname(expected)), [path.basename(expected)]);
+  const decision = readLedgerFile(fx.ledgerFile).decisions.find((d) => d.kind === 'worker-salvage');
+  assert.strictEqual(decision.report, expected);
+  assert.deepStrictEqual(decision.dirty_paths, []);
+});
+
+test('prepare with a symlinked report candidate → skips it and keeps no report', () => {
+  const outside = path.join(os.tmpdir(), `bouncer-outside-${process.pid}.md`);
+  fs.writeFileSync(outside, 'outside\n');
+  const fx = salvageFixture('report-symlink', (worker) => {
+    writeWorkerReports(worker, {});
+    fs.symlinkSync(outside, path.join(worker, '.bouncer/runtime/reports/001-3.md'));
+  });
+  const again = prepareAgain(fx);
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(again, 'salvage'), false);
+});
+
+test('prepare with a dirty revoked worker without reports → salvage has no report key', () => {
+  const fx = salvageFixture('report-none', (worker) => { fs.writeFileSync(path.join(worker, 'notes.txt'), 'x\n'); });
+  const again = prepareAgain(fx);
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(again.salvage[0].report, undefined);
+  assert.strictEqual(JSON.stringify(again.salvage[0]).includes('report'), false);
+});
+
+test('prepare when the report target already holds different bytes → worker-salvage-failed and the worker stays', () => {
+  let head;
+  const fx = salvageFixture('report-conflict', (worker) => {
+    head = gitOut(worker, 'rev-parse', 'HEAD');
+    writeWorkerReports(worker, { '001-1.md': 'mine\n' });
+  });
+  const target = path.join(fx.boot.integrationPath, '.bouncer/runtime/salvage', `001-g1-${head.slice(0, 8)}.report.md`);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, 'other\n');
+  const failed = prepareAgain(fx);
+  assert.strictEqual(failed.reason, 'worker-salvage-failed');
+  assert.strictEqual(fs.existsSync(fx.worker), true);
+  assert.strictEqual(fs.readFileSync(target, 'utf8'), 'other\n');
+  assert.deepStrictEqual(fs.readdirSync(path.dirname(target)), [path.basename(target)]);
+  // 같은 바이트면 no-op으로 성공한다.
+  fs.writeFileSync(target, 'mine\n');
+  const ok = prepareAgain(fx);
+  assert.strictEqual(ok.ok, true, JSON.stringify(ok));
+  assert.strictEqual(ok.salvage[0].report, target);
+});
+
+test('resume with an owner worker holding a report → output, worker-salvage and repair decisions carry the same report path', () => {
+  const drive = terminalFailedDrive('bouncer-resume-salvage-report-');
+  const worker = path.join(drive.repo, 'workers/resume-001');
+  execFileSync('git', ['worktree', 'add', '--detach', worker, 'HEAD'], { cwd: drive.integration, stdio: 'ignore' });
+  writeWorkerReports(worker, { '001-1.md': 'old\n', '001-2.md': 'owner report\n' });
+  const ledger = readLedgerFile(drive.ledgerFile);
+  ledger.tasks[0].workerPath = worker;
+  ledger.tasks[0].branch = 'resume-owner';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const resumed = coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration, task: '002',
+    resumeTask: '001', failureCommand: 'node --test', summary: 'regression', paths: ['src/a.js'],
+    decision: 'owned by 001',
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  const report = resumed.salvage[0].report;
+  assert.strictEqual(fs.readFileSync(report, 'utf8'), 'owner report\n');
+  const after = readLedgerFile(drive.ledgerFile);
+  assert.strictEqual(after.decisions.find((d) => d.kind === 'worker-salvage').report, report);
+  assert.strictEqual(after.repairWaves[0].salvaged[0].report, report);
+});

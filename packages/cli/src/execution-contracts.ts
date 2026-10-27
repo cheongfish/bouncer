@@ -90,7 +90,8 @@ export type RepairDecision = {
   salvage_predecessor?: { head: string | null; lease_id: string | null; generation: number | null };
   reset_downstream?: string[];
   salvaged?: Array<{
-    task: string; patch?: string; ref?: string; head: string; generation: number; dirty_paths: string[];
+    task: string; patch?: string; ref?: string; report?: string; head: string; generation: number;
+    dirty_paths: string[];
   }>;
 };
 
