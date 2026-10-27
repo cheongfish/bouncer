@@ -128,7 +128,10 @@ to your `Decision required` judgment, never a second brief.
   uncommitted changes as a patch under the integration
   `.bouncer/runtime/salvage/<task>-g<gen>-<short>.patch` and its unintegrated
   commits as `refs/bouncer/salvage/<task>/g<gen>-<short>`. The output `salvage`
-  lists both; reapply a patch with `git apply --binary`. If preserving fails,
+  lists both; reapply a patch with `git apply --binary`. The revoked worker's
+  latest report is preserved too, as
+  `.bouncer/runtime/salvage/<task>-g<gen>-<short>.report.md`, and appears as the
+  `report` of that `salvage[]` entry. If preserving fails,
   `worker-salvage-failed` stops `prepare` and the worker stays as it was.
 - A terminal failure proven to be outside every approved task scope is recorded
   with `coordinate repair --task <terminal> --disposition outside_scope` (with
