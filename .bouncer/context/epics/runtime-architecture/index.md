@@ -34,6 +34,7 @@ bouncer:
 12. Verification의 실행·identity 계산·증적 저장은 서로 다른 모듈이 소유하고 기존 대상 선택 경계를 유지한다. 재사용의 원본 timestamp·출력·evidence ID, throw와 cache miss 구분, 기록 뒤 task 승격 순서가 보존된다.
 13. 컨텍스트 리뷰는 기존 저장 계층 위에서 순수 전이 판단과 문서 투영을 구분한다. State·Cycle 타입 정본이 하나이며 재시작 누적 한도·명시적 accepted-risk 동의·closure digest·동일 입력의 복구와 쓰기 순서가 보존된다.
 14. 네 책임 분해의 금지 역참조·순수 모듈 I/O 경계를 회귀 검사하고, 동일 Node 24·npm·OS에서 잰 전후 snapshot과 inventory가 기존 check-report를 통과한다. 기존 CLI·승인·증적·동시성 계약과 coverage 임계값 94/82/96을 유지한다.
+15. 역할 모델 해석은 기존 `subagents.<provider>.<agent>` slug → `roles` 등급의 `model_tiers` 매핑 → `inherit` 순이며, 기존 slug 설정의 `subagent-model` 한 줄 출력은 바뀌지 않는다. 비어 있는 등급 매핑은 exit 1로 거절되고 다른 모델로 대체되지 않으며, `--json`은 `provider, role, tier, model, effort, source`를 내고 Claude hook은 그 `model`·`effort`로 Agent 호출을 보정한다.
 
 ## Out of scope
 - 특정 단계의 기능 → 해당 단계 영역
@@ -69,3 +70,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [coordinator-command-split](blueprints/coordinator-command-split/index.md) — `coordinator` facade를 명령 API로 줄이고, 원장 fence 열기를 공통 helper로 묶고, `coordinate()`·`cmdCoordinate()`를 서브명령 handler로 나눈다.
 - [gate-review-split](blueprints/gate-review-split/index.md) — `runCheckGate()`를 gate 단계 모듈로, `context-review-state.ts`를 저장 계층과 cycle 전이로 나누고 이 시리즈의 전후 실측을 기록한다.
 - [workflow-responsibility-split](blueprints/workflow-responsibility-split/index.md) — prepare·bootstrap·commit fan-in, digest 수집·조립, verification 실행·identity·증적, 리뷰 순수 전이·투영을 분리하고 경계 검사와 전후 실측을 기록한다.
+- [model-tiers-effort](blueprints/model-tiers-effort/index.md) — `.bouncer/config.json`에 `model_tiers`·`roles`를 더하고 `subagent-model --json`·Claude hook·init 예시·`rules/subagent-model.md`가 등급과 effort를 해석·전달한다.

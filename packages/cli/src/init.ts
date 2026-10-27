@@ -191,6 +191,21 @@ function defaultConfig(repoRoot: string) {
         'bouncer-coordinator': 'inherit',
       },
     },
+    // 역할 등급 예시. 등급 값은 전부 "inherit"라 모델은 계속 부모 세션을 상속하고,
+    // 모델을 고정하지 않는 위 계약을 지킨다. 역할은 전부 standard/medium이므로
+    // 실제로 달라지는 것은 effort medium 하나뿐이다. 이미 init된 저장소 config에는
+    // 쓰지 않는다 — 두 블록은 사용자가 직접 추가한다(재작성 경로를 만들지 않는 계약).
+    model_tiers: Object.fromEntries(['claude', 'cursor', 'codex', 'antigravity'].map((provider) => [
+      provider,
+      { strong: 'inherit', standard: 'inherit', light: 'inherit' },
+    ])),
+    roles: Object.fromEntries([
+      'bouncer-reviewer',
+      'bouncer-implementer',
+      'bouncer-debugger',
+      'bouncer-context-reviewer',
+      'bouncer-coordinator',
+    ].map((agent) => [agent, { tier: 'standard', effort: 'medium' }])),
   };
 }
 

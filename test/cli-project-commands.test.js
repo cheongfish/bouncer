@@ -1447,6 +1447,74 @@ test('subagent-model without --agent or with an unknown name → exits 2', () =>
   assert.strictEqual(unknown.out, '');
 });
 
+function tierRepo(config) {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-subagent-tier-'));
+  writeSubagentConfig(repo, config);
+  return repo;
+}
+
+test('subagent-model --json with a tier → prints one JSON line with the resolution', () => {
+  const repo = tierRepo({
+    subagents: { provider: 'claude', claude: {} },
+    roles: { 'bouncer-coordinator': { tier: 'standard', effort: 'medium' } },
+    model_tiers: { claude: { standard: 'claude-sonnet-5-5' } },
+  });
+  const result = capture([
+    'subagent-model', '--agent', 'bouncer-coordinator', '--json', '--repo', repo,
+  ]);
+  assert.strictEqual(result.code, 0);
+  assert.deepStrictEqual(JSON.parse(result.out), {
+    provider: 'claude', role: 'bouncer-coordinator', tier: 'standard',
+    model: 'claude-sonnet-5-5', effort: 'medium', source: 'tier',
+  });
+});
+
+test('subagent-model --json with no slot and no roles → model is the string inherit', () => {
+  const repo = tierRepo({ subagents: { provider: 'claude', claude: {} } });
+  const result = capture([
+    'subagent-model', '--agent', 'bouncer-reviewer', '--json', '--repo', repo,
+  ]);
+  assert.strictEqual(result.code, 0);
+  assert.deepStrictEqual(JSON.parse(result.out), {
+    provider: 'claude', role: 'bouncer-reviewer', tier: null,
+    model: 'inherit', effort: null, source: 'inherit',
+  });
+});
+
+test('subagent-model with an unmapped tier → exits 1 with empty stdout and one stderr line', () => {
+  const repo = tierRepo({
+    subagents: { provider: 'codex', codex: {} },
+    roles: { 'bouncer-coordinator': { tier: 'standard' } },
+    model_tiers: { codex: { strong: 'gpt-6.1-sol' } },
+  });
+  for (const extra of [[], ['--json']]) {
+    const result = capture([
+      'subagent-model', '--agent', 'bouncer-coordinator', '--repo', repo, ...extra,
+    ]);
+    assert.strictEqual(result.code, 1);
+    assert.strictEqual(result.out, '');
+    assert.match(
+      result.err,
+      /^subagent-model: tier-unmapped: provider=codex role=bouncer-coordinator tier=standard .*\(fix: model_tiers\.codex\.standard\)\n$/,
+    );
+  }
+});
+
+test('subagent-model with a control-character tier → exits 1 and never echoes the raw value', () => {
+  const repo = tierRepo({
+    subagents: { provider: 'claude', claude: {} },
+    roles: { 'bouncer-reviewer': { tier: 'a\nb' } },
+  });
+  const result = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--repo', repo]);
+  assert.strictEqual(result.code, 1);
+  assert.strictEqual(result.out, '');
+  assert.match(
+    result.err,
+    /^subagent-model: role-config-invalid: provider=claude role=bouncer-reviewer tier=<invalid> .*\(fix: roles\.bouncer-reviewer\.tier\)\n$/,
+  );
+  assert.strictEqual(result.err.split('\n').length, 2);
+});
+
 test('codex-agents check when in sync → reports in_sync JSON and does not write', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-check-'));
   assert.strictEqual(withBouncerHome(() => capture([

@@ -26,6 +26,9 @@
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` PR 기준. 없으면 `base_branch` → `origin/HEAD` → 사용자에게 묻기 | `"main"` |
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
 | `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
+| `model_tiers.<provider>.<tier>` | `"inherit"` \| 호스트 모델 slug. `<tier>`는 `strong`·`standard`·`light` | 역할 등급을 호스트 모델로 옮기는 표. `subagents` slot이 없을 때 `bouncer subagent-model`이 읽는다. 빈 값·비문자열이면 상속하지 않고 `tier-unmapped`로 거절 | 없음. 역할 등급에 매핑이 없으면 `tier-unmapped`. `bouncer init` 예시는 `"inherit"` |
+| `roles.<agent>.tier` | `strong` \| `standard` \| `light` | 에이전트가 쓰는 등급 | 없음. 없으면 등급 없음이라 모델은 상속. `bouncer init` 예시는 `"standard"` |
+| `roles.<agent>.effort` | `low` \| `medium` \| `high` | 디스패치에 넘기는 추론 effort | 없음. 없거나 `null`이면 effort를 넘기지 않음(`null`). `bouncer init` 예시는 `"medium"` |
 | `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
 
 `bouncer init`은 새 config를 만들 때 `package.json`에 `scripts.build`가 있으면 `worktree.setup`을 `"npm run build"`로 넣습니다. 이미 있는 config에는 자동으로 들어가지 않으니 필요하면 직접 추가하세요.
@@ -146,7 +149,7 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 }
 ```
 
-- `"inherit"`(또는 빈 값·문자열 아닌 값)이면 부모 세션 모델을 그대로 씁니다.
+- `subagents` slot이 `"inherit"`(또는 빈 값·문자열 아닌 값)이면 부모 세션 모델을 그대로 씁니다.
 - Plan·execute 기록의 모델명은 설정에서 읽은 관찰값이며 호스트가 실제로 실행한
   모델의 증거가 아닙니다. 호스트가 설정 모델을 거절하면 자동으로 `inherit`, 부모
   모델, 별칭 또는 generic fallback으로 우회하지 말고 중단하세요. 사용자에게
@@ -167,6 +170,18 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
   나타나지 않고, 각 프로세스의 출력은 파일로만 남습니다. `provider`가 `cursor`가
   아니면 무시됩니다. 자세한 실행 방식은
   [`rules/cursor-print-dispatch.md`](../rules/cursor-print-dispatch.md)에 있습니다.
+- 모델 해석 순서는 `subagents.<provider>.<agent>` slot, 그다음
+  `model_tiers.<provider>.<tier>`입니다. 등급 값이 없거나 비어 있거나 문자열이
+  아니면 부모 상속이 아니라 `tier-unmapped` 오류(exit 1)로 거절하니 디스패치하지
+  말고 사용자에게 알리세요. `roles` 설정이 잘못되면 `role-config-invalid`입니다.
+- `bouncer subagent-model --agent <name> --json`은 한 줄
+  `{ provider, role, tier, model, effort, source }`를 출력합니다. effort는 호스트별로
+  전달합니다: Claude Code는 Agent `effort` 인자(hook이 보정), Codex는 spawn
+  `reasoning_effort`(custom agent TOML 필드명은 `model_reasoning_effort`), Cursor는
+  effort가 모델 slug에 들어 있어 넘기지 않고 미적용 사실을 사용자에게 알립니다.
+- `bouncer init`은 새 config에만 `model_tiers`(전부 `"inherit"`)와 `roles`
+  (전부 `standard`·`medium`) 예시를 씁니다. 이미 init한 저장소는 두 블록을
+  직접 추가해야 하며, 없으면 기존처럼 부모 모델을 상속합니다.
 - 이미 `bouncer init`을 돌린 저장소는 `antigravity` 블록과
   `bouncer-coordinator` 키를 직접 추가해야 합니다. 없어도 부모 모델을
   상속하므로 깨지지는 않습니다.
