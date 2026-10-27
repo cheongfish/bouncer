@@ -2437,14 +2437,15 @@ for (const scale of ['full', 'light']) {
           } else if (brief) {
             assert.strictEqual(out.strategy, 'parallel');
             assert.deepStrictEqual(out.perspectives, ['spec_scope', 'correctness_tests', 'security']);
-            assert.deepStrictEqual(out.reasons, [
+            // 뒤따르는 등급 근거 줄은 provider 설정에 따라 달라 앞 두 줄만 고정한다.
+            assert.deepStrictEqual(out.reasons.slice(0, 2), [
               'review_contract brief — brief-compliance perspectives',
               'review_risk credential adds security reviewer',
             ]);
           } else if (scale === 'light') {
             assert.strictEqual(out.strategy, 'single');
             assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
-            assert.deepStrictEqual(out.reasons, [
+            assert.deepStrictEqual(out.reasons.slice(0, 2), [
               'blueprint scale is light — single combined reviewer regardless of diff size',
               'review_risk credential adds security reviewer',
             ]);
@@ -2466,4 +2467,266 @@ test('execute with a missing blueprint index → rejects blueprint index unreada
   const out = discover(fx);
   assert.strictEqual(out.ok, false);
   assert.ok(out.error.startsWith('blueprint index unreadable:'), out.error);
+});
+
+// ---- 리뷰어 등급(reviewer_tier) ----
+function writeConfig(repo, cfg) {
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(cfg));
+}
+
+const STRONG_CLAUDE = {
+  subagents: { provider: 'claude' },
+  model_tiers: { claude: { strong: 'claude-strong-x', standard: 'claude-standard-x' } },
+};
+
+function tierPlan(repo) {
+  return classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+}
+
+// risk 배열은 task 번호 순서. 지정 없으면 review_risk 필드를 쓰지 않는다.
+function tierPlanRepo(tasks, risks = []) {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks });
+  tasks.forEach((n, i) => {
+    if (risks[i] !== undefined) writeCommitTask(repo, n, { reviewRisk: risks[i] });
+  });
+  return repo;
+}
+
+test('plan with two commit tasks and empty review_risk → reviewer_tier standard, not applied', () => {
+  const plan = tierPlan(tierPlanRepo(['001', '002'], [[], []]));
+  assert.strictEqual(plan.reviewer_tier, 'standard');
+  assert.strictEqual(plan.reviewer_tier_applied, false);
+  assert.ok(plan.reasons.some((r) => r.startsWith('reviewer tier standard')), plan.reasons.join('|'));
+});
+
+test('plan with three commit tasks → reviewer_tier strong', () => {
+  const plan = tierPlan(tierPlanRepo(['001', '002', '003']));
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+});
+
+test('plan with one commit task and public_interface review_risk → reviewer_tier strong', () => {
+  const plan = tierPlan(tierPlanRepo(['001'], [['public_interface']]));
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+});
+
+test('plan with review_contract brief perspectives → carries the tier fields too', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'], reviewContract: 'brief' });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.strategy, 'perspectives');
+  assert.strictEqual(plan.reviewer_tier, 'standard');
+  assert.strictEqual(plan.reviewer_tier_applied, false);
+});
+
+test('plan with a malformed review_risk on one task → returns the union failure unchanged', () => {
+  const repo = tierPlanRepo(['001'], [['bogus']]);
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.ok, false);
+  assert.strictEqual(plan.reviewer_tier, undefined);
+});
+
+test('plan with light unmarked blueprint → skip payload has no reviewer_tier', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  // 하한 값이 잘못돼도 reviewer가 없는 skip 경로는 검사하지 않는다.
+  writeConfig(repo, { review: { min_reviewer_tier: 'light' } });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.ok, true);
+  assert.strictEqual(plan.strategy, 'skip');
+  assert.strictEqual(plan.reviewer_tier, undefined);
+  assert.strictEqual(plan.reviewer_tier_applied, undefined);
+});
+
+test('plan with strong tier and model_tiers.claude.strong → agent_dispatch.model is the mapped slug', () => {
+  const repo = tierPlanRepo(['001', '002', '003']);
+  writeConfig(repo, STRONG_CLAUDE);
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.strictEqual(plan.reviewer_tier_applied, true);
+  assert.deepStrictEqual(plan.agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: 'claude-strong-x',
+  });
+});
+
+test('plan with strong tier mapped to inherit → agent_dispatch.model is null and applied', () => {
+  const repo = tierPlanRepo(['001', '002', '003']);
+  writeConfig(repo, {
+    subagents: { provider: 'claude', claude: { 'bouncer-context-reviewer': 'slot-model' } },
+    model_tiers: { claude: { strong: 'inherit' } },
+  });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.reviewer_tier_applied, true);
+  assert.deepStrictEqual(plan.agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: null,
+  });
+});
+
+test('plan with strong tier and no strong mapping → keeps the old agent_dispatch with a not-applied reason', () => {
+  const repo = tierPlanRepo(['001', '002', '003']);
+  writeConfig(repo, {
+    subagents: { provider: 'claude', claude: { 'bouncer-context-reviewer': 'slot-model' } },
+  });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.strictEqual(plan.reviewer_tier_applied, false);
+  assert.deepStrictEqual(plan.agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: 'slot-model',
+  });
+  assert.ok(plan.reasons.includes(
+    'reviewer tier strong not applied: tier-unmapped (fix: model_tiers.claude.strong)',
+  ), plan.reasons.join('|'));
+});
+
+test('plan with standard tier and a standard mapping → agent_dispatch stays the old value', () => {
+  const repo = tierPlanRepo(['001'], [[]]);
+  writeConfig(repo, {
+    subagents: { provider: 'claude' },
+    model_tiers: { claude: { standard: 'claude-standard-x' } },
+    roles: { 'bouncer-context-reviewer': { tier: 'light' } },
+  });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.reviewer_tier, 'standard');
+  assert.strictEqual(plan.reviewer_tier_applied, false);
+  assert.deepStrictEqual(plan.agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: null,
+  });
+});
+
+test('plan with no model_tiers → agent_dispatch equals the slot-only resolution', () => {
+  const repo = tierPlanRepo(['001', '002', '003']);
+  writeConfig(repo, {
+    subagents: { provider: 'claude', claude: { 'bouncer-context-reviewer': 'slot-model' } },
+  });
+  assert.deepStrictEqual(tierPlan(repo).agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: 'slot-model',
+  });
+});
+
+test('plan with strong tier and an unknown provider → not applied with a not-applied reason', () => {
+  const repo = tierPlanRepo(['001', '002', '003']);
+  writeConfig(repo, { model_tiers: { claude: { strong: 'claude-strong-x' } } });
+  const saved = {};
+  const keys = ['CLAUDE_PLUGIN_ROOT', 'PLUGIN_ROOT', 'CLAUDECODE', 'CODEX_THREAD_ID'];
+  for (const k of keys) { saved[k] = process.env[k]; delete process.env[k]; }
+  let plan;
+  try {
+    plan = tierPlan(repo);
+  } finally {
+    for (const k of keys) if (saved[k] !== undefined) process.env[k] = saved[k];
+  }
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.strictEqual(plan.reviewer_tier_applied, false);
+  assert.ok(plan.reasons.some((r) => r.includes('not applied')), plan.reasons.join('|'));
+});
+
+test('plan with min_reviewer_tier strong and a small plan → reviewer_tier strong', () => {
+  const repo = tierPlanRepo(['001'], [[]]);
+  writeConfig(repo, { review: { min_reviewer_tier: 'strong' } });
+  assert.strictEqual(tierPlan(repo).reviewer_tier, 'strong');
+});
+
+test('plan with min_reviewer_tier standard → has no effect on a strong calculation', () => {
+  const repo = tierPlanRepo(['001'], [['public_interface']]);
+  writeConfig(repo, { review: { min_reviewer_tier: 'standard' } });
+  assert.strictEqual(tierPlan(repo).reviewer_tier, 'strong');
+  const small = tierPlanRepo(['001'], [[]]);
+  writeConfig(small, { review: { min_reviewer_tier: 'standard' } });
+  assert.strictEqual(tierPlan(small).reviewer_tier, 'standard');
+});
+
+test('plan with an invalid min_reviewer_tier → rejects with review-min-reviewer-tier-invalid', () => {
+  for (const bad of ['light', 'strng', 3, null, ['strong']]) {
+    const repo = tierPlanRepo(['001'], [[]]);
+    writeConfig(repo, { review: { min_reviewer_tier: bad } });
+    assert.deepStrictEqual(tierPlan(repo), {
+      ok: false, error: 'review config invalid',
+      reason: 'review-min-reviewer-tier-invalid', next: 'review.min_reviewer_tier',
+    }, JSON.stringify(bad));
+  }
+});
+
+// execute: task 범위 fixture와 blueprint 범위 fixture
+function tierExecute({ tasks, risks, taskId, mode, cfg }) {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks });
+  tasks.forEach((n, i) => {
+    if (risks && risks[i] !== undefined) writeCommitTask(repo, n, { reviewRisk: risks[i] });
+  });
+  if (cfg) writeConfig(repo, cfg);
+  const base = commitBaseline(repo);
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  git(repo, ['add', 'src']);
+  git(repo, ['commit', '-qm', 'change']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  return classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId, base, head, reviewMode: mode,
+  });
+}
+
+test('execute task scope with empty review_risk → reviewer_tier standard even among many tasks', () => {
+  const out = tierExecute({ tasks: ['001', '002', '003'], risks: [[], [], []], taskId: '001' });
+  assert.strictEqual(out.reviewer_tier, 'standard');
+  assert.strictEqual(out.reviewer_tier_applied, false);
+});
+
+test('execute task scope with authentication review_risk → reviewer_tier strong', () => {
+  const out = tierExecute({ tasks: ['001'], risks: [['authentication']], taskId: '001' });
+  assert.strictEqual(out.reviewer_tier, 'strong');
+});
+
+test('execute blueprint scope with three commit tasks and empty review_risk → reviewer_tier strong', () => {
+  const out = tierExecute({ tasks: ['001', '002', '003'], risks: [[], [], []] });
+  assert.strictEqual(out.reviewer_tier, 'strong');
+});
+
+test('execute blueprint scope with two commit tasks and empty review_risk → reviewer_tier standard', () => {
+  const out = tierExecute({ tasks: ['001', '002'], risks: [[], []] });
+  assert.strictEqual(out.reviewer_tier, 'standard');
+});
+
+test('execute delta path with strong tier → carries both fields and applies the mapping', () => {
+  const out = tierExecute({
+    tasks: ['001'], risks: [['public_interface']], taskId: '001', mode: 'delta', cfg: STRONG_CLAUDE,
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.strictEqual(out.reviewer_tier_applied, true);
+  assert.deepStrictEqual(out.agent_dispatch, {
+    agent: 'bouncer-reviewer', provider: 'claude', model: 'claude-strong-x',
+  });
+  assert.ok(out.reasons.some((r) => r.startsWith('reviewer tier strong')));
+});
+
+test('execute with strong tier and no strong mapping → keeps agent_dispatch and adds the not-applied reason', () => {
+  const out = tierExecute({
+    tasks: ['001'], risks: [['public_interface']], taskId: '001',
+    cfg: { subagents: { provider: 'claude', claude: { 'bouncer-reviewer': 'slot-model' } } },
+  });
+  assert.strictEqual(out.reviewer_tier_applied, false);
+  assert.deepStrictEqual(out.agent_dispatch, {
+    agent: 'bouncer-reviewer', provider: 'claude', model: 'slot-model',
+  });
+  assert.ok(out.reasons.includes(
+    'reviewer tier strong not applied: tier-unmapped (fix: model_tiers.claude.strong)',
+  ), out.reasons.join('|'));
+});
+
+test('execute with min_reviewer_tier light → rejects with review-min-reviewer-tier-invalid', () => {
+  const out = tierExecute({
+    tasks: ['001'], risks: [[]], taskId: '001', cfg: { review: { min_reviewer_tier: 'light' } },
+  });
+  assert.deepStrictEqual(out, {
+    ok: false, error: 'review config invalid',
+    reason: 'review-min-reviewer-tier-invalid', next: 'review.min_reviewer_tier',
+  });
+});
+
+test('execute with min_reviewer_tier strong → raises a small task to strong', () => {
+  const out = tierExecute({
+    tasks: ['001'], risks: [[]], taskId: '001', cfg: { review: { min_reviewer_tier: 'strong' } },
+  });
+  assert.strictEqual(out.reviewer_tier, 'strong');
 });
