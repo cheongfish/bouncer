@@ -17,18 +17,18 @@ function releaseSection() {
   return body.split(/^## /m)[0];
 }
 
-test('planning rule section lists every release-time file as a backtick token', () => {
+test('planning rule section → lists every release-time file as a backtick token', () => {
   const section = releaseSection();
   // 백틱 토큰 전체를 본다: `package.json`이 `packages/cli/package.json`의 부분 문자열로 통과하지 않게.
   const missing = FILES.filter((f) => !section.includes('`' + f + '`'));
   assert.deepStrictEqual(missing, [], 'missing file tokens: ' + missing.join(', '));
 });
 
-test('planning rule section tells the user release docs are written at release time', () => {
+test('planning rule section → tells the user release docs are written at release time', () => {
   assert.ok(releaseSection().includes('릴리스 시점에 따로 작성'), 'missing phrase: 릴리스 시점에 따로 작성');
 });
 
-test('scope-confirm reference points at the Release-time documents section', () => {
+test('scope-confirm reference → points at the Release-time documents section', () => {
   const ref = fs.readFileSync(path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'), 'utf8');
   assert.ok(ref.includes('Release-time documents'), 'missing reference: Release-time documents');
 });
