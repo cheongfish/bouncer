@@ -95,6 +95,16 @@ test('open must_fix after delta → guide names close, restart and accepted-risk
   assert.match(routeItem, /accepted-risk[\s\S]*stop/);
 });
 
+// close 전 동의는 root가 finding·처분·note를 보여 준 뒤 ID별로 받는다. 표시 없는 동의는 계약 위반이다.
+test('close guide → requires root to show findings and per-ID accepted-risk consent before close', () => {
+  const md = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-plan', 'references', 'context-review.md'),
+    'utf8',
+  ).replace(/\s+/g, ' ');
+  assert.match(md, /before asking for consent,? the root shows[\s\S]*finding'?s? ID[\s\S]*disposition[\s\S]*note/i);
+  assert.match(md, /accepted-risk[\s\S]*concrete risk[\s\S]*why[\s\S]*basis[\s\S]*explicit consent for (?:that|each) ID/i);
+});
+
 // 기존 단언을 바꾸는 task는 Constraints에 파일·테스트명·새 기대값을 적어야 한다. 이 책임이
 // consistency 절에서 빠지면 단언 변경 범위가 비어 있는 브리프가 어느 관점에서도 걸리지 않는다.
 test('consistency rubric → requires Constraints to name changed assertion file, test and expectation', () => {

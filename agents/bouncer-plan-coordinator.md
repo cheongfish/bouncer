@@ -65,7 +65,7 @@ user.
    must_fix fix with the planner mode above.
 6. When accepted-risk or a context review close is needed, write the
    dispositions JSON to `.bouncer/runtime/plan-ledgers/<id>.dispositions.json`,
-   `ask` the user, and return `needs_user`. The root runs `context-review close
+   `ask` the user, and return `needs_user` with each finding's ID, disposition, and note (and for accepted-risk the concrete risk, why it is not fixed, and the basis) so the root can show them before consent. The root runs `context-review close
    --dispositions <file> [--accept-risk <ids>]` after the user approves. On the
    next session decide whether the close happened from the context-review cycle
    state, never from `answer.text`.

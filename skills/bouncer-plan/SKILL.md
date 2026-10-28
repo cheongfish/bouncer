@@ -291,7 +291,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    repo root; tell the user to wrap container-up + test in one project script.
    After the draft, run `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) on
    the authored bodies before approval.
-   After authoring, build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) and show them before step 4. They are advisory only — do not write them into frontmatter. Neither intent nor Explain results go into frontmatter; step 4 alone writes user-confirmed `affected_paths`.
+   After authoring, build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) as advisory input for the step 4 checkpoint, which alone presents paths to the user. They are advisory only — do not write them into frontmatter. Neither intent nor Explain results go into frontmatter; step 4 alone writes user-confirmed `affected_paths`.
 
 4. **Scope confirm.** Write `affected_paths` only after the user confirms them
    — never from Graphify query results, candidate lists, or inspect output. When confirming affected_paths, read this reference: [scope-confirm.md](./references/scope-confirm.md). Then, at the checkpoint, the root runs **ACQ — affected_paths (`plan.affected_paths`):** propose the per-area candidate path sets for the user
@@ -312,8 +312,11 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    (`--planner-mode fresh`). When accepted-risk or a `context-review close` needs
    user consent, the coordinator writes the dispositions to
    `.bouncer/runtime/plan-ledgers/<id>.dispositions.json`, asks, and returns
-   `needs_user`; the root asks the user and, on approval, runs
-   `context-review close`.
+   `needs_user`. Before it asks for consent, the root reads the dispositions
+   file and shows the user each finding's ID, disposition, and note; for each
+   accepted-risk finding it adds the concrete risk, why it is not fixed, and the
+   basis for accepting it, and takes explicit consent for that ID. On approval
+   the root runs `context-review close`.
 
    **Skip this entire step when the blueprint's
    `bouncer.scale` is `light` and it has no `bouncer.review_contract` marker** —
@@ -351,7 +354,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    overlapping `affected_paths` among `parallel_safe: true` peers, or edges
    that would create a cycle). Fix conflicts in authoring; do not ask for
    approval on an invalid graph. **ACQ — Approval (`plan.approval`):** the root shows the blueprint path, the task DAG, and each task's
-   `affected_paths`, then asks the user to approve the plan. On approval, run
+   `affected_paths` (the root reads each task's `affected_paths` directly from that task's frontmatter, not from the coordinator summary), then asks the user to approve the plan. On approval, run
    `bouncer plan approve --blueprint <dir>`. Never approve silently.
 
 7. **Activate.** Record the approved blueprint's namespace key:
@@ -380,7 +383,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
 
 ## Fallback
 
-If the plan coordinator returns `blocked: nesting-unavailable`, the root continues from the `plan-ledger status` phase with the direct procedure; in `review` it follows `bouncer context-review route` `next_action`, and it never approves without `plan.approval`. The same holds on a host where neither the named agent nor a generic subagent can be used. Documents already scaffolded in `authoring` or `review` are drafts: continue writing them. The context-review cycle state keeps the round limit.
+If the plan coordinator returns `blocked: nesting-unavailable` (nesting only is unavailable), the root takes over the coordinator's duties from the `plan-ledger status` phase and performs the reviewer dispatch it can still make; in `review` it follows `bouncer context-review route` `next_action`, and it never approves without `plan.approval`. Only on a host with no subagent at all does the root use the generic, inline, then print fallback order of `${BOUNCER_ROOT}/rules/subagent-model.md`, with the same approval boundary and round limit. Documents already scaffolded in `authoring` or `review` are drafts: continue writing them. The context-review cycle state keeps the round limit.
 
 ## ACQ (AskUserQuestion) gates
 
