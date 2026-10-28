@@ -130,7 +130,7 @@ function coordinateCli(cwd, command, extra, { fence = true } = {}) {
     const fenced = new Set([
       'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
       'repair', 'reverify', 'partial-close', 'critical-recovery', 'release', 'revoke', 'session-open',
-      'worker-model', 'worker-tokens', 'note',
+      'worker-model', 'worker-tokens', 'note', 'uncommit',
     ]);
     let args = [...extra];
     if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
@@ -1663,4 +1663,11 @@ test('coordinate revise with a valueless --release-do-not-touch → exits 2 and 
   ], [], repo);
   assert.strictEqual(code, 2, buf.err);
   assert.strictEqual(fs.readFileSync(docFile, 'utf8'), before);
+});
+
+test('coordinate uncommit without --task → exits 2 with the task usage error', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.worker, 'uncommit', ['--repo', drive.repo]);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.buf.err, /coordinate uncommit: --task is required/);
 });

@@ -51,6 +51,7 @@ const { integrateCommitWave, lightWorkerAssigned, rejectLeaseMismatch } = coordi
 const {
   reportPathFor, taskBriefHashOf, readBouncerBlock, workerCommitEvidence,
   ensureIntegrationCwd, currentScopePaths, intentIdFor, verificationPolicyAt,
+  expectedTaskRef, untraileredWorkerCommits,
 } = coordinatorWorker;
 const {
   git, initialWorktreeState, directParent, registeredWorker, registeredIntegration,
@@ -71,7 +72,7 @@ const {
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
   'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
-  'reverify', 'note',
+  'reverify', 'note', 'uncommit',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
@@ -137,6 +138,10 @@ type StaleReportDecision = {
 type RerecordDecision = {
   task: string; kind: 'rerecord'; reason: string; previousSha: string;
   nextSha: string; integrationHead: string;
+};
+// worker가 트레일러 없이 만든 커밋을 soft reset으로 되돌린 기록이다. `isException`이 예외 판단으로 센다.
+type UncommitDecision = {
+  task: string; kind: 'uncommit'; attempt: number; fromHead: string; toHead: string; commits: string[];
 };
 // root가 coordinator 세션을 열기 직전 `coordinate session-open`이 남기는 경계 표지다.
 // `coordinate next`가 이 표지 뒤의 `fanin` 수로 세션 wave 수를 센다. 예외가 아니다.
@@ -1210,6 +1215,64 @@ function coordinateRerecord(ctx: TaskCtx): CoordinateResult {
 }
 
 /**
+ * `uncommit`: `bouncer commit`이 stamp를 못 쓰게 만든 무트레일러 worker 커밋을 soft reset으로 되돌린다.
+ * 변경은 index에 staged로 남아 다음 `commit`이 트레일러 커밋으로 다시 만든다. 사전 조건 거절은 Git과
+ * 원장을 바꾸기 전에 끝나고, reset 뒤 실패(lock 상실·원장 쓰기 throw)는 `fromHead` 복원 하나로만 되돌린다.
+ *
+ * @param {TaskCtx} ctx - 공통 준비가 끝난 handler 문맥
+ * @returns {CoordinateResult} 명령 결과. 거절은 `ok: false`와 reason
+ * @throws 원장 쓰기가 throw하면 HEAD를 복원한 뒤 같은 오류를 다시 던진다
+ */
+function coordinateUncommit(ctx: TaskCtx): CoordinateResult {
+  const { task, cwd, exec, integration, ledger, commitWrite, item } = ctx;
+  const { command, blueprint } = ctx.args;
+  // 1. 거절은 모두 mutation 전에 끝낸다. stamp된 커밋은 이미 정상 commit 산출물이라 reset 대상이 아니다.
+  if (item.dispatch?.status !== 'active') return { ok: false, reason: 'illegal-transition' };
+  const tasksBlock = readBouncerBlock(path.join(cwd, blueprint, 'tasks', task, 'tasks.md'));
+  const stamped = tasksBlock ? tasksBlock.commit_sha : undefined;
+  if (stamped !== undefined && stamped !== null && stamped !== '') {
+    return { ok: false, reason: 'illegal-transition' };
+  }
+  // next와 같은 판별 함수를 써서 "blocked로 안내한 커밋"과 "되돌릴 커밋"이 갈라지지 않게 한다.
+  const commits = untraileredWorkerCommits(exec, cwd, ledger, expectedTaskRef(tasksBlock));
+  if (commits.length === 0) return { ok: false, reason: 'uncommit-not-needed' };
+
+  // 2. 가장 오래된 무트레일러 커밋의 first parent까지 되돌리면 그 위에 쌓인 커밋도 함께 staged가 된다.
+  const toHead = git(exec, cwd, ['rev-parse', `${commits[0]}^1`]);
+  const fromHead = git(exec, cwd, ['rev-parse', 'HEAD']);
+  git(exec, cwd, ['reset', '--soft', toHead]);
+
+  // 3. reset 뒤 실패는 원장이 기록되지 않았으므로 HEAD를 fromHead로 되돌려 Git과 원장을 맞춘다.
+  // 복원 reset마저 실패하면 HEAD가 toHead에 남는다는 사실을 reason으로 알려 사용자가 복구를 정하게 한다.
+  const rollback = (): CoordinateResult | null => {
+    try {
+      git(exec, cwd, ['reset', '--soft', fromHead]);
+      return null;
+    } catch (_error) {
+      // reset 실패의 세부 원인은 hint가 안내하는 수동 복구와 무관하다. fromHead·toHead만 돌려준다.
+      return { ok: false, reason: 'uncommit-rollback-failed', fromHead, toHead };
+    }
+  };
+  const uncommitDecision: UncommitDecision = {
+    task, kind: 'uncommit', attempt: item.dispatch.attempt, fromHead, toHead, commits,
+  };
+  item.decisions = [...(item.decisions || []), uncommitDecision];
+  ledger.decisions.push(uncommitDecision);
+  let lost: ReturnType<typeof commitWrite>;
+  try {
+    lost = commitWrite();
+  } catch (error) {
+    const failed = rollback();
+    if (failed) return failed;
+    throw error;
+  }
+  if (lost) return rollback() || lost;
+  return withCheckpoint({
+    ok: true as const, command, task: item, decision: uncommitDecision,
+  }, ledger, integration.ledgerFile);
+}
+
+/**
  * 복구 계열(coordinator-repair)이 정상 경로와 함께 쓰는 helper. 정의가 이 모듈에 남아 있어
  * coordinator-repair가 이 모듈을 가져오면 순환이 생기므로 handler 표 연결 지점에서 넘긴다.
  */
@@ -1243,6 +1306,7 @@ const TASK_HANDLERS = new Map<string, (ctx: TaskCtx) => CoordinateResult>([
   ['report', coordinateReport],
   ['record', coordinateRecord],
   ['rerecord', coordinateRerecord],
+  ['uncommit', coordinateUncommit],
 ]);
 
 /** lease 검사를 받는 명령. `rerecord`와 `critical-recovery`는 받지 않는다. */
@@ -1348,7 +1412,7 @@ function coordinate(args: CoordinateArgs) {
       const leaseRejected = checkTaskLease(taskCtx);
       if (leaseRejected) return leaseRejected;
     }
-    if (command === 'dispatch' || command === 'report') {
+    if (command === 'dispatch' || command === 'report' || command === 'uncommit') {
       const guardRejected = guardWorkerDispatch(taskCtx);
       if (guardRejected) return guardRejected;
     }
@@ -1439,6 +1503,14 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'findings-required': {
     cause: 'Starting critical recovery requires a non-empty findings list.',
     next: 'Retry `bouncer coordinate critical-recovery` with at least one finding id.',
+  },
+  'uncommit-not-needed': {
+    cause: 'The worker HEAD has no commit lacking this task\'s Bouncer-Task trailer; nothing to uncommit.',
+    next: 'Run `bouncer coordinate next` again to re-judge the task.',
+  },
+  'uncommit-rollback-failed': {
+    cause: 'The uncommit reset succeeded, but the ledger write failed and restoring the worker HEAD failed too.',
+    next: 'HEAD stayed at toHead. Report to the user and ask whether to run `git reset --soft <fromHead>` to recover.',
   },
   'illegal-transition': {
     cause: 'The task is not in a status that allows this coordinate command.',

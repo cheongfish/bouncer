@@ -377,3 +377,15 @@ test('bouncer-planner doc → forbids writing the ledger and dispatching agents'
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-planner.md'), 'utf8').replace(/\s+/g, ' ');
   assert.ok(md.includes('Never write the plan ledger and never dispatch a Bouncer agent.'));
 });
+
+// 무트레일러 worker 커밋 복구는 coordinate uncommit 한 경로뿐이어야 한다.
+// 손 reset 금지 guard와 충돌하지 않도록 역할 문서·카드·CLI 규칙이 같은 식별자를 쓴다.
+test('coordinator doc and blocked card → route worker-commit-untrailered to coordinate uncommit', () => {
+  const coordinator = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const card = fs.readFileSync(path.join(root, 'references', 'coordinator-cards', 'blocked.md'), 'utf8');
+  const cli = fs.readFileSync(path.join(root, 'rules', 'cli.md'), 'utf8');
+  assert.match(coordinator, /worker-commit-untrailered[\s\S]{0,200}coordinate uncommit/);
+  assert.match(card, /worker-commit-untrailered[\s\S]{0,200}coordinate uncommit/);
+  assert.doesNotMatch(coordinator, /git reset --soft/);
+  assert.match(cli, /uncommit-not-needed/);
+});

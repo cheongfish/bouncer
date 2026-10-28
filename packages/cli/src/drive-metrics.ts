@@ -27,7 +27,7 @@ const EFFORTS = ['low', 'medium', 'high'] as const;
 // 이 kind의 decision, 또는 outcome이 accepted가 아닌 report는 "예외 판단"이다.
 const EXCEPTION_KINDS = new Set([
   'stale-report', 'stale-lease', 'repair', 'supplement', 'rerecord',
-  'critical-recovery', 'fanin-verification-failed', 'revoke',
+  'critical-recovery', 'fanin-verification-failed', 'revoke', 'uncommit',
 ]);
 
 type LedgerSnapshot = { decisions: number; completed_tasks: string[]; ledger_sha256: string };

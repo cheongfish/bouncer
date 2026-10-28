@@ -6,7 +6,7 @@ const { coordinatorPathsFor } = runtime;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter, readDoc } = frontmatter;
 import commitShaMod = require('./commit-sha');
-const { normalizeCommitSha } = commitShaMod;
+const { normalizeCommitSha, buildStableProvenance } = commitShaMod;
 import taskBriefHashMod = require('./task-brief-hash');
 const { taskBriefHash } = taskBriefHashMod;
 import executionDag = require('./execution-dag');
@@ -379,6 +379,61 @@ function workerCommitEvidence(
   return { ok: true };
 }
 
+/**
+ * task frontmatter의 식별자로 기대하는 `Bouncer-Task` ref를 만든다. `bouncer commit`이 찍는
+ * 트레일러 값과 같은 `buildStableProvenance`를 쓰므로 형식이 어긋나지 않는다.
+ *
+ * @param {Record<string, unknown> | null} block - task frontmatter의 bouncer 블록
+ * @returns {string | null} ref. 블록이 없거나 식별자가 형식에 맞지 않으면 null
+ */
+function expectedTaskRef(block: Record<string, unknown> | null): string | null {
+  if (!block) return null;
+  try {
+    return buildStableProvenance({
+      epicId: block.epic_id, blueprintId: block.blueprint_id, taskId: block.id,
+    }).task;
+  } catch (_error) {
+    // 식별자가 없는 옛 문서는 ref를 못 만든다. 이때는 호출자가 "트레일러 줄 유무"만 본다.
+    return null;
+  }
+}
+
+/**
+ * worker가 `integrationHead` 이후에 직접 만든 커밋 중 `Bouncer-Task` 트레일러가 없는 것을 찾는다.
+ * `bouncer commit`은 빈 커밋을 만들지 않아 이런 커밋이 있으면 stamp를 쓸 수 없다. next와
+ * `coordinate uncommit`이 같은 기준을 쓰도록 이 함수가 단일 정본이다. 읽기 전용이다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} workerPath - worker checkout
+ * @param {{ integrationHead?: unknown }} ledger - integrationHead를 읽을 원장
+ * @param {string | null} taskRef - 기대 ref. null이면 트레일러 줄이 아예 없는 커밋만 대상
+ * @returns {string[]} 무트레일러 커밋 SHA(오래된 순). integrationHead가 없으면 판별을 생략해 []
+ * @throws git 호출 실패는 추측하지 않고 그대로 올린다
+ */
+function untraileredWorkerCommits(
+  exec: Exec, workerPath: string, ledger: { integrationHead?: unknown }, taskRef: string | null,
+): string[] {
+  if (typeof ledger.integrationHead !== 'string') return [];
+  // %x00으로 SHA와 본문을, -z로 커밋 사이를 나눠 본문 줄바꿈과 섞이지 않게 한다.
+  const out = git(exec, workerPath, [
+    'log', '--first-parent', '--reverse', '-z', '--format=%H%x00%B', `${ledger.integrationHead}..HEAD`,
+  ]);
+  const fields = out.split('\0');
+  const shas: string[] = [];
+  // 필드는 [sha, body, sha, body, ...] 순서다. -z 구분자(\0) 때문에 body가 다음 커밋과 분리된다.
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    const sha = fields[i].trim();
+    const body = fields[i + 1];
+    const refs = body.split('\n').flatMap((line) => {
+      const m = /^Bouncer-Task\s*:\s*(.*?)\s*$/.exec(line);
+      return m ? [m[1]] : [];
+    });
+    const trailered = taskRef === null ? refs.length > 0 : refs.includes(taskRef);
+    if (!trailered) shas.push(sha);
+  }
+  return shas;
+}
+
 function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, task?: string) {
   const paths = coordinatorPathsFor({ repoRoot, blueprint, task });
   const actual = fs.realpathSync(cwd);
@@ -391,6 +446,7 @@ export = {
   reportPathFor, taskBriefHashOf, isBlueprintReviewModeAt, reviewContractAt, readBouncerBlock,
   evidenceFiles, checkWorkerEvidence, copyEvidenceBundle,
   workerCommitEvidence, workerScopeDirtyPaths, ensureIntegrationCwd,
+  expectedTaskRef, untraileredWorkerCommits,
   // coordinator-commands가 같은 경로 정규형과 scope 규칙을 쓰도록 함께 내보낸다.
   currentScopePaths, normalizeSupplementPath, porcelainPaths, intentIdFor, verificationPolicyAt,
 };

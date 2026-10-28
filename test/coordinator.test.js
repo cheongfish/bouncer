@@ -6381,3 +6381,131 @@ test('resume with an owner worker holding a report → output, worker-salvage an
   assert.strictEqual(after.decisions.find((d) => d.kind === 'worker-salvage').report, report);
   assert.strictEqual(after.repairWaves[0].salvaged[0].report, report);
 });
+
+// uncommit 테스트 공통 fixture: dispatch 뒤 task 문서를 verified/passed/accepted로 두어
+// `coordinate next`가 commit 분기에 닿게 한다. stamp(commit_sha)는 비워 둔다.
+function uncommitDrive(prefix, blueprint, { dispatch = true } = {}) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  if (dispatch) {
+    const dispatched = coordinate({
+      command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    });
+    assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  }
+  const dir = path.join(drive.worker, blueprint, 'tasks/001');
+  fs.writeFileSync(path.join(dir, 'tasks.md'),
+    '---\nbouncer:\n  id: TASKS-001\n  status: verified\n  depends_on: []\n  parallel_safe: true\n---\nbrief 001\n');
+  fs.writeFileSync(path.join(dir, 'verification.md'),
+    '---\nbouncer:\n  id: VERIFY-001\n  status: passed\n---\n# Verification\n');
+  fs.writeFileSync(path.join(dir, 'review.md'),
+    '---\nbouncer:\n  id: REVIEW-001\n  status: accepted\n---\n# Review\n');
+  return drive;
+}
+
+function workerGit(worker, args) {
+  return execFileSync('git', args, { cwd: worker, encoding: 'utf8' }).trim();
+}
+
+// message에 trailer를 주면 `Bouncer-Task:` 줄이 붙은 커밋을, 없으면 무트레일러 커밋을 만든다.
+function workerCommit(worker, rel, message, trailer = null) {
+  fs.mkdirSync(path.dirname(path.join(worker, rel)), { recursive: true });
+  fs.writeFileSync(path.join(worker, rel), `${rel}\n`);
+  workerGit(worker, ['add', rel]);
+  workerGit(worker, ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', message,
+    ...(trailer ? ['-m', `Bouncer-Task: ${trailer}`] : [])]);
+}
+
+function uncommitOf(drive, extra = {}) {
+  return coordinate({
+    command: 'uncommit', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.worker, task: '001',
+    ...__fence(drive.repo, drive.blueprint), ...extra,
+  });
+}
+
+function nextActionOf(drive) {
+  const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
+  return coordinateNext({
+    repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath, task: '001',
+  });
+}
+
+// 거절 테스트 공통: HEAD와 원장 바이트가 호출 전과 같다.
+function assertUncommitRejected(drive, reason) {
+  const headBefore = workerGit(drive.worker, ['rev-parse', 'HEAD']);
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  const r = uncommitOf(drive);
+  assert.strictEqual(r.ok, false, JSON.stringify(r));
+  assert.strictEqual(r.reason, reason);
+  assert.strictEqual(workerGit(drive.worker, ['rev-parse', 'HEAD']), headBefore);
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+}
+
+test('uncommit after a worker committed without a trailer → soft-resets to the parent and records an uncommit decision', () => {
+  const blueprint = '.bouncer/context/epics/088-u/blueprints/001-unc';
+  const drive = uncommitDrive('bouncer-uncommit-ok-', blueprint);
+  const integrationHead = workerGit(drive.worker, ['rev-parse', 'HEAD']);
+  workerCommit(drive.worker, 'src/raw.js', 'feat: raw');
+  const r = uncommitOf(drive);
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const { decision } = r;
+  assert.strictEqual(workerGit(drive.worker, ['rev-parse', 'HEAD']), decision.toHead);
+  assert.strictEqual(decision.toHead, integrationHead);
+  assert.strictEqual(decision.commits.length, 1);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.decisions[ledger.decisions.length - 1].kind, 'uncommit');
+  assert.strictEqual(require('../packages/cli/dist/drive-metrics').isException(decision), true);
+  assert.ok(workerGit(drive.worker, ['diff', '--cached', '--name-only']).split('\n').includes('src/raw.js'));
+  assert.strictEqual(workerGit(drive.worker, ['rev-list', `${integrationHead}..HEAD`]), '');
+  assert.strictEqual(nextActionOf(drive).action, 'commit');
+});
+
+test('uncommit with a trailered commit stacked on an untrailered one → resets to the oldest untrailered parent and keeps both changes staged', () => {
+  const blueprint = '.bouncer/context/epics/088-u/blueprints/002-unc';
+  const drive = uncommitDrive('bouncer-uncommit-stack-', blueprint);
+  const integrationHead = workerGit(drive.worker, ['rev-parse', 'HEAD']);
+  const { expectedTaskRef, readBouncerBlock } = require('../packages/cli/dist/coordinator-worker');
+  const ref = expectedTaskRef(readBouncerBlock(path.join(drive.worker, blueprint, 'tasks/001/tasks.md')));
+  workerCommit(drive.worker, 'src/raw.js', 'feat: raw');
+  workerCommit(drive.worker, 'src/ok.js', 'feat: ok', ref || 'x');
+  const r = uncommitOf(drive);
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.decision.toHead, integrationHead);
+  assert.strictEqual(r.decision.commits.length, 1);
+  const staged = workerGit(drive.worker, ['diff', '--cached', '--name-only']).split('\n');
+  assert.ok(staged.includes('src/raw.js') && staged.includes('src/ok.js'), staged.join(','));
+});
+
+test('uncommit with no untrailered commit → rejects with uncommit-not-needed and keeps HEAD and ledger bytes', () => {
+  const blueprint = '.bouncer/context/epics/088-u/blueprints/003-unc';
+  const drive = uncommitDrive('bouncer-uncommit-none-', blueprint);
+  assertUncommitRejected(drive, 'uncommit-not-needed');
+});
+
+test('uncommit on a task without an active dispatch → rejects with illegal-transition and keeps HEAD and ledger bytes', () => {
+  const blueprint = '.bouncer/context/epics/088-u/blueprints/004-unc';
+  const drive = uncommitDrive('bouncer-uncommit-nodispatch-', blueprint, { dispatch: false });
+  workerCommit(drive.worker, 'src/raw.js', 'feat: raw');
+  assertUncommitRejected(drive, 'illegal-transition');
+});
+
+test('uncommit on a stamped task → rejects with illegal-transition and keeps HEAD and ledger bytes', () => {
+  const blueprint = '.bouncer/context/epics/088-u/blueprints/005-unc';
+  const drive = uncommitDrive('bouncer-uncommit-stamped-', blueprint);
+  workerCommit(drive.worker, 'src/raw.js', 'feat: raw');
+  const file = path.join(drive.worker, blueprint, 'tasks/001/tasks.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('status: verified', "status: verified\n  commit_sha: 'abcd1234'"));
+  assertUncommitRejected(drive, 'illegal-transition');
+});
+
+test('uncommit whose ledger write throws → restores HEAD to fromHead and rethrows', () => {
+  const blueprint = '.bouncer/context/epics/088-u/blueprints/006-unc';
+  const drive = uncommitDrive('bouncer-uncommit-throw-', blueprint);
+  workerCommit(drive.worker, 'src/raw.js', 'feat: raw');
+  const headBefore = workerGit(drive.worker, ['rev-parse', 'HEAD']);
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  assert.throws(() => uncommitOf(drive, {
+    deps: { writeLedger: () => { throw new Error('ledger write failed'); } },
+  }), /ledger write failed/);
+  assert.strictEqual(workerGit(drive.worker, ['rev-parse', 'HEAD']), headBefore);
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+});

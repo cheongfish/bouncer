@@ -257,7 +257,7 @@ flag, or an unknown flag is exit 2.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note|uncommit> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
@@ -430,6 +430,12 @@ unchanged.
 `coordinate next` returns `commit` when the task worktree has scope changes to
 commit; on a clean tree whose commit stamp is stale it returns a `blocked`
 action with reason `worker-commit-stamp-mismatch` instead.
+When the stamp is empty and the worker has a commit without a `Bouncer-Task`
+trailer, `coordinate next` returns `blocked` with reason
+`worker-commit-untrailered` whether or not the scope is dirty.
+`coordinate uncommit --task <ddd>` (fenced, run from the worker cwd) soft-resets
+to the parent of the oldest untrailered commit and records an `uncommit`
+decision. It is refused with `uncommit-not-needed` when no such commit exists.
 Use `coordinate revise` only from the assigned worker worktree with a reason
 and explicit source paths. A `partial-close` requires the workflow's explicit
 user confirmation and is unresolved handoff, not ordinary completion.

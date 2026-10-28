@@ -448,7 +448,7 @@ const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next',
   'advance', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
-  'note',
+  'note', 'uncommit',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -570,7 +570,7 @@ function checkFenceFlags(f: CoordFlags, command: string, io: CliIo): number | un
   const fenced = [
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
     'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
-    'worker-model', 'worker-tokens', 'note',
+    'worker-model', 'worker-tokens', 'note', 'uncommit',
   ];
   const missing = !nonEmpty(f['ledger-path']) || !nonEmpty(f['ledger-hash']);
   if (!missing) return undefined;
@@ -695,6 +695,9 @@ function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: C
   // reverify는 terminal task id 없이는 core가 대상을 알 수 없다. core 호출 전에 usage(2)로 거절한다.
   if (command === 'reverify' && !nonEmpty(f.task)) {
     return failCoordinateUsage(io, 'coordinate reverify: --task is required\n', command);
+  }
+  if (command === 'uncommit' && !nonEmpty(f.task)) {
+    return failCoordinateUsage(io, 'coordinate uncommit: --task is required\n', command);
   }
   if (command === 'revoke') {
     if (!nonEmpty(f.task)) return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
