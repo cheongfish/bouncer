@@ -26,7 +26,7 @@ Node.js 24 이상과 Git을 확인하고, plugin의 runtime 호환 범위에 맞
 [install.md](docs/install.md)에 있습니다.
 
 ```
-npm install --global @cheongfish/bouncer@0.1.15
+npm install --global @cheongfish/bouncer@0.1.16
 /plugin marketplace add cheongfish/bouncer#release
 /plugin install bouncer@cheongfish-tools
 ```
