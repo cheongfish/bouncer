@@ -47,7 +47,15 @@ bouncer:
 22. `skills/bouncer-plan/SKILL.md`가 doc-shape 계약(step 1~8, ACQ step 1·2·3·4·6)을 통과하면서 plan-coordinator 위임, 범위 체크포인트, `nesting-unavailable` fallback, root 전용 승인 경계를 테스트가 단언하는 문장으로 담는다.
 23. `plan-coordinator` blueprint의 종단 `npm run ci`가 통과한다.
 
+24. retro-review-followups는 malformed plan review_risk의 S30 코드와 20000ms를 보존한 기본·strong timeout 분기를 실제 대기 없이 검증하고 planning 문서의 예시 경로 한 줄만 허용한다.
+25. retro-review-followups는 report-only salvage와 보존본 Red run의 미제공 처리 문서를 일치시키고 write·rename 실패의 부분 patch 출력·임시 파일 정리·worker 및 원장 보존을 검증한다.
+26. retro-review-followups는 close 동의 전 finding별 처분·근거·위험 수용 표시, root의 task frontmatter 경로 직접 읽기와 nesting fallback 책임을 문서·역할 생성본·계약 테스트로 고정한다.
+27. retro-review-followups의 ledger fixture 생성은 git init을 실행하지 않으며 실제 CLI integration을 유지하고 잘못된 ID·없는 ID의 거절 반환값 1과 기존 reason을 단언한다.
+28. retro-review-followups의 독립 구현 task 네 개는 각자 전용 검증을 쓰고 마지막 verification task는 전부 integrated된 뒤 npm run ci를 실행한다.
+29. retro-review-followups는 한국어 브리프·커밋 규약, 로컬 역할 TOML parity, 테스트 이름·tier 등록·인용 규약을 지키고 버전·CHANGELOG·로컬 제안 문서와 runtime 계약을 변경하지 않는다.
+
 ## Out of scope
+- retro-review-followups는 HANDOFF·HOOK 출처 작업, report temp 동시성 변경 및 원문이 없는 두 advisory를 제외한다.
 - review-compat-followups는 closed 계획을 재개하지 않으며 요구사항 원본과 다른 로컬 제안 문서를 커밋하지 않는다.
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
 - 공통 리뷰 엔진과 execute·finalize 리뷰의 판정 기준·디스패치 → `gates-review`. 계획 작성의 소비자 조사·검증 가능성을 판정하는 plan context-review 기준은 이 epic에 포함한다.
