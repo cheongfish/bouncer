@@ -410,6 +410,6 @@ test('implementer Tests first → pins provider and env in fixtures to keep exac
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
   assert.match(
     stepBody(md, '5. **Tests first**', '6. **Report**'),
-    /provider.{0,80}env.{0,200}fixture.{0,120}exact assertion/
+    /provider.{0,80}env.{0,200}fixture.{0,120}exact assertion/,
   );
 });
