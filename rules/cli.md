@@ -167,6 +167,19 @@ and writes nothing. A bad flag is exit 2; a store or input failure is exit 1
 else `snapshot` when a valid snapshot exists, else `unavailable` (numbers stay 0). A broken
 snapshot is refused with `metrics-snapshot-invalid`, not read as 0.
 
+`metrics start --kind` also takes `plan-coordinator-session` and `planner-session` (the plan kinds).
+Only they may omit `--blueprint`: the session is stored with `blueprint: null`, reads no ledger
+snapshot, and `--blueprint <dir>` at start is normalized and stored without ledger resolution.
+`metrics end --id <m-id> [--tier <strong|standard|light>] [--effort <low|medium|high>]
+[--blueprint <dir>]` stores `tier` and `effort` on any kind (omitted = `null`, case-sensitive,
+empty string refused). `end --blueprint <dir>` binds a `blueprint: null` plan session exactly once
+with the same normalization as `start` (no path or ledger check). It is refused on a non-plan
+kind, on a session that already has a blueprint, as `""`, and a null-blueprint plan session cannot
+end without it. Every such refusal is `invalid-metrics-input` (exit 1) and leaves the file bytes
+unchanged. `metrics summary` adds `by_tier: {strong, standard, light, unknown}` to each kind, each
+`{sessions, tokens_total, cost_total}` over ended sessions only; a missing or `null` tier is
+`unknown`. A `null` blueprint is valid only on a plan kind; elsewhere it is `metrics-file-invalid`.
+
 ## Context and task creation
 
 ```sh
