@@ -12,7 +12,11 @@ const BP = '.bouncer/context/epics/e/blueprints/b';
 
 function repo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-ledger-'));
-  spawnSync('git', ['init', '-q'], { cwd: dir });
+  // git init 대신 최소 메타데이터(HEAD·objects·refs)만 파일로 만든다. 이것만으로 실제
+  // `git rev-parse --git-common-dir`가 `.git`을 반환해 handler의 main-root 해석이 유지된다.
+  fs.mkdirSync(path.join(dir, '.git', 'objects'), { recursive: true });
+  fs.mkdirSync(path.join(dir, '.git', 'refs'));
+  fs.writeFileSync(path.join(dir, '.git', 'HEAD'), 'ref: refs/heads/main\n');
   return fs.realpathSync(dir);
 }
 
@@ -197,8 +201,10 @@ test('close 뒤 record → plan-ledger-closed로 거절한다', () => {
 test('status의 잘못된 id·없는 id·git 밖 repo → 각자의 reason으로 거절한다', () => {
   const dir = repo();
   const bad = cli(dir, ['plan-ledger', 'status', '--id', 'bad']);
+  assert.strictEqual(bad.status, 1);
   assert.deepStrictEqual(bad.json, { ok: false, reason: 'plan-ledger-id-invalid' });
   const missing = cli(dir, ['plan-ledger', 'status', '--id', 'pl-0123456789abcdef']);
+  assert.strictEqual(missing.status, 1);
   assert.deepStrictEqual(missing.json, { ok: false, reason: 'plan-ledger-not-found' });
   const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-ledger-nogit-')));
   const none = cli(outside, ['plan-ledger', 'status', '--id', 'pl-0123456789abcdef']);
