@@ -165,3 +165,13 @@ test('drive-metrics root-direct session → passes no tier or effort flags', () 
   const direct = sectionBetween(readDriveMetrics(), '## Per root-direct session', '## Closing report');
   assert.match(direct, /no `--tier` or `--effort`/);
 });
+
+// 같은 개수로 task가 교체된 정상 진행(--resume-task)을 no-progress로 오판하지 않으려면
+// 진행 기준이 개수가 아니라 baseline에 없던 id여야 한다.
+test('run step 4 → judges progress by a new completed_tasks id, not by count', () => {
+  // SKILL 본문은 줄바꿈되어 있으므로 공백을 정규화한 뒤 문구를 단언한다.
+  const skill = readRunSkill().replace(/\s+/g, ' ');
+  assert.doesNotMatch(skill, /completed_tasks\.length/);
+  assert.match(skill, /set of `completed_tasks` ids immediately before this dispatch/);
+  assert.match(skill, /id missing from the baseline/);
+});

@@ -389,3 +389,27 @@ test('coordinator doc and blocked card → route worker-commit-untrailered to co
   assert.doesNotMatch(coordinator, /git reset --soft/);
   assert.match(cli, /uncommit-not-needed/);
 });
+
+// 역할 문서는 약 80열에서 줄바꿈되므로 공백을 정규화하고, 규칙이 놓일 단계 본문만 잘라 단언한다.
+const stepBody = (md, start, end) => {
+  const from = md.indexOf(start);
+  const to = md.indexOf(end, from);
+  assert.ok(from >= 0 && to > from, `${start} … ${end}`);
+  return md.slice(from, to).replace(/\s+/g, ' ');
+};
+
+test('coordinator Judge → copies rework identifiers and rejects prohibition-breaking deviations', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const judge = stepBody(md, '5. **Judge**', '6. **Close**');
+  assert.match(judge, /rework summary.{0,200}copy.{0,120}never.{0,40}from memory/);
+  assert.match(judge, /never accept.{0,200}Open choice.{0,200}rework.{0,120}`blocked`/i);
+  assert.match(judge, /takes precedence over the `revise` card.{0,160}only after the user explicitly approves/);
+});
+
+test('implementer Tests first → pins provider and env in fixtures to keep exact assertions', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(
+    stepBody(md, '5. **Tests first**', '6. **Report**'),
+    /provider.{0,80}env.{0,200}fixture.{0,120}exact assertion/,
+  );
+});

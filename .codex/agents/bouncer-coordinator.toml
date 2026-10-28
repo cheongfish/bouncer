@@ -311,7 +311,15 @@ same mutation argv right away.
    `payload.report` and only the `payload.evidence` files whose hashes still
    match. Turn each `judge` or `blocked` response into exactly one recorded
    judgment. A qualifying delta-certification finding takes the critical
-   recovery before that rework (result: `resolved` or `blocked`). After the
+   recovery before that rework (result: `resolved` or `blocked`). When a
+   rework summary names an identifier (a mode, code, or field name), copy it
+   from the report, card, or CLI output; never write it from memory. Never
+   accept a deviation that breaks a brief prohibition (a Do not touch path, a
+   Constraint, or a ban on changing an existing assertion) as an Open choice:
+   record rework, or `blocked` when rework cannot restore it. For a
+   prohibition the worker already broke, this rule takes precedence over the
+   `revise` card: release it with `--release-do-not-touch` only after the user
+   explicitly approves the release. After the
    judgment is recorded, call `advance` again.
 6. **Close** — When `advance` stops with `final_review`, follow that action's
    `card`, then call `advance` again. When `review_scope` is absent, skip that

@@ -185,7 +185,7 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    - `autonomy` as a reporting cadence only (`interactive` returns a progress line
      per task boundary, `auto` batches), so no per-task ACQ under either value
 
-   Take `completed_tasks.length` immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
+   Take the set of `completed_tasks` ids immediately before this dispatch as the baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
    Run `metrics start`/`end` per [drive-metrics.md](./references/drive-metrics.md); when to call `metrics end` and which usage to pass are fixed per host by its host usage table.
    Wait in the foreground per `${BOUNCER_ROOT}/rules/subagent-model.md` item 6 until the
    coordinator returns its outcome; never end the turn or render step 5 while the coordinator still runs.
@@ -212,10 +212,11 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    Hand a raw report to the coordinator as data; never judge, verify, integrate, or edit active metadata.
    `report present`: that file is the raw report; same recovery.
    `worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer.
-   If `completed_tasks.length` grew, dispatch a new coordinator
-   with the same payload plus that checkpoint (no ACQ). Wait in the foreground
+   If `completed_tasks` holds an id missing from the baseline, dispatch a new coordinator
+   with the same payload plus that checkpoint (no ACQ). A new id counts as progress even when the
+   count is unchanged (for example a task reopened by `--resume-task` while another one integrated). Wait in the foreground
    for that new coordinator and apply the same continue / no-progress / terminal-stop rules again.
-   If it did not grow, stop here
+   If it holds no such id, stop here
    — except the table's single recovery re-dispatch; a second `continue` without a new integrated task goes to `no-progress` —
    (not step 5) with `blocked` cause `no-progress`, emit
    `중단: <blueprint> · no-progress · …`, and preserve ledger, worktrees,
