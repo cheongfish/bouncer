@@ -1778,6 +1778,7 @@ test('CLI plan with a structural failure → exits 1 without reviewer list', () 
   const payload = JSON.parse(result.out);
   assert.strictEqual(payload.ok, false);
   assert.ok(!('perspectives' in payload) || payload.perspectives === undefined);
+  assert.ok(payload.failures.some((f) => f.code === 'S30'), result.out);
 });
 
 // --- 후속 리뷰 previous 결속(BP 096/001 task 002) ---------------------------------
@@ -2532,6 +2533,8 @@ test('plan with a malformed review_risk on one task → returns the union failur
   const plan = tierPlan(repo);
   assert.strictEqual(plan.ok, false);
   assert.strictEqual(plan.reviewer_tier, undefined);
+  // 실패 사유가 S30이어야 한다: 다른 이유의 plan 실패로는 이 사례가 통과하지 못하게 한다.
+  assert.ok(plan.failures.some((f) => f.code === 'S30'), JSON.stringify(plan.failures));
 });
 
 test('plan with light unmarked blueprint → skip payload has no reviewer_tier', () => {

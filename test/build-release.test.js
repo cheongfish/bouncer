@@ -191,26 +191,68 @@ test('(h) fixture tree → package.json keeps only identity fields', () => {
   assert.deepStrictEqual(shipped, { name: 'bouncer-release-fixture', version: '0.0.0', private: true });
 });
 
+// 아래 파일은 경로를 설명 예시로만 쓴다(리뷰 fingerprint, task 문서 예시, validator 거절 대상 문자열).
+const INTERNAL_PATH_EXAMPLES = new Set([
+  'agents/bouncer-reviewer.md',
+  'references/review/index.md',
+  'references/coordinator-cards/review.md',
+  'references/coordinator-cards/final_review.md',
+  'references/spec-authoring/review-rounds.md',
+  'references/spec-authoring/tasks.md',
+  'rules/cli.md',
+]);
+
+// planning 문서는 버전 문서 목록 때문에 이 한 줄만 허용한다. 줄 전체가 정확히 일치해야 하므로
+// `package.json.bak`이나 다른 문서의 같은 줄은 걸러진다.
+const PLANNING_ALLOWED_LINE = '- `packages/cli/package.json`';
+
+/**
+ * 배포 문서가 runtime 내부 경로를 가리키는지 판정한다. planning 문서는 허용 줄 하나만 제외하고 검사한다.
+ *
+ * @param {string} relativePath - `agents/x.md`처럼 dir을 포함한 저장소 상대 경로
+ * @param {string} markdown - 문서 본문
+ * @returns {boolean} 내부 경로 위반이면 true
+ */
+function hasInternalPathViolation(relativePath, markdown) {
+  if (INTERNAL_PATH_EXAMPLES.has(relativePath)) return false;
+  let text = markdown;
+  if (relativePath === 'rules/planning.md') {
+    // CRLF는 줄 구분으로만 정규화한다. 그 밖의 공백 차이는 허용 줄로 보지 않는다.
+    text = markdown.split(/\r?\n/).filter((line) => line !== PLANNING_ALLOWED_LINE).join('\n');
+  }
+  return /scripts\/(?:lib|src)\/|packages\/cli/.test(text);
+}
+
+test('planning document with an unlisted internal path → violation', () => {
+  assert.equal(hasInternalPathViolation('rules/planning.md', 'packages/cli/src/foo.ts'), true);
+});
+
+test('planning document with the exact allowed line → no violation', () => {
+  assert.equal(hasInternalPathViolation('rules/planning.md', '- `packages/cli/package.json`'), false);
+  assert.equal(hasInternalPathViolation('rules/planning.md', 'a\r\n- `packages/cli/package.json`\r\nb'), false);
+});
+
+test('planning document with a near-miss or another document with the line → violation', () => {
+  const cases = [
+    ['rules/planning.md', 'packages/cli/src/foo.ts'],
+    ['rules/planning.md', 'packages/cli/package.json.bak'],
+    ['rules/planning.md', 'scripts/lib/foo.js'],
+    ['rules/planning.md', 'scripts/src/foo.ts'],
+    ['rules/another.md', '- `packages/cli/package.json`'],
+  ];
+  for (const [rel, text] of cases) {
+    assert.equal(hasInternalPathViolation(rel, text), true, `${rel}: ${text}`);
+  }
+});
+
 test('(i) shipped plugin documents → do not point at runtime source paths', () => {
-  // 아래 파일은 경로를 설명 예시로만 쓴다(리뷰 fingerprint, task 문서 예시, validator 거절 대상 문자열).
-  const examples = new Set([
-    'agents/bouncer-reviewer.md',
-    'references/review/index.md',
-    'references/coordinator-cards/review.md',
-    'references/coordinator-cards/final_review.md',
-    'references/spec-authoring/review-rounds.md',
-    'references/spec-authoring/tasks.md',
-    'rules/cli.md',
-    'rules/planning.md',
-  ]);
-  const internal = /scripts\/(?:lib|src)\/|packages\/cli/;
   const offenders = [];
   for (const dir of ['agents', 'rules', 'references', 'skills']) {
     const base = path.join(root, dir);
     for (const rel of listRelFiles(base)) {
       const key = `${dir}/${rel}`;
-      if (!rel.endsWith('.md') || examples.has(key)) continue;
-      if (internal.test(fs.readFileSync(path.join(base, rel), 'utf8'))) offenders.push(key);
+      if (!rel.endsWith('.md')) continue;
+      if (hasInternalPathViolation(key, fs.readFileSync(path.join(base, rel), 'utf8'))) offenders.push(key);
     }
   }
   assert.deepStrictEqual(offenders, []);

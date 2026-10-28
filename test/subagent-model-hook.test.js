@@ -15,6 +15,46 @@ function runHook(payload, env = {}) {
   });
 }
 
+// 조회 timeout을 실제로 기다리지 않도록 별도 Node child에서 runtime-cli.runRuntime을 먼저 바꾼 뒤 hook을
+// 불러온다(hook은 module load 때 runRuntime을 구조 분해하므로 순서가 중요하다). child 안에서만 설치되어
+// module cache·stream이 다른 테스트로 새지 않는다. responses[i]는 i번째 조회의 stdout 문자열이며 null이면
+// ETIMEDOUT을 돌려준다. child는 handle의 반환값과 캡처한 stdout·stderr, 조회 호출 기록을 JSON으로 출력한다.
+const STUB_CHILD = `
+const fs = require('node:fs');
+const { responses, hookPath, runtimePath, raw } = JSON.parse(process.env.STUB_INPUT);
+const calls = [];
+require(runtimePath).runRuntime = (args, opts) => {
+  calls.push({ args, timeoutMs: opts.timeoutMs });
+  const out = responses[calls.length - 1];
+  if (out === null || out === undefined) {
+    return { found: true, status: null, signal: 'SIGTERM', stdout: '', stderr: '', error: { code: 'ETIMEDOUT' } };
+  }
+  return { found: true, status: 0, signal: null, stdout: out, stderr: '' };
+};
+const chunks = { stdout: '', stderr: '' };
+process.stdout.write = (c) => { chunks.stdout += c; return true; };
+process.stderr.write = (c) => { chunks.stderr += c; return true; };
+const code = require(hookPath).handle(raw);
+fs.writeSync(1, JSON.stringify({ code, ...chunks, calls }));
+`;
+
+function runStubbedHook(payloadValue, responses) {
+  const result = spawnSync(process.execPath, ['-e', STUB_CHILD], {
+    encoding: 'utf8', cwd: os.tmpdir(),
+    env: {
+      ...process.env,
+      STUB_INPUT: JSON.stringify({
+        responses,
+        hookPath: path.join(root, 'hooks/subagent-model.js'),
+        runtimePath: path.join(root, 'hooks/runtime-cli.js'),
+        raw: JSON.stringify(payloadValue),
+      }),
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
 test('Bouncer Agent hook registered → hook file and Agent matcher are available', () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, 'hooks/hooks.json'), 'utf8'));
   const registered = config.hooks.PreToolUse.some((entry) => entry.matcher === 'Agent'
@@ -161,11 +201,12 @@ test('runtime output with trailing blank line → exit 2', () => {
 });
 
 test('runtime timeout → exit 2 with timeout and recovery guidance', () => {
-  const rt = makeRuntime({ body: '#!/bin/sh\nsleep 30\n' });
-  const result = invoke(payload('bouncer-reviewer'), rt);
-  assert.equal(result.status, 2);
+  const result = runStubbedHook(payload('bouncer-reviewer'), [null]);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /시간이 초과.*다시 시도/);
   assert.match(result.stderr, /subagent-model --agent bouncer-reviewer --provider claude --repo <cwd>/);
+  assert.equal(result.calls.length, 1);
+  assert.equal(result.calls[0].timeoutMs, 20000);
 });
 
 test('cwd with invalid type → exit 2 without invoking runtime', () => {
@@ -260,18 +301,17 @@ test('malformed JSON result → exit 2 with JSON-or-token message', () => {
 });
 
 // --tier strong 호출에만 STRONG_OUTPUT/STRONG_EXIT로 따로 응답하는 가짜 bin. 호출마다 argv를 한 줄씩
-// CALL_LOG에 남겨 두 번째 조회의 횟수·형태를 단언할 수 있게 한다. STRONG_SLEEP이 있으면 그 호출만 지연한다.
+// CALL_LOG에 남겨 두 번째 조회의 횟수·형태를 단언할 수 있게 한다.
 const TIER_BODY = '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$CALL_LOG"\n'
   + 'case " $* " in *" --tier strong "*)\n'
-  + '  [ -n "$STRONG_SLEEP" ] && sleep "$STRONG_SLEEP"\n'
   + '  printf \'%s\' "$STRONG_OUTPUT"; exit "${STRONG_EXIT:-0}";;\n'
   + 'esac\nprintf \'%s\' "$MODEL_OUTPUT"\nexit "$MODEL_EXIT"\n';
 
-function tierRuntime({ first, strong, strongExit = 0, strongSleep = '' }) {
+function tierRuntime({ first, strong, strongExit = 0 }) {
   const rt = makeRuntime({ body: TIER_BODY, output: first });
   const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'subagent-calls-')), 'calls');
   Object.assign(rt.env, {
-    CALL_LOG: log, STRONG_OUTPUT: strong, STRONG_EXIT: String(strongExit), STRONG_SLEEP: strongSleep,
+    CALL_LOG: log, STRONG_OUTPUT: strong, STRONG_EXIT: String(strongExit),
   });
   const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : []);
   return { rt, calls };
@@ -336,12 +376,17 @@ test('strong lookup failing, non-JSON, wrong source, or old token → config mod
 });
 
 test('strong lookup timeout → config model replaces it without blocking', () => {
-  const { rt } = tierRuntime({
-    first: jsonOutput('bouncer-reviewer', 'std-model', null), strong: strongJson('bouncer-reviewer'),
-    strongSleep: '30',
-  });
-  const result = parsedOutput(invoke(payload('bouncer-reviewer', { model: 'strong-model' }), rt));
-  assert.equal(result.hookSpecificOutput.updatedInput.model, 'std-model');
+  // 첫 조회는 정상 config 응답, 두 번째(--tier strong) 조회만 timeout이다.
+  const result = runStubbedHook(
+    payload('bouncer-reviewer', { model: 'strong-model' }),
+    [jsonOutput('bouncer-reviewer', 'std-model', null), null],
+  );
+  assert.equal(result.code, 0);
+  assert.equal(JSON.parse(result.stdout).hookSpecificOutput.updatedInput.model, 'std-model');
+  assert.equal(result.calls.length, 2);
+  assert.deepEqual(result.calls.map((c) => c.timeoutMs), [20000, 20000]);
+  assert.equal(result.calls[0].args.includes('--tier'), false);
+  assert.equal(result.calls[1].args[result.calls[1].args.indexOf('--tier') + 1], 'strong');
 });
 
 test('implementer with strong-named model → replaced without a strong lookup', () => {

@@ -247,7 +247,6 @@ test('plan skill → delegates to the plan coordinator and keeps approvals with 
     'The root runs every ACQ, `plan-ledger open`, `plan-ledger answer`, `plan-ledger close`, `context-review close`, `plan approve`, `current --set`, and `validate --gate plan`; the plan coordinator and planner never do.',
     'Outside the fallback the root does not run discovery, author plan documents, or dispatch reviewers.',
     'The planner writes task `affected_paths` only from the confirmed candidate set; a path outside it returns `needs_user` and the root asks `plan.affected_paths` again.',
-    'If the plan coordinator returns `blocked: nesting-unavailable`, the root continues from the `plan-ledger status` phase with the direct procedure; in `review` it follows `bouncer context-review route` `next_action`, and it never approves without `plan.approval`.',
     'If a question the root did not answer shows an answer in `plan-ledger status`, the root stops and reports its `qid`.',
     'Any other `blocked` outcome stops with its code, message, and next; a missing or unknown outcome gets one re-dispatch with the same input, then stops as no progress.',
     'The root runs `plan-ledger close` only after `validate --gate plan` passes; a rejected approval or a failed gate leaves the ledger open.',
@@ -260,6 +259,30 @@ test('plan skill → delegates to the plan coordinator and keeps approvals with 
   assert.match(skill, /`outcome: checkpoint`/);
   assert.match(skill, /plan-ledger record --planner-mode continued/);
   assert.match(skill, /--kind plan-coordinator-session/);
+});
+
+// 사용자 동의 전 표시·경로 출처·fallback 조건별 책임은 의미 단위로만 확인한다(문장 순서·공백은 고정하지 않는다).
+test('plan skill → shows dispositions before consent, reads paths from task frontmatter, splits fallback', () => {
+  const skill = fs.readFileSync(path.join(root, 'skills/bouncer-plan/SKILL.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  const section = (from, to) => {
+    const start = skill.indexOf(from);
+    assert.ok(start >= 0, from);
+    const end = skill.indexOf(to, start + from.length);
+    assert.ok(end > start, to);
+    return skill.slice(start, end);
+  };
+  const review = section('5. **Review.**', '6. **Approval (explicit).**');
+  assert.match(review, /before it asks for consent,? the root reads the dispositions file[\s\S]*ID[\s\S]*disposition[\s\S]*note/i);
+  assert.match(review, /accepted-risk[\s\S]*(?:concrete risk)[\s\S]*why[\s\S]*basis[\s\S]*explicit consent[\s\S]*(?:that|each) ID/i);
+  const approval = section('6. **Approval (explicit).**', '7. **Activate.**');
+  assert.match(approval, /`affected_paths`[\s\S]*(?:reads|read)[\s\S]*directly from (?:that|each) task'?s? frontmatter[\s\S]*not from the coordinator summary/i);
+  const step3 = section('3. ', '4. **Scope confirm.**');
+  assert.ok(!/show them before step 4/i.test(step3), 'step 3 must not tell the root to show candidates itself');
+  const fallback = section('## Fallback', '## ACQ');
+  assert.match(fallback, /`blocked: nesting-unavailable`[\s\S]*root[\s\S]*coordinator[\s\S]*`plan-ledger status` phase[\s\S]*reviewer dispatch/i);
+  assert.match(fallback, /no subagent[\s\S]*generic[\s\S]*inline[\s\S]*print/i);
+  assert.match(fallback, /`bouncer context-review route` `next_action`[\s\S]*never approves without `plan.approval`/);
 });
 
 test('GENERIC_SKILLS → does not list workflow skills', () => {

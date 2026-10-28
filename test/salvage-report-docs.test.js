@@ -22,3 +22,23 @@ test('agent-dispatch의 Red run 규칙에 대체 출처가 없으면 → 파일 
   assert.match(read('skills/bouncer-run/references/agent-dispatch.md'),
     /worker-salvage[\s\S]{0,300}`report`[\s\S]{0,300}\(salvaged g<gen>\)/, 'agent-dispatch.md');
 });
+
+// 문장 단위로 대상 문단만 잘라 의미를 확인한다. 문서 전체의 순서나 공백은 고정하지 않는다.
+const sentenceWith = (text, needle) => text.replace(/\s+/g, ' ').split(/(?<=\.)\s/).find((s) => s.includes(needle));
+
+test('CLI 규칙 문서의 salvage 키 부재 조건이 patch·ref·report 전부 없음이 아니면 → 실패한다', () => {
+  const sentence = sentenceWith(read('rules/cli.md'), 'no `salvage` key');
+  assert.ok(sentence, 'rules/cli.md: salvage 키 부재 문장');
+  for (const kept of ['patch', 'ref', 'report']) {
+    assert.ok(sentence.includes(kept), `rules/cli.md: 부재 조건에 ${kept} 누락`);
+  }
+});
+
+test('agent-dispatch가 보존본 Red run의 literal `미제공`을 부재로 다루지 않으면 → 실패한다', () => {
+  const text = read('skills/bouncer-run/references/agent-dispatch.md').replace(/\s+/g, ' ');
+  // 보존본 설명은 'preserved file has none' 뒤 첫 문장 끝까지이며, 거기에 literal 값이 부재로 적혀야 한다.
+  const start = text.indexOf('preserved file has none');
+  assert.ok(start >= 0, 'agent-dispatch.md: 보존본 부재 문장');
+  const sentence = text.slice(start).split(/\.\s/)[0];
+  assert.ok(sentence.includes('says `미제공`'), 'agent-dispatch.md: 보존본 literal 미제공이 부재 조건에 없음');
+});

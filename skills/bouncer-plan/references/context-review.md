@@ -250,7 +250,7 @@ the blueprint-root `context-review.md` themselves (`bouncer.context_review`,
 body `## Findings`, `status: accepted`) and return `written`; do not copy the
 returned `projection` by hand. Any `- inline context review: dispatch print
 failed (<reason>)` line already in `## Findings` stays ahead of the generated
-list after close. Run `close` only after explicit user approval. A recorded success is a review
+list after close. Before asking for consent the root shows the user each finding's ID, disposition, and note from the dispositions file; for accepted-risk it adds the concrete risk, why it is not fixed, and the basis, and takes explicit consent for that ID. Run `close` only after that explicit user approval. A recorded success is a review
 disposition, not plan approval or a plan gate pass.
 
 When recording finding `note` (and any other author-written frontmatter
