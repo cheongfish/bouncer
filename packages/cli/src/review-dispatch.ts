@@ -1076,7 +1076,7 @@ function computeReviewerTier({ taskCount, riskFlags, min }: {
  * 계산된 등급을 `agent_dispatch`에 적용한다. strong일 때만 호출 단위 tier로 역할을 다시 해석하고,
  * standard는 역할의 기존 설정이 기본이라 slot을 낮추지 않도록 호출하지 않는다.
  * strong이어도 매핑이 없거나 provider를 모르면(`source !== 'tier'`) 기존 해석을 그대로 두고
- * 사유를 reasons에 남긴다 — 실패로 막지 않는 이유는 등급 매핑이 선택 설정이기 때문이다.
+ * 사유를 reasons에 남긴다. 매핑이 `inherit`(model null)이어도 미적용(`tier-inherit`)이다 — 실패로 막지 않는 이유는 등급 매핑이 선택 설정이기 때문이다.
  * `agent_dispatch`는 `{ agent, provider, model }` 키 집합을 유지한다.
  *
  * @param {{ repoRoot: string, agentName: string, baseDispatch: AgentDispatch, tier: ReviewerTier }} opts
@@ -1092,6 +1092,16 @@ function applyReviewerTier({ repoRoot, agentName, baseDispatch, tier }: {
 }): { agent_dispatch: AgentDispatch; applied: boolean; notApplied: string | null } {
   if (tier !== 'strong') return { agent_dispatch: baseDispatch, applied: false, notApplied: null };
   const role = resolveSubagentRole({ repoRoot, agentName, tier: 'strong' });
+  // 매핑이 inherit이면 resolveSubagentRole이 source 'tier'에 model null을 돌려준다. 이 경우 호출자가
+  // 모델을 지정하지 않는 것과 같아 훅/controller가 slot 모델로 해석하므로 applied true는 실제와 어긋난다.
+  // 그래서 baseDispatch를 두고 미적용(tier-inherit)으로 보고한다. provider는 가리지 않는다.
+  if (role.ok && role.source === 'tier' && role.model === null) {
+    return {
+      agent_dispatch: baseDispatch,
+      applied: false,
+      notApplied: `reviewer tier strong not applied: tier-inherit (fix: model_tiers.${role.provider}.strong)`,
+    };
+  }
   if (role.ok && role.source === 'tier') {
     return {
       agent_dispatch: { agent: agentName, provider: role.provider, model: role.model },

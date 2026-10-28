@@ -533,9 +533,10 @@ test('model tier docs → item 1, cli.md, configuration.md state the tier/effort
 
   const conf = readRepo('docs/configuration.md');
   for (const t of ['model_tiers', 'roles.<agent>.effort', 'tier-unmapped',
-    'subagent-model --agent <name> --json', '직접 추가']) {
+    'subagent-model --agent <name> --json', '직접 추가', 'tier-inherit']) {
     assert.ok(conf.includes(t), t);
   }
+  assert.ok(!conf.includes('매핑이 있을 때만 `agent_dispatch.model`에 적용된다'));
 });
 
 test('dispatch history rule → item 1 isolates history independent of inherit', () => {
