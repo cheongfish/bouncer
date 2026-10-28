@@ -26,7 +26,7 @@ bouncer:
 4. G1–G3·G5·G19·G20과 S 코드는 삭제 전과 같은 입력에서 같은 코드로 실패한다.
 5. execute G14와 finalize G21은 finding·round 형식 위반만으로는 실패하지 않고, open `must_fix`, 열린 finding이 남은 accepted review, review 부재·미승인, round 부재, 배열이 아닌 findings, enum 밖이거나 누락된 finding status·actionability에서는 계속 실패한다.
 6. G6·G7·G8·G13·G16·G17·G23·G24 판정은 바뀌지 않는다.
-7. plan draft 검사(`review-dispatch plan`)는 G5·G19·G20만 보고한다.
+7. plan draft 검사(`review-dispatch plan`)는 G5·G19·G20과, 이후 blueprint가 추가한 G32·G33만 보고한다.
 8. 플러그인 rules·references·skills·agents·docs가 삭제된 코드를 gate 판정으로 서술하지 않고, CHANGELOG `[Unreleased]`에 `Removed` 항목이 있으며 `npm run ci`가 통과한다.
 9. G-code가 하나 이상 실패한 `bouncer validate` 결과는 최상위 `gates[]`에 실패한 복합 gate만 고정 순서로 싣고, 각 항목은 `gate`·`label`·`codes`·`targets`·`next`(문자열 1개)를 가지며 길이는 7 이하다.
 10. 같은 입력에서 `failures[]`의 `code`·`message`·`file`·`next`와 `ok`·`warnings`는 `gates[]` 도입 전과 같고, 실패가 S 코드뿐이거나 `ok: true`이면 결과에 `gates` 키가 없다.
@@ -46,12 +46,17 @@ bouncer:
 23. 새 변경은 한국어 브리프·커밋 규약과 관찰 가능한 테스트 단언을 지키고, 역할 TOML 생성본을 동기화하며 scripts/lib를 추적하지 않고 각 blueprint의 종단 npm run ci를 통과한다.
 24. 코드 리뷰어는 적대적 자세로 반드시 수정할 것만 보고하며 `advisory`를 내지 않고, context-reviewer는 적대적 자세를 얻되 기존 보고 기준을 유지한다.
 25. `review-dispatch` plan·execute는 commit task 수 ≥ 3 또는 `review_risk`가 비어 있지 않을 때 `reviewer_tier: strong`을 계산하고, 사용자 config `review.min_reviewer_tier`로 상향만 허용하며, `strong` 매핑이 있을 때만 모델에 적용하고 Claude 훅은 strong 매핑 모델로의 상향만 통과시킨다.
+26. 저장소 루트에 `test/tiers.json`이 있을 때, commit task가 checkout에 없는 `test/<name>.test.js`를 만들면서 `affected_paths`에 `test/tiers.json`을 넣지 않으면 plan draft 검사와 plan gate가 같은 `G33`(복합 gate `scope-declaration`)으로 실패한다. 만든다는 것은 Touch `Create` 행이나 `Rename` 행의 새 경로, 또는 이 task Touch에 `Modify`·`Delete` 행이 없는 `affected_paths` 항목을 뜻하며, 그 밖의 입력에서는 `G33`이 나오지 않는다.
+27. `node scripts/check-task.js <test files>`는 넘긴 파일의 테스트 이름 위반·tier 미등록·unit tier 프로세스 생성 위반에서 exit 1, 인자 없음에서 exit 2, 모두 통과하면 exit 0을 낸다.
+28. `skills/bouncer-plan/SKILL.md`와 `references/spec-authoring/index.md`는 commit task 전용 verify에 종단 CI의 저비용 정적 검사를 포함하고 여러 명령은 프로젝트 스크립트 하나로 감싸라고 서술하며, 이 변경의 종단 `npm run ci`가 통과한다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
 - gate가 나오는 계획 문서 형식 → `plan-workflow`
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
 - legacy epic에 남은 미완료 blueprint는 모두 closed로 간주하고 상태를 바꾸지 않았다.
+- 결번 G 코드(G10–G12·G18·G22·G25–G31)의 재사용과 문서 품질 판정의 복원. `G33`은 종단 CI 실패를 승인 전에 막는 범위 선언 검사로만 추가한다.
+- `test/tiers.json` 외의 동반 경로 규칙을 `.bouncer/config.json` 스키마로 일반화하는 일.
 
 ## Legacy epic 귀속
 Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 귀속된다는 뜻이다.
@@ -78,3 +83,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [drive-review-compatibility](blueprints/drive-review-compatibility/index.md) — 리뷰 거절 응답 호환성과 설명 계약 복구; R-M1·R-M3·R-A1·R-A2·R-A7·R-A8 처리.
 - [review-contract-deduplication](blueprints/review-contract-deduplication/index.md) — 리뷰 계약 판정의 중복 제거; R-A3·R-A4·R-A5·R-A6·R-A9·R-A10·R-A11 처리.
 - [adversarial-review-tiering](blueprints/adversarial-review-tiering/index.md) — 리뷰어를 적대적 자세와 필수 수정 보고 기준으로 개정하고, 규모·위험으로 reviewer_tier를 계산해 모델에 적용하며 훅이 상향만 허용한다.
+- [test-tiers-plan-gate](blueprints/test-tiers-plan-gate/index.md) — 신규 테스트의 `test/tiers.json` 누락을 plan gate `G33`으로 막고, task verify용 `scripts/check-task.js`와 제품 문서의 verify 구성 지침을 더한다.
