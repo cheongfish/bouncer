@@ -89,7 +89,9 @@ flowchart TD
 run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implementer` /
 `bouncer-reviewer` / `bouncer-debugger`로 분리됩니다. 계획 승인 직전의 문서
 판정은 `bouncer-context-reviewer`이고, 위임 주행의 컨트롤러는
-`bouncer-coordinator`입니다. coordinator는 이 세 worker를 부르되 그 역할을
+`bouncer-coordinator`입니다. `/bouncer-plan`은 plan ledger를 열고
+`bouncer-plan-coordinator`에게 discovery·작성·리뷰를 맡기며, 문서 작성은
+`bouncer-planner`가 합니다. ACQ·승인·`plan approve`·gate는 root만 실행합니다. coordinator는 이 세 worker를 부르되 그 역할을
 스스로 대신하지 않고, 한 주행에 coordinator는 하나뿐입니다(중첩 없음).
 
 ## 알아둘 것

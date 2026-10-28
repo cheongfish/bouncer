@@ -240,6 +240,28 @@ test('plan review procedure → confirms record success before revising document
   assert.ok(/verify success before editing/i.test(review));
 });
 
+test('plan skill → delegates to the plan coordinator and keeps approvals with the root', () => {
+  const skill = fs.readFileSync(path.join(root, 'skills/bouncer-plan/SKILL.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  const sentences = [
+    'The root runs every ACQ, `plan-ledger open`, `plan-ledger answer`, `plan-ledger close`, `context-review close`, `plan approve`, `current --set`, and `validate --gate plan`; the plan coordinator and planner never do.',
+    'Outside the fallback the root does not run discovery, author plan documents, or dispatch reviewers.',
+    'The planner writes task `affected_paths` only from the confirmed candidate set; a path outside it returns `needs_user` and the root asks `plan.affected_paths` again.',
+    'If the plan coordinator returns `blocked: nesting-unavailable`, the root continues from the `plan-ledger status` phase with the direct procedure; in `review` it follows `bouncer context-review route` `next_action`, and it never approves without `plan.approval`.',
+    'If a question the root did not answer shows an answer in `plan-ledger status`, the root stops and reports its `qid`.',
+    'Any other `blocked` outcome stops with its code, message, and next; a missing or unknown outcome gets one re-dispatch with the same input, then stops as no progress.',
+    'The root runs `plan-ledger close` only after `validate --gate plan` passes; a rejected approval or a failed gate leaves the ledger open.',
+  ];
+  for (const sentence of sentences) {
+    assert.ok(skill.includes(sentence), sentence);
+  }
+  assert.match(skill, /bouncer plan-ledger open --request/);
+  assert.match(skill, /bouncer subagent-model --agent\s*`?bouncer-plan-coordinator/);
+  assert.match(skill, /`outcome: checkpoint`/);
+  assert.match(skill, /plan-ledger record --planner-mode continued/);
+  assert.match(skill, /--kind plan-coordinator-session/);
+});
+
 test('GENERIC_SKILLS → does not list workflow skills', () => {
   for (const name of WORKFLOW) {
     assert.ok(!GENERIC_SKILLS.includes(name), name);

@@ -3,7 +3,8 @@
 
 const { runRuntime } = require('./runtime-cli');
 
-const ROLES = new Set(['reviewer', 'debugger', 'implementer', 'coordinator', 'context-reviewer']);
+const ROLES = new Set(['reviewer', 'debugger', 'implementer', 'coordinator', 'context-reviewer',
+  'planner', 'plan-coordinator']);
 const MODEL_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/@+\x5B\]-]*$/;
 const EFFORTS = new Set(['low', 'medium', 'high']);
 const COMMAND_TIMEOUT_MS = 20000;
@@ -85,8 +86,10 @@ function handle(raw) {
   if (payload.tool_name !== 'Agent') return 0;
   const name = input.subagent_type;
   if (typeof name !== 'string') return 0;
-  const match = /^(?:bouncer-|bouncer:bouncer-)(reviewer|debugger|implementer|coordinator|context-reviewer)$/
-    .exec(name);
+  const match = new RegExp(
+    '^(?:bouncer-|bouncer:bouncer-)'
+    + '(reviewer|debugger|implementer|coordinator|context-reviewer|planner|plan-coordinator)$',
+  ).exec(name);
   if (!match || !ROLES.has(match[1])) return 0;
   const role = match[1];
   const canonical = `bouncer-${role}`;

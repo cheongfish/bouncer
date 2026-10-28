@@ -549,9 +549,9 @@ test('dispatch history rule → item 1 isolates history independent of inherit',
     .replace(/\s+/g, ' ');
   const item3 = (contract.match(/\n3\. [\s\S]*?(?=\n4\. )/)?.[0] || '')
     .replace(/\s+/g, ' ');
-  assert.ok(item1.includes('Every new dispatch starts without conversation history, whether the resolved model is a slug or `inherit`; this covers `bouncer-coordinator`, `bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`, `bouncer-context-reviewer`, and plan evidence agents.'));
+  assert.ok(item1.includes('Every new dispatch starts without conversation history, whether the resolved model is a slug or `inherit`; this covers `bouncer-coordinator`, `bouncer-plan-coordinator`, `bouncer-planner`, `bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`, `bouncer-context-reviewer`, and plan evidence agents.'));
   assert.ok(item1.includes('Host methods: Codex sets `fork_turns: "none"`; Claude Code uses a named subagent call and never a fork; Cursor print runs a separate process per dispatch.'));
-  assert.ok(item1.includes('The only exception is an implementer continuing its own session for the first in-scope verify fix defined in `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`.'));
+  assert.ok(item1.includes('The only exceptions are an implementer continuing its own session for the first in-scope verify fix defined in `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`, and a planner continuing its own session once to apply plan review must_fix findings.'));
   assert.doesNotMatch(item1, /stays whatever the calling workflow specifies/);
   assert.doesNotMatch(item1, /parent-session inheritance/);
   assert.match(item3, /stop and report the rejection/i);

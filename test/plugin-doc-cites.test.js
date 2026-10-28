@@ -13,7 +13,8 @@ const BARE = /(?<![\w./}-])(?:(?:rules|references|agents)\/[A-Za-z0-9._<>*-]+(?:
 
 // 의도적으로 남기는 예외. 파일 단위 제외가 아니라 {file, text} 한 쌍만 허용한다.
 const ALLOWED = [
-  { file: 'rules/cursor-print-dispatch.md', text: 'rules/cursor-print-dispatch.md' }, // coordinator 식별 줄
+  // 식별 줄 2개(coordinator·plan coordinator). print-dispatch.ts identityLine과 바이트 동일해야 해 접두 불가.
+  { file: 'rules/cursor-print-dispatch.md', text: 'rules/cursor-print-dispatch.md', count: 2 },
   { file: 'references/discovery/index.md', text: '`AGENTS.md`' }, // 소비 프로젝트 파일
   { file: 'rules/output.md', text: 'rules/output.md' }, // 출력 예시
   // skill-shape 메타 규칙: 스코프/금지 대상을 설명하는 bare 표기(접두를 붙이면 의미가 바뀜)
@@ -62,14 +63,16 @@ function scopedMdFiles() {
  * @returns {{ file: string, text: string }[]} 위반 목록
  */
 function bareCites(file, body) {
-  const allowedForFile = new Set(
-    ALLOWED.filter((a) => a.file === file).map((a) => a.text),
+  // 예외별 남은 허용 횟수(count 생략 시 1). 횟수를 넘는 등장은 위반으로 남는다.
+  const allowedForFile = new Map(
+    ALLOWED.filter((a) => a.file === file).map((a) => [a.text, a.count ?? 1]),
   );
   const found = [];
   for (const match of body.matchAll(BARE)) {
     const text = match[0];
-    if (allowedForFile.has(text)) {
-      allowedForFile.delete(text);
+    const remaining = allowedForFile.get(text) ?? 0;
+    if (remaining > 0) {
+      allowedForFile.set(text, remaining - 1);
       continue;
     }
     found.push({ file, text });
@@ -90,10 +93,11 @@ test('plugin docs citing rules/references/agents/AGENTS.md → use the ${BOUNCER
     for (const a of ALLOWED) {
       if (a.file !== file) continue;
       const count = body.split(a.text).length - 1;
+      const expected = a.count ?? 1;
       assert.equal(
         count,
-        1,
-        `${file}: allowed exception ${JSON.stringify(a.text)} must appear exactly once (found ${count})`,
+        expected,
+        `${file}: allowed exception ${JSON.stringify(a.text)} must appear exactly ${expected} time(s) (found ${count})`,
       );
       unused.delete(`${a.file}\0${a.text}`);
     }

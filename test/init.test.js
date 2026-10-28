@@ -149,6 +149,8 @@ test('init → writes the exact config.json shape', () => {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
       cursor: {
         'bouncer-reviewer': 'inherit',
@@ -156,6 +158,8 @@ test('init → writes the exact config.json shape', () => {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
       codex: {
         'bouncer-reviewer': 'inherit',
@@ -163,6 +167,8 @@ test('init → writes the exact config.json shape', () => {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
       antigravity: {
         'bouncer-reviewer': 'inherit',
@@ -170,16 +176,22 @@ test('init → writes the exact config.json shape', () => {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
     },
-    // 등급 예시는 전부 inherit(모델 고정 금지), 역할은 전부 standard/medium.
+    // 등급 예시는 전부 inherit(모델 고정 금지). planner만 strong/high, 나머지 여섯은 standard/medium.
     model_tiers: Object.fromEntries(['claude', 'cursor', 'codex', 'antigravity'].map((p) => [
       p, { strong: 'inherit', standard: 'inherit', light: 'inherit' },
     ])),
-    roles: Object.fromEntries([
-      'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
-      'bouncer-context-reviewer', 'bouncer-coordinator',
-    ].map((a) => [a, { tier: 'standard', effort: 'medium' }])),
+    roles: {
+      ...Object.fromEntries([
+        'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
+        'bouncer-context-reviewer', 'bouncer-coordinator',
+      ].map((a) => [a, { tier: 'standard', effort: 'medium' }])),
+      'bouncer-planner': { tier: 'strong', effort: 'high' },
+      'bouncer-plan-coordinator': { tier: 'standard', effort: 'medium' },
+    },
   });
 });
 
@@ -787,7 +799,7 @@ test('init without a .codex/ signal → does not seed Codex agents', () => {
   assert.notEqual(result.reason, 'codex-agents-seeded');
 });
 
-test('init when .codex/ already exists → seeds five Codex tomls', () => {
+test('init when .codex/ already exists → seeds seven Codex tomls', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   const res = withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
@@ -795,6 +807,7 @@ test('init when .codex/ already exists → seeds five Codex tomls', () => {
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
     'bouncer-context-reviewer', 'bouncer-coordinator',
+    'bouncer-planner', 'bouncer-plan-coordinator',
   ]) {
     const rel = `.codex/agents/${name}.toml`;
     assert.ok(res.created.includes(rel), `missing ${rel} in created`);
@@ -825,6 +838,7 @@ test('init with plugin markdown agents → seeds Codex named-agent toml from the
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
     'bouncer-context-reviewer', 'bouncer-coordinator',
+    'bouncer-planner', 'bouncer-plan-coordinator',
   ]) {
     const rel = `.codex/agents/${name}.toml`;
     assert.ok(res.created.includes(rel), `missing ${rel} in created`);

@@ -35,14 +35,16 @@ limits.
    On Cursor, do not pass the role effort; tell the user the configured effort was not applied because the model slug carries it.
    Every new dispatch starts without conversation history, whether the resolved
    model is a slug or `inherit`; this covers `bouncer-coordinator`,
-   `bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`,
-   `bouncer-context-reviewer`, and plan evidence agents.
+   `bouncer-plan-coordinator`, `bouncer-planner`, `bouncer-implementer`,
+   `bouncer-reviewer`, `bouncer-debugger`, `bouncer-context-reviewer`, and plan
+   evidence agents.
    Host methods: Codex sets `fork_turns: "none"`; Claude Code uses a named
    subagent call and never a fork; Cursor print runs a separate process per
    dispatch.
-   The only exception is an implementer continuing its own session for the
+   The only exceptions are an implementer continuing its own session for the
    first in-scope verify fix defined in
-   `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`.
+   `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`, and a planner
+   continuing its own session once to apply plan review must_fix findings.
    On Codex, a dispatch that forks the full conversation does not accept a model
    override, so when a slug is passed, set `fork_turns: "none"` on that same
    call.

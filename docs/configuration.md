@@ -35,11 +35,12 @@
 `bouncer init`은 새 config를 만들 때 `package.json`에 `scripts.build`가 있으면 `worktree.setup`을 `"npm run build"`로 넣습니다. 이미 있는 config에는 자동으로 들어가지 않으니 필요하면 직접 추가하세요.
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
-`bouncer-context-reviewer` · `bouncer-coordinator` 다섯입니다.
+`bouncer-context-reviewer` · `bouncer-coordinator` · `bouncer-plan-coordinator` ·
+`bouncer-planner` 일곱입니다.
 
 `bouncer-coordinator`는 `/bouncer-run`이 시작 ACQ 뒤 한 번 부르는 주행
 컨트롤러입니다. drive 전체를 끌고 가는 역할이라 worker와 다른 모델을 고르고
-싶을 수 있어 슬롯을 따로 둡니다. 값의 의미는 나머지 넷과 같고
+싶을 수 있어 슬롯을 따로 둡니다. 값의 의미는 나머지와 같고
 (`"inherit"`이면 부모 세션 모델), 호스트가 named agent를 로드하지 못하면 같은
 coordinator 역할 전체를 실은 generic 서브에이전트 하나로 폴백합니다 — 축약한
 brief로 대신하지 않습니다. 모델 거절은 named-agent 부재가 아니므로 중단하고
@@ -131,7 +132,7 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 ## `subagents`
 
 호스트마다 모델 ID 네임스페이스가 달라서 프로바이더별 블록이 필요합니다.
-`bouncer init`은 네 프로바이더 × 다섯 에이전트를 모두 `"inherit"`로 채워,
+`bouncer init`은 네 프로바이더 × 일곱 에이전트를 모두 `"inherit"`로 채워,
 편집할 자리를 보여 줍니다.
 
 키 이름·허용값·기본값의 원본은 `bouncer config --help` 출력이고, 위 표는 테스트가

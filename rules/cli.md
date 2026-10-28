@@ -180,6 +180,29 @@ unchanged. `metrics summary` adds `by_tier: {strong, standard, light, unknown}` 
 `{sessions, tokens_total, cost_total}` over ended sessions only; a missing or `null` tier is
 `unknown`. A `null` blueprint is valid only on a plan kind; elsewhere it is `metrics-file-invalid`.
 
+`bouncer plan-ledger open|status|record|ask|answer|close` keeps the plan coordinator session state
+(request, phase, user questions and answers, planner session and revision counts) in the main
+worktree at `.bouncer/runtime/plan-ledgers/pl-<16hex>.json`; every subcommand takes `[--repo <dir>]`
+and an unresolvable main worktree is `non-git-root`. `open --request <text>` creates the file
+exclusively (`plan-ledger-exists` if the id is taken) and prints `{ ok, id, checkpoint }`;
+`status --id <id>` reads without a lock and prints `ledger`, `open_questions` (qids without an
+answer), and `checkpoint { path, sha256, revision }`. Every mutation takes `--id`, `--ledger-path`
+(the checkpoint path, exactly `.bouncer/runtime/plan-ledgers/<id>.json`) and `--ledger-hash` (the
+checkpoint sha256), runs under the ledger lock, adds 1 to `revision`, and prints the new checkpoint.
+`record` needs at least one of `--phase` (`discovery|checkpoint|authoring|review|ready`, forward
+or same only), `--blueprint` (stored once, normalized to `/` without a trailing slash, must sit
+under `.bouncer/context/epics/`), `--planner-session` with `--planner-mode`
+(`initial|resume|continued|fresh`; `continued` is allowed once and total revisions are capped at 2),
+and `--note`. `ask --question` prints the new `qid`; `answer --question-id --text` fills it once;
+`close` makes later mutations fail. The CLI does not tell callers apart, so only the root runs
+`open`, `answer`, and `close` by rule. Refusals are `{ ok: false, reason }` (exit 1) before any
+write: `plan-ledger-id-invalid`, `plan-ledger-not-found`, `plan-ledger-invalid`,
+`plan-ledger-exists`, `ledger-checkpoint-invalid`, `stale-ledger-checkpoint`, `ledger-locked`,
+`ledger-lock-lost`, `plan-ledger-closed`, `plan-ledger-phase-backward`,
+`plan-ledger-blueprint-bound`, `plan-ledger-revision-limit`, `plan-ledger-question-unknown`,
+`plan-ledger-question-answered`, `invalid-plan-ledger-input`. An unknown subcommand or flag is
+usage with exit 2. The run coordinator ledger and its reasons are unchanged.
+
 ## Context and task creation
 
 ```sh
@@ -435,7 +458,7 @@ bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --
   # legacy (unmarked), light, or --task review: light or a small diff → single [combined]; else parallel
   # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk appends security
   # --mode delta is allowed for the one delta after the single repair of a brief final review
-bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 
@@ -580,7 +603,7 @@ any file read), `review-accept-risk-task-scope` (the review is not
 `--note`, or any `--task`, is exit 2.
 
 ```sh
-bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 

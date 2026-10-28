@@ -14,7 +14,8 @@ const { resolveSubagentRole } = subagents;
 import codexAgents = require('./codex-agents');
 const { pluginAgentsDir } = codexAgents;
 
-const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator'] as const;
+const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator',
+  'planner', 'plan-coordinator'] as const;
 type PrintRole = (typeof PRINT_ROLES)[number];
 
 type PrintDispatchDeps = {
@@ -53,14 +54,16 @@ type PrintDispatchResult = PrintDispatchOk | PrintDispatchFail;
  * Cursor print 식별 줄. 문구는 `rules/cursor-print-dispatch.md` 3항과 바이트가
  * 같아야 한다. 역할이 named agent를 다시 띄우지 못하게 고정한 문장이다.
  *
- * @param {string} role - implementer|reviewer|debugger|context-reviewer|coordinator
+ * @param {string} role - implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator
  * @returns {string} prompt 첫 줄
  */
 function identityLine(role: string): string {
-  if (role === 'coordinator') {
+  if (role === 'coordinator' || role === 'plan-coordinator') {
     // 식별 문구는 cursor-print-dispatch 3항과 바이트가 같아야 하므로 이어 붙인다.
+    // plan-coordinator도 run coordinator처럼 자기 worker(planner·reviewer 등)를 띄우므로 같은 문구를 쓴다.
+    // planner는 일반 worker처럼 하위 dispatch가 없어 기본 문구로 떨어진다.
     return (
-      'You are the dispatched bouncer-coordinator itself. '
+      `You are the dispatched bouncer-${role} itself. `
       + 'Dispatch only your workers, each under rules/cursor-print-dispatch.md.'
     );
   }
@@ -409,6 +412,7 @@ function runPrintDispatch({
 
 export = {
   PRINT_ROLES,
+  identityLine,
   assemblePrintPrompt,
   runPrintDispatch,
 };

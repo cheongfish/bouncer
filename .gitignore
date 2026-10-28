@@ -14,6 +14,8 @@ graphify-out/
 !.codex/agents/bouncer-implementer.toml
 !.codex/agents/bouncer-reviewer.toml
 !.codex/agents/bouncer-context-reviewer.toml
+!.codex/agents/bouncer-planner.toml
+!.codex/agents/bouncer-plan-coordinator.toml
 
 .bouncer/config.json
 .bouncer/runtime/
