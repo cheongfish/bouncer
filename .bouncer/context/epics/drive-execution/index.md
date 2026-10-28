@@ -37,6 +37,7 @@ bouncer:
 13. 이 변경의 commit task는 전용 검증을, 마지막 verification task는 npm run ci를 실행한다. source 생성본 경계·한국어 브리프 및 커밋 규약을 유지한다.
 14. implementer 문서 Guardrails에 변경 ts·js 파일 eslint 실행, `eslint-disable` 우회 금지, task `verify` 비대체 항목이 있고 Codex TOML이 이와 동기화되며 테스트가 이를 고정한다.
 15. revoke된 worker의 최신 runtime report는 salvage 산출물로 보존되어 `salvage[]`·`worker-salvage` 결정에 경로가 남고, 리뷰어 Red run 입력은 최신 report에 Red run이 없을 때 그 보존본을 쓴다.
+16. worker가 이 task의 `Bouncer-Task` 트레일러 없이 직접 만든 커밋이 있으면 `coordinate next`는 `commit` 대신 `blocked`(`worker-commit-untrailered`)를 낸다. `coordinate uncommit`이 그 커밋을 soft reset하고 원장에 기록하면, 되돌린 변경이 index에 staged로 남고 worker 범위에 무트레일러 커밋이 없어져 `next`가 다시 `commit`을 낸다. 이로써 `bouncer commit`의 후보가 비지 않는다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -81,3 +82,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [model-dispatch-enforcement](blueprints/model-dispatch-enforcement/index.md): 역할별 모델 metadata와 Claude 호출 훅, 모델 거절 및 리뷰 기록 순서를 정리한다.
 - [worker-lint-check](blueprints/worker-lint-check/index.md): 구현 worker가 report 전에 변경 파일에 eslint를 실행하는 절차를 implementer 문서에 추가한다.
 - [salvage-red-run-report](blueprints/salvage-red-run-report/index.md): resume으로 지워지는 worker의 runtime report를 salvage로 보존하고 Red run 입력이 이를 쓰게 한다.
+- [untrailered-worker-commit](blueprints/untrailered-worker-commit/index.md): `coordinate next`가 트레일러 없는 worker 커밋을 blocked로 판정하고, `coordinate uncommit`으로 되돌려 트레일러 커밋을 다시 만들게 한다.
