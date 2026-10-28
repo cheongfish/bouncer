@@ -553,7 +553,7 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
-`failures` (G5, G19, G20, and G32 for a declared prerequisite) when the draft fails. G20 also
+`failures` (G5, G19, G20, G32 for a declared prerequisite, and G33) when the draft fails. G33 fires for a commit task when the checkout has `test/tiers.json`, the task declares a new `test/<name>.test.js` (a Touch `Create`/`Rename` row, or an `affected_paths` entry the Touch does not `Modify`) that does not exist, and `affected_paths` lacks `test/tiers.json`. G20 also
 statically rejects, for every task (any `verification_policy`) in the plan draft check and plan gate, a `bouncer.verify` of the form `node scripts/check-doc-shape.js <doc>...` that names a
 document with neither a kind nor a path contract (the checker would exit 1); it reads only the argument strings,
 and a verify with no document argument (default scan) passes. Invalid argv is exit 2.

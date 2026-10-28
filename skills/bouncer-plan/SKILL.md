@@ -262,8 +262,9 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    **Verify command (required per commit task on a `scoped_terminal` blueprint).**
    Every new blueprint carries `bouncer.verification_policy: scoped_terminal`.
    Each commit task needs its own task-only `bouncer.verify` (a single argv that
-   runs just that task's tests — the tests its Checklist adds or changes), and
-   the last task is exactly one terminal verification task, created with
+   runs just that task's tests — the tests its Checklist adds or changes).
+   Beyond those tests, the task-only command also runs the cheap static checks the project's terminal CI applies to the files the task touches (for example a test-name lint, a test manifest or tier registration check, a doc cite check); when that takes several commands, wrap them in one project script, because `bouncer.verify` is a single argv.
+   The last task is exactly one terminal verification task, created with
    `bouncer scaffold task --execution-kind verification --depends-on ...
    --verify "<full-suite command>"`, that waits for every commit task. Never
    assign the full-suite command to a commit task; the plan gate (G20) rejects
