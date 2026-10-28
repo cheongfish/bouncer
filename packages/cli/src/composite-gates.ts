@@ -36,10 +36,10 @@ const COMPOSITE_GATES: ReadonlyArray<CompositeGateRow> = Object.freeze([
   {
     gate: 'scope-declaration',
     label: '범위 선언',
-    codes: ['G5'],
+    codes: ['G5', 'G33'],
     reasons: [],
-    next: 'Confirm a non-empty `affected_paths` for every commit task through `/bouncer-plan`, '
-      + 'then rerun the plan gate.',
+    next: 'Confirm a non-empty `affected_paths` for every commit task through `/bouncer-plan` '
+      + '(a task that creates a test file also lists `test/tiers.json`), then rerun the plan gate.',
   },
   {
     gate: 'execution-topology',

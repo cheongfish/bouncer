@@ -88,6 +88,11 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     next: PREREQUISITE_NEXT,
   },
   {
+    code: 'G33',
+    next: 'Add test/tiers.json to this task\'s affected_paths and Touch '
+      + '(register the new test in the unit or integration list), then rerun the gate.',
+  },
+  {
     code: 'S32',
     match: /must be a YAML list/,
     next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '

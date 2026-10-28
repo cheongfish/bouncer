@@ -2474,6 +2474,127 @@ test('G32 failure through the hint table → carries the prerequisite recovery n
   assert.deepStrictEqual(res.gates.map((g) => g.gate), ['freshness-approval']);
 });
 
+// G33 fixture: test/tiers.json과 기존 test/old.test.js만 있는 임시 저장소.
+const G33_HEAD = '| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |\n| --- | --- | --- | --- | --- | --- |\n';
+const G33_PREFIX = 'new test files need test/tiers.json in affected_paths: ';
+
+function g33Repo({ tiers = true } = {}) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g33-'));
+  fs.mkdirSync(path.join(repo, 'test'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'test', 'old.test.js'), '');
+  if (tiers) fs.writeFileSync(path.join(repo, 'test', 'tiers.json'), '{}');
+  return repo;
+}
+
+// rows: [첫 열 원문, 변경 열, 근거 열(선택)]. null이면 Touch 절 자체를 두지 않는다.
+function g33Body(rows) {
+  if (rows === null) return READY_BODY.replace(/## Touch[\s\S]*?## Do not touch/, '## Do not touch');
+  const table = G33_HEAD + rows.map(([p, kind, why = '-']) => `| ${p} | \`sym\` | ${kind} | x | y | ${why} |`).join('\n');
+  return READY_BODY.replace(/## Touch[\s\S]*?## Do not touch/, `## Touch\n${table}\n\n## Do not touch`);
+}
+
+function g33Run(kind, rows, affected, { repo = g33Repo(), noRoot = false, extra = {} } = {}) {
+  const { checkPlanDraft } = require('../packages/cli/dist/validate-gates');
+  const failures = [];
+  const ctx = noRoot ? {} : { repoRoot: repo };
+  const body = g33Body(rows);
+  if (kind === 'draft') {
+    checkPlanDraft(draftPlanDocs([draftTaskDoc('001', { affected_paths: affected, ...extra }, body)]), rels, failures, ctx);
+  } else {
+    checkGate('plan', planDocsWithTasks([planTaskDoc('001', { affected_paths: affected, ...extra }, body)]),
+      rels, failures, ctx);
+  }
+  return failures.filter((f) => f.code === 'G5' || f.code === 'G33');
+}
+
+const g33Msgs = (out) => out.filter((f) => f.code === 'G33').map((f) => f.message);
+
+for (const kind of ['draft', 'plan']) {
+  test(`${kind} with a Create row for a missing test and no tiers entry → one G33 with the path`, () => {
+    const out = g33Run(kind, [['`test/new.test.js`', 'Create']], ['test/new.test.js']);
+    assert.deepStrictEqual(g33Msgs(out), [`${G33_PREFIX}test/new.test.js`]);
+    assert.strictEqual(out[0].file, planTaskDoc('001').rel);
+  });
+
+  test(`${kind} with two new tests (unquoted, ./ prefixed, duplicated) → one G33 sorted and deduplicated`, () => {
+    const out = g33Run(kind, [['`test/b.test.js`', 'Create'], ['test/a.test.js', 'Create']],
+      ['test/b.test.js', './test/a.test.js']);
+    assert.deepStrictEqual(g33Msgs(out), [`${G33_PREFIX}test/a.test.js, test/b.test.js`]);
+  });
+
+  test(`${kind} with a Create row only in Touch and unrelated affected_paths → G33`, () => {
+    const out = g33Run(kind, [['`test/new.test.js`', 'Create']], ['packages/x.ts']);
+    assert.deepStrictEqual(g33Msgs(out), [`${G33_PREFIX}test/new.test.js`]);
+  });
+
+  test(`${kind} with no Touch section and a missing test in affected_paths → G33`, () => {
+    const out = g33Run(kind, null, ['./test/new.test.js']);
+    assert.deepStrictEqual(g33Msgs(out), [`${G33_PREFIX}test/new.test.js`]);
+  });
+
+  test(`${kind} with empty affected_paths and a Create row → G5 then G33 in one task`, () => {
+    const out = g33Run(kind, [['`test/new.test.js`', 'Create']], []);
+    assert.deepStrictEqual(out.map((f) => f.code), ['G5', 'G33']);
+  });
+
+  test(`${kind} with a Rename row to a missing test → G33 names the destination`, () => {
+    const out = g33Run(kind, [['`test/o.js` → `test/moved.test.js`', 'Rename']], ['packages/x.ts']);
+    assert.deepStrictEqual(g33Msgs(out), [`${G33_PREFIX}test/moved.test.js`]);
+  });
+
+  test(`${kind} with test/tiers.json in affected_paths → no G33`, () => {
+    const out = g33Run(kind, [['`test/new.test.js`', 'Create']], ['test/new.test.js', './test/tiers.json']);
+    assert.deepStrictEqual(g33Msgs(out), []);
+  });
+
+  test(`${kind} with an already existing test file → no G33`, () => {
+    const out = g33Run(kind, [['`test/old.test.js`', 'Create']], ['test/old.test.js']);
+    assert.deepStrictEqual(g33Msgs(out), []);
+  });
+
+  test(`${kind} with a Modify row for a missing sibling test in affected_paths → no G33`, () => {
+    const out = g33Run(kind, [['`test/sib.test.js`', 'Modify']], ['test/sib.test.js']);
+    assert.deepStrictEqual(g33Msgs(out), []);
+  });
+
+  test(`${kind} with the missing test cited only in the rationale column → no G33`, () => {
+    const out = g33Run(kind, [['`packages/x.ts`', 'Modify', '`test/new.test.js:10`']], ['packages/x.ts']);
+    assert.deepStrictEqual(g33Msgs(out), []);
+  });
+
+  test(`${kind} with a nested test dir or non-test js file → no G33`, () => {
+    const out = g33Run(kind, [['`test/sub/new.test.js`', 'Create'], ['`test/helper.js`', 'Create']],
+      ['test/sub/new.test.js', 'test/helper.js']);
+    assert.deepStrictEqual(g33Msgs(out), []);
+  });
+
+  test(`${kind} in a repository without test/tiers.json → no G33`, () => {
+    const out = g33Run(kind, [['`test/new.test.js`', 'Create']], ['test/new.test.js'], { repo: g33Repo({ tiers: false }) });
+    assert.deepStrictEqual(g33Msgs(out), []);
+  });
+
+  test(`${kind} with a verification task → no G33`, () => {
+    const out = g33Run(kind, [['`test/new.test.js`', 'Create']], ['test/new.test.js'],
+      { extra: { execution_kind: 'verification' } });
+    assert.deepStrictEqual(g33Msgs(out), []);
+  });
+}
+
+test('draft without repoRoot → no G33', () => {
+  const out = g33Run('draft', [['`test/new.test.js`', 'Create']], ['test/new.test.js'], { noRoot: true });
+  assert.deepStrictEqual(g33Msgs(out), []);
+});
+
+test('G33 failure through the hint table → carries the tiers.json recovery next', () => {
+  const { withGateFailureHints } = require('../packages/cli/dist/validate');
+  const res = withGateFailureHints({
+    ok: false, failures: g33Run('plan', [['`test/new.test.js`', 'Create']], ['test/new.test.js']),
+  });
+  assert.strictEqual(res.failures[0].next, 'Add test/tiers.json to this task\'s affected_paths and Touch '
+    + '(register the new test in the unit or integration list), then rerun the gate.');
+  assert.deepStrictEqual(res.gates.map((g) => g.gate), ['scope-declaration']);
+});
+
 test('plan gate → keeps per-task failure order G3 then task checks', () => {
   const docs = planDocsWithTasks([
     planTaskDoc('001', { status: 'draft', affected_paths: [] }),

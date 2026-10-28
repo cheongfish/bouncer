@@ -1,4 +1,5 @@
 'use strict';
+const fs = require('node:fs');
 const path = require('node:path');
 import schema = require('./schema');
 const { executionKindOf } = schema;
@@ -642,12 +643,70 @@ function isSecurityPath(p: string): boolean {
     SECURITY_PATH_TOKENS.includes(seg) || seg.split(/[._-]/).some((x) => SECURITY_PATH_TOKENS.includes(x)));
 }
 
+// 신규 테스트 경로 판정 대상: test/ 바로 아래의 `*.test.js`만 tier 목록이 관리한다.
+const NEW_TEST_PATH_RE = /^test\/[^/]+\.test\.js$/;
+const TIERS_FILE = 'test/tiers.json';
+
+/** 경로 문자열을 앞의 `./`를 뗀 POSIX 형태로 맞춘다. */
+function normalizeScopePath(raw: string): string {
+  return raw.trim().replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
 /**
- * task 문서 하나에 status와 무관한 plan 검사(G5)와 경고를 현재 순서대로 적용한다.
+ * Touch 표에서 변경 열(셋째 열)이 Create·Rename·Modify·Delete인 행의 경로를 읽는다.
+ * 근거·계획한 변경 열은 일부러 읽지 않는다: 거기 인용된 경로는 파일을 만든다는 선언이 아니다.
+ * Rename은 첫 열 `A → B`의 B(도착 경로)를 쓴다. 첫 열의 백틱은 벗긴다.
+ *
+ * @param {string} touchText - Touch 절 본문
+ * @returns {{ created: string[], existing: Set<string> }} 생성 경로와 Modify·Delete 경로
+ */
+function readTouchTableRows(touchText: string): { created: string[]; existing: Set<string> } {
+  const created: string[] = [];
+  const existing = new Set<string>();
+  for (const line of touchText.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|')) continue;
+    const cells = trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+    if (cells.length < 3) continue;
+    const kind = cells[2];
+    const first = cells[0].replace(/`/g, '');
+    if (kind === 'Rename') {
+      const arrow = first.lastIndexOf('→');
+      if (arrow >= 0) created.push(normalizeScopePath(first.slice(arrow + 1)));
+    } else if (kind === 'Create') {
+      created.push(normalizeScopePath(first));
+    } else if (kind === 'Modify' || kind === 'Delete') {
+      existing.add(normalizeScopePath(first));
+    }
+  }
+  return { created, existing };
+}
+
+/**
+ * commit task가 만들 신규 테스트 경로(checkout에 없는 `test/<name>.test.js`)를 모은다.
+ * 후보는 Touch의 Create·Rename 도착 경로와, Touch가 Modify·Delete로 선언하지 않은
+ * affected_paths 항목의 합집합이다(Modify 행이 있으면 선행 task가 만드는 파일이다).
+ *
+ * @param {string} touchText - Touch 절 본문(없으면 빈 문자열)
+ * @param {string[]} declared - 정규화한 문자열 affected_paths 항목
+ * @param {string} repoRoot - 존재 여부를 확인할 저장소 루트
+ * @returns {string[]} 정렬·중복 제거한 신규 테스트 경로
+ */
+function newTestPaths(touchText: string, declared: string[], repoRoot: string): string[] {
+  const { created, existing } = readTouchTableRows(touchText);
+  const candidates = [...created, ...declared.filter((p) => !existing.has(p))];
+  const hits = candidates.filter((p) => NEW_TEST_PATH_RE.test(p) && !fs.existsSync(path.join(repoRoot, p)));
+  return [...new Set(hits)].sort();
+}
+
+/**
+ * task 문서 하나에 status와 무관한 plan 검사(G5·G33)와 경고를 현재 순서대로 적용한다.
  * plan gate는 G3 다음에, plan draft 검사는 G3 없이 이 함수를 부른다 — 두 경로가
  * 한 구현을 공유해야 draft에서 통과한 문서가 승인 뒤 gate에서 다른 답을 받지 않는다.
  * affected_paths가 20개를 넘으면 실패가 아니라 ctx.warnings에 task-split 경고만 싣고,
  * 보안 경로를 건드리는데 review_risk가 비면 review-risk-missing 경고를 싣는다.
+ * G33: 저장소에 test/tiers.json이 있는데 commit task가 새 테스트 파일을 만들면서
+ * affected_paths에 tiers.json을 넣지 않으면 종단 ci가 늦게 깨지므로 계획 단계에서 막는다.
  *
  * @param {DocLeaf} tasksDoc - 검사할 tasks.md 문서
  * @param {string} file - 실패 항목에 실을 task 문서 경로
@@ -670,6 +729,18 @@ function checkTaskScope(
   const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
   if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
     addTask('G5', 'tasks.affected_paths missing or empty');
+  }
+  // G33은 Touch 조기 반환보다 앞에서 판정한다: Touch가 없어도 affected_paths만으로 후보가 생긴다.
+  // repoRoot가 없으면(순수 호출) tiers.json 존재를 알 수 없어 조용히 건너뛴다.
+  if (executionKind === 'commit' && ctx.repoRoot
+    && fs.existsSync(path.join(ctx.repoRoot, TIERS_FILE))) {
+    const declared = (Array.isArray(ap) ? ap : [])
+      .filter((e): e is string => typeof e === 'string').map(normalizeScopePath);
+    const touchForTests = parseTasksSections(typeof tasksDoc.body === 'string' ? tasksDoc.body : '').touch || '';
+    const fresh = newTestPaths(touchForTests, declared, ctx.repoRoot);
+    if (fresh.length && !declared.includes(TIERS_FILE)) {
+      addTask('G33', `new test files need ${TIERS_FILE} in affected_paths: ${fresh.join(', ')}`);
+    }
   }
   // 20 초과는 한-커밋 리뷰 판단을 돕는 보조 신호일 뿐 — G/S 실패로 올리지 않는다.
   // 정당한 넓은 task(대량 리네임·이관)도 통과해야 하므로 failures에 넣지 않는다.
@@ -708,7 +779,7 @@ function checkTaskScope(
 
 /**
  * context review 전 계획 draft에 status 무관 plan 검사만 돌린다.
- * task마다 G5를 적용한 뒤 G19·G20 graph 검사를 이어 붙이고, ctx에 repoRoot·blueprintDir가 있으면 G32도 낸다.
+ * task마다 G5·G33을 적용한 뒤 G19·G20 graph 검사를 이어 붙이고, ctx에 repoRoot·blueprintDir가 있으면 G32도 낸다.
  * G1·G2·G3은 approved/ready status를 요구해 draft에서 항상 실패하므로 넣지 않는다.
  *
  * @param {BlueprintDocs} docs - 로드된 blueprint 문서 묶음

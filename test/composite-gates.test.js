@@ -12,11 +12,15 @@ test('COMPOSITE_GATES when read → seven gates cover every live G-code and boun
     'plan-activation', 'scope-declaration', 'execution-topology', 'verification-evidence',
     'commit-scope', 'freshness-approval', 'closeout-completeness',
   ]);
-  const live = ['G1', 'G2', 'G3', 'G5', 'G6', 'G7', 'G8', 'G13', 'G14', 'G16', 'G17', 'G19', 'G20', 'G21', 'G23', 'G24', 'G32'];
+  const live = ['G1', 'G2', 'G3', 'G5', 'G6', 'G7', 'G8', 'G13', 'G14', 'G16', 'G17', 'G19', 'G20', 'G21', 'G23', 'G24', 'G32', 'G33'];
   assert.deepStrictEqual(COMPOSITE_GATES.flatMap((g) => g.codes).sort(), [...live].sort());
   assert.strictEqual(compositeGateForCode('G14'), 'verification-evidence');
   assert.strictEqual(compositeGateForCode('G21'), 'closeout-completeness');
   assert.strictEqual(compositeGateForCode('G32'), 'freshness-approval');
+  assert.strictEqual(compositeGateForCode('G33'), 'scope-declaration');
+  assert.strictEqual(COMPOSITE_GATES.find((g) => g.gate === 'scope-declaration').next,
+    'Confirm a non-empty `affected_paths` for every commit task through `/bouncer-plan` '
+    + '(a task that creates a test file also lists `test/tiers.json`), then rerun the plan gate.');
   assert.strictEqual(compositeGateForCode('S10'), null);
   assert.strictEqual(compositeGateForCode('G99'), null);
   assert.strictEqual(compositeGateForCode(undefined), null);
