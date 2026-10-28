@@ -6314,6 +6314,10 @@ test('prepare with a revoked worker holding several reports → copies the numer
   assert.strictEqual(again.salvage[0].report, expected);
   assert.strictEqual(fs.readFileSync(expected, 'utf8'), 'ten\n');
   assert.deepStrictEqual(fs.readdirSync(path.dirname(expected)), [path.basename(expected)]);
+  // report만 있는 clean worker: report는 있고 patch·ref는 출력에 없다.
+  assert.strictEqual(again.salvage[0].report, expected);
+  assert.strictEqual(again.salvage[0].patch, undefined);
+  assert.strictEqual(again.salvage[0].ref, undefined);
   const decision = readLedgerFile(fx.ledgerFile).decisions.find((d) => d.kind === 'worker-salvage');
   assert.strictEqual(decision.report, expected);
   assert.deepStrictEqual(decision.dirty_paths, []);
@@ -6359,6 +6363,80 @@ test('prepare when the report target already holds different bytes → worker-sa
   assert.strictEqual(ok.ok, true, JSON.stringify(ok));
   assert.strictEqual(ok.salvage[0].report, target);
 });
+
+/**
+ * report temp write 또는 rename만 일시 실패시키고 한 번의 prepare를 실행한다.
+ * 대상 경로 밖의 호출은 원래 메서드로 위임하며, 어떤 경로로 끝나도 `finally`에서 원복한다.
+ *
+ * @param {object} fx - salvageFixture 결과
+ * @param {'write' | 'rename'} mode - 실패시킬 fs 호출
+ * @returns {object} prepare 결과
+ */
+function prepareWithReportIoFailure(fx, mode) {
+  const realWrite = fs.writeFileSync;
+  const realRename = fs.renameSync;
+  const isTemp = (p) => typeof p === 'string' && /\.report\.md\.tmp-\d+$/.test(p);
+  try {
+    if (mode === 'write') {
+      fs.writeFileSync = (file, bytes, ...rest) => {
+        if (!isTemp(file)) return realWrite(file, bytes, ...rest);
+        realWrite(file, Buffer.from(bytes).subarray(0, 2), ...rest); // 일부 바이트만 쓴 뒤 실패
+        throw new Error('injected report write failure');
+      };
+    } else {
+      fs.renameSync = (from, to) => {
+        if (!isTemp(from)) return realRename(from, to);
+        assert.strictEqual(fs.existsSync(from), true); // temp가 존재하는 호출에서만 실패
+        throw new Error('injected report rename failure');
+      };
+    }
+    return prepareAgain(fx);
+  } finally {
+    fs.writeFileSync = realWrite;
+    fs.renameSync = realRename;
+  }
+}
+
+for (const mode of ['write', 'rename']) {
+  test(`prepare when the report temp ${mode} fails on a dirty revoked worker → worker-salvage-failed with only the patch and nothing changed`, () => {
+    let head;
+    const fx = salvageFixture(`report-io-${mode}`, (worker) => {
+      head = gitOut(worker, 'rev-parse', 'HEAD');
+      fs.writeFileSync(path.join(worker, 'README.md'), 'modified\n');
+      fs.writeFileSync(path.join(worker, 'notes.txt'), 'untracked\n');
+      writeWorkerReports(worker, { '001-1.md': 'mine\n' });
+    });
+    const reportFile = path.join(fx.worker, '.bouncer/runtime/reports/001-1.md');
+    const worktrees = () => gitOut(fx.boot.integrationPath, 'worktree', 'list', '--porcelain');
+    const before = {
+      ledger: fs.readFileSync(fx.ledgerFile), report: fs.readFileSync(reportFile),
+      notes: fs.readFileSync(path.join(fx.worker, 'notes.txt')), readme: fs.readFileSync(path.join(fx.worker, 'README.md')),
+      workerHead: gitOut(fx.worker, 'rev-parse', 'HEAD'), branchHead: gitOut(fx.repo, 'rev-parse', fx.branch),
+      worktrees: worktrees(),
+    };
+    const failed = prepareWithReportIoFailure(fx, mode);
+    assert.strictEqual(failed.ok, false);
+    assert.strictEqual(failed.reason, 'worker-salvage-failed');
+    assert.strictEqual(failed.task, '001');
+    assert.ok(failed.message.includes(`injected report ${mode} failure`), failed.message);
+    const salvageDir = path.join(fx.boot.integrationPath, '.bouncer/runtime/salvage');
+    const patch = path.join(salvageDir, `001-g1-${head.slice(0, 8)}.patch`);
+    assert.deepStrictEqual(failed.salvage, [{ task: '001', patch }]);
+    execFileSync('git', ['apply', '--check', '--binary', patch], { cwd: fx.boot.integrationPath });
+    // final report와 정확한 temp 파일이 없고 patch만 남는다.
+    assert.deepStrictEqual(fs.readdirSync(salvageDir), [path.basename(patch)]);
+    assert.deepStrictEqual(fs.readFileSync(fx.ledgerFile), before.ledger);
+    assert.deepStrictEqual(fs.readFileSync(reportFile), before.report);
+    assert.deepStrictEqual(fs.readFileSync(path.join(fx.worker, 'notes.txt')), before.notes);
+    assert.deepStrictEqual(fs.readFileSync(path.join(fx.worker, 'README.md')), before.readme);
+    assert.strictEqual(gitOut(fx.worker, 'rev-parse', 'HEAD'), before.workerHead);
+    assert.strictEqual(gitOut(fx.repo, 'rev-parse', fx.branch), before.branchHead);
+    assert.strictEqual(worktrees(), before.worktrees);
+    // stub이 원복됐으므로 같은 입력의 재시도는 성공한다.
+    const retry = prepareAgain(fx);
+    assert.strictEqual(retry.ok, true, JSON.stringify(retry));
+  });
+}
 
 test('resume with an owner worker holding a report → output, worker-salvage and repair decisions carry the same report path', () => {
   const drive = terminalFailedDrive('bouncer-resume-salvage-report-');

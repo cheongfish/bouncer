@@ -357,7 +357,8 @@ commits (`refs/bouncer/salvage/<task>/g<gen>-<short>`), records a
 `worker-salvage` decision, and lists them in the output `salvage` array
 (`task`, `patch`, `ref`, and `report`). A revoked worker's latest report is
 preserved as `.bouncer/runtime/salvage/<task>-g<gen>-<short>.report.md` and
-listed as `report`. A clean worker adds no `salvage` key. If preserving
+listed as `report`. A worker with no patch, ref, or report to keep adds no `salvage` key;
+a worker holding only a runtime report still gets `salvage` with that `report`. If preserving
 fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
 unchanged.
 `coordinate bootstrap` sets ledger `mode: light` only when blueprint
