@@ -49,6 +49,7 @@ bouncer:
 26. 저장소 루트에 `test/tiers.json`이 있을 때, commit task가 checkout에 없는 `test/<name>.test.js`를 만들면서 `affected_paths`에 `test/tiers.json`을 넣지 않으면 plan draft 검사와 plan gate가 같은 `G33`(복합 gate `scope-declaration`)으로 실패한다. 만든다는 것은 Touch `Create` 행이나 `Rename` 행의 새 경로, 또는 이 task Touch에 `Modify`·`Delete` 행이 없는 `affected_paths` 항목을 뜻하며, 그 밖의 입력에서는 `G33`이 나오지 않는다.
 27. `node scripts/check-task.js <test files>`는 넘긴 파일의 테스트 이름 위반·tier 미등록·unit tier 프로세스 생성 위반에서 exit 1, 인자 없음에서 exit 2, 모두 통과하면 exit 0을 낸다.
 28. `skills/bouncer-plan/SKILL.md`와 `references/spec-authoring/index.md`는 commit task 전용 verify에 종단 CI의 저비용 정적 검사를 포함하고 여러 명령은 프로젝트 스크립트 하나로 감싸라고 서술하며, 이 변경의 종단 `npm run ci`가 통과한다.
+29. `model_tiers.<provider>.strong`이 `"inherit"`이면 provider와 관계없이 `review-dispatch` plan·execute가 `reviewer_tier: strong`에서 `reviewer_tier_applied: false`를 내고, `agent_dispatch`를 등급 적용 전 해석으로 두며, `reasons`에 `reviewer tier strong not applied: tier-inherit (fix: model_tiers.<provider>.strong)`를 싣는다. 모델 slug 매핑의 `reviewer_tier_applied: true`는 그대로이고 이 변경의 종단 `npm run ci`가 통과한다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -84,3 +85,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [review-contract-deduplication](blueprints/review-contract-deduplication/index.md) — 리뷰 계약 판정의 중복 제거; R-A3·R-A4·R-A5·R-A6·R-A9·R-A10·R-A11 처리.
 - [adversarial-review-tiering](blueprints/adversarial-review-tiering/index.md) — 리뷰어를 적대적 자세와 필수 수정 보고 기준으로 개정하고, 규모·위험으로 reviewer_tier를 계산해 모델에 적용하며 훅이 상향만 허용한다.
 - [test-tiers-plan-gate](blueprints/test-tiers-plan-gate/index.md) — 신규 테스트의 `test/tiers.json` 누락을 plan gate `G33`으로 막고, task verify용 `scripts/check-task.js`와 제품 문서의 verify 구성 지침을 더한다.
+- [strong-inherit-not-applied](blueprints/strong-inherit-not-applied/index.md) — `review-dispatch.ts`의 `applyReviewerTier`가 `inherit`인 strong 매핑을 미적용(`tier-inherit`)으로 보고하고 `docs/configuration.md` 설명을 맞춘다.

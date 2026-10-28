@@ -2557,17 +2557,37 @@ test('plan with strong tier and model_tiers.claude.strong → agent_dispatch.mod
   });
 });
 
-test('plan with strong tier mapped to inherit → agent_dispatch.model is null and applied', () => {
+test('plan with strong tier mapped to inherit → keeps the slot dispatch with a tier-inherit reason', () => {
   const repo = tierPlanRepo(['001', '002', '003']);
   writeConfig(repo, {
     subagents: { provider: 'claude', claude: { 'bouncer-context-reviewer': 'slot-model' } },
     model_tiers: { claude: { strong: 'inherit' } },
   });
   const plan = tierPlan(repo);
-  assert.strictEqual(plan.reviewer_tier_applied, true);
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.strictEqual(plan.reviewer_tier_applied, false);
+  assert.deepStrictEqual(plan.agent_dispatch, {
+    agent: 'bouncer-context-reviewer', provider: 'claude', model: 'slot-model',
+  });
+  assert.ok(plan.reasons.includes(
+    'reviewer tier strong not applied: tier-inherit (fix: model_tiers.claude.strong)',
+  ), plan.reasons.join('|'));
+});
+
+test('plan with strong tier mapped to inherit and no slot → keeps the null model dispatch with the reason', () => {
+  const repo = tierPlanRepo(['001', '002', '003']);
+  writeConfig(repo, {
+    subagents: { provider: 'claude' },
+    model_tiers: { claude: { strong: 'inherit' } },
+  });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.reviewer_tier_applied, false);
   assert.deepStrictEqual(plan.agent_dispatch, {
     agent: 'bouncer-context-reviewer', provider: 'claude', model: null,
   });
+  assert.ok(plan.reasons.includes(
+    'reviewer tier strong not applied: tier-inherit (fix: model_tiers.claude.strong)',
+  ), plan.reasons.join('|'));
 });
 
 test('plan with strong tier and no strong mapping → keeps the old agent_dispatch with a not-applied reason', () => {
@@ -2718,6 +2738,24 @@ test('execute with strong tier and no strong mapping → keeps agent_dispatch an
   });
   assert.ok(out.reasons.includes(
     'reviewer tier strong not applied: tier-unmapped (fix: model_tiers.claude.strong)',
+  ), out.reasons.join('|'));
+});
+
+test('execute with codex strong tier mapped to inherit → keeps the codex slot and adds the tier-inherit reason', () => {
+  const out = tierExecute({
+    tasks: ['001'], risks: [['public_interface']], taskId: '001',
+    cfg: {
+      subagents: { provider: 'codex', codex: { 'bouncer-reviewer': 'codex-slot-x' } },
+      model_tiers: { codex: { strong: 'inherit' } },
+    },
+  });
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.strictEqual(out.reviewer_tier_applied, false);
+  assert.deepStrictEqual(out.agent_dispatch, {
+    agent: 'bouncer-reviewer', provider: 'codex', model: 'codex-slot-x',
+  });
+  assert.ok(out.reasons.includes(
+    'reviewer tier strong not applied: tier-inherit (fix: model_tiers.codex.strong)',
   ), out.reasons.join('|'));
 });
 
