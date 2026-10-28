@@ -16,6 +16,8 @@ const NAMED_AGENTS = [
   'bouncer-debugger',
   'bouncer-context-reviewer',
   'bouncer-coordinator',
+  'bouncer-planner',
+  'bouncer-plan-coordinator',
 ] as const;
 
 // 이 마커가 첫 줄이면 init이 플러그인 md와 다시 맞춘다. 마커 없는 파일은

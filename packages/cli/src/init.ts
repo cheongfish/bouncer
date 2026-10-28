@@ -168,6 +168,8 @@ function defaultConfig(repoRoot: string) {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
       cursor: {
         'bouncer-reviewer': 'inherit',
@@ -175,6 +177,8 @@ function defaultConfig(repoRoot: string) {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
       codex: {
         'bouncer-reviewer': 'inherit',
@@ -182,6 +186,8 @@ function defaultConfig(repoRoot: string) {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
       antigravity: {
         'bouncer-reviewer': 'inherit',
@@ -189,23 +195,30 @@ function defaultConfig(repoRoot: string) {
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
         'bouncer-coordinator': 'inherit',
+        'bouncer-planner': 'inherit',
+        'bouncer-plan-coordinator': 'inherit',
       },
     },
+    // plan 단계 두 역할(planner·plan-coordinator)도 같은 이유로 슬롯을 갖는다.
     // 역할 등급 예시. 등급 값은 전부 "inherit"라 모델은 계속 부모 세션을 상속하고,
-    // 모델을 고정하지 않는 위 계약을 지킨다. 역할은 전부 standard/medium이므로
-    // 실제로 달라지는 것은 effort medium 하나뿐이다. 이미 init된 저장소 config에는
+    // 모델을 고정하지 않는 위 계약을 지킨다. 계획 문서를 쓰는 planner만 strong/high이고
+    // 나머지 여섯 역할은 standard/medium이다. 이미 init된 저장소 config에는
     // 쓰지 않는다 — 두 블록은 사용자가 직접 추가한다(재작성 경로를 만들지 않는 계약).
     model_tiers: Object.fromEntries(['claude', 'cursor', 'codex', 'antigravity'].map((provider) => [
       provider,
       { strong: 'inherit', standard: 'inherit', light: 'inherit' },
     ])),
-    roles: Object.fromEntries([
-      'bouncer-reviewer',
-      'bouncer-implementer',
-      'bouncer-debugger',
-      'bouncer-context-reviewer',
-      'bouncer-coordinator',
-    ].map((agent) => [agent, { tier: 'standard', effort: 'medium' }])),
+    roles: {
+      ...Object.fromEntries([
+        'bouncer-reviewer',
+        'bouncer-implementer',
+        'bouncer-debugger',
+        'bouncer-context-reviewer',
+        'bouncer-coordinator',
+      ].map((agent) => [agent, { tier: 'standard', effort: 'medium' }])),
+      'bouncer-planner': { tier: 'strong', effort: 'high' },
+      'bouncer-plan-coordinator': { tier: 'standard', effort: 'medium' },
+    },
   };
 }
 

@@ -23,6 +23,9 @@ rule's items 2-4 unchanged, and this document does not apply.
      this role's work directly and never dispatch any Bouncer agent.`
    - coordinator: `You are the dispatched bouncer-coordinator itself. Dispatch
      only your workers, each under rules/cursor-print-dispatch.md.`
+   - plan-coordinator: `You are the dispatched bouncer-plan-coordinator itself.
+     Dispatch only your workers, each under rules/cursor-print-dispatch.md.`
+   - planner: the worker line above.
    - plugin root (one unwrapped line after the identity line): `Plugin root: <absolute path>. Resolve plugin-relative paths (rules/..., references/..., agents/...) against it.`
    The command then appends the role body and the controller input. Do not
    assemble those pieces in the session. `--input` is free UTF-8 text, not

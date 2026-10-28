@@ -458,7 +458,7 @@ bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --
   # legacy (unmarked), light, or --task review: light or a small diff → single [combined]; else parallel
   # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk appends security
   # --mode delta is allowed for the one delta after the single repair of a brief final review
-bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 
@@ -603,7 +603,7 @@ any file read), `review-accept-risk-task-scope` (the review is not
 `--note`, or any `--task`, is exit 2.
 
 ```sh
-bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 

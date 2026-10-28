@@ -160,6 +160,11 @@ function verifyInstall(ctx) {
     }
     seededAgents[rel] = body;
   }
+  // plan 역할 TOML도 시드돼야 한다. 반환 키는 기존 다섯으로 고정(runtime-install-smoke 단언)이라 존재만 확인한다.
+  for (const name of ['planner', 'plan-coordinator']) {
+    const rel = `.codex/agents/bouncer-${name}.toml`;
+    if (!fs.existsSync(path.join(repo, rel))) throw new Error(`${kind} init did not seed ${rel}`);
+  }
   check = run(cli, ['graph-sync', '--repo', repo], repo, withAsset);
   if (check.status !== 0) throw fail('bouncer graph-sync skip', check);
   check = run(cli, ['graph-sync', '--repo'], repo, withAsset);

@@ -80,6 +80,16 @@ test('canonical and plugin namespace names → both resolve the canonical CLI ro
   }
 });
 
+test('plan roles in both name forms → config model replaces the missing model', () => {
+  for (const name of [
+    'bouncer-planner', 'bouncer:bouncer-planner', 'bouncer-plan-coordinator', 'bouncer:bouncer-plan-coordinator',
+  ]) {
+    const rt = makeRuntime();
+    const result = parsedOutput(invoke(payload(name), rt));
+    assert.equal(result.hookSpecificOutput.updatedInput.model, 'claude-opus-5-5', name);
+  }
+});
+
 test('same model → no input rewrite or context message', () => {
   const rt = makeRuntime({ output: jsonOutput('bouncer-coordinator', 'claude-opus-5-5', null) });
   const result = invoke(payload('bouncer-coordinator', { model: 'claude-opus-5-5' }), rt);

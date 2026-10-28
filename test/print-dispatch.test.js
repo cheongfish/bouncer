@@ -15,6 +15,8 @@ const WORKER_IDENTITY =
   "You are the dispatched bouncer-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.";
 const COORDINATOR_IDENTITY =
   'You are the dispatched bouncer-coordinator itself. Dispatch only your workers, each under rules/cursor-print-dispatch.md.';
+const PLAN_COORDINATOR_IDENTITY =
+  'You are the dispatched bouncer-plan-coordinator itself. Dispatch only your workers, each under rules/cursor-print-dispatch.md.';
 // 코드·규칙 문서가 바이트 단위로 같은 루트 줄. 경로만 호출자가 채운다.
 const ROOT_LINE = (root) =>
   `Plugin root: ${root}. Resolve plugin-relative paths (rules/..., references/..., agents/...) against it.`;
@@ -591,4 +593,44 @@ test('agentsDir seam absent with a plugin version mismatch → keeps print failu
     fs.rmSync(tree.root, { recursive: true, force: true });
     fs.rmSync(pluginRoot, { recursive: true, force: true });
   }
+});
+
+test('identityLine plan-coordinator → dispatch-workers sentence also present in the rules doc', () => {
+  const { identityLine } = require('../packages/cli/dist/print-dispatch');
+  assert.strictEqual(identityLine('plan-coordinator'), PLAN_COORDINATOR_IDENTITY);
+  const rules = fs.readFileSync(path.join(__dirname, '..', 'rules', 'cursor-print-dispatch.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  assert.ok(rules.includes(PLAN_COORDINATOR_IDENTITY));
+});
+
+test('identityLine planner → default never-dispatch sentence', () => {
+  const { identityLine } = require('../packages/cli/dist/print-dispatch');
+  assert.ok(identityLine('planner').endsWith('never dispatch any Bouncer agent.'));
+});
+
+test('PRINT_ROLES → lists the five run roles then planner and plan-coordinator', () => {
+  const { PRINT_ROLES } = require('../packages/cli/dist/print-dispatch');
+  assert.deepStrictEqual([...PRINT_ROLES], [
+    'implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator', 'planner', 'plan-coordinator',
+  ]);
+});
+
+test('dispatch print --role planner or plan-coordinator → accepted, bogus role → full role list error', () => {
+  const tree = makeTree();
+  const base = ['--cwd', tree.cwd, '--input', path.join(tree.root, 'missing.md'), '--out', tree.outDir];
+  for (const role of ['planner', 'plan-coordinator']) {
+    const r = capture(['dispatch', 'print', '--role', role, ...base]);
+    assert.doesNotMatch(r.err + r.out, /--role must be/, role);
+  }
+  const bad = capture(['dispatch', 'print', '--role', 'bogus', ...base]);
+  assert.match(
+    bad.err + bad.out,
+    /--role must be implementer, reviewer, debugger, context-reviewer, coordinator, planner, or plan-coordinator/,
+  );
+});
+
+test('COMMAND_USAGE dispatch → names planner and plan-coordinator', () => {
+  const { COMMAND_USAGE } = require('../packages/cli/dist/cli-usage');
+  assert.ok(COMMAND_USAGE.dispatch.includes('planner'));
+  assert.ok(COMMAND_USAGE.dispatch.includes('plan-coordinator'));
 });
