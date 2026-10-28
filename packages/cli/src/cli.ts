@@ -50,6 +50,7 @@ const COMMANDS: Record<string, CliCommand> = {
   retro: { usage: COMMAND_USAGE.retro, load: () => (require('./cli-retro-command') as typeof import('./cli-retro-command')).run },
   metrics: { usage: COMMAND_USAGE.metrics, load: () => (require('./cli-metrics-command') as typeof import('./cli-metrics-command')).run },
   epic: { usage: COMMAND_USAGE.epic, ownHelp: true, load: () => (require('./cli-epic-command') as typeof import('./cli-epic-command')).run },
+  'plan-ledger': { usage: COMMAND_USAGE['plan-ledger'], load: () => (require('./cli-plan-ledger-command') as typeof import('./cli-plan-ledger-command')).run },
   ontology: { usage: COMMAND_USAGE.ontology, load: () => (require('./cli-project-commands') as typeof import('./cli-project-commands')).ontology.run },
 };
 

@@ -31,6 +31,7 @@ const SUBCOMMANDS = [
   'retro',
   'metrics',
   'epic',
+  'plan-ledger',
 ];
 
 function capture(argv) {
@@ -91,7 +92,7 @@ test('usage → 명령별 형식 문구를 나열한다', () => {
     /review-dispatch\s+execute --blueprint <dir> \[--task <ddd>\] --base <sha> --head <sha>/,
     /review record --blueprint <dir> \[--task <ddd>\] --round <json-file> \[--status <requested\|addressed\|accepted>\]/,
     /review accept-risk --blueprint <dir> --finding <id> --note <text> --yes/,
-    /dispatch print --role <implementer\|reviewer\|debugger\|context-reviewer\|coordinator> --cwd <dir> --input <file> --out <dir>/,
+    /dispatch print --role <[a-z|-]+> --cwd <dir> --input <file> --out <dir>/,
     /coordinate revoke/,
     /--lease-id/,
     /--generation/,

@@ -51,6 +51,7 @@
     "workflow-responsibility-boundaries.test.js"
   ],
   "integration": [
+    "plan-ledger.test.js",
     "plan-review-fixture.test.js",
     "release-runtime.test.js",
     "build-release.test.js",
