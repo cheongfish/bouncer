@@ -132,3 +132,36 @@ test('four entry points and agent-dispatch → link the drive-metrics table with
     assert.doesNotMatch(text, /task-notification/, `${rel}: 호스트 이벤트를 재서술함`);
   }
 });
+
+/**
+ * 제목 문자열로 Markdown 구간을 자른다. 시작 제목부터 끝 제목 직전까지이며
+ * 두 제목 중 하나라도 없으면 빈 구간 대신 즉시 실패해 문서 구조 변경을 드러낸다.
+ *
+ * @param {string} md - Markdown 원문
+ * @param {string} from - 구간 시작 제목
+ * @param {string} to - 구간 끝 제목(포함하지 않음)
+ * @returns {string} 잘라낸 구간
+ */
+function sectionBetween(md, from, to) {
+  const start = md.indexOf(from);
+  const end = md.indexOf(to, start + from.length);
+  assert.ok(start >= 0 && end > start, `구간 제목 없음: ${from} / ${to}`);
+  return md.slice(start, end);
+}
+
+const readDriveMetrics = () => fs.readFileSync(
+  path.join(__dirname, '..', 'skills/bouncer-run/references/drive-metrics.md'), 'utf8',
+);
+
+test('drive-metrics coordinator session → tells to pass tier and effort from the --json resolution', () => {
+  const coord = sectionBetween(readDriveMetrics(), '## Per coordinator session', '## Per root-direct session');
+  assert.match(coord, /subagent-model --agent <name> --json/);
+  assert.match(coord, /metrics end --id <id>[^`]*\[--tier <tier>\] \[--effort <effort>\]/);
+  assert.match(coord, /`model` is `null`[\s\S]{0,200}omit `--tier`/);
+  assert.match(coord, /Cursor[\s\S]{0,200}omit `--effort`/);
+});
+
+test('drive-metrics root-direct session → passes no tier or effort flags', () => {
+  const direct = sectionBetween(readDriveMetrics(), '## Per root-direct session', '## Closing report');
+  assert.match(direct, /no `--tier` or `--effort`/);
+});

@@ -64,6 +64,12 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    `bouncer metrics start --kind context-review --blueprint <dir> --label <perspective> --target-digest <call target_digest>`
    just before dispatch, then `bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>`
    from the host's final task notification once the reviewer's hand-back report has arrived, per item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md` (omit flags the host did not give).
+   Also pass `--tier <tier>` and `--effort <effort>` from the `--json` result of the resolution
+   that call used, under the rules in `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`
+   (omit `--tier` when `model` is `null`, omit `--effort` on Cursor, never pass a `null`). When
+   `reviewer_tier_applied` is `true`, record the raised tier by resolving with
+   `--tier <reviewer_tier>` and reading that `--json` result. Parallel perspective calls share one
+   resolved value and each records it.
    Procedure and rules: `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`. A failed `metrics` call
    never changes the review result.
 3. **Merge** — Verify each finding's evidence. With `perspectives`, the findings of every

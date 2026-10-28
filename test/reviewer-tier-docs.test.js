@@ -32,3 +32,15 @@ test('subagent-model.md에 reviewer_tier_applied와 --tier 연결이 없으면 �
 test('워크플로 문서가 규칙 본문 참조를 빠뜨리면 → 파일 이름과 함께 실패한다', () => {
   for (const rel of DOCS.slice(2)) assert.match(read(rel), /rules\/subagent-model\.md/, rel);
 });
+
+test('context-review Metrics 문단이 tier·effort 전달을 빠뜨리면 → 실패한다', () => {
+  const md = read('skills/bouncer-plan/references/context-review.md');
+  const start = md.indexOf('**Metrics.**');
+  const end = md.indexOf('3. **Merge**', start);
+  assert.ok(start >= 0 && end > start, 'Metrics 문단 경계 없음');
+  const metrics = md.slice(start, end);
+  assert.match(metrics, /--tier <tier>/);
+  assert.match(metrics, /--effort <effort>/);
+  assert.match(metrics, /reviewer_tier_applied[\s\S]{0,200}--tier <reviewer_tier>/);
+  assert.match(metrics, /drive-metrics\.md/);
+});
