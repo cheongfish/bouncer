@@ -14,7 +14,7 @@ const { assertLeaseShape, loadLedgerBytes, projectCheckpoint } = coordinatorLedg
 import coordinatorWorker = require('./coordinator-worker');
 const {
   ensureIntegrationCwd, isBlueprintReviewModeAt, reviewContractAt, taskBriefHashOf, readBouncerBlock,
-  reportPathFor, workerCommitEvidence, workerScopeDirtyPaths,
+  reportPathFor, workerCommitEvidence, workerScopeDirtyPaths, expectedTaskRef, untraileredWorkerCommits,
 } = coordinatorWorker;
 import coordinatorGit = require('./coordinator-git');
 const { registeredIntegration, initialWorktreeState } = coordinatorGit;
@@ -99,6 +99,12 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
     next:
       'Do not rerun commit (nothing is left to commit). Report the stale stamp to the user, or `bouncer ' +
       'coordinate revoke` and `prepare` the task again.',
+  },
+  'worker-commit-untrailered': {
+    cause: 'The worker HEAD has a commit without the Bouncer-Task trailer, so `bouncer commit` cannot write the ' +
+      'commit_sha stamp (it never makes an empty commit).',
+    next: 'Run `bouncer coordinate uncommit --blueprint <dir> --task <ddd>` (with the ledger fence), then ' +
+      '`coordinate advance` to rerun commit. Do not just rerun commit.',
   },
   'partial-closed': {
     cause: 'This drive was partial-closed after the repair-wave limit.',
@@ -1049,6 +1055,17 @@ function taskNext(ctx: {
 
   const stamped = tasksBlock ? tasksBlock.commit_sha : undefined;
   if (stamped === undefined || stamped === null || stamped === '') {
+    // worker가 트레일러 없이 직접 커밋했으면 `bouncer commit`은 빈 커밋 금지로 stamp를 못 쓴다.
+    // commit을 다시 내면 advance가 max-steps까지 같은 행동을 반복하므로 uncommit 안내로 끊는다.
+    const untrailered = untraileredWorkerCommits(exec, cwd, ledger, expectedTaskRef(tasksBlock));
+    if (untrailered.length > 0) {
+      const uncommit = ['bouncer', 'coordinate', 'uncommit', '--blueprint', blueprint,
+        ...fenceArgs(ledgerRef), '--task', task].join(' ');
+      return ok({
+        scope: 'task', action: 'blocked', reason: 'worker-commit-untrailered', cwd,
+        next: `Run \`${uncommit}\`, then \`coordinate advance\` to rerun commit. Do not just rerun commit.`,
+      });
+    }
     return ok({
       scope: 'task', action: 'commit', cwd,
       argv: ['bouncer', 'commit', '--blueprint', blueprint, '--yes'],

@@ -170,7 +170,7 @@ function commitInWorker(worker, rel, body, message) {
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, body);
   git(worker, ['add', rel]);
-  git(worker, ['commit', '-m', message]);
+  git(worker, ['commit', '-m', message, '-m', 'Bouncer-Task: fixture']);
   return git(worker, ['rev-parse', 'HEAD']);
 }
 
@@ -255,7 +255,7 @@ test('new next reasons를 NEXT_FAILURE_HINTS와 대조함 → new next reasons�
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
     'verification-task-uses-blueprint-next', 'coordinator-card-missing', 'final-review-blocked',
-    'worker-commit-stamp-mismatch', 'review-contract-invalid',
+    'worker-commit-stamp-mismatch', 'review-contract-invalid', 'worker-commit-untrailered',
   ];
   assert.deepStrictEqual(Object.keys(NEXT_FAILURE_HINTS).sort(), [...keys].sort());
   for (const key of keys) {
@@ -930,6 +930,88 @@ test('task next에서 commit_sha 없음 → commit', () => {
   assertCardFor(r);
   assert.ok(r.argv.includes('commit'));
   assert.ok(r.argv.includes('--yes'));
+});
+
+// 트레일러 판별 테스트 공통 fixture: dispatch 뒤 verified/passed/accepted 번들과 빈 stamp.
+function untraileredDrive(prefix, blueprint) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  return drive;
+}
+
+function acceptBundle(drive, blueprint) {
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+  });
+}
+
+function writeRawWorkerCommit(worker, rel) {
+  fs.mkdirSync(path.dirname(path.join(worker, rel)), { recursive: true });
+  fs.writeFileSync(path.join(worker, rel), 'raw\n');
+  git(worker, ['add', rel]);
+}
+
+test('task next에서 stamp 없고 트레일러 없는 worker 커밋 → worker-commit-untrailered blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/023-untr';
+  const drive = untraileredDrive('bouncer-next-untr-', blueprint);
+  writeRawWorkerCommit(drive.worker, 'src/a.js');
+  git(drive.worker, ['commit', '-m', 'feat: raw']);
+  acceptBundle(drive, blueprint);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'worker-commit-untrailered');
+  assert.match(r.next, /coordinate uncommit/);
+});
+
+test('task next에서 트레일러 없는 커밋과 scope dirty가 함께 있음 → worker-commit-untrailered blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/024-untr';
+  const drive = untraileredDrive('bouncer-next-untr-dirty-', blueprint);
+  writeRawWorkerCommit(drive.worker, 'src/a.js');
+  git(drive.worker, ['commit', '-m', 'feat: raw']);
+  acceptBundle(drive, blueprint);
+  giveTaskScope(drive, ['src/']);
+  fs.writeFileSync(path.join(drive.worker, 'src/c.js'), 'dirty\n');
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'worker-commit-untrailered');
+});
+
+test('task next에서 stamp 없고 모든 worker 커밋에 트레일러 있음 → commit', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/025-untr';
+  const drive = untraileredDrive('bouncer-next-untr-ok-', blueprint);
+  commitInWorker(drive.worker, 'src/a.js', 'a\n', 'feat: a');
+  acceptBundle(drive, blueprint);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'commit');
+});
+
+test('task next에서 다른 task ref 트레일러만 있는 worker 커밋 → worker-commit-untrailered blocked', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/026-untr';
+  const drive = untraileredDrive('bouncer-next-untr-other-', blueprint);
+  writeRawWorkerCommit(drive.worker, 'src/a.js');
+  git(drive.worker, ['commit', '-m', 'feat: x', '-m', 'Bouncer-Task: n-epic/cmt-bp/999']);
+  acceptBundle(drive, blueprint);
+  setDocStatus(drive.worker, blueprint, '001', 'tasks.md', 'verified', {
+    epic_id: 'n-epic', blueprint_id: 'cmt-bp', id: 'TASKS-001',
+  });
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'blocked');
+  assert.strictEqual(r.reason, 'worker-commit-untrailered');
+});
+
+test('task next에서 원장 integrationHead가 없음 → 무트레일러 커밋이 있어도 commit', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/027-untr';
+  const drive = untraileredDrive('bouncer-next-untr-nohead-', blueprint);
+  writeRawWorkerCommit(drive.worker, 'src/a.js');
+  git(drive.worker, ['commit', '-m', 'feat: raw']);
+  acceptBundle(drive, blueprint);
+  const ledger = loadLedger(drive.ledgerFile);
+  delete ledger.integrationHead;
+  writeLedger(drive.ledgerFile, ledger);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'commit');
 });
 
 test('task next에서 commit_sha 일치하고 tasks.md만 dirty → report', () => {
