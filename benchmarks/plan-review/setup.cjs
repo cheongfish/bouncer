@@ -10,7 +10,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const BOUNCER_BIN = path.join(REPO_ROOT, 'scripts', 'bouncer');
+const BOUNCER_BIN = path.join(REPO_ROOT, 'packages', 'cli', 'bin', 'bouncer');
 const EPIC_DIR = '.bouncer/context/epics/001-plan-review';
 const SMALL_DIR = `${EPIC_DIR}/blueprints/001-small`;
 const LARGE_DIR = `${EPIC_DIR}/blueprints/002-large`;

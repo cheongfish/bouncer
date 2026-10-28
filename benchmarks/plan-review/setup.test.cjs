@@ -10,7 +10,7 @@ const { setupPlanReview } = require('./setup.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SETUP_CLI = path.join(__dirname, 'setup.cjs');
-const BOUNCER_BIN = path.join(REPO_ROOT, 'scripts', 'bouncer');
+const BOUNCER_BIN = path.join(REPO_ROOT, 'packages', 'cli', 'bin', 'bouncer');
 
 function tempDir() {
   return mkdtempSync(path.join(tmpdir(), 'plan-review-'));
@@ -24,7 +24,7 @@ function bouncer(cwd, args) {
   return JSON.parse(result.stdout);
 }
 
-test('plan-review fixture → both plans dispatch single and fail G25 with review-risk-missing', () => {
+test('plan-review fixture → both plans dispatch single and pass the plan gate with review-risk-missing', () => {
   const dir = tempDir();
   try {
     const { blueprints, defects } = setupPlanReview(dir);
@@ -37,8 +37,10 @@ test('plan-review fixture → both plans dispatch single and fail G25 with revie
 
     for (const blueprint of [blueprints.small, blueprints.large]) {
       const gate = bouncer(dir, ['validate', '--gate', 'plan', '--blueprint', blueprint]);
-      // 의도하지 않은 결함이 섞이지 않도록 실패 코드 집합을 정확히 고정한다.
-      assert.deepEqual([...new Set(gate.failures.map((f) => f.code))].sort(), ['G18', 'G25']);
+      // G18·G25는 doc-quality-gate-removal이 plan gate에서 지웠다. 의도하지 않은 결함이
+      // 섞이지 않도록 실패 코드가 비어 있음을 정확히 고정한다(D5는 reviewer 측정 대상).
+      assert.equal(gate.ok, true);
+      assert.deepStrictEqual(gate.failures.map((f) => f.code), []);
       assert.ok(gate.warnings.some((w) => w.code === 'review-risk-missing'));
     }
   } finally {
