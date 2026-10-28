@@ -16,11 +16,14 @@ type CliIo = {
   err: (s: string) => void;
 };
 
-const KINDS = 'coordinator-session|context-review|root-direct-session';
+const KINDS = 'coordinator-session|context-review|root-direct-session|plan-coordinator-session|planner-session';
+// plan kind는 blueprint 없이 시작하고 원장 snapshot을 읽지 않는다. drive-metrics.ts의 PLAN_KINDS와 같은 목록이다.
+const PLAN_KINDS = ['plan-coordinator-session', 'planner-session'];
 
-const USAGE = `usage: bouncer metrics start --kind <${KINDS}> --blueprint <dir> `
+const USAGE = `usage: bouncer metrics start --kind <${KINDS}> [--blueprint <dir>] `
   + '[--label <text>] [--target-digest <64hex>]\n'
-  + '       bouncer metrics end --id <m-id> [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>] '
+  + '       bouncer metrics end --id <m-id> [--tier <strong|standard|light>] [--effort <low|medium|high>] '
+  + '[--blueprint <dir>]\n         [--tokens <n>] [--input-tokens <n>] [--output-tokens <n>] '
   + '[--cache-read-tokens <n>] [--cache-write-tokens <n>] [--model <slug>] [--host-duration-ms <n>]\n'
   + '       bouncer metrics summary --blueprint <dir>\n'
   + '       bouncer metrics snapshot --blueprint <dir>\n';
@@ -29,7 +32,8 @@ const USAGE = `usage: bouncer metrics start --kind <${KINDS}> --blueprint <dir> 
 const FLAGS: Record<string, string[]> = {
   start: ['kind', 'blueprint', 'label', 'target-digest', 'repo'],
   end: [
-    'id', 'tokens', 'input-tokens', 'output-tokens', 'cache-read-tokens', 'cache-write-tokens',
+    'id', 'tier', 'effort', 'blueprint', 'tokens', 'input-tokens', 'output-tokens',
+    'cache-read-tokens', 'cache-write-tokens',
     'model', 'host-duration-ms', 'repo',
   ],
   summary: ['blueprint', 'repo'],
@@ -114,11 +118,15 @@ function cmdMetrics(rest: string[], io: CliIo): number {
 
   if (sub === 'start') {
     const blueprint = str('blueprint');
-    if (blueprint === undefined) return emit(io, invalid);
-    const ledgerFile = ledgerFor(blueprint);
+    const kind = str('kind') as string;
+    // plan kind는 원장을 읽지 않으므로 blueprint가 없거나 ledger 경로로 풀리지 않아도 된다.
+    // 그 외 kind는 기존대로 blueprint와 ledger 해석이 모두 있어야 한다.
+    const isPlan = PLAN_KINDS.includes(kind);
+    if (blueprint === undefined && !isPlan) return emit(io, invalid);
+    const ledgerFile = blueprint === undefined || isPlan ? '' : ledgerFor(blueprint);
     if (ledgerFile === null) return emit(io, invalid);
     return emit(io, driveMetrics.startSession({
-      file, ledgerFile, kind: str('kind') as string, blueprint,
+      file, ledgerFile, kind, blueprint,
       label: str('label'), targetDigest: str('target-digest'),
     }));
   }
@@ -139,6 +147,7 @@ function cmdMetrics(rest: string[], io: CliIo): number {
   const priced = readMetricsPricing(main.projectRoot);
   return emit(io, driveMetrics.endSession({
     file, resolveLedger: ledgerFor, id, ...counts, model: str('model'),
+    tier: str('tier'), effort: str('effort'), blueprint: str('blueprint'),
     pricing: priced.ok ? priced.pricing : null,
   }));
 }

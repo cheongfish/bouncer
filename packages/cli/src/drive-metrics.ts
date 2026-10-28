@@ -13,8 +13,16 @@ const { isRecord, isEnoentError } = guards;
  * 기록 파일 쓰기는 임시 파일 뒤 rename이다.
  */
 
-const SESSION_KINDS = ['coordinator-session', 'context-review', 'root-direct-session'] as const;
+const SESSION_KINDS = [
+  'coordinator-session', 'context-review', 'root-direct-session',
+  'plan-coordinator-session', 'planner-session',
+] as const;
 type SessionKind = typeof SESSION_KINDS[number];
+
+// plan kind는 blueprint가 아직 없는 시점에 시작하므로 `blueprint: null`로 열리고, 끝날 때 한 번 묶인다.
+const PLAN_KINDS: readonly string[] = ['plan-coordinator-session', 'planner-session'];
+const TIERS = ['strong', 'standard', 'light'] as const;
+const EFFORTS = ['low', 'medium', 'high'] as const;
 
 // 이 kind의 decision, 또는 outcome이 accepted가 아닌 report는 "예외 판단"이다.
 const EXCEPTION_KINDS = new Set([
@@ -26,8 +34,12 @@ type LedgerSnapshot = { decisions: number; completed_tasks: string[]; ledger_sha
 type MetricsSession = {
   id: string;
   kind: SessionKind;
-  blueprint: string;
+  // plan kind만 null일 수 있다(end에서 묶이기 전).
+  blueprint: string | null;
   label: string | null;
+  // 끝날 때 기록한다. 필드가 생기기 전 기록은 키가 없고 집계에서 unknown이다.
+  tier?: typeof TIERS[number] | null;
+  effort?: typeof EFFORTS[number] | null;
   started_at: string;
   ended_at: string | null;
   // coordinator-session만 가진다. 원장이 없던 시점이면 null.
@@ -96,7 +108,9 @@ function readMetrics(file: string): { ok: true; data: MetricsFile } | Failure {
   }
   if (!isRecord(parsed) || parsed.version !== 1 || !Array.isArray(parsed.sessions)
     || !parsed.sessions.every((s) => isRecord(s) && typeof s.id === 'string'
-      && typeof s.kind === 'string' && typeof s.blueprint === 'string')) {
+      && typeof s.kind === 'string'
+      // blueprint null은 plan kind에만 허용한다. 다른 kind의 null은 손상된 기록이다.
+      && (typeof s.blueprint === 'string' || (s.blueprint === null && PLAN_KINDS.includes(s.kind))))) {
     return { ok: false, reason: 'metrics-file-invalid' };
   }
   return { ok: true, data: parsed as unknown as MetricsFile };
@@ -189,7 +203,9 @@ function isException(entry: unknown): boolean {
  * @param {string} opts.file - drive-metrics.json 경로
  * @param {string} opts.ledgerFile - 해당 blueprint의 integration 원장 경로
  * @param {string} opts.kind - `coordinator-session` | `context-review` | `root-direct-session`
- * @param {string} opts.blueprint - blueprint 디렉터리
+ *   | `plan-coordinator-session` | `planner-session`
+ * @param {string} [opts.blueprint] - blueprint 디렉터리. plan kind만 생략할 수 있고 생략하면 null로 저장해
+ *   end에서 묶는다. plan kind는 원장 snapshot을 읽지 않는다
  * @param {string} [opts.label] - 세션 라벨(context-review는 perspective)
  * @param {string} [opts.targetDigest] - context-review 필수 64 hex
  * @param {Clock} [opts.now] - 테스트 seam. 기본 현재 시각
@@ -197,15 +213,19 @@ function isException(entry: unknown): boolean {
  * @returns {{ok: true, id: string} | Failure} 새 세션 id 또는 거절 사유
  */
 function startSession(opts: {
-  file: string; ledgerFile: string; kind: string; blueprint: string;
+  file: string; ledgerFile: string; kind: string; blueprint?: string;
   label?: string; targetDigest?: string; now?: Clock; randomId?: () => string;
 }): { ok: true; id: string } | Failure {
   const now = opts.now ?? (() => new Date());
   const randomId = opts.randomId ?? (() => randomBytes(8).toString('hex'));
   const invalid: Failure = { ok: false, reason: 'invalid-metrics-input' };
-  if (!(SESSION_KINDS as readonly string[]).includes(opts.kind)
-    || typeof opts.blueprint !== 'string' || opts.blueprint === '') return invalid;
+  if (!(SESSION_KINDS as readonly string[]).includes(opts.kind)) return invalid;
   const kind = opts.kind as SessionKind;
+  const isPlan = PLAN_KINDS.includes(kind);
+  // blueprint 생략은 plan kind에만 허용한다. 주어진 값은 plan kind라도 빈 문자열이면 거절한다.
+  if (opts.blueprint === undefined ? !isPlan : (typeof opts.blueprint !== 'string' || opts.blueprint === '')) {
+    return invalid;
+  }
   const isReview = kind === 'context-review';
   // target-digest는 context-review의 호출 식별자다. 다른 kind에 주면 오타 가능성이 커서 거절한다.
   if (isReview !== (opts.targetDigest !== undefined)) return invalid;
@@ -217,14 +237,14 @@ function startSession(opts: {
   const session: MetricsSession = {
     id: `m-${randomId()}`,
     kind,
-    blueprint: normalizeBlueprint(opts.blueprint),
+    blueprint: opts.blueprint === undefined ? null : normalizeBlueprint(opts.blueprint),
     label: opts.label ?? null,
     started_at: now().toISOString(),
     ended_at: null,
   };
   if (isReview) {
     session.target_digest = opts.targetDigest;
-  } else {
+  } else if (!isPlan) {
     const ledger = readLedgerSnapshot(opts.ledgerFile);
     if (ledger.ok === false) return ledger;
     session.start = ledger.snapshot;
@@ -263,15 +283,20 @@ function computeCost(
  * @param {number} [opts.cacheWriteTokens] - 호스트가 준 cache write 토큰(독립 필드, 총합·비용에 안 더함)
  * @param {string} [opts.model] - 모델 slug
  * @param {number} [opts.hostDurationMs] - 호스트가 준 소요 시간
+ * @param {string} [opts.tier] - 세션 등급 `strong|standard|light`(대소문자 구분). 생략하면 null
+ * @param {string} [opts.effort] - 세션 effort `low|medium|high`. 생략하면 null
+ * @param {string} [opts.blueprint] - blueprint가 null인 plan 세션에만, 그리고 그때는 반드시 줘야 한다.
+ *   `start`와 같은 정규화로 저장하며 경로 존재·원장 해석은 검사하지 않는다
  * @param {PricingTable | null} opts.pricing - 단가 표. 깨진 설정이면 null
  * @param {Clock} [opts.now] - 테스트 seam
- * @returns {{ok: true} | Failure} 성공 또는 거절 사유
+ * @returns {{ok: true} | Failure} 성공 또는 거절 사유. tier·effort·blueprint 입력 오류는
+ *   `invalid-metrics-input`이며 어떤 쓰기보다 먼저 거절해 파일을 바꾸지 않는다
  */
 function endSession(opts: {
   file: string; resolveLedger: (blueprint: string) => string | null; id: string; tokens?: number;
   inputTokens?: number;
   outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number;
-  model?: string; hostDurationMs?: number;
+  model?: string; hostDurationMs?: number; tier?: string; effort?: string; blueprint?: string;
   pricing: PricingTable | null; now?: Clock;
 }): { ok: true; id: string } | Failure {
   const now = opts.now ?? (() => new Date());
@@ -280,6 +305,24 @@ function endSession(opts: {
   const session = current.data.sessions.find((s) => s.id === opts.id);
   if (!session) return { ok: false, reason: 'metrics-session-not-found' };
   if (session.ended_at !== null) return { ok: false, reason: 'metrics-session-ended' };
+
+  // 입력 검증은 session 변경 전에 모두 끝낸다. 거절 뒤에는 파일을 쓰지 않아 bytes가 그대로다.
+  const invalid: Failure = { ok: false, reason: 'invalid-metrics-input' };
+  if (opts.tier !== undefined && !(TIERS as readonly string[]).includes(opts.tier)) return invalid;
+  if (opts.effort !== undefined && !(EFFORTS as readonly string[]).includes(opts.effort)) return invalid;
+  // 묶기는 blueprint가 null인 plan 세션에서 정확히 한 번만 가능하다. 이미 묶인 세션이나 다른 kind에 주면
+  // 잘못 묶인 값을 고칠 길이 없으므로 거절하고, null인 plan 세션은 묶지 않고 끝낼 수도 없다.
+  let boundBlueprint: string | null = null;
+  if (session.blueprint === null) {
+    if (opts.blueprint === undefined) return invalid;
+    boundBlueprint = normalizeBlueprint(opts.blueprint);
+    if (boundBlueprint === '') return invalid;
+  } else if (opts.blueprint !== undefined) {
+    return invalid;
+  }
+  if (boundBlueprint !== null) session.blueprint = boundBlueprint;
+  session.tier = opts.tier === undefined ? null : opts.tier as typeof TIERS[number];
+  session.effort = opts.effort === undefined ? null : opts.effort as typeof EFFORTS[number];
 
   const endedAt = now();
   session.ended_at = endedAt.toISOString();
@@ -304,7 +347,8 @@ function endSession(opts: {
   if (cost.reason !== undefined) session.cost_unavailable_reason = cost.reason;
 
   if (session.kind === 'coordinator-session') {
-    const ledgerFile = opts.resolveLedger(session.blueprint);
+    // coordinator-session은 null blueprint를 readMetrics가 이미 거절하므로 string이다.
+    const ledgerFile = opts.resolveLedger(session.blueprint as string);
     if (ledgerFile === null) return { ok: false, reason: 'metrics-file-invalid' };
     const ledger = readLedgerSnapshot(ledgerFile);
     if (ledger.ok === false) return ledger;
@@ -342,11 +386,18 @@ type KindSummary = {
   host_duration_ms_total: number | null; host_duration_ms_missing: number;
   wall_ms_total: number | null; wall_ms_missing: number;
   cost_total: number; cost_missing: number; tasks_completed?: number;
+  by_tier: Record<TierKey, TierSummary>;
 };
+type TierKey = typeof TIERS[number] | 'unknown';
+type TierSummary = { sessions: number; tokens_total: number; cost_total: number };
 type TotalKey = 'tokens_total' | 'input_tokens_total' | 'output_tokens_total'
   | 'host_duration_ms_total' | 'wall_ms_total';
 type MissingKey = 'tokens_missing' | 'input_tokens_missing' | 'output_tokens_missing'
   | 'host_duration_ms_missing' | 'wall_ms_missing';
+
+function emptyTier(): TierSummary {
+  return { sessions: 0, tokens_total: 0, cost_total: 0 };
+}
 
 /**
  * 관측값 하나를 kind 합계에 반영한다. 숫자(명시적 0 포함)만 더하고, `null`·필드 부재(legacy 기록)는
@@ -400,6 +451,9 @@ function summarize(opts: {
       output_tokens_total: null, output_tokens_missing: 0,
       host_duration_ms_total: null, host_duration_ms_missing: 0,
       wall_ms_total: null, wall_ms_missing: 0, cost_total: 0, cost_missing: 0,
+      by_tier: {
+        strong: emptyTier(), standard: emptyTier(), light: emptyTier(), unknown: emptyTier(),
+      },
     };
     if (kind === 'coordinator-session') kinds[kind].tasks_completed = 0;
   }
@@ -423,6 +477,13 @@ function summarize(opts: {
     if (typeof s.cache_write_tokens === 'number') cache.write.total += s.cache_write_tokens;
     else cache.write.missing += 1;
     if (typeof s.cost === 'number') sum.cost_total += s.cost; else sum.cost_missing += 1;
+    // 등급 분포: tier가 null이거나 키가 없는(필드 이전) 세션은 unknown이다. 이미 계산된 값만 더하고
+    // 숫자가 아닌 tokens·cost는 건너뛴다(시작값 0).
+    const tierKey: TierKey = (TIERS as readonly unknown[]).includes(s.tier) ? s.tier as TierKey : 'unknown';
+    const bucket = sum.by_tier[tierKey];
+    bucket.sessions += 1;
+    if (typeof s.tokens === 'number') bucket.tokens_total += s.tokens;
+    if (typeof s.cost === 'number') bucket.cost_total += s.cost;
     if (sum.tasks_completed !== undefined && Array.isArray(s.tasks_completed)) {
       sum.tasks_completed += s.tasks_completed.length;
     }

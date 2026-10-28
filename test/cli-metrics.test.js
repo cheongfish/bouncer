@@ -968,3 +968,140 @@ test('metrics summary의 report → BOUNCER_METRICS_REPORT=1일 때만 true다',
   };
   assert.deepStrictEqual([run(undefined), run('0'), run('1')], [false, false, true]);
 });
+
+// ---- tier·effort 저장과 plan kind 세션 바인딩 ----
+
+const PLAN_KINDS = ['plan-coordinator-session', 'planner-session'];
+const ALL_KINDS = ['coordinator-session', 'context-review', 'root-direct-session', ...PLAN_KINDS];
+
+function startArgs(kind) {
+  const args = ['metrics', 'start', '--kind', kind];
+  if (PLAN_KINDS.includes(kind)) return args;
+  args.push('--blueprint', BLUEPRINT);
+  if (kind === 'context-review') args.push('--target-digest', DIGEST);
+  return args;
+}
+
+function metricsFileOf(repo) {
+  return path.join(repo, '.bouncer', 'runtime', 'drive-metrics.json');
+}
+
+function sessionsOf(repo) {
+  return JSON.parse(fs.readFileSync(metricsFileOf(repo), 'utf8')).sessions;
+}
+
+for (const kind of ALL_KINDS) {
+  test(`${kind} end에 --tier standard --effort high → 세션에 tier·effort가 저장되고 생략하면 null이다`, () => {
+    const { repo } = gitRepoWithLedger([]);
+    const withFlags = cli(repo, ...startArgs(kind));
+    const without = cli(repo, ...startArgs(kind));
+    const bind = PLAN_KINDS.includes(kind) ? ['--blueprint', BLUEPRINT] : [];
+    assert.strictEqual(cli(repo, 'metrics', 'end', '--id', withFlags.json.id, '--tier', 'standard',
+      '--effort', 'high', ...bind).code, 0);
+    assert.strictEqual(cli(repo, 'metrics', 'end', '--id', without.json.id, ...bind).code, 0);
+    const [a, b] = sessionsOf(repo);
+    assert.deepStrictEqual([a.tier, a.effort, b.tier, b.effort], ['standard', 'high', null, null]);
+  });
+}
+
+for (const [flag, value] of [['--tier', 'Strong'], ['--tier', ''], ['--effort', 'max'], ['--effort', '']]) {
+  test(`end ${flag} "${value}" → invalid-metrics-input, exit 1, 파일 bytes 불변`, () => {
+    const { repo } = gitRepoWithLedger([]);
+    const started = cli(repo, ...startArgs('root-direct-session'));
+    const before = fs.readFileSync(metricsFileOf(repo));
+    const r = cli(repo, 'metrics', 'end', '--id', started.json.id, flag, value);
+    assert.strictEqual(r.code, 1);
+    assert.deepStrictEqual(r.json, { ok: false, reason: 'invalid-metrics-input' });
+    assert.deepStrictEqual(fs.readFileSync(metricsFileOf(repo)), before);
+  });
+}
+
+for (const kind of PLAN_KINDS) {
+  test(`${kind} blueprint 없이 start 뒤 end --blueprint plans/x/ → blueprint가 한 번 묶이고 summary에 잡힌다`, () => {
+    const { repo } = gitRepoWithLedger([]);
+    const started = cli(repo, ...startArgs(kind));
+    assert.strictEqual(started.code, 0);
+    const open = sessionsOf(repo)[0];
+    assert.strictEqual(open.blueprint, null);
+    assert.strictEqual(Object.hasOwn(open, 'start'), false);
+    assert.strictEqual(cli(repo, 'metrics', 'end', '--id', started.json.id, '--blueprint', 'plans/x/').code, 0);
+    const done = sessionsOf(repo)[0];
+    assert.strictEqual(done.blueprint, 'plans/x');
+    assert.strictEqual(Object.hasOwn(done, 'end'), false);
+    const summary = cli(repo, 'metrics', 'summary', '--blueprint', 'plans/x').json;
+    assert.strictEqual(summary.kinds[kind].sessions, 1);
+  });
+}
+
+test('planner-session을 ledger로 풀리지 않는 --blueprint plans/y/로 start → 성공하고 plans/y로 저장한다', () => {
+  const { repo } = gitRepoWithLedger([]);
+  const r = cli(repo, 'metrics', 'start', '--kind', 'planner-session', '--blueprint', 'plans/y/');
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(sessionsOf(repo)[0].blueprint, 'plans/y');
+});
+
+test('plan kind가 아닌 kind를 --blueprint 없이 start → invalid-metrics-input이다', () => {
+  const { repo } = gitRepoWithLedger([]);
+  const r = cli(repo, 'metrics', 'start', '--kind', 'root-direct-session');
+  assert.deepStrictEqual([r.code, r.json], [1, { ok: false, reason: 'invalid-metrics-input' }]);
+});
+
+test('바인딩 end가 잘못된 경우 → 각각 invalid-metrics-input, exit 1, 파일 bytes 불변', () => {
+  const { repo } = gitRepoWithLedger([]);
+  const unbound = cli(repo, ...startArgs('planner-session')).json.id;
+  const bound = cli(repo, 'metrics', 'start', '--kind', 'planner-session', '--blueprint', 'plans/z').json.id;
+  const coordinator = cli(repo, ...startArgs('coordinator-session')).json.id;
+  const attempts = [
+    ['end', '--id', unbound],
+    ['end', '--id', unbound, '--blueprint', ''],
+    ['end', '--id', bound, '--blueprint', 'plans/other'],
+    ['end', '--id', coordinator, '--blueprint', 'plans/x'],
+  ];
+  for (const args of attempts) {
+    const before = fs.readFileSync(metricsFileOf(repo));
+    const r = cli(repo, 'metrics', ...args);
+    assert.deepStrictEqual([r.code, r.json], [1, { ok: false, reason: 'invalid-metrics-input' }], args.join(' '));
+    assert.deepStrictEqual(fs.readFileSync(metricsFileOf(repo)), before, args.join(' '));
+  }
+});
+
+test('coordinator-session의 blueprint null 파일 → summary·start·end 모두 metrics-file-invalid다', () => {
+  const { repo } = gitRepoWithLedger([]);
+  fs.mkdirSync(path.dirname(metricsFileOf(repo)), { recursive: true });
+  fs.writeFileSync(metricsFileOf(repo), JSON.stringify({
+    version: 1,
+    sessions: [{ id: 'm-x', kind: 'coordinator-session', blueprint: null, started_at: 'x', ended_at: null }],
+  }));
+  const reasons = [
+    cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT),
+    cli(repo, ...startArgs('root-direct-session')),
+    cli(repo, 'metrics', 'end', '--id', 'm-x'),
+  ].map((r) => r.json.reason);
+  assert.deepStrictEqual(reasons, ['metrics-file-invalid', 'metrics-file-invalid', 'metrics-file-invalid']);
+});
+
+test('옛 세션 2개와 strong 세션 1개와 열린 세션 → by_tier가 끝난 세션만 unknown·strong으로 센다', () => {
+  const { repo } = gitRepoWithLedger([]);
+  const file = metricsFileOf(repo);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const legacy = (id) => ({
+    id, kind: 'root-direct-session', blueprint: BLUEPRINT, label: null,
+    started_at: '2026-01-01T00:00:00.000Z', ended_at: '2026-01-01T00:00:01.000Z',
+    tokens: 7, cost: 1.5,
+  });
+  const open = { ...legacy('m-open'), ended_at: null, tier: 'strong' };
+  fs.writeFileSync(file, JSON.stringify({ version: 1, sessions: [legacy('m-a'), legacy('m-b'), open] }));
+  const started = cli(repo, ...startArgs('root-direct-session'));
+  const ended = metrics.endSession({
+    file, resolveLedger: () => null, id: started.json.id, tokens: 100, inputTokens: 40, outputTokens: 60,
+    model: 'm1', pricing: { m1: { input_per_mtok: 10, output_per_mtok: 20 } }, tier: 'strong',
+  });
+  assert.strictEqual(ended.ok, true);
+  const strongCost = sessionsOf(repo).find((s) => s.id === started.json.id).cost;
+  const by = cli(repo, 'metrics', 'summary', '--blueprint', BLUEPRINT).json.kinds['root-direct-session'].by_tier;
+  assert.strictEqual(by.unknown.sessions, 2);
+  assert.strictEqual(by.strong.sessions, 1);
+  assert.strictEqual(by.strong.tokens_total, 100);
+  assert.strictEqual(by.strong.cost_total, strongCost);
+  assert.deepStrictEqual([by.standard.sessions, by.light.sessions], [0, 0]);
+});

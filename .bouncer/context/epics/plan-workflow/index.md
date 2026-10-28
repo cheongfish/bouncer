@@ -40,6 +40,13 @@ bouncer:
 16. 각 구현 task는 전용 검증을 사용하고 마지막 verification task는 전부 통합된 뒤 npm run ci를 수행한다. 한국어 브리프·커밋 규약과 비추적 scripts/lib 빌드 산출물 경계를 지킨다.
 17. REQUIREMENTS_REVIEW_COMPAT_FOLLOWUPS.md는 모든 task의 변경·stage·커밋 및 finalize remainder에서 제외한다.
 
+18. `metrics end --tier/--effort`가 모든 kind 세션에 등급·effort를 저장하고 허용 밖 값을 파일 변경 없이 거절하며, `plan-coordinator-session`·`planner-session`은 blueprint 없이 시작해 `end --blueprint`로 한 번만 묶이고, `metrics summary`의 kind별 `by_tier`가 옛 세션을 `unknown`으로 센다.
+19. `node --test benchmarks/plan-review/setup.test.cjs`가 통과하고 `npm run ci`가 이 테스트를 실행한다.
+20. `bouncer plan-ledger`의 `open|status|record|ask|answer|close`가 동작하고, 오래된 hash·잘못된 id·closed 이후 mutation·blueprint 재바인딩·두 번째 planner 이어 쓰기를 파일 변경 없이 거절한다.
+21. `bouncer-planner`·`bouncer-plan-coordinator`가 `subagent-model --agent`, `dispatch print --role`, Claude 훅 보정, Codex TOML parity, init 템플릿(planner `strong/high`, plan-coordinator `standard/medium`)에서 기존 역할과 같은 계약을 받는다.
+22. `skills/bouncer-plan/SKILL.md`가 doc-shape 계약(step 1~8, ACQ step 1·2·3·4·6)을 통과하면서 plan-coordinator 위임, 범위 체크포인트, `nesting-unavailable` fallback, root 전용 승인 경계를 테스트가 단언하는 문장으로 담는다.
+23. `plan-coordinator` blueprint의 종단 `npm run ci`가 통과한다.
+
 ## Out of scope
 - review-compat-followups는 closed 계획을 재개하지 않으며 요구사항 원본과 다른 로컬 제안 문서를 커밋하지 않는다.
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -74,3 +81,5 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [drive-plan-quality](blueprints/drive-plan-quality/index.md) — 계획 영향 범위와 선행 병합 검증 강화; R-M2·R-P1·R-P2·R-P3·R-P4·R-P5 처리.
 
 - [review-compat-followups](blueprints/review-compat-followups/index.md) — 승인 형식·snapshot 경계·verify 계약 보강과 이월 문서 모순 및 변경 이력 누락을 처리한다.
+- [plan-session-metrics](blueprints/plan-session-metrics/index.md) — `drive-metrics`에 세션 등급·effort와 plan coordinator·planner kind, `by_tier` 집계를 더하고 plan-review fixture를 CI에 복구한다.
+- [plan-coordinator](blueprints/plan-coordinator/index.md) — `/bouncer-plan`을 plan ledger CLI, `bouncer-plan-coordinator`·`bouncer-planner` 역할, coordinator 위임 워크플로 문서로 바꾼다.
