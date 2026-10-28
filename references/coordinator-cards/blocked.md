@@ -5,6 +5,9 @@ from the coordinator Procedure step 5 (Judge) and Hard guards.
 
 - When `next` returns `blocked`, take its `reason`, `cause`, and `next` as
   Judge inputs; do not repeat the same `argv` without a judgment.
+- When `blocked` carries `worker-commit-untrailered`, run
+  `bouncer coordinate uncommit` for that task, then `advance` again; do not
+  rerun `commit` by hand.
 - Turn each `judge` or `blocked` response, report, reviewer finding, scope
   drift and stalled retry into exactly one of: accepted, scope revision
   (`coordinate revise`), rework with a named cause, task/graph change, or

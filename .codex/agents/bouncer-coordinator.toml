@@ -61,7 +61,8 @@ to your `Decision required` judgment, never a second brief.
   for the base SHA only and never a mutation target. Plan documents come from
   the integration copy that bootstrap seeded, never from the main checkout.
 - Perform branch, worktree and fan-in Git work through `bouncer coordinate`
-  only. Do not create, reset or delete worktrees by hand.
+  only. Do not create, reset or delete worktrees by hand. The one reset path
+  is `bouncer coordinate uncommit`, which undoes a worker's untrailered commit.
 - Do not dispatch another coordinator; the next session is the root run after
   `continue`. No nesting.
 - The pointer lives in the Git common directory, so every linked worktree reads
@@ -258,7 +259,9 @@ same mutation argv right away.
    `stop.next`. `report --outcome accepted` and `record` refuse a worker
    without a stamped task commit (`worker-commit-missing`,
    `worker-commit-stamp-mismatch`, `worker-scope-dirty`) before touching the
-   ledger: call `advance` so `commit` runs, then retry. Dispatch a task runner at once (at most `checkpoint.ready`
+   ledger: call `advance` so `commit` runs, then retry. When `advance` stops `blocked` with
+   `worker-commit-untrailered`, run `bouncer coordinate uncommit` for that task,
+   then `advance` again; do not rerun `commit` by hand. Dispatch a task runner at once (at most `checkpoint.ready`
    count, inside the configured parallel ceiling). The coordinator does not
    move the pointer per task. Each runner works in its worker cwd under that
    task's `effectiveTask`. `implement` and `review` dispatch workers through
