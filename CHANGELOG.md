@@ -10,6 +10,34 @@
 
 ## [Unreleased]
 
+## [0.1.16]
+
+Runtime and plugin release. Plugin `0.1.13` requires this runtime through
+`runtimeCompatibility: ">=0.1.16 <0.2.0"`.
+
+### Added
+
+- 역할 모델 등급(strong/standard/light)과 effort 해석을 추가합니다 (#281).
+- 적대적 리뷰와 리뷰어 등급 자동 상향을 추가합니다 (#283).
+- implementer가 보고 전에 변경 파일에 eslint를 실행하는 절차를 추가합니다 (#284).
+- plan 세션을 등급별로 측정하는 기반과 plan coordinator·planner 위임 구조를 추가합니다 (#286, #287).
+- 신규 테스트 tier 등록을 확인하는 plan gate와 task 검사 래퍼를 추가합니다 (#288).
+- 무트레일러 worker 커밋을 차단하고 `coordinate uncommit`으로 복구합니다 (#290).
+
+### Changed
+
+- run의 진행 판별을 완료 task 개수가 아니라 task id 집합 비교로 바꾸고, coordinator 판정 규칙과
+  implementer fixture 고정 안내를 보강합니다 (#291).
+- 계획 승인 전에 root가 finding ID·처분·note와 accepted-risk 근거를 보여 주고 ID별 동의를 받습니다.
+  `nesting-unavailable` fallback 절차를 구체화합니다 (#292).
+
+### Fixed
+
+- 훅 실행 비트에 의존하지 않도록 고치고 plan 버전 문서를 보호합니다 (#282).
+- resume 시 이전 세대 worker report를 보존합니다 (#285).
+- strong 매핑이 `inherit`일 때 리뷰어 등급이 적용되지 않음을 보고합니다 (#289).
+- 리뷰 오류 코드·timeout·보고서 보존 실패 경로의 테스트와 복구 안내 문서를 보강합니다 (#292).
+
 ## [0.1.15]
 
 Runtime-only release. Plugin `0.1.12` supports this runtime through
