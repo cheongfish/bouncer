@@ -225,7 +225,7 @@ test('subcommand 없는 review-dispatch → stderr에 exit 2를 낸다', () => {
 const COORDINATE_SUBCOMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-  'promote-stop', 'session-open', 'worker-model', 'worker-tokens', 'note',
+  'promote-stop', 'session-open', 'worker-model', 'worker-tokens', 'note', 'uncommit',
 ];
 
 test('coordinate <sub> --help와 -h → 그 subcommand usage를 stdout에 출력한다', () => {
