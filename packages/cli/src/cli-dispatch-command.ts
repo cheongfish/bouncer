@@ -13,7 +13,8 @@ type CliIo = {
   err: (s: string) => void;
 };
 
-const USAGE_BLOCK = '  dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator>'
+const USAGE_BLOCK = '  dispatch print --role '
+  + '<implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator>'
   + ' --cwd <dir> --input <file> --out <dir>\n'
   + '             Run one Cursor print dispatch (JSON).\n';
 
@@ -94,7 +95,8 @@ function parseDispatchPrintArgs(rest: string[]): ParsedPrint {
   }
   const role = f.role as string;
   if (!(PRINT_ROLES as readonly string[]).includes(role)) {
-    return fail('--role must be implementer, reviewer, debugger, context-reviewer, coordinator, planner, or plan-coordinator');
+    return fail('--role must be implementer, reviewer, debugger, context-reviewer, coordinator, '
+      + 'planner, or plan-coordinator');
   }
   return {
     role,

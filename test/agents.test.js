@@ -342,10 +342,8 @@ test('NAMED_AGENTS → lists the five run roles and both plan roles', () => {
 
 test('plan roles with no config → subagent-model accepts them and prints inherit', () => {
   const { runCli } = require('../packages/cli/dist/cli');
-  const { spawnSync } = require('node:child_process');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-roles-'));
   try {
-    assert.strictEqual(spawnSync('git', ['init', '-q'], { cwd: repo }).status, 0);
     for (const agent of ['bouncer-planner', 'bouncer-plan-coordinator']) {
       let out = '';
       let err = '';
