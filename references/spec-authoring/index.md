@@ -222,8 +222,9 @@ body content only; never edits harness-owned frontmatter fields. Used from
        and the `execute gate` records the evidence. On a blueprint with
        `verification_policy: scoped_terminal` every commit task must declare
        its own task-only `bouncer.verify` (the plan gate rejects a missing or
-       empty one, and a full-suite command copied from the terminal node), and
-       the Checklist's last item names that command so the worker report can
+       empty one, and a full-suite command copied from the terminal node).
+       The task-only `bouncer.verify` also runs the cheap static checks the project's terminal CI applies to the files the task touches, wrapped in one project script when several commands are needed.
+       The Checklist's last item names that command so the worker report can
        echo it under `## Tests`.
      - **Checklist** (verify vs paths): if the verify command is the full
        suite (e.g. `npm test`), the set of files that must change for green
