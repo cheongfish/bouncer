@@ -167,6 +167,42 @@ and writes nothing. A bad flag is exit 2; a store or input failure is exit 1
 else `snapshot` when a valid snapshot exists, else `unavailable` (numbers stay 0). A broken
 snapshot is refused with `metrics-snapshot-invalid`, not read as 0.
 
+`metrics start --kind` also takes `plan-coordinator-session` and `planner-session` (the plan kinds).
+Only they may omit `--blueprint`: the session is stored with `blueprint: null`, reads no ledger
+snapshot, and `--blueprint <dir>` at start is normalized and stored without ledger resolution.
+`metrics end --id <m-id> [--tier <strong|standard|light>] [--effort <low|medium|high>]
+[--blueprint <dir>]` stores `tier` and `effort` on any kind (omitted = `null`, case-sensitive,
+empty string refused). `end --blueprint <dir>` binds a `blueprint: null` plan session exactly once
+with the same normalization as `start` (no path or ledger check). It is refused on a non-plan
+kind, on a session that already has a blueprint, as `""`, and a null-blueprint plan session cannot
+end without it. Every such refusal is `invalid-metrics-input` (exit 1) and leaves the file bytes
+unchanged. `metrics summary` adds `by_tier: {strong, standard, light, unknown}` to each kind, each
+`{sessions, tokens_total, cost_total}` over ended sessions only; a missing or `null` tier is
+`unknown`. A `null` blueprint is valid only on a plan kind; elsewhere it is `metrics-file-invalid`.
+
+`bouncer plan-ledger open|status|record|ask|answer|close` keeps the plan coordinator session state
+(request, phase, user questions and answers, planner session and revision counts) in the main
+worktree at `.bouncer/runtime/plan-ledgers/pl-<16hex>.json`; every subcommand takes `[--repo <dir>]`
+and an unresolvable main worktree is `non-git-root`. `open --request <text>` creates the file
+exclusively (`plan-ledger-exists` if the id is taken) and prints `{ ok, id, checkpoint }`;
+`status --id <id>` reads without a lock and prints `ledger`, `open_questions` (qids without an
+answer), and `checkpoint { path, sha256, revision }`. Every mutation takes `--id`, `--ledger-path`
+(the checkpoint path, exactly `.bouncer/runtime/plan-ledgers/<id>.json`) and `--ledger-hash` (the
+checkpoint sha256), runs under the ledger lock, adds 1 to `revision`, and prints the new checkpoint.
+`record` needs at least one of `--phase` (`discovery|checkpoint|authoring|review|ready`, forward
+or same only), `--blueprint` (stored once, normalized to `/` without a trailing slash, must sit
+under `.bouncer/context/epics/`), `--planner-session` with `--planner-mode`
+(`initial|resume|continued|fresh`; `continued` is allowed once and total revisions are capped at 2),
+and `--note`. `ask --question` prints the new `qid`; `answer --question-id --text` fills it once;
+`close` makes later mutations fail. The CLI does not tell callers apart, so only the root runs
+`open`, `answer`, and `close` by rule. Refusals are `{ ok: false, reason }` (exit 1) before any
+write: `plan-ledger-id-invalid`, `plan-ledger-not-found`, `plan-ledger-invalid`,
+`plan-ledger-exists`, `ledger-checkpoint-invalid`, `stale-ledger-checkpoint`, `ledger-locked`,
+`ledger-lock-lost`, `plan-ledger-closed`, `plan-ledger-phase-backward`,
+`plan-ledger-blueprint-bound`, `plan-ledger-revision-limit`, `plan-ledger-question-unknown`,
+`plan-ledger-question-answered`, `invalid-plan-ledger-input`. An unknown subcommand or flag is
+usage with exit 2. The run coordinator ledger and its reasons are unchanged.
+
 ## Context and task creation
 
 ```sh
@@ -221,7 +257,7 @@ flag, or an unknown flag is exit 2.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note|uncommit> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
@@ -319,7 +355,10 @@ When `prepare` recreates a revoked worker it first preserves uncommitted
 changes (patch under integration `.bouncer/runtime/salvage/`) and unintegrated
 commits (`refs/bouncer/salvage/<task>/g<gen>-<short>`), records a
 `worker-salvage` decision, and lists them in the output `salvage` array
-(`task`, `patch`, `ref`). A clean worker adds no `salvage` key. If preserving
+(`task`, `patch`, `ref`, and `report`). A revoked worker's latest report is
+preserved as `.bouncer/runtime/salvage/<task>-g<gen>-<short>.report.md` and
+listed as `report`. A worker with no patch, ref, or report to keep adds no `salvage` key;
+a worker holding only a runtime report still gets `salvage` with that `report`. If preserving
 fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
 unchanged.
 `coordinate bootstrap` sets ledger `mode: light` only when blueprint
@@ -392,6 +431,12 @@ unchanged.
 `coordinate next` returns `commit` when the task worktree has scope changes to
 commit; on a clean tree whose commit stamp is stale it returns a `blocked`
 action with reason `worker-commit-stamp-mismatch` instead.
+When the stamp is empty and the worker has a commit without a `Bouncer-Task`
+trailer, `coordinate next` returns `blocked` with reason
+`worker-commit-untrailered` whether or not the scope is dirty.
+`coordinate uncommit --task <ddd>` (fenced, run from the worker cwd) soft-resets
+to the parent of the oldest untrailered commit and records an `uncommit`
+decision. It is refused with `uncommit-not-needed` when no such commit exists.
 Use `coordinate revise` only from the assigned worker worktree with a reason
 and explicit source paths. A `partial-close` requires the workflow's explicit
 user confirmation and is unresolved handoff, not ordinary completion.
@@ -406,7 +451,7 @@ bouncer intent bundle --task <tasks.md> --no-symbols
 bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
 bouncer graphify-bin
 bouncer graph-sync
-bouncer subagent-model --agent <name> [--provider <name>]
+bouncer subagent-model --agent <name> [--provider <name>] [--json]
 bouncer config --help
 bouncer retro sources [--repo <dir>] [--limit <1..200>] [--claude-root <dir>] [--codex-root <dir>] [--cursor-root <dir>]
 bouncer retro read --path <file> [--max-chars <n>]
@@ -420,7 +465,7 @@ bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --
   # legacy (unmarked), light, or --task review: light or a small diff → single [combined]; else parallel
   # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk appends security
   # --mode delta is allowed for the one delta after the single repair of a brief final review
-bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 
@@ -447,12 +492,18 @@ to rebuild, then retry sections. For `intent-task-invalid`, do not rebuild the
 bundle; correct `--task` to the canonical `tasks.md` path shown in `next` and
 retry sections. Do not assemble `intent_sections` by reading bundle sources.
 
-`subagent-model` prints one model slug, or `inherit`. Pass only that line into
-named dispatch; omit the model argument when the line is `inherit`. Do not
-parse it as `{ model, provider }` JSON. The value is configuration metadata,
+`subagent-model` prints one model slug, or `inherit`, as a single line without
+flags; with `--json` it prints one line `{ provider, role, tier, model, effort,
+source }`; on a resolution error (for example `tier-unmapped` or
+`role-config-invalid`) it exits 1. Pass only the model into named dispatch;
+omit the model argument when it is `inherit`. The value is configuration metadata,
 not evidence of the model the host ran. A model rejection stops dispatch and
 must be reported with provider, role, configured name, exact host reason, and
-config correction location. `codex-agents check` is read-only: it
+config correction location. `subagent-model --agent <name> --tier <tier>`
+resolves the model for that call-level tier (for example `--tier strong`)
+instead of the role's own tier; the usage line above stays unchanged. A reviewer
+call uses it to keep the tier of its `review-dispatch` payload
+(`reviewer_tier`). `codex-agents check` is read-only: it
 prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 `next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
@@ -463,6 +514,10 @@ provider, model}` as a snapshot of current configured dispatch values. It is
 metadata, not proof of the host model. Plan review uses it to select
 `bouncer-context-reviewer`; resolve again immediately before dispatch if the
 current config no longer matches the payload.
+
+Plan (`single`, `perspectives`) and Execute (`discovery`, `delta`) reviewer
+`review-dispatch` payloads carry `reviewer_tier` and `reviewer_tier_applied`.
+Re-resolution before dispatch follows `${BOUNCER_ROOT}/rules/subagent-model.md` item 1.
 
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single`, or
 `perspectives` for a `review_contract: brief` blueprint; older stored `clustered`
@@ -505,15 +560,16 @@ the whole `base..head` diff and the union of commit-task `review_risk`
 (`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
-`failures` (G5, G19, G20, and G32 for a declared prerequisite) when the draft fails. G20 also
+`failures` (G5, G19, G20, G32 for a declared prerequisite, and G33) when the draft fails. G33 fires for a commit task when the checkout has `test/tiers.json`, the task declares a new `test/<name>.test.js` (a Touch `Create`/`Rename` row, or an `affected_paths` entry the Touch does not `Modify`) that does not exist, and `affected_paths` lacks `test/tiers.json`. G20 also
 statically rejects, for every task (any `verification_policy`) in the plan draft check and plan gate, a `bouncer.verify` of the form `node scripts/check-doc-shape.js <doc>...` that names a
 document with neither a kind nor a path contract (the checker would exit 1); it reads only the argument strings,
 and a verify with no document argument (default scan) passes. Invalid argv is exit 2.
 `dispatch print` runs one Cursor print process. It returns JSON for success
-(`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
+(`ok: true` with `report`; its `effort` field is the configured role effort,
+which Cursor does not apply) or `{ ok: false, reason, cause, next }` (exit 1).
 `reason` is `print-dispatch-disabled`, `agent-unavailable`,
 `agent-exit-nonzero`, `result-missing`, `result-error`, `report-missing`
-(the final `result` is absent or blank), `dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
+(the final `result` is absent or blank), `dispatch-input-invalid`, `role-document-invalid`, `tier-unmapped`, or `role-config-invalid`. Follow `next`; do not
 assemble the identity line, role body, or `agent --print` argv in the
 session. Invalid argv (`print` missing, unknown `--role`, duplicate or
 missing `--role`/`--cwd`/`--input`/`--out`) is exit 2.
@@ -554,7 +610,7 @@ any file read), `review-accept-risk-task-scope` (the review is not
 `--note`, or any `--task`, is exit 2.
 
 ```sh
-bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 

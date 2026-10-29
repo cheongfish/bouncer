@@ -113,7 +113,9 @@ read code/tests/repo context needed to implement.
    implementation. A test that passes before the change proves nothing, and
    running it is the only way to find that out. Then implement and re-run.
    Keep the project's verify command runnable; do not weaken assertions to
-   force a pass. Assertion and naming rules are in the coding standards' `Tests`
+   force a pass. When an expected output varies with the provider or env, pin
+   the provider and env in the fixture and keep the exact assertion instead
+   of loosening it. Assertion and naming rules are in the coding standards' `Tests`
    and `Test trust` sections. Run only the task-assigned command (the brief's
    frontmatter `verify` or the task-only command the Checklist names) plus the
    focused red/green runs it covers. Never run the full suite or any broader
@@ -136,6 +138,9 @@ read code/tests/repo context needed to implement.
 - In ts and js files, keep every line within 120 characters (the `max-len`
   limit in `eslint.config.js`); wrap longer lines instead of letting them
   through, and never bypass the rule with `eslint-disable`.
+- Before you report, run `npx eslint <changed ts/js files>` on only the files
+  you changed and fix every finding; never bypass with `eslint-disable`; this
+  does not replace the task `verify` command.
 - Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
   unfinished task, not a smaller diff.
 - Never simplify away: input validation at trust boundaries, error handling

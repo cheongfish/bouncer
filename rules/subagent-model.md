@@ -10,23 +10,41 @@ limits.
 `print`, item 7 applies and the dispatch is never a Task subagent.
 
 1. Resolve the named agent's model with `bouncer subagent-model --agent <name>`.
-   It prints one slug line, or `inherit` when the slot is missing or configured
-   as `inherit`. Pass only that printed line to the named dispatch; never treat
-   the command as returning provider metadata. When the output is `inherit`,
-   omit only the model argument so the named dispatch keeps parent-session model
-   inheritance.
-   `inherit`, `null`, and every non-string configured value have that inheritance
-   meaning; they are not a request to select a replacement model.
+   It prints one slug line, or `inherit` when the resolved value is `inherit`.
+   Pass only that printed line to the named dispatch. When the output is
+   `inherit`, omit only the model argument so the named dispatch keeps
+   parent-session model inheritance.
+   Run bouncer subagent-model --agent <name> --json to read provider, role, tier, model, effort, and source.
+   The model resolves in this order: the `subagents.<provider>.<agent>` slot,
+   then `model_tiers.<provider>.<tier>` for the role's tier. `inherit`, `null`,
+   and every non-string value of a `subagents.<provider>.<agent>` slot have that
+   inheritance meaning; they are not a request to select a replacement model. A
+   missing, empty, or non-string `model_tiers` value is not inheritance: the
+   command rejects it as `tier-unmapped`.
+   If the command exits 1, do not dispatch; report its code, provider, role, tier, and the config key to fix.
+   A reviewer dispatch reads the `review-dispatch` payload's
+   `reviewer_tier_applied`. When it is true (the tier is always `strong`),
+   re-resolve immediately before the call with
+   `bouncer subagent-model --agent <name> --tier <reviewer_tier>` so the raised
+   tier survives; when it is false, use the plain
+   `bouncer subagent-model --agent <name>` above. The payload's `agent_dispatch`
+   is a configuration snapshot, not proof of the host model.
+   Pass the role effort by host. On Claude Code, pass the role effort as the Agent effort argument; the hook corrects it.
+   On Codex, pass the role effort as the spawn reasoning_effort.
+   (The custom agent TOML field is named `model_reasoning_effort`.)
+   On Cursor, do not pass the role effort; tell the user the configured effort was not applied because the model slug carries it.
    Every new dispatch starts without conversation history, whether the resolved
    model is a slug or `inherit`; this covers `bouncer-coordinator`,
-   `bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`,
-   `bouncer-context-reviewer`, and plan evidence agents.
+   `bouncer-plan-coordinator`, `bouncer-planner`, `bouncer-implementer`,
+   `bouncer-reviewer`, `bouncer-debugger`, `bouncer-context-reviewer`, and plan
+   evidence agents.
    Host methods: Codex sets `fork_turns: "none"`; Claude Code uses a named
    subagent call and never a fork; Cursor print runs a separate process per
    dispatch.
-   The only exception is an implementer continuing its own session for the
+   The only exceptions are an implementer continuing its own session for the
    first in-scope verify fix defined in
-   `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`.
+   `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`, and a planner
+   continuing its own session once to apply plan review must_fix findings.
    On Codex, a dispatch that forks the full conversation does not accept a model
    override, so when a slug is passed, set `fork_turns: "none"` on that same
    call.

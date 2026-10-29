@@ -5,6 +5,10 @@ model and host-fallback order in [`${BOUNCER_ROOT}/rules/subagent-model.md`](../
 
 Before approval, judge the plan documents. The `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`) is the behavioral brief. Dispatch **`bouncer-context-reviewer`** (plugin `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md`) with the resolved model. Compose each prompt inline (no `assets/` template — the paths are already known). Ask for a Findings list only.
 
+The plan coordinator is the controller of this procedure; the root runs it only
+in the `nesting-unavailable` fallback. In both cases `context-review close` and
+any accepted-risk consent stay with the root.
+
 1. **Freeze the snapshot** — After `affected_paths` confirmation, stop editing
    the documents under judgment. Run `bouncer review-dispatch plan --blueprint
    <dir>` once and save its JSON to a file (the retained payload); its
@@ -27,7 +31,7 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    `latest_dispatch` payload and pass it as `--previous`; show the user the
    reason, cause, and next, and stop on a repeated failure.
    On `plan draft validation failed`, show the `failures` to the user and
-   return to `/bouncer-plan` step 3 **Author**; after the fix, restart from
+   return to step 3 **Author** (the planner); after the fix, restart from
    step 1 freeze.
 
    Resolve `bouncer-context-reviewer` with
@@ -36,7 +40,9 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    `agent_dispatch` snapshot selects the configured `bouncer-context-reviewer`
    model for each call; pass that model to the named dispatch. Immediately
    before each call, compare the snapshot with current config and resolve again
-   when they differ, then pass the newly resolved model. Stop on
+   when they differ, then pass the newly resolved model. When the payload carries
+   `reviewer_tier` / `reviewer_tier_applied`, re-resolve as
+   `${BOUNCER_ROOT}/rules/subagent-model.md` item 1 describes. Stop on
    model rejection and tell the user provider, role, configured model, host's
    exact reason, and where to correct `.bouncer/config.json`. Report a supported
    model name only if the host explicitly returns it. Do not infer aliases or
@@ -62,6 +68,12 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    `bouncer metrics start --kind context-review --blueprint <dir> --label <perspective> --target-digest <call target_digest>`
    just before dispatch, then `bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>`
    from the host's final task notification once the reviewer's hand-back report has arrived, per item 6 of `${BOUNCER_ROOT}/rules/subagent-model.md` (omit flags the host did not give).
+   Also pass `--tier <tier>` and `--effort <effort>` from the `--json` result of the resolution
+   that call used, under the rules in `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`
+   (omit `--tier` when `model` is `null`, omit `--effort` on Cursor, never pass a `null`). When
+   `reviewer_tier_applied` is `true`, record the raised tier by resolving with
+   `--tier <reviewer_tier>` and reading that `--json` result. Parallel perspective calls share one
+   resolved value and each records it.
    Procedure and rules: `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`. A failed `metrics` call
    never changes the review result.
 3. **Merge** — Verify each finding's evidence. With `perspectives`, the findings of every
@@ -82,8 +94,9 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    preserve current documents and reports, stop, and follow the reported
    `reason` and `next`. Do not revise the documents or relabel an old report
    with a new digest.
-5. **Revise once** — Only after Record succeeds, as `/bouncer-plan` author,
-   group all `must_fix`
+5. **Revise once** — Only after Record succeeds, as `bouncer-planner` (the same session continued;
+   `plan-ledger record --planner-mode continued`, or `fresh` when the host cannot
+   continue or after a context review restart), group all `must_fix`
    findings by target document and edit each document once (several edits in
    one pass are fine), so the revision is one pass over each document. Record each `advisory` finding as
    `accepted` with a note instead of editing for it. When no `must_fix`
@@ -221,7 +234,7 @@ previous findings plus `changed_documents`, `revision_diff` and
 controller input before it judges. A role name or summary alone is not a
 fallback payload.
 
-As controller, save each raw reviewer report as `{ "round": object, "findings": object[] }`
+As controller (the plan coordinator; the root only in fallback), save each raw reviewer report as `{ "round": object, "findings": object[] }`
 and record it with `bouncer context-review record --blueprint <dir> --dispatch
 <payload.json> --round <report.json> [--status requested|addressed|accepted]` —
 the subagent must not edit documents or flip status, and the controller does
@@ -237,7 +250,7 @@ the blueprint-root `context-review.md` themselves (`bouncer.context_review`,
 body `## Findings`, `status: accepted`) and return `written`; do not copy the
 returned `projection` by hand. Any `- inline context review: dispatch print
 failed (<reason>)` line already in `## Findings` stays ahead of the generated
-list after close. Run `close` only after explicit user approval. A recorded success is a review
+list after close. Before asking for consent the root shows the user each finding's ID, disposition, and note from the dispositions file; for accepted-risk it adds the concrete risk, why it is not fixed, and the basis, and takes explicit consent for that ID. Run `close` only after that explicit user approval. A recorded success is a review
 disposition, not plan approval or a plan gate pass.
 
 When recording finding `note` (and any other author-written frontmatter

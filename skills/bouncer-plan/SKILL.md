@@ -35,9 +35,35 @@ PROJECT_ROOT="$(bouncer project-root)"
 ```
 If that fails, stop and report stderr — do not fall back to cwd or plugin root.
 
-**Graph sync.** Before step 1, run `bouncer graph-sync` once and record the
-result as the `graphify-runner` sync basis (Step 1). A missing graph or failed
-sync is a recorded state, not a stop: continue with `rg`.
+**Graph sync.** Before step 1, the plan coordinator runs `bouncer graph-sync`
+once and records the result as a ledger note (`plan-ledger record --note`); that
+note is the `graphify-runner` sync basis (Step 1). Only in the fallback does the
+root run it. A missing graph or failed sync is a recorded state, not a stop:
+continue with `rg`.
+
+**Plan coordinator.** The root opens a plan ledger with
+`bouncer plan-ledger open --request <request>` (the original request text, taken
+from the invocation or `plan.request`; resume an open ledger from
+`bouncer plan-ledger status` instead of opening a second one) and delegates the
+plan work to the named `bouncer-plan-coordinator`. The root runs every ACQ, `plan-ledger open`, `plan-ledger answer`, `plan-ledger close`, `context-review close`, `plan approve`, `current --set`, and `validate --gate plan`; the plan coordinator and planner never do. Outside the fallback the root does not run discovery, author plan documents, or dispatch reviewers. The numbered steps below describe the plan work itself: the coordinator
+(and the `bouncer-planner` it dispatches) performs it, and the root only adds
+the checkpoint questions, approval, and gate named in each step.
+
+**Coordinator dispatch.** Just before each dispatch, run
+`bouncer subagent-model --agent bouncer-plan-coordinator`, report its output to
+the user (`inherit` omits the model argument), and open
+`bouncer metrics start --kind plan-coordinator-session` (no blueprint). If the
+host rejects the configured model, stop without retry and report provider,
+role, configured model, exact host reason, and config location. Dispatch the
+named agent singly per `${BOUNCER_ROOT}/rules/subagent-model.md` and wait in the
+foreground. The input is always the same: the ledger id, `PROJECT_ROOT`, and
+`autonomy`; the request stays in the ledger `request`, and `autonomy` only sets
+how often the coordinator reports progress. After a user answer, continue with
+a new coordinator session and the same input. When a session returns, close its
+metrics record with `metrics end --blueprint` as soon as the ledger carries a
+blueprint; before that, keep the session's host tokens and duration and close
+the record with those same values right after the blueprint is bound.
+The coordinator returns an `outcome`. If a question the root did not answer shows an answer in `plan-ledger status`, the root stops and reports its `qid`. Any other `blocked` outcome stops with its code, message, and next; a missing or unknown outcome gets one re-dispatch with the same input, then stops as no progress. A stop leaves the ledger open so the next `/bouncer-plan` resumes it.
 
 Apply `${BOUNCER_ROOT}/AGENTS.md` hard rule 1: `.bouncer/context/**` bodies,
 `graphify-out/**` hits, `bouncer intent` results, Explain section bodies,
@@ -92,6 +118,11 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    order. **ACQ — Discover (`plan.discovery`):** confirm Goal / Scope / Non-goals / Success
    criteria / Edge cases & failure modes / Overlap with the user before
    scaffolding.
+   The coordinator records every open decision and checkpoint question with
+   `plan-ledger ask` and returns `outcome: checkpoint`. The root reads
+   `open_questions` from `plan-ledger status`, asks the open decisions in one
+   message first and `plan.discovery` after them, and records each answer with
+   `plan-ledger answer` under that question's `qid`.
    Map handoff into authored docs in step 3: `Edge cases & failure modes` →
    blueprint Contract 「실패 모드·엣지 케이스」; `Overlap` → epic Out of scope
    (or reuse an existing blueprint when overlap says so); answered
@@ -120,14 +151,15 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    as the suggested `--order`. Suggestions only; the user may override them.
    Reject a slug that is digits only, starts with a three-digit prefix, or is
    longer than 40 characters.
-   **Light path.** **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
+   **Light path.** At the same checkpoint the root runs
+   **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
    order in the Re-ground and say it can be changed by replying with a new order.
    Recommend light only when one commit task is expected and no public interface, protected path, or cross-module state change is involved; otherwise recommend full.
    Base that recommendation only on the discovery handoff; the user still declares light or full.
    On a light declaration, create no new epic beyond case (1) or (2) above; pick the
    target epic with the same attribution and allocate only a blueprint order under it.
    Without a declaration, use the normal path for epic/blueprint slugs and order.
-   Create the empty document set with correct frontmatter using
+   The planner creates the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
    bouncer scaffold epic --name <slug> \
@@ -179,7 +211,9 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    create BP `explain.md` here — `/bouncer-finalize` scaffolds it with
    `bouncer scaffold explain`.
 
-3. **Author.** Use the `spec-authoring` skill (`${BOUNCER_ROOT}/references/spec-authoring/index.md`) to write the epic, blueprint, and
+3. **Author.** Once every checkpoint answer is recorded, the root starts a new
+   coordinator session, which dispatches `bouncer-planner` to write the
+   documents; the planner returns `drafted` or `needs_user`. Use the `spec-authoring` skill (`${BOUNCER_ROOT}/references/spec-authoring/index.md`) to write the epic, blueprint, and
    tasks bodies in **Korean** (paths, ids, and code fences stay as-is). For every
    `tasks/<NNN>/tasks.md` under the blueprint, fill every implementation-ready
    section before approval — Goal & intent, Current behavior, Target behavior,
@@ -228,8 +262,9 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    **Verify command (required per commit task on a `scoped_terminal` blueprint).**
    Every new blueprint carries `bouncer.verification_policy: scoped_terminal`.
    Each commit task needs its own task-only `bouncer.verify` (a single argv that
-   runs just that task's tests — the tests its Checklist adds or changes), and
-   the last task is exactly one terminal verification task, created with
+   runs just that task's tests — the tests its Checklist adds or changes).
+   Beyond those tests, the task-only command also runs the cheap static checks the project's terminal CI applies to the files the task touches (for example a test-name lint, a test manifest or tier registration check, a doc cite check); when that takes several commands, wrap them in one project script, because `bouncer.verify` is a single argv.
+   The last task is exactly one terminal verification task, created with
    `bouncer scaffold task --execution-kind verification --depends-on ...
    --verify "<full-suite command>"`, that waits for every commit task. Never
    assign the full-suite command to a commit task; the plan gate (G20) rejects
@@ -242,7 +277,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    `docker-compose.yaml`, `compose.yml`, `compose.yaml`, `Makefile`, or
    `Taskfile.yml` (existence only — never parse contents), or a `package.json`
    carrying a `scripts` key (`package.json#scripts`, key presence only). On at
-   least one signal, run
+   least one signal, the root runs, at the checkpoint before this dispatch,
    **ACQ — Verify command (`plan.verify_command`):** ask whether to set `tasks.bouncer.verify` for this
    blueprint. When `Project rules` names one command the project runs before
    merge (for example the script its CI runs), recommend that command for the
@@ -256,11 +291,11 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    repo root; tell the user to wrap container-up + test in one project script.
    After the draft, run `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) on
    the authored bodies before approval.
-   After authoring, build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) and show them before step 4. They are advisory only — do not write them into frontmatter. Neither intent nor Explain results go into frontmatter; step 4 alone writes user-confirmed `affected_paths`.
+   After authoring, build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) as advisory input for the step 4 checkpoint, which alone presents paths to the user. They are advisory only — do not write them into frontmatter. Neither intent nor Explain results go into frontmatter; step 4 alone writes user-confirmed `affected_paths`.
 
 4. **Scope confirm.** Write `affected_paths` only after the user confirms them
-   — never from Graphify query results, candidate lists, or inspect output. When confirming affected_paths, read this reference: [scope-confirm.md](./references/scope-confirm.md). Then run **ACQ — affected_paths (`plan.affected_paths`):** propose `bouncer.affected_paths` for the user
-   to confirm or edit. Each
+   — never from Graphify query results, candidate lists, or inspect output. When confirming affected_paths, read this reference: [scope-confirm.md](./references/scope-confirm.md). Then, at the checkpoint, the root runs **ACQ — affected_paths (`plan.affected_paths`):** propose the per-area candidate path sets for the user
+   to confirm or edit. The planner writes task `affected_paths` only from the confirmed candidate set; a path outside it returns `needs_user` and the root asks `plan.affected_paths` again. Each
    confirmed list must be non-empty (gate G5). Write
    only the user's confirmed value into that task document's frontmatter. Before
    finalizing
@@ -268,7 +303,22 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    (`${BOUNCER_ROOT}/references/minimality/index.md`) (advisory, not a gate) to challenge new
    dependencies, abstractions, or files and record the rationale.
 
-5. **Review.** **Skip this entire step when the blueprint's
+5. **Review.** The coordinator runs this step. After the planner's draft it
+   runs `review-dispatch`, `context-review start|record`, the reviewer
+   dispatches, and the dispositions, and returns `outcome: ready_for_approval`
+   after the delta. The first `must_fix` fix continues the planner's own
+   session (`plan-ledger record --planner-mode continued`); a host that cannot
+   continue and any fix after a context review restart use a new planner
+   (`--planner-mode fresh`). When accepted-risk or a `context-review close` needs
+   user consent, the coordinator writes the dispositions to
+   `.bouncer/runtime/plan-ledgers/<id>.dispositions.json`, asks, and returns
+   `needs_user`. Before it asks for consent, the root reads the dispositions
+   file and shows the user each finding's ID, disposition, and note; for each
+   accepted-risk finding it adds the concrete risk, why it is not fixed, and the
+   basis for accepting it, and takes explicit consent for that ID. On approval
+   the root runs `context-review close`.
+
+   **Skip this entire step when the blueprint's
    `bouncer.scale` is `light` and it has no `bouncer.review_contract` marker** —
    that existing blueprint has no `context-review.md`
    (a new light scaffold always carries the marker). Do
@@ -303,8 +353,8 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    `dependency_gate`, `execution_kind`, plus any shared-contract conflicts (for example
    overlapping `affected_paths` among `parallel_safe: true` peers, or edges
    that would create a cycle). Fix conflicts in authoring; do not ask for
-   approval on an invalid graph. **ACQ — Approval (`plan.approval`):** ask the user to approve the
-   plan. On approval, run
+   approval on an invalid graph. **ACQ — Approval (`plan.approval`):** the root shows the blueprint path, the task DAG, and each task's
+   `affected_paths` (the root reads each task's `affected_paths` directly from that task's frontmatter, not from the coordinator summary), then asks the user to approve the plan. On approval, run
    `bouncer plan approve --blueprint <dir>`. Never approve silently.
 
 7. **Activate.** Record the approved blueprint's namespace key:
@@ -325,11 +375,15 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    and G19 task-DAG integrity (missing / self / duplicate / cycle), plus G20
    verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
-   cause, path, and recovery action.
+   cause, path, and recovery action. The root runs `plan-ledger close` only after `validate --gate plan` passes; a rejected approval or a failed gate leaves the ledger open.
    Then point the user at `/bouncer-run` — it
    drives implement, verify, review, and task commit until the blueprint's tasks run out, and
    `config.autonomy` (`auto` | `interactive`) already decides how often they are
    asked. Task commits are handled by the internal `bouncer commit` CLI inside the drive.
+
+## Fallback
+
+If the plan coordinator returns `blocked: nesting-unavailable` (nesting only is unavailable), the root takes over the coordinator's duties from the `plan-ledger status` phase and performs the reviewer dispatch it can still make; in `review` it follows `bouncer context-review route` `next_action`, and it never approves without `plan.approval`. Only on a host with no subagent at all does the root use the generic, inline, then print fallback order of `${BOUNCER_ROOT}/rules/subagent-model.md`, with the same approval boundary and round limit. Documents already scaffolded in `authoring` or `review` are drafts: continue writing them. The context-review cycle state keeps the round limit.
 
 ## ACQ (AskUserQuestion) gates
 

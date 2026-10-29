@@ -7,7 +7,7 @@ description: "Use during /bouncer-plan on full plans and on light plans that car
 
 Produce the plan-document **judgment contract**. Gates later read status and
 finding fields; this skill only produces findings. Named agent: plugin
-`${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md`. `/bouncer-plan` dispatches that agent
+`${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md`. The plan coordinator (or `/bouncer-plan` in fallback) dispatches that agent
 (or runs this skill inline). The controller records the result into the
 blueprint-root `context-review.md` — not a task-directory `review.md`.
 The controller provides mode, frozen target, perspective, and read-only cwd;
@@ -112,8 +112,8 @@ Do not merge or split the returned perspectives.
    the cycle writes blueprint-root `context-review.md`; the controller
    disposes each finding. A recorded disposition is not plan approval
    or a plan gate pass. Do **not**
-   edit plan documents to "fix" a finding; that is `/bouncer-plan`
-   authoring. Do **not** set `context-review` status.
+   edit plan documents to "fix" a finding; that is the plan coordinator's
+   (or `/bouncer-plan` fallback) authoring. Do **not** set `context-review` status.
 
 ## Guardrails
 

@@ -61,7 +61,8 @@ to your `Decision required` judgment, never a second brief.
   for the base SHA only and never a mutation target. Plan documents come from
   the integration copy that bootstrap seeded, never from the main checkout.
 - Perform branch, worktree and fan-in Git work through `bouncer coordinate`
-  only. Do not create, reset or delete worktrees by hand.
+  only. Do not create, reset or delete worktrees by hand. The one reset path
+  is `bouncer coordinate uncommit`, which undoes a worker's untrailered commit.
 - Do not dispatch another coordinator; the next session is the root run after
   `continue`. No nesting.
 - The pointer lives in the Git common directory, so every linked worktree reads
@@ -128,7 +129,10 @@ to your `Decision required` judgment, never a second brief.
   uncommitted changes as a patch under the integration
   `.bouncer/runtime/salvage/<task>-g<gen>-<short>.patch` and its unintegrated
   commits as `refs/bouncer/salvage/<task>/g<gen>-<short>`. The output `salvage`
-  lists both; reapply a patch with `git apply --binary`. If preserving fails,
+  lists both; reapply a patch with `git apply --binary`. The revoked worker's
+  latest report is preserved too, as
+  `.bouncer/runtime/salvage/<task>-g<gen>-<short>.report.md`, and appears as the
+  `report` of that `salvage[]` entry. If preserving fails,
   `worker-salvage-failed` stops `prepare` and the worker stays as it was.
 - A terminal failure proven to be outside every approved task scope is recorded
   with `coordinate repair --task <terminal> --disposition outside_scope` (with
@@ -255,7 +259,9 @@ same mutation argv right away.
    `stop.next`. `report --outcome accepted` and `record` refuse a worker
    without a stamped task commit (`worker-commit-missing`,
    `worker-commit-stamp-mismatch`, `worker-scope-dirty`) before touching the
-   ledger: call `advance` so `commit` runs, then retry. Dispatch a task runner at once (at most `checkpoint.ready`
+   ledger: call `advance` so `commit` runs, then retry. When `advance` stops `blocked` with
+   `worker-commit-untrailered`, run `bouncer coordinate uncommit` for that task,
+   then `advance` again; do not rerun `commit` by hand. Dispatch a task runner at once (at most `checkpoint.ready`
    count, inside the configured parallel ceiling). The coordinator does not
    move the pointer per task. Each runner works in its worker cwd under that
    task's `effectiveTask`. `implement` and `review` dispatch workers through
@@ -305,7 +311,15 @@ same mutation argv right away.
    `payload.report` and only the `payload.evidence` files whose hashes still
    match. Turn each `judge` or `blocked` response into exactly one recorded
    judgment. A qualifying delta-certification finding takes the critical
-   recovery before that rework (result: `resolved` or `blocked`). After the
+   recovery before that rework (result: `resolved` or `blocked`). When a
+   rework summary names an identifier (a mode, code, or field name), copy it
+   from the report, card, or CLI output; never write it from memory. Never
+   accept a deviation that breaks a brief prohibition (a Do not touch path, a
+   Constraint, or a ban on changing an existing assertion) as an Open choice:
+   record rework, or `blocked` when rework cannot restore it. For a
+   prohibition the worker already broke, this rule takes precedence over the
+   `revise` card: release it with `--release-do-not-touch` only after the user
+   explicitly approves the release. After the
    judgment is recorded, call `advance` again.
 6. **Close** — When `advance` stops with `final_review`, follow that action's
    `card`, then call `advance` again. When `review_scope` is absent, skip that

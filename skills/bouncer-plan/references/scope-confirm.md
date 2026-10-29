@@ -1,13 +1,16 @@
 When confirming affected_paths, read this reference.
 
-For each `tasks/<NNN>/tasks.md` under the blueprint, first show that task's
-candidate list from `graphify-runner` — one `<path> — <evidence>` line per
-candidate (Graphify `explain` / `query`, `grep -l`, or generated pair) — plus
-the per-graph sync basis. When the graph was unavailable, say so and show the
-`rg`-based candidates. Only after that display, return to the numbered step's **ACQ — affected_paths (`plan.affected_paths`)**.
-Intent, Explain, and Graphify candidates never set, fill, or widen
-`affected_paths`; write only the user's confirmed value into that task
-document's frontmatter.
+At the checkpoint, before any task is written, the plan coordinator hands the
+root one candidate path set per investigation area from `graphify-runner` (in
+the checkpoint question), and the root shows them — one
+`<path> — <evidence>` line per candidate (Graphify `explain` / `query`,
+`grep -l`, or generated pair) — plus the per-graph sync basis. When the graph
+was unavailable, say so and show the `rg`-based candidates. The root then runs
+**ACQ — affected_paths (`plan.affected_paths`)** once to confirm those sets.
+The planner writes each task's `affected_paths` only from the confirmed sets;
+the approval screen shows the per-task values again. Intent, Explain, and
+Graphify candidates never set, fill, or widen `affected_paths`; write only the
+user's confirmed value into that task document's frontmatter.
 
 **Contract blast check (before user confirm).** When the task Interface
 changes a serialized shape, gate input, or exported contract (field names,
@@ -37,3 +40,7 @@ integrated`, 실행 가능한 전체-CI `verify`, source 경로가 없는 Touch�
 명시적 public 경로는 `bouncer scaffold task --execution-kind verification
 --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`이며 `review.md`는
 만들지 않는다.
+
+**Release-time documents.** Before locking `affected_paths`, follow the
+`Release-time documents` section of `${BOUNCER_ROOT}/rules/planning.md`: never add the version
+documents it lists to Touch, `affected_paths`, Checklist, or `bouncer.verify`.

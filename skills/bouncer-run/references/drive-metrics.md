@@ -37,8 +37,21 @@ reason, and totals never count it as 0.
    | Cursor print | `usage` of the last `type: "result"` event in the raw stream-json stdout artifact (the `stdout` path that `bouncer dispatch print` returns). The wrapper JSON itself (`report`, `stdout`, ...) carries no usage. | Right after `dispatch print` returns; a result event with no `usage` closes with no token flags (missing). |
    | Host with no usage event (for example a Cursor Task subagent or an inline pass) | none | Immediately after the hand-back, `metrics end --id <id>` with no token flags; the session is recorded as missing. |
 
+   Just before `metrics end`, read the resolution of the same agent (and the same `--tier`, if
+   the dispatch used one) with `bouncer subagent-model --agent <name> --json`. This read is for
+   the record only; it never changes the model that was dispatched. Add the flags below only
+   from that result:
+
+   - `--tier <tier>` only when `tier` is a string and `model` is not `null`. When `model` is `null`
+     (the tier maps to `inherit`, so the parent model was used), omit `--tier` even if `tier` is a
+     string.
+   - `--effort <effort>` only when `effort` is a string. On Cursor, omit `--effort` even if
+     `effort` is a string: it lives in the model slug there and was not applied.
+
+   Never pass a `null` value and never guess a tier or effort.
+
    ```bash
-   bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms>
+   bouncer metrics end --id <id> --tokens <subagent_tokens> --host-duration-ms <duration_ms> [--tier <tier>] [--effort <effort>]
    ```
 
    Add `--input-tokens`, `--output-tokens`, and `--model <slug>` only when the host reports them
@@ -66,7 +79,8 @@ handoff, and alone rather than chained with another command; a second call on a 
 returns `metrics-session-ended`.
 
 A direct session's token usage is not measurable: the host table above has no per-session usage for
-the root's own direct work. Close it with no token flags so it is stored as `null` with
+the root's own direct work. No agent was dispatched either, so pass no `--tier` or `--effort`.
+Close it with no token flags so it is stored as `null` with
 `tokens_unavailable_reason: "not-reported"`, and report it as 측정 불가 (unmeasurable). Never fill it
 with the root's whole-session host usage, which also covers the work outside the direct span.
 
