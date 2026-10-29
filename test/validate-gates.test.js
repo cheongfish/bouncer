@@ -885,8 +885,11 @@ function g16VerifiedTasks(ids = ['001']) {
   }));
 }
 
+// 모듈 로드 때 한 번 만든 빈 전용 디렉터리를 G16 문맥의 repoRoot로 쓴다. 공용 고정 경로는
+// 다른 실행이 남긴 원장 파일(finalize 기본 읽기 지점)에 결과가 기대게 되므로 쓰지 않는다.
+const G16_UNUSED_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-gates-unused-'));
 const G16_CTX = {
-  repoRoot: '/tmp/unused',
+  repoRoot: G16_UNUSED_ROOT,
   blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
   deps: {
     computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
@@ -904,10 +907,11 @@ function commitReadyUnit(extraTasksBouncer = {}) {
   };
 }
 
+// 호출마다 새 빈 디렉터리를 만들어 한 테스트의 원장 쓰기가 다른 테스트의 gate 결과로 새지 않게 한다.
 function commitCtx(stagedFiles) {
   const taskUnit = commitReadyUnit();
   return {
-    repoRoot: '/tmp/unused',
+    repoRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-gates-unused-')),
     blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
     taskUnit,
     deps: {
