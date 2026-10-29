@@ -181,7 +181,9 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
      `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing ref
      only; never attach the raw ledger body, completed task documents, prior
      worker report bodies, or past conversation — except the one undecided raw
-     report of the recovery re-dispatch below, handed as data
+     report of the recovery re-dispatch below, handed as data; direct-run review
+     handoff bodies reach the coordinator only through the `review-handoff:` note
+     in `direct-run.md` Handoff, never in the payload
    - `autonomy` as a reporting cadence only (`interactive` returns a progress line
      per task boundary, `auto` batches), so no per-task ACQ under either value
 

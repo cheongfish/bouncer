@@ -317,8 +317,30 @@ function ensureCodexAgents({
   return { ok: true };
 }
 
+/**
+ * 역할 md 상대 경로(`agents/<name>.md`)를 짝이 되는 Codex TOML 상대 경로로 바꾼다.
+ * plan inspect가 생성 짝을 계산할 때 쓰며, 이름 목록과 TOML 경로 규칙은 이 파일의
+ * `NAMED_AGENTS`·`CODEX_AGENTS_DIR` 정본만 따른다. 호출자가 경로 문자열을 따로 하드코딩하지 않게 한다.
+ *
+ * 이름이 `NAMED_AGENTS`에 없으면 null이다. 생성 대상이 아닌 역할 문서(사용자 정의 md)에 TOML 짝을
+ * 가정하면 존재하지 않는 생성본을 `covered: false` 짝으로 제안하게 되므로 null로 거절한다.
+ *
+ * @param {string} rel - 저장소 상대 posix 경로. 정규화(앞 `./`·끝 `/` 제거)는 호출자가 맡는다
+ * @returns {string | null} `.codex/agents/<name>.toml`, 짝이 없으면 null
+ */
+function codexAgentTomlFor(rel: string): string | null {
+  // 1. `agents/<name>.md` 한 조각만 받는다. 하위 디렉터리 md는 역할 문서가 아니다.
+  const match = /^agents\/([^/]+)\.md$/.exec(rel);
+  if (!match) return null;
+  // 2. 이름이 정본 목록에 있을 때만 짝을 만든다.
+  const name = match[1];
+  if (!(NAMED_AGENTS as readonly string[]).includes(name)) return null;
+  return `${CODEX_AGENTS_DIR}/${name}.toml`;
+}
+
 export = {
   NAMED_AGENTS,
+  codexAgentTomlFor,
   GENERATED_MARKER,
   CODEX_AGENTS_DIR,
   pluginAgentsDir,

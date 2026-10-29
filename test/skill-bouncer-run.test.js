@@ -190,6 +190,38 @@ test('direct-run implement row and accepted check → forbid worker commit and n
   assert.doesNotMatch(accepted, /the worker commit exists/);
 });
 
+// must_fix 리뷰 라운드는 기록하지 않고 원문을 파일과 review-handoff: note로 coordinator에 넘긴다.
+// 행·목록·Handoff가 같은 조건을 말해야 하고, 옛 문구가 남으면 안 된다.
+test('direct-run review round and Handoff → hand off must_fix rounds unrecorded with a raw report note', () => {
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  const directRun = read('skills/bouncer-run/references/direct-run.md');
+  const row = directRun.match(/^\s*\| `judge` review-round.*$/m)[0];
+  assert.match(row, /no `must_fix`[^|]*record the round/);
+  assert.match(row, /`must_fix`[^|]*without recording/);
+  assert.doesNotMatch(directRun, /review round that records a `must_fix`/);
+  assert.match(paragraphContaining(directRun, 'Hand off without returning'), /`must_fix`[\s\S]*without recording/);
+  assert.match(directRun, /actionability hint `must_fix`/);
+  const handoffAt = directRun.indexOf('## Handoff');
+  const tail = directRun.slice(handoffAt);
+  const at = (needle) => { const i = tail.indexOf(needle); assert.ok(i >= 0, needle); return i; };
+  assert.ok(at('metrics start --kind coordinator-session') < at('coordinate note'));
+  assert.ok(at('coordinate note') < at('coordinate status --write-input'));
+  const handoff = paragraphContaining(directRun, '.bouncer/runtime/print/review-handoff-<mode>-<perspective>.md');
+  assert.match(handoff, /verbatim/);
+  assert.match(handoff, /review-handoff-\*\.md/);
+  assert.match(handoff, /`--mode delta`[\s\S]*`delta`[\s\S]*`discovery`/);
+  assert.match(directRun, /review-handoff: mode=<mode>; base=<sha>; head=<sha>; snapshot_id=<id>; perspectives=<p1,p2,…>; files=<path>@<sha256>/);
+  assert.match(directRun, /review-handoff: unavailable/);
+  assert.match(directRun, /2000[\s\S]*note-too-long/);
+  assert.match(directRun.match(/^\|[^\n]*coordinate note[^\n]*$/m)[0], /stop and report/);
+  assert.match(paragraphContaining(readRunSkill(), 'never attach the raw ledger body'), /review-handoff:/);
+  const coord = paragraphContaining(read('agents/bouncer-coordinator.md'), 'review-handoff:');
+  assert.match(coord, /latest/);
+  assert.match(coord, /mode[\s\S]*base[\s\S]*head[\s\S]*snapshot_id[\s\S]*perspectives[\s\S]*sha256/);
+  assert.match(coord, /without dispatching reviewers again/);
+  assert.match(coord, /[Oo]therwise[\s\S]*discovery/);
+});
+
 // codex-agents check와 mismatch 재시드는 Codex 호스트 named 디스패치에만 걸린다.
 // 호스트 구분 없이 읽히면 Claude Code·Cursor가 불필요한 점검을 거친다.
 test('agent-dispatch and subagent-model codex-agents check → scope the check and reseed to Codex hosts', () => {

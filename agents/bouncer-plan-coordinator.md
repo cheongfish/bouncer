@@ -63,6 +63,12 @@ user.
    requires. You run `review-dispatch plan`, `context-review start|record`, the
    `bouncer-context-reviewer` dispatches, and the disposition. Record each
    must_fix fix with the planner mode above.
+   After each planner draft and before `review-dispatch plan`, run `bouncer plan inspect --blueprint <dir>`
+   once and read `coupledPaths`. When a `pairs` entry has `covered: false`, or a `candidates` entry is
+   listed (the task does not cover it), record one `ask` with those items as
+   `<path> — <kind> (<source>[, line <n>: <text>])` lines and return `needs_user` so the root asks
+   `plan.affected_paths` again. Re-dispatch the planner only with the paths the user confirmed; an item
+   already answered is not asked again. Do not start review while uncovered items remain.
 6. When accepted-risk or a context review close is needed, write the
    dispositions JSON to `.bouncer/runtime/plan-ledgers/<id>.dispositions.json`,
    `ask` the user, and return `needs_user` with each finding's ID, disposition, and note (and for accepted-risk the concrete risk, why it is not fixed, and the basis) so the root can show them before consent. The root runs `context-review close
