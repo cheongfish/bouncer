@@ -90,6 +90,12 @@ test('bouncer-finalize SKILL → reads its own retro reference and keeps the fin
   assert.ok(!skill.includes('skills/bouncer-retro'));
   assert.ok(skill.includes('retro: 실행하지 못함'));
   assert.ok(skill.includes('후보 없음'));
+  // 실패해도 finalize 결과·closed·pointer가 불변이고, 증거 재탐색·ACQ·대기가 없다는 보존 조건.
+  assert.ok(skill.includes('finalize 결과는 그대로임'));
+  assert.ok(skill.includes('never alter the rendered output, `closed`, or the pointer'));
+  assert.ok(skill.includes('no transcript search, no file reopen'));
+  assert.ok(skill.includes('add no new ACQ'));
+  assert.ok(skill.includes('do not wait for the user'));
   const ref = path.join(root, 'skills', 'bouncer-finalize', 'references', 'retro.md');
   assert.ok(fs.existsSync(ref));
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -97,6 +103,10 @@ test('bouncer-finalize SKILL → reads its own retro reference and keeps the fin
   const text = fs.readFileSync(ref, 'utf8');
   assert.ok(text.includes('bouncer retro sources') && text.includes('bouncer retro read'));
   assert.ok(text.includes('후보 없음'));
+  assert.ok(text.includes('이 절차가 실패해도 finalize 결과, `closed`, pointer는 바뀌지 않는다'));
+  assert.ok(text.includes('transcript도 찾지 않는다'));
+  assert.ok(text.includes('다시 열지 않고'));
+  assert.ok(text.includes('AskUserQuestion을 열지 않고 사용자 응답을 기다리지 않는다'));
 });
 
 test('draft-pr reference → renders the digest unresolved_must_fix section', () => {
