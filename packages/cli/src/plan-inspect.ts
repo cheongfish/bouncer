@@ -115,10 +115,12 @@ type CoupledPair = {
   covered: boolean;
 };
 
+// 후보는 경로 문자열 검색으로만 나온다. kind는 그 근거 종류를 밝혀 pairs(생성 짝)와 구분하게 한다.
 type CoupledCandidate = {
   task: string;
   source: string;
   path: string;
+  kind: 'path-literal';
   evidence: { line: number; text: string };
 };
 
@@ -690,9 +692,11 @@ function firstMatchingLine(
  * @returns {boolean} 예외 짝을 내야 하면 true
  */
 function gitignoreExceptionMissing(gitignoreLines: string[], repoRoot: string, toml: string): boolean {
-  // 디렉터리 전체 재포함 줄만 본다. `!.codex/agents/<name>.toml` 같은 파일 예외는 이 조건이 아니다 —
-  // 그런 줄이 있다고 디렉터리 규칙이 있다고 보면 조건 1이 파일 예외 줄에 끌려 참이 된다.
-  const hasDirectoryRule = gitignoreLines.includes('!.codex/agents/');
+  // 조건 1은 `!.codex/agents/` 로 시작하는 줄이 하나라도 있는지만 본다. 파일 예외
+  // `!.codex/agents/<name>.toml`도 같은 접두사를 가지므로 조건 1을 참으로 두고, 역할별 예외 줄은 아래
+  // 조건 2가 거른다. 완전 일치로 보면 `!.codex/agents/<name>.toml` 줄만 있는 저장소의 다른 역할이
+  // 짝을 잃는다.
+  const hasDirectoryRule = gitignoreLines.some((line) => line.startsWith('!.codex/agents/'));
   if (!hasDirectoryRule) return false;
   if (gitignoreLines.includes(`!${toml}`)) return false;
   return !fs.existsSync(path.join(repoRoot, toml));
@@ -780,7 +784,7 @@ function detectCoupledPaths(repoRoot: string, tasks: { id: string; paths: string
         if (coveredBy(norms, file)) continue;
         const evidence = firstMatchingLine(repoRoot, file, norm);
         if (evidence !== null) {
-          candidates.push({ task: task.id, source: norm, path: file, evidence });
+          candidates.push({ task: task.id, source: norm, path: file, kind: 'path-literal', evidence });
         }
       }
     }

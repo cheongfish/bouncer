@@ -646,7 +646,7 @@ test('plan inspect on a numeric epic → keeps nextBlueprintId and adds the same
 
 // 결합 경로 탐지 fixture. 생성 짝(agents/<name>.md ↔ .codex/agents/<name>.toml, .gitignore 예외)과
 // 경로 문자열 후보를 한 저장소에 함께 깐다. 각 단언은 coupledPaths 계약의 한 조각을 본다.
-function writeCoupledFixture(repo, { gitignore = '!.codex/agents/\n!.codex/agents/bouncer-reviewer.toml\n' } = {}) {
+function writeCoupledFixture(repo, { gitignore = '!.codex/agents/bouncer-reviewer.toml\n' } = {}) {
   const blueprintDir = writeRoutingBlueprint(repo, {
     tasks: [
       {
@@ -724,6 +724,7 @@ test('plan inspect --blueprint with generated pairs and test references → repo
     ['TASKS-001', 'docs/guide.md', 'test/guide.test.js'],
     ['TASKS-001', 'docs/guide.md', 'test/long.test.js'],
   ]);
+  assert.deepStrictEqual(payload.coupledPaths.candidates.map((e) => e.kind), ['path-literal', 'path-literal']);
   assert.deepStrictEqual(payload.coupledPaths.candidates[0].evidence, { line: 1, text: "read('docs/guide.md');" });
   const long = payload.coupledPaths.candidates[1].evidence.text;
   assert.strictEqual(long.length, 200);
@@ -747,7 +748,8 @@ test('plan inspect --blueprint with a generated TOML on disk → drops the gitig
 test('plan inspect --blueprint with .gitignore lacking the directory rule → emits no gitignore pair', () => {
   const repo = makeRepo();
   mkdirp(repo, `${EPICS}/001-a`);
-  const blueprintDir = writeCoupledFixture(repo, { gitignore: '!.codex/agents/bouncer-reviewer.toml\n' });
+  // 디렉터리 재포함(`!.codex/agents/`로 시작하는 줄)이 하나도 없는 .gitignore다.
+  const blueprintDir = writeCoupledFixture(repo, { gitignore: 'docs/\n' });
 
   const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
 

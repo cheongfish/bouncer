@@ -64,7 +64,7 @@ Do not record the judgment and do not recover by yourself. The ledger gains
 only the `session` decision, plus one `review-handoff:` note when the handed-off
 round is a review round. From then on the coordinator drives to the end; never
 resume direct mode. Run the steps in this order. A failure (`ok: false`) of step
-2, 4, or 5 stops the handoff and no later step runs; a metrics failure of step 1
+2, 4, 5, or 6 stops the handoff and no later step runs; a metrics failure of step 1
 or 3 is reported and the handoff continues. Step 4 is skipped unless the
 handed-off round is a review round.
 
