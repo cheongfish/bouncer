@@ -67,6 +67,26 @@ test('cli init --seed-codex-agents → named-agent toml을 쓴다', () => {
   assert.ok(fs.existsSync(path.join(repo, '.codex/agents/bouncer-coordinator.toml')));
 });
 
+test('cli init --seed-codex-agents with an invalid roles effort → exit 1 with the config key and no toml', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
+  assert.strictEqual(runCli(['init', '--repo', repo, '--no-graphify'], capture().io), 0);
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.roles['bouncer-reviewer'] = { tier: 'standard', effort: 'ultra' };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
+  const { io, buf } = capture();
+  const code = withBouncerHome(() => runCli(
+    ['init', '--repo', repo, '--no-graphify', '--seed-codex-agents'], io,
+  ));
+  assert.strictEqual(code, 1);
+  const body = parseOut(buf);
+  assert.strictEqual(body.ok, false);
+  assert.strictEqual(body.reason, 'role-config-invalid');
+  assert.strictEqual(body.key, 'roles.bouncer-reviewer.effort');
+  assert.match(body.next, /roles\.bouncer-reviewer\.effort/);
+  assert.ok(!fs.existsSync(path.join(repo, '.codex')));
+});
+
 test('cli init --write-gitignore → marker block을 쓴다', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   const { io, buf } = capture();

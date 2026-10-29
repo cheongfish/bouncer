@@ -170,6 +170,8 @@ snapshot is refused with `metrics-snapshot-invalid`, not read as 0.
 `metrics start --kind` also takes `plan-coordinator-session` and `planner-session` (the plan kinds).
 Only they may omit `--blueprint`: the session is stored with `blueprint: null`, reads no ledger
 snapshot, and `--blueprint <dir>` at start is normalized and stored without ledger resolution.
+A `--blueprint` value that normalizes to an empty string (`/`, `\`, `//`) is refused at start as
+`invalid-metrics-input` (exit 1) before any write, so the file bytes stay unchanged.
 `metrics end --id <m-id> [--tier <strong|standard|light>] [--effort <low|medium|high>]
 [--blueprint <dir>]` stores `tier` and `effort` on any kind (omitted = `null`, case-sensitive,
 empty string refused). `end --blueprint <dir>` binds a `blueprint: null` plan session exactly once
@@ -497,7 +499,11 @@ flags; with `--json` it prints one line `{ provider, role, tier, model, effort,
 source }`; on a resolution error (for example `tier-unmapped` or
 `role-config-invalid`) it exits 1. Pass only the model into named dispatch;
 omit the model argument when it is `inherit`. The value is configuration metadata,
-not evidence of the model the host ran. A model rejection stops dispatch and
+not evidence of the model the host ran. The selected provider (`--provider`, else
+`subagents.provider`) must be `claude`, `cursor`, `codex`, or `antigravity`; any
+other value exits 1 with `role-config-invalid` on one stderr line naming the key to fix
+(`--provider` or `subagents.provider`) without echoing the raw value, and a valid
+`--provider` overrides an invalid configured one. A model rejection stops dispatch and
 must be reported with provider, role, configured name, exact host reason, and
 config correction location. `subagent-model --agent <name> --tier <tier>`
 resolves the model for that call-level tier (for example `--tier strong`)
@@ -505,7 +511,13 @@ instead of the role's own tier; the usage line above stays unchanged. A reviewer
 call uses it to keep the tier of its `review-dispatch` payload
 (`reviewer_tier`). `codex-agents check` is read-only: it
 prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
-`next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
+`next: "bouncer init --seed-codex-agents"` (exit 1). The expected TOML carries
+`model_reasoning_effort` from `roles.<agent>.effort` (absent or null is `medium`),
+so changing an effort turns a synced TOML into `mismatch` until init reseeds it.
+When any named agent's `roles.<agent>.effort` is not `low`, `medium`, or `high`,
+check prints `reason: "role-config-invalid"` with the config `key`, `message`,
+and a `next` that asks the user before fixing that key (exit 1); init with Codex
+seeding rejects the same config before writing any file. Compact a named
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
 

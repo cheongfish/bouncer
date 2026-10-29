@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { resolveSpawn } = require('./spawn-win');
 
@@ -86,6 +88,50 @@ function rejectUnignoredLib(root) {
   }
 }
 
+// 체크인 `.codex/agents/*.toml`을 만드는 명시적 fixture 설정. roles가 비어 전 역할이
+// 기본 effort(medium)다. 저장소 `.bouncer/config.json`은 개발자 개인 설정이라 그것을 읽으면
+// 같은 커밋이 사람마다 다른 생성본을 정본으로 삼는다.
+const CODEX_FIXTURE_CONFIG = { roles: {} };
+
+/**
+ * index에 스테이징된 `.codex/agents/<name>.toml`이 fixture 설정 기준 생성본과 바이트
+ * 일치하는지 검사한다. 워킹트리가 아니라 index를 보는 이유는 pre-commit이 커밋될 바이트를
+ * 막아야 하기 때문이다(CI에서는 index가 HEAD와 같다). 빌드 뒤에만 호출한다 — 변환기는
+ * `packages/cli/dist`에서 읽는다.
+ *
+ * 역할 문서 디렉터리 `agents/`가 없는 저장소(emit 추적 계약만 재현하는 fixture 등)는
+ * 비교할 정본이 없으므로 건너뛴다. `agents/`가 있는데 변환기를 못 읽으면 빌드 결함이라
+ * require 오류로 그대로 실패한다.
+ *
+ * @param {string} root - git 저장소 루트 절대 경로
+ * @returns {void} 전부 일치하거나 `agents/`가 없으면 반환한다. 아니면 어긋난 경로를 stderr에 쓰고 exit 1
+ */
+function rejectStaleCodexAgents(root) {
+  if (!fs.existsSync(path.join(root, 'agents'))) return;
+  const { NAMED_AGENTS, mdToCodexToml, resolveCodexEfforts } = require(
+    path.join(root, 'packages/cli/dist/codex-agents'),
+  );
+  const { efforts } = resolveCodexEfforts(CODEX_FIXTURE_CONFIG);
+  const stale = [];
+  for (const name of NAMED_AGENTS) {
+    const rel = `.codex/agents/${name}.toml`;
+    const staged = run('git', ['show', `:${rel}`], {
+      cwd: root,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const markdown = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
+    // 추적되지 않은 파일도 git show가 0이 아니다. 누락도 생성본 불일치로 같이 보고한다.
+    if (staged.status !== 0 || staged.stdout !== mdToCodexToml(markdown, efforts[name])) {
+      stale.push(rel);
+    }
+  }
+  if (stale.length > 0) {
+    process.stderr.write('check-emit: staged .codex/agents toml differs from the fixture-generated toml\n');
+    process.stderr.write(`${stale.join('\n')}\n`);
+    process.exit(1);
+  }
+}
+
 const root = gitRoot();
 
 // Windows에서 npm 은 npm.cmd 이다. execFile/spawnSync 는 PATHEXT 를 셸처럼
@@ -101,5 +147,6 @@ if (build.status !== 0) {
 
 rejectTrackedLib(root);
 rejectUnignoredLib(root);
+rejectStaleCodexAgents(root);
 
 process.exit(0);

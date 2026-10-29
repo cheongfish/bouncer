@@ -291,7 +291,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    repo root; tell the user to wrap container-up + test in one project script.
    After the draft, run `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) on
    the authored bodies before approval.
-   After authoring, build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) as advisory input for the step 4 checkpoint, which alone presents paths to the user. They are advisory only — do not write them into frontmatter. Neither intent nor Explain results go into frontmatter; step 4 alone writes user-confirmed `affected_paths`.
+   Before authoring task documents, build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) as advisory input for the step 4 checkpoint, which alone presents paths to the user. They are advisory only — do not write them into frontmatter. Neither intent nor Explain results go into frontmatter; step 4 alone writes user-confirmed `affected_paths`.
 
 4. **Scope confirm.** Write `affected_paths` only after the user confirms them
    — never from Graphify query results, candidate lists, or inspect output. When confirming affected_paths, read this reference: [scope-confirm.md](./references/scope-confirm.md). Then, at the checkpoint, the root runs **ACQ — affected_paths (`plan.affected_paths`):** propose the per-area candidate path sets for the user

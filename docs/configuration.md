@@ -24,11 +24,11 @@
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` PR 기준. 없으면 `base_branch` → `origin/HEAD` → 사용자에게 묻기 | `"main"` |
-| `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
+| `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수**. 네 값 밖이면 `bouncer subagent-model`이 `role-config-invalid`로 거절하며(원문은 출력하지 않음), 유효한 `--provider`가 있으면 이 값을 덮는다 | `"cursor"` |
 | `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
 | `model_tiers.<provider>.<tier>` | `"inherit"` \| 호스트 모델 slug. `<tier>`는 `strong`·`standard`·`light` | 역할 등급을 호스트 모델로 옮기는 표. `subagents` slot이 없을 때 `bouncer subagent-model`이 읽는다. 빈 값·비문자열이면 상속하지 않고 `tier-unmapped`로 거절 | 없음. 역할 등급에 매핑이 없으면 `tier-unmapped`. `bouncer init` 예시는 `"inherit"` |
 | `roles.<agent>.tier` | `strong` \| `standard` \| `light` | 에이전트가 쓰는 등급 | 없음. 없으면 등급 없음이라 모델은 상속. `bouncer init` 예시는 `"standard"` |
-| `roles.<agent>.effort` | `low` \| `medium` \| `high` | 디스패치에 넘기는 추론 effort | 없음. 없거나 `null`이면 effort를 넘기지 않음(`null`). `bouncer init` 예시는 `"medium"` |
+| `roles.<agent>.effort` | `low` \| `medium` \| `high` | 디스패치에 넘기는 추론 effort. Codex custom agent TOML의 `model_reasoning_effort`로도 시드 | 없음. 없거나 `null`이면 effort를 넘기지 않음(`null`). Codex TOML에는 `"medium"`으로 씀. `bouncer init` 예시는 `"medium"` |
 | `review.min_reviewer_tier` | `standard` \| `strong` (선택) | `bouncer review-dispatch`가 리뷰어 등급의 하한으로 읽는다. 등급은 리뷰 범위의 commit task 3개 이상이거나 `review_risk`가 비어 있지 않으면 `strong`, 아니면 `standard`이고, 이 키는 그 값을 올리기만 한다. `strong` 등급은 `model_tiers.<provider>.strong` 매핑이 `inherit`이 아닌 모델 slug일 때만 적용되고, `inherit`이면 미적용(`tier-inherit`)으로 보고한다. 그 밖의 값(`light`·오타·비문자열)이면 `review-min-reviewer-tier-invalid`로 거절 | 없음. 규모와 위험만으로 등급을 정함 |
 | `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
 
@@ -101,6 +101,9 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 `BOUNCER_METRICS_REPORT=1`인 셸에서만 `bouncer metrics summary`가 `report: true`를 내고
 `/bouncer-run`·`/bouncer-finalize`가 표를 사용자에게 보고합니다. 변수가 없으면 `report: false`이고
 토큰·시간·비용 수치를 출력하지 않습니다. 비용 계산에는 위 `metrics.pricing`이 필요합니다.
+
+`metrics start --blueprint`에 `/`, `\`, `//`처럼 정규화하면 빈 문자열이 되는 값을 주면
+`invalid-metrics-input`(종료 코드 1)으로 거절하고 기록 파일은 바뀌지 않습니다.
 
 ## verify 래퍼 패턴
 
@@ -181,6 +184,14 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
   전달합니다: Claude Code는 Agent `effort` 인자(hook이 보정), Codex는 spawn
   `reasoning_effort`(custom agent TOML 필드명은 `model_reasoning_effort`), Cursor는
   effort가 모델 slug에 들어 있어 넘기지 않고 미적용 사실을 사용자에게 알립니다.
+- Codex 시드(`bouncer init --seed-codex-agents` 또는 `.codex/`가 있는 저장소의 init)는
+  `roles.<agent>.effort`를 각 `.codex/agents/<agent>.toml`의 `model_reasoning_effort`로
+  씁니다. 없거나 `null`이면 `"medium"`입니다. spawn `reasoning_effort`를 넘기면 그 호출에서는
+  spawn 값이 우선합니다. effort를 바꾸면 `bouncer codex-agents check`가 `mismatch`를 내니
+  init을 다시 실행해 맞추세요. 생성 마커가 없는 사용자 TOML은 바꾸지 않습니다.
+- 어느 역할이든 effort가 `low`·`medium`·`high`가 아니면 Codex 시드 init과
+  `codex-agents check`가 파일을 쓰기 전에 `role-config-invalid`로 거절하고 고칠 키
+  (`roles.<agent>.effort`)를 알려 줍니다. 설정 수정 여부는 사용자에게 확인하세요.
 - `bouncer init`은 새 config에만 `model_tiers`(전부 `"inherit"`)와 `roles`
   (전부 `standard`·`medium`) 예시를 씁니다. 이미 init한 저장소는 두 블록을
   직접 추가해야 하며, 없으면 기존처럼 부모 모델을 상속합니다.

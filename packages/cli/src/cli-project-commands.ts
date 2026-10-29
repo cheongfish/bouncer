@@ -213,12 +213,12 @@ function cmdSubagentModel(rest: string[], io: CliIo): number {
 }
 
 /**
- * 로컬 Codex TOML이 생성본과 같은지 JSON으로 보고한다. check 외 동사는
- * 사용법(2)이고, 불일치는 런타임(1)이다. 파일을 쓰지 않는다.
+ * 로컬 Codex TOML이 소비 저장소 설정 기준 생성본과 같은지 JSON으로 보고한다. check 외 동사는
+ * 사용법(2)이고, 불일치와 `roles.<agent>.effort` 설정 오류는 런타임(1)이다. 파일을 쓰지 않는다.
  *
  * @param {string[]} rest - `codex-agents` 뒤 argv
  * @param {CliIo} io - stdout/stderr 싱크
- * @returns {number} 동기 0, 불일치 1, 사용법 2
+ * @returns {number} 동기 0, 불일치·설정 오류 1, 사용법 2
  */
 function cmdCodexAgents(rest: string[], io: CliIo): number {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
@@ -250,6 +250,21 @@ function cmdCodexAgents(rest: string[], io: CliIo): number {
       path: checked.path,
     })}\n`);
     return 0;
+  }
+  if (checked.reason === 'role-config-invalid') {
+    // seed도 같은 검증에서 멈추므로 `init --seed-codex-agents`를 next로 주면 헛돈다.
+    // 고칠 설정 키와 사용자 확인 안내를 그대로 옮겨, 호출자가 설정을 몰래 고치지 않게 한다.
+    io.out(`${JSON.stringify({
+      ok: false,
+      agent: named.agent,
+      in_sync: false,
+      reason: checked.reason,
+      key: checked.key,
+      message: checked.message,
+      next: checked.next,
+      path: checked.path,
+    })}\n`);
+    return 1;
   }
   io.out(`${JSON.stringify({
     ok: false,

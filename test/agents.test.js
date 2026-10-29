@@ -52,13 +52,16 @@ test('agent doc bodies → use English headings', () => {
 
 // 일곱 역할 문서는 named Codex dispatch가 받는 generated TOML과 바이트 단위로 같아야
 // 두 운반 경로(TOML, fallback 본문)가 같은 본문을 전달한다. fallback payload 계약
-// 자체는 test/subagents.test.js가 검사한다.
+// 자체는 test/subagents.test.js가 검사한다. 체크인 생성본은 저장소 개인 설정이 아니라
+// roles가 빈 fixture(전 역할 medium) 기준이다.
 test('all seven role briefs → keep TOML parity with their Markdown source', () => {
-  const { mdToCodexToml } = require('../packages/cli/dist/codex-agents');
+  const { mdToCodexToml, resolveCodexEfforts } = require('../packages/cli/dist/codex-agents');
+  const { efforts } = resolveCodexEfforts({ roles: {} });
   for (const name of AGENTS) {
     const markdown = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
     const toml = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
-    assert.strictEqual(toml, mdToCodexToml(markdown), name);
+    assert.strictEqual(efforts[name], 'medium', name);
+    assert.strictEqual(toml, mdToCodexToml(markdown, efforts[name]), name);
   }
 });
 
@@ -100,6 +103,133 @@ test('an unmarked implementer TOML → remains user-owned', () => {
     fs.writeFileSync(path.join(repo, rel), owned);
     ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
     assert.strictEqual(fs.readFileSync(path.join(repo, rel), 'utf8'), owned);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+// 소비 저장소 설정을 fixture로 직접 쓴다. 저장소 자신의 `.bouncer/config.json`에 기대면
+// 개인 설정에 따라 기대 TOML이 달라진다.
+function codexRepo(config) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-effort-'));
+  if (config !== undefined) {
+    fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.bouncer/config.json'), `${JSON.stringify(config, null, 2)}\n`);
+  }
+  return repo;
+}
+
+function effortLines(toml) {
+  return toml.split('\n').filter((line) => line.startsWith('model_reasoning_effort'));
+}
+
+test('mdToCodexToml without an effort → emits model_reasoning_effort medium once', () => {
+  const { mdToCodexToml } = require('../packages/cli/dist/codex-agents');
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  assert.deepStrictEqual(effortLines(mdToCodexToml(md)), ['model_reasoning_effort = "medium"']);
+  assert.deepStrictEqual(effortLines(mdToCodexToml(md, 'high')), ['model_reasoning_effort = "high"']);
+});
+
+test('resolveCodexEfforts with high, null, absent and invalid efforts → maps defaults and names the bad key', () => {
+  const { resolveCodexEfforts, NAMED_AGENTS } = require('../packages/cli/dist/codex-agents');
+  const ok = resolveCodexEfforts({
+    roles: {
+      'bouncer-reviewer': { effort: 'high' },
+      'bouncer-implementer': { effort: null },
+      'bouncer-debugger': { tier: 'light' },
+      'bouncer-coordinator': { effort: 'low' },
+    },
+  });
+  assert.strictEqual(ok.ok, true);
+  assert.strictEqual(ok.efforts['bouncer-reviewer'], 'high');
+  assert.strictEqual(ok.efforts['bouncer-implementer'], 'medium');
+  assert.strictEqual(ok.efforts['bouncer-debugger'], 'medium');
+  assert.strictEqual(ok.efforts['bouncer-coordinator'], 'low');
+  assert.strictEqual(ok.efforts['bouncer-planner'], 'medium');
+  assert.deepStrictEqual(Object.keys(ok.efforts).sort(), [...NAMED_AGENTS].sort());
+  assert.deepStrictEqual(Object.values(resolveCodexEfforts(null).efforts), NAMED_AGENTS.map(() => 'medium'));
+
+  const bad = resolveCodexEfforts({ roles: { 'bouncer-planner': { effort: 'max' } } });
+  assert.strictEqual(bad.ok, false);
+  assert.strictEqual(bad.code, 'role-config-invalid');
+  assert.strictEqual(bad.key, 'roles.bouncer-planner.effort');
+  assert.strictEqual(resolveCodexEfforts({ roles: [] }).key, 'roles');
+  assert.strictEqual(resolveCodexEfforts({ roles: { 'bouncer-reviewer': 'high' } }).key, 'roles.bouncer-reviewer');
+});
+
+test('ensureCodexAgents with roles effort high → writes high to that role and medium to the rest', () => {
+  const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
+  const repo = codexRepo({ roles: { 'bouncer-reviewer': { effort: 'high' }, 'bouncer-debugger': { effort: null } } });
+  try {
+    const result = ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
+    assert.deepStrictEqual(result, { ok: true });
+    const read = (name) => fs.readFileSync(path.join(repo, '.codex/agents', `${name}.toml`), 'utf8');
+    assert.deepStrictEqual(effortLines(read('bouncer-reviewer')), ['model_reasoning_effort = "high"']);
+    assert.deepStrictEqual(effortLines(read('bouncer-debugger')), ['model_reasoning_effort = "medium"']);
+    assert.deepStrictEqual(effortLines(read('bouncer-implementer')), ['model_reasoning_effort = "medium"']);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('ensureCodexAgents with an invalid effort → returns the config key and leaves every file unchanged', () => {
+  const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
+  const repo = codexRepo({ roles: { 'bouncer-plan-coordinator': { effort: 'turbo' } } });
+  const stale = '.codex/agents/bouncer-reviewer.toml';
+  const owned = '.codex/agents/bouncer-implementer.toml';
+  try {
+    fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+    fs.writeFileSync(path.join(repo, stale), '# bouncer-generated\nstale = true\n');
+    fs.writeFileSync(path.join(repo, owned), 'name = "mine"\n');
+    const created = [];
+    const result = ensureCodexAgents({ repoRoot: repo, created, agentsDir });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.code, 'role-config-invalid');
+    assert.strictEqual(result.key, 'roles.bouncer-plan-coordinator.effort');
+    assert.deepStrictEqual(created, []);
+    assert.deepStrictEqual(fs.readdirSync(path.join(repo, '.codex/agents')).sort(), [
+      'bouncer-implementer.toml', 'bouncer-reviewer.toml',
+    ]);
+    assert.strictEqual(fs.readFileSync(path.join(repo, stale), 'utf8'), '# bouncer-generated\nstale = true\n');
+    assert.strictEqual(fs.readFileSync(path.join(repo, owned), 'utf8'), 'name = "mine"\n');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('an unmarked TOML with roles effort high → remains user-owned', () => {
+  const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
+  const repo = codexRepo({ roles: { 'bouncer-implementer': { effort: 'high' } } });
+  const rel = '.codex/agents/bouncer-implementer.toml';
+  try {
+    fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), 'name = "mine"\n');
+    ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
+    assert.strictEqual(fs.readFileSync(path.join(repo, rel), 'utf8'), 'name = "mine"\n');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('checkCodexAgent after a roles effort change → reports mismatch then in_sync after resync', () => {
+  const { ensureCodexAgents, checkCodexAgent } = require('../packages/cli/dist/codex-agents');
+  const repo = codexRepo({ roles: {} });
+  const write = (config) => fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(config));
+  const check = () => checkCodexAgent({ repoRoot: repo, agentName: 'bouncer-reviewer', agentsDir });
+  try {
+    ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
+    assert.strictEqual(check().ok, true);
+    write({ roles: { 'bouncer-reviewer': { effort: 'high' } } });
+    assert.strictEqual(check().reason, 'mismatch');
+    ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
+    assert.strictEqual(check().ok, true);
+    write({ roles: { 'bouncer-debugger': { effort: 'extreme' } } });
+    const before = fs.readFileSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml'));
+    const invalid = check();
+    assert.strictEqual(invalid.ok, false);
+    assert.strictEqual(invalid.reason, 'role-config-invalid');
+    assert.strictEqual(invalid.key, 'roles.bouncer-debugger.effort');
+    assert.deepStrictEqual(fs.readFileSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml')), before);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

@@ -115,12 +115,23 @@ function resolveSubagentRole({
 } = {}): RoleResolution {
   // 부재·깨진 JSON은 null → 빈 설정으로 본다(예전 resolveSubagentModel과 동일).
   const config = readConfig(repoRoot as string) ?? {};
-  const provider = resolveProvider(config, providerArg);
+  const selectedProvider = resolveProvider(config, providerArg);
   // agentName이 빠지면 예전 `block[undefined]`와 같이 키 'undefined'를 본다.
   const role = `${agentName}`;
+  // 선택된 provider가 허용 목록 밖이면 원문을 결과에 싣지 않고(제어문자가 stderr 한 줄 계약을 깨므로)
+  // provider를 null로 비운 채 고칠 키만 알린다. 유효한 명시 인자는 위 resolveProvider에서 이미 config를
+  // 이겼으므로 여기서는 "선택된 값"만 검사하면 우선순위가 그대로 보존된다.
+  const providerValid = selectedProvider === null
+    || (SUBAGENT_PROVIDERS as readonly string[]).includes(selectedProvider);
+  const provider = providerValid ? selectedProvider : null;
   const invalid = (rawTier: unknown, message: string, next: string): RoleResolution => ({
     ok: false, provider, role, tier: displayTier(rawTier), code: 'role-config-invalid', message, next,
   });
+  if (!providerValid) {
+    const fromArg = typeof providerArg === 'string' && providerArg.length > 0;
+    return invalid(null, 'provider must be claude, cursor, codex or antigravity',
+      fromArg ? '--provider' : 'subagents.provider');
+  }
 
   // 호출 단위 tier는 세 값만 허용한다. 알 수 없는 값은 설정이 아닌 호출 오류지만 같은 오류 변형으로 낸다.
   if (callTier !== undefined && !ROLE_TIERS.includes(callTier)) {

@@ -1105,3 +1105,17 @@ test('옛 세션 2개와 strong 세션 1개와 열린 세션 → by_tier가 끝�
   assert.strictEqual(by.strong.cost_total, strongCost);
   assert.deepStrictEqual([by.standard.sessions, by.light.sessions], [0, 0]);
 });
+
+for (const kind of [...PLAN_KINDS, 'root-direct-session']) {
+  for (const blueprint of ['/', '\\', '//']) {
+    test(`${kind} start --blueprint ${JSON.stringify(blueprint)} → invalid-metrics-input, exit 1, 파일 bytes 불변`, () => {
+      const { repo } = gitRepoWithLedger([]);
+      assert.strictEqual(cli(repo, ...startArgs('root-direct-session')).code, 0);
+      const before = fs.readFileSync(metricsFileOf(repo));
+      const r = cli(repo, 'metrics', 'start', '--kind', kind, '--blueprint', blueprint);
+      assert.strictEqual(r.code, 1);
+      assert.deepStrictEqual(r.json, { ok: false, reason: 'invalid-metrics-input' });
+      assert.deepStrictEqual(fs.readFileSync(metricsFileOf(repo)), before);
+    });
+  }
+}

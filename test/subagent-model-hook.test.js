@@ -272,6 +272,31 @@ test('input effort differs → context reports both values and model is kept', (
   assert.equal(result.hookSpecificOutput.updatedInput.model, 'claude-sonnet-5-5');
 });
 
+test('model change only → context reports the model correction without effort wording', () => {
+  const context = parsedOutput(invoke(
+    payload('bouncer-reviewer', { model: 'old-model', effort: 'medium' }), makeRuntime({ output: REVIEWER_JSON }),
+  )).hookSpecificOutput.additionalContext;
+  assert.match(context, /Claude 모델 설정이 보정되었습니다/);
+  assert.doesNotMatch(context, /effort 이전값/);
+});
+
+test('effort change only → context omits the model correction wording', () => {
+  const context = parsedOutput(invoke(
+    payload('bouncer-reviewer', { model: 'claude-sonnet-5-5', effort: 'high' }),
+    makeRuntime({ output: REVIEWER_JSON }),
+  )).hookSpecificOutput.additionalContext;
+  assert.match(context, /effort 이전값 "high", 보정값 "medium"/);
+  assert.doesNotMatch(context, /모델 설정이 보정|설정 모델명|이전값 "claude/);
+});
+
+test('legacy runtime notice only → context omits the model correction wording', () => {
+  const context = parsedOutput(invoke(
+    payload('bouncer-reviewer', { model: 'claude-sonnet-5-5' }), makeRuntime({ output: 'claude-sonnet-5-5' }),
+  )).hookSpecificOutput.additionalContext;
+  assert.match(context, /--json을 지원하지 않아/);
+  assert.doesNotMatch(context, /모델 설정이 보정|설정 모델명|보정값/);
+});
+
 test('old runtime single token with same model → input kept and upgrade notice emitted', () => {
   const result = parsedOutput(invoke(
     payload('bouncer-reviewer', { model: 'claude-sonnet-5-5' }), makeRuntime({ output: 'claude-sonnet-5-5' }),

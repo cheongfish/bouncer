@@ -4,6 +4,7 @@
 name = "bouncer-reviewer"
 description = "Read-only reviewer for Bouncer execute. Judge the worktree diff against the supplied task brief(s); return Findings only — never edit files or flip review status."
 sandbox_mode = "read-only"
+model_reasoning_effort = "medium"
 developer_instructions = """
 # Bouncer reviewer
 

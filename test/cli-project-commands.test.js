@@ -1515,6 +1515,27 @@ test('subagent-model with a control-character tier → exits 1 and never echoes 
   assert.strictEqual(result.err.split('\n').length, 2);
 });
 
+test('subagent-model with a control-character provider → exits 1 on one line and never echoes it', () => {
+  const repo = tierRepo({ subagents: { provider: 'claude', claude: {} } });
+  for (const provider of ['x\ny', 'x\0y', 'openai']) {
+    const result = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--provider', provider, '--repo', repo]);
+    assert.strictEqual(result.code, 1);
+    assert.strictEqual(result.out, '');
+    assert.match(result.err, /^subagent-model: role-config-invalid: provider=- role=bouncer-reviewer .*\(fix: --provider\)\n$/);
+    assert.strictEqual(result.err.split('\n').length, 2);
+    assert.ok(!result.err.includes('openai') && !result.err.includes('x'.concat('y')));
+  }
+});
+
+test('subagent-model with an invalid configured provider → exits 1 naming the key; valid --provider overrides', () => {
+  const repo = tierRepo({ subagents: { provider: 'bad\nvalue' } });
+  const bad = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--repo', repo]);
+  assert.strictEqual(bad.code, 1);
+  assert.match(bad.err, /^subagent-model: role-config-invalid: provider=- .*\(fix: subagents\.provider\)\n$/);
+  const ok = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--provider', 'codex', '--repo', repo]);
+  assert.strictEqual(ok.code, 0);
+});
+
 test('codex-agents check when in sync → reports in_sync JSON and does not write', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-check-'));
   assert.strictEqual(withBouncerHome(() => capture([
@@ -1568,6 +1589,52 @@ test('codex-agents check with missing, not-generated, or mismatch → reports ea
   assert.strictEqual(mismatch.code, 1);
   assert.strictEqual(JSON.parse(mismatch.out).reason, 'mismatch');
   assert.strictEqual(JSON.parse(mismatch.out).next, 'bouncer init --seed-codex-agents');
+});
+
+test('codex-agents check after a roles effort change → reports mismatch until init resyncs', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-effort-'));
+  const init = () => withBouncerHome(() => capture([
+    'init', '--repo', repo, '--no-graphify', '--seed-codex-agents',
+  ]));
+  const check = () => capture(['codex-agents', 'check', '--agent', 'bouncer-debugger', '--repo', repo]);
+  assert.strictEqual(init().code, 0);
+  assert.strictEqual(check().code, 0);
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.roles['bouncer-debugger'] = { tier: 'standard', effort: 'high' };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
+
+  const drifted = check();
+  assert.strictEqual(drifted.code, 1);
+  assert.strictEqual(JSON.parse(drifted.out).reason, 'mismatch');
+  assert.strictEqual(init().code, 0);
+  const synced = check();
+  assert.strictEqual(synced.code, 0);
+  assert.strictEqual(JSON.parse(synced.out).in_sync, true);
+});
+
+test('codex-agents check with an invalid roles effort → exit 1 naming the config key without writing', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-bad-effort-'));
+  assert.strictEqual(withBouncerHome(() => capture([
+    'init', '--repo', repo, '--no-graphify', '--seed-codex-agents',
+  ])).code, 0);
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.roles['bouncer-planner'] = { tier: 'strong', effort: 'xhigh' };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
+  const rel = '.codex/agents/bouncer-implementer.toml';
+  const before = fs.readFileSync(path.join(repo, rel));
+
+  const result = capture(['codex-agents', 'check', '--agent', 'bouncer-implementer', '--repo', repo]);
+  assert.strictEqual(result.code, 1);
+  const body = JSON.parse(result.out);
+  assert.strictEqual(body.ok, false);
+  assert.strictEqual(body.in_sync, false);
+  assert.strictEqual(body.reason, 'role-config-invalid');
+  assert.strictEqual(body.key, 'roles.bouncer-planner.effort');
+  assert.match(body.next, /roles\.bouncer-planner\.effort/);
+  assert.strictEqual(body.path, rel);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, rel)), before);
 });
 
 test('codex-agents with a non-check verb or an unknown agent → rejects with exit 2', () => {
