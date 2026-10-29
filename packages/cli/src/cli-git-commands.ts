@@ -680,6 +680,17 @@ function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: C
       !== collectPathValues(rest.slice(1), '--release-do-not-touch').length) {
     return failCoordinateUsage(io, 'coordinate revise: --release-do-not-touch requires a value\n', command);
   }
+  // --replace는 값을 받지 않는 boolean이다. parseFlags는 뒤 토큰을 값으로 먹으므로(`--replace x`)
+  // 그 값을 교체 의도로 읽으면 `--replace src/`가 조용히 합집합으로 떨어진다. 값이 붙으면 usage(2)로 막고,
+  // `--replace=x`처럼 등호로 붙인 형태는 알 수 없는 플래그로 무시된다(교체가 켜지지 않는다).
+  if (command === 'revise') {
+    const args = rest.slice(1);
+    const valued = args.some((tok, i) => {
+      const after = args[i + 1];
+      return tok === '--replace' && after !== undefined && !after.startsWith('--');
+    });
+    if (valued) return failCoordinateUsage(io, 'coordinate revise: --replace takes no value\n', command);
+  }
   if (command === 'worker-model' || command === 'worker-tokens') {
     const bad = checkWorkerFlags(f, command, io);
     if (bad !== undefined) return bad;
@@ -752,6 +763,8 @@ function coordinateRevise(rest: string[], f: CoordFlags, io: CliIo): number {
     newPaths: collectPathValues(rest.slice(1), '--new-path'),
     releaseDoNotTouch: collectPathValues(rest.slice(1), '--release-do-not-touch'),
     reason: typeof f.reason === 'string' ? f.reason : undefined,
+    // 값 없는 `--replace`만 교체다(값이 붙은 형태는 checkCommandFlags가 usage(2)로 먼저 막는다).
+    replace: f.replace === true,
   }) as { ok: boolean; reason?: string; paths?: string[] };
   if (!result.ok) {
     // 거절도 hint를 거친 stdout JSON(reason·paths·cause·next)으로 낸다. coordinator가 stderr

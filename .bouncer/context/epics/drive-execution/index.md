@@ -85,3 +85,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [salvage-red-run-report](blueprints/salvage-red-run-report/index.md): resume으로 지워지는 worker의 runtime report를 salvage로 보존하고 Red run 입력이 이를 쓰게 한다.
 - [untrailered-worker-commit](blueprints/untrailered-worker-commit/index.md): `coordinate next`가 트레일러 없는 worker 커밋을 blocked로 판정하고, `coordinate uncommit`으로 되돌려 트레일러 커밋을 다시 만들게 한다.
 - [progress-id-set-judge-rules](blueprints/progress-id-set-judge-rules/index.md): run step 4의 진행 판별을 task id 집합 비교로 바꾸고, coordinator·implementer 역할 문서에 식별자 복사·금지 위반 편차·fixture 고정 규칙을 넣는다.
+- [retro-friction-and-revise-union](blueprints/retro-friction-and-revise-union/index.md): retro 마찰 4건을 direct-run·coordinator·implementer·dispatch 문서에서 막고, `coordinate revise`가 기본으로 직전 범위에 더하며 교체는 `--replace`로만 하게 한다.

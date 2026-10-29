@@ -175,3 +175,33 @@ test('run step 4 → judges progress by a new completed_tasks id, not by count',
   assert.match(skill, /set of `completed_tasks` ids immediately before this dispatch/);
   assert.match(skill, /id missing from the baseline/);
 });
+
+// 구현 worker는 커밋하지 않는다. 커밋은 advance가 만들고 accepted 점검은 그 task 커밋을 본다.
+// 문단 단위로 잘라 확인해, 같은 문장이 다른 절에 있어도 이 절의 문구로 통과하지 않게 한다.
+test('direct-run implement row and accepted check → forbid worker commit and name the advance task commit', () => {
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  const directRun = read('skills/bouncer-run/references/direct-run.md');
+  // 표는 번호 목록 아래에 들여쓰기되어 있어 행 앞 공백을 허용한다.
+  const implementRow = directRun.match(/^\s*\| `worker` \(implement\).*$/m)[0];
+  assert.match(implementRow, /not to commit/);
+  assert.match(implementRow, /`advance`[^|]*task commit/);
+  const accepted = paragraphContaining(directRun, 'Before an `accepted` report');
+  assert.match(accepted, /task commit that `advance` made \(with its `Bouncer-Task` trailer\)/);
+  assert.doesNotMatch(accepted, /the worker commit exists/);
+});
+
+// codex-agents check와 mismatch 재시드는 Codex 호스트 named 디스패치에만 걸린다.
+// 호스트 구분 없이 읽히면 Claude Code·Cursor가 불필요한 점검을 거친다.
+test('agent-dispatch and subagent-model codex-agents check → scope the check and reseed to Codex hosts', () => {
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  const dispatch = paragraphContaining(read('skills/bouncer-run/references/agent-dispatch.md'), 'codex-agents check');
+  assert.match(dispatch, /Codex host/);
+  assert.match(dispatch, /Claude Code/);
+  assert.match(dispatch, /Cursor/);
+  const mismatch = paragraphContaining(read('rules/subagent-model.md'), 'reports `mismatch`');
+  assert.match(mismatch, /On Codex, when `codex-agents check` reports `mismatch`/);
+  // 이름 지정 디스패치 문단은 호스트 무관하게 점검을 요구하면 안 되고, Codex만 유일한 게이트로 적는다.
+  const named = paragraphContaining(read('skills/bouncer-run/references/agent-dispatch.md'), 'Dispatch named `bouncer-implementer`');
+  assert.doesNotMatch(named, /When that check succeeds/);
+  assert.match(named, /on Codex, only once the check above reports\s+`in_sync: true`/);
+});

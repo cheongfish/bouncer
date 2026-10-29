@@ -637,7 +637,7 @@ test('reviseTaskScope on a task with a reason → moves ledger and task document
 
   // append-only: 두 번째 판단이 첫 판단을 덮지 않는다.
   const again = reviseTaskScope({
-    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'session write reverted',
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'session write reverted', replace: true,
   });
   assert.strictEqual(again.revision, 'r2');
   // 축소: 새 집합이 덮지 못한 이전 경로만 이전 범위 순서로 경고한다.
@@ -658,9 +658,47 @@ test('reviseTaskScope on a task with a reason → moves ledger and task document
   assert.ok(!('warnings' in parent));
 
   const child = reviseTaskScope({
-    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'narrow to child',
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'narrow to child', replace: true,
   });
   assert.deepStrictEqual(child.warnings, [{ code: 'scope-paths-dropped', paths: ['src/'] }]);
+});
+
+test('reviseTaskScope without replace → unions the previous scope with the given paths and drops nothing', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  // 직전 scope는 문서 선언 경로 ['src/auth/']다. replace가 없으면 그 경로는 남아야 한다.
+  const revised = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'session write found',
+  });
+  assert.strictEqual(revised.ok, true);
+  assert.deepStrictEqual(revised.previous, ['src/auth/']);
+  assert.deepStrictEqual(revised.paths, ['src/auth/', 'src/session/']);
+  assert.ok(!('warnings' in revised));
+
+  // 직전 scope가 이미 넓은 상태에서 좁은 집합을 넘겨도 union이라 줄지 않는다.
+  const smaller = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'narrow without replace',
+  });
+  assert.strictEqual(smaller.ok, true);
+  assert.deepStrictEqual(smaller.paths, ['src/auth/', 'src/session/']);
+  assert.ok(!('warnings' in smaller));
+});
+
+test('reviseTaskScope with replace → replaces the previous scope and warns about the dropped path', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  const replaced = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'move scope', replace: true,
+  });
+  assert.strictEqual(replaced.ok, true);
+  assert.deepStrictEqual(replaced.paths, ['src/session/']);
+  assert.deepStrictEqual(replaced.warnings, [{ code: 'scope-paths-dropped', paths: ['src/auth/'] }]);
+});
+
+test('reviseTaskScope with only an empty input → scope-paths-required even with replace', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  const result = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: [], reason: 'nothing', replace: true,
+  });
+  assert.deepStrictEqual(result, { ok: false, reason: 'scope-paths-required' });
 });
 
 test('reviseTaskScope on a task whose previous scope is empty → no warnings key', () => {
@@ -892,8 +930,10 @@ test('reviseTaskScope with a new path under a tracked directory → scopes to pa
 
 test('coordinator commit with a staged path outside the current ledger scope → refuses', () => {
   const { worker, blueprint } = coordinatorFixture();
+  // 시나리오 전제는 "scope가 src/session/으로 옮겨졌다"이므로 교체로 옮긴다. 합집합이면 src/auth/이
+  // 남아 staged src/auth/login.ts가 범위 안이 되고, 이 테스트가 확인하려는 거절이 사라진다.
   reviseTaskScope({
-    repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'scope moved to session',
+    repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'scope moved to session', replace: true,
   });
   const g = trackingGit(['src/auth/login.ts'], []);
   const res = commitTask({

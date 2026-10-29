@@ -431,6 +431,7 @@ test('validate --gate commit with a revised coordinator scope → judges staged 
     task: '001',
     paths: ['src/session/'],
     reason: 'login work moved into the session module',
+    replace: true,
   });
   assert.strictEqual(revised.ok, true);
 
