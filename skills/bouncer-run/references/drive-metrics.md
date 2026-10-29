@@ -72,9 +72,11 @@ A `direct-run.md` drive (start ACQ option D) has no coordinator dispatch. Open o
 `bouncer metrics start --kind root-direct-session --blueprint <dir> --label direct` after
 bootstrap and close it with `metrics end` when the drive hands off to the coordinator or reaches
 `done`. A handoff then follows the coordinator steps above, in this order: `metrics end` for the
-root-direct id, `coordinate session-open`, `metrics start --kind coordinator-session`, then a fresh
-`coordinate status --write-input` (the earlier input is stale once `session-open` changes the ledger
-hash), then dispatch. Its session is a separate `coordinator-session`. The `summary` reports both kinds. Run `metrics end` once, at `done` or
+root-direct id, `coordinate session-open`, `metrics start --kind coordinator-session`, then, for a review
+round only, one `coordinate note` whose text starts with `review-handoff:`, then a fresh
+`coordinate status --write-input` (the earlier input is stale once `session-open` or the note changes the
+ledger hash), then dispatch. Inputs and failure handling for each step follow the Handoff table in
+[direct-run.md](./direct-run.md). Its session is a separate `coordinator-session`. The `summary` reports both kinds. Run `metrics end` once, at `done` or
 handoff, and alone rather than chained with another command; a second call on a closed session
 returns `metrics-session-ended`.
 
