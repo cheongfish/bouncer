@@ -39,6 +39,8 @@ bouncer:
 15. revoke된 worker의 최신 runtime report는 salvage 산출물로 보존되어 `salvage[]`·`worker-salvage` 결정에 경로가 남고, 리뷰어 Red run 입력은 최신 report에 Red run이 없을 때 그 보존본을 쓴다.
 16. worker가 이 task의 `Bouncer-Task` 트레일러 없이 직접 만든 커밋이 있으면 `coordinate next`는 `commit` 대신 `blocked`(`worker-commit-untrailered`)를 낸다. `coordinate uncommit`이 그 커밋을 soft reset하고 원장에 기록하면, 되돌린 변경이 index에 staged로 남고 worker 범위에 무트레일러 커밋이 없어져 `next`가 다시 `commit`을 낸다. 이로써 `bouncer commit`의 후보가 비지 않는다.
 17. run step 4는 디스패치 직전 `completed_tasks` id 집합에 없던 id가 생기면 진행으로 판별하고 `completed_tasks.length` 비교를 쓰지 않는다. coordinator 문서는 rework 요약 식별자를 원문에서 복사하고 brief 금지 항목 위반 편차를 Open choice로 수락하지 않고 worker가 이미 어긴 금지 항목은 사용자의 명시적 승인 없이 `coordinate revise`로 풀지 않는다는 규칙을, implementer 문서는 provider·env를 고정한 fixture로 정확 단언을 유지한다는 규칙을 가지며, Codex TOML이 동기화되고 테스트가 이를 고정한다.
+18. direct-run 문서는 reviewer report에 `must_fix`가 있는 리뷰 라운드를 기록하지 않고 인계하며 그 보고 원문 파일 경로와 리뷰 `target`을 `coordinate note`의 `review-handoff:` note로 coordinator에 data로 넘긴다는 규칙을 갖고, run SKILL과 coordinator 문서가 같은 note를 가리킨다. `coordinate dispatch`는 원장 기록 전에 `report_path` 부모 디렉터리를 만들고 만들 수 없으면 `dispatch-report-dir-failed`로 거절해 원장을 바꾸지 않는다. `coordinate revise` 합집합은 `./src/auth`처럼 정규화로만 같아지는 경로를 한 번만 남기고 테스트가 이를 고정한다.
+19. `bouncer plan inspect --blueprint`는 `agents/*.md` ↔ `.codex/agents/*.toml`·`.gitignore` 예외 생성 짝을 `coupledPaths.pairs`로, 테스트 디렉터리에서 task 경로 문자열로 찾은 파일을 근거 줄과 함께 `coupledPaths.candidates`로 내며, 파일을 쓰지 않고 범위 판정에 쓰이지 않는다. plan coordinator는 초안 뒤 덮이지 않은 짝·후보를 `needs_user`로 올리고, root가 `plan.affected_paths`를 다시 물어 사용자가 확정한 경로만 더한다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -86,3 +88,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [untrailered-worker-commit](blueprints/untrailered-worker-commit/index.md): `coordinate next`가 트레일러 없는 worker 커밋을 blocked로 판정하고, `coordinate uncommit`으로 되돌려 트레일러 커밋을 다시 만들게 한다.
 - [progress-id-set-judge-rules](blueprints/progress-id-set-judge-rules/index.md): run step 4의 진행 판별을 task id 집합 비교로 바꾸고, coordinator·implementer 역할 문서에 식별자 복사·금지 위반 편차·fixture 고정 규칙을 넣는다.
 - [retro-friction-and-revise-union](blueprints/retro-friction-and-revise-union/index.md): retro 마찰 4건을 direct-run·coordinator·implementer·dispatch 문서에서 막고, `coordinate revise`가 기본으로 직전 범위에 더하며 교체는 `--replace`로만 하게 한다.
+- [retro-followups-coupled-paths](blueprints/retro-followups-coupled-paths/index.md): direct-run의 must_fix 리뷰 원문 인계 규칙, `coordinate dispatch`의 보고 디렉터리 생성, revise 정규화 중복 제거 테스트를 더하고 `plan inspect`가 결합 경로를 읽기 전용으로 출력하게 한다.
