@@ -261,6 +261,15 @@ test('plan skill → delegates to the plan coordinator and keeps approvals with 
   assert.match(skill, /--kind plan-coordinator-session/);
 });
 
+// 후보 생성은 작성 전 단계다: 옛 "작성 후 후보 생성" 순서와 확인된 집합만 쓴다는 규칙이 모순되지 않아야 한다.
+test('plan skill → builds candidates before authoring and re-confirms paths outside the set', () => {
+  const skill = fs.readFileSync(path.join(root, 'skills/bouncer-plan/SKILL.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  assert.ok(!skill.includes('After authoring, build candidates'), 'old candidate-after-authoring order must be gone');
+  assert.ok(skill.includes('Before authoring task documents, build candidates'), 'candidates must be built before authoring');
+  assert.ok(skill.includes('a path outside it returns `needs_user` and the root asks `plan.affected_paths` again'));
+});
+
 // 사용자 동의 전 표시·경로 출처·fallback 조건별 책임은 의미 단위로만 확인한다(문장 순서·공백은 고정하지 않는다).
 test('plan skill → shows dispositions before consent, reads paths from task frontmatter, splits fallback', () => {
   const skill = fs.readFileSync(path.join(root, 'skills/bouncer-plan/SKILL.md'), 'utf8')
