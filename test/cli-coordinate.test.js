@@ -213,10 +213,45 @@ function writeWorkerReport(worker, task, attempt, hash, {
   const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
   fs.mkdirSync(dir, { recursive: true });
   const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  // accepted 보고는 report 시점에 Tests 절을 확인받는다. 이 fixture task는 verify를 선언하지 않아 기본 명령을 쓴다.
+  parts.push('## Tests\n- `node --test` — pass (exit 0)');
+  // 이탈 기록 규칙: fixture가 scope 밖에 커밋하는 파일의 이유 줄. scope 안이거나 커밋하지 않은 경로의 줄은 무시된다.
+  parts.push(`## Unexpected paths\n- \`src/task-${task}.js\` — fixture 커밋 파일\n- \`README\` — fixture 커밋 파일`);
   if (open !== null) parts.push(`## Open choices\n${open}`);
   if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
   fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
 }
+
+test('coordinate prepare --accept-broken-baseline → forwards the flag so a failing worktree.baseline is accepted', () => {
+  const repo = planCommittedRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    `${JSON.stringify({ worktree: { baseline: 'node -e "process.exit(1)"' } })}\n`,
+  );
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const refused = coordinateCli(boot.integrationPath, 'prepare', ['--repo', repo]);
+  assert.strictEqual(refused.code, 1, refused.buf.err);
+  assert.strictEqual(JSON.parse(refused.buf.out).reason, 'baseline-ci-failed');
+  const accepted = coordinateCli(boot.integrationPath, 'prepare', ['--repo', repo, '--accept-broken-baseline']);
+  assert.strictEqual(accepted.code, 0, accepted.buf.err + accepted.buf.out);
+  assert.strictEqual(JSON.parse(accepted.buf.out).ok, true);
+  const ledger = JSON.parse(fs.readFileSync(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8'));
+  assert.deepStrictEqual(
+    ledger.decisions.filter((entry) => entry.kind === 'baseline').map((entry) => [entry.exit, entry.accepted]),
+    [[1, false], [1, true]],
+  );
+});
+
+test('coordinate prepare --accept-broken-baseline with a value → exits 2 without running prepare', () => {
+  const repo = planCommittedRepo();
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const { code, buf } = coordinateCli(boot.integrationPath, 'prepare', ['--repo', repo, '--accept-broken-baseline', 'yes']);
+  assert.strictEqual(code, 2);
+  assert.strictEqual(buf.out, '');
+});
 
 test('coordinate rerecord → replaces only a recorded SHA with the worker direct-child HEAD', () => {
   const drive = recordedDrive();

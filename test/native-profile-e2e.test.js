@@ -192,6 +192,7 @@ test('the coordinator lifecycle through the shipped CLI surface → runs end to 
     '## Brief revision',
     `attempt: ${dispatched.metadata.attempt}`,
     `task_brief_hash: ${dispatched.metadata.task_brief_hash}`,
+    '', '## Tests', '- `node -e "process.exit(0)"` — pass (exit 0)',
     '', '## Open choices', '- none', '', '## Known weaknesses', '- none', '',
   ].join('\n'));
   const reported = cli(worker, [

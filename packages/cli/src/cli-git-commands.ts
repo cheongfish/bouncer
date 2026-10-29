@@ -691,6 +691,12 @@ function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: C
     });
     if (valued) return failCoordinateUsage(io, 'coordinate revise: --replace takes no value\n', command);
   }
+  // --accept-broken-baseline은 값을 받지 않는 boolean이다. parseFlags는 뒤 토큰을 값으로 먹으므로 값이
+  // 붙은 형태(`--accept-broken-baseline yes`)는 수락 의도를 조용히 잃는다. 사용자 승인이 걸린 플래그라
+  // 모호한 입력은 usage(2)로 막는다.
+  if (command === 'prepare' && hasFlag(f, 'accept-broken-baseline') && f['accept-broken-baseline'] !== true) {
+    return failCoordinateUsage(io, 'coordinate prepare: --accept-broken-baseline takes no value\n', command);
+  }
   if (command === 'worker-model' || command === 'worker-tokens') {
     const bad = checkWorkerFlags(f, command, io);
     if (bad !== undefined) return bad;
@@ -860,6 +866,7 @@ function coordinateCall(
       ledgerHash: typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined,
       userConfirmed: f['user-confirmed'] === true,
       promoteLight: f['promote-light'] === true,
+      acceptBrokenBaseline: command === 'prepare' && f['accept-broken-baseline'] === true,
     }) as { ok: boolean };
     const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
     if (result.ok && hasFlag(f, 'write-input')) {

@@ -151,6 +151,9 @@ read code/tests/repo context needed to implement.
 - Before you report, run `npx eslint <changed ts/js files>` on only the files
   you changed and fix every finding; never bypass with `eslint-disable`; this
   does not replace the task `verify` command.
+- Before you report, run the task `bouncer.verify` command in your worker cwd and
+  write that command and its result in `## Tests`. An accepted report without it
+  is refused as `report-tests-invalid` on a `scoped_terminal` blueprint.
 - Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
   unfinished task, not a smaller diff.
 - Never simplify away: input validation at trust boundaries, error handling

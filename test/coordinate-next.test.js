@@ -52,6 +52,10 @@ function writeWorkerReport(worker, task, attempt, hash, {
   const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
   fs.mkdirSync(dir, { recursive: true });
   const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  // accepted 보고는 report 시점에 Tests 절을 확인받는다. 이 fixture task는 verify를 선언하지 않아 기본 명령을 쓴다.
+  parts.push('## Tests\n- `node --test` — pass (exit 0)');
+  // 이탈 기록 규칙: fixture가 scope 밖에 커밋하는 파일의 이유 줄. scope 안이거나 커밋하지 않은 경로의 줄은 무시된다.
+  parts.push(`## Unexpected paths\n- \`src/task-${task}.js\` — fixture 커밋 파일\n- \`README\` — fixture 커밋 파일`);
   if (open !== null) parts.push(`## Open choices\n${open}`);
   if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
   fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);

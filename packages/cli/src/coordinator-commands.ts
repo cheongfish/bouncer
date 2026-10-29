@@ -49,7 +49,7 @@ const {
 import coordinatorRepair = require('./coordinator-repair');
 import coordinatorWorker = require('./coordinator-worker');
 import coordinatorFanin = require('./coordinator-fanin');
-const { integrateCommitWave, lightWorkerAssigned, rejectLeaseMismatch } = coordinatorFanin;
+const { integrateCommitWave, lightWorkerAssigned, rejectLeaseMismatch, scopedTestReportFailure } = coordinatorFanin;
 const {
   reportPathFor, taskBriefHashOf, readBouncerBlock, workerCommitEvidence,
   ensureIntegrationCwd, currentScopePaths, intentIdFor, verificationPolicyAt,
@@ -813,10 +813,11 @@ function coordinateReverify(ctx: CoordinateCtx): CoordinateResult {
  * @returns {CoordinateResult} `prepareCoordinator` 결과
  */
 function coordinatePrepare(ctx: CoordinateCtx): CoordinateResult {
-  const { repoRoot, blueprint, ledgerPath, ledgerHash } = ctx.args;
+  const { repoRoot, blueprint, ledgerPath, ledgerHash, acceptBrokenBaseline } = ctx.args;
   const { cwd, exec, writeLedger, makeLeaseId, integration } = ctx;
   return prepareCoordinator({
     repoRoot, blueprint, cwd, ledgerPath, ledgerHash, exec, writeLedger, makeLeaseId, integration,
+    acceptBrokenBaseline: acceptBrokenBaseline === true,
   });
 }
 
@@ -1270,6 +1271,23 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
     if (!checked.ok) return checked.failure;
     unexpectedRecord = checked;
   }
+  // full·scoped_terminal·commit task의 accepted 보고는 지정 verify 명령과 통과 결과가 Tests에 있어야 받는다.
+  // fan-in(worker-test-report-mismatch)에서야 걸리면 worker가 이미 끝난 뒤라 되돌리기 비싸므로, 같은
+  // 판정(scopedTestReportFailure)을 보고 시점에 한 task로 앞당긴다. 휴리스틱을 복제하지 않아 두 입구가
+  // 갈라지지 않고, 거절은 원장을 쓰기 전에 끝난다. light·verification·legacy 정책·accepted 아닌
+  // outcome은 지금처럼 건너뛴다(light는 inline 보고라 보고 파일이 없을 수 있다).
+  if (fileItems && outcome === 'accepted' && (item.execution_kind || 'commit') !== 'verification'
+    && verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal') {
+    const mismatch = scopedTestReportFailure({
+      integrationPath: integration.integrationPath, blueprint, items: [item], light: false,
+    });
+    if (mismatch) {
+      return {
+        ok: false, reason: 'report-tests-invalid',
+        problem: mismatch.problem, expected_command: mismatch.expected_command,
+      };
+    }
+  }
   item.dispatch.status = 'reported';
   item.dispatch.outcome = outcome as ReportOutcome;
   item.dispatch.summary = summary;
@@ -1648,6 +1666,21 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'decision-reason-required': {
     cause: 'This mutation requires a non-empty decision reason.',
     next: 'Retry the same `bouncer coordinate` command with a reason that names why the change is required.',
+  },
+  'report-tests-invalid': {
+    cause: 'An accepted report of a scoped_terminal task lacks the task verify command with a passing result in Tests.',
+    next: 'Have the worker rerun the task verify command, fix the report Tests section, then call '
+      + '`bouncer coordinate report` again.',
+  },
+  'baseline-ci-failed': {
+    cause: 'The configured worktree.baseline command failed on the integration base before any worker was created.',
+    next: 'Report the failure to the user. Only after the user explicitly approves, rerun '
+      + '`bouncer coordinate prepare --accept-broken-baseline`.',
+  },
+  'baseline-config-invalid': {
+    cause: '`worktree.baseline` in the main checkout `.bouncer/config.json` is not a string '
+      + 'or not an allowed single command.',
+    next: 'Fix `worktree.baseline` in the main checkout config, then rerun `bouncer coordinate prepare`.',
   },
   'dependency-install-failed': {
     cause:

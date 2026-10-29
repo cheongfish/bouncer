@@ -175,18 +175,36 @@ function writeTerminalEvidence(worker, blueprint, id, sha) {
 
 
 /**
+ * worker 사본의 task 문서에서 `bouncer.verify` 명령을 찾는다. 선언이 없으면 기본 검증 명령으로 접는다.
+ */
+function fixtureVerifyCommand(worker, task) {
+  const root = path.join(worker, '.bouncer', 'context');
+  const rel = fs.existsSync(root)
+    ? fs.readdirSync(root, { recursive: true })
+      .find((entry) => entry.split(path.sep).join('/').endsWith(`/tasks/${task}/tasks.md`))
+    : undefined;
+  const verify = rel ? readDoc(path.join(root, rel)).data.bouncer?.verify : undefined;
+  return typeof verify === 'string' && verify !== '' ? verify : 'node --test';
+}
+
+/**
  * `coordinate report`가 읽는 worker 보고 파일을 쓴다. full 모드 report 호출 전에 필요하다.
  * `revision`·`open`·`weak`로 줄이나 섹션을 바꾸거나 null로 빼서 거절 경로를 만든다.
  */
 function writeWorkerReport(worker, task, attempt, hash, {
   revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
-  open = '- none', weak = '- none', tests = null,
+  open = '- none', weak = '- none', tests = undefined,
+  // 이탈 기록 규칙: fixture가 scope 밖에 커밋하는 파일의 이유 줄. scope 안이거나 커밋하지 않은 경로의 줄은 무시된다.
+  unexpected = ['src/alpha.js', 'src/beta.js'].map((rel) => `- \`${rel}\` — fixture 커밋 파일`).join('\n'),
 } = {}) {
   const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
   fs.mkdirSync(dir, { recursive: true });
   const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
-  // scoped_terminal fan-in은 지정 명령·결과가 적힌 Tests 절을 요구한다. null이면 절 자체를 뺀다.
-  if (tests !== null) parts.push(`## Tests\n${tests}`);
+  // accepted 보고는 report 시점(scoped_terminal)과 fan-in에서 지정 명령·결과가 적힌 Tests 절을 요구한다.
+  // undefined면 fixture task의 `bouncer.verify`와 통과 한 줄을 넣고, null이면 절 자체를 뺀다.
+  const testsBody = tests === undefined ? `- \`${fixtureVerifyCommand(worker, task)}\` — pass (exit 0)` : tests;
+  if (testsBody !== null) parts.push(`## Tests\n${testsBody}`);
+  if (unexpected !== null) parts.push(`## Unexpected paths\n${unexpected}`);
   if (open !== null) parts.push(`## Open choices\n${open}`);
   if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
   fs.writeFileSync(path.join(dir, `${task}-${attempt}.md`), `${parts.join('\n\n')}\n`);
@@ -1163,7 +1181,7 @@ function makeScopedRepo(epicNo, { light = false } = {}) {
   return { repo, blueprint, terminalId };
 }
 
-test('scoped_terminal drive → 보고 Tests가 지정 명령·통과 결과가 아니면 fan-in 거부, 통과 뒤에도 runner는 종단에서만 1회', () => {
+test('scoped_terminal drive → 보고 Tests가 지정 명령·통과 결과가 아니면 report와 fan-in이 거부, 통과 뒤에도 runner는 종단에서만 1회', () => {
   const { repo, blueprint, terminalId } = makeScopedRepo('091');
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
@@ -1198,13 +1216,26 @@ test('scoped_terminal drive → 보고 Tests가 지정 명령·통과 결과가 
     const accept = (tests) => {
       writeWorkerReport(worker, id, dispatched.metadata.attempt, dispatched.metadata.task_brief_hash, { tests });
     };
-    accept(bad.noSection);
-    assert.strictEqual(coordinate({
+    const ledgerFile = path.join(integrationPath, '.bouncer/runtime/coordinator.json');
+    const reportArgs = {
       command: 'report', repoRoot: repo, blueprint, cwd: worker, task: id,
       attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
       outcome: 'accepted', summary: `accepted ${id}`,
-    }).ok, true);
+    };
+    // 1. report 시점: 잘못된 Tests는 report-tests-invalid로 거절되고 원장 bytes가 그대로다.
+    for (const [label, tests] of Object.entries(bad)) {
+      accept(tests);
+      const before = fs.readFileSync(ledgerFile);
+      const refused = coordinate(reportArgs);
+      assert.strictEqual(refused.ok, false, `${label}: ${JSON.stringify(refused)}`);
+      assert.strictEqual(refused.reason, 'report-tests-invalid', `${label}: ${JSON.stringify(refused)}`);
+      assert.deepStrictEqual(fs.readFileSync(ledgerFile), before, label);
+    }
+    // 2. 맞는 Tests로 다시 report해 수락받고 record한다.
+    accept(`- \`${command}\` — 12 pass, 0 fail (exit 0)`);
+    assert.strictEqual(coordinate(reportArgs).ok, true);
     assert.strictEqual(coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: id }).ok, true);
+    // 3. fan-in 시점: 수락 뒤 보고 파일을 잘못된 본문으로 덮어쓰면 fan-in이 거부한다(fan-in 검사 경로 유지).
     for (const [label, tests] of Object.entries(bad)) {
       accept(tests);
       const rejected = integrate(id);

@@ -11,6 +11,7 @@
 | `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`). 실행 시 argv로 파싱되며 `shell: false` | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
 | `verify_allowlist` | argv0 실행 파일명 문자열 배열. Windows에서는 `npm.cmd`·`node.exe`처럼 관용 확장자를 벗긴 뒤 비교 | 런타임 검증 실행 직전 허용 목록. 없거나 배열이 아니면 기본값(`npm`·`node`·`make` 등). plan/S12의 `tasks.bouncer.verify` 검사는 이 키가 아니라 기본 목록만 사용 | `["npm", "node", "make"]` |
 | `worktree.setup` | 단일 실행 문자열 (선택). `verify`와 같은 argv 규칙(`&&`·`;`·파이프·리디렉션 불가)과 `verify_allowlist`를 적용 | worktree 의존성 준비(`seed-worktree`·finalize) 끝에 worktree에서 한 번 실행. **main checkout의 config**에서 읽는다. 허용 목록 밖·형식 오류·실행 실패는 `dependency-install-failed`(message가 `worktree.setup`으로 시작) | `"npm run build"` |
+| `worktree.baseline` | 단일 실행 문자열 (선택). `worktree.setup`과 같은 argv 규칙과 `verify_allowlist`를 적용 | full drive의 첫 `coordinate prepare`가 worker를 만들기 전에 integration base에서 한 번 실행(30분 시간 초과). **main checkout의 config**에서 읽는다. 0이 아닌 exit은 `baseline-ci-failed`로 멈추고, 사용자가 깨진 base를 승인하면 `--accept-broken-baseline`으로 prepare를 다시 돌려 진행한다(그 재실행도 baseline을 다시 돌려 결과를 원장에 남긴다). 통과·수락 뒤에는 다시 돌리지 않는다. 문자열이 아니거나 허용 목록 밖이면 `baseline-config-invalid`. light 원장에는 적용하지 않는다 | `"npm run check-base"` |
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
 | `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
 | `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |

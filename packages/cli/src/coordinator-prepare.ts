@@ -36,6 +36,8 @@ const {
 } = coordinatorLedger;
 import coordinatorVerification = require('./coordinator-verification');
 const { withInstallStdioToStderr } = coordinatorVerification;
+import coordinatorBaseline = require('./coordinator-baseline');
+const { baselineNeeded, readMainConfig, readBaselineTarget, setupWarnings, runBaselineStep } = coordinatorBaseline;
 import legacyComments = require('./legacy-comments');
 const { scanLegacyScaffoldComments } = legacyComments;
 import type { Exec, Ledger, Task } from './execution-contracts';
@@ -740,17 +742,21 @@ function cleanupCreatedWorkersUnderNewLock(
  * @param {(file: string, data: unknown) => void} opts.writeLedger - 원자적 원장 쓰기
  * @param {() => string} opts.makeLeaseId - lease id 생성
  * @param {object} opts.integration - coordinatorPathsFor 결과
+ * @param {boolean} [opts.acceptBrokenBaseline] - 실패한 baseline을 수락하고 진행할지
  * @returns {unknown} 성공 시 기존 prepare 출력, 실패 시 ok:false와 reason
  */
 function prepareCoordinator({
   repoRoot, blueprint, cwd, ledgerPath, ledgerHash, exec, writeLedger, makeLeaseId, integration,
+  acceptBrokenBaseline,
 }: {
   repoRoot: string; blueprint: string; cwd: string;
-  ledgerPath?: string; ledgerHash?: string;
+  ledgerPath?: string; ledgerHash?: string; acceptBrokenBaseline?: boolean;
   exec: Exec; writeLedger: (file: string, data: unknown) => void;
   makeLeaseId: () => string;
   integration: ReturnType<typeof coordinatorPathsFor>;
 }): unknown {
+  // main checkout config는 baseline 대상 판정과 경고 판정이 함께 쓴다. 읽기 전용이라 잠금 앞에서 한 번만 읽는다.
+  const mainConfig = readMainConfig(integration.integrationPath, exec);
   // 1. 잠금 안: 판정·revoke 정리만 하고 원장은 쓰지 않는다. 대조 기준은 이 bytes hash다.
   const phase1 = withLedgerLock(integration.ledgerFile, () => {
     const opened = openLedgerFenced({ ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash });
@@ -791,6 +797,12 @@ function prepareCoordinator({
     if (!readWavesPerSession(integration.integrationPath).ok) {
       return { ok: false as const, reason: 'coordinator-config-invalid' };
     }
+    // baseline은 full 원장 prepare에만 적용한다(light는 worker를 만들지 않고 base 검사를 요구하지 않는다).
+    // 잘못된 설정은 worktree를 만들거나 아무것도 돌리기 전에 거절한다. 이미 통과·수락된 원장은 다시 돌리지 않는다.
+    const baselineTarget = ledgerModeOf(ledger) === 'light' ? null : readBaselineTarget(mainConfig);
+    if (baselineTarget && !baselineTarget.ok) return { ok: false as const, reason: 'baseline-config-invalid' };
+    const baseline = baselineTarget && baselineTarget.ok && baselineTarget.command !== null
+      && baselineNeeded(ledger) ? { command: baselineTarget.command, argv: baselineTarget.argv } : null;
     const ready = readyWaveGated(ledger.tasks, { maxParallel: policy.maxParallel });
     // 판정 단계의 사전 검사. worker seed 출처는 integration의 blueprint 트리뿐이므로,
     // 그것이 없으면 worktree를 하나도 만들기 전에 멈춰야 ledger와 Git 등록이 갈라지지 않는다.
@@ -824,6 +836,7 @@ function prepareCoordinator({
         phase1Hash: ledgerBytesHash(ledgerBytes),
         light: true as const,
         integrationBranch: names.integration,
+        baseline,
       };
     }
     const plannedWorkers = new Map<string, PlannedWorker>();
@@ -908,6 +921,7 @@ function prepareCoordinator({
       light: false as const,
       integrationBranch: names.integration,
       salvage,
+      baseline,
     };
   });
 
@@ -923,8 +937,11 @@ function prepareCoordinator({
     light: boolean;
     integrationBranch: string;
     salvage?: SalvageEntry[];
+    baseline: { command: string; argv: string[] } | null;
   };
-  const { ledger, ready, plannedWorkers, phase1Hash, light, integrationBranch } = planned;
+  const { ledger, ready, plannedWorkers, light, integrationBranch } = planned;
+  // baseline 단계가 원장을 쓰면 bytes가 바뀌므로 phase 3 재확인 기준도 그 뒤 hash로 갱신한다.
+  let phase1Hash = planned.phase1Hash;
   const salvaged = planned.salvage || [];
   // 보존 산출물은 phase 2·3이 실패해도 남으므로 실패 출력에도 위치를 싣는다.
   const salvageView = salvaged.map((entry) => ({
@@ -934,6 +951,17 @@ function prepareCoordinator({
     salvaged.length > 0 && result && typeof result === 'object'
       ? { ...(result as object), salvage: salvageView } : result);
   const created: CreatedWorker[] = [];
+
+  // 1.5. 첫 prepare의 base CI: worker를 만들기 전에 integration 의존성 준비 → baseline 실행 → 결정 기록.
+  // 멈추면 만든 worker가 없으므로 정리할 것이 없다(salvage 위치만 실패 출력에 싣는다).
+  if (planned.baseline) {
+    const stepped = runBaselineStep({
+      ledgerFile: integration.ledgerFile, integrationPath: integration.integrationPath, ledger,
+      phase1Hash, baseline: planned.baseline, acceptBroken: acceptBrokenBaseline === true, exec, writeLedger,
+    });
+    if (!stepped.ok) return withSalvage(stepped.result);
+    phase1Hash = stepped.hash;
+  }
 
   // 2. 잠금 밖: worktree add와 seed. light는 worker를 만들지 않아 이 단계를 건너뛴다.
   // 원장 .lock 파일이 없어야 다른 prepare가 기다리지 않는다.
@@ -1032,7 +1060,8 @@ function prepareCoordinator({
     const lost = writeOwnedLedger(owns, writeLedger, integration.ledgerFile, ledger);
     if (lost) return lost;
     return withCheckpoint({ ok: true as const, command: 'prepare', ready, tasks: ledger.tasks,
-      decisions: ledger.decisions },
+      decisions: ledger.decisions,
+      warnings: setupWarnings({ integrationPath: integration.integrationPath, config: mainConfig }) },
     ledger, integration.ledgerFile);
   });
 

@@ -275,7 +275,12 @@ same mutation argv right away.
 2. **Prepare** — `advance` already auto-runs `prepare` when that is next — do not re-execute that argv by hand.
    The auto-run opens the current ready wave, assigns one worktree per task, and
    leaves per-task `lease` and `workerPath` on `opened[]`. Tasks the wave did
-   not open stay closed. Do not copy `opened[]`, lease, or hash from context
+   not open stay closed. When the main checkout config sets `worktree.baseline`,
+   the first `prepare` runs it on the integration base before any worker exists;
+   `baseline-ci-failed` means the base is already broken: report it to the user
+   and rerun `prepare --accept-broken-baseline` only after the user explicitly
+   approves. Accepting a broken baseline is the user's decision, never yours.
+   Show any `warnings` entry (`worktree-setup-unset`) in the progress line. Do not copy `opened[]`, lease, or hash from context
    into a hand-built command. Call `advance` again after the wave is open.
 3. **Drive** — When `advance` stops with `reason` `worker` or `judge` for a
    prepared task (including `drive_tasks` / `implement` / `review` / `report` /
@@ -319,7 +324,8 @@ same mutation argv right away.
    verification node after every implementation task is integrated; fan-in
    itself rejects (`worker-test-report-mismatch`) any worker report whose
    `## Tests` section lacks the task-assigned command or shows a missing or
-   failing result. Treat that rejection as a rework of that worker, never hand
+   failing result; `coordinate report` already refuses such an accepted report
+   as `report-tests-invalid` before it is stored. Treat that rejection as a rework of that worker, never hand
    a worker the full-suite command, and keep recovery re-verification and the
    finalize remainder verification separate from that first terminal run. After every task this session prepared is
    `integrated`, call `bouncer coordinate advance --blueprint <dir>` again (the

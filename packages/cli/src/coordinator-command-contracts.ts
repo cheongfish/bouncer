@@ -8,7 +8,7 @@ export type CoordinateArgs = {
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; reviewFindings?: string[]; kind?: string; done?: boolean; outcome?: string; reason?: string;
   resumeTask?: string; disposition?: string; newPaths?: string[]; verify?: string;
-  attempt?: number; taskBriefHash?: string; promoteLight?: boolean;
+  attempt?: number; taskBriefHash?: string; promoteLight?: boolean; acceptBrokenBaseline?: boolean;
   text?: string; model?: string | true; role?: string; perspective?: string; tokens?: number | string;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;

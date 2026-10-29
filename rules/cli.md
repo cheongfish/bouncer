@@ -269,6 +269,7 @@ bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--repla
 bouncer seed-worktree --blueprint <dir> --to <worktree>
 bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note|uncommit> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
+bouncer coordinate prepare --blueprint <dir> [--accept-broken-baseline]
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
   --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
@@ -358,6 +359,26 @@ unchanged, `cause` explains why the pointer would be ambiguous, `next` lists the
 selected key or `--keep-others` to keep parallel keys deliberately.
 `prepare` refuses with `unassigned-worker-worktree` (`workerPath`) when a worker
 path exists on disk but is not a registered worktree, before creating anything.
+
+When the main checkout `.bouncer/config.json` sets `worktree.baseline` (one
+allowlisted command, run in the integration cwd with a 30 minute timeout), the
+first full-ledger `prepare` runs integration dependencies and then the baseline
+before creating any worker, and appends a `baseline` decision
+(`command`, `exit`, `head`, `accepted`, `written_at`). A non-zero exit refuses
+with `baseline-ci-failed` (`command`, `exit`; exit `124` is a timeout or signal,
+`127` a spawn failure) and creates no worker; only after the user explicitly
+approves, `prepare --accept-broken-baseline` reruns it and proceeds, recording
+`accepted: true`. A passed or accepted baseline is not rerun; without the config
+(or on a light ledger) the flag is ignored. A value that is not a string or not
+an allowlisted single command refuses with `baseline-config-invalid` and runs
+nothing. A successful `prepare` carries `warnings`; it holds
+`{ kind: 'worktree-setup-unset' }` only when the integration `package.json` has
+`scripts.build` and `worktree.setup` is unset.
+On a `verification_policy: scoped_terminal` blueprint, `coordinate report
+--outcome accepted` also checks the report `## Tests` like fan-in does and
+refuses with `report-tests-invalid` (`problem`, `expected_command`) before
+writing the ledger when the task `bouncer.verify` command or a passing result
+is missing.
 
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
