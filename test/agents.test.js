@@ -543,3 +543,17 @@ test('implementer Tests first → pins provider and env in fixtures to keep exac
     /provider.{0,80}env.{0,200}fixture.{0,120}exact assertion/,
   );
 });
+
+test('coordinator Output contract → requires a checked command and 미확인 for unverified commit claims', () => {
+  const coord = roleSection(fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8'), 'Output contract');
+  assert.match(coord, /git show --stat/);
+  assert.match(coord, /미확인/);
+});
+
+test('implementer Checklist coverage → adds one line per brief Constraints bullet or 해당 없음', () => {
+  const impl = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  // coverage bullet으로 한정한다. 파일 전체에는 Red run의 `해당 없음:`이 이미 있어 우연히 통과한다.
+  const coverage = impl.match(/- \*\*Checklist coverage\*\*[\s\S]*?(?=\n- \*\*)/)[0];
+  assert.match(coverage, /Constraints/);
+  assert.match(coverage, /해당 없음:/);
+});

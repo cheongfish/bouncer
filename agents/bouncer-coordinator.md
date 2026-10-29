@@ -349,7 +349,10 @@ your diffs, so return these fields and nothing else actionable:
 - **Provenance** — the changed paths recorded in your decisions, each worker's
   ledger `branch` and worker commit SHA, the integration task SHA linked to it
   by its `Bouncer-Worker-Commit` trailer (label each SHA as worker or
-  integration), and any task or edge added during the drive.
+  integration), and any task or edge added during the drive. A claim that a
+  path is in, or missing from, a given commit cites a check you ran, such as
+  `git show --stat <sha>`, with its output excerpt; a claim you could not check
+  is written as `미확인`.
 - **Metrics** — your `bouncer metrics summary` token and time figures, with your
   own session and each worker role (implementer, reviewer, debugger) as separate
   rows and every `missing` count. A `null` total is unreported, not 0; never sum

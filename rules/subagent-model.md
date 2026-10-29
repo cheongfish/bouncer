@@ -34,7 +34,7 @@ limits.
    (The custom agent TOML field is named `model_reasoning_effort`.)
    `bouncer init` seeds that TOML field from `roles.<agent>.effort` (absent or null seeds `medium`).
    The spawn `reasoning_effort` wins over the seeded TOML value for that call.
-   When `codex-agents check` reports `mismatch` after an effort change, rerun `bouncer init --seed-codex-agents`.
+   On Codex, when `codex-agents check` reports `mismatch` after an effort change, rerun `bouncer init --seed-codex-agents`; the check and this reseed apply only to Codex.
    On Cursor, do not pass the role effort; tell the user the configured effort was not applied because the model slug carries it.
    Every new dispatch starts without conversation history, whether the resolved
    model is a slug or `inherit`; this covers `bouncer-coordinator`,
