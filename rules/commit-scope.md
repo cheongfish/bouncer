@@ -68,8 +68,8 @@ the ledger mode:
    expected scope in a full drive: `scope-do-not-touch-violation` when the path
    overlaps a line, `scope-do-not-touch-unreadable` when the line cannot be
    read. Overlap is the shared `pathsOverlap` rule: the same path or a segment
-   ancestor, so the slash-less token `agents` covers `agents/x.md` but not
-   `agents-extra/x.md`.
+   ancestor, so the slash-less token `agents` covers every path under the
+   `agents` directory but not the sibling `agents-extra` directory.
 
 A **light** ledger and a commit with no coordinator ledger (standalone) keep the
 old rule: any path outside the expected scope is `out-of-scope`. The order in

@@ -20,8 +20,9 @@ import leaseMod = require('./lease');
 const { revokeLease, isValidLease, isValidLeaseSeq } = leaseMod;
 import validateSections = require('./validate-sections');
 const { SECTION_DEFS, extractPathCandidates } = validateSections;
-import coordinatorLedgerMod = require('./coordinator-ledger');
-const { ledgerModeOf } = coordinatorLedgerMod;
+// coordinator-ledger는 coordinator-worker 등 execution 영역을 끌어온다. 이 모듈은 commit 판정 경로
+// (verification-identity 등)에서도 적재되므로 최상단 import로 두면 `bouncer commit` 디스패치가 execution을
+// 함께 적재한다. 원장이 있는 경로에서만 쓰는 ledgerModeOf라 호출 시점에 require한다.
 import type { Task as CanonicalTask, Ledger as CanonicalLedger } from './execution-contracts';
 
 function isUnder(file: unknown, entry: unknown): boolean {
@@ -652,6 +653,10 @@ function coordinatorContext({ repoRoot, blueprint, task }: {
   const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
   const entry = taskId ? tasks.find((item) => item && item.id === taskId) : undefined;
   const ledgerRevision = entry && entry.scope ? entry.scope.revision : null;
+  // 지연 require 계약: 원장이 있는 경로에서만 coordinator-ledger를 적재한다(위 import 주석 참고).
+  const { ledgerModeOf } = require('./coordinator-ledger') as {
+    ledgerModeOf: typeof import('./coordinator-ledger').ledgerModeOf;
+  };
   const withLedger: CoordinatorContext = {
     ...base,
     tasks,
