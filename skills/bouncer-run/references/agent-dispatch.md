@@ -61,8 +61,8 @@ On Claude Code and Cursor this check does not apply: a named dispatch there goes
 out with compact input without it. A host not identified as Codex is handled the
 same way as Claude Code and Cursor.
 
-When that check succeeds, dispatch named `bouncer-implementer` with the actual
-worktree cwd and only the current task's Goal & intent, Current behavior,
+Dispatch named `bouncer-implementer` (on Codex, only once the check above reports
+`in_sync: true`) with the actual worktree cwd and only the current task's Goal & intent, Current behavior,
 Target behavior, Interface, Touch, Do not touch, Constraints, and Checklist
 (omit any of those two behavior sections that the brief does not carry), plus
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and the

@@ -200,4 +200,8 @@ test('agent-dispatch and subagent-model codex-agents check → scope the check a
   assert.match(dispatch, /Cursor/);
   const mismatch = paragraphContaining(read('rules/subagent-model.md'), 'reports `mismatch`');
   assert.match(mismatch, /On Codex, when `codex-agents check` reports `mismatch`/);
+  // 이름 지정 디스패치 문단은 호스트 무관하게 점검을 요구하면 안 되고, Codex만 유일한 게이트로 적는다.
+  const named = paragraphContaining(read('skills/bouncer-run/references/agent-dispatch.md'), 'Dispatch named `bouncer-implementer`');
+  assert.doesNotMatch(named, /When that check succeeds/);
+  assert.match(named, /on Codex, only once the check above reports\s+`in_sync: true`/);
 });
