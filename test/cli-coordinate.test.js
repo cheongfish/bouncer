@@ -1155,14 +1155,16 @@ test('CLI coordinate advance without --task ignores a tokenless task-scoped key 
 
 test('CLI coordinate advance after worker-tokens fills the key → stops at worker', () => {
   const drive = preparedDrive();
+  // blueprint 범위(task 없음, perspective combined) reviewer 키를 모델링한다.
   const modeled = coordinateCli(drive.integration, 'worker-model', [
-    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--task', '001', '--perspective', 'security',
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--perspective', 'combined',
   ]);
   assert.strictEqual(modeled.code, 0, modeled.buf.err + modeled.buf.out);
-  const rejected = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo, '--task', '001'], { fence: false });
-  assertTokensMissing(rejected, [{ task: '001', role: 'reviewer', perspective: 'security' }]);
+  // 채우기 전에는 이 키가 실제로 미충족이어서 advance가 거절돼야 한다. 그래야 아래 통과 단언이 의미를 가진다.
+  const rejected = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo], { fence: false });
+  assertTokensMissing(rejected, [{ task: null, role: 'reviewer', perspective: 'combined' }]);
   const filled = coordinateCli(drive.integration, 'worker-tokens', [
-    '--repo', drive.repo, '--role', 'reviewer', '--tokens', '900', '--task', '001', '--perspective', 'security',
+    '--repo', drive.repo, '--role', 'reviewer', '--tokens', '900', '--perspective', 'combined',
   ]);
   assert.strictEqual(filled.code, 0, filled.buf.err + filled.buf.out);
   // 채워진 뒤에는 task 없는 advance가 worker 정지로 진행한다.
@@ -1171,7 +1173,7 @@ test('CLI coordinate advance after worker-tokens fills the key → stops at work
   const body = JSON.parse(r.buf.out);
   assert.strictEqual(body.ok, true);
   assert.strictEqual(body.stop.reason, 'worker');
-  // 같은 키를 범위로 주면 더는 거절되지 않는다. 정지 사유는 next의 다음 판단이라 단언하지 않는다.
+  // 같은 blueprint 키는 --task 범위 advance에서도 거절 사유로 남지 않는다.
   const scoped = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo, '--task', '001'], { fence: false });
   assert.strictEqual(scoped.code, 0, scoped.buf.err + scoped.buf.out);
   assert.notStrictEqual(JSON.parse(scoped.buf.out).reason, 'worker-tokens-missing');
