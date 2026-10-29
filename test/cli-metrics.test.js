@@ -1119,3 +1119,46 @@ for (const kind of [...PLAN_KINDS, 'root-direct-session']) {
     });
   }
 }
+
+// --- snapshot의 drive_record ---
+
+test('새 snapshot 저장 → drive_record가 summarizeDriveRecord(원장, null)과 같다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  const { summarizeDriveRecord } = require('../packages/cli/dist/drive-record');
+  const snapshot = JSON.parse(fs.readFileSync(saved.json.path, 'utf8'));
+  assert.deepStrictEqual(snapshot.drive_record, summarizeDriveRecord(ledger, null));
+  assert.strictEqual(snapshot.drive_record.tasks, 1);
+});
+
+test('drive_record 없는 기존 snapshot → loadWorkerSnapshot이 ok true로 읽는다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const old = JSON.parse(fs.readFileSync(saved.json.path, 'utf8'));
+  delete old.drive_record;
+  fs.writeFileSync(saved.json.path, JSON.stringify(old));
+  fs.rmSync(ledgerFile);
+  const loaded = metrics.loadWorkerSnapshot({ commonGitDir: path.join(repo, '.git'), blueprint: BLUEPRINT });
+  assert.strictEqual(loaded.ok, true);
+  assert.strictEqual(loaded.snapshot.drive_record, undefined);
+});
+
+test('모양이 틀린 drive_record가 든 snapshot → metrics-snapshot-invalid로 거절한다', () => {
+  const { repo } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const bad = JSON.parse(fs.readFileSync(saved.json.path, 'utf8'));
+  bad.drive_record = { tasks: 'x' };
+  fs.writeFileSync(saved.json.path, JSON.stringify(bad));
+  const loaded = metrics.loadWorkerSnapshot({ commonGitDir: path.join(repo, '.git'), blueprint: BLUEPRINT });
+  assert.deepStrictEqual(loaded, { ok: false, reason: 'metrics-snapshot-invalid' });
+});
+
+test('review를 넘긴 snapshot 저장 → drive_record.review에 그 값이 실린다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const review = { contract: 'brief', must_fix: { total: 1, resolved: 0, accepted: 0, deferred: 1, open: 0 } };
+  const saved = metrics.saveWorkerSnapshot({
+    commonGitDir: path.join(repo, '.git'), ledgerFile, blueprint: BLUEPRINT, review,
+  });
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(saved.path, 'utf8')).drive_record.review, review);
+});

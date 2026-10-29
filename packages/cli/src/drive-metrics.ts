@@ -4,6 +4,9 @@ const path = require('node:path');
 const { createHash, randomBytes } = require('node:crypto');
 import guards = require('./guards');
 const { isRecord, isEnoentError } = guards;
+import driveRecord = require('./drive-record');
+import type { DriveRecord, DriveRecordReview } from './drive-record';
+const { summarizeDriveRecord, isDriveRecord } = driveRecord;
 
 /**
  * drive 계측 기록(`.bouncer/runtime/drive-metrics.json`)의 읽기·쓰기·요약.
@@ -125,7 +128,8 @@ function writeMetrics(file: string, data: MetricsFile): void {
 }
 
 type LedgerRead =
-  | { ok: true; snapshot: LedgerSnapshot | null; decisions: unknown[] }
+  // ledger는 파싱된 원장 전체다. drive_record 계산이 tasks·decisions를 함께 읽는다. 원장이 없으면 생략한다.
+  | { ok: true; snapshot: LedgerSnapshot | null; decisions: unknown[]; ledger?: unknown }
   | Failure;
 // 작업자 집계 snapshot 저장·읽기가 쓰는 파일 I/O. 테스트가 저장 실패를 주입하는 seam이다.
 type SnapshotFs = {
@@ -179,6 +183,7 @@ function readLedgerSnapshot(ledgerFile: string, fsx: SnapshotFs = fs): LedgerRea
       ledger_sha256: createHash('sha256').update(bytes).digest('hex'),
     },
     decisions,
+    ledger,
   };
 }
 
@@ -579,6 +584,8 @@ function summarizeWorkerTokens(ledgerFile: string | null, commonGitDir: string |
 type WorkerSnapshotFile = {
   version: 1; blueprint: string; recorded_at: string; ledger_sha256: string;
   worker_tokens: WorkerTokensSummary;
+  // 새 snapshot에만 있다. 키가 없는 기존 snapshot은 그대로 유효하다(읽기 호환).
+  drive_record?: DriveRecord;
 };
 
 /**
@@ -670,7 +677,9 @@ function isWorkerSnapshotFile(value: unknown, blueprint: string): value is Worke
   const tokens = value.worker_tokens;
   return isWorkerTotal(tokens) && isRecord((tokens as Record<string, unknown>).by_role)
     && WORKER_ROLES.every((r) => isWorkerTotal(((tokens as Record<string, unknown>).by_role as
-      Record<string, unknown>)[r]));
+      Record<string, unknown>)[r]))
+    // 키가 있으면 모양이 맞아야 한다 — 틀린 drive_record는 복원값을 오염시키므로 거절한다.
+    && (!Object.prototype.hasOwnProperty.call(value, 'drive_record') || isDriveRecord(value.drive_record));
 }
 
 /**
@@ -733,11 +742,14 @@ function removeOwnTemporary(fsx: SnapshotFs, temporary: string): void {
  * @param {string} opts.blueprint - blueprint 경로
  * @param {SnapshotFs} [opts.fs] - I/O seam(optional 메서드는 node:fs fallback)
  * @param {Clock} [opts.now] - 시계 seam
+ * @param {DriveRecordReview | null} [opts.review] - blueprint 리뷰 요약. 새 snapshot의 drive_record.review에
+ *   싣는다. 생략하면 null(예: `bouncer metrics snapshot`)
  * @returns {{ok: true, blueprint: string, path: string, ledger_sha256: string, reused: boolean} | Failure}
  *   저장(또는 재사용)된 snapshot 정보 또는 거절 사유
  */
 function saveWorkerSnapshot(opts: {
   commonGitDir: string; ledgerFile: string | null; blueprint: string; fs?: SnapshotFs; now?: Clock;
+  review?: DriveRecordReview | null;
 }): { ok: true; blueprint: string; path: string; ledger_sha256: string; reused: boolean } | Failure {
   const fsx = opts.fs ?? fs;
   const blueprint = normalizeBlueprint(opts.blueprint);
@@ -758,6 +770,9 @@ function saveWorkerSnapshot(opts: {
   const data: WorkerSnapshotFile = {
     version: 1, blueprint, recorded_at: (opts.now ?? (() => new Date()))().toISOString(),
     ledger_sha256: hash, worker_tokens: sumWorkerDecisions(ledger.decisions),
+    // 정리 전에 실행 기록을 같은 원장에서 계산해 보존한다. 같은 hash의 기존 snapshot은 위에서
+    // 다시 쓰지 않고 반환했으므로 drive_record 없는 오래된 snapshot은 갱신되지 않는다.
+    drive_record: summarizeDriveRecord(ledger.ledger, opts.review ?? null),
   };
   const temporary = `${file}.${process.pid}.tmp`;
   const invalid: Failure = { ok: false, reason: 'metrics-snapshot-invalid' };
@@ -824,5 +839,5 @@ function listCoordinatorSessions(opts: { file: string; blueprint: string }): Arr
 
 export = {
   EXCEPTION_KINDS, isException, metricsFilePath, startSession, endSession, summarize,
-  listCoordinatorSessions, saveWorkerSnapshot,
+  listCoordinatorSessions, saveWorkerSnapshot, loadWorkerSnapshot,
 };

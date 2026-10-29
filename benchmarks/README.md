@@ -21,6 +21,7 @@ benchmarks/
   configs/fastify-001-evaluator-policy.json
   runs/README.md
   aggregate/README.md
+  ablation/README.md
   docker/compose.cursor.yaml
   docker/Dockerfile.cursor
   run-cursor.cjs
@@ -44,6 +45,9 @@ benchmarks/
 
 plan context review가 심은 계획 결함을 관점 통합 전후로 똑같이 잡는지 재는 fixture와 측정 절차는
 [`plan-review/README.md`](plan-review/README.md)에 있다.
+
+정기 ablation과 진입 표면 전후 비교 절차, drive 실행 기록 집계(`scripts/measure-drive-records.js`)는
+[`ablation/README.md`](ablation/README.md)에 있다.
 
 ## 과제 카드 계약
 
