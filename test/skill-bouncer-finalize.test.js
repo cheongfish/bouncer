@@ -82,6 +82,23 @@ test('bouncer-finalize SKILL → gates retro on preserved drive_issues and print
   assert.ok(skill.includes('retro 생략 — 수정 문제 없음'));
 });
 
+// 회고 절차는 독립 skill이 아니라 finalize 소유 reference이며, 배포 목록(skills/)에 실려 나간다.
+// 호출 경로와 보존 조건(채팅 전용·재검색 금지·실패 불변)은 사용자에게 보이는 계약이다.
+test('bouncer-finalize SKILL → reads its own retro reference and keeps the finalize-call limits', () => {
+  const skill = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
+  assert.ok(skill.includes('./references/retro.md'));
+  assert.ok(!skill.includes('skills/bouncer-retro'));
+  assert.ok(skill.includes('retro: 실행하지 못함'));
+  assert.ok(skill.includes('후보 없음'));
+  const ref = path.join(root, 'skills', 'bouncer-finalize', 'references', 'retro.md');
+  assert.ok(fs.existsSync(ref));
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.ok(pkg.files.includes('skills/'));
+  const text = fs.readFileSync(ref, 'utf8');
+  assert.ok(text.includes('bouncer retro sources') && text.includes('bouncer retro read'));
+  assert.ok(text.includes('후보 없음'));
+});
+
 test('draft-pr reference → renders the digest unresolved_must_fix section', () => {
   const { draftPr } = loadDocs();
   assert.ok(draftPr.includes('pr.sections.unresolved_must_fix'));
