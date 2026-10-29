@@ -1,7 +1,7 @@
 {
   "name": "bouncer",
   "version": "0.1.13",
-  "runtimeCompatibility": ">=0.1.14 <0.2.0",
+  "runtimeCompatibility": ">=0.1.16 <0.2.0",
   "description": "Spec-driven development workflow for parallel task execution and verified integration.",
   "author": {
     "name": "Kim Cheongwoon",

@@ -10,6 +10,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `sync:versions`와 `check:versions`가 루트 `plugin.json`의 `runtimeCompatibility`를 host manifest
+  세 곳(`.claude-plugin`, `.codex-plugin`, `.cursor-plugin`)과 맞춥니다. plugin `0.1.13`은 이 값이
+  `>=0.1.14`로 게시됐고, 다음 plugin 릴리스부터 `>=0.1.16`으로 바로잡힙니다.
+
 ## [0.1.16]
 
 Runtime and plugin release. Plugin `0.1.13` requires this runtime through

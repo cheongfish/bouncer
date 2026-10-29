@@ -22,6 +22,8 @@ const PLUGIN_TARGETS = [
   ['.codex-plugin/plugin.json', (data) => [['version', data, 'version']]],
   ['.cursor-plugin/plugin.json', (data) => [['version', data, 'version']]],
 ];
+// 루트 plugin.json이 runtimeCompatibility를 선언하면 host manifest 세 곳도 같은 값을 가져야 한다.
+const COMPAT_TARGETS = ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json', '.cursor-plugin/plugin.json'];
 
 /**
  * strict SemVer 2.0 문자열만 허용한다. 범위나 선행 v는 저장 metadata가 될 수 없다.
@@ -98,6 +100,20 @@ function syncVersions(opts = {}) {
       }
       if (object[key] !== targetVersion) {
         edits.push({ file, rel, label, parsed, object, key, targetVersion });
+      }
+    }
+  }
+  const compat = pluginSource.data.runtimeCompatibility;
+  if (compat !== undefined) {
+    if (typeof compat !== 'string' || !compat) {
+      throw new Error(`${path.join(root, 'plugin.json')}:runtimeCompatibility: must be a non-empty string`);
+    }
+    for (const rel of COMPAT_TARGETS) {
+      const file = path.join(root, rel);
+      const parsed = readJson(file);
+      if (parsed.data.runtimeCompatibility !== compat) {
+        edits.push({ file, rel, label: 'runtimeCompatibility', parsed, object: parsed.data,
+          key: 'runtimeCompatibility', targetVersion: compat });
       }
     }
   }

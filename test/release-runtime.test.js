@@ -8,6 +8,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const { releaseRuntime } = require('../scripts/release-runtime');
+const { syncVersions } = require('../scripts/sync-versions');
 
 const temps = [];
 function temp() {
@@ -280,6 +281,40 @@ test('(j) version metadata drift → throws before the first external call', () 
   const calls = [];
   assert.throws(() => releaseRuntime({ ...input, mode: 'publish', env: PUSH, deps: recorder(calls) }), Error);
   assert.deepEqual(calls, []);
+});
+
+const HOST_MANIFESTS = ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json', '.cursor-plugin/plugin.json'];
+
+/** 루트 plugin.json이 호환 범위를 선언하고 host manifest 세 곳이 그 값을 가진 fixture 루트를 만든다. */
+function compatFixture() {
+  const { root } = fixture();
+  const write = (rel, data) => fs.writeFileSync(path.join(root, rel), JSON.stringify(data));
+  write('plugin.json', { version: '1.2.3', runtimeCompatibility: '>=1.2.3 <2.0.0' });
+  for (const rel of HOST_MANIFESTS) write(rel, { version: '1.2.3', runtimeCompatibility: '>=1.2.3 <2.0.0' });
+  return root;
+}
+
+test('sync-versions check with a host manifest runtimeCompatibility that differs from plugin.json → throws drift', () => {
+  for (const rel of HOST_MANIFESTS) {
+    const root = compatFixture();
+    const file = path.join(root, rel);
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('>=1.2.3', '>=1.0.0'));
+    assert.throws(() => syncVersions({ root, mode: 'check' }), new RegExp(`${rel.replace('.', '\\.')}:runtimeCompatibility: drift`), rel);
+  }
+});
+
+test('sync-versions write with drifted host manifests → copies plugin.json runtimeCompatibility to all three', () => {
+  const root = compatFixture();
+  for (const rel of HOST_MANIFESTS) {
+    const file = path.join(root, rel);
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('>=1.2.3', '>=1.0.0'));
+  }
+  const result = syncVersions({ root, mode: 'write' });
+  assert.deepEqual(result.changed.sort(), [...HOST_MANIFESTS].sort());
+  for (const rel of HOST_MANIFESTS) {
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8')).runtimeCompatibility, '>=1.2.3 <2.0.0', rel);
+  }
+  assert.doesNotThrow(() => syncVersions({ root, mode: 'check' }));
 });
 
 test('(k) E404 with another or missing pkgid and partial summary → no publish', () => {
