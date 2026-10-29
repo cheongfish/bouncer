@@ -5,7 +5,7 @@ const { execFileSync } = require('node:child_process');
 import schema = require('./schema');
 const { detectLegacyFormat } = schema;
 import codexAgents = require('./codex-agents');
-const { ensureCodexAgents, shouldEnsureCodexAgents } = codexAgents;
+const { ensureCodexAgents, shouldEnsureCodexAgents, resolveCodexEfforts } = codexAgents;
 import graphify = require('./graphify');
 const {
   setupGraphify,
@@ -438,6 +438,27 @@ function preCommitHookFields({
   };
 }
 
+/**
+ * Codex effort 설정 오류를 init의 거절 반환 모양으로 옮긴다. 기존 partial/legacy 거절과
+ * 같이 `created: []`·`skipped: true`로 아무것도 쓰지 않았음을 알리고, 설정 키와
+ * 사용자 확인 안내(`next`)를 CLI JSON에 그대로 싣는다.
+ *
+ * @param {{ key: string, message: string, next: string }} failure - resolveCodexEfforts 실패 변형
+ * @returns {{ ok: false, created: string[], skipped: true, reason: 'role-config-invalid',
+ *   key: string, message: string, next: string }} init 거절 결과
+ */
+function roleConfigFailure(failure: { key: string; message: string; next: string }) {
+  return {
+    ok: false as const,
+    created: [] as string[],
+    skipped: true as const,
+    reason: 'role-config-invalid' as const,
+    key: failure.key,
+    message: failure.message,
+    next: failure.next,
+  };
+}
+
 function init({
   repoRoot,
   timestamp,
@@ -500,6 +521,14 @@ function init({
   const wantPromote = promote === true;
   const wantWriteGitignore = writeGitignore === true;
   const wantSeedCodex = shouldEnsureCodexAgents(repoRoot as string, seedCodexAgents === true);
+  // Codex 시드가 쓸 effort 설정을 gitignore·등록부·TOML 어느 쓰기보다 먼저 검증한다.
+  // ready 경로는 시드가 등록부 쓰기 뒤에 오므로 여기서 막지 않으면 부분 갱신이 남는다.
+  // 신규 경로는 아직 config가 없어(readConfig null) 통과하고, 시드는 방금 쓴 템플릿을 읽는다.
+  // 시드 대상이 아니면 검증하지 않는다 — Codex를 안 쓰는 저장소의 init을 effort 때문에 막지 않는다.
+  if (wantSeedCodex) {
+    const efforts = resolveCodexEfforts(readConfig(repoRoot as string));
+    if (!efforts.ok) return roleConfigFailure(efforts);
+  }
 
   // 동의 시 마커 블록을 먼저 쓰고, 제안 목록은 최종 파일 기준으로 계산한다.
   let gitignoreWritten = false;
@@ -520,7 +549,8 @@ function init({
       applyRegistryPlan(repoRoot as string, registryPlan.plan, timestamp as string, created);
     }
     if (wantSeedCodex) {
-      ensureCodexAgents({ repoRoot: repoRoot as string, created });
+      const seeded = ensureCodexAgents({ repoRoot: repoRoot as string, created });
+      if (!seeded.ok) return roleConfigFailure(seeded);
     }
 
     // 승격은 객체에만 키를 심는다. readConfig는 배열/원시값도 통과시키므로
@@ -661,7 +691,8 @@ function init({
     applyRegistryPlan(repoRoot as string, registryPlan.plan, timestamp as string, created);
   }
   if (wantSeedCodex) {
-    ensureCodexAgents({ repoRoot: repoRoot as string, created });
+    const seeded = ensureCodexAgents({ repoRoot: repoRoot as string, created });
+    if (!seeded.ok) return roleConfigFailure(seeded);
   }
   // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
   // operator에게 source_dirs를 채우라고 알려 빈 graph(BP-001 missing warning)에

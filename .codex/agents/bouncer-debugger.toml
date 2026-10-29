@@ -4,6 +4,7 @@
 name = "bouncer-debugger"
 description = "Read-only debugger for Bouncer execute. Investigate a failed verify; return a root-cause report only — never edit files or flip document status."
 sandbox_mode = "read-only"
+model_reasoning_effort = "medium"
 developer_instructions = """
 # Bouncer debugger
 

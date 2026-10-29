@@ -863,6 +863,83 @@ test('init with generated and user-owned Codex files → refreshes generated tom
   assert.strictEqual(read(repo, owned), 'name = "custom"\n');
 });
 
+const effortOf = (toml) => toml.split('\n').filter((line) => line.startsWith('model_reasoning_effort'));
+
+test('fresh init seeding Codex agents → writes each template role effort into its toml', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
+  withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
+  // init 템플릿은 planner만 high, 나머지는 medium이다.
+  assert.deepStrictEqual(effortOf(read(repo, '.codex/agents/bouncer-planner.toml')), [
+    'model_reasoning_effort = "high"',
+  ]);
+  assert.deepStrictEqual(effortOf(read(repo, '.codex/agents/bouncer-reviewer.toml')), [
+    'model_reasoning_effort = "medium"',
+  ]);
+});
+
+test('ready init after a roles effort change → refreshes generated toml and keeps user-owned files', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
+  withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
+  const owned = '.codex/agents/bouncer-implementer.toml';
+  fs.writeFileSync(path.join(repo, owned), 'name = "custom"\n');
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.roles['bouncer-reviewer'] = { tier: 'standard', effort: 'low' };
+  cfg.roles['bouncer-implementer'] = { tier: 'standard', effort: 'high' };
+  cfg.roles['bouncer-debugger'] = { tier: 'standard', effort: null };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
+  const again = withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
+  assert.strictEqual(again.ok, true);
+  assert.deepStrictEqual(effortOf(read(repo, '.codex/agents/bouncer-reviewer.toml')), [
+    'model_reasoning_effort = "low"',
+  ]);
+  assert.deepStrictEqual(effortOf(read(repo, '.codex/agents/bouncer-debugger.toml')), [
+    'model_reasoning_effort = "medium"',
+  ]);
+  assert.strictEqual(read(repo, owned), 'name = "custom"\n');
+});
+
+test('ready init with an invalid roles effort → rejects with the config key before writing any file', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
+  withBouncerHome(() => init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' }));
+  const generated = '.codex/agents/bouncer-reviewer.toml';
+  fs.writeFileSync(path.join(repo, generated), '# bouncer-generated\nstale = true\n');
+  fs.rmSync(path.join(repo, '.codex/agents/bouncer-debugger.toml'));
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.roles['bouncer-coordinator'] = { tier: 'standard', effort: 'maximum' };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
+  const cfgBefore = fs.readFileSync(cfgPath);
+
+  const res = withBouncerHome(() => init({
+    repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z', writeGitignore: true,
+  }));
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'role-config-invalid');
+  assert.strictEqual(res.key, 'roles.bouncer-coordinator.effort');
+  assert.match(res.next, /roles\.bouncer-coordinator\.effort/);
+  assert.deepStrictEqual(res.created, []);
+  assert.strictEqual(read(repo, generated), '# bouncer-generated\nstale = true\n');
+  assert.ok(!exists(repo, '.codex/agents/bouncer-debugger.toml'));
+  assert.ok(!exists(repo, '.gitignore'));
+  assert.deepStrictEqual(fs.readFileSync(cfgPath), cfgBefore);
+});
+
+test('ready init with an invalid roles effort and no Codex signal → stays already-initialized', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.roles['bouncer-coordinator'] = { tier: 'standard', effort: 'maximum' };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.reason, 'already-initialized');
+});
+
 test('ready init with missing Codex toml → seeds it without touching Distill reason', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));

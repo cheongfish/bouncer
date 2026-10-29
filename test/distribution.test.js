@@ -249,10 +249,13 @@ test('coordinator Markdown and generated Codex TOML → share the checkpoint led
   const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
   const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
   const checkedIn = fs.readFileSync(tomlPath, 'utf8');
-  const generated = mdToCodexToml(md);
+  // 체크인 생성본은 roles 미설정 기본값(medium) 기준이다. 저장소 개인 설정에 따라 바뀌면
+  // 배포 parity가 개발자마다 달라진다.
+  const generated = mdToCodexToml(md, 'medium');
 
   assert.strictEqual(checkedIn.split(/\r?\n/, 1)[0], GENERATED_MARKER);
   assert.strictEqual(checkedIn, generated);
+  assert.ok(checkedIn.includes('\nmodel_reasoning_effort = "medium"\n'));
   for (const needle of [
     'checkpoint',
     '--ledger-path <checkpoint.ledger.path>',

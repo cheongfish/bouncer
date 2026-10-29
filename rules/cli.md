@@ -505,7 +505,13 @@ instead of the role's own tier; the usage line above stays unchanged. A reviewer
 call uses it to keep the tier of its `review-dispatch` payload
 (`reviewer_tier`). `codex-agents check` is read-only: it
 prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
-`next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
+`next: "bouncer init --seed-codex-agents"` (exit 1). The expected TOML carries
+`model_reasoning_effort` from `roles.<agent>.effort` (absent or null is `medium`),
+so changing an effort turns a synced TOML into `mismatch` until init reseeds it.
+When any named agent's `roles.<agent>.effort` is not `low`, `medium`, or `high`,
+check prints `reason: "role-config-invalid"` with the config `key`, `message`,
+and a `next` that asks the user before fixing that key (exit 1); init with Codex
+seeding rejects the same config before writing any file. Compact a named
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
 
