@@ -5293,6 +5293,35 @@ test('dispatch issuing report_path → status projects report present/absent wit
     { path: second.report_path, attempt: 2, state: 'absent' });
 });
 
+// dispatch는 원장 기록 전에 보고 디렉터리를 만든다. 새 worker worktree에는 reports 디렉터리가
+// 없어서, 만들지 못하면 attempt를 열지 않고 거절해야 implementer가 보고를 쓸 수 있다.
+test('dispatch on a fresh worker → creates the report directory before the attempt is recorded', () => {
+  const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
+  const drive = preparedCommitDrive('bouncer-report-dir-create-', blueprint);
+  const reportDir = path.join(drive.worker, '.bouncer', 'runtime', 'reports');
+  assert.strictEqual(fs.existsSync(reportDir), false);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  assert.ok(fs.statSync(path.dirname(dispatched.report_path)).isDirectory());
+});
+
+test('dispatch when reports path is a file → dispatch-report-dir-failed, ledger bytes unchanged', () => {
+  const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
+  const drive = preparedCommitDrive('bouncer-report-dir-failed-', blueprint);
+  fs.mkdirSync(path.join(drive.worker, '.bouncer', 'runtime'), { recursive: true });
+  fs.writeFileSync(path.join(drive.worker, '.bouncer', 'runtime', 'reports'), 'not a directory\n');
+  const before = fs.readFileSync(drive.ledgerFile);
+  const result = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(result.ok, false, JSON.stringify(result));
+  assert.strictEqual(result.reason, 'dispatch-report-dir-failed');
+  assertHinted(result);
+  assert.ok(before.equals(fs.readFileSync(drive.ledgerFile)));
+});
+
 // --- coordinator 의존성 설치 stdio (CLI stdout 오염 방지) -----------------------
 // advance는 자식 CLI stdout 전체를 JSON 한 개로 파싱하므로 npm 출력이 stdout으로 새면
 // unclear-result가 반복된다. 네 호출 지점 모두 npm을 stderr로 보내는지 고정한다.

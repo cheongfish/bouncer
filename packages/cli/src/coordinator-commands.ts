@@ -1003,6 +1003,15 @@ function coordinateDispatch(ctx: TaskCtx): CoordinateResult {
   }
   const hash = taskBriefHashOf(cwd, blueprint, task);
   const nextAttempt = (item.dispatch?.attempt || 0) + 1;
+  // 보고 디렉터리는 원장을 쓰기 전에 만든다. 새 worker worktree에는 reports 디렉터리가 없어서
+  // implementer가 보고 파일을 쓰지 못한 사례가 있었다. 만들 수 없으면 attempt를 열지 않는다.
+  // 이 지점 전에는 item과 원장을 건드리지 않아 거절 시 원장 bytes가 그대로 남는다.
+  const report_path = reportPathFor(item.workerPath as string, task, nextAttempt);
+  try {
+    fs.mkdirSync(path.dirname(report_path), { recursive: true });
+  } catch (_error) {
+    return { ok: false, reason: 'dispatch-report-dir-failed' };
+  }
   item.dispatch = {
     attempt: nextAttempt, task_brief_hash: hash, base_head: baseHead,
     initial_worktree_state: porcelain, status: 'active',
@@ -1024,7 +1033,6 @@ function coordinateDispatch(ctx: TaskCtx): CoordinateResult {
   initial_worktree_state: porcelain,
 };
   if (previousOutcome) metadata.previous_outcome = previousOutcome;
-  const report_path = reportPathFor(item.workerPath as string, task, nextAttempt);
   return withCheckpoint({
     ok: true as const, command, metadata, report_path, task: item, decisions: ledger.decisions,
   }, ledger, integration.ledgerFile);
@@ -1491,6 +1499,13 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'dispatch-git-read-failed': {
     cause: 'Git could not read the worker HEAD or worktree state needed to open dispatch.',
     next: 'Repair the assigned worker worktree, then retry `bouncer coordinate dispatch`.',
+  },
+  'dispatch-report-dir-failed': {
+    cause:
+      'The worker report directory under `.bouncer/runtime/reports` could not be created, so no attempt was opened.',
+    next:
+      'Remove or repair the path that blocks the report directory in the assigned worker worktree, '
+      + 'then retry `bouncer coordinate dispatch`.',
   },
   'failure-evidence-required': {
     cause: 'Repair needs terminal failure evidence (command, summary, and paths).',

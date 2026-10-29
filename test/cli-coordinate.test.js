@@ -448,6 +448,17 @@ test('coordinate revise without --replace → unions the previous scope and prin
   assert.ok(!('warnings' in body));
 });
 
+// 합집합은 정규화된 경로로 한 번만 남긴다. 원문이 다른 같은 경로(`./src/auth`와 `src/auth/`)가
+// 입력에 섞여도 결과에는 정규형 하나만 남아야 한다.
+test('coordinate revise with a spelling variant of the previous path → unions to one normalized entry', () => {
+  const { worker, repo } = preparedDrive();
+  const { code, buf } = revise(worker, [
+    '--task', '001', '--paths', './src/auth', '--paths', 'src/session/', '--reason', 'dedupe',
+  ], [], repo);
+  assert.strictEqual(code, 0, buf.err);
+  assert.deepStrictEqual(JSON.parse(buf.out).paths, ['src/auth/', 'src/session/']);
+});
+
 test('coordinate revise with --replace followed by a value → usage exit 2 and the file is untouched', () => {
   const { worker, repo } = preparedDrive();
   const { code, buf } = revise(worker, [
