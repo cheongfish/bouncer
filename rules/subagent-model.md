@@ -44,6 +44,13 @@ limits.
    Host methods: Codex sets `fork_turns: "none"`; Claude Code uses a named
    subagent call and never a fork; Cursor print runs a separate process per
    dispatch.
+   On Claude Code, the Agent model argument accepts only family aliases
+   (`opus`, `sonnet`, `haiku`, `fable`). Pass the alias of the printed
+   `claude-<family>-…` slug (for example `claude-opus-5-5` → `opus`) and report
+   both the slug and the alias to the user. This host translation is not a
+   model rejection or a replacement model; the alias selects the host's current
+   model of that family, so the slug's exact version is not guaranteed. A slug
+   with no matching family alias is a model rejection.
    The only exceptions are an implementer continuing its own session for the
    first in-scope verify fix defined in
    `${BOUNCER_ROOT}/references/coordinator-cards/verify.md`, and a planner
@@ -55,7 +62,8 @@ limits.
    automatic retry or fallback and tell the user the provider, role, configured
    model name, host rejection reason, and where to correct the setting in
    `.bouncer/config.json`. If the host explicitly returns a supported model
-   name, report that exact name; never invent an alias or replacement.
+   name, report that exact name; never invent an alias or replacement beyond
+   the Claude Code family alias above.
 2. Attempt the named dispatch. Do not skip it because the host is Codex.
    Only the item 7 opt-in replaces it.
 3. If the host rejects the configured model, stop and report the rejection as
