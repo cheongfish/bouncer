@@ -36,6 +36,10 @@ bouncer:
 14. 네 책임 분해의 금지 역참조·순수 모듈 I/O 경계를 회귀 검사하고, 동일 Node 24·npm·OS에서 잰 전후 snapshot과 inventory가 기존 check-report를 통과한다. 기존 CLI·승인·증적·동시성 계약과 coverage 임계값 94/82/96을 유지한다.
 15. 역할 모델 해석은 기존 `subagents.<provider>.<agent>` slug → `roles` 등급의 `model_tiers` 매핑 → `inherit` 순이며, 기존 slug 설정의 `subagent-model` 한 줄 출력은 바뀌지 않는다. 비어 있는 등급 매핑은 exit 1로 거절되고 다른 모델로 대체되지 않으며, `--json`은 `provider, role, tier, model, effort, source`를 내고 Claude hook은 그 `model`·`effort`로 Agent 호출을 보정한다.
 
+16. Codex 역할 TOML은 사용자 effort를 반영하고 설정 부재 시 medium을 사용하며 잘못된 값은 쓰기 전에 거절한다.
+17. provider 검증, hook 안내, metrics 입력 및 계획 경로 확인 흐름은 각 task의 회귀 테스트와 전체 CI를 통과한다.
+18. 생성물은 정본 생성 경로로 동기화하고 새 테스트 파일의 tier를 등록하며 빌드 후 검증한다.
+
 ## Out of scope
 - 특정 단계의 기능 → 해당 단계 영역
 - legacy epic의 물리적 이관. 이 epic은 논리적 병합만 한다.
@@ -66,6 +70,7 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 | 113 | 002 lint-baseline-cleanup | CI lint 기준선 |
 
 ## Blueprints
+- [model-tiers-followups](blueprints/model-tiers-followups/index.md) — 역할 effort 동기화와 provider·metrics 입력 검증 및 계획 안내를 정리한다.
 - [cli-help-and-hygiene](blueprints/cli-help-and-hygiene/index.md) — 서브명령 `--help`를 `cli.ts`의 정적 usage로 끝내고, 테스트 fence fixture·`TaskUnit` 타입·경로 정규화를 정본 하나로 모으며, 이전 재구성 inventory의 전후 실측을 채운다.
 - [coordinator-command-split](blueprints/coordinator-command-split/index.md) — `coordinator` facade를 명령 API로 줄이고, 원장 fence 열기를 공통 helper로 묶고, `coordinate()`·`cmdCoordinate()`를 서브명령 handler로 나눈다.
 - [gate-review-split](blueprints/gate-review-split/index.md) — `runCheckGate()`를 gate 단계 모듈로, `context-review-state.ts`를 저장 계층과 cycle 전이로 나누고 이 시리즈의 전후 실측을 기록한다.
