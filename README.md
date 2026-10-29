@@ -67,8 +67,10 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
 /bouncer-run       # 구현 · verify · review · task 커밋 주행 (task 소진까지)
 /bouncer-finalize  # explain+퀴즈 · remainder · draft PR
-/bouncer-retro     # 세션 근거 개선 후보 제안 (채팅 전용)
 ```
+
+회고는 `/bouncer-finalize` 종료 뒤 자동으로 실행됩니다(채팅 전용). 다른 세션의 증거는
+`bouncer retro sources`로 후보를 보고 `bouncer retro read --path <file>`로 읽습니다.
 
 ## How it works
 

@@ -13,3 +13,4 @@ bouncer_schema: '0.1'
 * [gates-review](epics/gates-review/index.md) - Judgement: gate codes, verification evidence, review dispatch and coding standards
 * [runtime-architecture](epics/runtime-architecture/index.md) - CLI and runtime base: modules, rule structure, pointer, state transition guards
 * [benchmark-cost](epics/benchmark-cost/index.md) - Evaluation and cost: benchmark harness, DeepSWE, token and time baselines
+* [plugin-surface-slimming](epics/plugin-surface-slimming/index.md) - Streamline plugin surfaces and execution policies across independent blueprints.

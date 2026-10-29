@@ -8,18 +8,19 @@ const { GENERIC_SKILLS } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const WORKFLOW = [
-  'bouncer-init', 'bouncer-plan', 'bouncer-finalize', 'bouncer-run', 'bouncer-retro',
+  'bouncer-init', 'bouncer-plan', 'bouncer-finalize', 'bouncer-run',
 ];
 // 공개 진입에서 제거한 스킬. 파일이 다시 생기면 아래 부재 단언이 실패한다.
-const RETIRED = ['bouncer-execute', 'bouncer-commit'];
+// bouncer-retro는 finalize의 references/retro.md로 이관되어 독립 진입점이 없다.
+const RETIRED = ['bouncer-execute', 'bouncer-commit', 'bouncer-retro'];
 // Subskills live at references/<name>/index.md (not the host skills/ catalog).
 const UNPUBLISHED = [
   'discovery', 'spec-authoring', 'stop-slop', 'graphify-runner', 'minimality',
   'context-review', 'implementation', 'verification', 'debugging', 'review',
   'explain-diff',
 ];
-// 호스트 카탈로그는 워크플로 다섯뿐이다(102-001에서 execute·commit 제거). 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
-const EXPECTED_SKILL_COUNT = 5;
+// 호스트 카탈로그는 워크플로 넷뿐이다(102-001에서 execute·commit, 이후 retro 제거). 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
+const EXPECTED_SKILL_COUNT = 4;
 
 /**
  * `skills/` 아래 SKILL.md가 있는 디렉터리 이름을 정렬해 돌려준다.
@@ -92,10 +93,9 @@ const CONDITIONAL_HELPERS = {
     local: ['context-review.md', 'scope-confirm.md', 'evidence-dispatch.md'],
   },
   'bouncer-run': { root: [], local: [] },
-  'bouncer-retro': { root: [], local: [] },
   'bouncer-finalize': {
     root: [],
-    local: ['distill-promotion.md', 'explain-quiz.md', 'draft-pr.md', 'cleanup-handoff.md', 'remainder.md'],
+    local: ['distill-promotion.md', 'explain-quiz.md', 'draft-pr.md', 'cleanup-handoff.md', 'remainder.md', 'retro.md'],
   },
 };
 
@@ -156,9 +156,9 @@ const SKILL_LOCAL_REFS = {
     'remainder.md',
     'draft-pr.md',
     'cleanup-handoff.md',
+    'retro.md',
   ],
   'bouncer-run': ['light-run.md', 'direct-run.md'],
-  'bouncer-retro': [],
 };
 
 // 폐기한 두 진입 스킬은 파일이 없어야 하고, 이관된 reference는 run 아래에 남아 있어야 한다.
@@ -341,7 +341,7 @@ test('unpublished helpers → live under references/ and are absent from the cat
   ]) assert.equal(fs.existsSync(path.join(root, rel)), false, rel);
 });
 
-test('canonical skill catalog → contains the five explicit workflow entries', () => {
+test('canonical skill catalog → contains the four explicit workflow entries', () => {
   const skillNames = listCanonicalSkillNames();
   assert.strictEqual(
     skillNames.length,
