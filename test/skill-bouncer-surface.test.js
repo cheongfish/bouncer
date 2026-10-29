@@ -370,3 +370,31 @@ test('intent bundle paragraphs → name --no-symbols and the excluded symbol sou
     }
   }
 });
+
+// 결합 경로 확인 흐름은 plan SKILL step 4, scope-confirm.md, plan coordinator step 5가 같은 순서로 말해야 한다:
+// 초안 뒤 inspect → ask·needs_user → root가 plan.affected_paths 재질문 → 확정 값만 기록.
+// 문장 순서와 줄바꿈은 고정하지 않도록 공백을 한 칸으로 줄여 비교한다.
+test('plan docs → describe the coupled-path confirm flow in SKILL step 4, scope-confirm, and plan coordinator', () => {
+  const squash = (text) => text.replace(/\s+/g, ' ');
+  const skill = squash(fs.readFileSync(path.join(root, 'skills/bouncer-plan/SKILL.md'), 'utf8'));
+  const scopeConfirm = squash(fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'),
+    'utf8',
+  ));
+  const planCoordinator = squash(fs.readFileSync(path.join(root, 'agents/bouncer-plan-coordinator.md'), 'utf8'));
+  const start = skill.indexOf('4. **Scope confirm.**');
+  const end = skill.indexOf('5. **Review.**', start);
+  assert.ok(start >= 0 && end > start, 'SKILL step 4 must exist');
+  const step4 = skill.slice(start, end);
+
+  assert.match(
+    step4,
+    /plan inspect --blueprint[\s\S]*coupledPaths[\s\S]*covered: false[\s\S]*needs_user[\s\S]*plan\.affected_paths/,
+  );
+  assert.ok(step4.includes('never from Graphify query results, candidate lists, or inspect output'));
+  assert.ok(step4.includes('<path> — <kind> (<source>[, line <n>: <text>])'));
+  assert.match(step4, /<task>\|<kind>\|<source>\|<path>/);
+  assert.match(scopeConfirm, /coupledPaths[\s\S]*plan coordinator[\s\S]*root[\s\S]*plan\.affected_paths/);
+  assert.match(scopeConfirm, /evidence\.text[^.]*data/);
+  assert.match(planCoordinator, /plan inspect --blueprint[\s\S]*`ask`[\s\S]*needs_user/);
+});

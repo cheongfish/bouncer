@@ -557,3 +557,16 @@ test('implementer Checklist coverage → adds one line per brief Constraints bul
   assert.match(coverage, /Constraints/);
   assert.match(coverage, /해당 없음:/);
 });
+
+// md 역할 문서와 Codex TOML 짝은 codexAgentTomlFor 한 곳이 정한다. plan inspect가 이름 목록을
+// 복제하지 않도록 짝 규칙을 이 테스트가 고정한다: 일곱 역할은 실제 TOML 경로와 같고, 목록 밖은 null이다.
+test('codexAgentTomlFor → maps each named agent md to its existing TOML and rejects other paths', () => {
+  const { codexAgentTomlFor, NAMED_AGENTS } = require('../packages/cli/dist/codex-agents');
+  for (const name of NAMED_AGENTS) {
+    const rel = codexAgentTomlFor(`agents/${name}.md`);
+    assert.strictEqual(rel, `.codex/agents/${name}.toml`);
+    assert.ok(fs.existsSync(path.join(root, rel)), name);
+  }
+  assert.strictEqual(codexAgentTomlFor('agents/custom.md'), null);
+  assert.strictEqual(codexAgentTomlFor('docs/bouncer-reviewer.md'), null);
+});

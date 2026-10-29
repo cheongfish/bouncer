@@ -18,6 +18,8 @@ import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import epicRegistry = require('./epic-registry');
 const { readEpicRegistry, COMMON_EPICS } = epicRegistry;
+import codexAgents = require('./codex-agents');
+const { NAMED_AGENTS, codexAgentTomlFor } = codexAgents;
 
 const BOUNCER_DIR = '.bouncer';
 const EPICS_REL = '.bouncer/context/epics';
@@ -103,6 +105,29 @@ type InspectRegistry =
     promotions: { area: string; count: number }[];
   };
 
+// 결합 경로: 생성 짝(pairs, 확정)과 경로 문자열 검색 후보(candidates, 근거 줄 포함)를 분리한다.
+// `advisory`는 routing과 같은 이유로 둔다 — 이 값은 gate·affected_paths를 정하지 않는 참고 신호다.
+type CoupledPair = {
+  task: string;
+  source: string;
+  path: string;
+  kind: 'codex-agent-toml' | 'gitignore-exception';
+  covered: boolean;
+};
+
+type CoupledCandidate = {
+  task: string;
+  source: string;
+  path: string;
+  evidence: { line: number; text: string };
+};
+
+type CoupledPaths = {
+  advisory: true;
+  pairs: CoupledPair[];
+  candidates: CoupledCandidate[];
+};
+
 type InspectOk = {
   ok: true;
   nextEpicId: string | null;
@@ -111,11 +136,15 @@ type InspectOk = {
   verifySignals: string[];
   current: CurrentInfo;
   routing: Routing | null;
+  coupledPaths: CoupledPaths | null;
 };
 
 type InspectResult = InspectOk | InspectFail;
 
 type RoutingTask = { paths: string[]; dependsOn: string[] };
+
+// loadRoutingTasks가 낸 commit task. 결합 경로는 task id를 출력에 싣기 위해 id가 필요하다.
+type CommitTask = RoutingTask & { id: string };
 
 /**
  * `\d{3}-<slug>` 디렉터리 이름만 모아 최댓값 + 1을 세 자리로 채운다.
@@ -499,6 +528,267 @@ function collectModules(pathList: string[]): string[] {
   return [...modules].sort();
 }
 
+// 결합 경로 탐지의 상수. 테스트 파일 탐색 범위와 근거 길이는 계획 점검 출력의 계약이다.
+const COUPLED_TEST_DIRS = ['test', 'tests'] as const;
+// Node 테스트가 쓰는 확장자. 다른 확장자(md, json 등)는 경로 문자열 근거가 되기에 부적절하다.
+const COUPLED_TEST_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.ts']);
+// 이보다 큰 파일은 읽지 않는다. 점검이 큰 생성물을 읽느라 느려지지 않게 하는 상한이다.
+const COUPLED_TEST_MAX_BYTES = 1024 * 1024;
+// 근거 줄은 사람이 훑을 길이로 자른다. 긴 줄 전체를 질문에 싣지 않는다.
+const COUPLED_EVIDENCE_MAX_CHARS = 200;
+// 파일 읽기·stat에서 "그 항목은 못 읽는다"는 뜻인 코드만 흡수한다. 나머지는 버그일 수 있으니 다시 던진다.
+const UNREADABLE_CODES = new Set(['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM', 'EISDIR', 'ELOOP']);
+
+/**
+ * 파일 시스템 오류가 "읽을 수 없음"(부재·권한·형식 불일치)인지 판별한다.
+ *
+ * @param {unknown} error - catch로 받은 값
+ * @returns {boolean} 흡수 대상이면 true
+ */
+function isUnreadableError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error
+    && typeof error.code === 'string' && UNREADABLE_CODES.has(error.code);
+}
+
+/**
+ * 계획 점검 항목 한 줄을 비교용 정규형으로 바꾼다. 같은 파일을 가리키는 표기(`./x`, `x/`)가
+ * 다른 짝·후보를 만들지 않게 하고, 저장소 안의 한 경로로 확정할 수 없는 값은 null로 뺀다.
+ *
+ * @param {string} raw - affected_paths 원문 항목
+ * @returns {string | null} 정규형 경로, 짝·후보를 만들 수 없으면 null
+ */
+function normalizeCoupledItem(raw: string): string | null {
+  // 1. 앞 `./`를 모두 떼고 끝 `/`를 하나 뗀다. `./docs/`와 `docs`를 같은 항목으로 본다.
+  let rel = raw;
+  while (rel.startsWith('./')) rel = rel.slice(2);
+  if (rel.endsWith('/')) rel = rel.slice(0, -1);
+  // 2. 빈 값과 `.`은 저장소 전체를 뜻해 짝·후보의 근거가 되지 못한다.
+  if (rel === '' || rel === '.') return null;
+  // 3. 절대 경로·`..`·glob 문자는 저장소 안의 한 파일로 확정되지 않는다. 검색하면 엉뚱한 근거가 나온다.
+  if (path.posix.isAbsolute(rel) || rel.split('/').includes('..') || /[*?[]/.test(rel)) return null;
+  return rel;
+}
+
+/**
+ * 같은 task의 정규형 항목들이 `rel`을 덮는지 본다. 같은 경로이거나 그 조상 디렉터리이면 덮는다.
+ *
+ * @param {string[]} items - 같은 task의 정규형 항목
+ * @param {string} rel - 짝 또는 후보 파일의 저장소 상대 posix 경로
+ * @returns {boolean} 이미 task가 다루는 경로이면 true
+ */
+function coveredBy(items: string[], rel: string): boolean {
+  return items.some((item) => item === rel || rel.startsWith(`${item}/`));
+}
+
+/**
+ * 경로 문자열 검색 대상이 되는 파일 항목인지 본다. 디렉터리 표기(`/`로 끝남), 실제 디렉터리,
+ * 확장자 없는 마지막 조각은 파일이 아닌 것으로 보고 검색하지 않는다 — `docs`처럼 흔한 디렉터리 이름이
+ * 모든 테스트 파일에 걸려 근거가 소음이 되는 일을 막는다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} raw - affected_paths 원문 항목(끝 `/` 여부를 보려고 원문을 받는다)
+ * @param {string} norm - normalizeCoupledItem 결과
+ * @returns {boolean} 검색 대상 파일 항목이면 true
+ */
+function isFileItem(repoRoot: string, raw: string, norm: string): boolean {
+  if (raw.endsWith('/')) return false;
+  if (path.posix.basename(norm).indexOf('.') < 0) return false;
+  const stat = statOrNull(path.join(repoRoot, norm));
+  return !(stat && stat.isDirectory());
+}
+
+/**
+ * 경로의 stat을 읽는다. 없거나 못 읽는 경로는 null이다.
+ *
+ * @param {string} abs - 절대 경로
+ * @returns {import('node:fs').Stats | null} stat, 읽을 수 없으면 null
+ */
+function statOrNull(abs: string): import('node:fs').Stats | null {
+  try {
+    return fs.statSync(abs);
+  } catch (error) {
+    // ENOENT 등 "없거나 못 읽는" 경로만 null로 본다. 그 밖의 오류는 버그일 수 있어 다시 던진다.
+    if (isUnreadableError(error)) return null;
+    throw error;
+  }
+}
+
+/**
+ * `test/`·`tests/` 아래의 검색 대상 테스트 파일을 정렬된 상대 경로로 모은다. symlink는 따라가지 않아
+ * 저장소 밖 파일을 읽지 않게 하고, `node_modules`는 건너뛴다. 디렉터리가 없으면 빈 목록이다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @returns {string[]} 저장소 상대 posix 경로, 사전순
+ */
+function listTestFiles(repoRoot: string): string[] {
+  const out: string[] = [];
+  const walk = (relDir: string) => {
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = fs.readdirSync(path.join(repoRoot, relDir), { withFileTypes: true });
+    } catch (error) {
+      // 디렉터리 부재·권한 문제는 건너뛴다. 다른 오류는 다시 던진다.
+      if (isUnreadableError(error)) return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const rel = `${relDir}/${entry.name}`;
+      // symlink는 디렉터리든 파일이든 따르지 않는다. 저장소 밖을 읽는 경로를 만들지 않는다.
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        if (entry.name !== 'node_modules') walk(rel);
+        continue;
+      }
+      if (!entry.isFile() || !COUPLED_TEST_EXTENSIONS.has(path.posix.extname(entry.name))) continue;
+      const stat = statOrNull(path.join(repoRoot, rel));
+      if (stat && stat.size <= COUPLED_TEST_MAX_BYTES) out.push(rel);
+    }
+  };
+  for (const dir of COUPLED_TEST_DIRS) walk(dir);
+  return out.sort();
+}
+
+/**
+ * 파일에서 `needle`을 포함하는 첫 줄을 찾는다. 같은 파일의 뒤 일치 줄은 근거로 싣지 않는다.
+ * 근거 줄 하나면 질문이 짧고, 파일당 한 줄이면 같은 파일이 여러 번 후보로 뜨지 않는다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} rel - 검색할 파일의 저장소 상대 posix 경로
+ * @param {string} needle - 정규형 항목 문자열(정규식이 아닌 부분 문자열)
+ * @returns {{ line: number, text: string } | null} 1부터 세는 줄 번호와 잘린 줄, 일치가 없으면 null
+ */
+function firstMatchingLine(
+  repoRoot: string,
+  rel: string,
+  needle: string,
+): { line: number; text: string } | null {
+  let body: string;
+  try {
+    body = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+  } catch (error) {
+    // 읽을 수 없는 테스트 파일은 근거가 없는 것으로 보고 건너뛴다. 다른 오류는 다시 던진다.
+    if (isUnreadableError(error)) return null;
+    throw error;
+  }
+  const lines = body.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].includes(needle)) {
+      return { line: i + 1, text: lines[i].trim().slice(0, COUPLED_EVIDENCE_MAX_CHARS) };
+    }
+  }
+  return null;
+}
+
+/**
+ * `.gitignore`가 역할 TOML을 예외로 다시 여는 줄이 빠져 있는지 본다. 세 조건이 모두 참이어야
+ * 짝을 낸다: `!.codex/agents/` 디렉터리 재포함 줄이 있고, `!<toml>` 예외 줄이 없고,
+ * TOML 파일이 디스크에 없다. 하나라도 거짓이면 이미 처리됐거나 생성 대상이 아니다.
+ *
+ * @param {string[]} gitignoreLines - 저장소 루트 `.gitignore`의 정규화된 줄(없으면 빈 배열)
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} toml - 짝 TOML의 저장소 상대 경로
+ * @returns {boolean} 예외 짝을 내야 하면 true
+ */
+function gitignoreExceptionMissing(gitignoreLines: string[], repoRoot: string, toml: string): boolean {
+  // 디렉터리 전체 재포함 줄만 본다. `!.codex/agents/<name>.toml` 같은 파일 예외는 이 조건이 아니다 —
+  // 그런 줄이 있다고 디렉터리 규칙이 있다고 보면 조건 1이 파일 예외 줄에 끌려 참이 된다.
+  const hasDirectoryRule = gitignoreLines.includes('!.codex/agents/');
+  if (!hasDirectoryRule) return false;
+  if (gitignoreLines.includes(`!${toml}`)) return false;
+  return !fs.existsSync(path.join(repoRoot, toml));
+}
+
+/**
+ * `.gitignore`를 읽어 앞뒤 공백을 뗀 줄 목록으로 돌려준다. 파일이 없거나 못 읽으면 빈 목록이다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @returns {string[]} 공백을 뗀 `.gitignore` 줄
+ */
+function readGitignoreLines(repoRoot: string): string[] {
+  try {
+    return fs.readFileSync(path.join(repoRoot, '.gitignore'), 'utf8')
+      .split(/\r?\n/)
+      .map((line: string) => line.trim());
+  } catch (error) {
+    // `.gitignore`가 없는 저장소는 예외 짝을 만들 근거가 없다. 다른 오류는 다시 던진다.
+    if (isUnreadableError(error)) return [];
+    throw error;
+  }
+}
+
+/**
+ * commit task들의 affected_paths에서 결합 경로를 읽기 전용으로 계산한다. 생성 관계는 `pairs`로
+ * 확정 출력하고, 경로 문자열로 찾은 테스트 파일은 `candidates`로만 낸다. 어떤 파일도 쓰지 않는다.
+ *
+ * 항목은 task 순서, task 안에서는 affected_paths 순서로 본다. `agents` 항목은 `NAMED_AGENTS` 전체로
+ * 펼친다. 같은 task가 덮는 파일과 디렉터리 항목은 후보가 되지 않는다.
+ *
+ * @param {string} repoRoot - 저장소 루트. 이 아래를 읽기만 한다
+ * @param {{ id: string, paths: string[] }[]} tasks - commit task 목록(verification은 호출 전에 뺀다)
+ * @returns {CoupledPaths} advisory 결합 경로. 짝·후보가 없으면 빈 배열
+ */
+function detectCoupledPaths(repoRoot: string, tasks: { id: string; paths: string[] }[]): CoupledPaths {
+  const pairs: CoupledPair[] = [];
+  const candidates: CoupledCandidate[] = [];
+  const gitignoreLines = readGitignoreLines(repoRoot);
+  // 테스트 파일 목록은 필요할 때 한 번만 모은다. 파일 항목이 없는 저장소에서 트리를 걷지 않게 한다.
+  let testFiles: string[] | null = null;
+
+  for (const task of tasks) {
+    // 1. 이 task의 정규형 항목을 affected_paths 순서대로 모은다. 거절된 항목은 짝·후보를 만들지 않는다.
+    const items: { raw: string; norm: string }[] = [];
+    for (const raw of task.paths) {
+      const norm = normalizeCoupledItem(raw);
+      if (norm !== null) items.push({ raw, norm });
+    }
+    const norms = items.map((item) => item.norm);
+
+    // 2. 생성 짝. `agents` 항목은 역할 전체로 펼치고, 같은 역할 md는 한 번만 짝을 낸다.
+    const seenSources = new Set<string>();
+    for (const { norm } of items) {
+      const sources = norm === 'agents' ? NAMED_AGENTS.map((name) => `agents/${name}.md`) : [norm];
+      for (const source of sources) {
+        const toml = codexAgentTomlFor(source);
+        if (toml === null || seenSources.has(source)) continue;
+        seenSources.add(source);
+        pairs.push({
+          task: task.id,
+          source,
+          path: toml,
+          kind: 'codex-agent-toml',
+          covered: coveredBy(norms, toml),
+        });
+        if (gitignoreExceptionMissing(gitignoreLines, repoRoot, toml)) {
+          pairs.push({
+            task: task.id,
+            source,
+            path: '.gitignore',
+            kind: 'gitignore-exception',
+            covered: coveredBy(norms, '.gitignore'),
+          });
+        }
+      }
+    }
+
+    // 3. 경로 문자열 후보. 파일 항목만 검색하고, 같은 task가 덮는 파일은 뺀다.
+    const seenItems = new Set<string>();
+    for (const { raw, norm } of items) {
+      if (!isFileItem(repoRoot, raw, norm) || seenItems.has(norm)) continue;
+      seenItems.add(norm);
+      if (testFiles === null) testFiles = listTestFiles(repoRoot);
+      for (const file of testFiles) {
+        if (coveredBy(norms, file)) continue;
+        const evidence = firstMatchingLine(repoRoot, file, norm);
+        if (evidence !== null) {
+          candidates.push({ task: task.id, source: norm, path: file, evidence });
+        }
+      }
+    }
+  }
+
+  return { advisory: true, pairs, candidates };
+}
+
 /**
  * commit task 요약으로 advisory routing을 만든다. 선택·승인은 하지 않고
  * recommendation/reasons만 낸다 — light 선언은 사용자 소유다.
@@ -557,9 +847,9 @@ function summarizeRouting(taskList: RoutingTask[]): Routing {
  * @param {string} blueprintDir - 정본 blueprint 상대 경로
  * @returns {RoutingTask[]} summarizeRouting 입력
  */
-function loadRoutingTasks(repoRoot: string, blueprintDir: string): RoutingTask[] {
+function loadRoutingTasks(repoRoot: string, blueprintDir: string): CommitTask[] {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
-  const out: RoutingTask[] = [];
+  const out: CommitTask[] = [];
   for (const entry of listing.entries) {
     if (entry.executionKind !== 'commit') continue;
     let paths: string[] = [];
@@ -585,7 +875,9 @@ function loadRoutingTasks(repoRoot: string, blueprintDir: string): RoutingTask[]
     } catch (_e) {
       // 파싱 실패 task는 빈 paths로만 센다. inspect가 draft를 고치지 않는다.
     }
-    out.push({ paths, dependsOn });
+    // id가 없는 문서는 상대 경로로 식별한다. 출력 키가 빈 값이 되어 task를 구분하지 못하는 일을 막는다.
+    const id = entry.tasks.id ?? entry.tasks.rel;
+    out.push({ id, paths, dependsOn });
   }
   return out;
 }
@@ -633,6 +925,7 @@ function planInspect({ repoRoot, epicDir, blueprintDir }: {
   }
 
   let routing: Routing | null = null;
+  let coupledPaths: CoupledPaths | null = null;
   if (blueprintDir !== undefined) {
     // 3. --blueprint는 정본 blueprint 경로만. routing은 읽기 전용 신호다.
     const rel = normalizeRelDir(blueprintDir);
@@ -647,7 +940,11 @@ function planInspect({ repoRoot, epicDir, blueprintDir }: {
     } catch (_e) {
       return { ok: false, reason: 'invalid-blueprint-dir' };
     }
-    routing = summarizeRouting(loadRoutingTasks(repoRoot, rel));
+    // 4. 결합 경로는 routing과 같은 commit task 목록에서 읽기 전용으로 계산한다. routing·gate
+    //    판정에는 넣지 않는다 — 생성 짝과 테스트 후보는 사용자가 확정할 질문이지 범위 결정이 아니다.
+    const commitTasks = loadRoutingTasks(repoRoot, rel);
+    routing = summarizeRouting(commitTasks);
+    coupledPaths = detectCoupledPaths(repoRoot, commitTasks);
   }
 
   const epicNames = listDirNames(path.join(repoRoot, EPICS_REL));
@@ -661,7 +958,8 @@ function planInspect({ repoRoot, epicDir, blueprintDir }: {
     verifySignals: collectVerifySignals(repoRoot),
     current: presentCurrent(repoRoot),
     routing,
+    coupledPaths,
   };
 }
 
-export = { planInspect, classifyRoutingPaths, summarizeRouting };
+export = { planInspect, classifyRoutingPaths, summarizeRouting, detectCoupledPaths };

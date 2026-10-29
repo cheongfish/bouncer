@@ -507,6 +507,7 @@ test('plan inspect without --blueprint → keeps prior fields and sets routing n
   assert.deepStrictEqual(payload.verifySignals, ['Makefile', 'package.json#scripts']);
   assert.strictEqual(payload.current.status, 'empty');
   assert.strictEqual(payload.routing, null);
+  assert.strictEqual(payload.coupledPaths, null);
 });
 
 test('plan inspect with a malformed or missing --blueprint → rejects with invalid-blueprint-dir', () => {
@@ -641,4 +642,217 @@ test('plan inspect on a numeric epic → keeps nextBlueprintId and adds the same
 
   assert.strictEqual(payload.epic.nextBlueprintId, '003');
   assert.strictEqual(payload.epic.nextBlueprintOrder, 3);
+});
+
+// 결합 경로 탐지 fixture. 생성 짝(agents/<name>.md ↔ .codex/agents/<name>.toml, .gitignore 예외)과
+// 경로 문자열 후보를 한 저장소에 함께 깐다. 각 단언은 coupledPaths 계약의 한 조각을 본다.
+function writeCoupledFixture(repo, { gitignore = '!.codex/agents/\n!.codex/agents/bouncer-reviewer.toml\n' } = {}) {
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [
+      {
+        id: '001',
+        paths: ['agents/bouncer-planner.md', 'docs/guide.md', 'test/covered.test.js', 'docs', '.'],
+        dependsOn: [],
+        executionKind: 'commit',
+      },
+      {
+        id: '002',
+        paths: ['agents/bouncer-reviewer.md', '.codex/agents/'],
+        dependsOn: [],
+        executionKind: 'commit',
+      },
+      { id: '003', paths: ['agents/'], dependsOn: [], executionKind: 'commit' },
+      { id: '004', paths: [], dependsOn: [], executionKind: 'commit' },
+      { id: '005', paths: ['docs/guide.md'], dependsOn: [], executionKind: 'verification' },
+    ],
+  });
+  if (gitignore !== null) fs.writeFileSync(path.join(repo, '.gitignore'), gitignore);
+  mkdirp(repo, 'docs');
+  writeFile(repo, 'test/guide.test.js', "read('docs/guide.md');\n");
+  writeFile(repo, 'test/covered.test.js', "read('docs/guide.md');\n");
+  writeFile(repo, 'test/node_modules/x.test.js', "read('docs/guide.md');\n");
+  writeFile(repo, 'test/long.test.js', `    'docs/guide.md'${'x'.repeat(300)}\n`);
+  return blueprintDir;
+}
+
+function writeFile(repo, rel, text) {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, text);
+}
+
+test('plan inspect --blueprint with generated pairs and test references → reports coupledPaths', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeCoupledFixture(repo);
+  const { NAMED_AGENTS } = require('../packages/cli/dist/codex-agents');
+
+  const result = inspect(repo, ['--blueprint', blueprintDir]);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.coupledPaths.advisory, true);
+  assert.deepStrictEqual(payload.coupledPaths.pairs.filter((e) => e.task !== 'TASKS-003'), [
+    {
+      task: 'TASKS-001',
+      source: 'agents/bouncer-planner.md',
+      path: '.codex/agents/bouncer-planner.toml',
+      kind: 'codex-agent-toml',
+      covered: false,
+    },
+    {
+      task: 'TASKS-001',
+      source: 'agents/bouncer-planner.md',
+      path: '.gitignore',
+      kind: 'gitignore-exception',
+      covered: false,
+    },
+    {
+      task: 'TASKS-002',
+      source: 'agents/bouncer-reviewer.md',
+      path: '.codex/agents/bouncer-reviewer.toml',
+      kind: 'codex-agent-toml',
+      covered: true,
+    },
+  ]);
+  assert.deepStrictEqual(
+    payload.coupledPaths.pairs.filter((e) => e.task === 'TASKS-003' && e.kind === 'codex-agent-toml')
+      .map((e) => e.path),
+    NAMED_AGENTS.map((n) => `.codex/agents/${n}.toml`),
+  );
+  assert.deepStrictEqual(payload.coupledPaths.candidates.map((e) => [e.task, e.source, e.path]), [
+    ['TASKS-001', 'docs/guide.md', 'test/guide.test.js'],
+    ['TASKS-001', 'docs/guide.md', 'test/long.test.js'],
+  ]);
+  assert.deepStrictEqual(payload.coupledPaths.candidates[0].evidence, { line: 1, text: "read('docs/guide.md');" });
+  const long = payload.coupledPaths.candidates[1].evidence.text;
+  assert.strictEqual(long.length, 200);
+  assert.ok(long.startsWith("'docs/guide.md'"));
+});
+
+test('plan inspect --blueprint with a generated TOML on disk → drops the gitignore-exception pair', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeCoupledFixture(repo);
+  writeFile(repo, '.codex/agents/bouncer-planner.toml', 'x\n');
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+  const planner = payload.coupledPaths.pairs.filter(
+    (e) => e.task === 'TASKS-001' && e.source === 'agents/bouncer-planner.md',
+  );
+
+  assert.deepStrictEqual(planner.map((e) => e.kind), ['codex-agent-toml']);
+});
+
+test('plan inspect --blueprint with .gitignore lacking the directory rule → emits no gitignore pair', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeCoupledFixture(repo, { gitignore: '!.codex/agents/bouncer-reviewer.toml\n' });
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.strictEqual(payload.coupledPaths.pairs.some((e) => e.kind === 'gitignore-exception'), false);
+});
+
+test('plan inspect --blueprint without a .gitignore file → emits no gitignore pair', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeCoupledFixture(repo, { gitignore: null });
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.strictEqual(payload.coupledPaths.pairs.some((e) => e.kind === 'gitignore-exception'), false);
+});
+
+test('plan inspect --blueprint with references only under tests/ → reports the tests/ path as candidate', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [{ id: '001', paths: ['docs/guide.md'], dependsOn: [], executionKind: 'commit' }],
+  });
+  writeFile(repo, 'tests/guide.test.js', "read('docs/guide.md');\n");
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.deepStrictEqual(payload.coupledPaths.candidates.map((e) => e.path), ['tests/guide.test.js']);
+});
+
+test('plan inspect --blueprint without test or tests directories → reports no candidates', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [{ id: '001', paths: ['docs/guide.md'], dependsOn: [], executionKind: 'commit' }],
+  });
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.deepStrictEqual(payload.coupledPaths.candidates, []);
+});
+
+test('plan inspect --blueprint with a verification task referencing a generated agent → omits it', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [
+      { id: '001', paths: ['docs/x.md'], dependsOn: [], executionKind: 'commit' },
+      { id: '005', paths: ['agents/bouncer-debugger.md'], dependsOn: ['TASKS-001'], executionKind: 'verification' },
+    ],
+  });
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+  const ids = [...payload.coupledPaths.pairs, ...payload.coupledPaths.candidates].map((e) => e.task);
+
+  assert.strictEqual(ids.includes('TASKS-005'), false);
+});
+
+test('plan inspect --blueprint with a repeated match in one test file → reports only the first line', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [{ id: '001', paths: ['docs/guide.md'], dependsOn: [], executionKind: 'commit' }],
+  });
+  writeFile(repo, 'test/twice.test.js', "a();\nread('docs/guide.md');\nread('docs/guide.md');\n");
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+  const twice = payload.coupledPaths.candidates.filter((e) => e.path === 'test/twice.test.js');
+
+  assert.strictEqual(twice.length, 1);
+  assert.strictEqual(twice[0].evidence.line, 2);
+});
+
+test('plan inspect --blueprint with absolute, parent, or glob items → makes no pair or candidate for them', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [{
+      id: '001',
+      paths: ['/abs/x.md', '../up.md', 'docs/*.md'],
+      dependsOn: [],
+      executionKind: 'commit',
+    }],
+  });
+  writeFile(repo, 'test/abs.test.js', "read('/abs/x.md');\nread('../up.md');\nread('docs/*.md');\n");
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.deepStrictEqual(payload.coupledPaths.pairs, []);
+  assert.deepStrictEqual(payload.coupledPaths.candidates, []);
+});
+
+test('plan inspect --blueprint → leaves the working tree unchanged', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeCoupledFixture(repo);
+  const before = git(repo, ['status', '--porcelain', '--untracked-files=all']);
+
+  const result = inspect(repo, ['--blueprint', blueprintDir]);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(git(repo, ['status', '--porcelain', '--untracked-files=all']), before);
+});
+
+test('plan usage text → mentions coupledPaths in the plan inspect description', () => {
+  const { COMMAND_USAGE } = require('../packages/cli/dist/cli-usage');
+
+  assert.ok(COMMAND_USAGE.plan.includes('coupledPaths'));
 });
