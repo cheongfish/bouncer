@@ -76,6 +76,43 @@ test('provider argument → wins over config.subagents.provider', () => {
   );
 });
 
+test('the four allowed providers → each resolves as given', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, {});
+  for (const provider of ['claude', 'cursor', 'codex', 'antigravity']) {
+    assert.strictEqual(
+      resolveSubagentRole({ repoRoot: repo, agentName: 'bouncer-reviewer', provider }).provider, provider,
+    );
+  }
+});
+
+test('provider outside the allowed list → role-config-invalid without echoing the value', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, {});
+  for (const provider of ['gpt\nx', 'a\0b', 'openai']) {
+    const result = resolveSubagentRole({ repoRoot: repo, agentName: 'bouncer-reviewer', provider });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.code, 'role-config-invalid');
+    assert.strictEqual(result.next, '--provider');
+    assert.strictEqual(result.provider, null);
+    assert.ok(!JSON.stringify(result).includes(provider.slice(0, 2) === 'gp' ? 'gpt' : provider));
+    assert.strictEqual(resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer', provider }).model, null);
+  }
+});
+
+test('invalid config.subagents.provider → rejected with its key, valid override wins', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { subagents: { provider: 'bad\nvalue' } });
+  const bad = resolveSubagentRole({ repoRoot: repo, agentName: 'bouncer-reviewer' });
+  assert.strictEqual(bad.ok, false);
+  assert.strictEqual(bad.code, 'role-config-invalid');
+  assert.strictEqual(bad.next, 'subagents.provider');
+  assert.ok(!JSON.stringify(bad).includes('bad'));
+  const ok = resolveSubagentRole({ repoRoot: repo, agentName: 'bouncer-reviewer', provider: 'codex' });
+  assert.strictEqual(ok.ok, true);
+  assert.strictEqual(ok.provider, 'codex');
+});
+
 test('config.subagents.provider when argument is omitted → is used', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);

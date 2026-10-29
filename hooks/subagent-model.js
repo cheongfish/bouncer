@@ -149,14 +149,23 @@ function handle(raw) {
     ? ` effort 이전값 ${Object.hasOwn(input, 'effort') ? JSON.stringify(input.effort) : '누락'}, `
       + `보정값 ${JSON.stringify(effort)}.`
     : '';
+  // 실제로 모델이 바뀐 경우만 모델 보정 문구를 낸다. effort만 바뀌었거나 옛 runtime 안내뿐이거나
+  // strong 통과(모델 유지)면 사용자에게 "모델이 보정됐다"고 잘못 알리지 않도록 문구를 나눈다.
+  const modelChanged = !keptStrong && previous !== model
+    && !(model === 'inherit' && !Object.hasOwn(input, 'model'));
+  let additionalContext;
+  if (modelChanged) {
+    additionalContext = `Bouncer ${role}의 Claude 모델 설정이 보정되었습니다: 이전값 ${oldValue}, `
+      + `설정 모델명 ${model}, 보정값 ${newValue}. 사용자에게 이 변경 사실을 한국어로 알려주세요.`
+      + `${effortNote}${notice}`;
+  } else if (effortChanged) {
+    additionalContext = `Bouncer ${role}의 Claude 호출 설정이 보정되었습니다.${effortNote}${notice}`;
+  } else {
+    additionalContext = `Bouncer ${role}:${notice}`;
+  }
   process.stdout.write(`${JSON.stringify({ hookSpecificOutput: {
     updatedInput: replacement || input,
-    // 모델을 그대로 둔 strong 통과 분기는 모델 보정 문구를 내지 않는다(effort·옛 runtime 안내만).
-    additionalContext: keptStrong
-      ? `Bouncer ${role}의 Claude 호출 설정이 보정되었습니다.${effortNote}${notice}`
-      : `Bouncer ${role}의 Claude 모델 설정이 보정되었습니다: 이전값 ${oldValue}, `
-        + `설정 모델명 ${model}, 보정값 ${newValue}. 사용자에게 이 변경 사실을 한국어로 알려주세요.`
-        + `${effortNote}${notice}`,
+    additionalContext,
   } })}\n`);
   return 0;
 }

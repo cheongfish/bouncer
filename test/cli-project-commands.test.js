@@ -1515,6 +1515,27 @@ test('subagent-model with a control-character tier → exits 1 and never echoes 
   assert.strictEqual(result.err.split('\n').length, 2);
 });
 
+test('subagent-model with a control-character provider → exits 1 on one line and never echoes it', () => {
+  const repo = tierRepo({ subagents: { provider: 'claude', claude: {} } });
+  for (const provider of ['x\ny', 'x\0y', 'openai']) {
+    const result = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--provider', provider, '--repo', repo]);
+    assert.strictEqual(result.code, 1);
+    assert.strictEqual(result.out, '');
+    assert.match(result.err, /^subagent-model: role-config-invalid: provider=- role=bouncer-reviewer .*\(fix: --provider\)\n$/);
+    assert.strictEqual(result.err.split('\n').length, 2);
+    assert.ok(!result.err.includes('openai') && !result.err.includes('x'.concat('y')));
+  }
+});
+
+test('subagent-model with an invalid configured provider → exits 1 naming the key; valid --provider overrides', () => {
+  const repo = tierRepo({ subagents: { provider: 'bad\nvalue' } });
+  const bad = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--repo', repo]);
+  assert.strictEqual(bad.code, 1);
+  assert.match(bad.err, /^subagent-model: role-config-invalid: provider=- .*\(fix: subagents\.provider\)\n$/);
+  const ok = capture(['subagent-model', '--agent', 'bouncer-reviewer', '--provider', 'codex', '--repo', repo]);
+  assert.strictEqual(ok.code, 0);
+});
+
 test('codex-agents check when in sync → reports in_sync JSON and does not write', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-check-'));
   assert.strictEqual(withBouncerHome(() => capture([

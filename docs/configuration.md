@@ -24,7 +24,7 @@
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` PR 기준. 없으면 `base_branch` → `origin/HEAD` → 사용자에게 묻기 | `"main"` |
-| `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
+| `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수**. 네 값 밖이면 `bouncer subagent-model`이 `role-config-invalid`로 거절하며(원문은 출력하지 않음), 유효한 `--provider`가 있으면 이 값을 덮는다 | `"cursor"` |
 | `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
 | `model_tiers.<provider>.<tier>` | `"inherit"` \| 호스트 모델 slug. `<tier>`는 `strong`·`standard`·`light` | 역할 등급을 호스트 모델로 옮기는 표. `subagents` slot이 없을 때 `bouncer subagent-model`이 읽는다. 빈 값·비문자열이면 상속하지 않고 `tier-unmapped`로 거절 | 없음. 역할 등급에 매핑이 없으면 `tier-unmapped`. `bouncer init` 예시는 `"inherit"` |
 | `roles.<agent>.tier` | `strong` \| `standard` \| `light` | 에이전트가 쓰는 등급 | 없음. 없으면 등급 없음이라 모델은 상속. `bouncer init` 예시는 `"standard"` |

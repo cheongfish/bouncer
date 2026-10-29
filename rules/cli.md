@@ -497,7 +497,11 @@ flags; with `--json` it prints one line `{ provider, role, tier, model, effort,
 source }`; on a resolution error (for example `tier-unmapped` or
 `role-config-invalid`) it exits 1. Pass only the model into named dispatch;
 omit the model argument when it is `inherit`. The value is configuration metadata,
-not evidence of the model the host ran. A model rejection stops dispatch and
+not evidence of the model the host ran. The selected provider (`--provider`, else
+`subagents.provider`) must be `claude`, `cursor`, `codex`, or `antigravity`; any
+other value exits 1 with `role-config-invalid` on one stderr line naming the key to fix
+(`--provider` or `subagents.provider`) without echoing the raw value, and a valid
+`--provider` overrides an invalid configured one. A model rejection stops dispatch and
 must be reported with provider, role, configured name, exact host reason, and
 config correction location. `subagent-model --agent <name> --tier <tier>`
 resolves the model for that call-level tier (for example `--tier strong`)
