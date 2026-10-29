@@ -361,8 +361,10 @@ the host usage table in [drive-metrics](./drive-metrics.md); read it when you
 wait for a worker's usage. If that value is not here when you record the model, record without
 `--tokens`; once it arrives, append it with `bouncer coordinate worker-tokens
 --blueprint <dir> --role <role> [--task <NNN>] [--perspective <name>] --tokens
-<n>` using the same task and perspective. If the host gives no value, leave it
-out: it is counted as missing, never estimated.
+<n>` using the same task and perspective. If the host gives no value, record
+`--tokens unreported` for that key instead: it is counted as missing, never
+estimated. `coordinate record --task <NNN>` and `coordinate advance` refuse with
+`worker-tokens-missing` while a finished worker key has neither record.
 
 ## Worker hand-back
 

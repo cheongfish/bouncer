@@ -1736,6 +1736,14 @@ const DISPATCH_CANON = [
     re: /worker-tokens[\s\S]{0,300}counted\s+as\s+missing,\s+never\s+estimated/,
   },
   {
+    label: 'unreported tokens are recorded, never left out',
+    re: /record\s+`--tokens\s+unreported`\s+for\s+that\s+key\s+instead/,
+  },
+  {
+    label: 'record and advance refuse missing worker tokens',
+    re: /refuse\s+with\s+`worker-tokens-missing`\s+while\s+a\s+finished\s+worker\s+key/,
+  },
+  {
     label: 'records run from the integration cwd, worker keeps task or light cwd',
     re: /from\s+the\s+integration\s+cwd[\s\S]{0,200}task\s+worktree\s+on\s+a\s+full\s+ledger,\s+the\s+integration\s+path\s+on\s+a\s+light\s+ledger/,
   },
@@ -1756,6 +1764,26 @@ const DISPATCH_CARDS = ['dispatch', 'implement', 'verify', 'review', 'final_revi
 test('agent-dispatch 정본 → payload·metadata·fallback·모델·토큰 규칙 본문을 모두 가짐', () => {
   const canon = RUN_REF('agent-dispatch');
   for (const rule of DISPATCH_CANON) assert.match(canon, rule.re, rule.label);
+});
+
+// rules/cli.md는 worker-tokens 명령 목록·synopsis·advance 정지 목록을 함께 소유한다. 세 곳이 같은
+// 계약(unreported 기록, worker-tokens-missing 검사 범위)을 말해야 CLI 거절과 문서가 어긋나지 않는다.
+// 줄바꿈이 있는 synopsis를 공백 하나로 접어서 비교한다.
+test('cli rules → name worker-tokens-missing', () => {
+  const cli = fs.readFileSync(path.join(__dirname, '..', 'rules', 'cli.md'), 'utf8').replace(/\s+/g, ' ');
+  const sentences = [
+    'Before running any action, `coordinate advance` refuses with `worker-tokens-missing` '
+      + '(exit 1, no `executed`) while a checked worker key has no token record.',
+    'A `worker-tokens --tokens unreported` record appends '
+      + '`{kind: worker-tokens, role, unreported: true, task?, perspective?}`.',
+    'The `worker-tokens-missing` check covers these keys: `coordinate record --task <T>` checks the keys of task T, '
+      + '`coordinate advance --task <T>` checks the keys of task T and the keys with no task, '
+      + 'and `coordinate advance` without `--task` checks only the keys with no task.',
+    '`coordinate worker-tokens --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n|unreported> '
+      + '--ledger-path <p> --ledger-hash <h> [--task <ddd>] [--perspective <name>]`',
+  ];
+  for (const sentence of sentences) assert.ok(cli.includes(sentence), sentence);
+  assert.ok(cli.includes('|worker-model|worker-tokens|note|'), 'coordinate command list names worker-tokens');
 });
 
 test('dispatch 공통 규칙을 쓰는 카드 → 실재하는 agent-dispatch 링크만 두고 정본 본문을 복제하지 않음', () => {
