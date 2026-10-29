@@ -16,6 +16,8 @@ import executionDag = require('./execution-dag');
 const { pathSetOf } = executionDag;
 import scopeMod = require('./scope');
 const { withLedgerLock } = scopeMod;
+import pathOverlapMod = require('./path-overlap');
+const { pathsOverlap } = pathOverlapMod;
 import commandArgvMod = require('./command-argv');
 import leaseMod = require('./lease');
 const { checkLease, revokeLease } = leaseMod;
@@ -272,8 +274,9 @@ function finalReviewDiscoveryStored(integrationPath: string, blueprint: string):
 /**
  * 최종 리뷰 이후 리뷰 원인 repair·supplement 접수 여부를 한 곳에서 판정한다. 표식이 허용 밖의
  * 값이면 구형으로 접지 않고 거절한다. 구형 blueprint는 discovery 뒤 전부 거절하고, `brief`
- * 표식은 discovery 뒤 승인된 경로 안의 리뷰 원인 repair를 한 번(delta 전·이전 repair 없음)만
- * 받는다. 거절은 원장·문서를 쓰기 전에 끝난다.
+ * 표식은 discovery 뒤 리뷰 원인 repair를 한 번(delta 전·이전 repair 없음)만 받는다.
+ * 그 repair의 새 경로는 원장 모든 task의 Do not touch 합집합과 겹치지 않으면 접수하고 기록한다.
+ * 거절은 원장·문서를 쓰기 전에 끝난다.
  *
  * @param {object} opts - 판정 입력
  * @param {string} opts.integrationPath - integration worktree
@@ -281,11 +284,12 @@ function finalReviewDiscoveryStored(integrationPath: string, blueprint: string):
  * @param {Ledger} opts.ledger - 열린 원장(읽기만 한다)
  * @param {boolean} opts.supplement - supplement 접수이면 true, 리뷰 원인 repair이면 false
  * @param {string[]} [opts.newPaths] - 리뷰 원인 repair가 선언한 새 경로
- * @returns {{ ok: false; reason: string } | null} 거절이면 reason, 접수 가능이면 null
+ * @returns {{ ok: false; reason: string } | { ok: true; unexpected_paths: string[] } | null}
+ *   거절이면 reason, 새 경로를 기록하며 접수할 수 있으면 `unexpected_paths`(입력 순서), 그냥 접수 가능이면 null
  */
 function finalReviewGate(opts: {
   integrationPath: string; blueprint: string; ledger: Ledger; supplement: boolean; newPaths?: string[];
-}): { ok: false; reason: string } | null {
+}): { ok: false; reason: string } | { ok: true; unexpected_paths: string[] } | null {
   const { integrationPath, blueprint, ledger, supplement, newPaths } = opts;
   const contract = reviewContractAt(integrationPath, blueprint);
   if (contract === null) return { ok: false, reason: schema.REVIEW_CONTRACT_INVALID_REASON };
@@ -295,8 +299,22 @@ function finalReviewGate(opts: {
   if (hasReviewRepairDecision(ledger.decisions) || rootReviewHasDelta(integrationPath, blueprint)) {
     return { ok: false, reason: 'final-review-single-round' };
   }
-  // 새 경로는 승인된 affected_paths 밖이다. 최종 리뷰의 수정 1회는 승인 범위 안에서만 열린다.
-  if (newPaths && newPaths.length > 0) return { ok: false, reason: 'final-review-repair-scope' };
+  if (newPaths && newPaths.length > 0) {
+    // 새 경로는 막지 않고 기록한다. 막는 선은 plan이 정한 Do not touch뿐이고, repair가 다른 task의
+    // 금지선을 건드리지 않게 원장 모든 task의 합집합으로 본다. 문서 하나라도 못 읽으면 금지선을
+    // 알 수 없으므로 허용으로 풀지 않고 거절한다(fail closed).
+    const locked: string[] = [];
+    for (const entry of ledger.tasks) {
+      const found = scopeMod.doNotTouchFor(integrationPath, blueprint, entry.id);
+      if (!found.ok) return { ok: false, reason: 'scope-do-not-touch-unreadable' };
+      locked.push(...found.paths);
+    }
+    const hit = newPaths.some((entry) => locked.some(
+      (token) => pathsOverlap(token, scopeMod.normalizeScopeEntry(entry)),
+    ));
+    if (hit) return { ok: false, reason: 'final-review-repair-do-not-touch' };
+    return { ok: true, unexpected_paths: [...newPaths] };
+  }
   return null;
 }
 
@@ -392,7 +410,7 @@ function supplementDone({
     const pending = latestSupplementDecision(ledger);
     // 거절은 검증 실행과 원장 쓰기보다 앞선다. 최종 discovery 뒤에는 보완 완료도 받지 않는다.
     const gate = finalReviewGate({ integrationPath, blueprint, ledger, supplement: true });
-    if (gate) return gate;
+    if (gate && !gate.ok) return gate;
     if (!pending || pending.outcome !== 'pending') return { ok: false, reason: 'supplement-not-pending' };
     // 검증이 만드는 증적 파일이 변경 목록에 섞이지 않게 검증 전에 잰다.
     const changed = integrationChangedPaths(exec, integrationPath);
@@ -1155,12 +1173,14 @@ function coordinateRepair(ctx: RepairCtx, support: RepairSupport): RepairResult 
   // 최종 리뷰 discovery가 저장된 뒤의 리뷰 원인 repair·supplement는 wave 한도나 증거
   // 검사보다 먼저 거절한다. 원장·task 문서를 쓰기 전이라 거절은 아무 파일도 바꾸지 않는다.
   // CI 원인 repair(`--failure-command`)는 리뷰 원인이 아니므로 이 거절을 받지 않는다.
+  let reviewUnexpected: string[] | null = null;
   if (kind === 'supplement' || Array.isArray(reviewFindings)) {
     const gate = finalReviewGate({
       integrationPath: integration.integrationPath, blueprint, ledger,
       supplement: kind === 'supplement', newPaths,
     });
-    if (gate) return gate;
+    if (gate && !gate.ok) return gate;
+    if (gate) reviewUnexpected = gate.unexpected_paths;
   }
   // supplement는 wave 한도 검사보다 앞에서 처리한다. 새 task·wave를 쓰지 않으므로
   // 두 wave를 쓴 뒤에도 접수되어야 한다.
@@ -1321,6 +1341,8 @@ function coordinateRepair(ctx: RepairCtx, support: RepairSupport): RepairResult 
       nextScope: [...scopePaths],
       necessity: 'final review finding requires a Blueprint-scoped source repair',
       revision,
+      // brief 계약 첫 repair가 선언한 새 경로. 금지선 밖이라 접수했고 기록으로만 남긴다.
+      ...(reviewUnexpected ? { unexpected_paths: reviewUnexpected } : {}),
     };
     repair.decisions = [repairDecision];
     ledger.decisions.push(repairDecision);
@@ -1463,7 +1485,8 @@ function coordinateCriticalRecovery(ctx: RepairTaskCtx, support: RepairSupport):
  * 새 reason을 finalReviewGate에 추가하면 이 목록에도 넣어야 문서 표 검사가 따라온다.
  */
 const FINAL_REVIEW_REJECTION_REASONS: readonly string[] = Object.freeze([
-  schema.REVIEW_CONTRACT_INVALID_REASON, 'final-review-single-round', 'final-review-repair-scope',
+  schema.REVIEW_CONTRACT_INVALID_REASON, 'final-review-single-round', 'final-review-repair-do-not-touch',
+  'scope-do-not-touch-unreadable',
 ]);
 
 export = {

@@ -55,7 +55,8 @@ read code/tests/repo context needed to implement.
 - Do **not** move the pointer (`bouncer current --set`) or edit the
   coordinator ledger (`.bouncer/runtime/coordinator.json`); both stay with the
   controller.
-- Do **not** edit paths outside Touch / `affected_paths`.
+- Do **not** edit paths outside Touch / `affected_paths`, except as the Scope
+  section allows for a full coordinator drive. Never edit a Do not touch path.
 - Write only inside the worktree the controller gave you as cwd. A coordinator
   drive assigns one worktree per task; another task's worktree, the integration
   worktree, and the main checkout are never yours to edit.
@@ -84,6 +85,13 @@ read code/tests/repo context needed to implement.
 - When the work needs a path the current `affected_paths` does not carry, name
   that path in **Scope impact** and stop there. Only the coordinator revises
   scope, with `bouncer coordinate revise`.
+- Exception, full coordinator drive only: a required change that falls outside
+  Touch / `affected_paths` but under no Do not touch line (a generated pair of
+  a touched file, a test that pins the changed output) may be made. Report each
+  such path in an optional `## Unexpected paths` section, one line each:
+  ``- `<path>` — <reason, 1 to 200 characters>``. `coordinate report` refuses an
+  accepted report that omits the line. A path under a Do not touch line is never
+  an exception: name it in **Scope impact** and stop.
 
 ## Procedure
 
@@ -186,6 +194,9 @@ report file and rejects a missing or malformed `## Brief revision`,
 - Deviations, Scope impact, and Needs planning are optional in the report
   file: write each one only when it has a value, in that order between
   `## Red run` and `## Open choices`, and omit an empty one.
+- `## Unexpected paths` is optional too (see Scope): write it, before `## Brief
+  revision`, only when a full-drive commit carries a path outside the approved
+  scope, and omit it when empty.
 
 ```markdown
 ## Changed files

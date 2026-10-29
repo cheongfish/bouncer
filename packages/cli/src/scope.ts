@@ -20,6 +20,8 @@ import leaseMod = require('./lease');
 const { revokeLease, isValidLease, isValidLeaseSeq } = leaseMod;
 import validateSections = require('./validate-sections');
 const { SECTION_DEFS, extractPathCandidates } = validateSections;
+import coordinatorLedgerMod = require('./coordinator-ledger');
+const { ledgerModeOf } = coordinatorLedgerMod;
 import type { Task as CanonicalTask, Ledger as CanonicalLedger } from './execution-contracts';
 
 function isUnder(file: unknown, entry: unknown): boolean {
@@ -143,6 +145,11 @@ type CoordinatorContext = {
   integrationHead: string | null;
   ledgerFile: string | null;
   tasks: LedgerTask[];
+  // 원장 mode. 원장을 읽지 못한 비활성 context는 null이다.
+  mode: 'full' | 'light' | null;
+  // full mode에서만 채우는 금지선(integration 사본 기준). null은 읽기 실패 — 호출자가 fail closed로 다룬다.
+  // light와 비활성은 []다.
+  doNotTouch: string[] | null;
 };
 
 const TASK_DOC_RE = /(?:^|\/)tasks\/(\d{3})\/tasks\.md$/;
@@ -541,7 +548,40 @@ function inactiveContext(reason: string): CoordinatorContext {
     integrationHead: null,
     ledgerFile: null,
     tasks: [],
+    mode: null,
+    doNotTouch: [],
   };
+}
+
+/**
+ * 금지선(Do not touch)의 단일 출처. worker 사본이 아니라 integration checkout의 task 문서를 읽는다.
+ * worker가 자기 사본에서 금지선 줄을 지워도 판정이 바뀌지 않게 하려는 것이라, commit guard·report·
+ * final-review 판정이 모두 이 함수만 쓴다. 문서 부재·YAML 파손·읽기 오류는 모두 `ok: false`다 —
+ * 호출자는 이를 허용으로 바꾸지 않고 fail closed로 거절한다.
+ *
+ * @param {string} integrationPath - integration checkout 절대 경로
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 3자리 task id
+ * @returns {{ ok: true, paths: string[] } | { ok: false }} 정규화·중복 제거한 금지선 토큰(입력 순서). 절이 없으면 빈 배열
+ */
+function doNotTouchFor(integrationPath: string, blueprint: string, taskId: string):
+  { ok: true; paths: string[] } | { ok: false } {
+  let body: string;
+  try {
+    body = readDoc(taskDocPath(integrationPath, blueprint, taskId)).body;
+  } catch (_e) {
+    // 문서 부재·권한 오류·YAML 파손을 모두 읽기 실패 하나로 흡수한다: 금지선을 알 수 없으면 어떤
+    // 경로도 허용할 수 없으므로 호출자가 fail closed로 거절한다(허용으로 풀리는 경로가 아니다).
+    return { ok: false };
+  }
+  const paths: string[] = [];
+  for (const { tokens } of doNotTouchLines(body.split('\n'))) {
+    for (const token of tokens) {
+      const norm = normalizeScopeEntry(token);
+      if (!paths.includes(norm)) paths.push(norm);
+    }
+  }
+  return { ok: true, paths };
 }
 
 /**
@@ -621,7 +661,16 @@ function coordinatorContext({ repoRoot, blueprint, task }: {
     actualPaths: entry && Array.isArray(entry.actualPaths) ? entry.actualPaths : [],
     resources: entry && Array.isArray(entry.exclusive_resources) ? entry.exclusive_resources : [],
     workerSha: entry && typeof entry.sha === 'string' ? entry.sha : null,
+    mode: ledgerModeOf(ledger as CanonicalLedger),
+    doNotTouch: [],
   };
+  // full mode에서만 금지선을 integration 사본에서 읽는다. task를 모르면 어떤 문서도 출처가 될 수 없어 null이다.
+  // 소비자(checkCommitSafety)는 scope 밖 후보가 있을 때만 이 값을 본다 — scope 안 커밋은 읽기 실패와 무관하다.
+  if (withLedger.mode === 'full') {
+    const dnt = taskId && paths.integrationPath
+      ? doNotTouchFor(paths.integrationPath, String(blueprint), taskId) : { ok: false as const };
+    withLedger.doNotTouch = dnt.ok ? dnt.paths : null;
+  }
   // 포인터가 가리키는 task가 원장에 없으면 이 실행이 맡은 task가 아니다.
   // reviseTaskScope가 같은 상황을 거절하므로 여기서도 같은 코드로 막는다.
   if (taskId && !entry) return { ...withLedger, reason: 'task-outside-blueprint' };
@@ -1188,6 +1237,8 @@ export = {
   coordinatorTaskId,
   readCoordinatorLedger,
   coordinatorContext,
+  doNotTouchFor,
+  normalizeScopeEntry,
   mainWorktreeNext,
   reviseTaskScope,
   trackedScopeViolations,

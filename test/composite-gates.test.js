@@ -28,7 +28,8 @@ test('COMPOSITE_GATES when read → seven gates cover every live G-code and boun
   assert.strictEqual(compositeGateForReason('ledger-locked'), null);
   assert.deepStrictEqual(COMPOSITE_GATES.flatMap((g) => g.reasons).sort(), [
     'cross-drive-conflict', 'cross-drive-ledger-unreadable', 'main-worktree-source-write',
-    'out-of-scope', 'stale-revision', 'unassigned-worktree', 'verification-task-no-commit',
+    'out-of-scope', 'scope-do-not-touch-unreadable', 'scope-do-not-touch-violation',
+    'stale-revision', 'unassigned-worktree', 'verification-task-no-commit',
   ]);
   assert.ok(Object.isFrozen(COMPOSITE_GATES));
   assert.strictEqual(compositeGateLabel('verification-evidence'), '검증 증적');

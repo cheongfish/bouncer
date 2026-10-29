@@ -11,7 +11,9 @@ does not match the active dispatch, read the stale report rule in
   `judge.fields` and run the `report` `argv`; only an `accepted` report may
   then run the `record` `argv`. A mismatch is stale and follows agent-dispatch.
 - Before `accepted`, check all of: Brief revision matches the dispatch, scope
-  (Changed files inside the approved paths), verify (the assigned command
+  (every path outside the approved paths is outside every Do not touch line and
+  carries a reason under `## Unexpected paths`; `coordinate report` refuses the
+  rest), verify (the assigned command
   passed in `## Tests`), Interface (brief wording matches the changed files),
   and the worker commit state below. Run the returned `argv` with its fence
   (`--attempt`, `--task-brief-hash`, lease, generation, ledger) unchanged and

@@ -18,7 +18,9 @@ const { transition } = executionDag;
 import configMod = require('./config');
 const { readWavesPerSession } = configMod;
 import scopeMod = require('./scope');
-const { withLedgerLock } = scopeMod;
+const { withLedgerLock, makeAllowed, isRuntimeArtifact, doNotTouchFor, normalizeScopeEntry } = scopeMod;
+import pathOverlapMod = require('./path-overlap');
+const { pathsOverlap, normalizeOverlapPath } = pathOverlapMod;
 import leaseMod = require('./lease');
 import reviewPolicy = require('./review-policy');
 // worker-model 기록의 관점 소속 검사와 `next` 문구가 validate-sections와 같은 정본을 쓴다.
@@ -129,6 +131,10 @@ type ReportDecision = {
   outcome: ReportOutcome; summary: string;
   // full 모드 수락 기록에만 있다. light inline 보고는 보고 파일이 없어 생략한다.
   open_choices?: string[]; known_weaknesses?: string[];
+  // full 모드 accepted 보고에서 ledger scope 밖이지만 금지선 밖이라 허용한 커밋 경로와 worker가 적은 이유(경로 사전순).
+  unexpected_paths?: Array<{ path: string; reason: string }>;
+  // 그 경로가 같은 drive의 미통합 다른 task scope와 겹칠 때 그 task id(사전순). 이탈 경로가 없으면 두 키가 없다.
+  overlaps?: string[];
 };
 type StaleReportDecision = {
   task: string; kind: 'stale-report';
@@ -215,6 +221,8 @@ type ParsedReportFile = {
   revision: { attempt: number; task_brief_hash: string } | null;
   open_choices: string[] | null;
   known_weaknesses: string[] | null;
+  // `## Unexpected paths` 절의 `- \`path\` — reason` 줄. 절이 없으면 빈 배열이다.
+  unexpected: Array<{ path: string; reason: string }>;
 };
 
 /**
@@ -231,8 +239,12 @@ function parseReportFile(body: string): ParsedReportFile {
     { key: 'revision', re: /^##\s+Brief revision\s*$/i },
     { key: 'open', re: /^##\s+Open choices\s*$/i },
     { key: 'weak', re: /^##\s+Known weaknesses\s*$/i },
+    { key: 'unexpected', re: /^##\s+Unexpected paths\s*$/i },
     // 다른 ## 제목은 앞 섹션의 끝을 알리는 경계 구실만 한다.
-    { key: 'other', re: /^##\s+(?!Brief revision\s*$|Open choices\s*$|Known weaknesses\s*$)\S/i },
+    {
+      key: 'other',
+      re: /^##\s+(?!Brief revision\s*$|Open choices\s*$|Known weaknesses\s*$|Unexpected paths\s*$)\S/i,
+    },
   ] as Parameters<typeof parseSections>[1]);
   let revision: ParsedReportFile['revision'] = null;
   if (sections.revision) {
@@ -247,7 +259,13 @@ function parseReportFile(body: string): ParsedReportFile {
     const list = text.split('\n').map((line) => line.replace(/^\s*[-*]\s+/, '').trim()).filter(Boolean);
     return list.length === 1 && list[0].toLowerCase() === 'none' ? [] : list;
   };
-  return { revision, open_choices: items(sections.open), known_weaknesses: items(sections.weak) };
+  // reason은 worker가 쓴 데이터로 저장만 한다. 판정·명령에 쓰지 않으므로 형식만 거른다.
+  const unexpected: ParsedReportFile['unexpected'] = [];
+  for (const line of (sections.unexpected || '').split('\n')) {
+    const match = /^- `([^`]+)` — (.+)$/.exec(line.trim());
+    if (match) unexpected.push({ path: normalizeOverlapPath(match[1]), reason: match[2] });
+  }
+  return { revision, open_choices: items(sections.open), known_weaknesses: items(sections.weak), unexpected };
 }
 
 /**
@@ -256,7 +274,10 @@ function parseReportFile(body: string): ParsedReportFile {
  */
 type ReportFileCheck =
   | { ok: false; failure: Record<string, unknown> }
-  | { ok: true; open_choices: string[]; known_weaknesses: string[] };
+  | {
+    ok: true; open_choices: string[]; known_weaknesses: string[];
+    unexpected: Array<{ path: string; reason: string }>;
+  };
 
 /**
  * full 모드 report가 활성 dispatch의 보고 파일을 읽어 revision 출처를 증명한다.
@@ -297,7 +318,80 @@ function checkReportFile(
   }
   return {
     ok: true, open_choices: parsed.open_choices as string[], known_weaknesses: parsed.known_weaknesses as string[],
+    unexpected: parsed.unexpected,
   };
+}
+
+/** 이탈 경로 이유 길이 상한(trim 뒤). 원장 결정에 그대로 저장되므로 키우지 않는다. */
+const UNEXPECTED_REASON_MAX = 200;
+
+/**
+ * accepted report 시점에 worker 커밋의 scope 밖 경로를 골라 금지선을 확인하고 이유를 모은다.
+ * 후보는 dispatch가 남긴 `base_head`부터 worker HEAD까지의 변경 경로이고, rename은 옛 경로까지
+ * 후보로 잡아(`--no-renames`) scope 밖 파일을 scope 안으로 옮겨 숨길 수 없다. 금지선은 integration
+ * 사본에서만 읽으며(worker 사본은 출처가 아니다) 후보가 있을 때만 읽는다. 읽기만 하고 원장은 쓰지 않는다.
+ *
+ * 판정 순서: 금지선 읽기 실패 → 금지선 겹침 → 이유 누락 → 기록(+overlaps). hook을 우회한 커밋도
+ * 여기서 한 번 더 막는다.
+ *
+ * @param {object} opts - 판정 입력
+ * @param {Exec} opts.exec - git 실행기
+ * @param {Ledger} opts.ledger - 열린 원장(다른 task scope 비교용)
+ * @param {Task} opts.item - 보고하는 task(workerPath·dispatch·scope 출처)
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {string} opts.integrationPath - 금지선을 읽을 integration checkout
+ * @param {Array<{path: string, reason: string}>} opts.reasons - 보고 파일의 Unexpected paths 줄
+ * @returns {{ ok: false, failure: object } | { ok: true, unexpected_paths?: object[], overlaps?: string[] }}
+ *   거절 본문, 또는 저장할 값(이탈 경로가 없으면 두 키가 없다)
+ */
+function checkUnexpectedPaths(opts: {
+  exec: Exec; ledger: Ledger; item: Task; blueprint: string; integrationPath: string;
+  reasons: Array<{ path: string; reason: string }>;
+}): { ok: false; failure: Record<string, unknown> }
+  | { ok: true; unexpected_paths?: Array<{ path: string; reason: string }>; overlaps?: string[] } {
+  const { exec, ledger, item, blueprint, integrationPath, reasons } = opts;
+  const base = item.dispatch && item.dispatch.base_head;
+  if (!base || !item.workerPath) return { ok: true };
+  const diff = String(exec('git', ['diff', '--name-only', '-z', '--no-renames', `${base}..HEAD`], {
+    cwd: item.workerPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }));
+  const scope = coordinatorWorker.currentScopePaths(item);
+  const allowed = makeAllowed({ affectedPaths: scope, blueprintDir: blueprint });
+  const outside = [...new Set(diff.split('\0').filter(Boolean).map(normalizeOverlapPath))]
+    .filter((file) => !isRuntimeArtifact(file) && !allowed(file))
+    .sort();
+  if (outside.length === 0) return { ok: true };
+  const locked = doNotTouchFor(integrationPath, blueprint, item.id);
+  // 금지선을 못 읽으면 허용으로 풀지 않는다(fail closed).
+  if (!locked.ok) {
+    return { ok: false, failure: { ok: false, reason: 'scope-do-not-touch-unreadable', paths: outside } };
+  }
+  const hit = outside.filter((file) => locked.paths.some(
+    (token) => pathsOverlap(normalizeScopeEntry(token), normalizeScopeEntry(file)),
+  ));
+  if (hit.length > 0) {
+    return { ok: false, failure: { ok: false, reason: 'scope-do-not-touch-violation', paths: hit } };
+  }
+  const stored: Array<{ path: string; reason: string }> = [];
+  const missing: string[] = [];
+  for (const file of outside) {
+    const line = reasons.find((entry) => entry.path === file);
+    const reason = line ? line.reason.trim() : '';
+    if (reason === '' || reason.length > UNEXPECTED_REASON_MAX) missing.push(file);
+    else stored.push({ path: file, reason });
+  }
+  if (missing.length > 0) {
+    return { ok: false, failure: { ok: false, reason: 'unexpected-path-reason-missing', paths: missing } };
+  }
+  // 같은 drive의 미통합 다른 task scope와 겹치면 병렬 충돌 후보다. 막지 않고 기록으로만 남긴다.
+  const overlaps = ledger.tasks
+    .filter((other) => other.id !== item.id && (other.status || 'pending') !== 'integrated')
+    .filter((other) => coordinatorWorker.currentScopePaths(other).some((entry) => outside.some(
+      (file) => pathsOverlap(normalizeOverlapPath(entry), file),
+    )))
+    .map((other) => other.id)
+    .sort();
+  return { ok: true, unexpected_paths: stored, ...(overlaps.length > 0 ? { overlaps } : {}) };
 }
 
 
@@ -1131,7 +1225,9 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
   }
   // full 모드는 stale 비교보다 먼저 보고 파일로 revision 출처를 증명한다. 파일 값이
   // CLI 인자와 같을 때만 아래 stale 비교가 의미를 갖는다. 거절은 원장을 쓰지 않는다.
-  let fileItems: { open_choices: string[]; known_weaknesses: string[] } | null = null;
+  let fileItems: {
+    open_choices: string[]; known_weaknesses: string[]; unexpected: Array<{ path: string; reason: string }>;
+  } | null = null;
   if (ledgerModeOf(ledger) !== 'light') {
     const checked = checkReportFile(
       reportPathFor(item.workerPath as string, task, item.dispatch.attempt),
@@ -1164,6 +1260,16 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
     );
     if (!evidence.ok) return evidence;
   }
+  // full 모드 accepted 커밋 task의 scope 밖 경로: 금지선은 막고 나머지는 이유와 함께 기록한다.
+  // 거절은 위쪽 검사와 같이 원장을 쓰기 전에 끝난다.
+  let unexpectedRecord: { unexpected_paths?: Array<{ path: string; reason: string }>; overlaps?: string[] } = {};
+  if (fileItems && outcome === 'accepted' && (item.execution_kind || 'commit') !== 'verification') {
+    const checked = checkUnexpectedPaths({
+      exec, ledger, item, blueprint, integrationPath: integration.integrationPath, reasons: fileItems.unexpected,
+    });
+    if (!checked.ok) return checked.failure;
+    unexpectedRecord = checked;
+  }
   item.dispatch.status = 'reported';
   item.dispatch.outcome = outcome as ReportOutcome;
   item.dispatch.summary = summary;
@@ -1172,6 +1278,8 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
     outcome: outcome as ReportOutcome, summary,
     ...(fileItems
       ? { open_choices: fileItems.open_choices, known_weaknesses: fileItems.known_weaknesses } : {}),
+    ...(unexpectedRecord.unexpected_paths ? { unexpected_paths: unexpectedRecord.unexpected_paths } : {}),
+    ...(unexpectedRecord.overlaps ? { overlaps: unexpectedRecord.overlaps } : {}),
   };
   item.decisions = [...(item.decisions || []), reportDecision];
   ledger.decisions.push(reportDecision);
@@ -1899,12 +2007,7 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Defer the remaining must_fix findings with a note and accept the review, or stop with '
       + '`final-review-blocked` for the user decision.',
   },
-  'final-review-repair-scope': {
-    cause: 'The review-caused repair declares new paths outside the approved `affected_paths`, which the one '
-      + 'final-review repair may not add.',
-    next: 'Report the block to the user and plan the out-of-scope fix with `/bouncer-plan`; retry only with '
-      + 'paths inside the approved scope.',
-  },
+
   'review-contract-invalid': {
     cause: 'The blueprint index `review_contract` value is not an allowed marker, so no review-caused repair '
       + 'or supplement may open.',
@@ -2000,6 +2103,27 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'report-revision-conflict': {
     cause: 'The report file Brief revision differs from the `--attempt` / `--task-brief-hash` arguments.',
     next: 'Keep the attempt open; fix the report file or retry with the file values, do not edit the ledger.',
+  },
+  'scope-do-not-touch-violation': {
+    cause: 'A committed path outside the task scope falls under a Do not touch line of the integration '
+      + 'copy of the task document.',
+    next: 'Keep the attempt open; ask the worker to drop the change, or release the line after user approval '
+      + 'with `bouncer coordinate revise --release-do-not-touch` from the integration checkout.',
+  },
+  'scope-do-not-touch-unreadable': {
+    cause: 'The integration copy of the task document that holds the Do not touch lines could not be read.',
+    next: 'Restore the task document in the integration checkout, then retry. The line is never read from '
+      + 'the worker copy.',
+  },
+  'unexpected-path-reason-missing': {
+    cause: 'A committed path outside the task scope has no usable reason line in `## Unexpected paths` '
+      + '(missing, empty, or over 200 characters).',
+    next: 'Keep the attempt open; ask the worker to add a ``- `path` — reason`` line for each listed path, '
+      + 'then retry `bouncer coordinate report`.',
+  },
+  'final-review-repair-do-not-touch': {
+    cause: 'A new path of the first final-review repair falls under a Do not touch line of a ledger task.',
+    next: 'Drop the path from `--new-path`, or release the line after user approval, then retry.',
   },
   'report-section-missing': {
     cause: 'The worker report file lacks `## Open choices` or `## Known weaknesses`.',

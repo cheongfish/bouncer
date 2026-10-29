@@ -63,6 +63,7 @@ const COMPOSITE_GATES: ReadonlyArray<CompositeGateRow> = Object.freeze([
     reasons: [
       'out-of-scope', 'main-worktree-source-write', 'unassigned-worktree',
       'verification-task-no-commit', 'cross-drive-conflict', 'cross-drive-ledger-unreadable',
+      'scope-do-not-touch-violation', 'scope-do-not-touch-unreadable',
     ],
     next: 'Unstage paths outside the task scope or commit from the assigned worktree; '
       + 'change scope only through the coordinator or `/bouncer-plan`.',

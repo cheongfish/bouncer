@@ -81,12 +81,16 @@ function writeCoordinatorConfig(repoRoot, coordinator) {
 function writeWorkerReport(worker, task, attempt, hash, {
   revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
   open = '- none', weak = '- none', pathAttempt = attempt,
+  // commitAndStampWorker가 scope 밖에 만드는 `src/task-<id>.js`의 이유 줄. 커밋하지 않았거나 scope 안인 경로의
+  // 줄은 무시되므로 기본값으로 두어 기존 accepted 사례가 이탈 기록 규칙에 걸리지 않게 한다.
+  unexpected = `- \`src/task-${task}.js\` — fixture 커밋 파일`,
 } = {}) {
   const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
   fs.mkdirSync(dir, { recursive: true });
   const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
   if (open !== null) parts.push(`## Open choices\n${open}`);
   if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
+  if (unexpected !== null) parts.push(`## Unexpected paths\n${unexpected}`);
   fs.writeFileSync(path.join(dir, `${task}-${pathAttempt}.md`), `${parts.join('\n\n')}\n`);
 }
 
@@ -1852,12 +1856,19 @@ test('prepare with a symlink at an assigned worker path → refuses before seedi
 /**
  * prepared commit task fixture. bootstrap·prepare만 끝내 worker를 돌려준다.
  */
-function preparedCommitDrive(prefix, blueprint, { affectedPaths = null } = {}) {
+function preparedCommitDrive(prefix, blueprint, { affectedPaths = null, doNotTouch = [], extraFiles = [] } = {}) {
   const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  // 금지선은 plan 시점의 task 문서 본문에 있다. bootstrap이 이 사본을 integration으로 옮긴다.
+  const lockedSection = doNotTouch.length > 0
+    ? `\n## Do not touch\n${doNotTouch.map((entry) => `- \`${entry}\` — fixture 금지선\n`).join('')}` : '';
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),
-    `---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n${affectedPaths ? `  affected_paths:\n${affectedPaths.map((entry) => `    - ${entry}\n`).join('')}` : ''}---\nbrief\n`);
+    `---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n${affectedPaths ? `  affected_paths:\n${affectedPaths.map((entry) => `    - ${entry}\n`).join('')}` : ''}---\nbrief\n${lockedSection}`);
+  for (const rel of extraFiles) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), 'base\n');
+  }
   execFileSync('git', ['add', '-A'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -2123,6 +2134,8 @@ function dropSection(body, heading) {
 test('implementer report without the three optional sections → accepted with empty stored lists, required gaps still refused', () => {
   const { drive, attempt, hash, report } = openReportAttempt(
     'bouncer-report-optional-', '.bouncer/context/epics/098-x/blueprints/006-y',
+    // fixture 커밋(src/task-001.js)이 scope 안이라 이탈 이유 줄이 필요 없는 사례다.
+    { affectedPaths: ['src/task-001.js'] },
   );
   const filled = filledImplementerReport(attempt, hash);
   // 전제: 문서 template 자체가 선택 세 절을 담지 않아야 이 회귀가 의미를 가진다.
@@ -5123,6 +5136,20 @@ test('final discovery stored then CI failure-command repair → is not rejected 
   assert.notStrictEqual(out.reason, 'final-review-single-round');
 });
 
+/**
+ * integration 사본 task 문서 끝에 Do not touch 절을 붙인다. 금지선 판정의 출처가 이 사본임을 고정하는 fixture다.
+ *
+ * @param {object} drive - supplementDrive 계열 fixture
+ * @param {number} index - 원장 task 순번(0부터)
+ * @param {string[]} locked - 금지선 경로
+ * @returns {void}
+ */
+function lockTaskDoc(drive, index, locked) {
+  const entry = readLedger(drive).tasks[index];
+  const doc = path.join(drive.integrationPath, drive.blueprint, 'tasks', entry.id, 'tasks.md');
+  fs.appendFileSync(doc, `\n## Do not touch\n${locked.map((p) => `- \`${p}\` — fixture\n`).join('')}`);
+}
+
 // review_contract 표식 blueprint: 최종 discovery 뒤 리뷰 원인 repair를 한 번만 받는다.
 function briefContractDrive(prefix, blueprint, contract = 'brief') {
   const drive = finalReviewStoredDrive(prefix, blueprint);
@@ -5159,12 +5186,43 @@ test('brief contract after one review-caused repair then a second one → final-
   assert.deepStrictEqual(snapshotOf(drive), before);
 });
 
-test('brief contract review-caused repair with newPaths → final-review-repair-scope and bytes unchanged', () => {
+test('brief contract review-caused repair with newPaths inside Do not touch → final-review-repair-do-not-touch and bytes unchanged', () => {
   const drive = briefContractDrive('bouncer-brief-scope-', '.bouncer/context/epics/090-x/blueprints/022-y');
+  lockTaskDoc(drive, 1, ['scripts/src/lib/']);
   const before = snapshotOf(drive);
   const out = coordinate(reviewRepairOpts(drive, { newPaths: ['scripts/src/lib/x.ts'] }));
-  assert.strictEqual(out.reason, 'final-review-repair-scope');
+  assert.strictEqual(out.reason, 'final-review-repair-do-not-touch');
   assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('brief contract review-caused repair with newPaths outside every Do not touch line → is accepted and records unexpected_paths', () => {
+  const drive = briefContractDrive('bouncer-brief-accept-', '.bouncer/context/epics/090-x/blueprints/024-y');
+  lockTaskDoc(drive, 1, ['docs/']);
+  const out = coordinate(reviewRepairOpts(drive, { newPaths: ['src/new-b.js', 'src/new-a.js'] }));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.deepStrictEqual(out.decision.unexpected_paths, ['src/new-b.js', 'src/new-a.js']);
+});
+
+test('brief contract review-caused repair with newPaths and an integration task document gone → scope-do-not-touch-unreadable and bytes unchanged', () => {
+  const drive = briefContractDrive('bouncer-brief-unread-', '.bouncer/context/epics/090-x/blueprints/025-y');
+  fs.rmSync(path.join(drive.integrationPath, drive.blueprint, 'tasks/002/tasks.md'));
+  const before = snapshotOf(drive);
+  const out = coordinate(reviewRepairOpts(drive, { newPaths: ['scripts/src/lib/x.ts'] }));
+  assert.strictEqual(out.reason, 'scope-do-not-touch-unreadable');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('brief contract repair when the worker copy drops the Do not touch line → still refuses with final-review-repair-do-not-touch', () => {
+  const drive = briefContractDrive('bouncer-brief-worker-', '.bouncer/context/epics/090-x/blueprints/026-y');
+  lockTaskDoc(drive, 1, ['scripts/src/lib/']);
+  // 이 fixture는 prepare를 거치지 않으므로 worker 사본을 직접 만든다 — 금지선 줄이 없는 사본이다.
+  const workerDoc = path.join(__coordinatorPathsFor({
+    repoRoot: drive.repo, blueprint: drive.blueprint, task: '002',
+  }).workerPath, drive.blueprint, 'tasks/002/tasks.md');
+  fs.mkdirSync(path.dirname(workerDoc), { recursive: true });
+  fs.writeFileSync(workerDoc, '---\nbouncer:\n  status: ready\n---\nbrief\n');
+  const out = coordinate(reviewRepairOpts(drive, { newPaths: ['scripts/src/lib/x.ts'] }));
+  assert.strictEqual(out.reason, 'final-review-repair-do-not-touch');
 });
 
 test('brief contract after final discovery then supplement → final-review-single-round', () => {
@@ -6736,4 +6794,144 @@ test('uncommit whose ledger write throws → restores HEAD to fromHead and rethr
   }), /ledger write failed/);
   assert.strictEqual(workerGit(drive.worker, ['rev-parse', 'HEAD']), headBefore);
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+});
+
+// --- full 모드 accepted report: scope 밖 커밋 경로의 이유 기록과 금지선 -------------
+
+/**
+ * scope가 `src/a.js`뿐인 full drive에서 worker가 scope 밖 `src/extra.js`를 커밋한 상태를 만든다.
+ * report 호출과 보고 파일 쓰기는 호출부가 맡는다.
+ */
+function unexpectedPathDrive(tag, suffix, options = {}) {
+  const { commits = ['src/extra.js'], ...driveOptions } = options;
+  const opened = openReportAttempt(`bouncer-unexpected-${tag}-`,
+    `.bouncer/context/epics/098-x/blueprints/${suffix}-y`, {
+      commit: false, affectedPaths: ['src/a.js'], ...driveOptions,
+    });
+  for (const rel of commits) {
+    const abs = path.join(opened.drive.worker, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `edited ${rel}\n`);
+    execFileSync('git', ['add', rel], { cwd: opened.drive.worker });
+  }
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'feat: x'],
+    { cwd: opened.drive.worker });
+  commitAndStampWorker(opened.drive.repo, opened.drive.blueprint, opened.drive.worker);
+  const write = (unexpected) => writeWorkerReport(
+    opened.drive.worker, '001', opened.attempt, opened.hash, { unexpected },
+  );
+  return { ...opened, write };
+}
+
+test('accepted report with a scope-outside commit and no reason line → unexpected-path-reason-missing and bytes unchanged', () => {
+  const { drive, report, write } = unexpectedPathDrive('a', '101');
+  write(null);
+  const refused = assertRefusedWithoutWrite(drive, report, 'unexpected-path-reason-missing');
+  assert.deepStrictEqual(refused.paths, ['src/extra.js']);
+});
+
+test('accepted report with an empty reason on a scope-outside commit → unexpected-path-reason-missing', () => {
+  const { drive, report, write } = unexpectedPathDrive('b', '102');
+  write('- `src/extra.js` —    ');
+  assert.deepStrictEqual(assertRefusedWithoutWrite(drive, report, 'unexpected-path-reason-missing').paths,
+    ['src/extra.js']);
+});
+
+test('accepted report with a 201-character reason → unexpected-path-reason-missing', () => {
+  const { drive, report, write } = unexpectedPathDrive('c', '103');
+  write(`- \`src/extra.js\` — ${'가'.repeat(201)}`);
+  assertRefusedWithoutWrite(drive, report, 'unexpected-path-reason-missing');
+});
+
+test('accepted report with a reason on a scope-outside commit → stores unexpected_paths on the ReportDecision', () => {
+  const { report, write } = unexpectedPathDrive('d', '104');
+  write('- `src/extra.js` — 생성물 짝');
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.deepStrictEqual(reported.decision.unexpected_paths, [{ path: 'src/extra.js', reason: '생성물 짝' }]);
+  assert.strictEqual('overlaps' in reported.decision, false);
+});
+
+test('accepted report with an unexpected path another unintegrated task scope covers → records overlaps', () => {
+  const { drive, report, write } = unexpectedPathDrive('e', '105');
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.tasks.push({
+    id: '003', status: 'pending', depends_on: [], affected_paths: ['src/extra.js'],
+  });
+  ledger.tasks.push({
+    id: '002', status: 'pending', depends_on: [], affected_paths: ['src/'],
+  });
+  ledger.tasks.push({
+    id: '004', status: 'integrated', depends_on: [], affected_paths: ['src/extra.js'],
+  });
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  write('- `src/extra.js` — 공유 fixture');
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.deepStrictEqual(reported.decision.overlaps, ['002', '003']);
+});
+
+test('accepted report whose reason line names an uncommitted path → stores nothing and refuses nothing', () => {
+  const { report, write } = unexpectedPathDrive('f', '106', { commits: ['src/a.js'] });
+  write('- `src/none.js` — 커밋하지 않은 경로');
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual('unexpected_paths' in reported.decision, false);
+  assert.strictEqual('overlaps' in reported.decision, false);
+});
+
+test('accepted report with only in-scope commits → has no unexpected_paths or overlaps key', () => {
+  const { report, write } = unexpectedPathDrive('g', '107', { commits: ['src/a.js'] });
+  write(null);
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual('unexpected_paths' in reported.decision, false);
+  assert.strictEqual('overlaps' in reported.decision, false);
+});
+
+test('accepted report whose scope-outside commit hits the integration Do not touch line → scope-do-not-touch-violation', () => {
+  const { drive, report, write } = unexpectedPathDrive('h', '108', {
+    doNotTouch: ['src/locked/'], commits: ['src/locked/x.js'],
+  });
+  write('- `src/locked/x.js` — hook 우회 커밋');
+  const refused = assertRefusedWithoutWrite(drive, report, 'scope-do-not-touch-violation');
+  assert.deepStrictEqual(refused.paths, ['src/locked/x.js']);
+});
+
+test('accepted report with an exactly 200-character reason → is accepted', () => {
+  const { report, write } = unexpectedPathDrive('i', '109');
+  write(`- \`src/extra.js\` — ${'가'.repeat(200)}`);
+  assert.strictEqual(report().ok, true);
+});
+
+test('accepted report with an integration task document gone and a scope-outside commit → scope-do-not-touch-unreadable and bytes unchanged', () => {
+  const { drive, report, write } = unexpectedPathDrive('k', '111');
+  write('- `src/extra.js` — 이유');
+  fs.rmSync(path.join(drive.integrationPath, drive.blueprint, 'tasks/001/tasks.md'));
+  const refused = assertRefusedWithoutWrite(drive, report, 'scope-do-not-touch-unreadable');
+  assert.deepStrictEqual(refused.paths, ['src/extra.js']);
+});
+
+test('accepted report whose worker copy dropped the Do not touch line → still refuses with scope-do-not-touch-violation', () => {
+  const { drive, report, write } = unexpectedPathDrive('l', '112', {
+    doNotTouch: ['src/locked/'], commits: ['src/locked/x.js'],
+  });
+  const workerDoc = path.join(drive.worker, drive.blueprint, 'tasks/001/tasks.md');
+  fs.writeFileSync(workerDoc, fs.readFileSync(workerDoc, 'utf8').split('\n## Do not touch')[0]);
+  write('- `src/locked/x.js` — 이유');
+  assertRefusedWithoutWrite(drive, report, 'scope-do-not-touch-violation');
+});
+
+test('accepted report whose commit renames a scope-outside file into scope → asks for a reason on the old path', () => {
+  const opened = openReportAttempt('bouncer-unexpected-m-',
+    '.bouncer/context/epics/098-x/blueprints/113-y', {
+      commit: false, affectedPaths: ['src/a.js'], extraFiles: ['src/old.js'],
+    });
+  execFileSync('git', ['mv', 'src/old.js', 'src/a.js'], { cwd: opened.drive.worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'mv'],
+    { cwd: opened.drive.worker });
+  commitAndStampWorker(opened.drive.repo, opened.drive.blueprint, opened.drive.worker);
+  writeWorkerReport(opened.drive.worker, '001', opened.attempt, opened.hash, { unexpected: null });
+  const refused = assertRefusedWithoutWrite(opened.drive, opened.report, 'unexpected-path-reason-missing');
+  assert.deepStrictEqual(refused.paths, ['src/old.js']);
 });

@@ -134,7 +134,7 @@ const PATH_CONTRACTS: Record<string, DocContract> = {
   // coordinate repair의 거절 표(조건·reason 두 열)는 runCli가 coordinator-repair의 지원 reason과
   // 대조한다. 필수 행은 두 거절 경로를 각각 설명하는 reason이다.
   'rules/cli.md': {
-    rejectionTable: { required: ['final-review-single-round', 'final-review-repair-scope'] },
+    rejectionTable: { required: ['final-review-single-round', 'final-review-repair-do-not-touch'] },
   },
   'rules/commit-scope.md': {
     headings: {
