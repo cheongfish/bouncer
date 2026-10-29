@@ -133,7 +133,13 @@ to your `Decision required` judgment, never a second brief.
   refuses an untracked path (`scope-path-untracked`,
   `scope-new-path-parent-missing`) or a bad verify (`repair-verify-required`,
   `repair-verify-not-single-argv`, `repair-verify-is-terminal`) before writing
-  anything; fix the input and retry, do not work around it.
+  anything; fix the input and retry, do not work around it. When the repair
+  changes product behavior, also judge the regression test that pins it: put that
+  test file in `--paths` (or `--new-path` when it does not exist yet) only when the
+  failure evidence, the debugger report, or a review finding names that test file,
+  it lies under `test/`, and the brief's Do not touch and Out of scope do not list
+  it; otherwise name the missing regression test in `--decision` instead of
+  guessing a path.
 - A terminal failure whose cause is code an already integrated task owns is
   resumed on that task, not on a new one: `coordinate repair --task <terminal>
   --resume-task <ddd>` with the same failure command, summary, `--paths` inside

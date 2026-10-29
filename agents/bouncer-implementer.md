@@ -77,7 +77,9 @@ read code/tests/repo context needed to implement.
   the controller — no speculative scope expansion, and do not shrink the brief
   in code. The controller decides what happens next; under a coordinator drive
   that decision is a scope revision, rework, a task change, or a terminal
-  blocked outcome, never your own detour.
+  blocked outcome, never your own detour. When a brief sentence and a Checklist
+  fixture or assertion support different interpretations, do not pick one: quote
+  both and stop with **Needs planning**.
 - When the work needs a path the current `affected_paths` does not carry, name
   that path in **Scope impact** and stop there. Only the coordinator revises
   scope, with `bouncer coordinate revise`.
