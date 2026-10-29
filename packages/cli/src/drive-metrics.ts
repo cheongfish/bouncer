@@ -226,6 +226,9 @@ function startSession(opts: {
   if (opts.blueprint === undefined ? !isPlan : (typeof opts.blueprint !== 'string' || opts.blueprint === '')) {
     return invalid;
   }
+  // `/`, `\`, `//`처럼 구분자만 있는 값은 정규화하면 빈 문자열이 된다. 저장 뒤에는 어떤 blueprint에도
+  // 묶이지 않는 세션이 남으므로 end의 바인딩 검사와 같은 기준(정규화 뒤 빈 값)으로 쓰기 전에 거절한다.
+  if (opts.blueprint !== undefined && normalizeBlueprint(opts.blueprint) === '') return invalid;
   const isReview = kind === 'context-review';
   // target-digest는 context-review의 호출 식별자다. 다른 kind에 주면 오타 가능성이 커서 거절한다.
   if (isReview !== (opts.targetDigest !== undefined)) return invalid;

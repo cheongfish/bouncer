@@ -102,6 +102,9 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 `/bouncer-run`·`/bouncer-finalize`가 표를 사용자에게 보고합니다. 변수가 없으면 `report: false`이고
 토큰·시간·비용 수치를 출력하지 않습니다. 비용 계산에는 위 `metrics.pricing`이 필요합니다.
 
+`metrics start --blueprint`에 `/`, `\`, `//`처럼 정규화하면 빈 문자열이 되는 값을 주면
+`invalid-metrics-input`(종료 코드 1)으로 거절하고 기록 파일은 바뀌지 않습니다.
+
 ## verify 래퍼 패턴
 
 `verify`는 **단일 실행 문자열**입니다. 런타임은 인용·공백을 보존한 argv로

@@ -170,6 +170,8 @@ snapshot is refused with `metrics-snapshot-invalid`, not read as 0.
 `metrics start --kind` also takes `plan-coordinator-session` and `planner-session` (the plan kinds).
 Only they may omit `--blueprint`: the session is stored with `blueprint: null`, reads no ledger
 snapshot, and `--blueprint <dir>` at start is normalized and stored without ledger resolution.
+A `--blueprint` value that normalizes to an empty string (`/`, `\`, `//`) is refused at start as
+`invalid-metrics-input` (exit 1) before any write, so the file bytes stay unchanged.
 `metrics end --id <m-id> [--tier <strong|standard|light>] [--effort <low|medium|high>]
 [--blueprint <dir>]` stores `tier` and `effort` on any kind (omitted = `null`, case-sensitive,
 empty string refused). `end --blueprint <dir>` binds a `blueprint: null` plan session exactly once
