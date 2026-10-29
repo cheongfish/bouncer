@@ -209,13 +209,20 @@ function checkSnapshotBinding(args: {
  * `F-<8hex>` 자동 id를 채운다 — 작성자가 validator 공식을 몰라도 기록되게 한다.
  * 기존 원장 finding은 고치지 않는다: 수기로 틀린 저장 기록은 G14/G21이 계속 거절해야 한다.
  *
+ * briefScope면 저장된 finding의 first_seen_round 변경도 거절한다. brief 최종 리뷰의 delta 이연은
+ * "delta가 처음 낸 finding"일 때만 인정하는데, first_seen_round는 caller가 주는 값이고 아래 병합은 id로
+ * 통째로 교체하므로, 이 검사가 없으면 discovery 위반을 delta에서 minor·first_seen_round 2로 다시 적어
+ * 이연 예외를 우회할 수 있다. 저장값이 정수가 아니면 검사하지 않는다(과거 손상 기록은 G21이 판정한다).
+ *
  * @param {unknown[]} existing - 기존 findings
  * @param {unknown[]} incoming - 입력 JSON findings
+ * @param {boolean} [briefScope] - review_contract: brief blueprint 최종 리뷰면 true. legacy·task는 검사하지 않는다
  * @returns {{ok: true, merged: unknown[], incoming: unknown[], ids: string[]} | RecordReviewFail}
- *   병합 결과, 정규화한 이번 입력, 이번 입력의 정규화 id(순서 유지·중복 제거), 또는 id 오류·충돌 거절
+ *   병합 결과, 정규화한 이번 입력, 이번 입력의 정규화 id(순서 유지·중복 제거), 또는 id 오류·충돌·first_seen_round
+ *   변경 거절
  */
 function mergeFindings(
-  existing: unknown[], incoming: unknown[],
+  existing: unknown[], incoming: unknown[], briefScope = false,
 ): { ok: true; merged: unknown[]; incoming: unknown[]; ids: string[] } | RecordReviewFail {
   const normalized = normalizeRoundFindings(incoming, existing);
   if (!normalized.ok) {
@@ -224,6 +231,22 @@ function mergeFindings(
       normalized.messages,
       'give each finding a non-empty string id or omit the id key; resolve id collisions, then retry',
     );
+  }
+  if (briefScope) {
+    for (const finding of normalized.findings) {
+      const id = isRecord(finding) ? finding.id : undefined;
+      const stored = existing.find((item) => isRecord(item) && item.id === id);
+      if (!isRecord(stored) || !Number.isInteger(stored.first_seen_round)) continue;
+      const incomingRound = isRecord(finding) ? finding.first_seen_round : undefined;
+      if (incomingRound === stored.first_seen_round) continue;
+      return fail(
+        'review-input-invalid',
+        `finding ${String(id)} first_seen_round changed: `
+          + `${String(stored.first_seen_round)} -> ${String(incomingRound)}`,
+        'copy first_seen_round from the stored finding, the round it first appeared; a finding first seen in an '
+          + 'earlier round cannot be deferred by restating it in a later round',
+      );
+    }
   }
   const merged = existing.map((item) => cloneJson(item));
   for (const finding of normalized.findings) {
@@ -396,13 +419,16 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   const { nextData, body, bouncer, review } = loadReviewDoc(abs);
   const existingRounds = Array.isArray(review.rounds) ? cloneJson(review.rounds) : [];
   // 표식 blueprint는 위반을 고친 뒤 delta 한 번만 인증에 쓴다. 이미 delta가 저장돼 있으면 두 번째를
-  // 쓰기 전에 거절한다 — 남은 위반은 blocked로 보고하고 accept-risk가 닫는다.
+  // 쓰기 전에 거절한다. 남은 minor·nit must_fix의 이연은 delta를 처음 기록하는 호출에서만 가능하므로
+  // 안내가 그 시점과 저장 뒤 경로(accept-risk 또는 blocked)를 함께 적는다.
   if (briefScope && parsedInput.round.mode === 'delta'
     && existingRounds.some((entry) => isRecord(entry) && entry.mode === 'delta')) {
     return fail(
       'final-review-single-round',
       'brief final review allows discovery and one delta round; a second delta round is not accepted',
-      'discovery and one delta are used; report remaining violations as blocked',
+      'discovery and one delta are used; a minor or nit must_fix can be deferred with a note only when the '
+        + 'delta round is first recorded; after a stored delta, close remaining findings with review accept-risk '
+        + 'after user approval or report them as blocked',
     );
   }
   const expectedRound = existingRounds.length + 1;
@@ -417,7 +443,7 @@ function recordReview(input: RecordReviewInput): RecordReviewResult {
   // 2. 라운드는 끝에만 붙인다. 중간 삽입은 번호 계약을 깨 G21과 어긋난다.
   const mergedRounds = [...existingRounds, cloneJson(parsedInput.round)];
   const existingFindings = Array.isArray(review.findings) ? review.findings : [];
-  const mergeResult = mergeFindings(existingFindings, parsedInput.findings);
+  const mergeResult = mergeFindings(existingFindings, parsedInput.findings, briefScope);
   if (!mergeResult.ok) return mergeResult;
   const mergedFindings = mergeResult.merged;
   review.rounds = mergedRounds;

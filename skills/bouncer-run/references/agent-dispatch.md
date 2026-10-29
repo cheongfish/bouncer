@@ -329,7 +329,9 @@ dispatch, and the dispatch receives that same value.
   `coordinate dispatch` argv as `--model <value>` (`next` does not put it in
   `argv`). That call records the dispatch model: the ledger keeps the argument
   you pass so it can be compared with `config.json` later, not proof of the
-  model the host ran. Pass the same value to the implementer dispatch. If the
+  model the host ran. Pass the same value to the implementer dispatch. Pass
+  `inherit` only when that printed line is `inherit`; the coordinator's own
+  `model: inherit` is not the implementer's model. If the
   host rejects it, stop without retry or fallback and report provider, role,
   configured model, exact host reason, and config correction location. If
   Claude Code hook `additionalContext` changes dispatch facts, report the
@@ -359,8 +361,10 @@ the host usage table in [drive-metrics](./drive-metrics.md); read it when you
 wait for a worker's usage. If that value is not here when you record the model, record without
 `--tokens`; once it arrives, append it with `bouncer coordinate worker-tokens
 --blueprint <dir> --role <role> [--task <NNN>] [--perspective <name>] --tokens
-<n>` using the same task and perspective. If the host gives no value, leave it
-out: it is counted as missing, never estimated.
+<n>` using the same task and perspective. If the host gives no value, record
+`--tokens unreported` for that key instead: it is counted as missing, never
+estimated. `coordinate record --task <NNN>` and `coordinate advance` refuse with
+`worker-tokens-missing` while a finished worker key has neither record.
 
 ## Worker hand-back
 

@@ -44,6 +44,11 @@ type AdvanceErr = {
   executed: ExecutedStep[];
 };
 
+// worker-tokens-missing 거절 본문. 타입만 coordinator-commands에서 가져와 런타임 의존을 만들지 않는다.
+type WorkerTokensGuardFail = Exclude<
+  ReturnType<typeof import('./coordinator-commands').workerTokensGuard>, { ok: true }
+>;
+
 type RunOutcome =
   | { kind: 'success'; exit: number }
   | { kind: 'failure'; body: Record<string, unknown>; reason: string }
@@ -221,7 +226,8 @@ function failAdvance(
 /**
  * `coordinate next`가 준 결정적 argv를 연쇄 실행하다 판단·worker·한도·오류에서 멈춘다.
  * 원장·pointer는 직접 쓰지 않고 next가 준 argv만 실행하며, 단계마다 next를
- * 다시 불러 fence를 갱신한다.
+ * 다시 불러 fence를 갱신한다. 루프 전에 원장의 미충족 worker 토큰 키를 한 번 판정해,
+ * 있으면 어떤 argv도 실행하지 않고 worker-tokens-missing으로 거절한다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 저장소 루트
@@ -229,7 +235,8 @@ function failAdvance(
  * @param {string} [opts.task] - task 범위 next에 넘길 id
  * @param {number} [opts.maxSteps] - 자동 실행 상한(기본 20). 양의 정수만
  * @param {AdvanceDeps} [opts.deps] - next·runArgv 주입 seam
- * @returns {AdvanceOk | AdvanceErr} 정지(ok:true) 또는 실패(ok:false)
+ * @returns {AdvanceOk | AdvanceErr | WorkerTokensGuardFail} 정지(ok:true), 실패(ok:false),
+ *   또는 worker-tokens-missing 거절(executed 키 없음)
  */
 function advance(opts: {
   repoRoot: string;
@@ -237,7 +244,7 @@ function advance(opts: {
   task?: string;
   maxSteps?: number;
   deps?: Partial<AdvanceDeps>;
-}): AdvanceOk | AdvanceErr {
+}): AdvanceOk | AdvanceErr | WorkerTokensGuardFail {
   const maxSteps = opts.maxSteps === undefined ? DEFAULT_MAX_STEPS : opts.maxSteps;
   const nextFn = opts.deps?.next ?? defaultNext;
   const runArgv = opts.deps?.runArgv ?? defaultRunArgv;
@@ -247,6 +254,13 @@ function advance(opts: {
     blueprint: opts.blueprint,
     task: opts.task,
   };
+
+  // 0. 토큰 기록이 빠진 끝난 worker가 있으면 자동 행동을 시작하기 전에 거절한다. 다음 단계로 넘어가
+  // 뒤늦게 보충하는 일을 막으려는 것이라 실행 여부와 무관하게 루프 전에 한 번만 본다.
+  // coordinator-commands는 이 모듈을 정적 import하지 않는다(의존 경계). 호출 시점에만 지연 로드한다.
+  const { workerTokensGuard } = require('./coordinator-commands') as typeof import('./coordinator-commands');
+  const guard = workerTokensGuard({ repoRoot: opts.repoRoot, blueprint: opts.blueprint, task: opts.task });
+  if (guard.ok === false) return guard;
 
   // 1. 매 단계 next를 새로 부른다. 이전 argv의 fence를 재사용하지 않는다.
   while (true) {

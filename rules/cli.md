@@ -267,7 +267,7 @@ flag, or an unknown flag is exit 2.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note|uncommit> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|worker-tokens|note|uncommit> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate prepare --blueprint <dir> [--accept-broken-baseline]
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
@@ -312,11 +312,17 @@ changing dispatch, lease, status, or attempt. `--perspective` is reviewer-only
 and must be an execute review perspective. `--tokens` is the host-reported
 subagent token count (`/^\d+$/`, safe integer); without it no `tokens` key is
 written and the record counts as missing. `coordinate worker-tokens --blueprint
-<dir> --role <implementer|reviewer|debugger> --tokens <n> --ledger-path <p>
+<dir> --role <implementer|reviewer|debugger> --tokens <n|unreported> --ledger-path <p>
 --ledger-hash <h> [--task <ddd>] [--perspective <name>]` appends
 `{kind: worker-tokens, role, tokens, task?, perspective?}` the same way for a
 completion notice that arrives after the worker-model record (a missing
-`--tokens` is usage, exit 2). Refusals: `worker-model-role-invalid`,
+`--tokens` is usage, exit 2). A `worker-tokens --tokens unreported` record appends
+`{kind: worker-tokens, role, unreported: true, task?, perspective?}`. The host gave
+no value, so the key is filled without a number; no `tokens` key is written, so
+the sum never reads that key as zero. The `worker-tokens-missing` check covers these keys:
+`coordinate record --task <T>` checks the keys of task T,
+`coordinate advance --task <T>` checks the keys of task T and the keys with no task,
+and `coordinate advance` without `--task` checks only the keys with no task. Refusals: `worker-model-role-invalid`,
 `worker-model-perspective-invalid`, `tokens-invalid`, `model-invalid` (worker-model
 only), `task-outside-blueprint`; none writes the ledger. The recorded model is
 what the coordinator passed to the dispatch, not proof of the model the host ran.
@@ -441,7 +447,10 @@ After the main checkout has an approved full blueprint, `coordinate bootstrap --
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
 (`repeated-failure`, `unclear-result`, `advance-argv-invalid`, or the
-automatic action's reason).
+automatic action's reason). Before running any action, `coordinate advance` refuses
+with `worker-tokens-missing` (exit 1, no `executed`) while a checked worker key has
+no token record. The refusal runs before the automatic action so that no argv runs
+against a ledger whose worker usage is still unrecorded.
 `run preflight` also reports `direct_eligible` (delegable, `full`, serial shape,
 `1 <= commit_tasks <= coordinator.direct_max_commit_tasks`); `/bouncer-run`
 offers root-direct execution only when it is true. `bouncer metrics start
@@ -656,7 +665,7 @@ Success is `{ ok: true, path, round, status, findings }` (exit 0), plus `warning
 `{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
 `reason` is `review-target-missing`, `review-task-required`,
 `review-task-not-allowed`, `review-input-invalid`,
-`review-round-out-of-sequence`, or `review-ledger-invalid`. Follow `next`; do
+`review-round-out-of-sequence`, or `review-ledger-invalid`. In a `review_contract: brief` blueprint final review, `review-input-invalid` also covers a finding whose `first_seen_round` differs from the stored value (cause `finding <id> first_seen_round changed: <stored> -> <incoming>`), so a discovery finding cannot be restated as a later delta finding. Follow `next`; do
 not edit YAML by hand or read validator sources to invent a passing
 frontmatter. Invalid argv (`record` missing, `--blueprint`/`--round` missing,
 duplicate options, `--task` not three digits, `--status` outside
@@ -679,7 +688,7 @@ any file read), `review-accept-risk-task-scope` (the review is not
 `review_scope: blueprint`), `review-target-missing`, `review-finding-missing`,
 `review-finding-not-open`, `review-note-required` (blank `--note`), or
 `review-ledger-invalid`. A missing or duplicate `--blueprint`/`--finding`/
-`--note`, or any `--task`, is exit 2.
+`--note`, or any `--task`, is exit 2. In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a `note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, any remaining finding is closed with `review accept-risk` after user approval or stops with `final-review-blocked`.
 
 ```sh
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \

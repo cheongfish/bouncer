@@ -2784,6 +2784,60 @@ test('finalize G21 with brief contract and deferred must_fix with note → is ac
   assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
 });
 
+// delta 라운드(2)에서 처음 나와 minor로 이연된 finding. 이연 예외의 기본 입력이다.
+function briefDeltaDeferredFinding(overrides = {}) {
+  return convergenceFinding({
+    brief_clause: 'tasks/001 Interface',
+    fingerprint: 'correctness:tasks/001 interface:src/a.ts#run',
+    status: 'deferred',
+    note: 'n',
+    origin: 'introduced_by_revision',
+    first_seen_round: 2,
+    last_seen_round: 2,
+    ...overrides,
+  });
+}
+
+test('finalize G21 with brief contract and minor must_fix deferred in the delta round → has no G21', () => {
+  const failures = briefG21Failures('brief', {
+    rounds: g21ModeRounds(['discovery', 'delta']),
+    findings: [briefDeltaDeferredFinding()],
+  });
+  assert.deepEqual(failures, []);
+});
+
+test('finalize G21 with brief contract and major must_fix deferred in the delta round → is accepted with open must_fix', () => {
+  const failures = briefG21Failures('brief', {
+    rounds: g21ModeRounds(['discovery', 'delta']),
+    findings: [briefDeltaDeferredFinding({ severity: 'major' })],
+  });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with brief contract and blocker must_fix deferred in the delta round → is accepted with open must_fix', () => {
+  const failures = briefG21Failures('brief', {
+    rounds: g21ModeRounds(['discovery', 'delta']),
+    findings: [briefDeltaDeferredFinding({ severity: 'blocker' })],
+  });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with brief contract and discovery finding deferred at first_seen_round 1 → is accepted with open must_fix', () => {
+  const failures = briefG21Failures('brief', {
+    rounds: g21ModeRounds(['discovery', 'delta']),
+    findings: [briefDeltaDeferredFinding({ first_seen_round: 1 })],
+  });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 with brief contract and deferred finding listed in delta previous_finding_ids → is accepted with open must_fix', () => {
+  // CR-RS-1 재현: delta 라운드가 이전에 나온 F1을 first_seen_round 2로 다시 적은 원장.
+  const rounds = g21ModeRounds(['discovery', 'delta']);
+  rounds[1].previous_finding_ids = ['F1'];
+  const failures = briefG21Failures('brief', { rounds, findings: [briefDeltaDeferredFinding()] });
+  assert.ok(failures.some((f) => /accepted with open must_fix F1/.test(f.message)), JSON.stringify(failures));
+});
+
 test('finalize G21 with brief contract and accepted_risk must_fix with note → has no G21', () => {
   const failures = briefG21Failures('brief', {
     rounds: g21ModeRounds(['discovery']),

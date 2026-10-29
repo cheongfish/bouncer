@@ -155,6 +155,7 @@ with no observable outcome. Also judge task Checklist red steps: flag a
 `red step` that omits the `expected failing assertion` or failure point. A
 criterion is verifiable when a later reader can say yes or no from a command,
 a file, or a gate result.
+Also flag a Checklist test step whose input an earlier guard of the same command refuses before the target branch, citing that guard as `file:line`.
 
 ### Out of judgment
 
@@ -208,6 +209,7 @@ that cannot be reached: when a structural failure comes first (such as a marker
 `other` rejected earlier), the target assertion's failure cannot be claimed from
 that state. Judge the red by its command, input, first failure point, and target
 assertion. Report each omission under one perspective only, never twice.
+Also judge reachability of every Checklist test step, not only the red: its input must pass every guard the same command checks before the target branch. Read the handler the step calls and flag a step whose input an earlier guard refuses (for example a `coordinate report` test on a verification task, refused as `dispatch-commit-task-required` before the report branch), citing that guard as `file:line`.
 
 ### risk_security
 

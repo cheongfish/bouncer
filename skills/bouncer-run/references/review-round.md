@@ -87,7 +87,7 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             only outside every Do not touch line), terminal re-verification, then `coordinate next`
             returns a delta `final_review` (`--mode delta`, `combined`, one
             reviewer) that ends `accepted` or, when a finding remains,
-            `final-review-blocked`. There is no second repair: a second
+            `final-review-blocked`. In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a `note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, any remaining finding is closed with `review accept-risk` after user approval or stops with `final-review-blocked`. There is no second repair: a second
             `coordinate repair` is refused as `final-review-single-round`
             (a first repair whose `newPaths` fall under a Do not touch line is
             refused separately as `final-review-repair-do-not-touch`);

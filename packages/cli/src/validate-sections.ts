@@ -402,6 +402,36 @@ function missingFindingField(record: Record<string, unknown>, field: string): bo
 }
 
 /**
+ * brief blueprint 최종 리뷰의 delta 라운드에서 처음 나온 minor·nit must_fix를 이연으로 인정할지 본다.
+ * 인정 조건은 모두 맞아야 한다: deferred, 비어 있지 않은 note, severity minor 또는 nit,
+ * first_seen_round와 last_seen_round가 모두 mode `delta` 라운드의 round와 같고, 그 id가 같은 delta 라운드의
+ * previous_finding_ids에 없다(이전 라운드에서 이어 온 finding이 아니다).
+ *
+ * 이연 대상을 delta가 처음 낸 finding으로 좁히는 이유: discovery finding은 repair가 고쳐야 할 브리프 위반이라
+ * 이연으로 닫으면 안 된다. 심각도를 minor로 낮추거나 first_seen_round를 delta 번호로 고쳐 적는 우회를
+ * 막으려고 mergeFindings가 저장된 first_seen_round의 변경을 거절하고, 여기서는 previous_finding_ids로 이어 온
+ * finding을 거른다. record와 G21이 같은 판정을 내도록 이 헬퍼 하나만 쓴다.
+ *
+ * @param {Record<string, unknown>} rec - 판정할 finding 기록
+ * @param {unknown} rounds - `bouncer.review.rounds`. 배열이 아니면 이연 대상이 없다고 본다
+ * @returns {boolean} 위 조건을 모두 만족하면 true. 그러면 accepted 문서가 이 finding을 open must_fix로 세지 않는다
+ */
+function isBriefDeltaDeferred(rec: Record<string, unknown>, rounds: unknown): boolean {
+  if (rec.status !== 'deferred') return false;
+  if (rec.severity !== 'minor' && rec.severity !== 'nit') return false;
+  if (typeof rec.note !== 'string' || rec.note.trim() === '') return false;
+  if (!Array.isArray(rounds)) return false;
+  const delta = rounds.find((entry) => (
+    isRecord(entry) && entry.mode === 'delta' && entry.round === rec.first_seen_round
+  ));
+  if (!isRecord(delta)) return false;
+  if (rec.last_seen_round !== delta.round) return false;
+  // 이전 라운드에서 이어 온 id는 이 delta가 처음 낸 finding이 아니므로 이연을 허용하지 않는다.
+  const previous = Array.isArray(delta.previous_finding_ids) ? delta.previous_finding_ids : [];
+  return !previous.includes(rec.id);
+}
+
+/**
  * 리뷰 finding 형식 실패를 모은다. 본문 판정 문장은 읽지 않는다 —
  * heading 존재와 id/severity/status/note, 그리고 선택적 rounds[]만 본다.
  *
@@ -423,7 +453,8 @@ function missingFindingField(record: Record<string, unknown>, field: string): bo
  *   생략하면 execute 계약(접두 없음, commit target)
  * @param {'blueprint' | 'blueprint_brief'} [roundScope] - blueprint 최종 리뷰면 execute namespace에서
  *   BLUEPRINT_ROUND_CONTRACT를 쓴다. `blueprint_brief`(review_contract: brief)는 BRIEF_ROUND_CONTRACT를 쓰고
- *   deferred must_fix 예외 없이 must_fix brief_clause가 브리프 조항 참조인지도 검사한다.
+ *   legacy deferred 예외 대신 delta가 처음 낸 minor·nit must_fix 이연(isBriefDeltaDeferred)만 인정하며,
+ *   must_fix brief_clause가 브리프 조항 참조인지도 검사한다.
  *   context namespace에서는 무시한다
  * @returns {string[]} 게이트 메시지. 없으면 빈 배열
  */
@@ -522,8 +553,10 @@ function collectFindingFailures({
       // blueprint 최종 리뷰는 discovery 한 라운드로 끝나므로, 고치지 않고 넘기는 must_fix는
       // deferred(+note, 위 NOTE_REQUIRED_STATUS 검사)로 기록해 accepted를 허용한다.
       // task 범위(G14)는 roundScope가 없어 이 예외를 받지 않고 기존처럼 거절한다.
-      // blueprint_brief는 delta로 인증할 라운드가 있으므로 이 예외를 받지 않는다.
+      // blueprint_brief는 delta로 인증할 라운드가 있으므로 legacy 예외를 받지 않는다. 대신 delta가 처음 낸
+      // minor·nit must_fix만 isBriefDeltaDeferred로 이연을 인정한다(discovery 위반은 여전히 거절).
       const isBlueprintDeferred = roundScope === 'blueprint' && rec.status === 'deferred';
+      const isBriefDeferred = roundScope === 'blueprint_brief' && isBriefDeltaDeferred(rec, rounds);
       // blueprint 최종 리뷰의 blocked finding은 round를 더할 수 없어 open으로 남는다. 사용자가
       // 명시적으로 위험을 수용하면 `review accept-risk`가 accepted + accepted_risk: true + note로
       // 닫는다. task 범위(G14)는 roundScope가 없어 이 예외를 받지 않는다.
@@ -533,7 +566,7 @@ function collectFindingFailures({
         && typeof rec.note === 'string'
         && rec.note.trim() !== '';
       if (isReviewAccepted && rec.actionability === 'must_fix' && rec.status !== 'resolved'
-        && !isContextAcceptedRisk && !isBlueprintDeferred && !isBlueprintAcceptedRisk) {
+        && !isContextAcceptedRisk && !isBlueprintDeferred && !isBriefDeferred && !isBlueprintAcceptedRisk) {
         messages.push(`${findingLabel} accepted with open must_fix ${id}`);
       }
       // 조항을 인용하지 못하는 finding이 must_fix로 올라오면 직접 실행이 코디네이터로 넘어간다.
