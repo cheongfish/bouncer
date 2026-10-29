@@ -118,3 +118,27 @@ test('consistency rubric → requires Constraints to name changed assertion file
     assert.ok(body.includes(phrase), `consistency mentions ${phrase}`);
   }
 });
+
+// 검증 가능성 판정은 red 단계만 보면 막힌 성공 경로 테스트 단계를 놓친다. 앞선 guard에 막혀
+// 실행할 수 없는 Checklist 테스트 입력을 계획 리뷰가 두 절 모두에서 잡아야 같은 문제가 실행 중 반복되지 않는다.
+test('plan reviewer rubric → judges Checklist test step reachability past earlier guards', () => {
+  const md = fs.readFileSync(path.join(root, 'agents', 'bouncer-context-reviewer.md'), 'utf8');
+  // `### <title>` 절 본문을 다음 `##`/`###` 제목 직전까지 잘라낸다.
+  const section = (src, title) => {
+    const start = src.indexOf(`### ${title}`);
+    assert.ok(start >= 0, `section ${title} exists`);
+    const rest = src.slice(start + 4);
+    const end = rest.search(/\n##+ /);
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+  // 줄바꿈으로 나뉜 문장도 같은 문구로 보도록 공백을 정규화한다.
+  const norm = (t) => t.replace(/\s+/g, ' ');
+  const verifiability = norm(section(md, 'verifiability'));
+  const successCriteria = norm(section(md, 'Verifiability of success criteria'));
+  assert.ok(verifiability.includes('Also judge reachability of every Checklist test step, not only the red'));
+  assert.ok(verifiability.includes('citing that guard as `file:line`.'));
+  assert.ok(successCriteria.includes(
+    'Also flag a Checklist test step whose input an earlier guard of the same command refuses '
+      + 'before the target branch, citing that guard as `file:line`.',
+  ));
+});
