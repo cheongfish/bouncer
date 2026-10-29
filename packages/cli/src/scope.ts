@@ -781,6 +781,27 @@ function normalizeScopeEntry(raw: string): string {
   return p;
 }
 
+/**
+ * scope 항목 목록에서 정규화(`normalizeScopeEntry`) 기준 중복을 지운다. 처음 나온 원문을 남긴다.
+ *
+ * 합집합 scope는 같은 경로가 `src/x`·`src/x/`처럼 다른 표기로 들어올 수 있다. 원문 기준으로만
+ * 지우면 같은 경로가 두 번 남아 범위 검사와 충돌 검사가 같은 항목을 두 번 본다.
+ *
+ * @param {string[]} entries - 앞에 둘수록 우선하는 scope 항목(직전 scope가 앞에 온다)
+ * @returns {string[]} 정규화 기준으로 유일한 원문 항목, 입력 순서 유지
+ */
+function uniqueByNormalizedScope(entries: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of entries) {
+    const key = normalizeScopeEntry(entry);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+}
+
 // Do not touch 제목 정규식은 validate-sections의 SECTION_DEFS가 정본이다(영문·한국어 제목).
 // 여기서 복제하면 제목 규칙이 갈라져 G/S 검사와 revise가 다른 절을 보게 된다.
 const DO_NOT_TOUCH_HEADING_RE = (SECTION_DEFS.find((def) => def.key === 'doNotTouch') as { re: RegExp }).re;
@@ -931,8 +952,10 @@ function planDoNotTouchRelease(body: string, fresh: string[], released: string[]
  * 저장소 밖·`.bouncer/`·`.git/`·트리 전체 표기는 scope로 받지 않는다. 단 직전 승인
  * scope에 정확히 같은 경로로 이미 있던 항목은 유지할 수 있다(하위·새 경로는 아니다).
  *
- * `paths`는 task scope를 전달한 집합 전체로 교체한다(추가가 아니다). 이전 범위에서
- * 빠졌는데 새 집합이 덮지 못한 경로가 있으면 성공 결과에 `warnings`로 알린다.
+ * 기본 동작은 직전 승인 scope ∪ `paths` ∪ `newPaths`로 넓히기만 한다. 이전 경로를 한 호출이
+ * 조용히 지우지 못하게 하려는 것이다. 교체는 `replace === true`일 때만 `paths ∪ newPaths`로
+ * 한다. 교체로 이전 범위에서 빠졌는데 새 집합이 덮지 못한 경로가 있으면 성공 결과에
+ * `warnings`로 알린다(넓히기에서는 줄어드는 경로가 생기지 않으므로 경고를 두지 않는다).
  *
  * task 문서의 Do not touch 절이 새 경로(직전 scope에 정확히 같은 값이 없는 경로)와 겹치면
  * `scope-do-not-touch-conflict`로 거절한다. `releaseDoNotTouch`로 겹치는 항목을 하나씩
@@ -946,10 +969,10 @@ function planDoNotTouchRelease(body: string, fresh: string[], released: string[]
  *   | {ok: false, reason: string}}
  */
 function reviseTaskScope({
-  repoRoot, blueprint, task, paths: nextPaths, newPaths, reason, exec, releaseDoNotTouch,
+  repoRoot, blueprint, task, paths: nextPaths, newPaths, reason, exec, releaseDoNotTouch, replace,
 }: {
   repoRoot: unknown; blueprint: unknown; task: unknown; paths: unknown; newPaths?: unknown; reason: unknown;
-  exec?: TrackedExec; releaseDoNotTouch?: unknown;
+  exec?: TrackedExec; releaseDoNotTouch?: unknown; replace?: boolean;
 }) {
   const taskId = coordinatorTaskId(task);
   if (!taskId) return { ok: false, reason: 'task-required' };
@@ -960,13 +983,16 @@ function reviseTaskScope({
     .filter((entry): entry is string => typeof entry === 'string' && entry !== '');
   const existing = strings(nextPaths);
   const created = strings(newPaths);
-  // 최종 scope는 --paths ∪ --new-path다(중복은 한 번만).
-  const next = [...new Set([...existing, ...created])];
-  if (next.length === 0) return { ok: false, reason: 'scope-paths-required' };
+  // 입력은 --paths ∪ --new-path다. 최종 scope는 직전 scope와 합친 뒤 lock 안에서 정한다(아래 참고).
+  // 빈 입력은 replace 여부와 무관하게 거절한다: 합집합 기본에서는 빈 입력이 직전 scope를 그대로 두는
+  // no-op이 되는데, 그 호출을 개정으로 세면 revision만 오르므로 usage 성격의 거절로 막는다.
+  const inputs = [...existing, ...created];
+  if (inputs.length === 0) return { ok: false, reason: 'scope-paths-required' };
   // 해제 값은 Do not touch 토큰과 같은 정규화(toPosix, 앞 `./` 제거)로 맞춘다. 순서를 지키고 중복은 지운다.
   const released = [...new Set(strings(releaseDoNotTouch).map((v) => toPosix(v.trim()).replace(/^\.\//, '')))]
     .filter((v) => v !== '');
-  const globs = globScopePaths(next);
+  // glob 검사는 플래그로 받은 입력에만 건다. 직전 scope 항목은 이미 승인된 값이라 다시 거절하지 않는다.
+  const globs = globScopePaths(inputs);
   if (globs.length > 0) {
     return { ok: false, reason: 'scope-path-glob', paths: globs };
   }
@@ -996,11 +1022,21 @@ function reviseTaskScope({
       : [];
     const previous = entry.scope ? entry.scope.paths : declared;
     const revision = nextRevision(ledger.revision);
+    // 최종 scope. 기본은 직전 scope ∪ 입력이다. 원장에 직전 scope가 없으면 위에서 정한 선언
+    // `affected_paths`가 previous이므로 그 값에 합친다. 빈 `entry.scope.paths`는 선언 경로로
+    // 되돌리지 않고 빈 previous로 둔다(`entry.scope ? … : declared` 그대로).
+    // replace는 원문 기준 중복 제거를 쓴다(예전 전체 집합 교체와 같은 결과를 유지하려는 것).
+    // 합치기는 정규화 기준 중복 제거다. previous를 앞에 두어 이전 표기가 살아남게 한다.
+    const next = replace === true
+      ? [...new Set(inputs)]
+      : uniqueByNormalizedScope([...previous, ...inputs]);
 
     // 범위 밖 검사는 직전 승인 scope(`previous`)를 알아야 하므로 lock 안에서, 추적 검사보다
     // 앞서 한다. 그래야 새 `.bouncer/` 경로가 scope-path-untracked로 위장되지 않고
     // scope-path-out-of-bounds로 거절된다. 쓰기 전이라 거절 시 바이트는 그대로다.
-    const outOfBounds = outOfBoundsScopePaths(next, previous);
+    // 검사 대상은 입력(`inputs`)이다. 직전 scope 항목은 어차피 면제라 union에 넣어도 판정이 같지만,
+    // 입력만 보내 "새로 요청한 경로에만 거절을 건다"는 규칙을 코드에서 그대로 드러낸다.
+    const outOfBounds = outOfBoundsScopePaths(inputs, previous);
     if (outOfBounds.length > 0) {
       return { ok: false, reason: 'scope-path-out-of-bounds', paths: outOfBounds };
     }
@@ -1094,15 +1130,17 @@ function reviseTaskScope({
 
     if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(ledgerFile, ledger);
-    // --paths는 전체 교체인데 경로 추가로 착각해 새 경로만 넘기면 범위가 조용히
-    // 줄었다. 거절하면 의도적 축소(재작업 되돌림)를 막으므로 경고만 붙인다.
+    // 교체(replace)로 범위가 줄었을 때만 경고한다. 합집합 기본은 이전 경로를 지우지 않으므로
+    // 줄어드는 경로가 없다. 축소를 거절하면 의도적 축소(재작업 되돌림)를 막으므로 경고만 붙인다.
     // "덮는다" = 정규화한 두 경로가 같거나 새 경로가 이전 경로의 상위 디렉터리.
     // 이 함수의 잠금 안에서 쓴 previous를 그대로 쓰므로 추가 읽기는 없다.
     const nextNormalized = next.map(normalize);
-    const dropped = previous.filter((p) => {
-      const prev = normalize(p);
-      return !nextNormalized.some((n) => isUnder(prev, n));
-    });
+    const dropped = replace === true
+      ? previous.filter((p) => {
+        const prev = normalize(p);
+        return !nextNormalized.some((n) => isUnder(prev, n));
+      })
+      : [];
     return {
       ok: true,
       revision,

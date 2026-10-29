@@ -268,7 +268,7 @@ bouncer coordinate promote-stop --blueprint <dir> \
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> [--verify <argv>] [--new-path <p>]...
 bouncer coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--new-path <p>]... \
-  [--release-do-not-touch <p>]... --reason <text>
+  [--release-do-not-touch <p>]... [--replace] --reason <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
@@ -430,6 +430,16 @@ removes that entry from the brief. A release value that is not an overlapping
 entry is refused with `release-do-not-touch-unknown`, and a valueless
 `--release-do-not-touch` exits 2. Both refusals leave the document and ledger
 unchanged.
+A `coordinate revise` widens the scope by default: the new scope is the previous
+scope plus `--paths` and `--new-path`, with duplicates removed by normalized path
+(a trailing `/` and a leading `./` do not make a new entry). A previous path is
+never dropped by a call without `--replace`, so a narrower `--paths` value does
+not shrink the scope. `--replace` (valueless, a boolean) swaps the scope for
+exactly `--paths` plus `--new-path`; each previous path that the new set does not
+cover is reported in `warnings` as `scope-paths-dropped`, and only a replace emits
+that warning. `--replace <value>` exits 2 with `coordinate revise: --replace takes
+no value`. Empty `--paths` and `--new-path` are refused with `scope-paths-required`
+whether or not `--replace` is given.
 `coordinate next` returns `commit` when the task worktree has scope changes to
 commit; on a clean tree whose commit stamp is stale it returns a `blocked`
 action with reason `worker-commit-stamp-mismatch` instead.

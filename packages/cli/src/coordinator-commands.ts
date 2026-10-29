@@ -1729,8 +1729,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   // 아래 12종은 `coordinate revise`(reviseTaskScope)만 내는 거절이다. 표에 없으면
   // fallback 힌트가 붙어 coordinator가 거절 원인과 다음 행동을 알 수 없다.
   'scope-paths-required': {
-    cause: '`coordinate revise` was called without any `--paths` entry.',
-    next: 'Pass the full replacement scope as `--paths <path>...` and rerun `bouncer coordinate revise`.',
+    cause: '`coordinate revise` was called without any `--paths` or `--new-path` entry.',
+    next:
+      'Pass the paths to add as `--paths <path>...` (or `--new-path <path>...`) and rerun `bouncer coordinate ' +
+      'revise`; add `--replace` only to swap the whole scope.',
   },
   'scope-path-glob': {
     cause: 'A given scope path contains a glob character, but scope paths must be literal files or directories.',

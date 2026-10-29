@@ -432,10 +432,29 @@ test('coordinate revise narrowing the previous scope → prints scope-paths-drop
   assert.strictEqual(widen.code, 0, widen.buf.err);
   assert.ok(!('warnings' in JSON.parse(widen.buf.out)));
   const { code, buf } = revise(worker, [
-    '--task', '001', '--paths', 'src/auth/', '--reason', 'narrow',
+    '--task', '001', '--paths', 'src/auth/', '--reason', 'narrow', '--replace',
   ], [], repo);
   assert.strictEqual(code, 0, buf.err);
   assert.deepStrictEqual(JSON.parse(buf.out).warnings, [{ code: 'scope-paths-dropped', paths: ['src/session/'] }]);
+});
+
+test('coordinate revise without --replace → unions the previous scope and prints no warning', () => {
+  const { worker, repo } = preparedDrive();
+  // preparedDrive의 직전 scope는 ['src/auth/']다. 값만 넘기면 그 경로는 남는다.
+  const { code, buf } = revise(worker, ['--task', '001', '--paths', 'src/session/', '--reason', 'add'], [], repo);
+  assert.strictEqual(code, 0, buf.err);
+  const body = JSON.parse(buf.out);
+  assert.deepStrictEqual(body.paths, ['src/auth/', 'src/session/']);
+  assert.ok(!('warnings' in body));
+});
+
+test('coordinate revise with --replace followed by a value → usage exit 2 and the file is untouched', () => {
+  const { worker, repo } = preparedDrive();
+  const { code, buf } = revise(worker, [
+    '--task', '001', '--paths', 'src/session/', '--replace', 'x', '--reason', 'r',
+  ], [], repo);
+  assert.strictEqual(code, 2);
+  assert.match(buf.err, /coordinate revise: --replace takes no value/);
 });
 
 test('coordinate revise with any reviseTaskScope reason code → exits 1 with a JSON failure on stdout and the reason on stderr', () => {

@@ -478,6 +478,11 @@ test('metrics help → snapshot 하위 명령 사용법을 보여준다', () => 
   assert.match(r.out, /metrics snapshot --blueprint <dir>/);
 });
 
+test('coordinate revise --help → documents the --replace flag', () => {
+  const r = capture(['coordinate', 'revise', '--help']);
+  assert.match(r.out, /--replace/);
+});
+
 test('coordinate revise --help → documents the Do not touch release flag and its rejection codes', () => {
   const r = capture(['coordinate', 'revise', '--help']);
   assert.match(r.out, /--release-do-not-touch <p>/);

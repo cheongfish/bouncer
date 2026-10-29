@@ -80,8 +80,10 @@ to your `Decision required` judgment, never a second brief.
   --ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`
   from that task's worktree. That command is the only surface that revises
   scope; it moves the task document and the ledger to one revision and appends
-  the decision behind it, which is what makes the widening reviewable. `--paths` replaces the task scope with exactly the given set; pass every path
-  the task still needs, not only new ones.
+  the decision behind it, which is what makes the widening reviewable. `--paths` and `--new-path` widen the
+  task scope: the result is the previous scope plus the given paths. Add `--replace` (no value) only when you
+  mean to swap the whole scope for exactly the given set; then pass every path the task still needs, not only
+  new ones, because a dropped path is reported as a `scope-paths-dropped` warning.
   A scope revision
   moves the task document and the ledger to one revision and is refused without a reason.
   A revision names repository source paths only — never an absolute or escaping
