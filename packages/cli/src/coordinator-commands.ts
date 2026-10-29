@@ -1316,6 +1316,91 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
   }, ledger, integration.ledgerFile);
 }
 
+// 미충족 키 한 개의 식별자. drive-metrics의 `pending` 개수는 거절 응답에 쓰지 않아 뺀다.
+type WorkerTokensPendingKey = Omit<ReturnType<typeof driveMetrics.pendingWorkerTokenKeys>[number], 'pending'>;
+
+// `worker-tokens-missing` 거절 본문. 호출자(record·advance)가 같은 모양을 읽는다.
+type WorkerTokensGuardFail = {
+  ok: false; reason: 'worker-tokens-missing'; pending: WorkerTokensPendingKey[]; cause: string; next: string;
+};
+
+/**
+ * 미충족 worker 토큰 키 중 호출자가 고른 범위의 키만 `{task, role, perspective}`로 낸다.
+ * 원장 decisions를 그대로 넘기면 범위 밖 task의 키가 섞이므로, 범위는 `keep`이 정한다.
+ * `pending` 개수는 거절 응답에 필요 없어 떼어 낸다. 입력은 바꾸지 않는다.
+ *
+ * @param {unknown[]} decisions - 원장 decisions
+ * @param {(task: string | null) => boolean} keep - 키의 task를 검사 범위에 넣을지 정한다.
+ *   task가 문자열이 아니면 null로 넘어온다(task 없는 blueprint 범위 키)
+ * @returns {WorkerTokensPendingKey[]} 범위 안 미충족 키. 없으면 빈 배열
+ */
+function pendingWorkerTokensIn(
+  decisions: unknown[],
+  keep: (task: string | null) => boolean,
+): WorkerTokensPendingKey[] {
+  const scoped = decisions.filter((d) => {
+    // 객체가 아닌 원소는 worker 기록이 아니므로 범위와 무관하게 pendingWorkerTokenKeys가 무시한다.
+    if (typeof d !== 'object' || d === null) return false;
+    const t = (d as { task?: unknown }).task;
+    return keep(typeof t === 'string' ? t : null);
+  });
+  return driveMetrics.pendingWorkerTokenKeys(scoped)
+    .map(({ task, role, perspective }) => ({ task, role, perspective }));
+}
+
+/**
+ * 미충족 키 목록으로 `worker-tokens-missing` 거절 결과를 만든다. cause·next는 힌트 표를 그대로 싣는다.
+ * advance 쪽 응답은 힌트 병합 경계를 거치지 않으므로 여기서 직접 붙여야 한다.
+ *
+ * @param {WorkerTokensPendingKey[]} pending - 거절 대상 미충족 키(1개 이상)
+ * @returns {WorkerTokensGuardFail} ok:false 거절. executed 같은 실행 흔적 키는 없다
+ */
+function workerTokensMissing(pending: WorkerTokensPendingKey[]): WorkerTokensGuardFail {
+  const hint = COORDINATE_FAILURE_HINTS['worker-tokens-missing'];
+  return {
+    ok: false, reason: 'worker-tokens-missing', pending, cause: hint.cause, next: hint.next,
+  };
+}
+
+/**
+ * `advance`가 자동 행동을 실행하기 전에 원장의 미충족 worker 토큰 키를 판정한다.
+ * 검사 범위는 task 없는 키와, `task`를 주면 그 task의 키다. 다른 task의 키는 병렬 wave에서 아직 실행 중일 수
+ * 있어 보지 않는다. advance 없이 `task`만 주면 task 없는 키만 본다.
+ * 판정할 수 없으면 거절하지 않는다(`ok: true`). 원장 부재, JSON 파싱 실패, decisions가 배열이 아님,
+ * 경로 해석 실패가 여기에 든다. 그 경우 뒤이은 advance 경로가 기존 reason으로 실패하거나 진행한다.
+ * 이 guard는 원장을 쓰지 않는다.
+ *
+ * @param {{ repoRoot: string, blueprint: string, task?: string }} opts - 원장 위치와 advance 검사 범위
+ * @returns {{ ok: true } | WorkerTokensGuardFail} 범위 안 미충족 키가 없거나 판정 불가면 ok:true, 있으면 거절
+ */
+function workerTokensGuard(opts: {
+  repoRoot: string; blueprint: string; task?: string;
+}): { ok: true } | WorkerTokensGuardFail {
+  let ledgerFile: string;
+  try {
+    ({ ledgerFile } = coordinatorPathsFor({ repoRoot: opts.repoRoot, blueprint: opts.blueprint }));
+  } catch {
+    // 경로 해석이 실패하면(git 없는 repo, blueprint 경로 오류) 원장 위치 자체를 알 수 없다. 이 실패는
+    // 뒤이은 advance가 기존 reason으로 낸다. guard가 새 reason을 만들면 같은 원인이 두 번 보고된다.
+    return { ok: true };
+  }
+  let ledger: unknown;
+  try {
+    ledger = coordinatorLedger.loadLedger(ledgerFile);
+  } catch (err) {
+    // JSON 파싱 실패(SyntaxError)만 흡수한다. 원장이 깨졌으면 판정하지 않고 advance의 기존 경로에 맡긴다.
+    // 읽기 오류(권한 등)는 원인이 다르므로 던져서 호출자가 그대로 보게 한다.
+    if (err instanceof SyntaxError) return { ok: true };
+    throw err;
+  }
+  const decisions = typeof ledger === 'object' && ledger !== null
+    ? (ledger as { decisions?: unknown }).decisions : undefined;
+  if (!Array.isArray(decisions)) return { ok: true };
+  const task = opts.task;
+  const pending = pendingWorkerTokensIn(decisions, (t) => t === null || (task !== undefined && t === task));
+  return pending.length > 0 ? workerTokensMissing(pending) : { ok: true };
+}
+
 /**
  * `record`: worker HEAD와 provenance를 ledger로 올린다. accepted report 뒤 상태를 다시 본다.
  *
@@ -1368,6 +1453,10 @@ function coordinateRecord(ctx: TaskCtx): CoordinateResult {
   // record 시점의 HEAD만 허용한다. caller가 임의 SHA를 주장하거나 worker가
   // 다른 commit을 향한 뒤의 값을 기록하면 coordinator provenance가 무너진다.
   if (sha && sha !== workerHead) return { ok: false, reason: 'sha-not-worker-head' };
+  // 토큰 기록이 빠진 끝난 worker가 record 범위(task === T)에 있으면 전이와 쓰기 전에 거절한다.
+  // 뒤늦은 backfill을 막는 것이 목적이라 task 없는 blueprint 범위 키는 여기서 보지 않는다.
+  const pendingTokens = pendingWorkerTokensIn(ledger.decisions, (t) => t === task);
+  if (pendingTokens.length > 0) return workerTokensMissing(pendingTokens);
   item.status = transition('prepared', 'recorded'); item.sha = workerHead;
   if (decision !== undefined) {
     item.decisions = [...(item.decisions || []), decision];
@@ -1642,6 +1731,14 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'accepted-report-required': {
     cause: 'Record requires an accepted dispatch report for this task, and none is stored.',
     next: 'Call `bouncer coordinate report` with outcome accepted, then retry `bouncer coordinate record`.',
+  },
+  // 끝난 worker의 worker-model에 토큰 기록(숫자 또는 unreported)이 없다는 뜻. 호스트가 토큰을 주지 않았다면
+  // unreported로 기록해 키를 채울 수 있다. record와 advance 두 곳이 이 한 표를 함께 본다.
+  'worker-tokens-missing': {
+    cause: 'A finished worker has a worker-model record but no worker-tokens record (numeric or unreported).',
+    next: 'Record `bouncer coordinate worker-tokens --role <role> [--task <ddd>] [--perspective <name>] '
+      + '--tokens <n>` for each pending key from the host usage, or `--tokens unreported` when the host gave none, '
+      + 'then rerun.',
   },
   'bootstrap-requires-main-checkout': {
     cause: 'Bootstrap must run from the main checkout, not an integration or worker worktree.',
@@ -2317,4 +2414,7 @@ function coordinateWithHints(opts: Parameters<typeof coordinate>[0]) {
   return withCoordinateFailureHints(coordinate(opts));
 }
 
-export = { coordinate: coordinateWithHints, COORDINATE_FAILURE_HINTS, withCoordinateFailureHints };
+// workerTokensGuard는 advance(coordinate-advance.ts)가 지연 로드해 부른다. cli-git-commands는 이 모듈을 직접 import하지 않는다.
+export = {
+  coordinate: coordinateWithHints, COORDINATE_FAILURE_HINTS, withCoordinateFailureHints, workerTokensGuard,
+};

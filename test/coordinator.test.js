@@ -2224,6 +2224,102 @@ test('record after commit stamps commit_sha and status following an accepted rep
   assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
 });
 
+// ---- 작업자 토큰 기록 누락 거절 (TASKS-005) ----
+// 끝난 worker의 worker-model에 토큰 기록(숫자 또는 unreported)이 없으면 record --task가 거절한다.
+const TOKEN_GUARD_BP = '.bouncer/context/epics/108-x/blueprints/001-token-guard';
+
+test('record with a tokenless reviewer worker-model on the same task → worker-tokens-missing and keeps the ledger bytes', () => {
+  const drive = preparedCommitDrive('bouncer-record-tokens-missing-', TOKEN_GUARD_BP);
+  acceptDispatchReport(drive.repo, TOKEN_GUARD_BP, drive.worker);
+  const modeled = workerModelCall(drive, { role: 'reviewer', model: 'm', task: '001', perspective: 'security' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const before = fs.readFileSync(drive.ledgerFile);
+  const rejected = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(rejected.ok, false, JSON.stringify(rejected));
+  assert.strictEqual(rejected.reason, 'worker-tokens-missing');
+  assert.deepStrictEqual(rejected.pending, [{ task: '001', role: 'reviewer', perspective: 'security' }]);
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('record after worker-tokens --tokens unreported for that key → records the task', () => {
+  const drive = preparedCommitDrive('bouncer-record-tokens-unreported-', TOKEN_GUARD_BP);
+  acceptDispatchReport(drive.repo, TOKEN_GUARD_BP, drive.worker);
+  const modeled = workerModelCall(drive, { role: 'reviewer', model: 'm', task: '001', perspective: 'security' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const tokens = coordinate({
+    command: 'worker-tokens', repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP, cwd: drive.integrationPath,
+    role: 'reviewer', tokens: 'unreported', task: '001', perspective: 'security',
+  });
+  assert.strictEqual(tokens.ok, true, JSON.stringify(tokens));
+  const recorded = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+  assert.strictEqual(recorded.task.status, 'recorded');
+});
+
+test('record with a tokenless blueprint-scope worker-model → still records', () => {
+  const drive = preparedCommitDrive('bouncer-record-tokens-scope-', TOKEN_GUARD_BP);
+  acceptDispatchReport(drive.repo, TOKEN_GUARD_BP, drive.worker);
+  const modeled = workerModelCall(drive, { role: 'reviewer', model: 'm', perspective: 'combined' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const recorded = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+});
+
+test('workerTokensGuard with no ledger file → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-noledger-', TOKEN_GUARD_BP);
+  fs.rmSync(drive.ledgerFile);
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with an unparsable ledger → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-badjson-', TOKEN_GUARD_BP);
+  fs.writeFileSync(drive.ledgerFile, '{');
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with a ledger whose decisions is not an array → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-decisions-scalar-', TOKEN_GUARD_BP);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.decisions = 5;
+  fs.writeFileSync(drive.ledgerFile, JSON.stringify(ledger));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with a ledger without decisions → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-decisions-missing-', TOKEN_GUARD_BP);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  delete ledger.decisions;
+  fs.writeFileSync(drive.ledgerFile, JSON.stringify(ledger));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with a repoRoot outside git → is ok without throwing', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-guard-outside-'));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: outside, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with a tokenless task-001 key and task 001 → lists that key', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-task-key-', TOKEN_GUARD_BP);
+  const modeled = workerModelCall(drive, { role: 'reviewer', model: 'm', task: '001', perspective: 'security' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const guarded = workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP, task: '001' });
+  assert.strictEqual(guarded.ok, false, JSON.stringify(guarded));
+  assert.strictEqual(guarded.reason, 'worker-tokens-missing');
+  assert.deepStrictEqual(guarded.pending, [{ task: '001', role: 'reviewer', perspective: 'security' }]);
+});
+
 test('accepted report from a worker with only uncommitted source edits → rejects with worker-commit-missing and keeps the ledger bytes', () => {
   const { drive, report } = openReportAttempt(
     'bouncer-report-nocommit-', '.bouncer/context/epics/112-x/blueprints/001-a', { commit: false },
