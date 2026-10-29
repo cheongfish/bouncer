@@ -83,6 +83,10 @@ cross-drive comparison uses every allowed path (in scope plus recorded).
   frontmatter, or read error means the line is unknown, and an unknown line is
   never treated as empty (fail closed). The line is read only when a path
   outside the expected scope exists, so an in-scope commit does not depend on it.
+  A dynamic repair task's own document carries only the `.git/` and `.bouncer/`
+  lines, so for it the set is the union of the lines of every ledger task, the
+  same set the final-review repair check uses. Otherwise the plan's lines would
+  not apply to a repair that touches another task's territory.
 - **Releasing a line** — `coordinate revise --release-do-not-touch` edits the
   task document in the working directory it runs from. Run it from the
   integration checkout after the user approves, so the canonical copy changes.

@@ -7070,6 +7070,37 @@ test('accepted report on a scoped_terminal light ledger without a Tests section 
   assert.strictEqual(out.ok, true, JSON.stringify(out));
 });
 
+// CT-002: Tests 판정은 commit task만 본다. verification task는 같은 full scoped_terminal 원장에서도
+// Tests 절 없이 보고를 받아 report-tests-invalid로 거절되지 않는다. 현재 흐름에서는 verification task가
+// worker 할당을 받지 못해 그 전 단계에서 거절되므로, 이 테스트는 그 거절 코드가 Tests 판정보다 먼저 난다는 점을 고정한다.
+test('full scoped_terminal accepted report of a verification task without a Tests section → refused before the Tests check', () => {
+  const blueprint = '.bouncer/context/epics/120-report/blueprints/125-verify';
+  const repo = uncommittedPlanRepo('bouncer-report-verify-', blueprint, [
+    ['001', `  depends_on: []\n  parallel_safe: true\n  verify: ${SCOPED_VERIFY}\n`],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n'
+      + `  dependency_gate: integrated\n  verify: ${SCOPED_VERIFY}\n`],
+  ]);
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'index.md'),
+    '---\nbouncer:\n  status: approved\n  verification_policy: scoped_terminal\n---\n# Blueprint\n',
+  );
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks.find((t) => t.id === '001').workerPath;
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  commitAndStampWorker(repo, blueprint, worker, '001');
+
+  const out = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    attempt: 1, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'verification accepted',
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.reason, 'unassigned-worker-worktree', JSON.stringify(out));
+});
+
 const BASELINE_CMD = 'npm run check-base';
 const isBaselineCall = (command, args) => command === 'npm' && args[0] === 'run' && args[1] === 'check-base';
 

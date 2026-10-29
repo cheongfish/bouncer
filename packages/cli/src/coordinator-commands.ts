@@ -18,7 +18,7 @@ const { transition } = executionDag;
 import configMod = require('./config');
 const { readWavesPerSession } = configMod;
 import scopeMod = require('./scope');
-const { withLedgerLock, makeAllowed, isRuntimeArtifact, doNotTouchFor, normalizeScopeEntry } = scopeMod;
+const { withLedgerLock, makeAllowed, isRuntimeArtifact, doNotTouchForTask, normalizeScopeEntry } = scopeMod;
 import pathOverlapMod = require('./path-overlap');
 const { pathsOverlap, normalizeOverlapPath } = pathOverlapMod;
 import leaseMod = require('./lease');
@@ -361,7 +361,7 @@ function checkUnexpectedPaths(opts: {
     .filter((file) => !isRuntimeArtifact(file) && !allowed(file))
     .sort();
   if (outside.length === 0) return { ok: true };
-  const locked = doNotTouchFor(integrationPath, blueprint, item.id);
+  const locked = doNotTouchForTask(integrationPath, blueprint, item.id, ledger.tasks);
   // 금지선을 못 읽으면 허용으로 풀지 않는다(fail closed).
   if (!locked.ok) {
     return { ok: false, failure: { ok: false, reason: 'scope-do-not-touch-unreadable', paths: outside } };

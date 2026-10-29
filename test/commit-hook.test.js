@@ -902,7 +902,8 @@ test('evaluateCommit with lease scope and no pointer or a revoked lease → appl
 });
 
 // full 원장 drive의 hook과 checkCommitSafety가 같은 허용·거절을 내고, 금지선 출처는 integration 사본이다.
-test('evaluateCommit on a full ledger drive → matches checkCommitSafety and ignores the worker copy of the Do not touch line', () => {
+// 여러 테스트가 같은 픽스처를 쓴다. task 002는 scope가 src/b/이고, 금지선 src/a/는 task 002 문서에 있다.
+function fullHookDrive() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-full-'));
   const run = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
   run(['init', '-b', 'work', '--quiet']);
@@ -953,6 +954,11 @@ test('evaluateCommit on a full ledger drive → matches checkCommitSafety and ig
     assert.strictEqual(hook.block, !guard.allow, file);
     return { hook, guard };
   });
+  return { repo, boot, worker, blueprint, verdicts };
+}
+
+test('evaluateCommit on a full ledger drive → matches checkCommitSafety and ignores the worker copy of the Do not touch line', () => {
+  const { worker, blueprint, verdicts } = fullHookDrive();
 
   // (a) scope 밖·금지선 밖 → 허용하고 기록, (b) 금지선 → 거절
   const [extra, locked] = verdicts();
@@ -971,4 +977,48 @@ test('evaluateCommit on a full ledger drive → matches checkCommitSafety and ig
   const [, lockedAfter] = verdicts();
   assert.strictEqual(lockedAfter.guard.code, 'scope-do-not-touch-violation');
   assert.strictEqual(lockedAfter.hook.block, true);
+});
+
+// F-SS-002: 금지선은 scope 밖 후보를 판정할 때만 integration 사본에서 읽는다(지연 읽기).
+// context를 만든 뒤 문서가 사라져도 scope 안 커밋은 읽기와 무관하게 허용되고, scope 밖 커밋만 실패한다.
+test('full ledger context read before the integration Do not touch line disappears → in-scope commit allowed and out-of-scope refused as unreadable', () => {
+  const { boot, worker, blueprint } = fullHookDrive();
+  const coordinator = coordinatorContext({ repoRoot: worker, blueprint, task: '002' });
+  fs.rmSync(path.join(boot.integrationPath, blueprint, 'tasks/002/tasks.md'));
+  const inScope = checkCommitSafety({
+    files: ['src/b/x.ts'], affectedPaths: ['src/b/'], blueprintDir: blueprint, coordinator,
+  });
+  assert.deepStrictEqual(inScope, { allow: true, violations: [] });
+  const outside = checkCommitSafety({
+    files: ['src/extra/x.ts'], affectedPaths: ['src/b/'], blueprintDir: blueprint, coordinator,
+  });
+  assert.strictEqual(outside.allow, false);
+  assert.strictEqual(outside.code, 'scope-do-not-touch-unreadable');
+});
+
+// SEC-002: dynamic repair task 문서에는 .git/.bouncer 금지선만 있다. 그래서 금지선 판정은 원장 모든 task의
+// 금지선 합집합으로 해야 한다. 같은 픽스처에서 dynamic 표식만 바꿔 두 판정을 나란히 확인한다.
+test('dynamic repair task on a full ledger → refuses a path under another task Do not touch line; plain task records it', () => {
+  const { boot, verdicts, blueprint } = fullHookDrive();
+  const integrationDoc = (id) => path.join(boot.integrationPath, blueprint, `tasks/${id}/tasks.md`);
+  // 금지선 `src/a/`를 task 001 문서로 옮기고 task 002 문서에는 금지선을 남기지 않는다(repair 문서 모양).
+  const doc002 = fs.readFileSync(integrationDoc('002'), 'utf8');
+  fs.writeFileSync(integrationDoc('002'), doc002.split('\n## Do not touch')[0]);
+  fs.writeFileSync(integrationDoc('001'),
+    `${fs.readFileSync(integrationDoc('001'), 'utf8')}\n## Do not touch\n- \`src/a/\` — task 001 범위\n`);
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+
+  // 일반 task(dynamic 아님)는 자기 문서의 금지선만 본다. 001의 `src/a/`는 002에게 금지선이 아니므로 기록하고 허용한다.
+  const [, plain] = verdicts();
+  assert.strictEqual(plain.guard.allow, true);
+  assert.deepStrictEqual(plain.guard.unexpected, ['src/a/x.ts']);
+
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((entry) => entry.id === '002').dynamic = true;
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const [, repaired] = verdicts();
+  assert.strictEqual(repaired.guard.allow, false);
+  assert.strictEqual(repaired.guard.code, 'scope-do-not-touch-violation');
+  assert.deepStrictEqual(repaired.guard.violations, ['src/a/x.ts']);
+  assert.strictEqual(repaired.hook.block, true);
 });

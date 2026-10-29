@@ -149,7 +149,8 @@ type CoordinatorContext = {
   // 원장 mode. 원장을 읽지 못한 비활성 context는 null이다.
   mode: 'full' | 'light' | null;
   // full mode에서만 채우는 금지선(integration 사본 기준). null은 읽기 실패 — 호출자가 fail closed로 다룬다.
-  // light와 비활성은 []다.
+  // light와 비활성은 []다. 값은 접근할 때 읽는 getter다(withLazyDoNotTouch): 소비자가 scope 밖 후보를 판정할
+  // 때만 문서를 연다. 객체를 spread하면 getter가 실행되므로 소비자는 이 필드를 복사하지 않는다.
   doNotTouch: string[] | null;
 };
 
@@ -586,6 +587,49 @@ function doNotTouchFor(integrationPath: string, blueprint: string, taskId: strin
 }
 
 /**
+ * task 한 개의 금지선 줄을 integration 사본에서 모은다. dynamic repair task는 자기 문서에 `.git/`·`.bouncer/`
+ * 금지선만 두므로(plan 금지선은 원장의 다른 task 문서에 있다), 원장 모든 task의 금지선 합집합을 쓴다.
+ * final-review repair의 새 경로 판정과 같은 기준이다. 문서 하나라도 못 읽으면 금지선을 알 수 없어 실패다.
+ *
+ * @param {string} integrationPath - integration checkout 절대 경로
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 판정할 task의 3자리 id
+ * @param {Array<{id: string, dynamic?: boolean}>} tasks - 원장의 task 목록
+ * @returns {{ ok: true, paths: string[] } | { ok: false }} 금지선 토큰(중복 제거). 실패는 호출자가 fail closed로 거절한다
+ */
+function doNotTouchForTask(integrationPath: string, blueprint: string, taskId: string,
+  tasks: Array<{ id: string; dynamic?: boolean }>): { ok: true; paths: string[] } | { ok: false } {
+  const self = tasks.find((item) => item && item.id === taskId);
+  // 원장에 없는 task(task-outside-blueprint)나 일반 task는 자기 문서의 금지선만 본다.
+  if (!self || self.dynamic !== true) return doNotTouchFor(integrationPath, blueprint, taskId);
+  const paths: string[] = [];
+  for (const entry of tasks) {
+    const found = doNotTouchFor(integrationPath, blueprint, entry.id);
+    // 한 문서라도 못 읽으면 합집합의 일부만으로 허용하지 않고 전체를 실패로 돌린다(fail closed).
+    if (!found.ok) return { ok: false };
+    for (const token of found.paths) {
+      if (!paths.includes(token)) paths.push(token);
+    }
+  }
+  return { ok: true, paths };
+}
+
+/**
+ * `doNotTouch` 필드를 접근 시점에 `read`로 계산하는 getter로 바꾼다.
+ *
+ * 금지선 문서를 여는 비용과 실패를 scope 밖 후보가 없는 커밋에 옮기지 않으려는 장치다(rules/commit-scope.md의
+ * 지연 읽기 계약). 객체를 spread하면 getter가 그 자리에서 실행되므로, 호출자는 getter를 붙인 객체만 반환하고
+ * 그 뒤로 다시 spread하지 않는다.
+ *
+ * @param {CoordinatorContext} ctx - 금지선 필드를 뺀 context. 같은 객체에 getter를 정의한다
+ * @param {() => string[] | null} read - 접근할 때마다 실행되는 금지선 읽기(실패는 null)
+ * @returns {CoordinatorContext} 같은 객체. `doNotTouch` 접근이 `read`를 호출한다
+ */
+function withLazyDoNotTouch(ctx: CoordinatorContext, read: () => string[] | null): CoordinatorContext {
+  return Object.defineProperty(ctx, 'doNotTouch', { get: read, enumerable: true, configurable: true });
+}
+
+/**
  * 지금 커밋을 판정할 coordinator 권한을 읽는다.
  *
  * `active: false`면 coordinator 실행이 아니다 — 호출자는 승인된
@@ -669,21 +713,23 @@ function coordinatorContext({ repoRoot, blueprint, task }: {
     mode: ledgerModeOf(ledger as CanonicalLedger),
     doNotTouch: [],
   };
-  // full mode에서만 금지선을 integration 사본에서 읽는다. task를 모르면 어떤 문서도 출처가 될 수 없어 null이다.
-  // 소비자(checkCommitSafety)는 scope 밖 후보가 있을 때만 이 값을 본다 — scope 안 커밋은 읽기 실패와 무관하다.
-  if (withLedger.mode === 'full') {
-    const dnt = taskId && paths.integrationPath
-      ? doNotTouchFor(paths.integrationPath, String(blueprint), taskId) : { ok: false as const };
-    withLedger.doNotTouch = dnt.ok ? dnt.paths : null;
-  }
+  // 금지선은 지연 읽기다. 여기서 문서를 열지 않고 getter(`doNotTouch`)가 소비 시점에 integration 사본에서 읽는다.
+  // full mode만 금지선을 쓰며 light는 []다. task를 모르면 어떤 문서도 출처가 될 수 없어 null이다.
+  // 소비자(checkCommitSafety)는 scope 밖 후보가 있을 때만 이 값을 읽는다 — scope 안 커밋은 읽기 실패와 무관하다.
+  const readLocked = (): string[] | null => {
+    if (withLedger.mode !== 'full') return [];
+    if (!taskId || !paths.integrationPath) return null;
+    const found = doNotTouchForTask(paths.integrationPath, String(blueprint), taskId, tasks);
+    return found.ok ? found.paths : null;
+  };
   // 포인터가 가리키는 task가 원장에 없으면 이 실행이 맡은 task가 아니다.
   // reviseTaskScope가 같은 상황을 거절하므로 여기서도 같은 코드로 막는다.
-  if (taskId && !entry) return { ...withLedger, reason: 'task-outside-blueprint' };
+  if (taskId && !entry) return withLazyDoNotTouch({ ...withLedger, reason: 'task-outside-blueprint' }, readLocked);
   // task 문서와 원장이 같은 revision일 때만 scope가 정본이다.
   if (taskId && docScopeRevision(repoRoot, blueprint, taskId, entry && entry.workerPath) !== ledgerRevision) {
-    return { ...withLedger, reason: 'stale-revision' };
+    return withLazyDoNotTouch({ ...withLedger, reason: 'stale-revision' }, readLocked);
   }
-  return withLedger;
+  return withLazyDoNotTouch(withLedger, readLocked);
 }
 
 /**
@@ -1243,6 +1289,7 @@ export = {
   readCoordinatorLedger,
   coordinatorContext,
   doNotTouchFor,
+  doNotTouchForTask,
   normalizeScopeEntry,
   mainWorktreeNext,
   reviseTaskScope,
