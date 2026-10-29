@@ -62,7 +62,9 @@ test('module constants are read → DIFF_EXCLUDED_PREFIXES and EXPLAIN_SECTION_D
 });
 
 test('paths under .bouncer/context/ are in the diff → computeDiffSha ignores them when hashing', () => {
-  const repoRoot = '/tmp/unused';
+  // 빈 전용 디렉터리를 쓴다. 공용 고정 경로는 다른 실행이 남긴
+  // `.bouncer/runtime/coordinator.json`을 읽힐 수 있어 결과가 실행 환경에 따라 달라진다.
+  const repoRoot = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'bouncer-comp-unused-'));
   const base = 'develop';
   const a = computeDiffSha({
     repoRoot, base, exec: fakeExec(['src/a.ts', '.bouncer/context/x.md']),

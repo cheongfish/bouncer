@@ -166,6 +166,32 @@ test('drive-metrics root-direct session → passes no tier or effort flags', () 
   assert.match(direct, /no `--tier` or `--effort`/);
 });
 
+// root-direct 인계 순서는 정본 direct-run.md Handoff 표와 같아야 한다. 리뷰 라운드의 review-handoff note는
+// session-open 뒤, status --write-input 앞에 와야 한다. note가 원장 hash를 바꾸므로 그 뒤에 status를 다시 써야 한다.
+test('drive-metrics root-direct handoff → orders the review-handoff note between metrics start and status', () => {
+  const direct = sectionBetween(readDriveMetrics(), '## Per root-direct session', '## Closing report')
+    .replace(/\s+/g, ' ');
+  const at = (needle) => { const i = direct.indexOf(needle); assert.ok(i >= 0, needle); return i; };
+  assert.ok(at('`coordinate session-open`') < at('`metrics start --kind coordinator-session`'));
+  assert.ok(at('`metrics start --kind coordinator-session`') < at('`coordinate note`'));
+  assert.ok(at('`coordinate note`') < at('`coordinate status --write-input`'));
+  assert.match(direct, /review-handoff:/);
+  assert.match(direct, /\(\.\/direct-run\.md\)/);
+});
+
+// 첫 문단의 실패 단계 문장은 표의 실패 열과 같은 번호를 말해야 한다. 한쪽만 바뀌면 중단 단계와
+// 계속 단계가 문서마다 어긋나므로, 표에서 번호를 뽑아 문장과 대조한다.
+test('direct-run Handoff failure sentence → names the same stop and continue steps as the table', () => {
+  const directRun = fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-run/references/direct-run.md'), 'utf8');
+  const tail = directRun.slice(directRun.indexOf('## Handoff'));
+  const rows = [...tail.matchAll(/^\| (\d+) \|.*\| ([^|]*) \|$/gm)].map((m) => [Number(m[1]), m[2]]);
+  assert.deepStrictEqual(rows.filter(([, cell]) => /stop and report/.test(cell)).map(([n]) => n), [2, 4, 5, 6]);
+  assert.deepStrictEqual(rows.filter(([, cell]) => /never blocks/.test(cell)).map(([n]) => n), [1, 3]);
+  const sentence = paragraphContaining(tail, 'stops the handoff').replace(/\s+/g, ' ');
+  assert.match(sentence, /of step 2, 4, 5, or 6 stops the handoff/);
+  assert.match(sentence, /failure of step 1 or 3 is reported and the handoff continues/);
+});
+
 // 같은 개수로 task가 교체된 정상 진행(--resume-task)을 no-progress로 오판하지 않으려면
 // 진행 기준이 개수가 아니라 baseline에 없던 id여야 한다.
 test('run step 4 → judges progress by a new completed_tasks id, not by count', () => {

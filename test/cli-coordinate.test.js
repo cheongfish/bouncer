@@ -1332,6 +1332,24 @@ test('coordinate note with a current fence → records a note that status --writ
   assert.ok(JSON.parse(line).notes.some((n) => n.text === '다음 세션 메모'));
 });
 
+test('coordinate note with a malformed review-handoff text → exits 1 with note-review-handoff-invalid JSON and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'note', ['--repo', drive.repo, '--text', 'review-handoff: mode=full']);
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  const body = JSON.parse(r.buf.out);
+  assert.strictEqual(body.ok, false);
+  assert.strictEqual(body.reason, 'note-review-handoff-invalid');
+  assert.strictEqual(typeof body.cause, 'string');
+  assert.strictEqual(typeof body.next, 'string');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate usage for note → names note-review-handoff-invalid among its refusals', () => {
+  const usage = require('../packages/cli/dist/cli-usage').coordinateUsage('note');
+  assert.ok(usage.includes('note-review-handoff-invalid'), usage);
+});
+
 test('coordinate worker-model without fence flags → is usage exit 2 and keeps the ledger', () => {
   const drive = preparedDrive();
   const before = fs.readFileSync(ledgerOf(drive));

@@ -570,3 +570,25 @@ test('codexAgentTomlFor → maps each named agent md to its existing TOML and re
   assert.strictEqual(codexAgentTomlFor('agents/custom.md'), null);
   assert.strictEqual(codexAgentTomlFor('docs/bouncer-reviewer.md'), null);
 });
+
+// 아래 두 상수는 Checklist의 문장 원문과 글자 단위로 같아야 한다(max-len 때문에 이어 붙인다).
+const IMPLEMENTER_SENTENCE = 'When a brief sentence and a Checklist fixture or assertion support different '
+  + 'interpretations, do not pick one: quote both and stop with **Needs planning**.';
+const COORDINATOR_SENTENCE = 'When the repair changes product behavior, also judge the regression test that pins it: '
+  + 'put that test file in `--paths` (or `--new-path` when it does not exist yet) only when the failure evidence, '
+  + 'the debugger report, or a review finding names that test file, it lies under `test/`, and the brief\'s '
+  + 'Do not touch and Out of scope do not list it; otherwise name the missing regression test in `--decision` '
+  + 'instead of guessing a path.';
+// 문서 줄바꿈 위치에 묶이지 않도록 공백을 한 칸으로 접어 문장을 찾는다.
+const flatSection = (name, heading) =>
+  roleSection(fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8'), heading).replace(/\s+/g, ' ');
+
+test('implementer Scope section → stops with Needs planning when the brief and Checklist disagree', () => {
+  const scope = flatSection('bouncer-implementer', 'Scope');
+  assert.ok(scope.includes(IMPLEMENTER_SENTENCE), 'implementer Scope 문장 없음');
+});
+
+test('coordinator repair paths rule → judges the regression test file for a product fix', () => {
+  const guards = flatSection('bouncer-coordinator', 'Hard guards');
+  assert.ok(guards.includes(COORDINATOR_SENTENCE), 'coordinator repair 문장 없음');
+});

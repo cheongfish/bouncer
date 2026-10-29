@@ -650,14 +650,101 @@ function listTestFiles(repoRoot: string): string[] {
   return out.sort();
 }
 
+// 경로 경계 판정에 쓰는 글자 집합. 정규식을 만들지 않고 글자 포함 여부로만 비교한다. needle은 정규식이
+// 아닌 부분 문자열이고, 정규식으로 짜면 needle의 `.` 같은 글자가 메타 문자로 해석되는 위험이 생긴다.
+// PATH_CHARS: 경로를 이루는 글자. 앞이 이 글자면 일치는 더 긴 경로나 식별자의 일부다.
+const PATH_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$.-/';
+// TAIL_CHARS: 일치 뒤에 오면 그 일치가 더 긴 경로의 일부라는 뜻인 글자. `.`은 뺀다(문장 끝 `.`를 허용).
+const TAIL_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$-/';
+// WORD_CHARS: 식별자 글자. `.` 뒤에 오면 `.bak`·`.json`처럼 확장자가 이어진 것이라 경계가 아니다.
+const WORD_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
+
 /**
- * 파일에서 `needle`을 포함하는 첫 줄을 찾는다. 같은 파일의 뒤 일치 줄은 근거로 싣지 않는다.
+ * 글자 하나가 집합에 속하는지 본다. undefined(줄 끝 밖)는 어느 집합에도 속하지 않는다.
+ *
+ * @param {string} set - 글자 집합 문자열
+ * @param {string | undefined} ch - 검사할 글자. 줄 밖 위치면 undefined
+ * @returns {boolean} 한 글자이고 집합에 있으면 true
+ */
+function inCharSet(set: string, ch: string | undefined): boolean {
+  return ch !== undefined && ch.length === 1 && set.includes(ch);
+}
+
+/**
+ * 줄의 `index` 위치에서 시작하는 일치의 왼쪽이 경로 경계인지 본다.
+ *
+ * `./`로 시작하는 줄 머리 표기(`read('./AGENTS.md')`)는 같은 저장소 루트의 파일이라 경계로 친다.
+ * 그 밖의 `./`(예: `../docs/x.md`의 `./`)는 다른 디렉터리를 가리키므로 경계가 아니다.
+ *
+ * @param {string} line - 원문 줄(trim 전)
+ * @param {number} index - 일치가 시작하는 UTF-16 위치
+ * @returns {boolean} 경계이면 true
+ */
+function isLeftPathBoundary(line: string, index: number): boolean {
+  if (index === 0) return true;
+  if (!inCharSet(PATH_CHARS, line[index - 1])) return true;
+  return index >= 2 && line.slice(index - 2, index) === './'
+    && (index === 2 || !inCharSet(PATH_CHARS, line[index - 3]));
+}
+
+/**
+ * 일치가 끝나는 위치의 오른쪽이 경로 경계인지 본다. 줄 끝이거나 경로 글자가 이어지지 않으면 경계다.
+ * 다음 글자가 `.`이면 문장 끝 마침표일 수도 있고 `.bak` 같은 확장자일 수도 있으므로, 그 다음 글자가
+ * 식별자 글자인지로 가른다.
+ *
+ * @param {string} line - 원문 줄(trim 전)
+ * @param {number} end - 일치가 끝나는 UTF-16 위치(시작 + needle 길이)
+ * @returns {boolean} 경계이면 true
+ */
+function isRightPathBoundary(line: string, end: number): boolean {
+  const next = line[end];
+  if (next === undefined) return true;
+  if (inCharSet(TAIL_CHARS, next)) return false;
+  if (next !== '.') return true;
+  return !inCharSet(WORD_CHARS, line[end + 1]);
+}
+
+/**
+ * 줄 안의 `needle` 일치 위치마다 경계를 보고, 하나라도 양쪽 경계를 만족하면 참이다. 경계 밖 일치만
+ * 있으면 거짓이다. 위치를 한 글자씩 밀어 겹치는 일치도 빠짐없이 본다.
+ *
+ * @param {string} line - 원문 줄(trim 전)
+ * @param {string} needle - 정규형 항목 문자열. normalizeCoupledItem이 빈 값을 걸러 비어 있지 않다
+ * @returns {boolean} 경계 일치가 하나라도 있으면 true
+ */
+function hasPathBoundaryMatch(line: string, needle: string): boolean {
+  for (let index = line.indexOf(needle); index !== -1; index = line.indexOf(needle, index + 1)) {
+    if (isLeftPathBoundary(line, index) && isRightPathBoundary(line, index + needle.length)) return true;
+  }
+  return false;
+}
+
+/**
+ * 근거 줄을 `max` UTF-16 단위로 자르되, 쌍의 상위 서로게이트가 마지막 단위로 남으면 그 한 단위를 뗀다.
+ * 단위 수 상한은 그대로 두고, 자른 결과가 뒤따르는 하위 서로게이트 없이 끊긴 글자를 만들지 않게 한다.
+ *
+ * @param {string} text - trim된 근거 줄
+ * @param {number} max - 최대 UTF-16 단위 수
+ * @returns {string} 잘린 근거 줄. 마지막이 상위 서로게이트면 그 한 단위를 뺀 값
+ */
+function sliceEvidenceText(text: string, max: number): string {
+  const cut = text.slice(0, max);
+  const last = cut.charCodeAt(cut.length - 1);
+  // 마지막 단위가 상위 서로게이트(0xD800-0xDBFF)면 짝의 하위 절반은 잘려 나간 것이다. 그 글자를 빼면
+  // 결과는 온전한 글자만 남는다. 하위 서로게이트로 끝나는 경우는 짝이 온전하므로 건드리지 않는다.
+  if (last >= 0xd800 && last <= 0xdbff) return cut.slice(0, -1);
+  return cut;
+}
+
+/**
+ * 파일에서 `needle`이 경로 경계에 일치하는 첫 줄을 찾는다. 같은 파일의 뒤 일치 줄은 근거로 싣지 않는다.
  * 근거 줄 하나면 질문이 짧고, 파일당 한 줄이면 같은 파일이 여러 번 후보로 뜨지 않는다.
+ * 경계 밖 일치만 있는 파일은 null이며, 호출자는 그 파일을 후보로 내지 않는다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} rel - 검색할 파일의 저장소 상대 posix 경로
  * @param {string} needle - 정규형 항목 문자열(정규식이 아닌 부분 문자열)
- * @returns {{ line: number, text: string } | null} 1부터 세는 줄 번호와 잘린 줄, 일치가 없으면 null
+ * @returns {{ line: number, text: string } | null} 1부터 세는 줄 번호와 잘린 줄, 경계 일치가 없으면 null
  */
 function firstMatchingLine(
   repoRoot: string,
@@ -674,8 +761,9 @@ function firstMatchingLine(
   }
   const lines = body.split(/\r?\n/);
   for (let i = 0; i < lines.length; i += 1) {
-    if (lines[i].includes(needle)) {
-      return { line: i + 1, text: lines[i].trim().slice(0, COUPLED_EVIDENCE_MAX_CHARS) };
+    // 경계 판정은 trim 전 원문 줄에서 한다. trim은 근거 표시용이고 경계 위치를 바꾸지 않는다.
+    if (hasPathBoundaryMatch(lines[i], needle)) {
+      return { line: i + 1, text: sliceEvidenceText(lines[i].trim(), COUPLED_EVIDENCE_MAX_CHARS) };
     }
   }
   return null;
