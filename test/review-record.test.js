@@ -957,6 +957,7 @@ test('brief blueprint second delta after stored delta → is final-review-single
   const result = fx.record(deltaPayload(fx, undefined, 3), { status: 'accepted' });
   assertRejectedUntouched(fx, before, result, 'final-review-single-round');
   assert.match(result.next, /discovery and one delta are used/);
+  assert.strictEqual(result.next, BRIEF_SECOND_DELTA_NEXT);
 });
 
 for (const clause of BRIEF_CLAUSE_BAD) {
@@ -993,6 +994,167 @@ test('brief blueprint deferred must_fix with note and --status accepted → is a
   const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
   assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
   assert.ok(result.cause.some((m) => String(m).includes('accepted with open must_fix')), JSON.stringify(result.cause));
+});
+
+// ---- brief delta 이연: delta 라운드를 처음 기록할 때만 minor·nit must_fix를 deferred로 닫는다 ----
+
+const BRIEF_SECOND_DELTA_NEXT = 'discovery and one delta are used; a minor or nit must_fix can be deferred with a '
+  + 'note only when the delta round is first recorded; after a stored delta, close remaining findings with '
+  + 'review accept-risk after user approval or report them as blocked';
+
+// delta 라운드에서 처음 나온 finding. first_seen_round·last_seen_round가 모두 delta 라운드 2다.
+const BRIEF_F2 = {
+  id: 'F2', severity: 'minor', status: 'deferred', note: 'follow-up', category: 'correctness',
+  brief_clause: 'tasks/001 Interface', file: 'scripts/lib/y.js', symbol: 'g', actionability: 'must_fix',
+  origin: 'introduced_by_revision', first_seen_round: 2, last_seen_round: 2,
+};
+const BRIEF_F1_RESOLVED = { ...EXAMPLE_FINDING, status: 'resolved', last_seen_round: 2 };
+
+/** discovery 라운드 1에 F1(major, open)을 기록한 brief 픽스처. */
+function briefAfterDiscovery() {
+  const fx = makeFixture({ contract: 'brief' });
+  const result = fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  return fx;
+}
+
+/** delta 라운드 2를 주어진 원장 전체와 함께 기록한다. previous_finding_ids는 F1이 이전 라운드에서 왔음을 뜻한다. */
+function briefDeltaRecord(fx, findings, status = 'accepted') {
+  return fx.record(fx.payload({
+    round: 2, mode: 'delta', previous_finding_ids: ['F1'], new: 1, resolved: 1,
+  }, findings), { status });
+}
+
+test('brief blueprint delta with a remaining minor must_fix deferred → records accepted', () => {
+  const fx = briefAfterDiscovery();
+  const result = briefDeltaRecord(fx, [BRIEF_F1_RESOLVED, BRIEF_F2]);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const { data } = parseFrontmatter(fs.readFileSync(fx.reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'accepted');
+  assert.equal(data.bouncer.review.findings.find((f) => f.id === 'F2').status, 'deferred');
+});
+
+test('brief blueprint delta with a remaining major must_fix deferred → is accepted with open must_fix', () => {
+  const fx = briefAfterDiscovery();
+  const before = fs.readFileSync(fx.reviewPath);
+  const result = briefDeltaRecord(fx, [BRIEF_F1_RESOLVED, { ...BRIEF_F2, severity: 'major' }]);
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(
+    result.cause.some((m) => String(m).includes('review accepted with open must_fix F2')),
+    JSON.stringify(result.cause),
+  );
+});
+
+test('brief blueprint discovery-only minor must_fix deferred → is accepted with open must_fix', () => {
+  const fx = makeFixture({ contract: 'brief' });
+  const before = fs.readFileSync(fx.reviewPath);
+  const finding = { ...EXAMPLE_FINDING, severity: 'minor', status: 'deferred', note: 'n' };
+  const result = fx.record(fx.payload({}, [finding]), { status: 'accepted' });
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(
+    result.cause.some((m) => String(m).includes('review accepted with open must_fix F1')),
+    JSON.stringify(result.cause),
+  );
+});
+
+test('brief blueprint delta with a blocker must_fix deferred → is accepted with open must_fix', () => {
+  const fx = briefAfterDiscovery();
+  const before = fs.readFileSync(fx.reviewPath);
+  const result = briefDeltaRecord(fx, [BRIEF_F1_RESOLVED, { ...BRIEF_F2, severity: 'blocker' }]);
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(
+    result.cause.some((m) => String(m).includes('review accepted with open must_fix F2')),
+    JSON.stringify(result.cause),
+  );
+});
+
+test('brief blueprint delta deferring a discovery finding downgraded to minor → is accepted with open must_fix', () => {
+  const fx = briefAfterDiscovery();
+  const before = fs.readFileSync(fx.reviewPath);
+  // discovery의 F1(first_seen_round 1)을 delta에서 minor로 낮춰 이연하려는 입력이다.
+  const downgraded = { ...EXAMPLE_FINDING, severity: 'minor', status: 'deferred', note: 'n', last_seen_round: 2 };
+  const result = briefDeltaRecord(fx, [downgraded]);
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(
+    result.cause.some((m) => String(m).includes('review accepted with open must_fix F1')),
+    JSON.stringify(result.cause),
+  );
+});
+
+test('brief blueprint delta with a minor must_fix deferred at last_seen_round 1 → is accepted with open must_fix', () => {
+  const fx = briefAfterDiscovery();
+  const before = fs.readFileSync(fx.reviewPath);
+  const result = briefDeltaRecord(fx, [
+    BRIEF_F1_RESOLVED, { ...BRIEF_F2, first_seen_round: 1, last_seen_round: 1 },
+  ]);
+  assertRejectedUntouched(fx, before, result, 'review-ledger-invalid');
+  assert.ok(
+    result.cause.some((m) => String(m).includes('review accepted with open must_fix F2')),
+    JSON.stringify(result.cause),
+  );
+});
+
+test('brief blueprint delta re-recording a discovery major as minor deferred at first_seen_round 2 → is review-input-invalid and leaves bytes unchanged', () => {
+  const fx = briefAfterDiscovery();
+  const before = fs.readFileSync(fx.reviewPath);
+  // CR-RS-1 재현: 같은 id·fingerprint의 discovery finding을 delta에서 first_seen_round 2로 다시 적는다.
+  const restated = { ...EXAMPLE_FINDING, severity: 'minor', status: 'deferred', note: 'n', first_seen_round: 2, last_seen_round: 2 };
+  const result = briefDeltaRecord(fx, [restated]);
+  assertRejectedUntouched(fx, before, result, 'review-input-invalid');
+  assert.ok(String(result.cause).includes('finding F1 first_seen_round changed: 1 -> 2'), String(result.cause));
+});
+
+test('brief blueprint delta re-recording a discovery finding without first_seen_round → is review-input-invalid', () => {
+  const fx = briefAfterDiscovery();
+  const before = fs.readFileSync(fx.reviewPath);
+  const restated = { ...EXAMPLE_FINDING, severity: 'minor', status: 'deferred', note: 'n', last_seen_round: 2 };
+  delete restated.first_seen_round;
+  const result = briefDeltaRecord(fx, [restated]);
+  assertRejectedUntouched(fx, before, result, 'review-input-invalid');
+  assert.ok(String(result.cause).includes('finding F1 first_seen_round changed: 1 -> undefined'), String(result.cause));
+});
+
+test('legacy blueprint re-recording a finding with another first_seen_round → is not review-input-invalid', () => {
+  const fx = makeFixture();
+  assert.equal(fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' }).ok, true);
+  const result = fx.record(fx.payload({ round: 2 }, [{ ...EXAMPLE_FINDING, status: 'open', first_seen_round: 2 }]), {
+    status: 'requested',
+  });
+  assert.notStrictEqual(result.reason, 'review-input-invalid', JSON.stringify(result));
+});
+
+test('task review re-recording a finding with another first_seen_round → is not review-input-invalid', () => {
+  const fx = makeFixture({ taskMode: true });
+  assert.equal(fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' }).ok, true);
+  const result = fx.record(fx.payload({ round: 2 }, [{ ...EXAMPLE_FINDING, status: 'open', first_seen_round: 2 }]), {
+    status: 'requested',
+  });
+  assert.notStrictEqual(result.reason, 'review-input-invalid', JSON.stringify(result));
+});
+
+test('task review inside a brief blueprint re-recording a finding with another first_seen_round → is not review-input-invalid', () => {
+  const fx = makeFixture({ taskMode: true, contract: 'brief' });
+  assert.equal(fx.record(fx.payload({}, [{ ...EXAMPLE_FINDING, status: 'open' }]), { status: 'requested' }).ok, true);
+  const result = fx.record(fx.payload({ round: 2 }, [{ ...EXAMPLE_FINDING, status: 'open', first_seen_round: 2 }]), {
+    status: 'requested',
+  });
+  assert.notStrictEqual(result.reason, 'review-input-invalid', JSON.stringify(result));
+});
+
+test('final review docs → state the delta-round deferral timing', () => {
+  const sentence = 'In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a '
+    + '`note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, '
+    + 'any remaining finding is closed with `review accept-risk` after user approval or stops with '
+    + '`final-review-blocked`.';
+  const docs = [
+    path.join(__dirname, '..', 'references', 'coordinator-cards', 'final_review.md'),
+    path.join(__dirname, '..', 'rules', 'cli.md'),
+    path.join(__dirname, '..', 'skills', 'bouncer-run', 'references', 'review-round.md'),
+  ];
+  for (const file of docs) {
+    const text = fs.readFileSync(file, 'utf8').replace(/\s+/g, ' ');
+    assert.ok(text.includes(sentence), file);
+  }
 });
 
 test('brief blueprint accept-risk --yes on open must_fix → accepts the document', () => {

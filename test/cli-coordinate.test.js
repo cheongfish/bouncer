@@ -869,6 +869,13 @@ test('CLI coordinate repair --review-finding after the final discovery round →
   const body = JSON.parse(buf.out);
   assert.strictEqual(body.reason, 'final-review-single-round');
   assert.ok(body.cause && body.next);
+  assert.strictEqual(
+    body.next,
+    'Legacy blueprint: defer the remaining must_fix findings with a note and accept the review. '
+      + 'Brief blueprint: no repair wave remains; a remaining minor or nit must_fix is deferred with a note only '
+      + 'when the delta round is first recorded, and after a stored delta any remaining finding is closed with '
+      + '`review accept-risk` after user approval or stops with `final-review-blocked`.',
+  );
   assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), before);
 });
 

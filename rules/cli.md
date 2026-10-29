@@ -656,7 +656,7 @@ Success is `{ ok: true, path, round, status, findings }` (exit 0), plus `warning
 `{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
 `reason` is `review-target-missing`, `review-task-required`,
 `review-task-not-allowed`, `review-input-invalid`,
-`review-round-out-of-sequence`, or `review-ledger-invalid`. Follow `next`; do
+`review-round-out-of-sequence`, or `review-ledger-invalid`. In a `review_contract: brief` blueprint final review, `review-input-invalid` also covers a finding whose `first_seen_round` differs from the stored value (cause `finding <id> first_seen_round changed: <stored> -> <incoming>`), so a discovery finding cannot be restated as a later delta finding. Follow `next`; do
 not edit YAML by hand or read validator sources to invent a passing
 frontmatter. Invalid argv (`record` missing, `--blueprint`/`--round` missing,
 duplicate options, `--task` not three digits, `--status` outside
@@ -679,7 +679,7 @@ any file read), `review-accept-risk-task-scope` (the review is not
 `review_scope: blueprint`), `review-target-missing`, `review-finding-missing`,
 `review-finding-not-open`, `review-note-required` (blank `--note`), or
 `review-ledger-invalid`. A missing or duplicate `--blueprint`/`--finding`/
-`--note`, or any `--task`, is exit 2.
+`--note`, or any `--task`, is exit 2. In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a `note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, any remaining finding is closed with `review accept-risk` after user approval or stops with `final-review-blocked`.
 
 ```sh
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \

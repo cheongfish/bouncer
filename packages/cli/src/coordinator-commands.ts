@@ -2037,8 +2037,12 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
       + 'repair, supplement, or delta round may open. A `review_contract: brief` blueprint gets one '
       + 'review-caused repair after discovery; a second repair, any supplement, or a repair after the delta '
       + 'round is refused here.',
-    next: 'Defer the remaining must_fix findings with a note and accept the review, or stop with '
-      + '`final-review-blocked` for the user decision.',
+    // legacy와 brief의 이연 시점이 다르므로 한 문구에 둘 다 적는다. brief는 delta를 처음 기록할 때만
+    // minor·nit must_fix를 이연할 수 있고, 저장된 뒤에는 accept-risk 또는 blocked로 닫는다.
+    next: 'Legacy blueprint: defer the remaining must_fix findings with a note and accept the review. '
+      + 'Brief blueprint: no repair wave remains; a remaining minor or nit must_fix is deferred with a note only '
+      + 'when the delta round is first recorded, and after a stored delta any remaining finding is closed with '
+      + '`review accept-risk` after user approval or stops with `final-review-blocked`.',
   },
 
   'review-contract-invalid': {
