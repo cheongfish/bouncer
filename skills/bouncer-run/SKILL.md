@@ -154,7 +154,7 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
 
 4. **Coordinator dispatch.** Just before dispatch, run
    `bouncer subagent-model --agent bouncer-coordinator` and report its output
-   to the user (`inherit` omits the model argument). If the host rejects the
+   to the user (`inherit` omits the model argument). That line is the coordinator's model only; each implementer dispatch uses the line `bouncer subagent-model --agent bouncer-implementer` prints, and the coordinator's line is never passed on as a worker model. If the host rejects the
    configured model, stop without retry or fallback and report provider, role,
    configured model, exact host reason, and config correction location. If
    Claude Code hook `additionalContext` changes dispatch facts, report that

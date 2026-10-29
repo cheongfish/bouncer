@@ -329,7 +329,9 @@ dispatch, and the dispatch receives that same value.
   `coordinate dispatch` argv as `--model <value>` (`next` does not put it in
   `argv`). That call records the dispatch model: the ledger keeps the argument
   you pass so it can be compared with `config.json` later, not proof of the
-  model the host ran. Pass the same value to the implementer dispatch. If the
+  model the host ran. Pass the same value to the implementer dispatch. Pass
+  `inherit` only when that printed line is `inherit`; the coordinator's own
+  `model: inherit` is not the implementer's model. If the
   host rejects it, stop without retry or fallback and report provider, role,
   configured model, exact host reason, and config correction location. If
   Claude Code hook `additionalContext` changes dispatch facts, report the

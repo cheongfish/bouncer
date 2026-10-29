@@ -263,3 +263,28 @@ test('agent-dispatch and subagent-model codex-agents check → scope the check a
   assert.doesNotMatch(named, /When that check succeeds/);
   assert.match(named, /on Codex, only once the check above reports\s+`in_sync: true`/);
 });
+
+// 구현자 dispatch 모델은 dispatch 직전 `bouncer subagent-model --agent bouncer-implementer`의
+// 출력 한 줄이다. coordinator 자신의 `inherit`가 worker로 넘어가면 설정상 light 등급 구현자가
+// coordinator 모델로 돌아간다. 세 정본 문장이 각 문서에 있어야 그 경로가 막힌다.
+// 줄바꿈이 문장 중간에 와도 같은 문장으로 보도록 공백을 한 칸으로 줄인 뒤 비교한다.
+test('run docs → implementer model is the resolver line, not the coordinator inherit', () => {
+  const norm = (text) => text.replace(/\s+/g, ' ');
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  const step4 = norm(paragraphContaining(readRunSkill(), 'bouncer subagent-model --agent bouncer-coordinator'));
+  assert.ok(step4.includes(
+    "That line is the coordinator's model only; each implementer dispatch uses the line "
+    + '`bouncer subagent-model --agent bouncer-implementer` prints, and the coordinator\'s line '
+    + 'is never passed on as a worker model.',
+  ));
+  const dispatchRef = norm(read('skills/bouncer-run/references/agent-dispatch.md'));
+  assert.ok(dispatchRef.includes(
+    'Pass `inherit` only when that printed line is `inherit`; the coordinator\'s own '
+    + '`model: inherit` is not the implementer\'s model.',
+  ));
+  const card = norm(read('references/coordinator-cards/dispatch.md'));
+  assert.ok(card.includes(
+    '`<value>` is the line `bouncer subagent-model --agent bouncer-implementer` printed '
+    + 'for this dispatch, not the coordinator\'s own model.',
+  ));
+});

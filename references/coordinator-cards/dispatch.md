@@ -15,7 +15,9 @@ rules and this card does not restate them.
   `--no-symbols` when there are none.
 - Immediately before every `bouncer-implementer` call, run this `argv` from
   that task's worktree with `--model <value>` appended per the agent-dispatch
-  `## Worker model and token records` section.
+  `## Worker model and token records` section. `<value>` is the line
+  `bouncer subagent-model --agent bouncer-implementer` printed for this
+  dispatch, not the coordinator's own model.
 - After `rework`, `scope_revision`, or `task_change`, revise only when the
   outcome requires it, then redispatch so runtime supplies the increased
   `attempt` and `previous_outcome`. After `ok: false` or a fence refusal,
