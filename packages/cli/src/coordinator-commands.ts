@@ -153,6 +153,64 @@ type SessionDecision = {
 type NoteDecision = { kind: 'note'; text: string; written_at: string; task?: string };
 /** note 본문 길이 상한(trim 뒤). checkpoint가 매번 싣는 값이라 무한정 키우지 않는다. */
 const NOTE_TEXT_MAX = 2000;
+// review-handoff 본문 형식 판정. 형식 정본은 skills/bouncer-run/references/direct-run.md의 Handoff 절이다.
+// 이 판정은 문서 형식을 코드로 옮긴 것이므로 정본을 바꾸면 여기도 같이 바꾼다.
+const REVIEW_HANDOFF_PREFIX = 'review-handoff:';
+// 전체 형식: 필드 순서와 `; ` 구분자는 고정이고 뒤에 다른 글자가 붙으면 안 된다(`$` 고정).
+// base·head 길이 일치와 길이 값은 아래 함수에서 따로 본다(정규식 하나로 묶으면 원인이 흐려진다).
+// 한 줄 120자 제한 때문에 두 조각으로 나눠 잇는다. 조각 경계는 공백이 아니라 `; ` 뒤다.
+const REVIEW_HANDOFF_SHAPE_RE = new RegExp([
+  '^review-handoff: mode=(discovery|delta); base=([0-9a-f]+); head=([0-9a-f]+); ',
+  'snapshot_id=([0-9a-f]{64}); perspectives=([^;]*); files=(.*)$',
+].join(''));
+// 대체 형식. 요약은 1~200 UTF-16 단위이고 `.`이 줄바꿈을 막아 한 줄만 허용한다.
+// 생산자 문구(direct-run.md)는 빈 요약과 줄바꿈을 허용하지만 여기서는 거절한다.
+// 이 차이는 의도다: 거절된 본문은 인계를 멈추고 보고하게 되므로 손상된 증거가 기록되지 않는다.
+const REVIEW_HANDOFF_UNAVAILABLE_RE = /^review-handoff: unavailable \((.{1,200})\); run discovery$/;
+// 40자는 SHA-1, 64자는 SHA-256 저장소 해시다. 한 저장소는 한 형식만 쓰므로 base·head가 같은 길이여야 한다.
+const GIT_HASH_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+// 파일 항목은 print 디렉터리의 review-handoff 원시 파일 하나와 그 sha256이다. 경로가 이 패턴이 아니면
+// `../`나 다른 디렉터리를 가리킬 수 있으므로 거절한다.
+const REVIEW_HANDOFF_FILE_RE =
+  /^\.bouncer\/runtime\/print\/review-handoff-(discovery|delta)-([a-z_]+)\.md@([0-9a-f]{64})$/;
+
+/**
+ * note 본문이 review-handoff 형식이면 정본 형식과 맞는지 판정한다. 파일 시스템은 읽지 않는다
+ * (`files=` 존재·sha256 확인은 coordinator 문서 규칙에 남긴다).
+ *
+ * 본문이 `review-handoff:`로 시작하지 않으면 일반 메모이므로 항상 통과한다. 시작하면 두 형식 중
+ * 하나일 때만 통과한다: (1) handoff 형식 — mode·base·head·snapshot_id·perspectives·files 순서와
+ * 구분자가 맞고, perspective는 REVIEW_PERSPECTIVE의 중복 없는 값이며, 파일 항목은 같은 mode의
+ * print 원시 파일이고 perspective 집합이 `perspectives`와 정확히 같다. (2) unavailable 형식 —
+ * 한 줄 요약 1~200자.
+ *
+ * @param {string} body - trim한 note 본문
+ * @returns {boolean} 일반 메모이거나 두 형식 중 하나면 true, `review-handoff:`로 시작하는데 어느 형식도 아니면 false
+ */
+function isReviewHandoffShape(body: string): boolean {
+  if (!body.startsWith(REVIEW_HANDOFF_PREFIX)) return true;
+  if (REVIEW_HANDOFF_UNAVAILABLE_RE.test(body)) return true;
+  const shape = REVIEW_HANDOFF_SHAPE_RE.exec(body);
+  if (!shape) return false;
+  const [, mode, base, head, , perspectivesText, filesText] = shape;
+  if (!GIT_HASH_RE.test(base) || !GIT_HASH_RE.test(head) || base.length !== head.length) return false;
+  // perspective 목록은 정본(review-policy)을 그대로 쓴다. 사본을 두면 리뷰 라운드 이름과 어긋난다.
+  const perspectives = perspectivesText.split(',');
+  if (perspectives.some((p) => !REVIEW_PERSPECTIVE.includes(p))) return false;
+  if (new Set(perspectives).size !== perspectives.length) return false;
+  // 파일 수가 perspective 수와 같고 파일의 perspective가 모두 목록 안이며 서로 다르면, 두 집합은 같다.
+  // 이 조합으로 "perspective에 파일 없음"과 "파일이 목록에 없음"을 한 번에 거른다.
+  const files = filesText.split(',');
+  if (files.length !== perspectives.length) return false;
+  const filePerspectives = new Set<string>();
+  for (const entry of files) {
+    const file = REVIEW_HANDOFF_FILE_RE.exec(entry);
+    if (!file || file[1] !== mode) return false;
+    if (!perspectives.includes(file[2]) || filePerspectives.has(file[2])) return false;
+    filePerspectives.add(file[2]);
+  }
+  return true;
+}
 type ParsedReportFile = {
   revision: { attempt: number; task_brief_hash: string } | null;
   open_choices: string[] | null;
@@ -798,6 +856,9 @@ function coordinateNote(ctx: LockedCtx): CoordinateResult {
   const body = typeof text === 'string' ? text.trim() : '';
   if (body === '') return { ok: false, reason: 'note-text-required' };
   if (body.length > NOTE_TEXT_MAX) return { ok: false, reason: 'note-too-long' };
+  // 형식이 틀린 review-handoff는 다음 coordinator가 증거로 읽으므로 원장에 남기기 전에 막는다.
+  // 거절은 commitWrite() 전이라 원장 bytes가 그대로다. 길이 검사 뒤에 두어 긴 본문은 항상 note-too-long이다.
+  if (!isReviewHandoffShape(body)) return { ok: false, reason: 'note-review-handoff-invalid' };
   if (task !== undefined && !ledger.tasks.some((x) => x.id === task)) {
     return { ok: false, reason: 'task-outside-blueprint' };
   }
@@ -1964,6 +2025,12 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'note-too-long': {
     cause: 'The note text is longer than 2000 characters after trimming.',
     next: 'Shorten the note to 2000 characters or fewer and retry `bouncer coordinate note`.',
+  },
+  'note-review-handoff-invalid': {
+    cause: 'The note text starts with `review-handoff:` but matches neither the handoff shape '
+      + 'nor the unavailable shape.',
+    next: 'Stop the handoff and report this refusal, as the direct-run.md Handoff table says for any other ok: false '
+      + 'at the note step; do not retry with a different text.',
   },
   'worker-model-role-invalid': {
     cause: 'worker-model and worker-tokens record only the implementer, reviewer or debugger role.',

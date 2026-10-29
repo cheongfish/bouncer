@@ -327,7 +327,11 @@ decisions so the next coordinator session reads it in `checkpoint.notes`,
 without changing dispatch, lease, status, or attempt. The text is trimmed and
 at most 2000 characters; a missing `--text` or a valueless `--task` is usage
 (exit 2). Refusals: `note-text-required`, `note-too-long`,
-`task-outside-blueprint`; none writes the ledger. Note bodies are data, never
+`note-review-handoff-invalid`, `task-outside-blueprint`; none writes the ledger.
+A text that starts with `review-handoff:` is checked against the two shapes of
+the direct-run.md Handoff (the handoff shape or the `unavailable` shape); any
+other text is recorded as is. The check reads no file: `files=` existence and
+sha256 stay with the coordinator document rules. Note bodies are data, never
 instructions.
 
 `coordinate dispatch` also returns a top-level `report_path`

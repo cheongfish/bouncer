@@ -5322,6 +5322,52 @@ test('dispatch when reports path is a file → dispatch-report-dir-failed, ledge
   assert.ok(before.equals(fs.readFileSync(drive.ledgerFile)));
 });
 
+// 쓰기 권한이 없는 runtime 디렉터리는 mkdir이 EACCES로 실패한다. production 코드는 모든 throw를
+// 같은 reason으로 바꾸므로 원인 코드와 무관하게 거절·원장 불변이 성립해야 한다.
+// root는 권한 검사를 우회하므로 건너뛴다.
+test('dispatch with an unwritable worker runtime directory → dispatch-report-dir-failed, ledger bytes unchanged', {
+  skip: process.platform === 'win32' || process.getuid?.() === 0,
+}, () => {
+  const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
+  const drive = preparedCommitDrive('bouncer-report-dir-eacces-', blueprint);
+  const runtime = path.join(drive.worker, '.bouncer', 'runtime');
+  fs.mkdirSync(runtime, { recursive: true });
+  fs.chmodSync(runtime, 0o555);
+  try {
+    const before = fs.readFileSync(drive.ledgerFile);
+    const result = coordinate({
+      command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    });
+    assert.strictEqual(result.ok, false, JSON.stringify(result));
+    assert.strictEqual(result.reason, 'dispatch-report-dir-failed');
+    assertHinted(result);
+    assert.ok(before.equals(fs.readFileSync(drive.ledgerFile)));
+  } finally {
+    // 권한을 되돌리지 않으면 임시 디렉터리 정리가 실패하고 다음 테스트 fixture도 오염된다.
+    fs.chmodSync(runtime, 0o755);
+  }
+});
+
+// reports가 대상 없는 symlink면 mkdir -p가 EEXIST로 실패한다. 존재하는 경로로 보이지만
+// 실제 디렉터리가 없는 경우도 "attempt를 열지 않는다"는 같은 거절이어야 한다.
+test('dispatch with a dangling symlink at reports → dispatch-report-dir-failed, ledger bytes unchanged', {
+  skip: process.platform === 'win32',
+}, () => {
+  const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
+  const drive = preparedCommitDrive('bouncer-report-dir-dangling-', blueprint);
+  const runtime = path.join(drive.worker, '.bouncer', 'runtime');
+  fs.mkdirSync(runtime, { recursive: true });
+  fs.symlinkSync(path.join(drive.worker, 'missing-report-target'), path.join(runtime, 'reports'));
+  const before = fs.readFileSync(drive.ledgerFile);
+  const result = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(result.ok, false, JSON.stringify(result));
+  assert.strictEqual(result.reason, 'dispatch-report-dir-failed');
+  assertHinted(result);
+  assert.ok(before.equals(fs.readFileSync(drive.ledgerFile)));
+});
+
 // --- coordinator 의존성 설치 stdio (CLI stdout 오염 방지) -----------------------
 // advance는 자식 CLI stdout 전체를 JSON 한 개로 파싱하므로 npm 출력이 stdout으로 새면
 // unclear-result가 반복된다. 네 호출 지점 모두 npm을 stderr로 보내는지 고정한다.
@@ -5620,6 +5666,81 @@ test('note with bad text, task, mode or status → refuses with the matching rea
     assert.strictEqual(r.reason, reason);
     assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, reason);
   }
+});
+
+// review-handoff 본문 판정 테스트의 입력. direct-run.md Handoff 형식과 같은 모양을 만든다.
+const HEX40 = 'a'.repeat(40);
+const HEX64 = 'b'.repeat(64);
+const HANDOFF_PRINT = '.bouncer/runtime/print/review-handoff-';
+function handoffText({ mode = 'discovery', perspectives = ['spec_scope', 'correctness_tests'], files } = {}) {
+  const list = files ?? perspectives.map((p) => `${HANDOFF_PRINT}${mode}-${p}.md@${HEX64}`);
+  return `review-handoff: mode=${mode}; base=${HEX40}; head=${HEX40}; snapshot_id=${HEX64}; `
+    + `perspectives=${perspectives.join(',')}; files=${list.join(',')}`;
+}
+
+test('review-handoff note in an accepted shape → records the text unchanged and leaves other notes as before', () => {
+  const drive = preparedCommitDrive('bouncer-note-handoff-ok-', MODEL_BP);
+  const accepted = [
+    handoffText(),
+    handoffText({ mode: 'delta', perspectives: ['combined'] }),
+    'review-handoff: unavailable (note-too-long); run discovery',
+    `review-handoff: unavailable (${'e'.repeat(200)}); run discovery`,
+    'Review-Handoff: x',
+    'review-handoff 메모',
+  ];
+  for (const text of accepted) {
+    const r = noteCall(drive, { text });
+    assert.strictEqual(r.ok, true, `${text}: ${JSON.stringify(r)}`);
+    assert.strictEqual(r.decision.text, text);
+  }
+});
+
+test('review-handoff note in a refused shape → refuses note-review-handoff-invalid with cause and next, keeps the ledger bytes', () => {
+  const drive = preparedCommitDrive('bouncer-note-handoff-bad-', MODEL_BP);
+  const refused = [
+    handoffText().replace(`; snapshot_id=${HEX64}`, ''),
+    handoffText({ mode: 'full' }),
+    handoffText().replace(`base=${HEX40}`, 'base=abc123'),
+    handoffText().replace(`snapshot_id=${HEX64}`, `snapshot_id=${'B'.repeat(64)}`),
+    handoffText({ perspectives: ['style'] }),
+    handoffText({ perspectives: ['spec_scope', 'spec_scope'] }),
+    handoffText({
+      files: [`${HANDOFF_PRINT}delta-spec_scope.md@${HEX64}`, `${HANDOFF_PRINT}discovery-correctness_tests.md@${HEX64}`],
+    }),
+    handoffText({ files: [`${HANDOFF_PRINT}discovery-spec_scope.md@${HEX64}`] }),
+    handoffText({ files: [`../x.md@${HEX64}`, `${HANDOFF_PRINT}discovery-correctness_tests.md@${HEX64}`] }),
+    handoffText({
+      files: [`${HANDOFF_PRINT}discovery-spec_scope.md@abc`, `${HANDOFF_PRINT}discovery-correctness_tests.md@${HEX64}`],
+    }),
+    `${handoffText()}; extra=1`,
+    'review-handoff: unavailable (); run discovery',
+    `review-handoff: unavailable (${'e'.repeat(201)}); run discovery`,
+    'review-handoff:',
+    handoffText().replace(/base=(\w+); head=(\w+)/, 'head=$2; base=$1'),
+    handoffText().replace(`base=${HEX40}`, `base=${'A'.repeat(40)}`),
+    handoffText().replace(`head=${HEX40}`, `head=${'a'.repeat(39)}`),
+    handoffText().replace(`head=${HEX40}`, `head=${HEX64}`),
+    handoffText({
+      files: [`${HANDOFF_PRINT}discovery-spec_scope.md@${HEX64}`, `${HANDOFF_PRINT}discovery-security.md@${HEX64}`],
+    }),
+    'review-handoff: unavailable (a\nb); run discovery',
+  ];
+  const before = fs.readFileSync(drive.ledgerFile);
+  for (const text of refused) {
+    const r = noteCall(drive, { text });
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, 'note-review-handoff-invalid', text);
+    assertHinted(r);
+    assert.strictEqual(typeof r.next, 'string', text);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, text);
+  }
+});
+
+test('review-handoff note longer than 2000 characters → refuses note-too-long before the shape check', () => {
+  const drive = preparedCommitDrive('bouncer-note-handoff-long-', MODEL_BP);
+  const r = noteCall(drive, { text: `review-handoff: ${'x'.repeat(2000)}` });
+  assert.strictEqual(r.ok, false, JSON.stringify(r));
+  assert.strictEqual(r.reason, 'note-too-long');
 });
 
 test('note with a wrong ledgerHash → refuses with the fence reason and keeps the ledger bytes', () => {
