@@ -552,6 +552,44 @@ function sumWorkerDecisions(decisions: unknown[]): WorkerTokensSummary {
   return summary;
 }
 
+// 미충족 worker 키 한 개. pendingWorkerTokenKeys가 내고 TASKS-005 거절이 읽는다.
+type PendingWorkerTokenKey = {
+  task: string | null; role: typeof WORKER_ROLES[number]; perspective: string | null; pending: number;
+};
+
+/**
+ * 토큰 기록이 아직 채워지지 않은 worker 키를 찾는다. 키는 sumWorkerDecisions와 같은
+ * `(task, role, perspective)`다. 키마다 `runs`(worker-model 수)와 `filled`(숫자 tokens가 달린
+ * 기록 + worker-tokens의 숫자 또는 `unreported` 기록 수)를 세고, `runs > filled`인 키만 낸다.
+ * `unreported`도 채움으로 세는 이유는 호스트가 답하지 않았다는 사실 자체가 기록됐기 때문이다.
+ * 기록이 있는데 미충족으로 남기면 같은 누락을 두 번 재촉하게 된다. 대응 worker-model이 없는
+ * worker-tokens 단독 키는 runs가 0이라 나오지 않는다. 입력은 바꾸지 않는다.
+ *
+ * @param {unknown[]} decisions - 원장 decisions
+ * @returns {PendingWorkerTokenKey[]} 미충족 키만 입력의 첫 등장 순으로. 모두 채워졌거나 없으면 빈 배열
+ */
+function pendingWorkerTokenKeys(decisions: unknown[]): PendingWorkerTokenKey[] {
+  const counts = new Map<string, Omit<PendingWorkerTokenKey, 'pending'> & { runs: number; filled: number }>();
+  for (const d of decisions) {
+    if (!isRecord(d) || (d.kind !== 'worker-model' && d.kind !== 'worker-tokens')) continue;
+    const role = WORKER_ROLES.find((r) => r === d.role);
+    if (role === undefined) continue;
+    // task·perspective가 없으면 null로 낸다. 호출자가 "없음"을 빈 문자열과 섞지 않도록 모양을 고정한다.
+    const task = typeof d.task === 'string' ? d.task : null;
+    const perspective = typeof d.perspective === 'string' ? d.perspective : null;
+    const key = JSON.stringify([task ?? '', role, perspective ?? '']);
+    const entry = counts.get(key) ?? { task, role, perspective, runs: 0, filled: 0 };
+    if (d.kind === 'worker-model') entry.runs += 1;
+    if (typeof d.tokens === 'number' || d.unreported === true) entry.filled += 1;
+    counts.set(key, entry);
+  }
+  const pending: PendingWorkerTokenKey[] = [];
+  for (const { task, role, perspective, runs, filled } of counts.values()) {
+    if (runs > filled) pending.push({ task, role, perspective, pending: runs - filled });
+  }
+  return pending;
+}
+
 /**
  * worker 집계의 출처를 정해 합산한다. 우선순위는 live 원장 → 저장 snapshot → unavailable이다.
  * 원장 파일이 있으면(깨졌으면 거절) 언제나 원장이 이기므로 오래된 snapshot이 live 자료를
@@ -839,5 +877,5 @@ function listCoordinatorSessions(opts: { file: string; blueprint: string }): Arr
 
 export = {
   EXCEPTION_KINDS, isException, metricsFilePath, startSession, endSession, summarize,
-  listCoordinatorSessions, saveWorkerSnapshot, loadWorkerSnapshot,
+  listCoordinatorSessions, saveWorkerSnapshot, loadWorkerSnapshot, pendingWorkerTokenKeys,
 };

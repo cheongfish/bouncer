@@ -1481,6 +1481,66 @@ test('coordinate worker-tokens without --tokens, --role or fence flags → is us
   assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
 });
 
+test('coordinate worker-tokens --tokens unreported → appends an unreported worker-tokens decision', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'reviewer', '--tokens', 'unreported', '--task', '001',
+    '--perspective', 'security',
+  ]);
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const expected = { kind: 'worker-tokens', role: 'reviewer', unreported: true, task: '001', perspective: 'security' };
+  assert.deepStrictEqual(JSON.parse(r.buf.out).decision, expected);
+  const decisions = JSON.parse(fs.readFileSync(ledgerOf(drive), 'utf8')).decisions;
+  assert.deepStrictEqual(decisions[decisions.length - 1], expected);
+});
+
+test('coordinate worker-model --tokens unreported → exits 1 with tokens-invalid and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--tokens', 'unreported',
+  ]);
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  assert.strictEqual(JSON.parse(r.buf.out).reason, 'tokens-invalid');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-tokens with --tokens UNREPORTED → exits 1 with tokens-invalid and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'reviewer', '--tokens', 'UNREPORTED',
+  ]);
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  const body = JSON.parse(r.buf.out);
+  assert.strictEqual(body.reason, 'tokens-invalid');
+  assert.strictEqual(
+    body.next,
+    'Retry with `--tokens <n>` set to the non-negative integer the host reported, '
+      + '`--tokens unreported` on worker-tokens when the host gave none, or omit it for worker-model.',
+  );
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-tokens with an empty --tokens value → exits 2 with usage and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'reviewer', '--tokens', '',
+  ]);
+  assert.strictEqual(r.code, 2, r.buf.err + r.buf.out);
+  assert.match(r.buf.err, /--tokens requires a value/);
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-tokens usage → shows the unreported value', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.integration, 'worker-tokens', ['--repo', drive.repo]);
+  assert.strictEqual(r.code, 2, r.buf.err + r.buf.out);
+  assert.match(r.buf.err, /--tokens <n\|unreported>/);
+  assert.match(r.buf.err, /unreported records that the host gave no value; metrics count it as missing\./);
+});
+
 test('coordinate usage → lists worker-model', () => {
   const { io, buf } = capture();
   runCli(['help'], io);

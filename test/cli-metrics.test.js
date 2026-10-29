@@ -487,6 +487,47 @@ test('summarize worker_tokens → 토큰 없는 worker-model만 있으면 그 �
   );
 });
 
+test('summarize worker_tokens → an unreported worker-tokens fills no total and stays missing', () => {
+  const f = fixture();
+  writeLedger(f.ledgerFile, {
+    integrated: [],
+    decisions: [
+      { kind: 'worker-model', role: 'reviewer', model: 'inherit', task: '001', perspective: 'security' },
+      { kind: 'worker-tokens', role: 'reviewer', unreported: true, task: '001', perspective: 'security' },
+    ],
+  });
+  const summary = metrics.summarize({ file: f.file, blueprint: BLUEPRINT, resolveLedger: () => f.ledgerFile });
+  assert.deepStrictEqual(summary.worker_tokens.by_role.reviewer, { total: 0, missing: 1 });
+  assert.deepStrictEqual(
+    { total: summary.worker_tokens.total, missing: summary.worker_tokens.missing },
+    { total: 0, missing: 1 },
+  );
+});
+
+test('pendingWorkerTokenKeys → lists a worker-model key that has no token record', () => {
+  const pending = metrics.pendingWorkerTokenKeys([
+    { kind: 'worker-model', role: 'reviewer', model: 'm', perspective: 'combined' },
+  ]);
+  assert.deepStrictEqual(pending, [{ task: null, role: 'reviewer', perspective: 'combined', pending: 1 }]);
+});
+
+test('pendingWorkerTokenKeys → an unreported or numeric worker-tokens record fills its key', () => {
+  const pending = metrics.pendingWorkerTokenKeys([
+    { kind: 'worker-model', role: 'reviewer', model: 'm', perspective: 'combined' },
+    { kind: 'worker-tokens', role: 'reviewer', unreported: true, perspective: 'combined' },
+    { kind: 'worker-model', role: 'implementer', model: 'inherit', task: '002' },
+    { kind: 'worker-tokens', role: 'implementer', tokens: 7, task: '002' },
+  ]);
+  assert.deepStrictEqual(pending, []);
+});
+
+test('pendingWorkerTokenKeys → a worker-tokens record with no worker-model yields no key', () => {
+  const pending = metrics.pendingWorkerTokenKeys([
+    { kind: 'worker-tokens', role: 'debugger', unreported: true, task: '003' },
+  ]);
+  assert.deepStrictEqual(pending, []);
+});
+
 test('summarize worker_tokens → 원장이 없거나 resolveLedger가 없으면 total 0 missing 0이다', () => {
   const f = fixture();
   const zero = {

@@ -105,8 +105,10 @@ type WorkerModelDecision = {
   task?: string; perspective?: string; tokens?: number;
 };
 // 완료 알림이 hand-back 뒤에 늦게 오는 경우, 토큰만 담아 덧붙이는 기록이다.
+// unreported는 호스트가 토큰을 주지 않았다는 명시 기록이다. 값을 0이나 추정치로 채우지 않으려고
+// tokens 키 자체를 쓰지 않는다. metrics는 이를 "답이 왔다"가 아니라 "빠졌다"로 세야 한다.
 type WorkerTokensDecision = {
-  kind: 'worker-tokens'; role: WorkerRecordRole; tokens: number;
+  kind: 'worker-tokens'; role: WorkerRecordRole; tokens?: number; unreported?: true;
   task?: string; perspective?: string;
 };
 
@@ -994,8 +996,11 @@ function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
     return { ok: false, reason: 'worker-model-perspective-invalid' };
   }
   // worker-model은 tokens가 선택이라 없으면 키를 쓰지 않고, worker-tokens는 필수다.
-  const parsedTokens = tokens === undefined ? null : parseWorkerTokens(tokens);
-  if ((tokens !== undefined || command === 'worker-tokens') && parsedTokens === null) {
+  // `unreported`는 worker-tokens 전용 값이다. worker-model에 오면 숫자 검사로 떨어져 tokens-invalid가 된다.
+  // 대소문자를 바꾸지 않고 정확히 일치할 때만 받는다. 호스트 표기 흔들림을 조용히 수용하지 않으려는 것이다.
+  const unreported = command === 'worker-tokens' && tokens === 'unreported';
+  const parsedTokens = tokens === undefined || unreported ? null : parseWorkerTokens(tokens);
+  if ((tokens !== undefined || command === 'worker-tokens') && !unreported && parsedTokens === null) {
     return { ok: false, reason: 'tokens-invalid' };
   }
   let owner: Task | undefined;
@@ -1012,7 +1017,10 @@ function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
       kind: 'worker-model', role: recordRole, model: (model as string).trim(), ...scope,
       ...(parsedTokens !== null ? { tokens: parsedTokens } : {}),
     }
-    : { kind: 'worker-tokens', role: recordRole, tokens: parsedTokens as number, ...scope };
+    // unreported는 tokens 키를 쓰지 않는다. 숫자 기록과 모양이 섞이면 합산이 0을 답으로 오해한다.
+    : unreported
+      ? { kind: 'worker-tokens', role: recordRole, unreported: true, ...scope }
+      : { kind: 'worker-tokens', role: recordRole, tokens: parsedTokens as number, ...scope };
   if (owner) owner.decisions = [...(owner.decisions || []), recorded];
   ledger.decisions.push(recorded);
   { const lost = commitWrite(); if (lost) return lost; }
@@ -1532,7 +1540,8 @@ const LEASE_CHECKED_COMMANDS = new Set(['dispatch', 'report', 'record']);
  * @param {string} [opts.reason] - revoke·critical-recovery 사유
  * @param {string | true} [opts.model] - dispatch·worker-model 모델 인자. true는 값 없는 플래그
  * @param {string} [opts.role] - worker-model·worker-tokens 대상 role(implementer|reviewer|debugger)
- * @param {number | string} [opts.tokens] - worker-model 선택, worker-tokens 필수 토큰 수(0 이상 안전 정수)
+ * @param {number | string} [opts.tokens] - worker-model 선택, worker-tokens 필수 토큰 수(0 이상 안전 정수).
+ *   worker-tokens에서만 정확한 값 `unreported`를 받아 호스트가 토큰을 주지 않은 사실을 기록한다.
  * @param {string} [opts.perspective] - worker-model reviewer 관점
  * @param {number} [opts.attempt] - dispatch report attempt
  * @param {string} [opts.taskBriefHash] - dispatch report brief hash
@@ -2199,7 +2208,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'tokens-invalid': {
     cause: 'The tokens value is negative, fractional, not a number, or missing for worker-tokens.',
-    next: 'Retry with `--tokens <n>` set to the non-negative integer the host reported, or omit it for worker-model.',
+    next: 'Retry with `--tokens <n>` set to the non-negative integer the host reported, '
+      + '`--tokens unreported` on worker-tokens when the host gave none, or omit it for worker-model.',
   },
   'worker-model-perspective-invalid': {
     cause: 'The perspective is not a reviewer perspective, or it was given with a non-reviewer role.',
