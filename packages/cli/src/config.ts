@@ -194,30 +194,60 @@ function readCoordinatorPolicy(repoRoot: string): CoordinatorPolicy {
 }
 
 /**
- * `worktree.setup`을 읽어 worktree 의존성 준비 끝에 실행할 명령을 돌려준다.
- * 형태만 본다 — argv 파싱과 허용 목록 검사는 호출자(prepareDependencies)가
+ * `worktree.<key>` 문자열 명령을 읽는 공통 판독기. `setup`과 `baseline`이 형태 규칙을 공유해
+ * 두 키가 다른 답을 내지 않게 한다. 형태만 본다 — argv 파싱과 허용 목록 검사는 호출자가
  * command-argv로 한다. config.ts가 command-argv를 가져오면 순환하기 때문이다.
- * `worktree` 키나 `setup` 키가 없으면 command:null(설정 안 함)이고, `worktree`가
- * 객체가 아니거나 `setup`이 문자열이 아니면 invalid다. 값을 조용히 무시하면
- * 운영자가 빌드 단계가 돌 거라 믿고 산출물 없는 worktree에서 검증하게 된다.
+ * `worktree` 키나 대상 키가 없으면 command:null(설정 안 함)이고, `worktree`가 객체가 아니거나
+ * 값이 문자열이 아니면 invalid다. 값을 조용히 무시하면 운영자가 단계가 돌 거라 믿고
+ * 준비 안 된 worktree에서 검증하게 된다.
  *
  * @param {unknown} config - `.bouncer/config.json` 파싱 결과
+ * @param {'setup' | 'baseline'} key - 읽을 `worktree` 하위 키
  * @returns {{ ok: true, command: string | null } | { ok: false, reason: 'invalid' }}
  *   command는 원문 문자열(빈 문자열 포함)이고 미설정이면 null
  */
-function readWorktreeSetup(
+function readWorktreeCommand(
   config: unknown,
+  key: 'setup' | 'baseline',
 ): { ok: true; command: string | null } | { ok: false; reason: 'invalid' } {
   if (!isRecord(config) || !Object.prototype.hasOwnProperty.call(config, 'worktree')) {
     return { ok: true, command: null };
   }
   const worktree = config.worktree;
   if (!isRecord(worktree)) return { ok: false, reason: 'invalid' };
-  if (!Object.prototype.hasOwnProperty.call(worktree, 'setup')) {
+  if (!Object.prototype.hasOwnProperty.call(worktree, key)) {
     return { ok: true, command: null };
   }
-  if (typeof worktree.setup !== 'string') return { ok: false, reason: 'invalid' };
-  return { ok: true, command: worktree.setup };
+  const value = worktree[key];
+  if (typeof value !== 'string') return { ok: false, reason: 'invalid' };
+  return { ok: true, command: value };
+}
+
+/**
+ * `worktree.setup`을 읽어 worktree 의존성 준비 끝에 실행할 명령을 돌려준다.
+ *
+ * @param {unknown} config - `.bouncer/config.json` 파싱 결과
+ * @returns {{ ok: true, command: string | null } | { ok: false, reason: 'invalid' }}
+ *   `readWorktreeCommand`의 `setup` 결과
+ */
+function readWorktreeSetup(
+  config: unknown,
+): { ok: true; command: string | null } | { ok: false; reason: 'invalid' } {
+  return readWorktreeCommand(config, 'setup');
+}
+
+/**
+ * `worktree.baseline`을 읽어 첫 prepare가 integration에서 돌릴 base CI 명령을 돌려준다.
+ * 형태 규칙은 `readWorktreeSetup`과 같다. 허용 목록 검사는 호출자 몫이다.
+ *
+ * @param {unknown} config - `.bouncer/config.json` 파싱 결과
+ * @returns {{ ok: true, command: string | null } | { ok: false, reason: 'invalid' }}
+ *   `readWorktreeCommand`의 `baseline` 결과
+ */
+function readWorktreeBaseline(
+  config: unknown,
+): { ok: true; command: string | null } | { ok: false; reason: 'invalid' } {
+  return readWorktreeCommand(config, 'baseline');
 }
 
 /**
@@ -324,6 +354,7 @@ export = {
   readVerifyPolicy,
   readCoordinatorPolicy,
   readWorktreeSetup,
+  readWorktreeBaseline,
   readWavesPerSession,
   readDirectMaxCommitTasks,
   DEFAULT_VERIFY_ALLOWLIST,

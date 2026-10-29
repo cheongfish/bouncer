@@ -89,6 +89,8 @@ export type RepairDecision = {
   owner_generation?: number;
   salvage_predecessor?: { head: string | null; lease_id: string | null; generation: number | null };
   reset_downstream?: string[];
+  // brief 계약 최종 리뷰 repair가 선언한 새 경로(금지선 밖이라 접수했다). 입력 순서.
+  unexpected_paths?: string[];
   salvaged?: Array<{
     task: string; patch?: string; ref?: string; report?: string; head: string; generation: number;
     dirty_paths: string[];

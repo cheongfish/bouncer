@@ -49,7 +49,8 @@
     "time.test.js",
     "validate-hints.test.js",
     "validate-structural.test.js",
-    "workflow-responsibility-boundaries.test.js"
+    "workflow-responsibility-boundaries.test.js",
+    "drive-record.test.js"
   ],
   "integration": [
     "plan-ledger.test.js",
@@ -131,6 +132,7 @@
     "master-rules.test.js",
     "symbol-index.test.js",
     "source-boundary-measurement.test.js",
-    "subagent-model-hook.test.js"
+    "subagent-model-hook.test.js",
+    "measure-drive-records.test.js"
   ]
 }

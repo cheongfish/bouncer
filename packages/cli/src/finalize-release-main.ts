@@ -12,6 +12,11 @@ const { CONTEXT_ROOT } = layout;
 import runtimeState = require('./runtime-state');
 const { runtimePaths, worktreePathFor, coordinatorPathsFor } = runtimeState;
 import driveMetrics = require('./drive-metrics');
+import driveRecord = require('./drive-record');
+import type { DriveRecordReview } from './drive-record';
+const { reviewRecordFrom } = driveRecord;
+import digestCollect = require('./finalize-digest-collect');
+const { readReview, readBlueprintIndex } = digestCollect;
 import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
 import current = require('./current');
@@ -61,8 +66,9 @@ type ReleaseMainDeps = {
   nextBlueprint: (opts: { repoRoot: string; blueprintDir: string }) => NextList;
   worktreePathFor: (opts: { repoRoot: string; blueprint: string }) => string;
   git: (args: string[]) => string;
-  // 정리 전 worker 토큰 집계 보존 seam. 거절 reason을 그대로 응답에 싣는다.
-  saveMetricsSnapshot: (args: { repoRoot: string; blueprint: string }) => { ok: boolean; reason?: string };
+  // 정리 전 worker 토큰 집계와 실행 기록 보존 seam. 거절 reason을 그대로 응답에 싣는다.
+  saveMetricsSnapshot: (args: { repoRoot: string; blueprint: string; review: DriveRecordReview | null }) =>
+    { ok: boolean; reason?: string };
 };
 
 /**
@@ -72,9 +78,11 @@ type ReleaseMainDeps = {
  * @param {object} args - 저장 입력
  * @param {string} args.repoRoot - 메인 checkout 루트
  * @param {string} args.blueprint - 정규형 blueprint 경로
+ * @param {DriveRecordReview | null} args.review - blueprint 리뷰 요약. snapshot의 drive_record.review가 된다
  * @returns {{ok: boolean, reason?: string}} 저장 결과. 실패 reason은 driveMetrics의 거절 코드
  */
-function saveMetricsSnapshotDefault({ repoRoot, blueprint }: { repoRoot: string; blueprint: string }):
+function saveMetricsSnapshotDefault({ repoRoot, blueprint, review }:
+  { repoRoot: string; blueprint: string; review: DriveRecordReview | null }):
   { ok: boolean; reason?: string } {
   const failed = { ok: false, reason: 'metrics-snapshot-write-failed' };
   const rt = runtimePaths({ repoRoot });
@@ -86,8 +94,23 @@ function saveMetricsSnapshotDefault({ repoRoot, blueprint }: { repoRoot: string;
     // blueprint 경로에서 id를 못 뽑는 입력 오류만 온다(이미 정규형 검사를 통과한 값이라 드물다).
     return failed;
   }
-  const saved = driveMetrics.saveWorkerSnapshot({ commonGitDir: rt.commonGitDir, ledgerFile, blueprint });
+  const saved = driveMetrics.saveWorkerSnapshot({ commonGitDir: rt.commonGitDir, ledgerFile, blueprint, review });
   return saved.ok ? { ok: true } : { ok: false, reason: saved.reason };
+}
+
+/**
+ * 정리 전에 snapshot에 싣을 blueprint 리뷰 요약을 메인 checkout의 review.md와 index.md로 계산한다.
+ * review.md가 없거나 파싱되지 않으면 null이다(readReview가 그 경우를 null로 접는다). 저장은 계속한다.
+ *
+ * @param {string} root - 메인 checkout 실경로
+ * @param {string} bp - 정규형 blueprint 경로
+ * @returns {DriveRecordReview | null} 리뷰 요약. 리뷰 문서가 없으면 null
+ */
+function reviewRecordOf(root: string, bp: string): DriveRecordReview | null {
+  const findings = readReview(path.join(root, bp, 'review.md'))?.findings ?? null;
+  const data = readBlueprintIndex(path.join(root, bp, 'index.md'))?.data as
+    { bouncer?: { review_contract?: unknown } } | undefined;
+  return reviewRecordFrom(findings, data?.bouncer?.review_contract);
 }
 
 /**
@@ -472,7 +495,7 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
         } as ReleaseMainResult;
       }
       // 모든 거절 판정이 끝난 뒤 첫 mutation(merge) 전에 worker 집계를 보존한다.
-      const savedPartial = d.saveMetricsSnapshot({ repoRoot: root, blueprint: bp });
+      const savedPartial = d.saveMetricsSnapshot({ repoRoot: root, blueprint: bp, review: reviewRecordOf(root, bp) });
       if (!savedPartial.ok) return { ok: false, reason: savedPartial.reason ?? 'metrics-snapshot-write-failed' };
       try {
         git(['merge', '--no-commit', '--no-ff', integrationHead]);
@@ -584,7 +607,7 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps, allowPartialMerge = fa
   // 실패하면 아무것도 지우지 않고 거절해 main·원장·worktree를 그대로 둔다. 원장 없는 재실행은
   // 새 값을 만들 수 없으므로 호출하지 않고 기존 snapshot을 보존한다.
   if (hasLedger) {
-    const saved = d.saveMetricsSnapshot({ repoRoot: root, blueprint: bp });
+    const saved = d.saveMetricsSnapshot({ repoRoot: root, blueprint: bp, review: reviewRecordOf(root, bp) });
     if (!saved.ok) return { ok: false, reason: saved.reason ?? 'metrics-snapshot-write-failed' };
   }
   for (const action of actions) {

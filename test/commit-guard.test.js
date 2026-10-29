@@ -71,7 +71,7 @@ test('coordinator ledger scope with a path it does not name → still refuses it
     files: ['src/auth/login.ts', 'src/payments/charge.ts'],
     affectedPaths: ['src/auth/', 'src/payments/'],
     blueprintDir: BP,
-    coordinator: COORD,
+    coordinator: { ...COORD, mode: 'light' },
   });
   assert.strictEqual(res.allow, false);
   assert.strictEqual(res.code, 'out-of-scope');
@@ -211,4 +211,83 @@ test('context docs and Distill → are still not runtime artifacts', () => {
   assert.strictEqual(isRuntimeArtifact('.bouncer/runtime'), false);
   // 접두 오탐 방지: 이름이 `runtime`으로 시작할 뿐인 형제 파일은 소스다.
   assert.strictEqual(isRuntimeArtifact('.bouncer/runtime-notes.md'), false);
+});
+
+// full 원장 drive: scope 밖은 기록하고 금지선(Do not touch)만 막는다.
+const FULL = { ...COORD, mode: 'full', scope: ['src/a.js'], doNotTouch: ['src/locked/'] };
+
+test('full ledger with a path outside scope and the Do not touch line → allows it and records it as unexpected', () => {
+  const res = checkCommitSafety({
+    files: ['src/a.js', 'src/extra.js'], affectedPaths: ['src/a.js'], blueprintDir: BP, coordinator: FULL,
+  });
+  assert.strictEqual(res.allow, true);
+  assert.deepStrictEqual(res, { allow: true, violations: [], unexpected: ['src/extra.js'] });
+});
+
+test('full ledger with a path under the Do not touch line → refuses with scope-do-not-touch-violation', () => {
+  const res = checkCommitSafety({
+    files: ['src/extra.js', 'src/locked/x.js'], affectedPaths: ['src/a.js'], blueprintDir: BP, coordinator: FULL,
+  });
+  assert.strictEqual(res.allow, false);
+  assert.strictEqual(res.code, 'scope-do-not-touch-violation');
+  assert.deepStrictEqual(res.violations, ['src/locked/x.js']);
+});
+
+test('full ledger with unreadable Do not touch and a path outside scope → refuses as scope-do-not-touch-unreadable', () => {
+  const res = checkCommitSafety({
+    files: ['src/extra.js'], affectedPaths: ['src/a.js'], blueprintDir: BP,
+    coordinator: { ...FULL, doNotTouch: null },
+  });
+  assert.strictEqual(res.allow, false);
+  assert.strictEqual(res.code, 'scope-do-not-touch-unreadable');
+  assert.deepStrictEqual(res.violations, ['src/extra.js']);
+});
+
+test('full ledger with unreadable Do not touch and only in-scope paths → allows without an unexpected key', () => {
+  const res = checkCommitSafety({
+    files: ['src/a.js'], affectedPaths: ['src/a.js'], blueprintDir: BP,
+    coordinator: { ...FULL, doNotTouch: null },
+  });
+  assert.deepStrictEqual(res, { allow: true, violations: [] });
+  assert.strictEqual('unexpected' in res, false);
+});
+
+test('light ledger with a path outside scope → still refuses with out-of-scope', () => {
+  const res = checkCommitSafety({
+    files: ['src/extra.js'], affectedPaths: ['src/a.js'], blueprintDir: BP,
+    coordinator: { ...FULL, mode: 'light', doNotTouch: [] },
+  });
+  assert.strictEqual(res.code, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, ['src/extra.js']);
+});
+
+test('boundary refusal with a Do not touch overlap → keeps the boundary code first', () => {
+  const res = checkCommitSafety({
+    files: ['src/locked/x.js'], affectedPaths: ['src/a.js'], blueprintDir: BP,
+    coordinator: { ...FULL, reason: 'stale-revision' },
+  });
+  assert.strictEqual(res.code, 'stale-revision');
+});
+
+test('full ledger with an unexpected path another drive holds → refuses with cross-drive-conflict', () => {
+  const otherDrives = { ok: true, drives: [{
+    ledgerFile: '/other/coordinator.json', blueprint: 'bp-other',
+    tasks: [{ id: '001', status: 'in_progress', affected_paths: ['src/extra.js'] }],
+  }] };
+  const res = checkCommitSafety({
+    files: ['src/extra.js'], affectedPaths: ['src/a.js'], blueprintDir: BP, coordinator: FULL, otherDrives,
+  });
+  assert.strictEqual(res.code, 'cross-drive-conflict');
+});
+
+test('slash-less Do not touch token → matches the directory prefix but not a sibling name', () => {
+  const coordinator = { ...FULL, doNotTouch: ['agents'] };
+  const hit = checkCommitSafety({
+    files: ['agents/bouncer-x.md'], affectedPaths: ['src/a.js'], blueprintDir: BP, coordinator,
+  });
+  assert.strictEqual(hit.code, 'scope-do-not-touch-violation');
+  const miss = checkCommitSafety({
+    files: ['agents-extra/a.md'], affectedPaths: ['src/a.js'], blueprintDir: BP, coordinator,
+  });
+  assert.deepStrictEqual(miss, { allow: true, violations: [], unexpected: ['agents-extra/a.md'] });
 });

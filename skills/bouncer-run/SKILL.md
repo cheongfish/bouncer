@@ -81,8 +81,8 @@ HEAD에서 재작업·재통합 뒤 terminal 재검증, 이전 lease의 report·
 
 `verification_policy: scoped_terminal` blueprint(새 계획)는 책임을 나눈다. 구현
 worker는 자기 task 전용 `bouncer.verify`만 실행하고 보고 `## Tests`에 그 명령과
-결과를 적는다. 다른 명령·누락·실패 결과면 fan-in이 `worker-test-report-mismatch`로
-거절한다. 정상 경로의 첫 전체 검증은 모든 구현이 통합된 뒤 종단 verification node에서
+결과를 적는다. 다른 명령·누락·실패 결과면 accepted report가 `report-tests-invalid`로,
+fan-in이 `worker-test-report-mismatch`로 거절한다. 정상 경로의 첫 전체 검증은 모든 구현이 통합된 뒤 종단 verification node에서
 한 번이며, 실패 복구 재검증과 finalize remainder 검증은 따로 돈다. 표식이 없는
 legacy 계획은 현행 동작을 유지한다.
 

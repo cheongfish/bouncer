@@ -798,6 +798,46 @@ test('a closed drive with worker tokens → snapshot is saved before cleanup and
   assert.equal(summary.worker_tokens.total, 100);
 });
 
+test('review.md에 must_fix finding이 있는 닫힌 drive → 저장 seam이 contract와 status별 수를 받는다', () => {
+  const fx = makeFixture();
+  withWorkerLedger(fx);
+  writeDoc(fx.main, `${fx.bp}/index.md`, 'bouncer.blueprint', {
+    id: '001', epic_id: '084', blueprint_id: '001', status: 'approved', commit_type: 'feat',
+    review_contract: 'brief',
+  }, '# Blueprint\n\n## Intent\n- 대상 blueprint를 닫는다\n');
+  writeDoc(fx.main, `${fx.bp}/review.md`, 'bouncer.review', {
+    id: 'REVIEW-001', epic_id: '084', blueprint_id: '001', status: 'pending',
+    review: {
+      required: true,
+      findings: [
+        { id: 'F1', severity: 'major', status: 'deferred', actionability: 'must_fix' },
+        { id: 'F2', severity: 'major', status: 'resolved', actionability: 'must_fix' },
+        { id: 'F3', severity: 'minor', status: 'open', actionability: 'should_fix' },
+      ],
+    },
+  }, '# Review\n');
+  let received = null;
+  const res = runRelease(fx, {
+    deps: { saveMetricsSnapshot: (args) => { received = args; return { ok: true }; } },
+  });
+  assert.equal(res.ok, true);
+  assert.deepEqual(received.review, {
+    contract: 'brief', must_fix: { total: 2, resolved: 1, accepted: 0, deferred: 1, open: 0 },
+  });
+});
+
+test('review.md에 findings가 없거나 파싱되지 않는 drive → 저장 seam이 review null을 받는다', () => {
+  const fx = makeFixture();
+  withWorkerLedger(fx);
+  fs.writeFileSync(path.join(fx.main, fx.bp, 'review.md'), '---\n: : [broken\n---\n');
+  let received = null;
+  const res = runRelease(fx, {
+    deps: { saveMetricsSnapshot: (args) => { received = args; return { ok: true }; } },
+  });
+  assert.equal(res.ok, true);
+  assert.equal(received.review, null);
+});
+
 // deps.saveMetricsSnapshot을 덮지 않은 기본 저장과 같은 동작을 실제 CLI로 얻는다.
 function releaseMainDefaultSave({ repoRoot, blueprint }) {
   const buf = { out: '', err: '' };

@@ -325,8 +325,11 @@ test(
 );
 
 // drive 원장을 쓰고 digest를 읽는다. extra로 mode·decisions를 바꿔 worker_notes 경로를 가른다.
-function prepareWithLedger(extra, now) {
+// hooks.before(repoRoot, blueprintDir)는 digest 전에 fixture를 바꾸고, hooks.after({ repoRoot, paths })는
+// worktree를 지우기 전에 원장을 읽게 한다.
+function prepareWithLedger(extra, now, hooks = {}) {
   const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  if (hooks.before) hooks.before(repoRoot, blueprintDir);
   const paths = coordinatorPathsFor({ repoRoot, blueprint: blueprintDir });
   git(repoRoot, ['branch', 'feat/integ']);
   git(repoRoot, ['worktree', 'add', paths.integrationPath, 'feat/integ']);
@@ -349,6 +352,7 @@ function prepareWithLedger(extra, now) {
   const ledgerBefore = fs.readFileSync(paths.ledgerFile);
   const d = prepareFinalizeDigest({ repoRoot, blueprintDir, ...(now ? { now } : {}) });
   assert.deepStrictEqual(fs.readFileSync(paths.ledgerFile), ledgerBefore);
+  if (hooks.after) hooks.after({ repoRoot, paths });
   git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
   assert.strictEqual(d.ok, true, JSON.stringify(d));
   return d;
@@ -1354,4 +1358,56 @@ test('task documents deleted after finalize → pr-body renders the same body fr
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// --- drive_record ---
+
+const RECORD_DECISIONS = [
+  { task: 'R1', kind: 'repair', wave: 1, reason: 'r', failure: { findings: ['F1'] } },
+  { kind: 'scope', task: '001' },
+  { kind: 'worker-model', role: 'reviewer', model: 'opus', perspective: 'scope', task: '001' },
+];
+const RECORD_FINDINGS = [
+  { id: 'F1', severity: 'major', actionability: 'must_fix', status: 'deferred', note: 'n' },
+  { id: 'F2', severity: 'major', actionability: 'must_fix', status: 'resolved', note: 'n' },
+  { id: 'F3', severity: 'minor', actionability: 'should_fix', status: 'open', note: 'n' },
+];
+
+test('같은 원장과 review 입력 → digest의 drive_record가 snapshot에 저장된 drive_record와 같다', () => {
+  const { saveWorkerSnapshot } = require('../packages/cli/dist/drive-metrics');
+  const { reviewRecordFrom } = require('../packages/cli/dist/drive-record');
+  let stored = null;
+  const d = prepareWithLedger({ decisions: RECORD_DECISIONS }, FIXED_NOW, {
+    before: (repoRoot, blueprintDir) => {
+      const indexAbs = path.join(repoRoot, `${blueprintDir}/index.md`);
+      // writeRootReview가 review_scope를 yaml로 고치므로 같은 방식으로 표식을 먼저 넣는다.
+      const rest = fs.readFileSync(indexAbs, 'utf8').split(/^---\n/).slice(1).join('---\n');
+      const end = rest.indexOf('\n---');
+      const data = yaml.load(rest.slice(0, end));
+      data.bouncer.review_contract = 'brief';
+      fs.writeFileSync(indexAbs, `---\n${yaml.dump(data)}---${rest.slice(end + '\n---'.length)}`);
+      writeRootReview(repoRoot, blueprintDir, RECORD_FINDINGS);
+      // 원장이 있으면 digest는 integration worktree를 읽는다. 그 브랜치가 문서를 보도록 커밋해 둔다.
+      git(repoRoot, ['add', '-A']);
+      git(repoRoot, ['commit', '-m', 'review fixture']);
+    },
+    after: ({ repoRoot, paths }) => {
+      const saved = saveWorkerSnapshot({
+        commonGitDir: path.join(repoRoot, '.git'), ledgerFile: paths.ledgerFile,
+        blueprint: BP, review: reviewRecordFrom(RECORD_FINDINGS, 'brief'),
+      });
+      assert.strictEqual(saved.ok, true, JSON.stringify(saved));
+      stored = JSON.parse(fs.readFileSync(saved.path, 'utf8')).drive_record;
+    },
+  });
+  assert.deepStrictEqual(d.drive_record, stored);
+  assert.deepStrictEqual(d.drive_record.review, {
+    contract: 'brief', must_fix: { total: 2, resolved: 1, accepted: 0, deferred: 1, open: 0 },
+  });
+  assert.deepStrictEqual(d.drive_record.repair_waves, { ci: 0, review: 1 });
+});
+
+test('원장이 없는 digest → drive_record가 null이다', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  assert.strictEqual(prepareFinalizeDigest({ repoRoot, blueprintDir }).drive_record, null);
 });

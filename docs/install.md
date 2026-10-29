@@ -160,11 +160,17 @@ git clone -b release <사내-git-url> ./bouncer-release
 
 개발 checkout이면 `npm run build` 뒤에 그 경로를 `/add-plugin`합니다.
 
-호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 여섯)만
+호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 진입점 넷:
+`/bouncer-init`·`/bouncer-plan`·`/bouncer-run`·`/bouncer-finalize`)만
 잡습니다. 보조 브리프는 `references/<name>/index.md`에 두고 카탈로그에
-올리지 않습니다. 커밋 가드는
-`hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
-밖 파일이 staged면 셸 실행을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
+올리지 않습니다. 회고는 독립 명령이 아니라 finalize 종료 뒤 자동 실행되고,
+별도 증거 조회는 CLI의 `bouncer retro sources`·`bouncer retro read`를 씁니다.
+커밋 가드는 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 줍니다.
+판정 정본은 `rules/commit-scope.md`입니다. coordinator가 활성인 drive는 승인
+`affected_paths`가 아니라 원장 scope로 판정합니다. full drive는 scope 밖이어도
+`Do not touch`와 겹치지 않으면 허용하고, `Do not touch`와 겹치는 staged 파일과
+금지선을 읽지 못한 경우(`scope-do-not-touch-unreadable`)를 `deny`합니다. light
+drive와 coordinator 없는 실행은 scope 밖 staged 파일을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
 **판정이 같은 공개 명령**(`bouncer commit-guard`)입니다. 두 commit 훅과 SessionStart
 그래프 훅(`bouncer graph-sync`)은 내부 모듈을 읽지 않고 PATH의 `bouncer`
 또는 `BOUNCER_BIN`(절대 경로)을 호출하며, 자기 플러그인 루트를 `BOUNCER_HOME`으로

@@ -274,7 +274,12 @@ same mutation argv right away.
 2. **Prepare** — `advance` already auto-runs `prepare` when that is next — do not re-execute that argv by hand.
    The auto-run opens the current ready wave, assigns one worktree per task, and
    leaves per-task `lease` and `workerPath` on `opened[]`. Tasks the wave did
-   not open stay closed. Do not copy `opened[]`, lease, or hash from context
+   not open stay closed. When the main checkout config sets `worktree.baseline`,
+   the first `prepare` runs it on the integration base before any worker exists;
+   `baseline-ci-failed` means the base is already broken: report it to the user
+   and rerun `prepare --accept-broken-baseline` only after the user explicitly
+   approves. Accepting a broken baseline is the user's decision, never yours.
+   Show any `warnings` entry (`worktree-setup-unset`) in the progress line. Do not copy `opened[]`, lease, or hash from context
    into a hand-built command. Call `advance` again after the wave is open.
 3. **Drive** — When `advance` stops with `reason` `worker` or `judge` for a
    prepared task (including `drive_tasks` / `implement` / `review` / `report` /
@@ -308,13 +313,18 @@ same mutation argv right away.
    `--task` on integrate argv. On a `fanin-conflict`,
    `wave-verification-failed`, or scope-conflict `revoked` stop, follow the
    returned `card` and execute only non-auto `argv` such as `coordinate revoke`,
-   then requeue. A rejected fan-in is a decision to record and resolve, not a
+   then requeue. A `fanin-conflict` revokes only that task: integrated commits
+   stay, and the task is salvaged and dispatched again from the new integration
+   HEAD (a higher lease generation). When a recorded `overlaps` names a task
+   that is still running, expect that conflict and plan the order before
+   fan-in. A rejected fan-in is a decision to record and resolve, not a
    retry to repeat blindly. On a `verification_policy: scoped_terminal`
    blueprint the first full verification runs once, in the terminal
    verification node after every implementation task is integrated; fan-in
    itself rejects (`worker-test-report-mismatch`) any worker report whose
    `## Tests` section lacks the task-assigned command or shows a missing or
-   failing result. Treat that rejection as a rework of that worker, never hand
+   failing result; `coordinate report` already refuses such an accepted report
+   as `report-tests-invalid` before it is stored. Treat that rejection as a rework of that worker, never hand
    a worker the full-suite command, and keep recovery re-verification and the
    finalize remainder verification separate from that first terminal run. After every task this session prepared is
    `integrated`, call `bouncer coordinate advance --blueprint <dir>` again (the
@@ -342,7 +352,10 @@ same mutation argv right away.
    record rework, or `blocked` when rework cannot restore it. For a
    prohibition the worker already broke, this rule takes precedence over the
    `revise` card: release it with `--release-do-not-touch` only after the user
-   explicitly approves the release. After the
+   explicitly approves the release; run `coordinate revise
+   --release-do-not-touch` from the integration checkout, because the line is
+   read from the integration copy of the task document and a release made from
+   another cwd leaves the block in place. After the
    judgment is recorded, call `advance` again.
 6. **Close** — When `advance` stops with `final_review`, follow that action's
    `card`, then call `advance` again. When `review_scope` is absent, skip that

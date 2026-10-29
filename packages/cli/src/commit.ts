@@ -307,6 +307,13 @@ function recoveryFor(reason: string, coordinatorActive: boolean, next?: string):
         + 'Return to planning; do not edit affected_paths here.',
     };
   }
+  if (reason === 'scope-do-not-touch-violation' || reason === 'scope-do-not-touch-unreadable') {
+    // 금지선은 guard가 풀지 않는다. 사용자 승인 뒤 coordinator가 integration cwd에서 푸는 길뿐이다.
+    return {
+      action: 'coordinator-revise',
+      detail: '금지선은 사용자 승인 뒤 integration checkout에서 `coordinate revise --release-do-not-touch`로만 푼다.',
+    };
+  }
   if (reason === 'validate') {
     return {
       action: 'fix-gate-failures',
@@ -453,7 +460,7 @@ function commitTask({
   const otherDrives = coordinator.active && !coordinator.reason
     ? otherDriveTasks({ repoRoot, ownLedgerFile: coordinator.ledgerFile as string })
     : undefined;
-  const { allow, violations, code, conflicts, ledgerFile } = checkCommitSafety({
+  const { allow, violations, code, conflicts, ledgerFile, unexpected } = checkCommitSafety({
     files: scopeCandidates, affectedPaths, blueprintDir, coordinator, executionKind, otherDrives,
   });
   if (!allow) {
@@ -480,6 +487,8 @@ function commitTask({
     repoRoot, file, changed: trackedChanged,
   }));
 
+  // full 원장 drive가 허용한 scope 밖 경로. 없으면 키 자체를 두지 않아 기존 출력이 그대로다.
+  const unexpectedField = unexpected && unexpected.length > 0 ? { unexpected_paths: unexpected } : {};
   const commitMessage = buildCommitMessage(docs, taskUnit);
   const nextTask = coordinator.active
     ? nextReadyTask(blueprintDir, coordinator)
@@ -492,6 +501,7 @@ function commitTask({
       staged: all,
       commitMessage,
       nextTask,
+      ...unexpectedField,
       ...coordinatorProvenance(coordinator, null, null, null),
       ...commitGuidance({ coordinator, dryRun: true, nextTask, stampPath: null }),
     };
@@ -505,6 +515,7 @@ function commitTask({
       staged: [],
       commitMessage,
       nextTask,
+      ...unexpectedField,
       ...coordinatorProvenance(coordinator, null, null, null),
       ...commitGuidance({ coordinator, dryRun: false, nextTask, stampPath: null }),
     };
@@ -587,6 +598,7 @@ function commitTask({
     commitMessage,
     nextTask,
     commitSha,
+    ...unexpectedField,
     ...coordinatorProvenance(coordinator, all, taskSha, ledgerRecord),
     ...commitGuidance({
       coordinator,

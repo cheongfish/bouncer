@@ -1068,4 +1068,4 @@ function finishFaninAfterFf({
   });
 }
 
-export = { integrateCommitWave, lightWorkerAssigned, rejectLeaseMismatch };
+export = { integrateCommitWave, lightWorkerAssigned, rejectLeaseMismatch, scopedTestReportFailure };

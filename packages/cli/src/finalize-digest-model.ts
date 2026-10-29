@@ -1,6 +1,7 @@
 'use strict';
 
 import type { OutsideScopeDisposition } from './execution-contracts';
+import type { DriveRecord } from './drive-record';
 import type scope = require('./scope');
 import type tasksDocs = require('./tasks-docs');
 import type finalizeChecks = require('./finalize-checks');
@@ -121,6 +122,8 @@ export type FinalizeDigest = {
   drive: DriveSummary | null;
   warnings: ReturnType<typeof finalizeChecks.collectMustFixWarnings>;
   drive_issues: DriveIssues;
+  // 원장 없으면 null. snapshot의 drive_record와 같은 함수(summarizeDriveRecord)로 계산한다.
+  drive_record: DriveRecord | null;
 };
 
 /**

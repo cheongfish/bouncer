@@ -83,14 +83,14 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 4 fix       In a blueprint with `review_contract: brief` the final review
             allows one repair and one delta: discovery, then (when a
             `must_fix` exists) one `coordinate repair --review-finding`
-            carrying every violation finding inside approved paths (no
-            `newPaths`), terminal re-verification, then `coordinate next`
+            carrying every violation finding inside approved paths (`newPaths`
+            only outside every Do not touch line), terminal re-verification, then `coordinate next`
             returns a delta `final_review` (`--mode delta`, `combined`, one
             reviewer) that ends `accepted` or, when a finding remains,
             `final-review-blocked`. There is no second repair: a second
             `coordinate repair` is refused as `final-review-single-round`
-            (a first repair that declares `newPaths` outside the approved
-            paths is refused separately as `final-review-repair-scope`);
+            (a first repair whose `newPaths` fall under a Do not touch line is
+            refused separately as `final-review-repair-do-not-touch`);
             both are reported as blocked. `advisory` findings are `accepted` or
             `deferred` with a `note` and appear as warnings in the final
             report. In a blueprint without that mark (legacy), under a

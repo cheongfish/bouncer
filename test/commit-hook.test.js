@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const { isGitCommit, evaluateCommit, evaluateStaged, realMainRepoCurrent } = require('../packages/cli/dist/commit-hook');
 const { checkCommitSafety } = require('../packages/cli/dist/commit-guard');
 const { writeCurrent, clearCurrent } = require('../packages/cli/dist/current');
+const { coordinatorContext } = require('../packages/cli/dist/scope');
 
 test('isGitCommit with commit invocations → detects them', () => {
   assert.strictEqual(isGitCommit('git commit -m "x"'), true);
@@ -763,7 +764,9 @@ test('evaluateCommit and readAffectedPaths with a worker lease and a pointer →
   for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
     write(`${blueprint}/tasks/${id}/tasks.md`,
       `---\nbouncer:\n  id: TASKS-${id}\n  epic_id: '094'\n  blueprint_id: '001'\n`
-      + `  status: ready\n  parallel_safe: true\n  affected_paths:\n    - src/${leaf}/\n---\n`);
+      + `  status: ready\n  parallel_safe: true\n  affected_paths:\n    - src/${leaf}/\n---\n`
+      // full 원장 drive는 scope 밖만으로 막지 않는다 — 002의 금지선이 task 001 범위를 지킨다.
+      + (id === '002' ? '\n## Do not touch\n- `src/a/` — task 001 범위\n' : ''));
   }
   write('README', 'base\n');
   run(['add', '-A']);
@@ -845,7 +848,9 @@ test('evaluateCommit with lease scope and no pointer or a revoked lease → appl
   for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
     write(`${blueprint}/tasks/${id}/tasks.md`,
       `---\nbouncer:\n  id: TASKS-${id}\n  epic_id: '097'\n  blueprint_id: '001'\n`
-      + `  status: ready\n  parallel_safe: true\n  affected_paths:\n    - src/${leaf}/\n---\n`);
+      + `  status: ready\n  parallel_safe: true\n  affected_paths:\n    - src/${leaf}/\n---\n`
+      // full 원장 drive는 scope 밖만으로 막지 않는다 — 002의 금지선이 task 001 범위를 지킨다.
+      + (id === '002' ? '\n## Do not touch\n- `src/a/` — task 001 범위\n' : ''));
   }
   write('README', 'base\n');
   run(['add', '-A']);
@@ -894,4 +899,126 @@ test('evaluateCommit with lease scope and no pointer or a revoked lease → appl
     }),
     { block: true, reason: 'no-active-lease' },
   );
+});
+
+// full 원장 drive의 hook과 checkCommitSafety가 같은 허용·거절을 내고, 금지선 출처는 integration 사본이다.
+// 여러 테스트가 같은 픽스처를 쓴다. task 002는 scope가 src/b/이고, 금지선 src/a/는 task 002 문서에 있다.
+function fullHookDrive() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-full-'));
+  const run = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  run(['init', '-b', 'work', '--quiet']);
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  const blueprint = '.bouncer/context/epics/098-full/blueprints/001-y';
+  const write = (rel, body) => {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), body);
+  };
+  write('.bouncer/context/epics/098-full/index.md',
+    '---\nbouncer:\n  id: \'098\'\n  epic_id: \'098\'\n  status: approved\n---\n');
+  write(`${blueprint}/index.md`,
+    '---\nbouncer:\n  id: \'001\'\n  epic_id: \'098\'\n  blueprint_id: \'001\'\n  status: approved\n---\n');
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
+    write(`${blueprint}/tasks/${id}/tasks.md`,
+      `---\nbouncer:\n  id: TASKS-${id}\n  epic_id: '098'\n  blueprint_id: '001'\n`
+      + `  status: ready\n  parallel_safe: true\n  affected_paths:\n    - src/${leaf}/\n---\n`
+      + (id === '002' ? '\n## Do not touch\n- `src/a/` — task 001 범위\n' : ''));
+  }
+  write('README', 'base\n');
+  run(['add', '-A']);
+  run(['commit', '-m', 'base']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.mkdirSync(path.join(boot.integrationPath, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(boot.integrationPath, '.bouncer/config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`,
+  );
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `full-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks.find((t) => t.id === '002').workerPath;
+
+  const hookFor = (file) => evaluateCommit({
+    command: 'git commit -m x', repoRoot: worker,
+    deps: { stagedFiles: () => [file], trackedModified: () => [] },
+  });
+  const guardFor = (file) => checkCommitSafety({
+    files: [file], affectedPaths: ['src/b/'], blueprintDir: blueprint,
+    coordinator: coordinatorContext({ repoRoot: worker, blueprint, task: '002' }),
+  });
+  const verdicts = () => ['src/extra/x.ts', 'src/a/x.ts'].map((file) => {
+    const hook = hookFor(file);
+    const guard = guardFor(file);
+    assert.strictEqual(hook.block, !guard.allow, file);
+    return { hook, guard };
+  });
+  return { repo, boot, worker, blueprint, verdicts };
+}
+
+test('evaluateCommit on a full ledger drive → matches checkCommitSafety and ignores the worker copy of the Do not touch line', () => {
+  const { worker, blueprint, verdicts } = fullHookDrive();
+
+  // (a) scope 밖·금지선 밖 → 허용하고 기록, (b) 금지선 → 거절
+  const [extra, locked] = verdicts();
+  assert.deepStrictEqual(extra.hook, { block: false });
+  assert.deepStrictEqual(extra.guard.unexpected, ['src/extra/x.ts']);
+  assert.strictEqual(locked.guard.code, 'scope-do-not-touch-violation');
+  assert.ok(locked.hook.reason.includes('scope-do-not-touch-violation'));
+  assert.ok(locked.hook.reason.startsWith('[커밋 범위] '));
+
+  // worker 사본에서 금지선 줄을 지워도 context와 판정이 바뀌지 않는다.
+  const before = coordinatorContext({ repoRoot: worker, blueprint, task: '002' }).doNotTouch;
+  assert.deepStrictEqual(before, ['src/a']);
+  const workerDoc = path.join(worker, blueprint, 'tasks/002/tasks.md');
+  fs.writeFileSync(workerDoc, fs.readFileSync(workerDoc, 'utf8').split('\n## Do not touch')[0]);
+  assert.deepStrictEqual(coordinatorContext({ repoRoot: worker, blueprint, task: '002' }).doNotTouch, before);
+  const [, lockedAfter] = verdicts();
+  assert.strictEqual(lockedAfter.guard.code, 'scope-do-not-touch-violation');
+  assert.strictEqual(lockedAfter.hook.block, true);
+});
+
+// F-SS-002: 금지선은 scope 밖 후보를 판정할 때만 integration 사본에서 읽는다(지연 읽기).
+// context를 만든 뒤 문서가 사라져도 scope 안 커밋은 읽기와 무관하게 허용되고, scope 밖 커밋만 실패한다.
+test('full ledger context read before the integration Do not touch line disappears → in-scope commit allowed and out-of-scope refused as unreadable', () => {
+  const { boot, worker, blueprint } = fullHookDrive();
+  const coordinator = coordinatorContext({ repoRoot: worker, blueprint, task: '002' });
+  fs.rmSync(path.join(boot.integrationPath, blueprint, 'tasks/002/tasks.md'));
+  const inScope = checkCommitSafety({
+    files: ['src/b/x.ts'], affectedPaths: ['src/b/'], blueprintDir: blueprint, coordinator,
+  });
+  assert.deepStrictEqual(inScope, { allow: true, violations: [] });
+  const outside = checkCommitSafety({
+    files: ['src/extra/x.ts'], affectedPaths: ['src/b/'], blueprintDir: blueprint, coordinator,
+  });
+  assert.strictEqual(outside.allow, false);
+  assert.strictEqual(outside.code, 'scope-do-not-touch-unreadable');
+});
+
+// SEC-002: dynamic repair task 문서에는 .git/.bouncer 금지선만 있다. 그래서 금지선 판정은 원장 모든 task의
+// 금지선 합집합으로 해야 한다. 같은 픽스처에서 dynamic 표식만 바꿔 두 판정을 나란히 확인한다.
+test('dynamic repair task on a full ledger → refuses a path under another task Do not touch line; plain task records it', () => {
+  const { boot, verdicts, blueprint } = fullHookDrive();
+  const integrationDoc = (id) => path.join(boot.integrationPath, blueprint, `tasks/${id}/tasks.md`);
+  // 금지선 `src/a/`를 task 001 문서로 옮기고 task 002 문서에는 금지선을 남기지 않는다(repair 문서 모양).
+  const doc002 = fs.readFileSync(integrationDoc('002'), 'utf8');
+  fs.writeFileSync(integrationDoc('002'), doc002.split('\n## Do not touch')[0]);
+  fs.writeFileSync(integrationDoc('001'),
+    `${fs.readFileSync(integrationDoc('001'), 'utf8')}\n## Do not touch\n- \`src/a/\` — task 001 범위\n`);
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+
+  // 일반 task(dynamic 아님)는 자기 문서의 금지선만 본다. 001의 `src/a/`는 002에게 금지선이 아니므로 기록하고 허용한다.
+  const [, plain] = verdicts();
+  assert.strictEqual(plain.guard.allow, true);
+  assert.deepStrictEqual(plain.guard.unexpected, ['src/a/x.ts']);
+
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((entry) => entry.id === '002').dynamic = true;
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const [, repaired] = verdicts();
+  assert.strictEqual(repaired.guard.allow, false);
+  assert.strictEqual(repaired.guard.code, 'scope-do-not-touch-violation');
+  assert.deepStrictEqual(repaired.guard.violations, ['src/a/x.ts']);
+  assert.strictEqual(repaired.hook.block, true);
 });

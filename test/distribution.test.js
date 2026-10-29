@@ -241,6 +241,33 @@ test('every host install → the package ships the Graphify compatibility manife
   assert.strictEqual(manifest.install_spec, 'graphifyy==0.9.56');
 });
 
+const baseName = (file, ext) => path.basename(file, ext);
+const namesIn = (rel, ext) => fs.readdirSync(path.join(root, rel))
+  .filter((f) => f.endsWith(ext)).map((f) => baseName(f, ext)).sort();
+
+test('every named agent → has one Markdown source, one NAMED_AGENTS entry, and one Codex TOML', () => {
+  const { NAMED_AGENTS } = require('../packages/cli/dist/codex-agents');
+  const expected = [...NAMED_AGENTS].sort();
+  assert.deepStrictEqual(namesIn('agents', '.md'), expected, 'agents/*.md names differ from NAMED_AGENTS');
+  assert.deepStrictEqual(
+    namesIn('.codex/agents', '.toml'),
+    expected,
+    '.codex/agents/*.toml names differ from NAMED_AGENTS',
+  );
+});
+
+// check-emit.js와 같은 fixture 설정({ roles: {} })으로 만든다. 저장소 .bouncer/config.json은
+// 개발자 개인 설정이라 읽지 않는다. 줄바꿈을 정규화하지 않고 체크인 바이트를 그대로 비교한다.
+test('every checked-in Codex TOML → equals the fixture-generated TOML', () => {
+  const { NAMED_AGENTS, mdToCodexToml, resolveCodexEfforts } = require('../packages/cli/dist/codex-agents');
+  const { efforts } = resolveCodexEfforts({ roles: {} });
+  for (const name of NAMED_AGENTS) {
+    const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
+    const checkedIn = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
+    assert.strictEqual(checkedIn, mdToCodexToml(md, efforts[name]), `${name}.toml differs from its generated form`);
+  }
+});
+
 // 배포 md와 로컬 Codex 생성 TOML이 같은 checkpoint·hash fence 계약을 담아야
 // host마다 다른 coordinator 입력을 실행하지 않는다. `.codex/`는 pack에서 빠지므로
 // 저장소 생성본과 md→toml 변환 결과를 여기서 맞춘다.

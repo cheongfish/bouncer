@@ -270,7 +270,7 @@ function cliDocWithRejectionTable(rows) {
 test('rules/cli.md rejection table with an unsupported reason → exit 1 naming the file and code', () => {
   const { rel, dir } = cliDocWithRejectionTable([
     ['second repair', 'final-review-single-round'],
-    ['new path', 'final-review-repair-scope'],
+    ['new path', 'final-review-repair-do-not-touch'],
     ['mystery', 'final-review-unknown'],
   ]);
   try {
@@ -288,7 +288,7 @@ test('rules/cli.md rejection table missing a required reason row → exit 1 nami
   try {
     const { code, err } = runInTmp([rel], dir);
     assert.strictEqual(code, 1, err);
-    assert.ok(err.includes('final-review-repair-scope'), err);
+    assert.ok(err.includes('final-review-repair-do-not-touch'), err);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -297,7 +297,7 @@ test('rules/cli.md rejection table missing a required reason row → exit 1 nami
 test('rules/cli.md with a correct rejection table and other backticked words → exit 0', () => {
   const { rel, dir } = cliDocWithRejectionTable([
     ['second repair', 'final-review-single-round'],
-    ['new path', 'final-review-repair-scope'],
+    ['new path', 'final-review-repair-do-not-touch'],
   ]);
   try {
     const { code, err } = runInTmp([rel], dir);

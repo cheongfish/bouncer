@@ -12,6 +12,8 @@ import type {
   DigestFail, FinalizeDigest, GitExec,
 } from './finalize-digest-model';
 const { summarizeDrive, summarizeDriveIssues } = digestModel;
+import driveRecord = require('./drive-record');
+const { summarizeDriveRecord, reviewRecordFrom } = driveRecord;
 const { assembleDigestBody } = digestModel;
 const { assessDigestSnapshot } = digestModel;
 const { buildBlueprintSnapshot } = digestModel;
@@ -181,6 +183,15 @@ function prepareFinalizeDigest({
     drive: summarizeDrive(ledger),
     warnings,
     drive_issues: summarizeDriveIssues(ledger, warnings.length),
+    // snapshot과 같은 summarizeDriveRecord·reviewRecordFrom을 부른다. 같은 원장·review 입력이면
+    // 두 값이 deepStrictEqual이어야 해서 계산을 한 모듈에 둔다. blueprint review 모드가 아니면 review는 null.
+    // 원장이 없으면(standalone) 기록할 실행이 없으므로 null이다.
+    drive_record: ledger
+      ? summarizeDriveRecord(ledger, blueprintReview ? reviewRecordFrom(
+        blueprintReview.findings,
+        (blueprintDoc?.data as { bouncer?: { review_contract?: unknown } } | undefined)?.bouncer?.review_contract,
+      ) : null)
+      : null,
   };
 }
 

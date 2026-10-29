@@ -96,6 +96,67 @@ test('the Codex marketplace → lists bouncer at the repository root', () => {
   assert.deepStrictEqual(entry.source, { source: 'local', path: './' });
 });
 
+const ENTRY_SKILLS = ['bouncer-finalize', 'bouncer-init', 'bouncer-plan', 'bouncer-run'];
+
+// 호스트 매니페스트의 skills 경로는 플러그인 루트 기준이다. 그 디렉터리에서 SKILL.md를 가진 하위 디렉터리 이름만 모은다.
+// 호스트 관례 스캔이 보는 집합이 바로 이것이라, 진입 skill 외 디렉터리가 생기면 카탈로그에 새어 나간다.
+function skillDirsOf(manifestRel) {
+  const manifest = readJson(manifestRel);
+  const dir = path.resolve(root, manifest.skills);
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(dir, e.name, 'SKILL.md')))
+    .map((e) => e.name)
+    .sort();
+}
+
+// `## <title>`부터 다음 `## ` 앞까지. 코드 펜스 안의 `## `은 문서에 없다는 전제다.
+function installSection(title) {
+  const text = fs.readFileSync(path.join(root, 'docs/install.md'), 'utf8');
+  const start = text.indexOf(`\n## ${title}\n`);
+  assert.ok(start >= 0, `docs/install.md has no "## ${title}" section`);
+  const next = text.indexOf('\n## ', start + 1);
+  return text.slice(start, next < 0 ? undefined : next);
+}
+
+test('Cursor and Codex skills directories → expose exactly the four entry skills', () => {
+  for (const manifestRel of ['.cursor-plugin/plugin.json', '.codex-plugin/plugin.json']) {
+    assert.deepStrictEqual(
+      skillDirsOf(manifestRel),
+      ENTRY_SKILLS,
+      `${manifestRel} skills directory must hold only the entry skills`,
+    );
+  }
+});
+
+test('host manifests → never name the retired retro skill', () => {
+  const manifests = [
+    'plugin.json', '.claude-plugin/plugin.json', '.cursor-plugin/plugin.json',
+    '.codex-plugin/plugin.json', '.agents/plugins/marketplace.json',
+  ];
+  for (const rel of manifests) {
+    const src = fs.readFileSync(path.join(root, rel), 'utf8');
+    assert.ok(!src.includes('bouncer-retro'), `${rel} must not name bouncer-retro`);
+  }
+});
+
+test('install guide Cursor and Codex sections → name the four entry skills and the retro CLI path', () => {
+  for (const title of ['Cursor', 'Codex']) {
+    const body = installSection(title);
+    for (const entry of ['/bouncer-init', '/bouncer-plan', '/bouncer-run', '/bouncer-finalize']) {
+      assert.ok(body.includes(entry), `${title} section must name ${entry}`);
+    }
+    assert.ok(body.includes('bouncer retro sources'), `${title} section must name bouncer retro sources`);
+  }
+  // 줄바꿈이 문장 중간에 들어가도 같은 문구로 보도록 공백 연속을 한 칸으로 접는다.
+  const cursor = installSection('Cursor');
+  const folded = cursor.replace(/\s+/g, ' ');
+  assert.ok(!cursor.includes('여섯'), 'Cursor section still states the stale workflow count');
+  assert.ok(!folded.includes('밖 파일이 staged면 셸 실행을'), 'Cursor section still states the old deny rule');
+  for (const needle of ['rules/commit-scope.md', '원장 scope', 'Do not touch', 'scope-do-not-touch-unreadable']) {
+    assert.ok(cursor.includes(needle), `Cursor section must mention ${needle}`);
+  }
+});
+
 test('workflow shells → invoke the installed bouncer launcher directly', () => {
   for (const name of LAUNCHER_SKILLS) {
     const file = launcherSkillPath(name);

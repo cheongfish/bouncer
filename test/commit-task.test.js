@@ -100,6 +100,7 @@ function writeTaskUnit(repo, blueprintDir, number, {
   tasksStatus = 'verified',
   affectedPaths = ['src/auth/'],
   title = `Impl ${number}`,
+  doNotTouch = [],
 } = {}) {
   const dir = `${blueprintDir}/tasks/${number}`;
   writeDoc(repo, `${dir}/tasks.md`, {
@@ -116,7 +117,9 @@ function writeTaskUnit(repo, blueprintDir, number, {
       status: tasksStatus,
       affected_paths: affectedPaths,
     },
-  });
+  }, doNotTouch.length > 0
+    ? `# x\n\n## Do not touch\n${doNotTouch.map((p) => `- \`${p}\` — fixture 금지선`).join('\n')}\n`
+    : '# x\n');
   writeDoc(repo, `${dir}/verification.md`, {
     type: 'bouncer.verification',
     title: 'Verified',
@@ -153,6 +156,8 @@ function fullBlueprint(repo, {
   blueprintDir = BP_REL,
   withGit = true,
   extraOpenTask = false,
+  doNotTouch = [],
+  scale = null,
 } = {}) {
   if (withGit) initGitWithChange(repo);
   const epicDir = blueprintDir.split('/blueprints/')[0];
@@ -171,11 +176,15 @@ function fullBlueprint(repo, {
   writeDoc(repo, `${blueprintDir}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${blueprintDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
+    // scale light는 bootstrap이 light 원장을 만드는 입력이다. 금지선 판정 없이 scope 밖을 거절하는 경로를 연다.
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved', ...(scale ? { scale } : {}),
+    },
   });
   writeTaskUnit(repo, blueprintDir, '001', {
     tasksStatus,
     title: 'Impl login',
+    doNotTouch,
   });
   if (extraOpenTask) {
     writeTaskUnit(repo, blueprintDir, '002', {
@@ -552,7 +561,8 @@ test('out-of-scope recovery → is return-to-plan standalone and coordinator-rev
   assert.strictEqual(standalone.recovery.action, 'return-to-plan');
   assert.ok(typeof standalone.recovery.detail === 'string' && standalone.recovery.detail.length > 0);
 
-  const { worker, blueprint } = coordinatorFixture();
+  // light 원장 drive는 금지선 없이도 scope 밖을 막고 scope 재개정으로 복구한다.
+  const { worker, blueprint } = coordinatorFixture({ scale: 'light' });
   const coordinator = commitTask({
     repoRoot: worker,
     blueprintDir: blueprint,
@@ -561,6 +571,21 @@ test('out-of-scope recovery → is return-to-plan standalone and coordinator-rev
   });
   assert.strictEqual(coordinator.ok, false);
   assert.strictEqual(coordinator.reason, 'out-of-scope');
+  assert.strictEqual(coordinator.recovery.action, 'coordinator-revise');
+  assert.ok(typeof coordinator.recovery.detail === 'string' && coordinator.recovery.detail.length > 0);
+});
+
+test('full coordinator drive with a scope-outside path on the Do not touch line → scope-do-not-touch-violation and coordinator-revise', () => {
+  // full 원장 drive에서는 scope 밖만으로는 막히지 않고 금지선과 겹칠 때만 막힌다.
+  const { worker, blueprint } = coordinatorFixture({ doNotTouch: ['src/payments/'] });
+  const coordinator = commitTask({
+    repoRoot: worker,
+    blueprintDir: blueprint,
+    yes: true,
+    git: trackingGit(['src/auth/login.ts', 'src/payments/charge.ts'], []).api,
+  });
+  assert.strictEqual(coordinator.ok, false);
+  assert.strictEqual(coordinator.reason, 'scope-do-not-touch-violation');
   assert.strictEqual(coordinator.recovery.action, 'coordinator-revise');
   assert.ok(typeof coordinator.recovery.detail === 'string' && coordinator.recovery.detail.length > 0);
 });
@@ -579,15 +604,17 @@ const { readDoc } = require('../packages/cli/dist/frontmatter');
  * 게이트가 열리도록 문서 묶음을 다시 쓴다. seed는 계획 문서만 옮기므로
  * 검증 원장은 worker 경로로 다시 기록한다.
  */
-function coordinatorFixture({ blueprint = BP_REL, extraOpenTask = false } = {}) {
+function coordinatorFixture({
+  blueprint = BP_REL, extraOpenTask = false, doNotTouch = [], scale = null,
+} = {}) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-commit-coord-'));
-  fullBlueprint(repo, { blueprintDir: blueprint, extraOpenTask });
+  fullBlueprint(repo, { blueprintDir: blueprint, extraOpenTask, doNotTouch, scale });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   const prepared = coordinate({
     command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   });
   const worker = prepared.tasks[0].workerPath;
-  fullBlueprint(worker, { blueprintDir: blueprint, withGit: false, extraOpenTask });
+  fullBlueprint(worker, { blueprintDir: blueprint, withGit: false, extraOpenTask, doNotTouch, scale });
   return { repo, worker, integrationPath: boot.integrationPath, blueprint };
 }
 
@@ -929,9 +956,31 @@ test('reviseTaskScope with a new path under a tracked directory → scopes to pa
 });
 
 test('coordinator commit with a staged path outside the current ledger scope → refuses', () => {
-  const { worker, blueprint } = coordinatorFixture();
+  const { worker, blueprint, integrationPath } = coordinatorFixture();
   // 시나리오 전제는 "scope가 src/session/으로 옮겨졌다"이므로 교체로 옮긴다. 합집합이면 src/auth/이
   // 남아 staged src/auth/login.ts가 범위 안이 되고, 이 테스트가 확인하려는 거절이 사라진다.
+  reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'scope moved to session', replace: true,
+  });
+  // light 판정으로 out-of-scope를 보려고 원장 mode만 light로 바꾼다. light bootstrap 픽스처에서는 할당 worktree
+  // 확인이 scope 개정을 거절하므로 full 픽스처에서 개정한 뒤 mode만 바꾼다.
+  const ledgerFile = path.join(integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.mode = 'light';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const g = trackingGit(['src/auth/login.ts'], []);
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true, git: g.api,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, ['src/auth/login.ts']);
+  assert.deepStrictEqual(g.calls, []);
+});
+
+test('full coordinator commit with a staged path on the Do not touch line outside the ledger scope → refuses', () => {
+  const { worker, blueprint } = coordinatorFixture({ doNotTouch: ['src/auth/login.ts'] });
+  // 교체로 scope를 src/session/으로 옮기면 src/auth/login.ts는 scope 밖이고 금지선과 겹쳐 full drive도 막는다.
   reviseTaskScope({
     repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'scope moved to session', replace: true,
   });
@@ -940,7 +989,7 @@ test('coordinator commit with a staged path outside the current ledger scope →
     repoRoot: worker, blueprintDir: blueprint, yes: true, git: g.api,
   });
   assert.strictEqual(res.ok, false);
-  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.strictEqual(res.reason, 'scope-do-not-touch-violation');
   assert.deepStrictEqual(res.violations, ['src/auth/login.ts']);
   assert.deepStrictEqual(g.calls, []);
 });
@@ -1394,7 +1443,7 @@ test('commitTask in a worker cwd while the pointer points elsewhere → commits 
         id: `TASKS-${id}`, epic_id: '097', blueprint_id: '001', status: 'ready',
         parallel_safe: true, affected_paths: [`src/${leaf}/`],
       },
-    });
+    }, id === '002' ? '# x\n\n## Do not touch\n- `src/a/` — task 001 범위\n' : '# x\n');
     writeDoc(repo, `${dir}/verification.md`, {
       type: 'bouncer.verification', title: `v${id}`, description: 'd',
       resource: `${dir}/verification.md`, tags: ['bouncer'],
@@ -1454,6 +1503,13 @@ test('commitTask in a worker cwd while the pointer points elsewhere → commits 
   writeCurrent({
     repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
   });
+
+  // light 판정을 쓰려고 원장 mode만 light로 바꾼다. light는 독립 commit task를 하나만 허용하므로 이 두 task
+  // 원장을 bootstrap으로는 light로 만들 수 없다. commit 판정은 원장 mode만 읽어 scope 밖을 out-of-scope로 거절한다.
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.mode = 'light';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
 
   const ok = commitTask({
     repoRoot: worker002, blueprintDir: blueprint, yes: true,
@@ -1693,4 +1749,50 @@ test('reviseTaskScope with a comment that closes and reopens on one line → jud
   assert.strictEqual(result.ok, true);
   assert.ok(!('releasedDoNotTouch' in result));
   assert.ok(fs.readFileSync(docAbs, 'utf8').endsWith(before.slice(before.indexOf('## Do not touch'))));
+});
+
+// --- full 원장 drive: 이탈 경로 기록과 금지선 --------------------------------
+
+test('full coordinator commit with a path outside ledger scope and the Do not touch line → succeeds and reports unexpected_paths', () => {
+  const { worker, blueprint } = coordinatorFixture({ doNotTouch: ['src/payments/'] });
+  writeCurrent({ repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md` });
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/auth/login.ts', 'src/session/token.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.deepStrictEqual(res.unexpected_paths, ['src/session/token.ts']);
+});
+
+test('full coordinator commit with only in-scope paths → has no unexpected_paths key', () => {
+  const { worker, blueprint } = coordinatorFixture({ doNotTouch: ['src/payments/'] });
+  writeCurrent({ repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md` });
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual('unexpected_paths' in res, false);
+});
+
+test('full coordinator commit under the Do not touch line or with the integration document gone → recovers via coordinator-revise', () => {
+  const { worker, integrationPath, blueprint } = coordinatorFixture({ doNotTouch: ['src/payments/'] });
+  writeCurrent({ repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md` });
+  const hit = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/payments/charge.ts'], []).api,
+  });
+  assert.strictEqual(hit.reason, 'scope-do-not-touch-violation');
+  assert.strictEqual(hit.gate, 'commit-scope');
+  assert.strictEqual(hit.recovery.action, 'coordinator-revise');
+  assert.match(hit.recovery.detail, /release-do-not-touch/);
+
+  fs.rmSync(path.join(integrationPath, blueprint, 'tasks/001/tasks.md'));
+  const unreadable = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/session/token.ts'], []).api,
+  });
+  assert.strictEqual(unreadable.reason, 'scope-do-not-touch-unreadable');
+  assert.strictEqual(unreadable.gate, 'commit-scope');
+  assert.strictEqual(unreadable.recovery.action, 'coordinator-revise');
 });

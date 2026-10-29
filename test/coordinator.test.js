@@ -75,18 +75,41 @@ function writeCoordinatorConfig(repoRoot, coordinator) {
 }
 
 /**
+ * worker 사본의 task 문서에서 `bouncer.verify` 명령을 찾는다. 계획 문서 위치가 fixture마다 달라
+ * `.bouncer/context` 아래만 훑고, 선언이 없으면 기본 검증 명령으로 접는다.
+ */
+function fixtureVerifyCommand(worker, task) {
+  const root = path.join(worker, '.bouncer', 'context');
+  const rel = fs.existsSync(root)
+    ? fs.readdirSync(root, { recursive: true })
+      .find((entry) => entry.split(path.sep).join('/').endsWith(`/tasks/${task}/tasks.md`))
+    : undefined;
+  const verify = rel ? readDoc(path.join(root, rel)).data.bouncer?.verify : undefined;
+  return typeof verify === 'string' && verify !== '' ? verify : 'node --test';
+}
+
+/**
  * `coordinate report`가 읽는 worker 보고 파일을 쓴다. full 모드 report 호출 전에 필요하다.
  * `revision`·`open`·`weak`로 줄이나 섹션을 바꾸거나 null로 빼서 거절 경로를 만든다.
  */
 function writeWorkerReport(worker, task, attempt, hash, {
   revision = `attempt: ${attempt}\ntask_brief_hash: ${hash}`,
   open = '- none', weak = '- none', pathAttempt = attempt,
+  // commitAndStampWorker가 scope 밖에 만드는 `src/task-<id>.js`의 이유 줄. 커밋하지 않았거나 scope 안인 경로의
+  // 줄은 무시되므로 기본값으로 두어 기존 accepted 사례가 이탈 기록 규칙에 걸리지 않게 한다.
+  unexpected = `- \`src/task-${task}.js\` — fixture 커밋 파일`,
+  // undefined면 fixture task의 `bouncer.verify` 명령과 통과 한 줄을 넣는다(accepted 보고는 report 시점에
+  // Tests 절을 확인받는다). null이면 절 자체를 뺀다. 문자열은 본문 그대로다.
+  tests = undefined,
 } = {}) {
   const dir = path.join(worker, '.bouncer', 'runtime', 'reports');
   fs.mkdirSync(dir, { recursive: true });
   const parts = ['## Changed files\n- `src/a.js` — fixture', `## Brief revision\n${revision}`];
+  const testsBody = tests === undefined ? `- \`${fixtureVerifyCommand(worker, task)}\` — pass (exit 0)` : tests;
+  if (testsBody !== null) parts.push(`## Tests\n${testsBody}`);
   if (open !== null) parts.push(`## Open choices\n${open}`);
   if (weak !== null) parts.push(`## Known weaknesses\n${weak}`);
+  if (unexpected !== null) parts.push(`## Unexpected paths\n${unexpected}`);
   fs.writeFileSync(path.join(dir, `${task}-${pathAttempt}.md`), `${parts.join('\n\n')}\n`);
 }
 
@@ -1852,12 +1875,19 @@ test('prepare with a symlink at an assigned worker path → refuses before seedi
 /**
  * prepared commit task fixture. bootstrap·prepare만 끝내 worker를 돌려준다.
  */
-function preparedCommitDrive(prefix, blueprint, { affectedPaths = null } = {}) {
+function preparedCommitDrive(prefix, blueprint, { affectedPaths = null, doNotTouch = [], extraFiles = [] } = {}) {
   const repo = repoTemplate.copy();
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  // 금지선은 plan 시점의 task 문서 본문에 있다. bootstrap이 이 사본을 integration으로 옮긴다.
+  const lockedSection = doNotTouch.length > 0
+    ? `\n## Do not touch\n${doNotTouch.map((entry) => `- \`${entry}\` — fixture 금지선\n`).join('')}` : '';
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),
-    `---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n${affectedPaths ? `  affected_paths:\n${affectedPaths.map((entry) => `    - ${entry}\n`).join('')}` : ''}---\nbrief\n`);
+    `---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n${affectedPaths ? `  affected_paths:\n${affectedPaths.map((entry) => `    - ${entry}\n`).join('')}` : ''}---\nbrief\n${lockedSection}`);
+  for (const rel of extraFiles) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), 'base\n');
+  }
   execFileSync('git', ['add', '-A'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -2123,6 +2153,8 @@ function dropSection(body, heading) {
 test('implementer report without the three optional sections → accepted with empty stored lists, required gaps still refused', () => {
   const { drive, attempt, hash, report } = openReportAttempt(
     'bouncer-report-optional-', '.bouncer/context/epics/098-x/blueprints/006-y',
+    // fixture 커밋(src/task-001.js)이 scope 안이라 이탈 이유 줄이 필요 없는 사례다.
+    { affectedPaths: ['src/task-001.js'] },
   );
   const filled = filledImplementerReport(attempt, hash);
   // 전제: 문서 template 자체가 선택 세 절을 담지 않아야 이 회귀가 의미를 가진다.
@@ -5123,6 +5155,20 @@ test('final discovery stored then CI failure-command repair → is not rejected 
   assert.notStrictEqual(out.reason, 'final-review-single-round');
 });
 
+/**
+ * integration 사본 task 문서 끝에 Do not touch 절을 붙인다. 금지선 판정의 출처가 이 사본임을 고정하는 fixture다.
+ *
+ * @param {object} drive - supplementDrive 계열 fixture
+ * @param {number} index - 원장 task 순번(0부터)
+ * @param {string[]} locked - 금지선 경로
+ * @returns {void}
+ */
+function lockTaskDoc(drive, index, locked) {
+  const entry = readLedger(drive).tasks[index];
+  const doc = path.join(drive.integrationPath, drive.blueprint, 'tasks', entry.id, 'tasks.md');
+  fs.appendFileSync(doc, `\n## Do not touch\n${locked.map((p) => `- \`${p}\` — fixture\n`).join('')}`);
+}
+
 // review_contract 표식 blueprint: 최종 discovery 뒤 리뷰 원인 repair를 한 번만 받는다.
 function briefContractDrive(prefix, blueprint, contract = 'brief') {
   const drive = finalReviewStoredDrive(prefix, blueprint);
@@ -5159,12 +5205,43 @@ test('brief contract after one review-caused repair then a second one → final-
   assert.deepStrictEqual(snapshotOf(drive), before);
 });
 
-test('brief contract review-caused repair with newPaths → final-review-repair-scope and bytes unchanged', () => {
+test('brief contract review-caused repair with newPaths inside Do not touch → final-review-repair-do-not-touch and bytes unchanged', () => {
   const drive = briefContractDrive('bouncer-brief-scope-', '.bouncer/context/epics/090-x/blueprints/022-y');
+  lockTaskDoc(drive, 1, ['scripts/src/lib/']);
   const before = snapshotOf(drive);
   const out = coordinate(reviewRepairOpts(drive, { newPaths: ['scripts/src/lib/x.ts'] }));
-  assert.strictEqual(out.reason, 'final-review-repair-scope');
+  assert.strictEqual(out.reason, 'final-review-repair-do-not-touch');
   assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('brief contract review-caused repair with newPaths outside every Do not touch line → is accepted and records unexpected_paths', () => {
+  const drive = briefContractDrive('bouncer-brief-accept-', '.bouncer/context/epics/090-x/blueprints/024-y');
+  lockTaskDoc(drive, 1, ['docs/']);
+  const out = coordinate(reviewRepairOpts(drive, { newPaths: ['src/new-b.js', 'src/new-a.js'] }));
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.deepStrictEqual(out.decision.unexpected_paths, ['src/new-b.js', 'src/new-a.js']);
+});
+
+test('brief contract review-caused repair with newPaths and an integration task document gone → scope-do-not-touch-unreadable and bytes unchanged', () => {
+  const drive = briefContractDrive('bouncer-brief-unread-', '.bouncer/context/epics/090-x/blueprints/025-y');
+  fs.rmSync(path.join(drive.integrationPath, drive.blueprint, 'tasks/002/tasks.md'));
+  const before = snapshotOf(drive);
+  const out = coordinate(reviewRepairOpts(drive, { newPaths: ['scripts/src/lib/x.ts'] }));
+  assert.strictEqual(out.reason, 'scope-do-not-touch-unreadable');
+  assert.deepStrictEqual(snapshotOf(drive), before);
+});
+
+test('brief contract repair when the worker copy drops the Do not touch line → still refuses with final-review-repair-do-not-touch', () => {
+  const drive = briefContractDrive('bouncer-brief-worker-', '.bouncer/context/epics/090-x/blueprints/026-y');
+  lockTaskDoc(drive, 1, ['scripts/src/lib/']);
+  // 이 fixture는 prepare를 거치지 않으므로 worker 사본을 직접 만든다 — 금지선 줄이 없는 사본이다.
+  const workerDoc = path.join(__coordinatorPathsFor({
+    repoRoot: drive.repo, blueprint: drive.blueprint, task: '002',
+  }).workerPath, drive.blueprint, 'tasks/002/tasks.md');
+  fs.mkdirSync(path.dirname(workerDoc), { recursive: true });
+  fs.writeFileSync(workerDoc, '---\nbouncer:\n  status: ready\n---\nbrief\n');
+  const out = coordinate(reviewRepairOpts(drive, { newPaths: ['scripts/src/lib/x.ts'] }));
+  assert.strictEqual(out.reason, 'final-review-repair-do-not-touch');
 });
 
 test('brief contract after final discovery then supplement → final-review-single-round', () => {
@@ -6736,4 +6813,518 @@ test('uncommit whose ledger write throws → restores HEAD to fromHead and rethr
   }), /ledger write failed/);
   assert.strictEqual(workerGit(drive.worker, ['rev-parse', 'HEAD']), headBefore);
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
+});
+
+// --- full 모드 accepted report: scope 밖 커밋 경로의 이유 기록과 금지선 -------------
+
+/**
+ * scope가 `src/a.js`뿐인 full drive에서 worker가 scope 밖 `src/extra.js`를 커밋한 상태를 만든다.
+ * report 호출과 보고 파일 쓰기는 호출부가 맡는다.
+ */
+function unexpectedPathDrive(tag, suffix, options = {}) {
+  const { commits = ['src/extra.js'], ...driveOptions } = options;
+  const opened = openReportAttempt(`bouncer-unexpected-${tag}-`,
+    `.bouncer/context/epics/098-x/blueprints/${suffix}-y`, {
+      commit: false, affectedPaths: ['src/a.js'], ...driveOptions,
+    });
+  for (const rel of commits) {
+    const abs = path.join(opened.drive.worker, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `edited ${rel}\n`);
+    execFileSync('git', ['add', rel], { cwd: opened.drive.worker });
+  }
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'feat: x'],
+    { cwd: opened.drive.worker });
+  commitAndStampWorker(opened.drive.repo, opened.drive.blueprint, opened.drive.worker);
+  const write = (unexpected) => writeWorkerReport(
+    opened.drive.worker, '001', opened.attempt, opened.hash, { unexpected },
+  );
+  return { ...opened, write };
+}
+
+test('accepted report with a scope-outside commit and no reason line → unexpected-path-reason-missing and bytes unchanged', () => {
+  const { drive, report, write } = unexpectedPathDrive('a', '101');
+  write(null);
+  const refused = assertRefusedWithoutWrite(drive, report, 'unexpected-path-reason-missing');
+  assert.deepStrictEqual(refused.paths, ['src/extra.js']);
+});
+
+test('accepted report with an empty reason on a scope-outside commit → unexpected-path-reason-missing', () => {
+  const { drive, report, write } = unexpectedPathDrive('b', '102');
+  write('- `src/extra.js` —    ');
+  assert.deepStrictEqual(assertRefusedWithoutWrite(drive, report, 'unexpected-path-reason-missing').paths,
+    ['src/extra.js']);
+});
+
+test('accepted report with a 201-character reason → unexpected-path-reason-missing', () => {
+  const { drive, report, write } = unexpectedPathDrive('c', '103');
+  write(`- \`src/extra.js\` — ${'가'.repeat(201)}`);
+  assertRefusedWithoutWrite(drive, report, 'unexpected-path-reason-missing');
+});
+
+test('accepted report with a reason on a scope-outside commit → stores unexpected_paths on the ReportDecision', () => {
+  const { report, write } = unexpectedPathDrive('d', '104');
+  write('- `src/extra.js` — 생성물 짝');
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.deepStrictEqual(reported.decision.unexpected_paths, [{ path: 'src/extra.js', reason: '생성물 짝' }]);
+  assert.strictEqual('overlaps' in reported.decision, false);
+});
+
+test('accepted report with an unexpected path another unintegrated task scope covers → records overlaps', () => {
+  const { drive, report, write } = unexpectedPathDrive('e', '105');
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.tasks.push({
+    id: '003', status: 'pending', depends_on: [], affected_paths: ['src/extra.js'],
+  });
+  ledger.tasks.push({
+    id: '002', status: 'pending', depends_on: [], affected_paths: ['src/'],
+  });
+  ledger.tasks.push({
+    id: '004', status: 'integrated', depends_on: [], affected_paths: ['src/extra.js'],
+  });
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  write('- `src/extra.js` — 공유 fixture');
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.deepStrictEqual(reported.decision.overlaps, ['002', '003']);
+});
+
+test('accepted report whose reason line names an uncommitted path → stores nothing and refuses nothing', () => {
+  const { report, write } = unexpectedPathDrive('f', '106', { commits: ['src/a.js'] });
+  write('- `src/none.js` — 커밋하지 않은 경로');
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual('unexpected_paths' in reported.decision, false);
+  assert.strictEqual('overlaps' in reported.decision, false);
+});
+
+test('accepted report with only in-scope commits → has no unexpected_paths or overlaps key', () => {
+  const { report, write } = unexpectedPathDrive('g', '107', { commits: ['src/a.js'] });
+  write(null);
+  const reported = report();
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual('unexpected_paths' in reported.decision, false);
+  assert.strictEqual('overlaps' in reported.decision, false);
+});
+
+test('accepted report whose scope-outside commit hits the integration Do not touch line → scope-do-not-touch-violation', () => {
+  const { drive, report, write } = unexpectedPathDrive('h', '108', {
+    doNotTouch: ['src/locked/'], commits: ['src/locked/x.js'],
+  });
+  write('- `src/locked/x.js` — hook 우회 커밋');
+  const refused = assertRefusedWithoutWrite(drive, report, 'scope-do-not-touch-violation');
+  assert.deepStrictEqual(refused.paths, ['src/locked/x.js']);
+});
+
+test('accepted report with an exactly 200-character reason → is accepted', () => {
+  const { report, write } = unexpectedPathDrive('i', '109');
+  write(`- \`src/extra.js\` — ${'가'.repeat(200)}`);
+  assert.strictEqual(report().ok, true);
+});
+
+test('accepted report with an integration task document gone and a scope-outside commit → scope-do-not-touch-unreadable and bytes unchanged', () => {
+  const { drive, report, write } = unexpectedPathDrive('k', '111');
+  write('- `src/extra.js` — 이유');
+  fs.rmSync(path.join(drive.integrationPath, drive.blueprint, 'tasks/001/tasks.md'));
+  const refused = assertRefusedWithoutWrite(drive, report, 'scope-do-not-touch-unreadable');
+  assert.deepStrictEqual(refused.paths, ['src/extra.js']);
+});
+
+test('accepted report whose worker copy dropped the Do not touch line → still refuses with scope-do-not-touch-violation', () => {
+  const { drive, report, write } = unexpectedPathDrive('l', '112', {
+    doNotTouch: ['src/locked/'], commits: ['src/locked/x.js'],
+  });
+  const workerDoc = path.join(drive.worker, drive.blueprint, 'tasks/001/tasks.md');
+  fs.writeFileSync(workerDoc, fs.readFileSync(workerDoc, 'utf8').split('\n## Do not touch')[0]);
+  write('- `src/locked/x.js` — 이유');
+  assertRefusedWithoutWrite(drive, report, 'scope-do-not-touch-violation');
+});
+
+test('accepted report whose commit renames a scope-outside file into scope → asks for a reason on the old path', () => {
+  const opened = openReportAttempt('bouncer-unexpected-m-',
+    '.bouncer/context/epics/098-x/blueprints/113-y', {
+      commit: false, affectedPaths: ['src/a.js'], extraFiles: ['src/old.js'],
+    });
+  execFileSync('git', ['mv', 'src/old.js', 'src/a.js'], { cwd: opened.drive.worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'mv'],
+    { cwd: opened.drive.worker });
+  commitAndStampWorker(opened.drive.repo, opened.drive.blueprint, opened.drive.worker);
+  writeWorkerReport(opened.drive.worker, '001', opened.attempt, opened.hash, { unexpected: null });
+  const refused = assertRefusedWithoutWrite(opened.drive, opened.report, 'unexpected-path-reason-missing');
+  assert.deepStrictEqual(refused.paths, ['src/old.js']);
+});
+
+// --- report 시점 Tests 판정과 base CI baseline (TASKS-003 / measure-scope-env-surface) ---
+
+const SCOPED_VERIFY = 'node --test test/fix.test.js';
+
+/**
+ * full 원장에서 task 001이 dispatch·commit까지 끝난 상태를 만든다. report 호출만 남겨 두고
+ * 보고 파일은 쓰지 않는다. `policy`가 false면 verification_policy 표식이 없는 blueprint다.
+ */
+function scopedReportDrive(prefix, serial, { policy = true } = {}) {
+  const blueprint = '.bouncer/context/epics/120-report/blueprints/121-tests';
+  const repo = uncommittedPlanRepo(prefix, blueprint, [
+    ['001', `  depends_on: []\n  parallel_safe: true\n  verify: ${SCOPED_VERIFY}\n`],
+  ]);
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'index.md'),
+    `---\nbouncer:\n  status: approved\n${policy ? '  verification_policy: scoped_terminal\n' : ''}---\n# Blueprint\n`,
+  );
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  commitAndStampWorker(repo, blueprint, worker, '001');
+  return {
+    repo, blueprint, worker, integrationPath: boot.integrationPath, dispatched,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+}
+
+/** 보고 파일을 `tests` 본문으로 쓰고 accepted(또는 지정 outcome) report를 호출한다. */
+function reportScoped(drive, tests, outcome = 'accepted') {
+  const { attempt, task_brief_hash: hash } = drive.dispatched.metadata;
+  writeWorkerReport(drive.worker, '001', attempt, hash, { tests });
+  return coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.worker, task: '001',
+    attempt, taskBriefHash: hash, outcome, summary: `${outcome} 001`,
+  });
+}
+
+for (const [label, tests, problem] of [
+  ['Tests 절 없음', null, 'tests-section-missing'],
+  ['다른 명령', '- `node --test test/other.test.js` — pass (exit 0)', 'command-missing'],
+  ['명령만 있고 결과 없음', `- \`${SCOPED_VERIFY}\``, 'result-missing'],
+  ['실패 결과', `- \`${SCOPED_VERIFY}\` — 2 pass, 1 fail (exit 1)`, 'result-failed'],
+]) {
+  test(`scoped_terminal accepted report with a Tests section of ${label} → rejects report-tests-invalid and leaves the ledger`, () => {
+    const drive = scopedReportDrive('bouncer-report-tests-', `1${problem.length}`);
+    const before = fs.readFileSync(drive.ledgerFile);
+    const out = reportScoped(drive, tests);
+    assert.strictEqual(out.reason, 'report-tests-invalid', JSON.stringify(out));
+    assert.strictEqual(out.ok, false);
+    assert.strictEqual(out.problem, problem);
+    assert.strictEqual(out.expected_command, SCOPED_VERIFY);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+  });
+}
+
+test('scoped_terminal accepted report whose integration task lost bouncer.verify → rejects task-command-missing and leaves the ledger', () => {
+  const drive = scopedReportDrive('bouncer-report-tests-', '20');
+  const doc = path.join(drive.integrationPath, drive.blueprint, 'tasks/001/tasks.md');
+  fs.writeFileSync(doc, fs.readFileSync(doc, 'utf8').replace(/ {2}verify: .*\n/, ''));
+  const before = fs.readFileSync(drive.ledgerFile);
+  const out = reportScoped(drive, `- \`${SCOPED_VERIFY}\` — pass (exit 0)`);
+  assert.strictEqual(out.reason, 'report-tests-invalid', JSON.stringify(out));
+  assert.strictEqual(out.problem, 'task-command-missing');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('scoped_terminal accepted report with the task command and a pass line → accepts', () => {
+  const drive = scopedReportDrive('bouncer-report-tests-', '21');
+  const out = reportScoped(drive, `- \`${SCOPED_VERIFY}\` — 3 pass, 0 fail (exit 0)`);
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+});
+
+test('scoped_terminal rework report without a Tests section → accepts as before', () => {
+  const drive = scopedReportDrive('bouncer-report-tests-', '22');
+  const out = reportScoped(drive, null, 'rework');
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+});
+
+test('accepted report on a blueprint without verification_policy and no Tests section → accepts as before', () => {
+  const drive = scopedReportDrive('bouncer-report-tests-', '23', { policy: false });
+  const out = reportScoped(drive, null);
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+});
+
+test('accepted report on a scoped_terminal light ledger without a Tests section → accepts as before', () => {
+  const blueprint = '.bouncer/context/epics/120-report/blueprints/024-light';
+  const { repo } = lightScaleRepo('bouncer-report-tests-light-', blueprint, {
+    policy: 'scoped_terminal',
+    tasks: [
+      { id: '001', depends_on: [] },
+      { id: '002', depends_on: ['TASKS-001'], execution_kind: 'verification' },
+    ],
+  });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  writeBlueprintReview(boot.integrationPath, blueprint, 'accepted', true);
+  commitAndStampWorker(repo, blueprint, boot.integrationPath);
+  const out = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'light accepted',
+  });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+});
+
+// CT-002: Tests 판정은 commit task만 본다. verification task는 같은 full scoped_terminal 원장에서도
+// Tests 절 없이 보고를 받아 report-tests-invalid로 거절되지 않는다. 현재 흐름에서는 verification task가
+// worker 할당을 받지 못해 그 전 단계에서 거절되므로, 이 테스트는 그 거절 코드가 Tests 판정보다 먼저 난다는 점을 고정한다.
+test('full scoped_terminal accepted report of a verification task without a Tests section → refused before the Tests check', () => {
+  const blueprint = '.bouncer/context/epics/120-report/blueprints/125-verify';
+  const repo = uncommittedPlanRepo('bouncer-report-verify-', blueprint, [
+    ['001', `  depends_on: []\n  parallel_safe: true\n  verify: ${SCOPED_VERIFY}\n`],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n'
+      + `  dependency_gate: integrated\n  verify: ${SCOPED_VERIFY}\n`],
+  ]);
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'index.md'),
+    '---\nbouncer:\n  status: approved\n  verification_policy: scoped_terminal\n---\n# Blueprint\n',
+  );
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks.find((t) => t.id === '001').workerPath;
+  const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  commitAndStampWorker(repo, blueprint, worker, '001');
+
+  const out = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    attempt: 1, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'verification accepted',
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.reason, 'unassigned-worker-worktree', JSON.stringify(out));
+});
+
+const BASELINE_CMD = 'npm run check-base';
+const isBaselineCall = (command, args) => command === 'npm' && args[0] === 'run' && args[1] === 'check-base';
+
+/**
+ * main checkout에 `worktree.baseline`(또는 지정 config)을 두고 bootstrap까지 끝낸 full 드라이브.
+ * `package-lock.json`을 integration에 커밋해 prepare가 npm ci를 타게 한다(주입 exec가 가로챈다).
+ */
+function baselineDrive(config, { light = false } = {}) {
+  const blueprint = '.bouncer/context/epics/120-report/blueprints/122-baseline';
+  const repo = light
+    ? lightScaleRepo('bouncer-baseline-light-', blueprint).repo
+    : uncommittedPlanRepo('bouncer-baseline-', blueprint, [['001', '  depends_on: []\n  parallel_safe: true\n']]);
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), `${JSON.stringify(config)}\n`);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
+  return {
+    repo, blueprint, integrationPath: boot.integrationPath,
+    worker: coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+}
+
+/** 호출 기록을 남기는 주입 exec. `onBaseline`이 baseline argv 호출의 결과(반환 또는 throw)를 정한다. */
+function recordingExec({ onBaseline = () => '', onNpm = () => Buffer.from('') } = {}) {
+  const calls = [];
+  const exec = (command, args, options) => {
+    calls.push([command, ...(args || [])]);
+    if (isBaselineCall(command, args)) return onBaseline(options);
+    if (command === 'npm') return onNpm(args);
+    return execFileSync(command, args, options);
+  };
+  exec.baselineCalls = () => calls.filter(([command, ...args]) => isBaselineCall(command, args));
+  return exec;
+}
+
+const baselineDecisions = (ledgerFile) => JSON.parse(fs.readFileSync(ledgerFile, 'utf8'))
+  .decisions.filter((entry) => entry.kind === 'baseline');
+const failWith = (extra) => () => { throw Object.assign(new Error('x'), extra); };
+const prepareWith = (drive, execFileSyncStub, extra = {}) => coordinate({
+  command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
+  deps: { execFileSync: execFileSyncStub }, ...extra,
+});
+
+test('prepare with a failing worktree.baseline → returns baseline-ci-failed, records accepted:false and creates no worker', () => {
+  const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } });
+  const exec = recordingExec({ onBaseline: failWith({ status: 1 }) });
+  const out = prepareWith(drive, exec);
+  assert.strictEqual(out.reason, 'baseline-ci-failed', JSON.stringify(out));
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.command, BASELINE_CMD);
+  assert.strictEqual(out.exit, 1);
+  assert.strictEqual(fs.existsSync(drive.worker), false);
+  const [decision] = baselineDecisions(drive.ledgerFile);
+  assert.deepStrictEqual({ ...decision, head: typeof decision.head, written_at: typeof decision.written_at }, {
+    kind: 'baseline', command: BASELINE_CMD, exit: 1, head: 'string', accepted: false, written_at: 'string',
+  });
+  assert.match(decision.head, /^[0-9a-f]{40}$/);
+  // 같은 상태에서 다시 prepare하면 다시 실행하고 결정을 하나 더 남긴다.
+  assert.strictEqual(prepareWith(drive, exec).reason, 'baseline-ci-failed');
+  assert.strictEqual(exec.baselineCalls().length, 2);
+  assert.strictEqual(baselineDecisions(drive.ledgerFile).length, 2);
+});
+
+test('prepare rerun with acceptBrokenBaseline after a failure → records accepted:true, reruns the baseline and creates the worker', () => {
+  const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } });
+  const exec = recordingExec({ onBaseline: failWith({ status: 1 }) });
+  assert.strictEqual(prepareWith(drive, exec).reason, 'baseline-ci-failed');
+  const out = prepareWith(drive, exec, { acceptBrokenBaseline: true });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(fs.existsSync(drive.worker), true);
+  assert.strictEqual(exec.baselineCalls().length, 2);
+  assert.deepStrictEqual(baselineDecisions(drive.ledgerFile).map((entry) => [entry.exit, entry.accepted]), [
+    [1, false], [1, true],
+  ]);
+  // 수락된 뒤 prepare는 baseline을 다시 돌리지 않고 결정도 더하지 않는다.
+  assert.strictEqual(prepareWith(drive, exec).ok, true);
+  assert.strictEqual(exec.baselineCalls().length, 2);
+  assert.strictEqual(baselineDecisions(drive.ledgerFile).length, 2);
+});
+
+test('prepare with a passing worktree.baseline → records exit 0 and later prepares do not rerun it', () => {
+  const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } });
+  const exec = recordingExec();
+  const out = prepareWith(drive, exec);
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.deepStrictEqual(baselineDecisions(drive.ledgerFile).map((entry) => [entry.exit, entry.accepted]), [[0, false]]);
+  assert.strictEqual(prepareWith(drive, exec).ok, true);
+  assert.strictEqual(exec.baselineCalls().length, 1);
+  assert.strictEqual(baselineDecisions(drive.ledgerFile).length, 1);
+});
+
+test('prepare with a passing baseline and acceptBrokenBaseline → records exit 0, accepted:false', () => {
+  const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } });
+  const out = prepareWith(drive, recordingExec(), { acceptBrokenBaseline: true });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.deepStrictEqual(baselineDecisions(drive.ledgerFile).map((entry) => [entry.exit, entry.accepted]), [[0, false]]);
+});
+
+test('prepare without worktree.baseline but with acceptBrokenBaseline → ignores the flag and records nothing', () => {
+  const drive = baselineDrive({ verify: 'node --test' });
+  const exec = recordingExec();
+  const out = prepareWith(drive, exec, { acceptBrokenBaseline: true });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(exec.baselineCalls().length, 0);
+  assert.strictEqual(baselineDecisions(drive.ledgerFile).length, 0);
+});
+
+test('prepare with a worktree.baseline outside the allowlist or not a string → returns baseline-config-invalid and runs nothing', () => {
+  for (const baseline of ['rm -rf x', 7]) {
+    const drive = baselineDrive({ verify: 'node --test', worktree: { baseline } });
+    const exec = recordingExec();
+    const before = fs.readFileSync(drive.ledgerFile);
+    const out = prepareWith(drive, exec);
+    assert.strictEqual(out.reason, 'baseline-config-invalid', JSON.stringify(out));
+    assert.strictEqual(exec.baselineCalls().length, 0);
+    assert.strictEqual(exec.baselineCalls().length + fs.existsSync(drive.worker), 0);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+  }
+});
+
+test('prepare with a worktree.baseline on a light ledger → does not run it and records nothing', () => {
+  const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } }, { light: true });
+  const exec = recordingExec();
+  const out = prepareWith(drive, exec);
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(exec.baselineCalls().length, 0);
+  assert.strictEqual(baselineDecisions(drive.ledgerFile).length, 0);
+});
+
+test('prepare with a failing npm ci before the baseline → returns dependency-install-failed and records no baseline', () => {
+  const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } });
+  const exec = recordingExec({ onNpm: failWith({ status: 1 }) });
+  const out = prepareWith(drive, exec);
+  assert.strictEqual(out.reason, 'dependency-install-failed', JSON.stringify(out));
+  assert.strictEqual(exec.baselineCalls().length, 0);
+  assert.strictEqual(baselineDecisions(drive.ledgerFile).length, 0);
+  assert.strictEqual(fs.existsSync(drive.worker), false);
+});
+
+test('prepare with the ledger changing while the baseline runs → returns the recheck reason and records no baseline', () => {
+  const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } });
+  let mutated;
+  const exec = recordingExec({
+    onBaseline: () => {
+      fs.appendFileSync(drive.ledgerFile, '\n');
+      mutated = fs.readFileSync(drive.ledgerFile);
+      return '';
+    },
+  });
+  const out = prepareWith(drive, exec);
+  assert.strictEqual(out.reason, 'stale-ledger-checkpoint', JSON.stringify(out));
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), mutated);
+  assert.strictEqual(baselineDecisions(drive.ledgerFile).length, 0);
+  assert.strictEqual(fs.existsSync(drive.worker), false);
+});
+
+for (const [label, extra, exit] of [
+  ['a timeout error', { code: 'ETIMEDOUT', signal: 'SIGTERM', status: null }, 124],
+  ['a signal kill', { signal: 'SIGKILL', status: null }, 124],
+  ['a spawn failure', { code: 'ENOENT' }, 127],
+]) {
+  test(`prepare with a baseline that ends in ${label} → records exit ${exit} without throwing`, () => {
+    const drive = baselineDrive({ verify: 'node --test', worktree: { baseline: BASELINE_CMD } });
+    const out = prepareWith(drive, recordingExec({ onBaseline: failWith(extra) }));
+    assert.strictEqual(out.reason, 'baseline-ci-failed', JSON.stringify(out));
+    assert.strictEqual(out.exit, exit);
+  });
+}
+
+test('runBaseline → runs the argv in the integration cwd with the 30 minute timeout and returns the integration HEAD', () => {
+  const { runBaseline } = require('../packages/cli/dist/coordinator-baseline');
+  const seen = [];
+  const exec = (command, args, options) => {
+    seen.push({ command, args, cwd: options.cwd, timeout: options.timeout });
+    return command === 'git' ? 'abc123\n' : '';
+  };
+  const out = runBaseline({ integrationPath: '/integration', argv: ['npm', 'run', 'check-base'], exec });
+  assert.deepStrictEqual(out, { exit: 0, head: 'abc123' });
+  assert.deepStrictEqual(seen.find((call) => call.command === 'npm'), {
+    command: 'npm', args: ['run', 'check-base'], cwd: '/integration', timeout: 1_800_000,
+  });
+  const failing = (command) => { if (command === 'npm') throw Object.assign(new Error('x'), { status: 3 }); return 'h'; };
+  assert.deepStrictEqual(runBaseline({ integrationPath: '/i', argv: ['npm', 'x'], exec: failing }), { exit: 3, head: 'h' });
+});
+
+test('baselineNeeded → true only while no baseline decision has exit 0 or accepted:true', () => {
+  const { baselineNeeded } = require('../packages/cli/dist/coordinator-baseline');
+  const ledger = (decisions) => ({ decisions });
+  assert.strictEqual(baselineNeeded(ledger([])), true);
+  assert.strictEqual(baselineNeeded(ledger([{ kind: 'dispatch', exit: 0, accepted: true }])), true);
+  assert.strictEqual(baselineNeeded(ledger([{ kind: 'baseline', exit: 1, accepted: false }])), true);
+  assert.strictEqual(baselineNeeded(ledger([{ kind: 'baseline', exit: 0, accepted: false }])), false);
+  assert.strictEqual(baselineNeeded(ledger([{ kind: 'baseline', exit: 1, accepted: false }, { kind: 'baseline', exit: 1, accepted: true }])), false);
+});
+
+/** package.json의 scripts.build 유무를 정해 둔 임시 integration 디렉터리를 만든다. */
+function packageDir(build) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-warn-'));
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(build ? { scripts: { build: 'tsc' } } : { scripts: {} }));
+  return dir;
+}
+
+test('setupWarnings → warns worktree-setup-unset only with scripts.build present and worktree.setup unset', () => {
+  const { setupWarnings } = require('../packages/cli/dist/coordinator-baseline');
+  const withSetup = { worktree: { setup: 'npm run build' } };
+  const unset = [{ kind: 'worktree-setup-unset' }];
+  assert.deepStrictEqual(setupWarnings({ integrationPath: packageDir(true), config: { verify: 'x' } }), unset);
+  assert.deepStrictEqual(setupWarnings({ integrationPath: packageDir(true), config: null }), unset);
+  assert.deepStrictEqual(setupWarnings({ integrationPath: packageDir(true), config: withSetup }), []);
+  assert.deepStrictEqual(setupWarnings({ integrationPath: packageDir(false), config: { verify: 'x' } }), []);
+  assert.deepStrictEqual(setupWarnings({ integrationPath: packageDir(false), config: withSetup }), []);
+  assert.deepStrictEqual(setupWarnings({ integrationPath: os.tmpdir() + '/bouncer-no-package-json', config: {} }), []);
+});
+
+test('prepare → carries warnings from the main checkout config and integration package.json', () => {
+  const drive = baselineDrive({ verify: 'node --test' });
+  fs.writeFileSync(path.join(drive.integrationPath, 'package.json'), '{"scripts":{"build":"tsc"}}\n');
+  const unset = prepareWith(drive, recordingExec());
+  assert.deepStrictEqual(unset.warnings, [{ kind: 'worktree-setup-unset' }], JSON.stringify(unset));
+  const configured = baselineDrive({ verify: 'node --test', worktree: { setup: 'npm run build' } });
+  fs.writeFileSync(path.join(configured.integrationPath, 'package.json'), '{"scripts":{"build":"tsc"}}\n');
+  assert.deepStrictEqual(prepareWith(configured, recordingExec()).warnings, []);
+  assert.deepStrictEqual(prepareWith(baselineDrive({ verify: 'node --test' }), recordingExec()).warnings, []);
 });

@@ -1,7 +1,9 @@
 // scripts/lib/commit-guard.js
 'use strict';
 import scope = require('./scope');
-const { makeAllowed, isRuntimeArtifact } = scope;
+const { makeAllowed, isRuntimeArtifact, normalizeScopeEntry } = scope;
+import pathOverlapMod = require('./path-overlap');
+const { pathsOverlap } = pathOverlapMod;
 import crossDrive = require('./cross-drive');
 const { crossDriveConflicts } = crossDrive;
 import type { Task } from './execution-contracts';
@@ -27,8 +29,11 @@ import type { Task } from './execution-contracts';
  * @param {object} [opts.otherDrives] - 현재 scope 통과 뒤 비교할 다른 drive 원장 또는 읽기 실패
  * @returns {object} allow·violations·code와, 충돌이면 conflicts 또는 ledgerFile
  *   `allow === true`면 위반 없음(`violations`는 `[]`).
- *   `allow === false`면 `code`가 거절 사유이고, `out-of-scope`일 때만
- *   `violations`가 범위 밖 경로다. 경계 위반은 staged 경로 전체를 담는다.
+ *   `allow === false`면 `code`가 거절 사유이고, `out-of-scope`·`scope-do-not-touch-violation`·
+ *   `scope-do-not-touch-unreadable`일 때만 `violations`가 문제 경로다.
+ *   full 원장 drive에서는 scope 밖 후보가 금지선(`coordinator.doNotTouch`)과 겹치지 않으면
+ *   허용하고 그 후보를 `unexpected`(입력 순서)로 돌려준다. 없으면 `unexpected` 키 자체가 없다.
+ *   판정 순서: verification → 경계 → 금지선(읽기 실패 포함) → scope 밖 기록 → cross-drive. 경계 위반은 staged 경로 전체를 담는다.
  *   runtime artifact(`isRuntimeArtifact`)는 위반으로 치지 않는다 —
  *   `makeAllowed` 예외와 함께 이 모듈이 소유한다.
  */
@@ -41,12 +46,13 @@ function checkCommitSafety({
   coordinator?: {
     active?: boolean; reason?: string | null; scope?: unknown;
     taskId?: string | null; resources?: string[];
+    mode?: 'full' | 'light' | null; doNotTouch?: string[] | null;
   } | null;
   executionKind?: unknown;
   otherDrives?: { ok: true; drives: Parameters<typeof crossDriveConflicts>[1] }
     | { ok: false; reason: string; ledgerFile: string };
 }): {
-  allow: boolean; violations: unknown[]; code?: string;
+  allow: boolean; violations: unknown[]; code?: string; unexpected?: string[];
   conflicts?: ReturnType<typeof crossDriveConflicts>; ledgerFile?: string;
 } {
   const candidates = (files || []).filter((f) => !isRuntimeArtifact(f));
@@ -67,10 +73,26 @@ function checkCommitSafety({
     ? coordinator.scope
     : affectedPaths;
   const allowed = makeAllowed({ affectedPaths: scope, blueprintDir });
-  const violations = candidates.filter((f) => !allowed(f));
-  if (violations.length > 0) return { allow: false, code: 'out-of-scope', violations };
+  const outside = candidates.filter((f) => !allowed(f));
+  // full 원장 drive는 scope 밖 경로를 막지 않고 기록한다(생성물 짝·고정 테스트 같은 필수 수정이
+  // 오탐으로 막히던 문제). 막는 선은 integration 사본의 Do not touch뿐이다. light·standalone은
+  // 예전처럼 scope 밖이면 곧바로 거절한다.
+  const recordOutside = active && coordinator && coordinator.mode === 'full';
+  let unexpected: string[] = [];
+  if (outside.length > 0) {
+    if (!recordOutside) return { allow: false, code: 'out-of-scope', violations: outside };
+    const locked = coordinator && coordinator.doNotTouch;
+    // 금지선을 못 읽으면 허용으로 풀지 않는다(fail closed). scope 안 후보만 있으면 여기 오지 않는다.
+    if (!Array.isArray(locked)) {
+      return { allow: false, code: 'scope-do-not-touch-unreadable', violations: outside };
+    }
+    const hit = outside.filter((f) => typeof f === 'string'
+      && locked.some((token) => pathsOverlap(normalizeScopeEntry(token), normalizeScopeEntry(f))));
+    if (hit.length > 0) return { allow: false, code: 'scope-do-not-touch-violation', violations: hit };
+    unexpected = outside.filter((f): f is string => typeof f === 'string');
+  }
   if (active && otherDrives) {
-    // 범위 검사를 먼저 끝내므로 cross-drive 결과는 승인된 후보만 비교한다.
+    // 범위·금지선 검사를 먼저 끝내므로 cross-drive 결과는 허용된 후보(scope 안 + unexpected)만 비교한다.
     if (!otherDrives.ok) {
       return { allow: false, code: otherDrives.reason, violations: [], ledgerFile: otherDrives.ledgerFile };
     }
@@ -84,6 +106,7 @@ function checkCommitSafety({
       return { allow: false, code: 'cross-drive-conflict', violations: [], conflicts };
     }
   }
+  if (unexpected.length > 0) return { allow: true, violations: [], unexpected };
   return { allow: true, violations: [] };
 }
 

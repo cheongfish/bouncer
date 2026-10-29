@@ -269,6 +269,7 @@ bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--repla
 bouncer seed-worktree --blueprint <dir> --to <worktree>
 bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note|uncommit> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
+bouncer coordinate prepare --blueprint <dir> [--accept-broken-baseline]
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
 bouncer coordinate promote-stop --blueprint <dir> \
   --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
@@ -359,6 +360,26 @@ selected key or `--keep-others` to keep parallel keys deliberately.
 `prepare` refuses with `unassigned-worker-worktree` (`workerPath`) when a worker
 path exists on disk but is not a registered worktree, before creating anything.
 
+When the main checkout `.bouncer/config.json` sets `worktree.baseline` (one
+allowlisted command, run in the integration cwd with a 30 minute timeout), the
+first full-ledger `prepare` runs integration dependencies and then the baseline
+before creating any worker, and appends a `baseline` decision
+(`command`, `exit`, `head`, `accepted`, `written_at`). A non-zero exit refuses
+with `baseline-ci-failed` (`command`, `exit`; exit `124` is a timeout or signal,
+`127` a spawn failure) and creates no worker; only after the user explicitly
+approves, `prepare --accept-broken-baseline` reruns it and proceeds, recording
+`accepted: true`. A passed or accepted baseline is not rerun; without the config
+(or on a light ledger) the flag is ignored. A value that is not a string or not
+an allowlisted single command refuses with `baseline-config-invalid` and runs
+nothing. A successful `prepare` carries `warnings`; it holds
+`{ kind: 'worktree-setup-unset' }` only when the integration `package.json` has
+`scripts.build` and `worktree.setup` is unset.
+On a `verification_policy: scoped_terminal` blueprint, `coordinate report
+--outcome accepted` also checks the report `## Tests` like fan-in does and
+refuses with `report-tests-invalid` (`problem`, `expected_command`) before
+writing the ledger when the task `bouncer.verify` command or a passing result
+is missing.
+
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, and repair.
@@ -389,7 +410,24 @@ refuse, before any ledger write, a worker without a confirmed task commit:
 `worker-commit-stamp-mismatch` (`commit_sha` absent or not HEAD's first 8
 characters), `worker-scope-dirty` (a dirty path inside the current scope, even
 if dirty at dispatch); the output carries `head`, `integration_head`, `stamp`,
-`dirty_paths`, and `next` points at `coordinate advance`. A resume bootstrap against the opposite
+`dirty_paths`, and `next` points at `coordinate advance`. In a full ledger,
+`report --outcome accepted` also judges the worker commit's paths outside the
+ledger scope (candidates from `git diff --name-only --no-renames
+<base_head>..HEAD`, both sides of a rename): a path under a Do not touch line of
+the integration copy of the task document is refused as
+`scope-do-not-touch-violation`, an unreadable document as
+`scope-do-not-touch-unreadable`, and a path without a usable
+``- `path` — reason`` line under the report's `## Unexpected paths` (1 to 200
+characters) as `unexpected-path-reason-missing` with `paths`. Accepted deviations
+are stored as `ReportDecision.unexpected_paths` (`[{ path, reason }]`, path order)
+and `overlaps` lists the other unintegrated tasks of the drive whose scope covers
+one of them; both keys are absent when nothing deviated. `commit --yes` in a full
+ledger drive likewise allows a path outside the ledger scope that no Do not touch
+line covers and reports it as `unexpected_paths` (key absent when none); a
+Do not touch hit is `scope-do-not-touch-violation` and an unreadable line is
+`scope-do-not-touch-unreadable`, both with `recovery.action` `coordinator-revise`
+(composite gate `commit-scope`). Light ledgers and commits without a ledger keep
+`out-of-scope`. A resume bootstrap against the opposite
 mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
 `coordinate promote-stop` (light only) records `status: promotion_stopped` and
 a `promotion` snapshot (`reason`, `summary`, open task, `diff_sha`, optional
@@ -656,7 +694,7 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it. In a `review_contract: brief` blueprint the final review
 allows one `--review-finding` repair (all violation findings, approved paths,
-no `newPaths`) before the one delta. A legacy blueprint (no marker) allows no
+`newPaths` allowed unless they hit a Do not touch line; accepted ones are recorded as `unexpected_paths` on the repair decision) before the one delta. A legacy blueprint (no marker) allows no
 repair after the discovery round; its `must_fix` findings are carried as
 `deferred` and only a `blocked` finding stops for `review accept-risk`. The
 CLI refuses a review-caused repair or supplement with one of these reasons
@@ -665,7 +703,8 @@ CLI refuses a review-caused repair or supplement with one of these reasons
 | Condition | Reason |
 | --- | --- |
 | Legacy blueprint after discovery, any supplement after discovery, or a brief blueprint whose repair or delta already ran | `final-review-single-round` |
-| First brief repair that declares `newPaths` outside the approved paths | `final-review-repair-scope` |
+| First brief repair that declares `newPaths` under a Do not touch line of any ledger task | `final-review-repair-do-not-touch` |
+| First brief repair with `newPaths` while a ledger task document cannot be read | `scope-do-not-touch-unreadable` |
 
 A second repair therefore returns `final-review-single-round` only; a still
 open finding after the delta is reported `final-review-blocked`.
