@@ -731,6 +731,49 @@ test('plan inspect --blueprint with generated pairs and test references → repo
   assert.ok(long.startsWith("'docs/guide.md'"));
 });
 
+// 경로 경계 fixture: 다른 경로의 끝이나 식별자 일부로 든 일치는 후보가 되면 안 되고, 경계 일치는 후보다.
+test('plan inspect --blueprint with boundary-noise path matches → keeps only files with a boundary match', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [{ id: '001', paths: ['docs/guide.md'], dependsOn: [], executionKind: 'commit' }],
+  });
+  writeFile(repo, 'test/prefix.test.js', "read('packages/cli/docs/guide.md');\n");
+  writeFile(repo, 'test/suffix.test.js', "read('docs/guide.md.bak');\nconst x = docs_guide;\n");
+  writeFile(repo, 'test/dot.test.js', "read('./docs/guide.md');\n");
+  writeFile(repo, 'test/sentence.test.js', '// see docs/guide.md.\n');
+  writeFile(repo, 'test/mixed.test.js', "copy('packages/cli/docs/guide.md', 'docs/guide.md');\n");
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.deepStrictEqual(payload.coupledPaths.candidates.map((e) => e.path), [
+    'test/dot.test.js',
+    'test/mixed.test.js',
+    'test/sentence.test.js',
+  ]);
+});
+
+// 서로게이트 fixture: 이모지(상위·하위 단위 두 개)가 200 단위 절단 경계에 걸리는 두 경우를 함께 본다.
+test('plan inspect --blueprint with a surrogate pair at the cut → evidence never ends on a lone surrogate', () => {
+  const repo = makeRepo();
+  mkdirp(repo, `${EPICS}/001-a`);
+  const blueprintDir = writeRoutingBlueprint(repo, {
+    tasks: [{ id: '001', paths: ['docs/guide.md'], dependsOn: [], executionKind: 'commit' }],
+  });
+  // 상위 단위가 index 199에 와서 200 절단이 상위 서로게이트에서 끊기는 줄.
+  writeFile(repo, 'test/emoji.test.js', `'docs/guide.md'${'x'.repeat(184)}\u{1F600}tail\n`);
+  // 쌍이 index 198·199에 다 들어 200 절단이 쌍을 온전히 담는 줄.
+  writeFile(repo, 'test/fit.test.js', `'docs/guide.md'${'x'.repeat(183)}\u{1F600}tail\n`);
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+  const text = Object.fromEntries(payload.coupledPaths.candidates.map((e) => [e.path, e.evidence.text]));
+
+  assert.strictEqual(text['test/emoji.test.js'].length, 199);
+  assert.doesNotMatch(text['test/emoji.test.js'], /[\uD800-\uDBFF]$/);
+  assert.strictEqual(text['test/fit.test.js'].length, 200);
+  assert.ok(text['test/fit.test.js'].endsWith('\u{1F600}'));
+});
+
 test('plan inspect --blueprint with a generated TOML on disk → drops the gitignore-exception pair', () => {
   const repo = makeRepo();
   mkdirp(repo, `${EPICS}/001-a`);
