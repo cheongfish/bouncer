@@ -27,3 +27,4 @@ bouncer:
 
 ## Blueprints
 * [회고 reference 이관](blueprints/retro-reference/index.md) - finalize reference와 진입점·배포·테스트 계약을 정비한다.
+* [실행 기록 보존과 예상 경로 정책, 조기 검증과 호스트 표면 정비](blueprints/measure-scope-env-surface/index.md) - finalize snapshot·digest와 집계 스크립트, commit guard·coordinate report 범위 정책, prepare baseline, 호스트 표면 테스트를 바꾼다.
