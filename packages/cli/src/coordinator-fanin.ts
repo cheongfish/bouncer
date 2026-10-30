@@ -16,7 +16,7 @@ const { checkLease, revokeLease } = lease;
 import coordinatorLedger = require('./coordinator-ledger');
 const {
   loadLedger, loadLedgerBytes, ledgerBytesHash, openLedgerFenced, validateFaninLedger,
-  ledgerModeOf, withCheckpoint, readyWaveGated, maxParallelForRead, recheckLedgerCheckpoint,
+  withCheckpoint, readyWaveGated, maxParallelForRead, recheckLedgerCheckpoint,
 } = coordinatorLedger;
 import coordinatorGit = require('./coordinator-git');
 const { git, registeredWorker, workerOwnsSha } = coordinatorGit;
@@ -63,24 +63,6 @@ function appendWorkerCommitTrailer(message: string, workerSha: string): string {
   return `${trimmed}${isTrailerBlock ? '\n' : '\n\n'}${line}\n`;
 }
 
-
-/**
- * light 원장에서 task cwd가 integration인지 본다. full의 registeredWorker와
- * 달리 integration 자체 배정만 허용하고 workers/ 경로는 거절한다.
- *
- * @param {Task} item - 원장 task
- * @param {string} integrationPath - integration checkout 절대 경로
- * @returns {boolean} workerPath가 integration과 같으면 true
- */
-function lightWorkerAssigned(item: Task, integrationPath: string): boolean {
-  if (typeof item.workerPath !== 'string' || item.workerPath === '') return false;
-  try {
-    return fs.realpathSync(item.workerPath) === fs.realpathSync(integrationPath);
-  } catch (_error) {
-    // 경로 부재·권한 오류는 배정 실패로만 접는다. throw하면 dispatch가 사용법 오류가 된다.
-    return false;
-  }
-}
 
 /**
  * 보고의 `## Tests` 절이 task에 지정된 명령과 통과 결과를 담았는지 판정한다.
@@ -332,120 +314,6 @@ function isCherryPickConflict(error: unknown, exec: Exec, faninPath: string): bo
 }
 
 /**
- * light commit wave: cherry-pick 없이 integration HEAD를 fanin verified로 기록한다.
- * 커밋은 이미 integration에서 이뤄졌으므로 HEAD≠integrationHead여도 stale로
- * 보지 않고, 기록된 sha 소유와 증적만 확인한 뒤 integrated로 올린다.
- *
- * @param {object} opts - integrateCommitWave와 동일 인자(deps.runVerification 미사용)
- * @returns {unknown} 성공 시 integrate checkpoint, 실패 시 ok:false
- */
-function integrateLightCommitWave({
-  // repoRoot는 공개 시그니처 호환용 — light commit wave는 integration 경로만 쓴다.
-  blueprint, task, leaseId, generation,
-  ledgerPath, ledgerHash, exec, writeLedger, integration,
-}: {
-  repoRoot: string; blueprint: string; task?: string;
-  leaseId?: string; generation?: number;
-  ledgerPath?: string; ledgerHash?: string;
-  exec: Exec; writeLedger: (file: string, data: unknown) => void;
-  integration: ReturnType<typeof coordinatorPathsFor>;
-}): unknown {
-  return withLedgerLock(integration.ledgerFile, (owns) => {
-    const opened = openLedgerFenced({
-      ledgerFile: integration.ledgerFile, ledgerPath, ledgerHash, validate: validateFaninLedger,
-    });
-    if (!opened.ok) return opened;
-    const { ledger } = opened;
-    if (ledgerModeOf(ledger) !== 'light') {
-      return { ok: false, reason: 'ledger-mode-mismatch' };
-    }
-
-    if (task) {
-      const item = ledger.tasks.find((x) => x.id === task);
-      if (!item) return { ok: false, reason: 'task-outside-blueprint' };
-      if ((item.execution_kind || 'commit') === 'verification') {
-        return { ok: false, reason: 'task-outside-blueprint' };
-      }
-      const leaseChecked = checkLease(item, {
-        ...(leaseId !== undefined ? { lease_id: leaseId } : {}),
-        ...(generation !== undefined ? { generation } : {}),
-      });
-      if (!leaseChecked.ok) {
-        const rejected = rejectLeaseMismatch(ledger, item, task, leaseChecked);
-        if (leaseChecked.reason === 'stale-lease') {
-          if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
-          writeLedger(integration.ledgerFile, ledger);
-        }
-        return rejected;
-      }
-    }
-
-    const selected = selectRecordedCommitIds(ledger, task);
-    if (selected.length === 0) return { ok: false, reason: 'nothing-to-integrate' };
-    const ordered = sortFaninTasks(ledger.tasks, selected);
-    const head = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
-    const baseHead = typeof ledger.integrationHead === 'string' ? ledger.integrationHead : head;
-
-    for (const id of ordered) {
-      const item = ledger.tasks.find((x) => x.id === id) as Task;
-      if (!lightWorkerAssigned(item, integration.integrationPath)
-        || !workerOwnsSha(exec, integration.integrationPath, item.sha as string)) {
-        return { ok: false, reason: 'sha-not-owned-by-worker' };
-      }
-      const evidence = checkWorkerEvidence(
-        integration.integrationPath, integration.integrationPath, blueprint, id, item.sha as string,
-      );
-      if (!evidence.ok) return evidence;
-    }
-
-    // light inline 보고는 파일이 없을 수 있어 부재만 허용하고, 파일이 있으면 full과 같은 검사를 한다.
-    if (verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal') {
-      const mismatch = scopedTestReportFailure({
-        integrationPath: integration.integrationPath, blueprint, light: true,
-        items: ordered.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
-      });
-      if (mismatch) return { ok: false, reason: 'worker-test-report-mismatch', ...mismatch };
-    }
-
-    // fanin verified를 남긴 뒤 바로 비운다. candidate worktree·ff는 없다 —
-    // HEAD가 이미 기록된 커밋이다. copyEvidenceBundle는 동일 경로라 건너뛴다.
-    ledger.fanin = {
-      base_head: baseHead,
-      candidate_head: head,
-      tasks: ordered,
-      status: 'verified',
-    };
-    for (const id of ordered) {
-      const item = ledger.tasks.find((x) => x.id === id);
-      if (!item) continue;
-      item.status = transition('recorded', 'integrated');
-    }
-    ledger.integrationHead = head;
-    const decision: FaninDecision = {
-      kind: 'fanin',
-      tasks: [...ordered],
-      base_head: baseHead,
-      candidate_head: head,
-      evidence_id: null,
-    };
-    ledger.decisions.push(decision);
-    ledger.fanin = null;
-    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
-    writeLedger(integration.ledgerFile, ledger);
-    return withCheckpoint({
-      ok: true as const,
-      command: 'integrate',
-      integrated: [...ordered],
-      integrationHead: head,
-      verification: { ok: true, command: '', exitCode: 0 },
-      ready: readyWaveGated(ledger.tasks, {
-        maxParallel: maxParallelForRead(integration.integrationPath),
-      }),
-    }, ledger, integration.ledgerFile);
-  });
-}
-
-/**
  * integration checkout에서 허용 경로 밖에 있는 미커밋 경로를 모은다.
  * 허용 경로는 seed manifest 경로, 이미 integrated된 task의 evidence 문서, 그리고
  * `coordinate repair`가 만든 dynamic task의 evidence 문서뿐이다.
@@ -565,7 +433,7 @@ function reportPathsWarning(
  * task마다 `<baseHead>..<item.sha>` 범위의 worker 커밋을 모두 적용하고 통합 커밋 1개로
  * 합친다(rework로 쌓인 앞 attempt 커밋이 빠지지 않게). 범위 안 내용 충돌은 `fanin-conflict`
  * (그 task만 revoke), 그 밖의 git 실패는 `cherry-pick-failed`, 빈 범위는 `nothing-to-integrate`.
- * light 원장은 cherry-pick 없이 `integrateLightCommitWave`로 보낸다.
+ * light·full 원장 모두 이 경로를 쓴다(옛 light 전용 fan-in은 제거됨).
  *
  * @param {object} opts - 저장소·blueprint·task·lease·fence와 주입 Exec·writer·runner·integration 경로
  * @returns {unknown} 통합 배열과 checkpoint 또는 기존 reason의 거절. Git·파일 실행 오류는 전파한다
@@ -581,15 +449,6 @@ function integrateCommitWave({
   deps: { runVerification?: VerificationRunner };
   integration: ReturnType<typeof coordinatorPathsFor>;
 }): unknown {
-  // light는 full fan-in 복구·candidate 경로와 섞지 않는다. 원장 mode만 본다.
-  const peek = loadLedger(integration.ledgerFile);
-  if (peek && ledgerModeOf(peek) === 'light') {
-    return integrateLightCommitWave({
-      repoRoot, blueprint, task, leaseId, generation,
-      ledgerPath, ledgerHash, exec, writeLedger, integration,
-    });
-  }
-
   const faninPath = integration.faninPath;
   const runner = selectVerificationRunner(deps.runVerification);
   // scoped_terminal이면 구현 wave fan-in은 전체 검증을 돌리지 않는다. 검증은 task별
@@ -1068,4 +927,4 @@ function finishFaninAfterFf({
   });
 }
 
-export = { integrateCommitWave, lightWorkerAssigned, rejectLeaseMismatch, scopedTestReportFailure };
+export = { integrateCommitWave, rejectLeaseMismatch, scopedTestReportFailure };

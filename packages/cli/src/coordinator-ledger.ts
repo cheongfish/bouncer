@@ -114,6 +114,11 @@ function openLedgerFenced({ ledgerFile, ledgerPath, ledgerHash, validate }: {
   const { ledger, bytes } = loaded;
   const leaseShape = assertLeaseShape(ledger);
   if (!leaseShape.ok) return leaseShape;
+  // 진행 중 옛 inline light는 fence 불일치보다 먼저 거절한다. 원장을 쓰기 전에
+  // 모든 fenced 명령이 같은 reason으로 멈추게 하려는 순서다.
+  if (isLegacyLightLedger(ledger)) {
+    return { ok: false, reason: 'light-ledger-legacy' };
+  }
   const rejected = validate ? validate(ledger) : null;
   if (rejected) return rejected;
   const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes: bytes });

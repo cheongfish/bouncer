@@ -49,7 +49,7 @@ const {
 import coordinatorRepair = require('./coordinator-repair');
 import coordinatorWorker = require('./coordinator-worker');
 import coordinatorFanin = require('./coordinator-fanin');
-const { integrateCommitWave, lightWorkerAssigned, rejectLeaseMismatch, scopedTestReportFailure } = coordinatorFanin;
+const { integrateCommitWave, rejectLeaseMismatch, scopedTestReportFailure } = coordinatorFanin;
 const {
   reportPathFor, taskBriefHashOf, readBouncerBlock, workerCommitEvidence,
   ensureIntegrationCwd, currentScopePaths, intentIdFor, verificationPolicyAt,
@@ -430,23 +430,6 @@ function openPromoteTask(tasks: Task[]): Task | null {
   return commits.find((item) => item.status !== 'integrated') || commits[0];
 }
 
-
-/**
- * light 원장의 `report accepted`가 요구하는 루트 review.md 라운드·status를 본다.
- * 라운드는 `bouncer review record`만 쓰므로 여기서는 존재와 status만 판정한다.
- *
- * @param {string} integrationPath - integration checkout
- * @param {string} blueprint - blueprint 상대 경로
- * @returns {boolean} rounds가 비어 있지 않고 status가 accepted이면 true
- */
-function lightReviewAccepted(integrationPath: string, blueprint: string): boolean {
-  const bouncer = readBouncerBlock(path.join(integrationPath, blueprint, 'review.md'));
-  if (!bouncer || bouncer.status !== 'accepted') return false;
-  const review = bouncer.review;
-  if (!review || typeof review !== 'object' || Array.isArray(review)) return false;
-  const rounds = (review as Record<string, unknown>).rounds;
-  return Array.isArray(rounds) && rounds.length > 0;
-}
 
 /**
  * integrate. verification node는 verifying 전이와 결과 기록을 잠금으로 나누고,
@@ -910,8 +893,8 @@ function coordinateSessionOpen(ctx: LockedCtx): CoordinateResult {
   const { cwd, exec, integration, ledger, commitWrite } = ctx;
   const { command, repoRoot, blueprint } = ctx.args;
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  // light 원장은 wave·fanin이 없어 세션 경계가 의미 없다. 거절 코드는 기존 것을 쓴다.
-  if (ledgerModeOf(ledger) !== 'full') return { ok: false, reason: 'ledger-mode-mismatch' };
+  // 표식 있는 light도 full과 같이 세션 경계를 남긴다. 옛 inline light는 openLedgerFenced가
+  // light-ledger-legacy로 먼저 거절한다.
   // promotion_stopped는 위에서 이미 거절됐다. 남은 비활성 상태(부분 종료·사용자 확인 대기)에서
   // 새 세션을 열면 닫힌 drive를 되살리는 것처럼 보이므로 원장을 바꾸지 않고 막는다.
   if (ledger.status !== undefined && ledger.status !== 'active') {
@@ -944,8 +927,7 @@ function coordinateNote(ctx: LockedCtx): CoordinateResult {
   const { cwd, integration, ledger, commitWrite } = ctx;
   const { command, repoRoot, blueprint, task, text } = ctx.args;
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  // light 원장은 세션 경계가 없어 인계 대상이 아니다. 거절 reason은 session-open과 같다.
-  if (ledgerModeOf(ledger) !== 'full') return { ok: false, reason: 'ledger-mode-mismatch' };
+  // 표식 light도 note를 받는다. 옛 inline은 fence 단계에서 light-ledger-legacy다.
   if (ledger.status !== undefined && ledger.status !== 'active') {
     return { ok: false, reason: 'ledger-not-active' };
   }
@@ -1102,29 +1084,19 @@ function checkTaskLease(ctx: TaskCtx): CoordinateResult | null {
 
 /**
  * `dispatch`·`report` 공통 가드. implementer 경계라 할당 worker에서만 열리며 task 상태(prepared)는
- * 유지하고 attempt 상태만 바꾼다. light는 workerPath===integration만 허용한다.
+ * 유지하고 attempt 상태만 바꾼다. light·full 모두 workers/<task> 등록을 요구한다.
  *
  * @param {TaskCtx} ctx - 공통 준비가 끝난 handler 문맥
  * @returns {CoordinateResult | null} 명령 결과. 거절은 `ok: false`와 reason
  */
 function guardWorkerDispatch(ctx: TaskCtx): CoordinateResult | null {
-  const { task, cwd, exec, integration, ledger, item } = ctx;
+  const { task, cwd, exec, integration, item } = ctx;
   const { repoRoot, blueprint } = ctx.args;
-  if (ledgerModeOf(ledger) === 'light') {
-    if (!lightWorkerAssigned(item, integration.integrationPath)) {
-      return {
-        ok: false, reason: 'unassigned-worker-worktree',
-        workerPath: item.workerPath || integration.integrationPath,
-      };
-    }
-    ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  } else {
-    const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
-    if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
-      return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
-    }
-    ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
+  const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
+  if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
+    return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
   }
+  ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
   if (item.execution_kind === 'verification') {
     return { ok: false, reason: 'dispatch-commit-task-required' };
   }
@@ -1226,24 +1198,27 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
   if (typeof summary !== 'string' || summary.trim() === '') {
     return { ok: false, reason: 'summary-required' };
   }
-  // light는 루트 review.md에 review record 라운드와 accepted status가 있을 때만
-  // accepted를 받는다. 독립 reviewer 여부는 CLI가 아니라 run 절차 몫이다.
-  if (ledgerModeOf(ledger) === 'light' && outcome === 'accepted'
-    && !lightReviewAccepted(integration.integrationPath, blueprint)) {
-    return { ok: false, reason: 'light-review-required' };
-  }
-  // full 모드는 stale 비교보다 먼저 보고 파일로 revision 출처를 증명한다. 파일 값이
+  // light·full 모두 stale 비교보다 먼저 보고 파일로 revision 출처를 증명한다. 파일 값이
   // CLI 인자와 같을 때만 아래 stale 비교가 의미를 갖는다. 거절은 원장을 쓰지 않는다.
-  let fileItems: {
-    open_choices: string[]; known_weaknesses: string[]; unexpected: Array<{ path: string; reason: string }>;
-  } | null = null;
-  if (ledgerModeOf(ledger) !== 'light') {
-    const checked = checkReportFile(
-      reportPathFor(item.workerPath as string, task, item.dispatch.attempt),
-      { attempt: attempt as number, task_brief_hash: taskBriefHash },
-    );
-    if (!checked.ok) return checked.failure;
-    fileItems = checked;
+  const checkedReport = checkReportFile(
+    reportPathFor(item.workerPath as string, task, item.dispatch.attempt),
+    { attempt: attempt as number, task_brief_hash: taskBriefHash },
+  );
+  if (!checkedReport.ok) return checkedReport.failure;
+  const fileItems = checkedReport;
+  // 구 plugin inline 흐름을 잡는 tripwire. worker-model은 증명이 아니라 root가 넘긴 기록이다.
+  // attempt와 결정을 짝짓지 않고, 같은 task의 implementer 결정 수와 dispatch.attempt만 비교한다.
+  if (ledgerModeOf(ledger) === 'light' && outcome === 'accepted') {
+    const implementerRecords = (ledger.decisions || []).filter((decision) => (
+      decision && typeof decision === 'object'
+      && (decision as { kind?: string }).kind === 'worker-model'
+      && (decision as { role?: string }).role === 'implementer'
+      && typeof (decision as { task?: unknown }).task === 'string'
+      && (decision as { task: string }).task === task
+    ));
+    if (implementerRecords.length < item.dispatch.attempt) {
+      return { ok: false, reason: 'light-implementer-record-missing' };
+    }
   }
   const expected = {
     attempt: item.dispatch.attempt, task_brief_hash: item.dispatch.task_brief_hash,
@@ -1282,8 +1257,8 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
   // full·scoped_terminal·commit task의 accepted 보고는 지정 verify 명령과 통과 결과가 Tests에 있어야 받는다.
   // fan-in(worker-test-report-mismatch)에서야 걸리면 worker가 이미 끝난 뒤라 되돌리기 비싸므로, 같은
   // 판정(scopedTestReportFailure)을 보고 시점에 한 task로 앞당긴다. 휴리스틱을 복제하지 않아 두 입구가
-  // 갈라지지 않고, 거절은 원장을 쓰기 전에 끝난다. light·verification·legacy 정책·accepted 아닌
-  // outcome은 지금처럼 건너뛴다(light는 inline 보고라 보고 파일이 없을 수 있다).
+  // 갈라지지 않고, 거절은 원장을 쓰기 전에 끝난다. verification·legacy 정책·accepted 아닌
+  // outcome은 지금처럼 건너뛴다. light도 full과 같이 보고 파일을 요구한다.
   if (fileItems && outcome === 'accepted' && (item.execution_kind || 'commit') !== 'verification'
     && verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal') {
     const mismatch = scopedTestReportFailure({
@@ -1410,27 +1385,13 @@ function workerTokensGuard(opts: {
 function coordinateRecord(ctx: TaskCtx): CoordinateResult {
   const { task, cwd, exec, integration, ledger, commitWrite, item } = ctx;
   const { command, repoRoot, blueprint, sha, decision } = ctx.args;
-  // record는 worker가 만든 SHA와 provenance를 ledger로 올리는 경계다. integration
-  // checkout에서 다시 worker 경계를 요구하면 어떤 정상 worker도 기록할 수 없다.
-  // light는 integration 자체가 workerPath이므로 등록 workers/ 검사가 아니라
-  // integration 일치만 본다.
-  if (ledgerModeOf(ledger) === 'light') {
-    if (!lightWorkerAssigned(item, integration.integrationPath)) {
-      return {
-        ok: false, reason: 'unassigned-worker-worktree',
-        workerPath: item.workerPath || integration.integrationPath,
-      };
-    }
-    ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  } else {
-    const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
-    // prepare 뒤에도 경로 치환은 가능하다. ledger에 저장한 문자열과 Git 등록을 둘 다
-    // 다시 확인해야 symlink가 외부 checkout의 HEAD를 provenance로 기록할 수 없다.
-    if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
-      return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
-    }
-    ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
+  // record는 worker가 만든 SHA와 provenance를 ledger로 올리는 경계다. light·full 모두
+  // workers/<task> 등록을 다시 확인한다. prepare 뒤에도 경로 치환은 가능하다.
+  const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
+  if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
+    return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
   }
+  ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
   if ((item.status || 'pending') !== 'prepared') return { ok: false, reason: 'illegal-transition' };
   // accepted report가 없는 HEAD는 어느 brief·attempt의 결과인지 알 수 없다.
   // dispatch 없이 record하던 경로를 여기서 끊는다.
@@ -1701,6 +1662,19 @@ function coordinate(args: CoordinateArgs) {
     const item = ledger.tasks.find((x) => x.id === task);
     if (!item) return { ok: false, reason: 'task-outside-blueprint' };
     const taskCtx: TaskCtx = { ...locked, item, task };
+    // light에서 integration cwd로 task 명령을 부르는 옛 inline 호출을 먼저 끊는다.
+    // lease·worker 가드보다 앞이어야 lease 인자 오류로 reason이 가려지지 않는다.
+    // record는 guardWorkerDispatch를 거치지 않으므로 이 공통 위치가 필요하다.
+    if ((command === 'dispatch' || command === 'report' || command === 'record' || command === 'uncommit')
+      && ledgerModeOf(ledger) === 'light') {
+      try {
+        if (fs.realpathSync(cwd) === fs.realpathSync(integration.integrationPath)) {
+          return { ok: false, reason: 'light-inline-removed' };
+        }
+      } catch (_error) {
+        // realpath 실패는 inline 판정이 아니다. 아래 worker 가드가 경로 문제를 본다.
+      }
+    }
     if (LEASE_CHECKED_COMMANDS.has(command)) {
       const leaseRejected = checkTaskLease(taskCtx);
       if (leaseRejected) return leaseRejected;
@@ -1880,11 +1854,30 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'The ledger is partial_closed or awaiting_confirmation, so a new coordinator session cannot open.',
     next: 'Report the ledger status to the user; do not retry `bouncer coordinate session-open` on this blueprint.',
   },
-  'light-requires-single-task': {
-    cause: 'Scale light requires one independent commit task; a blueprint with verification_policy scoped_terminal '
-      + 'also requires exactly one terminal verification task that depends only on it. A legacy light blueprint '
-      + 'allows no verification task.',
-    next: 'Fix the blueprint to that shape, or set scale to full and bootstrap again.',
+  'light-requires-serial': {
+    cause: 'Scale light requires a serial commit chain (first depends_on [], each later commit depends only on '
+      + 'the previous commit). scoped_terminal also needs exactly one terminal verification that depends on '
+      + 'every commit in that chain.',
+    next: 'Replan as a serial chain, or set scale to full and bootstrap again.',
+  },
+  'light-ledger-legacy': {
+    cause: 'This light ledger has no light_runner: subagent mark and still has a non-integrated task, so it is '
+      + 'an in-progress legacy inline drive that this CLI no longer writes.',
+    next: '1. Preserve `git diff`, `git diff --staged`, and untracked files in the integration worktree. '
+      + '2. Ask the user whether to discard the drive; discard only after explicit approval (irreversible). '
+      + '3. Discard the integration worktree. '
+      + '4. Replan with `/bouncer-plan`, then run again. '
+      + 'The CLI only prints this guidance; it does not discard or delete anything itself.',
+  },
+  'light-inline-removed': {
+    cause: 'A light ledger task command was invoked from the integration cwd; inline light implementation is gone.',
+    next: 'Align the plugin with this CLI version and implement via a subagent worker.',
+  },
+  'light-implementer-record-missing': {
+    cause: 'An accepted light report has fewer implementer worker-model decisions for this task than the '
+      + 'current dispatch attempt, so this CLI refuses to treat the attempt as subagent-implemented.',
+    next: 'If a subagent implementer did not implement this attempt, report rework instead of accepted and '
+      + 'dispatch the implementer. Record worker-model only for the implementer model that was actually dispatched.',
   },
   'verification-policy-invalid': {
     cause: 'The blueprint index declares a verification_policy value other than scoped_terminal.',
@@ -1895,12 +1888,6 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
       + 'in its Tests section (problem names which check failed).',
     next: 'Reject the fan-in: send the worker back to run exactly the assigned bouncer.verify command and '
       + 'report its command and result under Tests; never hand the worker the full-suite command.',
-  },
-  'light-review-required': {
-    cause: 'Light-mode accepted report requires blueprint-root review.md rounds and status accepted.',
-    next:
-      'Record a review round with `bouncer review record` on the root review.md, '
-      + 'set status accepted, then retry report.',
   },
   'main-source-mutated': {
     cause: 'Bootstrap changed tracked files in the main checkout, which is forbidden.',

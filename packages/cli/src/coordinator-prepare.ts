@@ -32,7 +32,7 @@ import coordinatorLedger = require('./coordinator-ledger');
 const {
   loadLedger, ledgerBytesHash, writeOwnedLedger, assertLeaseShape,
   readyWaveGated, maxParallelForRead, withCheckpoint, openLedgerFenced,
-  recheckLedgerCheckpoint, ledgerModeOf,
+  recheckLedgerCheckpoint, ledgerModeOf, isLegacyLightLedger,
 } = coordinatorLedger;
 import coordinatorVerification = require('./coordinator-verification');
 const { withInstallStdioToStderr } = coordinatorVerification;
@@ -129,31 +129,48 @@ function blueprintScaleAt(root: string, blueprint: string): string | undefined {
 }
 
 /**
- * light 원장 자격. legacy는 현행 의미 그대로 commit task 정확히 1개이고 depends_on이
- * 비어 있어야 하며 verification·두 번째 task는 자격 없음이다. scoped_terminal은
- * 독립 commit task 하나와 그 하나에만 의존하는 verification 하나, 정확히 두 node다.
- * 구현 하나가 끝난 뒤 종단 verification이 한 번 전체 검증을 맡는 최소 계약이다.
+ * light 원장 자격. commit task가 직렬 사슬이어야 한다(첫 칸만 depends_on [], 이후는
+ * 직전 commit id 하나). scoped_terminal이면 그 사슬 전체 commit에 의존하는 verification이
+ * 정확히 하나 더 있어야 하고, 아니면 verification은 없어야 한다. 옛 "단일 task만" 규칙보다
+ * 넓혀 직렬 multi-commit light를 받되, 병렬·분기 DAG는 full로 보낸다.
  *
  * @param {Task[]} tasks - 원장에 올릴 task 목록
- * @param {boolean} [scoped] - blueprint가 scoped_terminal이면 true. 생략은 legacy
+ * @param {boolean} [scoped] - blueprint가 scoped_terminal이면 true
  * @returns {boolean} light 자격이 있으면 true
  */
 function isLightEligible(tasks: Task[], scoped = false): boolean {
-  const independent = (item: Task) => !Array.isArray(item.depends_on) || item.depends_on.length === 0;
-  if (!scoped) {
-    if (tasks.length !== 1) return false;
-    const only = tasks[0];
-    if ((only.execution_kind || 'commit') === 'verification') return false;
-    return independent(only);
-  }
-  if (tasks.length !== 2) return false;
   const commits = tasks.filter((item) => (item.execution_kind || 'commit') !== 'verification');
   const terminals = tasks.filter((item) => item.execution_kind === 'verification');
-  if (commits.length !== 1 || terminals.length !== 1) return false;
-  return independent(commits[0])
-    && Array.isArray(terminals[0].depends_on)
-    && terminals[0].depends_on.length === 1
-    && terminals[0].depends_on[0] === commits[0].id;
+  if (commits.length === 0) return false;
+  if (scoped) {
+    if (terminals.length !== 1 || tasks.length !== commits.length + 1) return false;
+    const termDeps = Array.isArray(terminals[0].depends_on) ? terminals[0].depends_on : [];
+    const commitIds = commits.map((item) => item.id);
+    // 종단은 모든 commit에 의존해야 한다. 순서만 달라도 집합이 같으면 직렬 사슬의 종단이다.
+    if (termDeps.length !== commitIds.length
+      || !commitIds.every((id) => termDeps.includes(id))) {
+      return false;
+    }
+  } else if (terminals.length !== 0 || tasks.length !== commits.length) {
+    return false;
+  }
+  // 위상 순 직렬: 독립 commit은 하나뿐이고, 나머지는 직전 칸 하나만 가리킨다.
+  const depsOf = (item: Task) => (Array.isArray(item.depends_on) ? item.depends_on : []);
+  const roots = commits.filter((item) => depsOf(item).length === 0);
+  if (roots.length !== 1) return false;
+  let current = roots[0];
+  const seen = new Set([current.id]);
+  while (seen.size < commits.length) {
+    const next = commits.filter((item) => {
+      const deps = depsOf(item);
+      return deps.length === 1 && deps[0] === current.id;
+    });
+    if (next.length !== 1) return false;
+    current = next[0];
+    if (seen.has(current.id)) return false;
+    seen.add(current.id);
+  }
+  return true;
 }
 
 /**
@@ -825,20 +842,8 @@ function prepareCoordinator({
     const conflicts = crossDriveConflicts(ready.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
       otherDrives.drives);
     if (conflicts.length) return { ok: false as const, reason: 'cross-drive-conflict', conflicts };
-    // light는 worker worktree를 만들지 않는다. integration 경로를 workerPath로
-    // 쓰므로 branch·worktree 계획 단계 전체를 건너뛴다.
-    if (ledgerModeOf(ledger) === 'light') {
-      return {
-        ok: true as const,
-        ledger,
-        ready,
-        plannedWorkers: new Map<string, PlannedWorker>(),
-        phase1Hash: ledgerBytesHash(ledgerBytes),
-        light: true as const,
-        integrationBranch: names.integration,
-        baseline,
-      };
-    }
+    // light도 full과 같이 task별 worker worktree를 만든다. inline integration 배정은
+    // 제거됐고, baseline만 light에서 생략한다(위에서 baselineTarget이 null).
     const plannedWorkers = new Map<string, PlannedWorker>();
     const salvage: SalvageEntry[] = [];
     try {
@@ -918,8 +923,6 @@ function prepareCoordinator({
       ready,
       plannedWorkers,
       phase1Hash: ledgerBytesHash(ledgerBytes),
-      light: false as const,
-      integrationBranch: names.integration,
       salvage,
       baseline,
     };
@@ -934,12 +937,10 @@ function prepareCoordinator({
     ready: string[];
     plannedWorkers: Map<string, PlannedWorker>;
     phase1Hash: string;
-    light: boolean;
-    integrationBranch: string;
     salvage?: SalvageEntry[];
     baseline: { command: string; argv: string[] } | null;
   };
-  const { ledger, ready, plannedWorkers, light, integrationBranch } = planned;
+  const { ledger, ready, plannedWorkers } = planned;
   // baseline 단계가 원장을 쓰면 bytes가 바뀌므로 phase 3 재확인 기준도 그 뒤 hash로 갱신한다.
   let phase1Hash = planned.phase1Hash;
   const salvaged = planned.salvage || [];
@@ -963,52 +964,49 @@ function prepareCoordinator({
     phase1Hash = stepped.hash;
   }
 
-  // 2. 잠금 밖: worktree add와 seed. light는 worker를 만들지 않아 이 단계를 건너뛴다.
+  // 2. 잠금 밖: worktree add와 seed. light·full 모두 worker를 만든다.
   // 원장 .lock 파일이 없어야 다른 prepare가 기다리지 않는다.
-  if (!light) {
-    try {
-      for (const id of ready) {
-        const item = ledger.tasks.find((x) => x.id === id) as Task;
-        if (item.execution_kind === 'verification') continue;
-        const entry = plannedWorkers.get(id) as PlannedWorker;
-        if (entry.action === 'create') {
-          fs.mkdirSync(path.dirname(entry.worker), { recursive: true });
-          git(exec, integration.integrationPath,
-            ['worktree', 'add', '-b', entry.branch, entry.worker, 'HEAD']);
-          created.push({ worker: entry.worker, branch: entry.branch });
-        }
-        if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
-          cleanupCreatedWorkersUnderNewLock(
-            integration.ledgerFile, exec, integration.integrationPath, created,
-          );
-          return withSalvage({ ok: false, reason: 'unassigned-worker-worktree', workerPath: entry.worker });
-        }
-        // 모든 worker는 integration 사본을 받는다. bootstrap 뒤 계획 문서의 정본은
-        // integration이고(동적 repair 문서는 그곳에만 있다), main은 drive 동안 base SHA
-        // 출처로만 남으므로 main 계획이 사라져도 준비가 이어진다. cpSync는 worker마다
-        // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
-        const seeded = seedCoordinatorWorker({
-          repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
-          deps: { execFileSync: withInstallStdioToStderr(exec) },
-          affectedPaths: currentScopePaths(item),
-        });
-        if (!seeded.ok) {
-          cleanupCreatedWorkersUnderNewLock(
-            integration.ledgerFile, exec, integration.integrationPath, created,
-          );
-          return withSalvage(seeded);
-        }
+  try {
+    for (const id of ready) {
+      const item = ledger.tasks.find((x) => x.id === id) as Task;
+      if (item.execution_kind === 'verification') continue;
+      const entry = plannedWorkers.get(id) as PlannedWorker;
+      if (entry.action === 'create') {
+        fs.mkdirSync(path.dirname(entry.worker), { recursive: true });
+        git(exec, integration.integrationPath,
+          ['worktree', 'add', '-b', entry.branch, entry.worker, 'HEAD']);
+        created.push({ worker: entry.worker, branch: entry.branch });
       }
-    } catch (error) {
-      cleanupCreatedWorkersUnderNewLock(
-        integration.ledgerFile, exec, integration.integrationPath, created,
-      );
-      throw error;
+      if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
+        cleanupCreatedWorkersUnderNewLock(
+          integration.ledgerFile, exec, integration.integrationPath, created,
+        );
+        return withSalvage({ ok: false, reason: 'unassigned-worker-worktree', workerPath: entry.worker });
+      }
+      // 모든 worker는 integration 사본을 받는다. bootstrap 뒤 계획 문서의 정본은
+      // integration이고(동적 repair 문서는 그곳에만 있다), main은 drive 동안 base SHA
+      // 출처로만 남으므로 main 계획이 사라져도 준비가 이어진다. cpSync는 worker마다
+      // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
+      const seeded = seedCoordinatorWorker({
+        repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
+        deps: { execFileSync: withInstallStdioToStderr(exec) },
+        affectedPaths: currentScopePaths(item),
+      });
+      if (!seeded.ok) {
+        cleanupCreatedWorkersUnderNewLock(
+          integration.ledgerFile, exec, integration.integrationPath, created,
+        );
+        return withSalvage(seeded);
+      }
     }
+  } catch (error) {
+    cleanupCreatedWorkersUnderNewLock(
+      integration.ledgerFile, exec, integration.integrationPath, created,
+    );
+    throw error;
   }
 
   // 3. 잠금 재획득: ① bytes와 같고 계획 worker가 등록돼 있을 때만 메모리 전이를 쓴다.
-  // light는 workerPath=integration으로 lease만 발급한다.
   const phase3 = withLedgerLock(integration.ledgerFile, (owns) => {
     // stale이면 만들어 둔 worker 중 현재 원장이 참조하지 않는 것을 거절 직전에 정리한다.
     const rechecked = recheckLedgerCheckpoint({
@@ -1017,15 +1015,13 @@ function prepareCoordinator({
     });
     if (!rechecked.ok) return rechecked;
     const { ledger: live } = rechecked;
-    if (!light) {
-      for (const id of ready) {
-        const item = ledger.tasks.find((x) => x.id === id) as Task;
-        if (item.execution_kind === 'verification') continue;
-        const entry = plannedWorkers.get(id) as PlannedWorker;
-        if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
-          removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
-          return { ok: false as const, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
-        }
+    for (const id of ready) {
+      const item = ledger.tasks.find((x) => x.id === id) as Task;
+      if (item.execution_kind === 'verification') continue;
+      const entry = plannedWorkers.get(id) as PlannedWorker;
+      if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
+        removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
+        return { ok: false as const, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
       }
     }
     // 잠금을 빼앗긴 뒤에는 원장도 Git도 건드리지 않는다. 정리는 이 잠금이 끝난 뒤
@@ -1039,14 +1035,9 @@ function prepareCoordinator({
       }
       item.status = transition(item.status || 'pending', 'ready');
       item.status = transition(item.status, 'prepared');
-      if (light) {
-        item.workerPath = integration.integrationPath;
-        item.branch = ledger.integrationBranch || integrationBranch;
-      } else {
-        const entry = plannedWorkers.get(id) as PlannedWorker;
-        item.workerPath = entry.worker;
-        item.branch = entry.branch;
-      }
+      const entry = plannedWorkers.get(id) as PlannedWorker;
+      item.workerPath = entry.worker;
+      item.branch = entry.branch;
       issueLease(ledger, item, makeLeaseId);
     }
     // 보존 기록은 phase 1 fence 통과 뒤 이 쓰기에서만 남긴다(phase 1은 원장을 쓰지 않는다).
@@ -1144,20 +1135,25 @@ function coordinateBootstrap(ctx: CoordinateCtx): CoordinateResult {
     // 오면 legacy로 읽지 않고 여기서 끊는다. light 자격 판정이 갈라지지 않게 하기 위함.
     if (policy === null) return { ok: false, reason: 'verification-policy-invalid' };
     if (scale === 'light' && !isLightEligible(tasks, policy === 'scoped_terminal')) {
-      return { ok: false, reason: 'light-requires-single-task' };
+      return { ok: false, reason: 'light-requires-serial' };
     }
     ledger = {
       version: 1 as const, blueprint, base,
       integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
       tasks, decisions: [], status: 'active' as const, repairWaves: [],
       seedManifest: seeded.manifest,
-      ...(scale === 'light' ? { mode: 'light' as const } : {}),
+      // light_runner 표식이 없으면 옛 inline 원장이다. 신규 seed만 subagent를 단다.
+      ...(scale === 'light' ? { mode: 'light' as const, light_runner: 'subagent' as const } : {}),
     };
   } else {
     // 기존 원장을 재개할 때도 lease shape를 본다. fenced mutation과 같이
     // 손상 lease가 bootstrap 응답·이후 명령의 기준이 되지 않게 한다.
     const leaseShape = assertLeaseShape(ledger);
     if (!leaseShape.ok) return leaseShape;
+    // 진행 중 옛 inline light는 쓰기 전에 끊는다. fence 경로와 같은 판정을 쓴다.
+    if (isLegacyLightLedger(ledger)) {
+      return { ok: false, reason: 'light-ledger-legacy' };
+    }
     // 이미 mode가 있는(또는 legacy full로 읽는) 원장에 반대 scale로 재개하면
     // light/full 계약이 갈라지므로 여기서 끊는다. 자격 검사는 신규 seed만.
     const scale = blueprintScaleAt(paths.integrationPath, blueprint);

@@ -1343,12 +1343,20 @@ test('coordinate session-open with a stale --ledger-hash → refuses with stale-
   assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
 });
 
-test('coordinate session-open on a light, promotion_stopped or partial_closed ledger → refuses and keeps the ledger bytes', () => {
+test('coordinate session-open on a marked light ledger → succeeds; promotion_stopped or partial_closed → refuses', () => {
+  const marked = preparedDrive();
+  mutateLedger(marked, (ledger) => {
+    ledger.mode = 'light';
+    ledger.light_runner = 'subagent';
+  });
+  const ok = coordinateCli(marked.integration, 'session-open', ['--repo', marked.repo]);
+  assert.strictEqual(ok.code, 0, ok.buf.err + ok.buf.out);
+
   const cases = [
-    ['ledger-mode-mismatch', (ledger) => { ledger.mode = 'light'; }],
     ['promotion-stopped', (ledger) => { ledger.status = 'promotion_stopped'; }],
     ['ledger-not-active', (ledger) => { ledger.status = 'partial_closed'; }],
     ['ledger-not-active', (ledger) => { ledger.status = 'awaiting_confirmation'; }],
+    ['light-ledger-legacy', (ledger) => { ledger.mode = 'light'; delete ledger.light_runner; }],
   ];
   for (const [reason, edit] of cases) {
     const drive = preparedDrive();

@@ -10,7 +10,7 @@ import reviewRepairState = require('./review-repair-state');
 const { hasReviewRepairDecision, reviewRoundExists } = reviewRepairState;
 const { COORDINATE_FAILURE_HINTS } = coordinator;
 import coordinatorLedger = require('./coordinator-ledger');
-const { assertLeaseShape, loadLedgerBytes, projectCheckpoint } = coordinatorLedger;
+const { assertLeaseShape, loadLedgerBytes, projectCheckpoint, isLegacyLightLedger } = coordinatorLedger;
 import coordinatorWorker = require('./coordinator-worker');
 const {
   ensureIntegrationCwd, isBlueprintReviewModeAt, reviewContractAt, taskBriefHashOf, readBouncerBlock,
@@ -583,6 +583,9 @@ function decideNext(opts: {
   if (!loaded) return fail('missing-ledger');
   const leaseShape = assertLeaseShape(loaded.ledger);
   if (!leaseShape.ok) return fail(leaseShape.reason);
+  // 진행 중 옛 inline light는 detached 검사보다 먼저 거절한다. fenced 명령과 같은 판정·순서다.
+  // loaded.ledger는 디스크 원장(execution-contracts Ledger)이고, 아래 local Ledger는 읽기 전용 투영이다.
+  if (isLegacyLightLedger(loaded.ledger as CanonicalLedger)) return fail('light-ledger-legacy');
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   const ledger = loaded.ledger as Ledger;
   // 분리된 실행은 다음 행동을 정하지 않는다(task 범위 포함). finalize 또는 새 계획으로 안내한다.
@@ -1011,7 +1014,7 @@ function taskNext(ctx: {
         item.workerPath || cwd, task, item.dispatch.attempt,
       ),
     };
-    if (ledger.mode === 'light') payload.inline = true;
+    // light도 subagent worker로 구현한다. inline 키는 구 CLI 신호이므로 싣지 않는다.
     // patch는 실행 권한을 넓히지 않는다. implementer는 현재 brief의 affected_paths 안에서만 재사용한다.
     if (ledger.promoted_from?.patch) payload.promoted_patch = ledger.promoted_from.patch;
     return ok({ scope: 'task', action: 'implement', cwd, payload });
