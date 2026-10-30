@@ -1,7 +1,7 @@
 {
   "version": 2,
   "profile": "domain-only",
-  "domainEpicLimit": 8,
+  "domainEpicLimit": 9,
   "areas": [],
   "epics": [
     {
@@ -1163,6 +1163,15 @@
         "approvedAt": "2026-10-20T16:04:35.397+09:00"
       },
       "blueprint_aliases": {}
+    },
+    {
+      "slug": "plugin-surface-slimming",
+      "kind": "domain",
+      "active": true,
+      "approval": {
+        "reason": "플러그인 표면 간소화와 실행 정책을 여러 독립 blueprint에 걸쳐 조정하는 기존 epic",
+        "approvedAt": "2026-10-30T11:24:08.622+09:00"
+      }
     }
   ]
 }
