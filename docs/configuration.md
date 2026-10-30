@@ -20,7 +20,7 @@
 | `coordinator.max_parallel` | 정수 `>= 1` (선택). 부재 시 `2` | `bouncer coordinate prepare`가 한 wave에서 여는 lease 수 상한. 잘못된 값이면 prepare가 `coordinator-config-invalid`로 거절 | `2` · `1` |
 | `coordinator.waves_per_session` | `"auto"` \| 정수 `1`–`8` (선택). 부재 시 `"auto"`(상한 4) | 한 coordinator 세션이 처리할 직렬·무예외 wave 수 상한. `coordinate next`가 상한에 닿았거나 예외·병렬 wave가 끼면 `yield`로 세션을 끊도록 알린다. 그 밖의 값이면 prepare가 `coordinator-config-invalid`로 거절하고 읽기 전용 `next`는 상한 1로 접는다 | `"auto"` · `1` (wave마다 새 세션) |
 | `metrics.pricing` | `{ "<모델 slug>": { "input_per_mtok": 수, "output_per_mtok": 수 } }` (선택). 단가는 0 이상 유한 수 | `bouncer metrics end`가 `--model`과 입력·출력 토큰이 모두 있을 때만 비용을 계산하는 단가표(100만 토큰당). 없으면 비용은 `null`과 `no-pricing` 사유로 남고, 모양이 틀리면 `invalid-pricing` | `{"claude-sonnet-4": {"input_per_mtok": 3, "output_per_mtok": 15}}` |
-| `coordinator.direct_max_commit_tasks` | 정수 `>= 0` (선택). 부재 시 `3` | 시작 ACQ가 "직접 실행(coordinator 없음)"을 보이는 직렬 full 드라이브의 열린 commit task 수 상한. `0`이면 끄고, 정수가 아니거나 음수면 preflight가 `0`으로 접어 꺼진 것으로 본다(드라이브는 실패하지 않음) | `3` · `0` |
+| `coordinator.direct_max_commit_tasks` | 정수 `>= 0` (선택). 부재 시 `3` | 시작 ACQ가 "직접 실행(coordinator 없음)"을 보이는 직렬 드라이브(full·light)의 열린 commit task 수 상한. `0`이면 끄고, 정수가 아니거나 음수면 preflight가 `0`으로 접어 꺼진 것으로 본다(드라이브는 실패하지 않음) | `3` · `0` |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
@@ -48,7 +48,7 @@ brief로 대신하지 않습니다. 모델 거절은 named-agent 부재가 아�
 거절 사유와 설정 위치를 사용자에게 알려야 합니다. 이미 `bouncer init`을 돌린 config에는 이 키가
 없을 수 있는데, 없어도 부모 모델을 상속하므로 동작은 같습니다.
 
-**직접 실행(선택).** `direct_eligible`(위임 가능한 full 직렬 체인이고 commit task 수가
+**직접 실행(선택).** `direct_eligible`(위임 가능한 full·light 직렬 체인이고 commit task 수가
 `coordinator.direct_max_commit_tasks` 이하)일 때 시작 ACQ는 D를 권장하고,
 그렇지 않으면 D 없이 A를 권장합니다. D를 고르면 root가 coordinator 없이
 `coordinate advance`를 돌리고 worker는 서브에이전트로 띄웁니다.

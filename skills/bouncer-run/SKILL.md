@@ -21,23 +21,20 @@ scope, or ACQ.
 
 ## Role — delegation
 
-When the ledger is light (`mode: light` / pointer `scale` is `light`), this
-session owns the drive: implement via `payload.inline` and dispatch one named
-`bouncer-reviewer`. Do not dispatch `bouncer-coordinator`.
-
-For a **full** ledger the drive has one controller, and after the start ACQ it
-is the coordinator, not this session — except option D (only when preflight
-`direct_eligible`): this session follows
-[direct-run.md](./references/direct-run.md). Otherwise it resolves the pointer,
-bootstraps the integration worktree, dispatches one `bouncer-coordinator` at a
-time, and on `continue` re-dispatches. It does not read and fix code directly,
-does not run `implementation`, `review`, or `debugging` inline, and does not
-reconstruct a worker's judgment from the diff — the coordinator already judged
-it.
+The drive has one controller, and after the start ACQ it is the coordinator,
+not this session — except option D (only when preflight `direct_eligible`):
+this session follows [direct-run.md](./references/direct-run.md). Otherwise it
+resolves the pointer, bootstraps the integration worktree, dispatches one
+`bouncer-coordinator` at a time, and on `continue` re-dispatches. It does not
+read and fix code directly, does not run `implementation`, `review`, or
+`debugging` inline, and does not reconstruct a worker's judgment from the
+diff — the coordinator already judged it. Light and full ledgers share this
+path; light policy differences live in
+[light-run.md](./references/light-run.md).
 
 Task-by-task implement, verify, review, and commit, scope revision, worker dispatch, and
 coordinator output fields belong to `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
-For every commit task on a full drive, the coordinator must require its
+For every commit task, the coordinator must require its
 implementer to read `${BOUNCER_ROOT}/references/coding-standards/index.md`
 before editing code; its Korean comment and docstring contract is mandatory.
 The root session never loads it.
@@ -116,11 +113,11 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    **AskUserQuestion — run.start_drive**
    <!-- acq {"gate":"run.start_drive","options":["D","A","B","C"],"recommended":"D"} -->
    1. **Re-ground**: Start the drive for the remaining tasks?
-   2. **Recommend-why**: This short, serial commit-task chain qualifies for
-      direct execution. Root can carry the normal finish and one first
-      rework; workers still implement and review. This approval covers the
-      whole drive: neither autonomy value asks again per task; `interactive`
-      only reports progress at each task boundary.
+   2. **Recommend-why**: This short, serial commit-task chain (light or full)
+      qualifies for direct execution. Root can carry the normal finish and
+      one first rework; workers still implement and review. This approval
+      covers the whole drive: neither autonomy value asks again per task;
+      `interactive` only reports progress at each task boundary.
    3. **Options**:
       - D) 직접 실행(coordinator 없음) (Recommended)
       - A) Start delegated drive
@@ -149,8 +146,8 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    ```
    This is the one command run against the main checkout; it writes no source there. Keep `integrationPath` from the JSON result. On
    `ok: false`, report the reason and stop — do not retry into a different path.
-   When the ledger `mode` or pointer `scale` is `light`, follow
-   [light-run.md](./references/light-run.md) from `integrationPath` and skip step 4.
+   When the ledger `mode` or pointer `scale` is `light`, also apply the policy
+   differences in [light-run.md](./references/light-run.md).
 
 4. **Coordinator dispatch.** Just before dispatch, run
    `bouncer subagent-model --agent bouncer-coordinator` and report its output
