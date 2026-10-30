@@ -19,7 +19,7 @@ const {
   DEFAULT_EXCLUSIVE_RESOURCES, executionKindOf,
 } = schema;
 import coordinatorLedger = require('./coordinator-ledger');
-const { loadLedger } = coordinatorLedger;
+const { loadLedger, isLegacyLightLedger } = coordinatorLedger;
 import executionDag = require('./execution-dag');
 const { readyWave } = executionDag;
 import runtimeState = require('./runtime-state');
@@ -72,11 +72,11 @@ type PreflightOk = {
   // root가 coordinator 없이 직접 돌려도 되는 드라이브인지. 시작 ACQ가 D 선택지를 보일지 정한다.
   direct_eligible: boolean;
   // promotion-stopped는 원장 status만 본다. 원장 부재 시에는 이 값을 내지 않는다.
-  // 위임을 막는 이유. 판정 순서는 원장 상태 → 문서 status → no-open-task 이다.
+  // 위임을 막는 이유. 판정 순서는 legacy light → 원장 상태 → 문서 status → no-open-task 이다.
   reason: 'blueprint-closed' | 'no-open-task' | 'promotion-stopped'
     | 'awaiting-confirmation' | 'partial-closed' | 'run-detached'
     | 'blueprint-partial-closed' | 'blueprint-draft' | 'blueprint-superseded'
-    | 'blueprint-imported' | 'blueprint-status-unknown' | null;
+    | 'blueprint-imported' | 'blueprint-status-unknown' | 'light-ledger-legacy' | null;
 };
 
 type PreflightFail = {
@@ -359,8 +359,9 @@ function resolvesOutsideRepo(repoRoot: string, requested: string): boolean {
  * drive 시작에 필요한 pointer·blueprint·열린 task·DAG·autonomy를 한 JSON으로
  * 정규화한다. 파일을 쓰지 않으며, 위임 가능 여부는 상태만 보고 결정한다.
  * 요청 blueprint가 포인터와 다르면 `pointer-mismatch`(ok:false)로 거절한다.
- * 위임은 원장이 active이거나 없고, 문서 status가 approved이며, 열린 task가
- * 있을 때만 열린다. 그 밖에는 상태별 reason과 함께 delegable:false이다.
+ * 위임은 옛 inline light 원장이 아니고, 원장이 active이거나 없으며, 문서 status가
+ * approved이고, 열린 task가 있을 때만 열린다. 그 밖에는 상태별 reason과 함께
+ * delegable:false이다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 포인터와 plan 문서가 있는 checkout
@@ -419,16 +420,20 @@ function runPreflight({ repoRoot, blueprintDir }: {
   }
   const { openTasks, waveTasks, shapeTasks } = collectTasks(repoRoot, blueprint);
 
-  // 우선순위: 원장 상태 → 문서 status → no-open-task. 원장이 진행 중 정지·확인 대기·
-  // 부분 종료이면 문서가 approved여도 새 drive를 시작하면 안 된다. 원장 부재·손상·
-  // integration 경로 해석 실패는 정지 여부를 알 수 없으므로 miss로 두고 문서만 본다.
+  // 우선순위: legacy light → 원장 상태 → 문서 status → no-open-task. 옛 inline light
+  // 원장을 status 표보다 먼저 가려야 promotion_stopped 등이 새 subagent drive와 섞이지 않는다.
+  // 원장 부재·손상·integration 경로 해석 실패는 정지 여부를 알 수 없으므로 miss로 두고 문서만 본다.
   let reason: PreflightOk['reason'] = null;
   try {
     const paths = coordinatorPathsFor({ repoRoot, blueprint });
     const ledger = loadLedger(paths.ledgerFile);
-    const ledgerStatus = ledger ? ledger.status : undefined;
-    if (ledgerStatus && Object.prototype.hasOwnProperty.call(LEDGER_REASON, ledgerStatus)) {
-      reason = LEDGER_REASON[ledgerStatus];
+    if (ledger && isLegacyLightLedger(ledger)) {
+      reason = 'light-ledger-legacy';
+    } else {
+      const ledgerStatus = ledger ? ledger.status : undefined;
+      if (ledgerStatus && Object.prototype.hasOwnProperty.call(LEDGER_REASON, ledgerStatus)) {
+        reason = LEDGER_REASON[ledgerStatus];
+      }
     }
   } catch (_error) {
     // 원장 부재·손상·git 실패는 miss로 흡수한다. 위임을 열어 주는 방향이지만
@@ -443,11 +448,11 @@ function runPreflight({ repoRoot, blueprintDir }: {
   const maxParallel = policy.ok ? policy.maxParallel : 1;
 
   const shape = analyzeDriveShape(shapeTasks, { maxParallel });
-  // 직접 실행은 위임 가능한 full 직렬 체인이 설정 상한 이하일 때만 연다. 상한 0(꺼짐·invalid
-  // 폴백)은 commit_tasks >= 1 조건과 겹쳐 항상 false가 된다.
+  // 직접 실행은 위임 가능한 full·light 직렬 체인이 설정 상한 이하일 때만 연다. 상한 0(꺼짐·
+  // invalid 폴백)은 commit_tasks >= 1 조건과 겹쳐 항상 false가 된다.
   const directMax = readDirectMaxCommitTasks(repoRoot);
   const directEligible = reason === null
-    && meta.scale === 'full'
+    && (meta.scale === 'full' || meta.scale === 'light')
     && shape.drive_shape === 'serial'
     && shape.commit_tasks >= 1
     && shape.commit_tasks <= directMax;

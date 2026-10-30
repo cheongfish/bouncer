@@ -413,12 +413,28 @@ function ledgerModeOf(ledger: Ledger): 'light' | 'full' {
   return ledger.mode === 'light' ? 'light' : 'full';
 }
 
+/**
+ * 옛 inline light 원장인지 판정한다. 파일·git을 읽지 않는 순수 함수다.
+ * light_runner가 'subagent'가 아니면(부재·오타 포함) 표식 없는 옛 원장으로 보고,
+ * 아직 integrated가 아닌 task가 하나라도 있으면 진행 중 legacy로 본다.
+ * 모든 task가 integrated인 끝난 옛 원장은 finalize만 남은 상태라 false다.
+ *
+ * @param {Ledger} ledger - 이미 파싱된 원장
+ * @returns {boolean} 진행 중·정지된 옛 inline light 원장이면 true
+ */
+function isLegacyLightLedger(ledger: Ledger): boolean {
+  if (ledger.mode !== 'light') return false;
+  // 'subagent'만 새 runner다. 다른 문자열을 넓혀 해석하지 않는다.
+  if (ledger.light_runner === 'subagent') return false;
+  return (ledger.tasks || []).some((task) => task.status !== 'integrated');
+}
+
 export = {
   atomicWrite, loadLedgerBytes, loadLedger, ledgerBytesHash, assertLedgerFence, writeOwnedLedger, LEDGER_REL,
   projectCheckpoint, assertLeaseShape,
   // coordinator-commands가 checkpoint와 같은 ready 계산·한도 폴백을 쓰도록 함께 내보낸다.
   readyWaveGated, maxParallelForRead,
   withCheckpoint, openLedgerFenced, recheckLedgerCheckpoint, validateFaninLedger,
-  ledgerModeOf,
+  ledgerModeOf, isLegacyLightLedger,
 };
 

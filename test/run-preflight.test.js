@@ -194,6 +194,9 @@ test('run preflight with a promotion_stopped ledger → marks it as not delegabl
       blueprint: BP_REL,
       base: 'main',
       mode: 'light',
+      // 새 원장 표식. 없으면 옛 inline drive로 본다(이 fixture는 tasks:[]라 표식 없어도
+      // legacy가 아니지만 새 모양과 맞춘다).
+      light_runner: 'subagent',
       status: 'promotion_stopped',
       tasks: [],
       decisions: [],
@@ -417,14 +420,121 @@ test('run preflight with two independent parallel_safe tasks → direct_eligible
   assert.strictEqual(payload.direct_eligible, false);
 });
 
-test('run preflight with a light blueprint → direct_eligible is false', () => {
+test('run preflight with a two-task serial light blueprint → direct_eligible is true', () => {
   const repo = makeRepo();
   writeChain(repo, 2);
   const indexRel = `${BP_REL}/index.md`;
   const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
   fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
 
+  assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, true);
+});
+
+test('run preflight with a two-task serial light blueprint and direct_max_commit_tasks 0 → direct_eligible is false', () => {
+  const repo = makeRepo();
+  writeChain(repo, 2);
+  writeDirectConfig(repo, 0);
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+
   assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, false);
+});
+
+test('run preflight with a four-task serial light blueprint → direct_eligible is false', () => {
+  const repo = makeRepo();
+  writeChain(repo, 4);
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+
+  assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, false);
+});
+
+test('run preflight with an independent light plan → direct_eligible is false', () => {
+  const repo = makeRepo();
+  // depends_on만 비우면 parallel_safe 기본(false)이라 wave가 한 칸씩 열려 serial이 된다.
+  // 독립(비직렬) 보존 사례이므로 parallel_safe를 켜 parallel shape를 만든다.
+  writePlanTree(repo, {
+    task001: { parallel_safe: true },
+    task002: { parallel_safe: true, depends_on: [] },
+  });
+  setPointer(repo);
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.shape.drive_shape, 'parallel');
+  assert.strictEqual(payload.direct_eligible, false);
+});
+
+test('run preflight with an active legacy light ledger → reason is light-ledger-legacy', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  // light_runner 표식 없음 + 미완료 task = 옛 inline drive. 새 표식 검사보다 status 표가 먼저면
+  // reason이 null(active)로 남아 위임이 열린다.
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1, blueprint: BP_REL, base: 'main', mode: 'light', status: 'active',
+    tasks: [{ id: '001', status: 'prepared' }], decisions: [],
+  }, null, 2)}\n`);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.reason, 'light-ledger-legacy');
+  assert.strictEqual(payload.delegable, false);
+  assert.strictEqual(payload.direct_eligible, false);
+});
+
+test('run preflight with a promotion_stopped legacy light ledger → reason is light-ledger-legacy', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1, blueprint: BP_REL, base: 'main', mode: 'light',
+    status: 'promotion_stopped',
+    tasks: [{ id: '001', status: 'promotion_stopped' }],
+    decisions: [],
+    promotion: {
+      reason: 'out-of-scope',
+      summary: 'stop',
+      task: '001',
+      diff_sha: 'b'.repeat(64),
+    },
+  }, null, 2)}\n`);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.reason, 'light-ledger-legacy');
+  assert.strictEqual(payload.delegable, false);
+  assert.strictEqual(payload.direct_eligible, false);
+});
+
+test('run preflight with a finished legacy light ledger → reason is null and delegable is true', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  // 모든 task가 integrated면 옛 inline drive가 끝난 상태. legacy로 보지 않고 문서만 본다.
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1, blueprint: BP_REL, base: 'main', mode: 'light', status: 'active',
+    tasks: [{ id: '001', status: 'integrated' }], decisions: [],
+  }, null, 2)}\n`);
+
+  const payload = parsePayload(preflight(repo));
+
+  assert.strictEqual(payload.reason, null);
+  assert.strictEqual(payload.delegable, true);
 });
 
 test('run preflight with a closed blueprint → direct_eligible is false', () => {
@@ -457,7 +567,10 @@ function writeLedger(repo, status) {
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
   fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
-    version: 1, blueprint: BP_REL, base: 'main', mode: 'light', status, tasks: [], decisions: [],
+    version: 1, blueprint: BP_REL, base: 'main', mode: 'light',
+    // 새 원장 표식. tasks:[]라 없어도 legacy가 아니지만 새 모양과 맞춘다.
+    light_runner: 'subagent',
+    status, tasks: [], decisions: [],
   }, null, 2)}\n`);
 }
 
