@@ -1914,6 +1914,58 @@ test('CLI coordinate repair with --verify, --paths and --new-path → forwards t
   assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
 });
 
+/**
+ * ledger와 blueprint tasks/ 아래 파일 바이트를 모아 CLI repair 거절이 쓰기를 안 했는지 본다.
+ *
+ * @param {{ integration: string, ledgerFile: string }} drive - terminalFailedCliDrive 결과
+ * @returns {string} 비교용 스냅샷
+ */
+function cliRepairSnapshot(drive) {
+  const tasksDir = path.join(drive.integration, BP_REL, 'tasks');
+  const files = fs.readdirSync(tasksDir, { recursive: true }).sort()
+    .filter((rel) => fs.statSync(path.join(tasksDir, rel)).isFile())
+    .map((rel) => `${rel}\n${fs.readFileSync(path.join(tasksDir, rel), 'utf8')}`);
+  return [fs.readFileSync(drive.ledgerFile, 'utf8'), ...files].join('\n--\n');
+}
+
+test('CLI coordinate repair with a disallowed --verify executable → exits 1 with repair-verify-not-allowed and writes nothing', () => {
+  const drive = terminalFailedCliDrive();
+  const before = cliRepairSnapshot(drive);
+  for (const [label, verify] of [
+    ['curl', 'curl'],
+    ['path basename outside allowlist', 'test/cli-coordinate.test.js'],
+  ]) {
+    const out = coordinateCli(drive.integration, 'repair', terminalRepairArgs(drive, [
+      '--paths', 'src/auth/login.ts', '--verify', verify,
+    ]));
+    assert.strictEqual(out.code, 1, `${label}: ${out.buf.err}${out.buf.out}`);
+    assert.strictEqual(JSON.parse(out.buf.out).reason, 'repair-verify-not-allowed', label);
+  }
+  assert.strictEqual(cliRepairSnapshot(drive), before);
+});
+
+test('CLI coordinate repair --verify /usr/bin/node → records the repair', () => {
+  const drive = terminalFailedCliDrive();
+  // 성공 쓰기는 종단 tasks.md를 읽는다. 이 CLI fixture는 원장에만 002를 심으므로 문서를 보탠다.
+  writeDoc(drive.integration, `${BP_REL}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Terminal', description: 'd',
+    resource: `${BP_REL}/tasks/002/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'ready',
+      execution_kind: 'verification', depends_on: ['TASKS-001'], verify: 'npm test',
+    },
+  });
+  const { code, buf } = coordinateCli(drive.integration, 'repair', terminalRepairArgs(drive, [
+    '--paths', 'src/auth/login.ts', '--verify', '/usr/bin/node --test src/auth/login.ts',
+  ]));
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const result = JSON.parse(buf.out);
+  assert.strictEqual(result.ok, true, buf.out);
+  const repairDoc = path.join(drive.integration, BP_REL, 'tasks', result.repairTask.id, 'tasks.md');
+  assert.match(fs.readFileSync(repairDoc, 'utf8'), /\/usr\/bin\/node --test src\/auth\/login\.ts/);
+});
+
 test('coordinate revise with an untracked --paths entry or a valueless --new-path → exits 1 or 2 and keeps the task document', () => {
   const { worker, repo } = preparedDrive();
   const docFile = path.join(worker, BP_REL, 'tasks/001/tasks.md');

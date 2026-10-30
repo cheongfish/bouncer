@@ -2127,6 +2127,13 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: '`--verify` equals the terminal full-suite command, which scoped_terminal forbids on commit tasks (G20).',
     next: 'Pass a command that checks only the failing files; the terminal task re-runs the full suite.',
   },
+  // reason 리터럴은 coordinator-repair에만 있다. 공개 힌트 표는 이 모듈이 소유하므로
+  // 여기에도 키를 둔다. 표를 repair로 옮기면 commands↔repair 순환이 생긴다.
+  'repair-verify-not-allowed': {
+    cause: '`--verify` argv0 is not in the repository `verify_allowlist` (basename, same rule as S12).',
+    next: 'Pass a first token listed in `.bouncer/config.json` `verify_allowlist`, or the default list '
+      + 'when that key is omitted.',
+  },
   'repair-scope-out-of-bounds': {
     cause: 'Repair paths are outside the blueprint-scoped source bound.',
     next: 'Retry `bouncer coordinate repair` with paths inside the blueprint source scope.',

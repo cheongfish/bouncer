@@ -486,8 +486,11 @@ matched as plain text, never expanded. On a `scoped_terminal` blueprint `repair`
 also needs `--verify <argv>`, one command that checks only the failing files:
 `repair-verify-required` when missing, `repair-verify-not-single-argv` for shell
 operators or an empty value, `repair-verify-is-terminal` when it equals the
-terminal command. A legacy blueprint keeps the terminal verify unless `--verify`
-is given (then only the single-argv check applies). `--verify` cannot be
+terminal command, `repair-verify-not-allowed` when argv0's basename is outside
+the repository `verify_allowlist` (same basename rule as S12, so `/usr/bin/node`
+is allowed when `node` is listed). A legacy blueprint keeps the terminal verify
+unless `--verify` is given (then the single-argv and allowlist checks apply).
+`--verify` cannot be
 combined with `--resume-task`, and a valueless `--verify` or `--new-path`
 exits 2. All of these refuse before the ledger or task documents change.
 A `coordinate revise` refusal is written to stdout as JSON

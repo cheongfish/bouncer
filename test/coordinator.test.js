@@ -4222,6 +4222,108 @@ test('scoped_terminal repair with a missing, terminal or chained --verify → re
   }
 });
 
+test('CI and review repair with a disallowed --verify executable → rejects before any write', () => {
+  const cases = [
+    ['curl', 'curl https://example.invalid'],
+    ['path basename outside allowlist', 'test/cli-coordinate.test.js'],
+  ];
+  const ci = repairIntakeDrive(
+    'bouncer-repair-verify-allowlist-ci-',
+    '.bouncer/context/epics/112-x/blueprints/010-y',
+    { scoped: true },
+  );
+  const ciBefore = repairIntakeSnapshot(ci);
+  for (const [label, verify] of cases) {
+    const out = repairIntake(ci, { verify });
+    assert.strictEqual(out.ok, false, label);
+    assert.strictEqual(out.reason, 'repair-verify-not-allowed', `${label}: ${JSON.stringify(out)}`);
+    assert.ok(out.cause && out.next, `${label} carries cause and next`);
+    assert.strictEqual(repairIntakeSnapshot(ci), ciBefore, `${label} keeps ledger and tasks bytes`);
+  }
+
+  const review = repairIntakeDrive(
+    'bouncer-repair-verify-allowlist-review-',
+    '.bouncer/context/epics/112-x/blueprints/011-y',
+    { scoped: true },
+  );
+  const reviewLedger = JSON.parse(fs.readFileSync(review.ledgerFile, 'utf8'));
+  for (const entry of reviewLedger.tasks) entry.status = 'integrated';
+  fs.writeFileSync(review.ledgerFile, `${JSON.stringify(reviewLedger, null, 2)}\n`);
+  const reviewBefore = repairIntakeSnapshot(review);
+  for (const [label, verify] of cases) {
+    const out = coordinate({
+      command: 'repair', repoRoot: review.repo, blueprint: review.blueprint, cwd: review.integrationPath,
+      task: '002', reviewFindings: ['F1'], summary: 'must_fix', paths: ['src/fix.js'],
+      decision: 'repair review', verify,
+    });
+    assert.strictEqual(out.ok, false, `review ${label}`);
+    assert.strictEqual(out.reason, 'repair-verify-not-allowed', `review ${label}: ${JSON.stringify(out)}`);
+    assert.strictEqual(repairIntakeSnapshot(review), reviewBefore, `review ${label} keeps ledger and tasks bytes`);
+  }
+});
+
+test('repair --verify on the default or a user allowlist → allows listed argv0 basename and rejects others', () => {
+  const nodePath = repairIntakeDrive(
+    'bouncer-repair-verify-usr-bin-node-',
+    '.bouncer/context/epics/112-x/blueprints/012-y',
+    { scoped: true },
+  );
+  const allowedNode = repairIntake(nodePath, { verify: '/usr/bin/node --test test/fix.test.js' });
+  assert.strictEqual(allowedNode.ok, true, JSON.stringify(allowedNode));
+
+  const defaultOk = repairIntakeDrive(
+    'bouncer-repair-verify-default-ok-',
+    '.bouncer/context/epics/112-x/blueprints/013-y',
+    { scoped: true },
+  );
+  const listed = repairIntake(defaultOk, { verify: 'node --test test/fix.test.js' });
+  assert.strictEqual(listed.ok, true, JSON.stringify(listed));
+
+  const defaultReject = repairIntakeDrive(
+    'bouncer-repair-verify-default-reject-',
+    '.bouncer/context/epics/112-x/blueprints/014-y',
+    { scoped: true },
+  );
+  const defaultBefore = repairIntakeSnapshot(defaultReject);
+  const unlisted = repairIntake(defaultReject, { verify: 'curl https://example.invalid' });
+  assert.strictEqual(unlisted.reason, 'repair-verify-not-allowed', JSON.stringify(unlisted));
+  assert.strictEqual(repairIntakeSnapshot(defaultReject), defaultBefore);
+
+  const userAllow = repairIntakeDrive(
+    'bouncer-repair-verify-user-allow-',
+    '.bouncer/context/epics/112-x/blueprints/015-y',
+    { scoped: true },
+  );
+  writeIntegrationAllowlist(userAllow, ['bun']);
+  const bunOk = repairIntake(userAllow, { verify: 'bun test test/fix.test.js' });
+  assert.strictEqual(bunOk.ok, true, JSON.stringify(bunOk));
+
+  const userReject = repairIntakeDrive(
+    'bouncer-repair-verify-user-reject-',
+    '.bouncer/context/epics/112-x/blueprints/016-y',
+    { scoped: true },
+  );
+  writeIntegrationAllowlist(userReject, ['bun']);
+  const userBefore = repairIntakeSnapshot(userReject);
+  const nodeBlocked = repairIntake(userReject, { verify: 'node --test test/fix.test.js' });
+  assert.strictEqual(nodeBlocked.reason, 'repair-verify-not-allowed', JSON.stringify(nodeBlocked));
+  assert.strictEqual(repairIntakeSnapshot(userReject), userBefore);
+});
+
+/**
+ * integration worktree config에 저장소 allowlist를 심는다. S12와 같이 기본 목록과
+ * 합치지 않는다 — 키가 있으면 그 배열만 유효 목록이다.
+ *
+ * @param {{ integrationPath: string }} drive - repairIntakeDrive 결과
+ * @param {string[]} allowlist - argv0 basename 허용 목록
+ * @returns {void}
+ */
+function writeIntegrationAllowlist(drive, allowlist) {
+  const configPath = path.join(drive.integrationPath, '.bouncer/config.json');
+  const current = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  fs.writeFileSync(configPath, `${JSON.stringify({ ...current, verify_allowlist: allowlist })}\n`);
+}
+
 test('repair with an untracked --paths entry or a --new-path without a tracked parent → rejects before any write', () => {
   const drive = repairIntakeDrive('bouncer-repair-path-gate-', '.bouncer/context/epics/112-x/blueprints/002-y', { scoped: true });
   const before = repairIntakeSnapshot(drive);
