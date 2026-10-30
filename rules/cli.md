@@ -731,7 +731,6 @@ CLI refuses a review-caused repair or supplement with one of these reasons
 | Legacy blueprint after discovery, any supplement after discovery, or a brief blueprint whose repair or delta already ran | `final-review-single-round` |
 | First brief repair that declares `newPaths` under a Do not touch line of any ledger task | `final-review-repair-do-not-touch` |
 | First brief repair with `newPaths` while a ledger task document cannot be read | `scope-do-not-touch-unreadable` |
-| Light ledger first review repair that declares `--new-path` | `light-scope-revision-requires-promotion` |
 
 A second repair therefore returns `final-review-single-round` only; a still
 open finding after the delta is reported `final-review-blocked`.

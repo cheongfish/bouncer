@@ -1962,7 +1962,7 @@ Ship login validation.
 function lightPlanDocs(body, tasksExtra = {}) {
   return {
     epicIndex: doc('approved'),
-    blueprintIndex: doc('approved', { scale: 'light' }),
+    blueprintIndex: doc('approved', { scale: 'full' }),
     tasks: doc('ready', {
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['src/auth/login.js', 'test/auth/login.test.js'],
@@ -1981,7 +1981,7 @@ test('scale light → keeps G5 identical to full', () => {
   // G5 — 빈 affected_paths는 light에서도 통과하지 못한다. G4는 결번이라 내지 않는다.
   const bare = {
     epicIndex: doc('approved'),
-    blueprintIndex: doc('approved', { scale: 'light' }),
+    blueprintIndex: doc('approved', { scale: 'full' }),
     tasks: doc('ready', { affected_paths: [] }, LIGHT_READY_BODY),
   };
   const bareFailures = [];
@@ -2213,19 +2213,17 @@ test('plan gate scoped_terminal → rejects no terminal, two terminals and a ter
   assert.ok(after.some((m) => /cannot precede commit task/.test(m)), JSON.stringify(after));
 });
 
-test('plan gate scoped_terminal light → needs one independent commit task plus the terminal', () => {
+test('plan gate scoped_terminal serial two commits → G20 is empty regardless of scale', () => {
+  const chained = [
+    scopedCommit('001'),
+    scopedCommit('002', { depends_on: ['TASKS-001'] }),
+    scopedTerminal('003', ['TASKS-001', 'TASKS-002']),
+  ];
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs(chained, { scale: 'full' })), []);
+  assert.deepStrictEqual(g20Messages(scopedPlanDocs(chained, { scale: 'light' })), []);
   assert.deepStrictEqual(g20Messages(scopedPlanDocs([
     scopedCommit('001'), scopedTerminal('002', ['TASKS-001']),
-  ], { scale: 'light' })), []);
-  const two = g20Messages(scopedPlanDocs([
-    scopedCommit('001'), scopedCommit('002'), scopedTerminal('003', ['TASKS-001', 'TASKS-002']),
-  ], { scale: 'light' }));
-  assert.ok(two.some((m) => /one independent commit task/.test(m)), JSON.stringify(two));
-  const dependent = g20Messages(scopedPlanDocs([
-    scopedCommit('001', { depends_on: ['TASKS-002'] }), scopedCommit('002'),
-    scopedTerminal('003', ['TASKS-001']),
-  ], { scale: 'light' }));
-  assert.ok(dependent.some((m) => /one independent commit task/.test(m)), JSON.stringify(dependent));
+  ], { scale: 'full' })), []);
 });
 
 // check-doc-shape가 명시 문서를 받는 verify: 종류/경로 계약이 없는 문서는 실행 전에 G20으로 막는다.
@@ -2340,7 +2338,7 @@ test('plan gate verification_policy → absent stays legacy and an unknown value
   assert.deepStrictEqual(g20Messages(scopedPlanDocs([planTaskDoc('001')], { noPolicy: true })), []);
   assert.deepStrictEqual(g20Messages(scopedPlanDocs([
     planTaskDoc('001'), planTaskDoc('002'),
-  ], { noPolicy: true, scale: 'light' })), []);
+  ], { noPolicy: true, scale: 'full' })), []);
   for (const policy of ['legacy', 'scoped', null]) {
     const messages = g20Messages(scopedPlanDocs([scopedCommit('001'), scopedTerminal('002', ['TASKS-001'])], { policy }));
     assert.ok(messages.some((m) => /verification_policy must be/.test(m)), `${policy}: ${JSON.stringify(messages)}`);

@@ -112,9 +112,9 @@ export type Ledger = {
   status?: 'active' | 'awaiting_confirmation' | 'partial_closed' | 'promotion_stopped' | 'detached';
   userConfirmed?: boolean; revision?: string;
   leaseSeq?: number;
-  // light만 기록한다. 부재·undefined는 full(legacy 호환). 응답 mode는 항상 light|full.
+  // 읽기 전용 옛 값. 신규 seed는 이 키를 쓰지 않는다.
   mode?: 'light';
-  // mode가 light일 때만 쓴다. 부재는 옛 inline 원장.
+  // 읽기 전용 옛 값. 신규 seed는 이 키를 쓰지 않는다.
   light_runner?: 'subagent';
   // light 승격 정지 스냅샷. status가 promotion_stopped일 때만 쓴다. fanin·terminalFailure와 별개.
   promotion?: PromotionRecord;

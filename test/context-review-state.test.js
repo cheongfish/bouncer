@@ -132,14 +132,14 @@ function capture(argv) {
  * single dispatch 기대값을 단언하는 기존 테스트가 scaffold의 표식 때문에 바뀌지 않게 지운다.
  * `marked`면 표식을 남기고, `scale`로 light blueprint를 만들 수 있다.
  */
-function makeRepo({ marked = false, scale } = {}) {
+function makeRepo({ marked = false, complexity } = {}) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cr-state-'));
   scaffoldEpic({
     repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS, description: 'Auth epic description',
   });
   scaffoldBlueprint({
     repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
-    blueprintId: '001', name: 'login', timestamp: TS, ...(scale ? { scale } : {}),
+    blueprintId: '001', name: 'login', timestamp: TS, ...(complexity ? { complexity } : {}),
   });
   if (!marked) {
     const abs = path.join(repo, BP, 'index.md');
@@ -782,14 +782,6 @@ test('round의 target digest가 dispatch와 다르면 → target-invalid로 거�
   const r = record(repo, d, roundFile(repo, 'r1.json', 1, 'discovery', [ADVISORY], 'f'.repeat(64)));
   assert.equal(r.code, 1);
   assert.equal(r.json.reason, 'context-review-target-invalid');
-});
-
-test('strategy가 skip인 dispatch → start를 거부한다', () => {
-  const repo = makeRepo();
-  const r = start(repo, dispatchFile(repo, 'd.json', { strategy: 'skip' }));
-  assert.equal(r.code, 1);
-  assert.equal(r.json.reason, 'context-review-target-invalid');
-  assert.equal(findState(repo), null);
 });
 
 test('다른 blueprint를 가리키는 dispatch → target-invalid로 거부한다', () => {
@@ -1876,7 +1868,7 @@ test('표식 blueprint의 dispatch 관점 목록 순서·중복·누락·추가 
 });
 
 test('표식 light blueprint의 dispatch 관점 목록 변조 → start가 target-invalid로 거부한다', () => {
-  const repo = makeRepo({ marked: true, scale: 'light' });
+  const repo = makeRepo({ marked: true, complexity: 'low' });
   const out = start(repo, markedDispatch(repo, 'pd.json', ['verifiability', 'verifiability']));
   assert.equal(out.json.reason, 'context-review-target-invalid');
   assert.equal(out.json.cause, 'dispatch perspectives differ from verifiability');
@@ -1934,7 +1926,7 @@ test('표식 full의 delta 관점 verifiability → input-invalid로 거부하�
 });
 
 test('표식 light의 delta 관점 combined → input-invalid로 거부하고 round는 1개로 남는다', () => {
-  const repo = makeRepo({ marked: true, scale: 'light' });
+  const repo = makeRepo({ marked: true, complexity: 'low' });
   const d = markedDispatch(repo, 'pd.json', ['verifiability']);
   start(repo, d);
   assert.equal(record(repo, d, namedRound(repo, 'r1.json', 1, 'discovery', [MUST_FIX], ['verifiability'])).code, 0);
@@ -1977,7 +1969,7 @@ test('표식 full에서 네 관점 discovery → combined delta → close가 acc
 });
 
 test('표식 light에서 verifiability discovery → verifiability delta → close가 accepted를 쓰고 구조 변경은 restart로 이어진다', () => {
-  const repo = makeRepo({ marked: true, scale: 'light' });
+  const repo = makeRepo({ marked: true, complexity: 'low' });
   const names = ['verifiability'];
   const d1 = markedDispatch(repo, 'd1.json', names);
   const started = start(repo, d1);

@@ -447,7 +447,7 @@ function cmdExecute(rest: string[], io: CliIo) {
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next',
-  'advance', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
+  'advance', 'session-open', 'worker-model', 'worker-tokens',
   'note', 'uncommit',
 ] as const;
 
@@ -569,7 +569,7 @@ function checkFenceFlags(f: CoordFlags, command: string, io: CliIo): number | un
   // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
   const fenced = [
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-    'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop', 'session-open',
+    'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'session-open',
     'worker-model', 'worker-tokens', 'note', 'uncommit',
   ];
   const missing = !nonEmpty(f['ledger-path']) || !nonEmpty(f['ledger-hash']);
@@ -720,16 +720,6 @@ function checkCommandFlags(f: CoordFlags, command: string, rest: string[], io: C
     if (!nonEmpty(f.task)) return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
     if (!nonEmpty(f.reason)) return failCoordinateUsage(io, 'coordinate revoke: --reason is required\n', command);
   }
-  if (command === 'promote-stop') {
-    // 빈 summary·reason은 usage(2). enum 밖 reason은 core가 promote-reason-invalid(1).
-    // whitespace-only는 core summary-required(1)로 가지 않게 trim 후 검사한다.
-    if (!nonEmpty(f.reason)) {
-      return failCoordinateUsage(io, 'coordinate promote-stop: --reason is required\n', command);
-    }
-    if (typeof f.summary !== 'string' || f.summary.trim() === '') {
-      return failCoordinateUsage(io, 'coordinate promote-stop: --summary is required\n', command);
-    }
-  }
   return undefined;
 }
 
@@ -744,7 +734,7 @@ function coordinateRevise(rest: string[], f: CoordFlags, io: CliIo): number {
   const { reviseTaskScope } = require('./scope') as typeof import('./scope');
   const { coordinatorPathsFor } = require('./runtime-state');
   const {
-    assertLedgerFence, projectCheckpoint, loadLedgerBytes, isLegacyLightLedger, ledgerModeOf,
+    assertLedgerFence, projectCheckpoint, loadLedgerBytes, isRemovedLightLedger,
   } = require('./coordinator-ledger') as typeof import('./coordinator-ledger');
   const reviseRoot = process.cwd();
   const paths = coordinatorPathsFor({ repoRoot: reviseRoot, blueprint: f.blueprint as string });
@@ -766,19 +756,10 @@ function coordinateRevise(rest: string[], f: CoordFlags, io: CliIo): number {
     io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(fenced))}\n`);
     return 1;
   }
-  // 1. 옛 light(표식 없음) → 2. 표식 light → 그 외만 reviseTaskScope로 넘긴다.
-  if (isLegacyLightLedger(loaded.ledger)) {
-    const refused = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'light-ledger-legacy' });
+  if (isRemovedLightLedger(loaded.ledger)) {
+    const refused = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'light-mode-removed' });
     io.out(`${JSON.stringify(refused)}\n`);
-    io.err('coordinate revise: light-ledger-legacy\n');
-    return 1;
-  }
-  if (ledgerModeOf(loaded.ledger) === 'light') {
-    const refused = coordinatorMod.withCoordinateFailureHints({
-      ok: false, reason: 'light-scope-revision-requires-promotion',
-    });
-    io.out(`${JSON.stringify(refused)}\n`);
-    io.err('coordinate revise: light-scope-revision-requires-promotion\n');
+    io.err('coordinate revise: light-mode-removed\n');
     return 1;
   }
   const result = reviseTaskScope({
@@ -885,7 +866,6 @@ function coordinateCall(
       ledgerPath: typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined,
       ledgerHash: typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined,
       userConfirmed: f['user-confirmed'] === true,
-      promoteLight: f['promote-light'] === true,
       acceptBrokenBaseline: command === 'prepare' && f['accept-broken-baseline'] === true,
     }) as { ok: boolean };
     const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
@@ -917,6 +897,15 @@ function coordinateCall(
  * @returns {number} 성공 0, 런타임 거절 1, usage 오류 2
  */
 function cmdCoordinate(rest: string[], io: CliIo) {
+  // 제거된 호출은 --repo 해석·플래그 검증·core보다 앞에서 거절한다.
+  if (rest[0] === 'promote-stop') {
+    io.err('coordinate promote-stop was removed; replan with /bouncer-plan and declare complexity\n');
+    return 2;
+  }
+  if (rest.includes('--promote-light')) {
+    io.err('coordinate bootstrap --promote-light was removed; replan with /bouncer-plan\n');
+    return 2;
+  }
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags, argvRequestsHelp } = require('./cli-flags') as typeof import('./cli-flags');
   // 1. 도움말은 잘못된 플래그보다 앞. 소스 역산 대신 --help를 보게 한다.
@@ -937,7 +926,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
       + 'integrate, status, revise, repair, reverify, partial-close, critical-recovery, revoke, '
-      + 'next, advance, promote-stop, session-open, worker-model, or worker-tokens\n',
+      + 'next, advance, session-open, worker-model, or worker-tokens\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {

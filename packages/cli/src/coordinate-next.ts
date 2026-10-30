@@ -11,7 +11,7 @@ const { hasReviewRepairDecision, reviewRoundExists } = reviewRepairState;
 const { COORDINATE_FAILURE_HINTS } = coordinator;
 import coordinatorLedger = require('./coordinator-ledger');
 const {
-  assertLeaseShape, loadLedgerBytes, projectCheckpoint, isLegacyLightLedger, ledgerModeOf,
+  assertLeaseShape, loadLedgerBytes, projectCheckpoint, isRemovedLightLedger,
 } = coordinatorLedger;
 import coordinatorWorker = require('./coordinator-worker');
 const {
@@ -587,7 +587,7 @@ function decideNext(opts: {
   if (!leaseShape.ok) return fail(leaseShape.reason);
   // 진행 중 옛 inline light는 detached 검사보다 먼저 거절한다. fenced 명령과 같은 판정·순서다.
   // loaded.ledger는 디스크 원장(execution-contracts Ledger)이고, 아래 local Ledger는 읽기 전용 투영이다.
-  if (isLegacyLightLedger(loaded.ledger as CanonicalLedger)) return fail('light-ledger-legacy');
+  if (isRemovedLightLedger(loaded.ledger as CanonicalLedger)) return fail('light-mode-removed');
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   const ledger = loaded.ledger as Ledger;
   // 분리된 실행은 다음 행동을 정하지 않는다(task 범위 포함). finalize 또는 새 계획으로 안내한다.
@@ -690,13 +690,6 @@ function blueprintNext(ctx: {
       scope: 'blueprint', action: 'blocked', reason: 'partial-closed', cwd: integrationCwd,
     });
   }
-  // light 승격 정지는 repair 한도와 별개다. prepare/drive로 내려가기 전에 막아
-  // 정지 뒤 inline implement가 다시 열리지 않게 한다. hint는 COORDINATE_FAILURE_HINTS.
-  if (ledger.status === 'promotion_stopped') {
-    return ok({
-      scope: 'blueprint', action: 'blocked', reason: 'promotion-stopped', cwd: integrationCwd,
-    });
-  }
   if (ledger.status === 'awaiting_confirmation') {
     return ok({
       scope: 'blueprint', action: 'blocked', reason: 'repair-wave-limit', cwd: integrationCwd,
@@ -797,24 +790,6 @@ function blueprintNext(ctx: {
       }
       if (rootReviewHasDiscoveryRound(integrationCwd, blueprint)) {
         const repaired = hasReviewRepairDecision(ledger.decisions);
-        // light 판정은 문서 표식이 아니라 원장 mode다. scale:light는 계약이 legacy로 접혀도
-        // 여기선 repair 안내·repair 뒤 blocked를 내고 delta argv는 만들지 않는다.
-        if (ledgerModeOf(ledger as CanonicalLedger) === 'light') {
-          return ok({
-            scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
-            cause: repaired
-              ? 'The light final review used its discovery round and the one review repair; this blueprint does '
-                + 'not open a delta round, and the root review is not accepted.'
-              : 'The light final review recorded its discovery round, the root review is not accepted, '
-                + 'and no review repair has been opened yet.',
-            next: repaired
-              ? 'Show the open findings to the user and wait for their decision (note + deferred, or '
-                + 'accepted-risk consent); do not open another repair or a delta round.'
-              : 'If an open must_fix is in scope, open the one repair with `bouncer coordinate repair '
-                + '--review-finding`; otherwise show the open findings to the user and wait for their decision '
-                + '(note + deferred, or accepted-risk consent).',
-          });
-        }
         if (contract !== 'brief') {
           return ok({
             scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,

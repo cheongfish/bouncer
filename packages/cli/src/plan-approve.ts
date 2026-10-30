@@ -16,7 +16,6 @@ const { readEpicRegistry } = epicRegistry;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import contextIds = require('./context-ids');
-import schema = require('./schema');
 import validateGatesPlan = require('./validate-gates-plan');
 const { planPrerequisiteFailures, PREREQUISITE_NEXT } = validateGatesPlan;
 import planPrerequisites = require('./plan-prerequisites');
@@ -163,9 +162,10 @@ function approvePlan({ repoRoot, blueprintDir, deps = {} }: {
     return fail('plan-approve-target', `${bp}: no tasks/<NNN>/tasks.md documents`, 'scaffold tasks before approving');
   }
 
-  // 3. 문서별 계획. blueprint를 먼저 읽어야 scale을 알고 context-review 검사를 가른다.
+  // 3. 문서별 계획. blueprint를 먼저 읽어 선행 형식 검사에 쓴다.
   const bpPlan = planDoc(repoRoot, `${bp}/index.md`, 'approved');
   if ('ok' in bpPlan) return bpPlan;
+  const bpBouncer = bpPlan.data.bouncer as Record<string, unknown>;
   // legacy epic의 draft blueprint는 승인하지 않는다(쓰기 전 거절). 이미 approved인 blueprint의
   // 재승인은 진행 중 실행을 막지 않으려고 통과시킨다. 등록부 부재·invalid·미등록 epic은 기존 동작.
   if (bpPlan.needsWrite) {
@@ -193,28 +193,24 @@ function approvePlan({ repoRoot, blueprintDir, deps = {} }: {
     taskPlans.push(plan);
   }
 
-  // 4. full blueprint는 context review가 accepted여야 한다. 표식 없는 light만 건너뛴다
-  //    (부재는 full). 표식 light는 verifiability 리뷰를 받으므로 full과 같은 사유·next로 막는다.
-  //    잘못된 표식 값(null)은 S38이 이 gate 앞에서 이미 거절하므로 여기서는 legacy로 읽혀도 안전하다.
-  const bpBouncer = bpPlan.data.bouncer as Record<string, unknown>;
-  if (bpBouncer.scale !== 'light' || schema.planReviewContractOf(bpBouncer) === 'brief') {
-    const crRel = `${bp}/context-review.md`;
-    let crStatus: unknown;
-    try {
-      const crBouncer = (readDoc(path.join(repoRoot, crRel)).data as Record<string, unknown>).bouncer;
-      crStatus = isRecord(crBouncer) ? crBouncer.status : undefined;
-    } catch (_error) {
-      // 부재·파싱 실패는 "accepted 아님"으로만 접는다. 복구는 context-review 명령 소관이라
-      // 여기서는 거절 사유와 다음 행동만 알려준다.
-      crStatus = undefined;
-    }
-    if (crStatus !== 'accepted') {
-      return fail(
-        'plan-approve-context-review',
-        `${crRel}: status is ${crStatus === undefined ? 'missing' : String(crStatus)}, expected accepted`,
-        'run bouncer context-review close until the review is accepted, then retry',
-      );
-    }
+  // 4. 모든 blueprint는 context review가 accepted여야 한다. light skip을 없애
+  //    강도 선언과 무관하게 같은 승인 기록을 남긴다.
+  const crRel = `${bp}/context-review.md`;
+  let crStatus: unknown;
+  try {
+    const crBouncer = (readDoc(path.join(repoRoot, crRel)).data as Record<string, unknown>).bouncer;
+    crStatus = isRecord(crBouncer) ? crBouncer.status : undefined;
+  } catch (_error) {
+    // 부재·파싱 실패는 "accepted 아님"으로만 접는다. 복구는 context-review 명령 소관이라
+    // 여기서는 거절 사유와 다음 행동만 알려준다.
+    crStatus = undefined;
+  }
+  if (crStatus !== 'accepted') {
+    return fail(
+      'plan-approve-context-review',
+      `${crRel}: status is ${crStatus === undefined ? 'missing' : String(crStatus)}, expected accepted`,
+      'run bouncer context-review close until the review is accepted, then retry',
+    );
   }
 
   // 4b. 선언된 선행 blueprint가 현재 checkout에 병합돼 있어야 한다. draft·정식 plan gate와 같은

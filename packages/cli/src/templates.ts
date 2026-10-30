@@ -181,36 +181,6 @@ Source 변경 경로 없음.
 
 ## Tasks
 `,
-  // --- scale: light 전용 본문 ---
-  // light scaffold는 네 문서(index + 루트 review + tasks/001 두 문서) 전체 줄 수를
-  // 100줄 이하로 묶는 계약이다(rules/planning.md). scoped_terminal light의 종단
-  // verification task(`scaffold task --execution-kind verification`, 두 문서)는
-  // 이 예산 밖에서 따로 붙는다. 그래서 full 템플릿의 작성
-  // 가이드 주석을 옮겨오지 않는다 — 가이드는 skills/spec-authoring이 갖고,
-  // 본문에는 게이트가 요구하는 제목과 <TODO:> 자리만 남긴다.
-  // full 본문은 바이트 단위로 그대로 두고 여기서만 갈라진다.
-  'blueprint-light.md': `# <BP-id> <name>
-Epic: [<EPIC-id>](../../index.md) · Tasks: [001](tasks/001/tasks.md)
-## Intent
-- <TODO: 무엇을 바꾸고 무엇이 되면 끝인가>
-`,
-  // light task의 필수 절(작성 규칙)은 Goal & intent / Touch / Checklist 셋뿐이다.
-  // Interface·Do not touch 제목을 템플릿에 남기면 빈 절이 그대로 남아
-  // 사람이 읽을 때 full과 같은 계약으로 오해된다.
-  // DAG frontmatter 기본값 3줄을 상쇄하려고 본문 빈 줄을 줄인다(100줄 예산).
-  'tasks-light.md': `# Tasks
-## Goal & intent
-<TODO: 완료 후 시스템이 어떻게 달라지는가>
-## Touch
-- Modify \`<TODO: 수정할-파일>\` — <TODO: 왜 만지는가>
-## Checklist
-- [ ] <TODO: 작업 항목>
-`,
-  // verification은 light 전용 본문이 없다. full 본문에 줄일 주석이 없어
-  // 사본을 두면 드리프트만 생기므로, scaffold가 공용 `verification.md`로
-  // 떨어진다(templateNameFor).
-  // G14도 그대로. 허용값 주석만 뺀 최소 본문.
-  'review-light.md': '# Review\n\n## Findings\n- <finding>\n',
   'pr.md': PR_TEMPLATE,
 };
 

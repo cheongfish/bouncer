@@ -387,13 +387,13 @@ test('summarizeRouting with test/docs/root files and empty paths → excludes th
   assert.strictEqual(light.dependencies, 0);
   assert.deepStrictEqual(light.modules, ['scripts']);
   assert.deepStrictEqual(light.riskPaths, []);
-  assert.strictEqual(light.recommendation, 'light-candidate');
+  assert.strictEqual(light.recommendation, 'low-candidate');
   assert.deepStrictEqual(light.reasons, []);
 
   const empty = summarizeRouting([{ paths: [], dependsOn: [] }]);
   assert.deepStrictEqual(empty.modules, []);
   assert.ok(empty.reasons.includes('affected-paths-empty'));
-  assert.strictEqual(empty.recommendation, 'light-candidate');
+  assert.strictEqual(empty.recommendation, 'low-candidate');
 
   const full = summarizeRouting([
     { paths: ['a/x.ts', 'b/y.ts'], dependsOn: ['TASKS-001'] },
@@ -402,7 +402,7 @@ test('summarizeRouting with test/docs/root files and empty paths → excludes th
   assert.strictEqual(full.tasks, 2);
   assert.strictEqual(full.dependencies, 1);
   assert.deepStrictEqual(full.modules, ['a', 'b', 'c']);
-  assert.strictEqual(full.recommendation, 'full-candidate');
+  assert.strictEqual(full.recommendation, 'standard-candidate');
   assert.ok(full.reasons.includes('tasks'));
   assert.ok(full.reasons.includes('dependencies'));
   assert.ok(full.reasons.includes('modules'));
@@ -453,7 +453,7 @@ function writeRoutingBlueprint(repo, {
   return blueprintDir;
 }
 
-test('plan inspect --blueprint with drafted tasks → reports full-candidate routing', () => {
+test('plan inspect --blueprint with drafted tasks → reports standard-candidate routing', () => {
   const repo = makeRepo();
   mkdirp(repo, `${EPICS}/001-a`);
   const blueprintDir = writeRoutingBlueprint(repo, {
@@ -487,7 +487,7 @@ test('plan inspect --blueprint with drafted tasks → reports full-candidate rou
   assert.strictEqual(payload.routing.advisory, true);
   assert.strictEqual(payload.routing.tasks, 2);
   assert.strictEqual(payload.routing.dependencies, 1);
-  assert.strictEqual(payload.routing.recommendation, 'full-candidate');
+  assert.strictEqual(payload.routing.recommendation, 'standard-candidate');
   assert.ok(payload.routing.riskPaths.some((entry) => entry.kind === 'security'));
 });
 

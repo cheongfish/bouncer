@@ -763,9 +763,75 @@ bouncer:
 
 test('S20: scale missing or valid values pass; lite → fails', () => {
   assert.deepStrictEqual(codesFor({}), []);
-  assert.deepStrictEqual(codesFor({ scale: 'light' }), []);
   assert.deepStrictEqual(codesFor({ scale: 'full' }), []);
   assert.deepStrictEqual(codesFor({ scale: 'lite' }), ['S20']);
+});
+
+test('S20: approved scale light → fails with /bouncer-plan; closed and partial_closed pass', () => {
+  const approved = [];
+  checkStructural({
+    data: {
+      ...blueprintDoc(),
+      bouncer: { ...blueprintDoc().bouncer, status: 'approved', scale: 'light' },
+    },
+    rel: `${BP_REL}/index.md`,
+  }, approved);
+  const s20 = approved.filter((f) => f.code === 'S20');
+  assert.strictEqual(s20.length, 1);
+  assert.match(s20[0].message, /\/bouncer-plan/);
+  assert.match(s20[0].message, /scale "light" was removed/);
+  assert.deepStrictEqual(codesFor({ status: 'closed', scale: 'light' }), []);
+  assert.deepStrictEqual(codesFor({ status: 'partial_closed', scale: 'light' }), []);
+});
+
+test('S20: complexity medium → not in enum', () => {
+  const failures = [];
+  checkStructural({
+    data: {
+      ...blueprintDoc(),
+      bouncer: { ...blueprintDoc().bouncer, complexity: 'medium' },
+    },
+    rel: `${BP_REL}/index.md`,
+  }, failures);
+  const s20 = failures.filter((f) => f.code === 'S20');
+  assert.strictEqual(s20.length, 1);
+  assert.match(s20[0].message, /complexity "medium" not in enum/);
+});
+
+test('closed light context documents → have no S20 and no approved light remains', () => {
+  const root = path.join(__dirname, '..');
+  const epicsDir = path.join(root, '.bouncer/context/epics');
+  const yaml = require('js-yaml');
+  const closedLight = [];
+  const approvedLight = [];
+  if (fs.existsSync(epicsDir)) {
+    for (const epic of fs.readdirSync(epicsDir)) {
+      const bpRoot = path.join(epicsDir, epic, 'blueprints');
+      if (!fs.existsSync(bpRoot)) continue;
+      for (const bp of fs.readdirSync(bpRoot)) {
+        const indexAbs = path.join(bpRoot, bp, 'index.md');
+        if (!fs.existsSync(indexAbs)) continue;
+        const raw = fs.readFileSync(indexAbs, 'utf8');
+        const match = raw.match(/^---\n([\s\S]*?)\n---/);
+        if (!match) continue;
+        const data = yaml.load(match[1]);
+        const bouncer = data && data.bouncer;
+        if (!bouncer || bouncer.scale !== 'light') continue;
+        const rel = path.relative(root, indexAbs).split(path.sep).join('/');
+        if (bouncer.status === 'closed' || bouncer.status === 'partial_closed') {
+          closedLight.push({ rel, data });
+        }
+        if (bouncer.status === 'approved') approvedLight.push(rel);
+      }
+    }
+  }
+  assert.ok(closedLight.length >= 1, 'need at least one closed light blueprint');
+  assert.deepStrictEqual(approvedLight, []);
+  for (const entry of closedLight) {
+    const failures = [];
+    checkStructural({ data: entry.data, rel: entry.rel }, failures);
+    assert.deepStrictEqual(failures.filter((f) => f.code === 'S20').map((f) => f.message), [], entry.rel);
+  }
 });
 
 test('S27 supersedes missing or path arrays → pass; non-array and blank entries fail', () => {
@@ -1167,6 +1233,11 @@ test('S38: review_contract other than brief → is rejected', () => {
   }
   assert.deepStrictEqual(s38For({ review_contract: 'brief' }), []);
   assert.deepStrictEqual(s38For({}), []);
+});
+
+test('S38: complexity without review_contract brief → is rejected', () => {
+  const found = s38For({ complexity: 'low', review_scope: 'blueprint' });
+  assert.deepStrictEqual(found.map((f) => f.message), ['complexity requires review_contract brief']);
 });
 
 test('S38: review_contract on a light blueprint → is accepted', () => {

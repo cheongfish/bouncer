@@ -86,7 +86,7 @@ type Routing = {
   dependencies: number;
   modules: string[];
   riskPaths: RiskPath[];
-  recommendation: 'light-candidate' | 'full-candidate';
+  recommendation: 'low-candidate' | 'standard-candidate';
   reasons: string[];
 };
 
@@ -883,7 +883,7 @@ function detectCoupledPaths(repoRoot: string, tasks: { id: string; paths: string
 
 /**
  * commit task 요약으로 advisory routing을 만든다. 선택·승인은 하지 않고
- * recommendation/reasons만 낸다 — light 선언은 사용자 소유다.
+ * recommendation/reasons만 낸다 — complexity 선언은 사용자 소유다.
  *
  * @param {Array<{ paths: string[], dependsOn: string[] }>} taskList - 이미
  *   commit-only로 걸러진 task 입력. paths는 affected_paths, dependsOn은 depends_on
@@ -910,7 +910,7 @@ function summarizeRouting(taskList: RoutingTask[]): Routing {
   if (dependencies > 0) reasons.push('dependencies');
   if (modules.length >= 3) reasons.push('modules');
   if (riskPaths.length > 0) reasons.push('riskPaths');
-  // empty는 full 트리거가 아니다. 근거만 남기고 light-candidate를 유지한다.
+  // empty는 standard 트리거가 아니다. 근거만 남기고 low-candidate를 유지한다.
   if (allPaths.length === 0) reasons.push('affected-paths-empty');
 
   const recommendation = (
@@ -918,7 +918,7 @@ function summarizeRouting(taskList: RoutingTask[]): Routing {
     || dependencies > 0
     || modules.length >= 3
     || riskPaths.length > 0
-  ) ? 'full-candidate' : 'light-candidate';
+  ) ? 'standard-candidate' : 'low-candidate';
 
   return {
     advisory: true,

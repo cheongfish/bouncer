@@ -27,12 +27,13 @@ function writeDoc(repo, rel, bouncer, extra = {}) {
 
 // 기본 픽스처: 모두 draft, full, context-review accepted.
 function makeRepo({
-  scale, contextReview = 'accepted', epic = 'draft', t2 = 'draft', reviewContract, prerequisites,
+  scale, complexity, contextReview = 'accepted', epic = 'draft', t2 = 'draft', reviewContract, prerequisites,
 } = {}) {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-approve-')));
   writeDoc(repo, EPIC_REL, { status: epic });
   writeDoc(repo, BP_REL, {
-    status: 'draft', ...(scale ? { scale } : {}), ...(reviewContract ? { review_contract: reviewContract } : {}),
+    status: 'draft', ...(scale ? { scale } : {}), ...(complexity ? { complexity } : {}),
+    ...(reviewContract ? { review_contract: reviewContract } : {}),
     ...(prerequisites ? { prerequisites } : {}),
   });
   if (contextReview) writeDoc(repo, CR_REL, { status: contextReview });
@@ -99,15 +100,15 @@ test('epic 이미 approved → epic unchanged, 나머지 전이', () => {
   assert.deepEqual(res.changed, [BP_REL, T1_REL, T2_REL].sort());
 });
 
-test('light blueprint와 context-review 부재 → 전이 성공', () => {
-  const repo = makeRepo({ scale: 'light', contextReview: null });
+test('표식 없는 blueprint와 context-review 부재 → plan-approve-context-review', () => {
+  const repo = makeRepo({ contextReview: null });
   const r = approve(repo);
-  assert.strictEqual(r.code, 0, r.out);
-  assert.strictEqual(statusOf(repo, BP_REL), 'approved');
+  assert.strictEqual(r.code, 1);
+  assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-context-review');
 });
 
 test('표식 light blueprint와 context-review pending → plan-approve-context-review, 모든 파일 바이트 불변', () => {
-  const repo = makeRepo({ scale: 'light', reviewContract: 'brief', contextReview: 'pending' });
+  const repo = makeRepo({ reviewContract: 'brief', contextReview: 'pending' });
   const before = snapshot(repo);
   const r = approve(repo);
   assert.strictEqual(r.code, 1);
@@ -116,14 +117,14 @@ test('표식 light blueprint와 context-review pending → plan-approve-context-
 });
 
 test('표식 light blueprint와 context-review.md 부재 → plan-approve-context-review', () => {
-  const repo = makeRepo({ scale: 'light', reviewContract: 'brief', contextReview: null });
+  const repo = makeRepo({ reviewContract: 'brief', contextReview: null });
   const r = approve(repo);
   assert.strictEqual(r.code, 1);
   assert.strictEqual(JSON.parse(r.out).reason, 'plan-approve-context-review');
 });
 
 test('표식 light blueprint와 accepted context-review → 전이 성공', () => {
-  const repo = makeRepo({ scale: 'light', reviewContract: 'brief' });
+  const repo = makeRepo({ reviewContract: 'brief' });
   const r = approve(repo);
   assert.strictEqual(r.code, 0, r.out);
   assert.strictEqual(statusOf(repo, BP_REL), 'approved');
@@ -310,7 +311,8 @@ const SLUG_BP = `${SLUG_EPIC}/blueprints/registry-gates`;
 function makeSlugRepo() {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-plan-approve-')));
   writeDoc(repo, `${SLUG_EPIC}/index.md`, { status: 'draft' });
-  writeDoc(repo, `${SLUG_BP}/index.md`, { status: 'draft', scale: 'light' });
+  writeDoc(repo, `${SLUG_BP}/index.md`, { status: 'draft', scale: 'full' });
+  writeDoc(repo, `${SLUG_BP}/context-review.md`, { status: 'accepted' });
   writeDoc(repo, `${SLUG_BP}/tasks/001/tasks.md`, { status: 'draft', execution_kind: 'commit' });
   return repo;
 }
@@ -459,3 +461,32 @@ for (const [name, [prerequisites, expectedCause]] of Object.entries(FORMAT_CASES
     rels.forEach((rel, i) => assert.ok(before[i].equals(fs.readFileSync(path.join(repo, rel))), rel));
   });
 }
+
+const { computePlanSnapshot } = require('../packages/cli/dist/plan-snapshot');
+
+function setTaskRisk(repo, flags) {
+  const abs = path.join(repo, T1_REL);
+  const doc = readDoc(abs);
+  doc.data.bouncer.review_risk = flags;
+  fs.writeFileSync(abs, `---\n${yaml.dump(doc.data)}---\n${doc.body}`);
+}
+
+test('low plan review_risk edit → computePlanSnapshot digest changes; standard digest stays', () => {
+  const low = makeRepo({ complexity: 'low', reviewContract: 'brief' });
+  setTaskRisk(low, ['credential']);
+  const lowFirst = computePlanSnapshot({ repoRoot: low, blueprintDir: BP });
+  assert.strictEqual(lowFirst.ok, true);
+  setTaskRisk(low, ['public_interface']);
+  const lowSecond = computePlanSnapshot({ repoRoot: low, blueprintDir: BP });
+  assert.notStrictEqual(lowSecond.digest, lowFirst.digest);
+  setTaskRisk(low, ['public_interface']);
+  const lowSame = computePlanSnapshot({ repoRoot: low, blueprintDir: BP });
+  assert.strictEqual(lowSame.digest, lowSecond.digest);
+
+  const std = makeRepo({ complexity: 'standard', reviewContract: 'brief' });
+  setTaskRisk(std, ['credential']);
+  const stdFirst = computePlanSnapshot({ repoRoot: std, blueprintDir: BP });
+  setTaskRisk(std, ['public_interface']);
+  const stdSecond = computePlanSnapshot({ repoRoot: std, blueprintDir: BP });
+  assert.strictEqual(stdSecond.digest, stdFirst.digest);
+});

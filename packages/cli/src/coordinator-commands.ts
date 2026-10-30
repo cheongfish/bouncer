@@ -26,7 +26,7 @@ import reviewPolicy = require('./review-policy');
 // worker-model 기록의 관점 소속 검사와 `next` 문구가 validate-sections와 같은 정본을 쓴다.
 const { REVIEW_PERSPECTIVE } = reviewPolicy;
 import type {
-  ReportOutcome, PromoteStopReason, PromotionRecord, Task,
+  ReportOutcome, Task,
   FailureEvidence, Exec, VerificationRunner, Ledger,
 } from './execution-contracts';
 import type {
@@ -44,7 +44,6 @@ const {
   atomicWrite, loadLedgerBytes, loadLedger, ledgerBytesHash, writeOwnedLedger,
   projectCheckpoint, assertLeaseShape, readyWaveGated, maxParallelForRead,
   withCheckpoint, openLedgerFenced, recheckLedgerCheckpoint,
-  ledgerModeOf,
 } = coordinatorLedger;
 import coordinatorRepair = require('./coordinator-repair');
 import coordinatorWorker = require('./coordinator-worker');
@@ -63,8 +62,7 @@ const {
 } = coordinatorVerification;
 import coordinatorPrepare = require('./coordinator-prepare');
 const {
-  worktreeDiffSha, openPromoteTask, promoteFingerprintTarget, prepareCoordinator,
-  coordinateBootstrap, salvageRevokedWorker,
+  prepareCoordinator, coordinateBootstrap, salvageRevokedWorker,
 } = coordinatorPrepare;
 
 /**
@@ -73,7 +71,7 @@ const {
  */
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'revoke', 'promote-stop', 'session-open', 'worker-model', 'worker-tokens',
+  'repair', 'integrate', 'partial-close', 'revoke', 'session-open', 'worker-model', 'worker-tokens',
   'reverify', 'note', 'uncommit',
 ]);
 
@@ -82,11 +80,6 @@ const LEDGER_FENCED_COMMANDS = new Set([
 const REPORT_OUTCOMES = [
   'accepted', 'rework', 'scope_revision', 'task_change', 'blocked',
 ] as const satisfies readonly ReportOutcome[];
-
-/** light 승격 정지 사유. CLI·원장·힌트가 같은 다섯 값만 쓴다. */
-const PROMOTE_STOP_REASONS = [
-  'security-risk', 'out-of-scope', 'task-split', 'interface-semantics', 'reviewer-wider-scope',
-] as const satisfies readonly PromoteStopReason[];
 
 type DispatchDecision = {
   task: string; kind: 'dispatch'; attempt: number; task_brief_hash: string;
@@ -450,14 +443,6 @@ function integrateTask({
   }
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
 
-  // fan-in·verification 경로보다 앞에서 막아 후보 worktree를 만들지 않는다.
-  {
-    const peekStopped = loadLedger(integration.ledgerFile);
-    if (peekStopped?.status === 'promotion_stopped') {
-      return { ok: false, reason: 'promotion-stopped' };
-    }
-  }
-
   // verification --task는 기존 두 단계 경로. commit/wave는 candidate fan-in.
   if (task) {
     const peek = loadLedger(integration.ledgerFile);
@@ -774,10 +759,6 @@ function coordinateReverify(ctx: CoordinateCtx): CoordinateResult {
   const { cwd, exec, writeLedger, deps, integration } = ctx;
   if (task === undefined || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  // integrate와 같이 승격이 멈춘 drive에서는 검증을 시작하지 않는다.
-  if (loadLedger(integration.ledgerFile)?.status === 'promotion_stopped') {
-    return { ok: false, reason: 'promotion-stopped' };
-  }
   return integrateVerificationTask({
     repoRoot, blueprint, task, ledgerPath, ledgerHash, exec, writeLedger, deps, integration, reverify: true,
   }) as CoordinateResult;
@@ -818,69 +799,6 @@ function coordinateSupplementDone(ctx: CoordinateCtx): CoordinateResult {
 }
 
 /**
- * `promote-stop`: light 원장을 promotion_stopped로 멈춘다. 멱등 재실행만 허용하는 유일한 fence mutation이라
- * promotion_stopped 거절보다 먼저 호출된다.
- *
- * @param {LockedCtx} ctx - 공통 준비가 끝난 handler 문맥
- * @returns {CoordinateResult} 명령 결과. 거절은 `ok: false`와 reason
- */
-function coordinatePromoteStop(ctx: LockedCtx): CoordinateResult {
-  const { cwd, exec, integration, ledger, commitWrite } = ctx;
-  const { command, repoRoot, blueprint, summary, reason } = ctx.args;
-  ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  if (ledgerModeOf(ledger) !== 'light') {
-    return { ok: false, reason: 'promote-stop-requires-light' };
-  }
-  if (typeof reason !== 'string'
-    || !(PROMOTE_STOP_REASONS as readonly string[]).includes(reason)) {
-    return { ok: false, reason: 'promote-reason-invalid' };
-  }
-  if (typeof summary !== 'string' || summary.trim() === '') {
-    return { ok: false, reason: 'summary-required' };
-  }
-  const promoteReason = reason as PromoteStopReason;
-  const promoteSummary = summary.trim();
-  if (ledger.status === 'promotion_stopped') {
-    const existing = ledger.promotion;
-    if (existing
-      && existing.reason === promoteReason
-      && existing.summary === promoteSummary) {
-      return withCheckpoint({
-        ok: true as const, command, status: 'promotion_stopped' as const,
-        promotion: existing,
-      }, ledger, integration.ledgerFile);
-    }
-    return { ok: false, reason: 'promotion-already-stopped' };
-  }
-  const openTask = openPromoteTask(ledger.tasks);
-  if (!openTask) return { ok: false, reason: 'task-outside-blueprint' };
-  // worker 기준(없으면 prepare 전 integration) fingerprint. promote-light와 같은 헬퍼·기준이다.
-  const target = promoteFingerprintTarget(exec, integration.integrationPath, ledger, openTask);
-  if (!target.ok) {
-    return { ok: false, reason: target.reason, workerPath: target.workerPath };
-  }
-  // fanin·terminalFailure는 건드리지 않는다. 정지는 promotion 필드만으로 기록한다.
-  const promotion: PromotionRecord = {
-    reason: promoteReason,
-    summary: promoteSummary,
-    task: openTask.id,
-    diff_sha: worktreeDiffSha(exec, target.cwd, target.base),
-  };
-  if (typeof openTask.verify_evidence_id === 'string' && openTask.verify_evidence_id !== '') {
-    promotion.verify_evidence_id = openTask.verify_evidence_id;
-  }
-  if (typeof openTask.review_evidence_id === 'string' && openTask.review_evidence_id !== '') {
-    promotion.review_evidence_id = openTask.review_evidence_id;
-  }
-  ledger.promotion = promotion;
-  ledger.status = 'promotion_stopped';
-  { const lost = commitWrite(); if (lost) return lost; }
-  return withCheckpoint({
-    ok: true as const, command, status: 'promotion_stopped' as const, promotion,
-  }, ledger, integration.ledgerFile);
-}
-
-/**
  * `session-open`: 세션 경계 표지를 원장에 덧붙인다. 다른 fenced mutation과 같이 fence·잠금 안에서 쓰고
  * 새 checkpoint를 돌려줘 root가 곧바로 `coordinate next`를 이어 부를 수 있게 한다.
  *
@@ -891,10 +809,9 @@ function coordinateSessionOpen(ctx: LockedCtx): CoordinateResult {
   const { cwd, exec, integration, ledger, commitWrite } = ctx;
   const { command, repoRoot, blueprint } = ctx.args;
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  // 표식 있는 light도 full과 같이 세션 경계를 남긴다. 옛 inline light는 openLedgerFenced가
-  // light-ledger-legacy로 먼저 거절한다.
-  // promotion_stopped는 위에서 이미 거절됐다. 남은 비활성 상태(부분 종료·사용자 확인 대기)에서
-  // 새 세션을 열면 닫힌 drive를 되살리는 것처럼 보이므로 원장을 바꾸지 않고 막는다.
+  // 비활성 상태(부분 종료·사용자 확인 대기)에서 새 세션을 열면 닫힌 drive를
+  // 되살리는 것처럼 보이므로 원장을 바꾸지 않고 막는다. mode:light 원장은
+  // openLedgerFenced가 light-mode-removed로 먼저 거절한다.
   if (ledger.status !== undefined && ledger.status !== 'active') {
     return { ok: false, reason: 'ledger-not-active' };
   }
@@ -925,7 +842,7 @@ function coordinateNote(ctx: LockedCtx): CoordinateResult {
   const { cwd, integration, ledger, commitWrite } = ctx;
   const { command, repoRoot, blueprint, task, text } = ctx.args;
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
-  // 표식 light도 note를 받는다. 옛 inline은 fence 단계에서 light-ledger-legacy다.
+  // mode:light 원장은 fence에서 light-mode-removed로 먼저 거절한다.
   if (ledger.status !== undefined && ledger.status !== 'active') {
     return { ok: false, reason: 'ledger-not-active' };
   }
@@ -1206,18 +1123,6 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
   const fileItems = checkedReport;
   // 구 plugin inline 흐름을 잡는 tripwire. worker-model은 증명이 아니라 root가 넘긴 기록이다.
   // attempt와 결정을 짝짓지 않고, 같은 task의 implementer 결정 수와 dispatch.attempt만 비교한다.
-  if (ledgerModeOf(ledger) === 'light' && outcome === 'accepted') {
-    const implementerRecords = (ledger.decisions || []).filter((decision) => (
-      decision && typeof decision === 'object'
-      && (decision as { kind?: string }).kind === 'worker-model'
-      && (decision as { role?: string }).role === 'implementer'
-      && typeof (decision as { task?: unknown }).task === 'string'
-      && (decision as { task: string }).task === task
-    ));
-    if (implementerRecords.length < item.dispatch.attempt) {
-      return { ok: false, reason: 'light-implementer-record-missing' };
-    }
-  }
   const expected = {
     attempt: item.dispatch.attempt, task_brief_hash: item.dispatch.task_brief_hash,
   };
@@ -1260,7 +1165,7 @@ function coordinateReport(ctx: TaskCtx): CoordinateResult {
   if (fileItems && outcome === 'accepted' && (item.execution_kind || 'commit') !== 'verification'
     && verificationPolicyAt(integration.integrationPath, blueprint) === 'scoped_terminal') {
     const mismatch = scopedTestReportFailure({
-      integrationPath: integration.integrationPath, blueprint, items: [item], light: false,
+      integrationPath: integration.integrationPath, blueprint, items: [item],
     });
     if (mismatch) {
       return {
@@ -1539,7 +1444,7 @@ const PRE_LOCK_HANDLERS = new Map<string, (ctx: CoordinateCtx) => CoordinateResu
   ['prepare', coordinatePrepare],
 ]);
 
-/** lock 안·task 조회 전에 끝까지 처리하는 handler. `promote-stop`은 별도로 promotion_stopped 거절 앞에서 돈다. */
+/** lock 안·task 조회 전에 끝까지 처리하는 handler. */
 const LOCKED_HANDLERS = new Map<string, (ctx: LockedCtx) => CoordinateResult>([
   ['session-open', coordinateSessionOpen],
   ['note', coordinateNote],
@@ -1598,7 +1503,6 @@ const LEASE_CHECKED_COMMANDS = new Set(['dispatch', 'report', 'record']);
  * @param {string} [opts.ledgerPath] - fence 원장 상대 경로
  * @param {string} [opts.ledgerHash] - fence sha256
  * @param {boolean} [opts.userConfirmed] - partial-close 사용자 확인
- * @param {boolean} [opts.promoteLight] - promotion_stopped light 원장을 full로 전환
  * @param {object} [opts.deps] - exec·verify·원장·handoff 쓰기 주입
  * @returns {object} 성공 시 ok:true와 명령별 필드, 실패 시 ok:false와 reason
  *   prepare는 worktree 생성·seed를 원장 잠금 밖에서 돌리고, 실패하면 이번 호출이
@@ -1642,13 +1546,6 @@ function coordinate(args: CoordinateArgs) {
     );
     const locked: LockedCtx = { ...ctx, ledger, ledgerBytes, commitWrite };
 
-    // promote-stop만 멱등 재실행을 허용한다. 그 외 fence mutation은 정지 뒤 거절해
-    // 스냅샷(reason·diff·증적)이 바뀌지 않게 한다. 해제는 없다 — full 재계획은
-    // 새 bootstrap/current --set이다.
-    if (command === 'promote-stop') return coordinatePromoteStop(locked);
-    if (ledger.status === 'promotion_stopped') {
-      return { ok: false, reason: 'promotion-stopped' };
-    }
     const lockedHandler = LOCKED_HANDLERS.get(command);
     if (lockedHandler) return lockedHandler(locked);
     if (command === 'critical-recovery') {
@@ -1660,19 +1557,8 @@ function coordinate(args: CoordinateArgs) {
     const item = ledger.tasks.find((x) => x.id === task);
     if (!item) return { ok: false, reason: 'task-outside-blueprint' };
     const taskCtx: TaskCtx = { ...locked, item, task };
-    // light에서 integration cwd로 task 명령을 부르는 옛 inline 호출을 먼저 끊는다.
     // lease·worker 가드보다 앞이어야 lease 인자 오류로 reason이 가려지지 않는다.
     // record는 guardWorkerDispatch를 거치지 않으므로 이 공통 위치가 필요하다.
-    if ((command === 'dispatch' || command === 'report' || command === 'record' || command === 'uncommit')
-      && ledgerModeOf(ledger) === 'light') {
-      try {
-        if (fs.realpathSync(cwd) === fs.realpathSync(integration.integrationPath)) {
-          return { ok: false, reason: 'light-inline-removed' };
-        }
-      } catch (_error) {
-        // realpath 실패는 inline 판정이 아니다. 아래 worker 가드가 경로 문제를 본다.
-      }
-    }
     if (LEASE_CHECKED_COMMANDS.has(command)) {
       const leaseRejected = checkTaskLease(taskCtx);
       if (leaseRejected) return leaseRejected;
@@ -1844,42 +1730,30 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Run `bouncer coordinate status` and retry the same command from that '
       + 'checkpoint; do not write the ledger by hand.',
   },
-  'ledger-mode-mismatch': {
-    cause: 'The existing ledger mode does not match the blueprint scale for this bootstrap.',
-    next: 'Use a matching scale (light ledger with scale light, full with non-light), or start a new blueprint drive.',
+  'light-mode-removed': {
+    cause: 'This CLI no longer runs scale light or mode:light ledgers.',
+    next: '1. finish the drive with the previous CLI and run /bouncer-finalize before upgrading. '
+      + 'Blueprint closed is set only at finalize; ending the drive without that leaves the document approved, '
+      + 'so the new CLI S20 still'
+      + ' blocks it. If this CLI is already in use, follow the steps below. 2. Preserve each worktree from the main'
+      + ' checkout using git worktree list (integration is .worktrees/<epic>/<bp>/integration; workers are'
+      + ' workers/<ddd> under the same directory). coordinate status runs only from the integration cwd and the'
+      + ' response has no integrationPath, so it is not the source. Copy each worktree into a directory <dir> outside'
+      + ' that worktree: commits with git -C <path> bundle create <dir>/<name>.bundle <branch> (branch from git -C'
+      + ' <path> branch --show-current), uncommitted with git -C <path> diff, git -C <path> diff --staged, and copies'
+      + ' of files from git -C <path> ls-files --others --exclude-standard. From integration also copy the gitignored'
+      + ' ledger <integration>/.bouncer/runtime/coordinator.json into <dir>. There is no automatic preserve. Use git'
+      + ' bundle for commits. 3. Discard only after explicit approval — discard cannot be undone. 4. After confirming'
+      + ' <dir> has the bundle and coordinator.json copy, git worktree remove --force <path> for integration and each'
+      + ' worker, then git worktree prune. git branch -D <branch> only with a separate user approval; never branch -D'
+      + ' without a bundle (commits on the branch remain only in the bundle). 5. Replan with /bouncer-plan and declare'
+      + ' complexity. To rerun in the same blueprint directory, step 4 must have also deleted the integration and'
+      + ' worker branches after approval; leftover branches make bootstrap branch-conflict. To keep the branches,'
+      + ' replan under a new blueprint slug.',
   },
   'ledger-not-active': {
     cause: 'The ledger is partial_closed or awaiting_confirmation, so a new coordinator session cannot open.',
     next: 'Report the ledger status to the user; do not retry `bouncer coordinate session-open` on this blueprint.',
-  },
-  'light-requires-serial': {
-    cause: 'Scale light requires a serial commit chain (first depends_on [], each later commit depends only on '
-      + 'the previous commit). scoped_terminal also needs exactly one terminal verification that depends on '
-      + 'every commit in that chain.',
-    next: 'Replan as a serial chain, or set scale to full and bootstrap again.',
-  },
-  'light-ledger-legacy': {
-    cause: 'This light ledger has no light_runner: subagent mark and still has a non-integrated task, so it is '
-      + 'an in-progress legacy inline drive that this CLI no longer writes.',
-    next: '1. Preserve `git diff`, `git diff --staged`, and untracked files in the integration worktree. '
-      + '2. Ask the user whether to discard the drive; discard only after explicit approval (irreversible). '
-      + '3. Discard the integration worktree. '
-      + '4. Replan with `/bouncer-plan`, then run again. '
-      + 'The CLI only prints this guidance; it does not discard or delete anything itself.',
-  },
-  'light-scope-revision-requires-promotion': {
-    cause: 'A marked light ledger cannot revise task scope in place; scope changes need a full replan after promotion.',
-    next: '`coordinate promote-stop --reason out-of-scope`(또는 task-split)로 멈춘 뒤 full로 다시 계획',
-  },
-  'light-inline-removed': {
-    cause: 'A light ledger task command was invoked from the integration cwd; inline light implementation is gone.',
-    next: 'Align the plugin with this CLI version and implement via a subagent worker.',
-  },
-  'light-implementer-record-missing': {
-    cause: 'An accepted light report has fewer implementer worker-model decisions for this task than the '
-      + 'current dispatch attempt, so this CLI refuses to treat the attempt as subagent-implemented.',
-    next: 'If a subagent implementer did not implement this attempt, report rework instead of accepted and '
-      + 'dispatch the implementer. Record worker-model only for the implementer model that was actually dispatched.',
   },
   'verification-policy-invalid': {
     cause: 'The blueprint index declares a verification_policy value other than scoped_terminal.',
@@ -1953,52 +1827,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'Partial-close records a terminal failure and requires explicit user confirmation.',
     next: 'Review the main-checkout handoff, then retry `bouncer coordinate partial-close --user-confirmed`.',
   },
-  'promote-reason-invalid': {
-    cause: 'promote-stop reason must be one of the five light promotion enums.',
-    next: 'Retry with --reason security-risk, out-of-scope, task-split, '
-      + 'interface-semantics, or reviewer-wider-scope.',
-  },
-  'promote-stop-requires-light': {
-    cause: 'promote-stop applies only to a light ledger (mode: light).',
-    next: 'Do not call promote-stop on a full ledger; continue with the full coordinate path.',
-  },
-  'promote-light-requires-stopped': {
-    cause: 'The existing coordinator ledger is not a promotion_stopped light ledger.',
-    next: 'Stop the light drive with `bouncer coordinate promote-stop`, then rerun bootstrap with `--promote-light`.',
-  },
-  'promote-light-scale-light': {
-    cause: 'The main checkout blueprint still has light scale.',
-    next: 'Approve the full replan in the main checkout, then rerun `coordinate bootstrap --promote-light`.',
-  },
-  'promote-light-archive-exists': {
-    cause: 'A light promotion archive or patch already exists for this integration worktree.',
-    next: 'Inspect the existing promotion artifacts and recover them before retrying.',
-  },
-  'promotion-diff-drift': {
-    cause: 'The integration worktree no longer matches the diff recorded by promote-stop.',
-    next: 'Restore the stopped worktree to its recorded state or inspect it before retrying promotion.',
-  },
-  'promote-light-incomplete': {
-    cause: 'Promotion failed partway through; the response reports whether rollback restored the original state.',
-    next: 'Follow the returned recovery instructions before retrying bootstrap.',
-  },
-  'promote-light-worker-remains': {
-    cause: 'The full ledger and promotion patch were written, but the old light worker worktree could not be removed.',
-    next: '사용자 승인 뒤 `git worktree remove --force <path>`와 branch 삭제를 하고 `coordinate next`로 이어 간다.',
-  },
-  'promotion-already-stopped': {
-    cause: 'This light ledger is already promotion_stopped with a different reason or summary.',
-    next: 'Keep the recorded promotion snapshot; replan as full with a new bootstrap and '
-      + '`bouncer current --set` after the user approves.',
-  },
   'run-detached': {
     cause: 'This run was detached with `bouncer run detach`; its ledger is preserved but no longer driven.',
     next: 'Finalize with `bouncer current --set <blueprint>` then /bouncer-finalize, or plan new work; '
       + 'do not retry coordinate mutations on this blueprint.',
-  },
-  'promotion-stopped': {
-    cause: 'This light ledger was stopped for promotion; light mutations are refused.',
-    next: 'After the full replan is approved in the main checkout, run `bouncer coordinate bootstrap --promote-light`.',
   },
   'reason-required': {
     cause: 'Critical recovery requires a non-empty reason string.',

@@ -736,17 +736,16 @@ function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps, aff
 
 /**
  * integration checkout에 main의 계획 문서를 seed하고 manifest를 반환한다.
- * 기본 동작은 충돌을 막고, light 승격 호출만 이미 있는 계획 파일을 승인본으로 교체한다.
+ * 기본 동작은 충돌을 막는다. 이미 있는 계획 파일을 덮어쓰지 않는다.
  *
- * @param {object} opts - source·destination과 승격 전용 overwrite 선택
+ * @param {object} opts - source·destination
  * @param {string} opts.repoRoot - 승인된 계획 문서가 있는 main checkout
  * @param {unknown} opts.blueprintDir - blueprint 상대 경로
  * @param {string} opts.integrationPath - 계획 문서를 받을 integration checkout
- * @param {boolean} [opts.allowOverwrite] - true이면 기존 차이를 full 승격 seed가 덮어씀
  * @returns {object} 성공 시 seeded 경로·manifest·config, 실패 시 reason과 대상
  */
-function seedIntegration({ repoRoot, blueprintDir, integrationPath, allowOverwrite = false }: {
-  repoRoot: string; blueprintDir: unknown; integrationPath: string; allowOverwrite?: boolean;
+function seedIntegration({ repoRoot, blueprintDir, integrationPath }: {
+  repoRoot: string; blueprintDir: unknown; integrationPath: string;
 }) {
   const bp = toPosix(blueprintDir);
   const source = path.join(repoRoot, bp);
@@ -814,8 +813,7 @@ function seedIntegration({ repoRoot, blueprintDir, integrationPath, allowOverwri
     const current = fs.readFileSync(dst);
     const main = fs.readFileSync(path.join(repoRoot, rel));
     const head = gitApi.readHead(rel);
-    // full 재승격은 이미 멈춘 light 문서 상태를 승인된 main 계획으로 바꾸는 경로다.
-    if (!allowOverwrite && !current.equals(main) && !(head && current.equals(head))) conflicts.push(rel);
+    if (!current.equals(main) && !(head && current.equals(head))) conflicts.push(rel);
   }
   if (conflicts.length) return { ok: false, reason: 'seed-conflict', conflicts, targets };
   try {

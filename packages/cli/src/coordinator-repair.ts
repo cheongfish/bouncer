@@ -27,7 +27,7 @@ import type {
   Task, Ledger, FailureEvidence, RepairDecision, OutsideScopeDisposition, Exec, VerificationRunner,
 } from './execution-contracts';
 import coordinatorLedger = require('./coordinator-ledger');
-const { ledgerBytesHash, ledgerModeOf } = coordinatorLedger;
+const { ledgerBytesHash } = coordinatorLedger;
 import coordinatorGit = require('./coordinator-git');
 const { git } = coordinatorGit;
 import coordinatorVerification = require('./coordinator-verification');
@@ -310,17 +310,6 @@ function finalReviewGate(opts: {
   if (!finalReviewDiscoveryStored(integrationPath, blueprint)) return null;
   // supplement는 표식·mode와 무관하게 discovery 뒤에 닫힌다. 수정 기회는 repair 한 번뿐이다.
   if (supplement) return { ok: false, reason: 'final-review-single-round' };
-  // light는 문서 계약이 legacy로 접혀도 원장 mode로 한 번의 리뷰 repair를 연다. 새 경로는
-  // light 범위 개정과 같아 승격이 필요하고, 두 번째 repair는 brief와 같은 single-round다.
-  if (ledgerModeOf(ledger) === 'light') {
-    if (hasReviewRepairDecision(ledger.decisions) || rootReviewHasDelta(integrationPath, blueprint)) {
-      return { ok: false, reason: 'final-review-single-round' };
-    }
-    if (newPaths && newPaths.length > 0) {
-      return { ok: false, reason: 'light-scope-revision-requires-promotion' };
-    }
-    return null;
-  }
   if (contract !== 'brief') return { ok: false, reason: 'final-review-single-round' };
   if (hasReviewRepairDecision(ledger.decisions) || rootReviewHasDelta(integrationPath, blueprint)) {
     return { ok: false, reason: 'final-review-single-round' };
@@ -432,7 +421,6 @@ function supplementDone({
     const opened = support.openLedgerFenced({ ledgerFile, ledgerPath, ledgerHash });
     if (!opened.ok) return opened;
     const { ledger, bytes } = opened;
-    if (ledger.status === 'promotion_stopped') return { ok: false, reason: 'promotion-stopped' };
     const pending = latestSupplementDecision(ledger);
     // 거절은 검증 실행과 원장 쓰기보다 앞선다. 최종 discovery 뒤에는 보완 완료도 받지 않는다.
     const gate = finalReviewGate({ integrationPath, blueprint, ledger, supplement: true });
@@ -1512,7 +1500,7 @@ function coordinateCriticalRecovery(ctx: RepairTaskCtx, support: RepairSupport):
  */
 const FINAL_REVIEW_REJECTION_REASONS: readonly string[] = Object.freeze([
   schema.REVIEW_CONTRACT_INVALID_REASON, 'final-review-single-round', 'final-review-repair-do-not-touch',
-  'scope-do-not-touch-unreadable', 'light-scope-revision-requires-promotion',
+  'scope-do-not-touch-unreadable',
 ]);
 
 export = {

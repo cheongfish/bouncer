@@ -277,13 +277,13 @@ function readReportInput(roundFile: string): ReportInput | Fail {
  * 표식 없는 blueprint가 새 계약의 round를 몰래 쌓지 못하게 하기 위해서다. 상태를 바꾸지 않는다.
  *
  * @param {unknown} dispatchPayload - loadDispatch가 검증한 dispatch JSON
- * @param {'full' | 'light'} scale - loadDispatch가 검증한 scale. delta 관점 선택의 유일한 기준
+ * @param {'low' | 'standard'} complexity - loadDispatch가 검증한 complexity. delta 관점 선택의 유일한 기준
  * @param {number} priorRounds - 이미 기록된 round 수(0이면 discovery, 1이면 delta)
  * @param {Record<string, unknown>} round - 보고의 round 객체
  * @returns {Fail | null} 어긋나면 context-review-input-invalid, 맞으면 null
  */
 function checkRoundPerspectives(
-  dispatchPayload: unknown, scale: 'full' | 'light', priorRounds: number, round: Record<string, unknown>,
+  dispatchPayload: unknown, complexity: 'low' | 'standard', priorRounds: number, round: Record<string, unknown>,
 ): Fail | null {
   const next = 'set round.perspectives names to the dispatch perspectives contract';
   const raw = round.perspectives;
@@ -301,8 +301,8 @@ function checkRoundPerspectives(
     return same ? null : fail('context-review-input-invalid',
       `round 1 perspectives ${names.join(',')} != dispatch perspectives ${expected.join(',')}`, next);
   }
-  // delta는 reviewer 하나: full은 combined, light는 verifiability. 관점 개수가 아니라 검증된 scale로 고른다.
-  const want = planDeltaPerspectiveOf(scale);
+  // delta는 reviewer 하나: standard는 combined, low는 verifiability. 관점 개수가 아니라 검증된 complexity로 고른다.
+  const want = planDeltaPerspectiveOf(complexity);
   return names.length === 1 && names[0] === want ? null
     : fail('context-review-input-invalid', `round ${priorRounds + 1} delta perspective must be ${want}`, next);
 }
@@ -408,7 +408,9 @@ function recordReport(input: {
         'set round.target.digest to the dispatch target.digest');
     }
     // 2-1. 관점 계약: 상태를 바꾸기 전에 거절해 round·cycle이 그대로 남게 한다.
-    const wrongPerspectives = checkRoundPerspectives(JSON.parse(dispatch.text), dispatch.scale, n, report.round);
+    const wrongPerspectives = checkRoundPerspectives(
+      JSON.parse(dispatch.text), dispatch.complexity, n, report.round,
+    );
     if (wrongPerspectives) return wrongPerspectives;
     // 3. 이전 보고와 합쳐 ID별 최신 처분을 만든다. closure면 projection 검사까지.
     const folded = foldReports(ctx, repoRoot, cycle.active_reports);

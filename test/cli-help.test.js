@@ -63,7 +63,7 @@ test('usage → 명령별 형식 문구를 나열한다', () => {
     /commit-guard --command-stdin \[--repo <dir>\]/,
     /task --blueprint <dir> --id <ddd>/,
     /context-review --blueprint <dir>/,
-    /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--scale light\|full\]/,
+    /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--complexity low\|standard\] \[--scale full\]/,
     /graph-sync Rebuild stale graphify source \+ test graphs/,
     /run\s+preflight --blueprint <dir>/,
     /detach --blueprint <dir> --yes \[--reason <text>\]/,
@@ -225,7 +225,7 @@ test('subcommand 없는 review-dispatch → stderr에 exit 2를 낸다', () => {
 const COORDINATE_SUBCOMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
-  'promote-stop', 'session-open', 'worker-model', 'worker-tokens', 'note', 'uncommit',
+  'session-open', 'worker-model', 'worker-tokens', 'note', 'uncommit',
 ];
 
 test('coordinate <sub> --help와 -h → 그 subcommand usage를 stdout에 출력한다', () => {
@@ -242,10 +242,11 @@ test('coordinate <sub> --help와 -h → 그 subcommand usage를 stdout에 출력
   }
 });
 
-test('coordinate bootstrap --help → documents light promotion flag', () => {
+test('coordinate bootstrap --help → omits removed promotion flags', () => {
   const r = capture(['coordinate', 'bootstrap', '--help']);
   assert.strictEqual(r.code, 0);
-  assert.match(r.out, /--promote-light/);
+  assert.doesNotMatch(r.out, /--promote-light/);
+  assert.doesNotMatch(r.out, /promote-stop/);
 });
 
 test('coordinate next --help → 플래그, action, 응답 필드를 나열한다', () => {

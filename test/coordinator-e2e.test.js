@@ -1150,7 +1150,7 @@ function makeScopedRepo(epicNo, { light = false } = {}) {
   ensureEpicIndexEntry({ repoRoot: repo, epicId: epicNo, name: 'scoped', description: 'd' });
   writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
     id: '001', ...ids, status: 'approved', commit_type: 'feat', review_scope: 'blueprint',
-    verification_policy: 'scoped_terminal', ...(light ? { scale: 'light' } : {}),
+    verification_policy: 'scoped_terminal', 
   }, '# Blueprint\n\n## Intent\n- 구현은 전용 명령, 전체 검증은 종단에서 한 번\n');
   if (light) {
     writePlanDoc(repo, `${blueprint}/review.md`, 'bouncer.review', {
@@ -1342,7 +1342,7 @@ test('scoped_terminal light drive → 구현 하나 통합까지 runner 0회, �
 
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  assert.strictEqual(boot.mode, 'light');
+  assert.strictEqual(boot.mode, 'full');
   const integrationPath = boot.integrationPath;
   assert.deepStrictEqual(boot.ready, ['001']);
 
@@ -1424,15 +1424,15 @@ test('scoped_terminal light drive → 구현 하나 통합까지 runner 0회, �
   assert.strictEqual(done.action, 'done', JSON.stringify(done));
 });
 
-test('scoped_terminal light bootstrap → 구현 둘이거나 종단이 없으면 light-requires-serial로 거절', () => {
+test('scoped_terminal scale light bootstrap → light-mode-removed', () => {
   const { repo, blueprint } = makeScopedRepo('094', { light: true });
-  // 종단 node를 지우면 구현 하나뿐인 scoped light가 되어 자격이 없다.
-  fs.rmSync(path.join(repo, blueprint, 'tasks/002'), { recursive: true });
+  const idx = path.join(repo, blueprint, 'index.md');
+  fs.writeFileSync(idx, fs.readFileSync(idx, 'utf8').replace('review_scope: blueprint', 'scale: light\n  review_scope: blueprint'));
   git(repo, ['add', '-A']);
-  git(repo, ['commit', '-m', 'drop terminal']);
+  git(repo, ['commit', '-m', 'scale light']);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, false, JSON.stringify(boot));
-  assert.strictEqual(boot.reason, 'light-requires-serial');
+  assert.strictEqual(boot.reason, 'light-mode-removed');
 });
 
 /**
@@ -1452,7 +1452,7 @@ function makeTwoCommitLightRepo(epicNo) {
   ensureEpicIndexEntry({ repoRoot: repo, epicId: epicNo, name: 'scoped-two', description: 'd' });
   writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
     id: '001', ...ids, status: 'approved', commit_type: 'feat', review_scope: 'blueprint',
-    verification_policy: 'scoped_terminal', scale: 'light',
+    verification_policy: 'scoped_terminal', scale: 'full',
   }, '# Blueprint\n\n## Intent\n- 두 commit 직렬 light\n');
   writePlanDoc(repo, `${blueprint}/review.md`, 'bouncer.review', {
     id: 'REVIEW-001', ...ids, status: 'pending', review: { required: true },
@@ -1492,7 +1492,7 @@ test('two-commit serial light drive via advance → no task review and exactly o
   });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  assert.strictEqual(boot.mode, 'light');
+  assert.strictEqual(boot.mode, 'full');
   const integrationPath = boot.integrationPath;
   const fileFor = { '001': 'src/alpha.js', '002': 'src/beta.js' };
   const stops = [];
@@ -1597,7 +1597,7 @@ test('light single-task drive → worker worktree로 prepare부터 done까지 �
   ensureEpicIndexEntry({ repoRoot: repo, epicId: '089', name: 'e2e-light', description: 'd' });
   writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
     id: '001', epic_id: '089', blueprint_id: '001', status: 'approved',
-    commit_type: 'feat', scale: 'light', review_scope: 'blueprint',
+    commit_type: 'feat', scale: 'full', review_scope: 'blueprint',
   }, '# Blueprint\n\n## Intent\n- light worker drive를 돌린다\n');
   writePlanDoc(repo, `${blueprint}/review.md`, 'bouncer.review', {
     id: 'REVIEW-001', epic_id: '089', blueprint_id: '001', status: 'pending',
@@ -1617,7 +1617,7 @@ test('light single-task drive → worker worktree로 prepare부터 done까지 �
 
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  assert.strictEqual(boot.mode, 'light');
+  assert.strictEqual(boot.mode, 'full');
   const integrationPath = boot.integrationPath;
 
   const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
@@ -1712,7 +1712,7 @@ test('light single-task drive → worker worktree로 prepare부터 done까지 �
   assert.strictEqual(sourceStatus(repo), '');
 });
 
-test('옛 light 원장에서 advance → light-ledger-legacy이고 executed가 비어 있음', () => {
+test('옛 light 원장에서 advance → light-mode-removed이고 executed가 비어 있음', () => {
   const { advance } = require('../packages/cli/dist/coordinate-advance');
   const epic = '.bouncer/context/epics/089-e2e';
   const blueprint = `${epic}/blueprints/002-legacy-advance`;
@@ -1721,7 +1721,7 @@ test('옛 light 원장에서 advance → light-ledger-legacy이고 executed가 �
   ensureEpicIndexEntry({ repoRoot: repo, epicId: '089', name: 'e2e-legacy', description: 'd' });
   writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
     id: '002', epic_id: '089', blueprint_id: '002', status: 'approved',
-    commit_type: 'feat', scale: 'light', review_scope: 'blueprint',
+    commit_type: 'feat', scale: 'full', review_scope: 'blueprint',
   }, '# Blueprint\n');
   writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
     id: 'TASKS-001', epic_id: '089', blueprint_id: '002', status: 'ready',
@@ -1738,6 +1738,7 @@ test('옛 light 원장에서 advance → light-ledger-legacy이고 executed가 �
   // 표식을 지워 옛 inline 원장으로 만든다.
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.mode = 'light';
   delete ledger.light_runner;
   fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
   const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
@@ -1751,7 +1752,7 @@ test('옛 light 원장에서 advance → light-ledger-legacy이고 executed가 �
     },
   });
   assert.strictEqual(out.ok, false, JSON.stringify(out));
-  assert.strictEqual(out.reason, 'light-ledger-legacy');
+  assert.strictEqual(out.reason, 'light-mode-removed');
   assert.deepStrictEqual(out.executed, []);
 });
 

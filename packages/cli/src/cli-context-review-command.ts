@@ -121,7 +121,7 @@ Allowed values:
   perspectives[].name (also finding category): ${CONTEXT_REVIEW_PERSPECTIVE.join('|')}
   perspectives dispatch (review_contract brief): discovery round lists every dispatch perspective, e.g.
   perspectives: [{ name: consistency, target_digest: <target.digest> }, ...];
-  delta lists combined (full) or verifiability (light)
+  delta lists combined (standard) or verifiability (low)
   disposition status (--dispositions): ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
   --status: ${ALLOWED_STATUS.join('|')}
 
