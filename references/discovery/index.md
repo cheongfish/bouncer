@@ -91,7 +91,7 @@ In one clarifying pass, cover at least:
   decision the framing never showed as open.
 - Do not stop discovery solely because epic indexes or intent provenance are
   missing; record the gap and continue.
-- For batching independent questions, light declaration versus approval, and
+- For batching independent questions, complexity declaration versus approval, and
   step handoff, see `${BOUNCER_ROOT}/skills/bouncer-plan/references/roundtrip.md`.
 
 ## Return
@@ -112,4 +112,4 @@ Pass these named outputs to `/bouncer-plan` (do not persist them as new files):
   fields contains `file:line` evidence or `해당 없음: <이유>`; unresolved items
   remain listed until the controller closes them. Task ids are assigned later
   when step 3 maps areas to scaffolded commit tasks. Do not persist this handoff
-  as a file. For a light plan, pass `Evidence` as empty.
+  as a file.

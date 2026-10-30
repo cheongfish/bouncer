@@ -109,9 +109,9 @@
       "when": "Use suggested free three-digit IDs from bouncer plan inspect. task_facts.reusable_draft is null, so an existing draft is never reused; stop for a human instead."
     },
     {
-      "gate": "plan.light_scope",
-      "answer": "full",
-      "when": "Do not declare this task light: it changes behavior across several modules and its tests."
+      "gate": "plan.complexity",
+      "answer": "standard",
+      "when": "Do not declare this task low: it changes behavior across several modules and its tests."
     },
     {
       "gate": "plan.verify_command",

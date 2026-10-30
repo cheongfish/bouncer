@@ -1,6 +1,6 @@
 # Plan roundtrip
 
-Rules for batching clarifying questions, separating light declaration from
+Rules for batching clarifying questions, separating complexity declaration from
 final approval, and limiting what each `/bouncer-plan` step carries forward.
 
 ## Questions to batch
@@ -19,8 +19,8 @@ prompts and required consent on separate turns (`${BOUNCER_ROOT}/rules/acq.md`).
 
 ## Declaration and approval
 
-Ask for the light-scope declaration before scaffolding. Take final approval
-(`plan.approval`) only after the plan documents are written. The light
+Ask for the complexity declaration before scaffolding. Take final approval
+(`plan.approval`) only after the plan documents are written. The complexity
 declaration is not approval of the authored plan. After drafting tasks, show
 `bouncer plan inspect --blueprint <dir>` routing signals as recommendation
 evidence only — do not treat them as selection or approval.

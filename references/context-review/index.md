@@ -1,6 +1,6 @@
 ---
 name: context-review
-description: "Use during /bouncer-plan on full plans and on light plans that carry the review_contract marker, or when named, to judge plan documents and record Findings without editing."
+description: "Use during /bouncer-plan, or when named, to judge plan documents and record Findings without editing."
 ---
 
 # Context review
@@ -15,15 +15,14 @@ the agent returns its Findings schema without taking record or status actions.
 
 ## When this applies
 
-**Full plans, and light plans that carry the marker.** This skill owns the
+**Every plan.** This skill owns the
 `context-review.md` rubric. A blueprint without the `bouncer.review_contract`
-marker keeps the earlier contract: a full one is judged by one `combined` call,
-and a light one has no `context-review.md` and no review, so approved scope
-rests on the user's confirmation of `affected_paths` and on G3–G5. A blueprint
-with the marker is judged by one call per perspective that
+marker keeps the earlier contract: it is judged by one `combined` call.
+A blueprint with the marker is judged by one call per perspective that
 `review-dispatch plan` returns in `perspectives`: `consistency`,
-`scope_minimality`, `verifiability`, `risk_security` on a full blueprint, and
-`verifiability` alone on a light one (scaffold creates its `context-review.md`).
+`scope_minimality`, `verifiability`, `risk_security` on complexity `standard`,
+and complexity low: verifiability, plus `risk_security` when any commit task
+declares `review_risk` (scaffold creates its `context-review.md`).
 Do not merge or split the returned perspectives.
 
 ## Steps
@@ -86,7 +85,7 @@ Do not merge or split the returned perspectives.
    assigned perspective and
    never sees another call's findings. When the CLI returns `ok: false` or
    the digest/document set drifts from the freeze, do not judge and do not
-   accept. In `delta`, one call (`combined` on a full blueprint, `verifiability` on a light one) certifies whether the previous findings are
+   accept. In `delta`, one call (`combined` on a standard blueprint, `verifiability` on complexity low) certifies whether the previous findings are
    resolved and whether the revision introduced a problem — once, regardless
    of strategy. When plan dispatch reports
    `follow_up: partial`, delta inputs are the new target, previous findings,

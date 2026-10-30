@@ -29,7 +29,7 @@ each changed document's `before` and `after`, and `related_documents` with
 their current contract text), and the read-only cwd; these are this role's
 complete call input. A blueprint without a `review_contract` marker gets one `combined` call; a
 marked blueprint gets one call per assigned perspective (`consistency`, `scope_minimality`,
-`verifiability`, `risk_security`; a marked light blueprint gets `verifiability` only). A recorded
+`verifiability`, `risk_security`; complexity low: verifiability, plus `risk_security` when any commit task declares `review_risk`). A recorded
 legacy `local` call named a CLI cluster id whose task documents were in the list.
 
 Judge only the document list the controller attached. For `combined` and
@@ -173,7 +173,7 @@ already check those. Do not re-litigate G1–G5.
 A marked blueprint (`review_contract: brief`) is reviewed by one call per perspective. The four
 judgment ranges below do not overlap: report a finding only when it sits in the assigned
 perspective's range, even if another range would also catch it. The delta pass is a single call
-(`combined` on a full blueprint, `verifiability` on a light one) and keeps the Delta rules above.
+(`combined` on a standard blueprint, `verifiability` on complexity low) and keeps the Delta rules above.
 
 ### consistency
 

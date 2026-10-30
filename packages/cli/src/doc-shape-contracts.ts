@@ -149,7 +149,7 @@ const PATH_CONTRACTS: Record<string, DocContract> = {
     },
   },
   'rules/plugin-root.md': { headings: { required: ['Master and product rules'] } },
-  'rules/planning.md': { headings: { required: ['Lightweight cycle'] } },
+  'rules/planning.md': { headings: { required: ['Complexity declaration'] } },
   // 102-001에서 execute 스킬의 reference가 run 소유로 옮겨졌다. coordinator 카드가 그
   // reference의 읽는 쪽이라, 링크가 실재하고 조건부 적재 문장 안에 있어야 한다.
   'references/coordinator-cards/implement.md': {

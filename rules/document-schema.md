@@ -59,8 +59,16 @@ is S31.
 When `bouncer.verify` is present, it is one executable command that proves the
 task's acceptance criteria, not prose such as "run tests." Blueprint
 `bouncer.commit_type` describes the intended commit category and
-`bouncer.scale` describes the approved planning path; neither is changed
-merely to make an implementation easier to fit. Epic and blueprint
+`bouncer.complexity` describes the confirmed planning intensity (`low` or
+`standard`; absence reads as `standard`); neither is changed
+merely to make an implementation easier to fit. Closed documents may still
+read `scale: light` as a historical value. Structural validation (S20) refuses
+an unclosed `scale: light`. Status-specific recovery: a `draft` is edited by
+the user to `scale: full` plus a `complexity` declaration, then the plan gate
+is re-run; an `approved` document is not edited in place — replan with
+`/bouncer-plan` for re-approval; any other unclosed status uses a new
+blueprint slug. `complexity` outside `low`|`standard` is S20. `complexity`
+without `review_contract: brief` is S38. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
 Blueprint `bouncer.area` and `bouncer.attribution` are optional: `area` names the
@@ -102,14 +110,13 @@ display and default sort order — not execution authority.
   absence means legacy. A `brief` blueprint's task-less final review uses the
   brief-compliance perspectives (`spec_scope`, `correctness_tests`, plus
   `security` only for `authentication`/`authorization`/`credential` risk) and
-  accepts a task-less `--mode delta`. New full blueprints are scaffolded with it;
-  a light blueprint may carry it too, and then its plan review is the single
-  `verifiability` perspective (`planReviewContractOf` reads the marker without
-  looking at `scale`; full plan review runs `consistency`, `scope_minimality`,
-  `verifiability`, `risk_security`). `reviewContractOf`, the run-side reader,
-  returns `'legacy'` for every light blueprint, so a marked light run is
-  reviewed like an unmarked light one. S38 checks the value only: any value
+  accepts a task-less `--mode delta`. New blueprints are scaffolded with it;
+  complexity `low` plan review is `verifiability` plus `risk_security` when any
+  commit task declares `review_risk` (`planReviewContractOf` reads the marker;
+  `standard` plan review runs `consistency`, `scope_minimality`,
+  `verifiability`, `risk_security`). S38 checks the value only: any value
   other than `brief`, or use without `review_scope: blueprint`, is S38.
+  `complexity` also requires `review_contract: brief` (S38).
 
 - Blueprint `bouncer.prerequisites` is optional: an array of
   `{blueprint, merged_commit}`. `blueprint` is the canonical repository-relative

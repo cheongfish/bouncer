@@ -1,4 +1,4 @@
-When deciding context review for a `scale: full` blueprint, or a light blueprint that carries `bouncer.review_contract: brief`, after `affected_paths` confirmation, read this reference.
+When deciding context review after `affected_paths` confirmation, read this reference.
 
 **Plugin-root shell contract.** See `${BOUNCER_ROOT}/rules/plugin-root.md`. Apply the shared
 model and host-fallback order in [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
@@ -53,8 +53,9 @@ any accepted-risk consent stay with the root.
    count: dispatch one `bouncer-context-reviewer` call with perspective
    `combined` (both rubrics) and record round 1 with the `combined` perspective. A marked
    blueprint is `strategy: perspectives`: dispatch one `bouncer-context-reviewer` call per
-   entry of the payload `perspectives` (full: `consistency`, `scope_minimality`,
-   `verifiability`, `risk_security`; light: `verifiability` only), all in one message so they
+   entry of the payload `perspectives` (standard: `consistency`, `scope_minimality`,
+   `verifiability`, `risk_security`; complexity low: verifiability, plus
+   `risk_security` when any commit task declares `review_risk`), all in one message so they
    run in parallel, and record all of them in round 1 as one `perspectives` list. A stored
    payload with `strategy: clustered` from an older cycle is still read, but never produced.
    Each call uses `fork_turns: "none"` (exclude full
@@ -118,8 +119,8 @@ any accepted-risk consent stay with the root.
    payload the last `start`/`record`/`restart` stored; `--previous` is
    required once the cycle exists) and copy the new
    `target.digest`. When `follow_up` is `partial`, dispatch one
-   `bouncer-context-reviewer` call (perspective `combined` on a full blueprint,
-   `verifiability` on a light one) in mode `delta` with `fork_turns: "none"`
+   `bouncer-context-reviewer` call (perspective `combined` on a standard blueprint,
+   `verifiability` on complexity low) in mode `delta` with `fork_turns: "none"`
    (exclude full conversation history) and only this controller input
    allowlist (the same fields for named, generic, inline and print calls):
    `{mode:"delta", target, previous_findings, changed_documents, revision_diff,

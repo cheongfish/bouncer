@@ -56,8 +56,6 @@ status published. Not a workflow entry point.
    invent a skip path):
    1. Choose question count in **1–10** (minimum 1; never 0). State the
       count and a one-line rationale (diff scale) before asking.
-      **경량 예외.** blueprint `index.md`의 `bouncer.scale`이 `light`면 질문 수를
-      1로 고정한다(1문항) — 1–10 판단을 건너뛴다.
    2. Each question has **three answer options**. Vary the correct-answer
       position across questions — do not park every key on the same slot
       (한 위치에 몰지 않는다). No RNG required.

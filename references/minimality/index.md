@@ -31,18 +31,18 @@ Stop at the first rung that holds:
    that still meets the brief.
 7. Only then propose **minimal new code**.
 
-## Intensity (`bouncer.scale`)
+## Intensity (`bouncer.complexity`)
 
-How far to climb is the existing blueprint frontmatter field `bouncer.scale`
-(`light` | `full`). Do not invent a new config key or mode word. This mapping
+How far to climb is the existing blueprint frontmatter field `bouncer.complexity`
+(`low` | `standard`). Do not invent a new config key or mode word. This mapping
 is a skill judgment criterion — not a gate and not a CLI path.
 
-- **`light`:** apply rungs 1–4 only. Record the rationale in one line.
-- **Absent or `full`:** apply all 7 rungs.
+- **`low`:** apply rungs 1–4 only. Record the rationale in one line.
+- **Absent or `standard`:** apply all 7 rungs.
 
 ## Do NOT minimize these
 
-This list always applies, regardless of intensity. `light` does not shrink it.
+This list always applies, regardless of intensity. `low` does not shrink it.
 
 - Approved requirements, tests, verification, security, accessibility, and
   error handling are **out of scope** for minimization.

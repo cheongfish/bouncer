@@ -1,7 +1,7 @@
-When collecting task evidence for a `scale: full` blueprint, read this reference.
+When collecting task evidence, read this reference.
 
-Apply this dispatch to investigation areas in every `scale: full` blueprint.
-Skip a light blueprint and every `execution_kind: verification` task.
+Apply this dispatch to investigation areas in every blueprint.
+Skip every `execution_kind: verification` task.
 
 The plan coordinator runs this dispatch. An investigation area is a group of
 paths that share an entry module or call flow. Discovery names areas and

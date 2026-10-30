@@ -487,3 +487,97 @@ test('bouncer-run docs → ban inline implement phrases, keep promotion table an
     'must not tell the session to fill worker-model and retry the same accepted report',
   );
 });
+
+// plan 문서의 복잡도 선언: 축약 light 안내가 없고, 닫힌 기록 두 파일만
+// scale: light를 읽기 값으로 설명한다.
+const PLAN_DOCS = [
+  'rules/planning.md',
+  'skills/bouncer-plan/SKILL.md',
+  'skills/bouncer-plan/references/context-review.md',
+  'skills/bouncer-plan/references/roundtrip.md',
+  'skills/bouncer-plan/references/evidence-dispatch.md',
+  'references/spec-authoring/index.md',
+  'references/context-review/index.md',
+  'references/minimality/index.md',
+  'references/discovery/index.md',
+  'agents/bouncer-context-reviewer.md',
+  'agents/bouncer-plan-coordinator.md',
+  '.codex/agents/bouncer-context-reviewer.toml',
+  '.codex/agents/bouncer-plan-coordinator.toml',
+  'rules/document-schema.md',
+  'docs/workflow.md',
+];
+const CLOSED_RECORD_DOCS = ['rules/planning.md', 'rules/document-schema.md'];
+const QUIZ_DOCS = [
+  'references/explain-diff/index.md',
+  'skills/bouncer-finalize/references/explain-quiz.md',
+];
+const COMPLEXITY_LOW_REVIEW_DOCS = [
+  'references/context-review/index.md',
+  'skills/bouncer-plan/references/context-review.md',
+  'agents/bouncer-context-reviewer.md',
+  '.codex/agents/bouncer-context-reviewer.toml',
+];
+const EVALUATOR_POLICY_DOCS = [
+  'benchmarks/configs/fastify-001-evaluator-policy.json',
+  'benchmarks/configs/deepswe-quill-001-evaluator-policy.json',
+  'benchmarks/configs/deepswe-expr-001-evaluator-policy.json',
+  'benchmarks/configs/deepswe-statemachine-001-evaluator-policy.json',
+  'benchmarks/configs/deepswe-oxvg-001-evaluator-policy.json',
+];
+
+/**
+ * 저장소 루트 기준 상대 경로의 문서 원문을 읽는다.
+ *
+ * @param {string} rel - cwd 기준 상대 경로
+ * @returns {string} 파일 전체 텍스트
+ */
+function readPlanDoc(rel) {
+  return fs.readFileSync(path.join(root, rel), 'utf8');
+}
+
+test('plan docs → omit retired light-scope vocabulary', () => {
+  const banned = /plan\.light_scope|--scale light|Lightweight cycle|light plan/;
+  for (const rel of PLAN_DOCS) {
+    assert.doesNotMatch(readPlanDoc(rel), banned, rel);
+  }
+});
+
+test('plan docs except closed-record readers → omit scale: light and the word light', () => {
+  for (const rel of PLAN_DOCS.filter((r) => !CLOSED_RECORD_DOCS.includes(r))) {
+    assert.doesNotMatch(readPlanDoc(rel), /scale: light|\blight/i, rel);
+  }
+});
+
+test('quiz docs → omit the light one-question exception', () => {
+  for (const rel of QUIZ_DOCS) {
+    assert.doesNotMatch(readPlanDoc(rel), /exactly one question|경량 예외/, rel);
+  }
+});
+
+test('plan docs → declare complexity instead of light scope', () => {
+  assert.match(readPlanDoc('rules/planning.md'), /^## Complexity declaration$/m);
+  const catalog = JSON.parse(readPlanDoc('rules/acq-gates.json'));
+  assert.ok(catalog.workflows['bouncer-plan'].includes('plan.complexity'));
+  assert.equal(catalog.workflows['bouncer-plan'].includes('plan.light_scope'), false);
+  for (const rel of EVALUATOR_POLICY_DOCS) {
+    const policy = JSON.parse(readPlanDoc(rel));
+    assert.ok(
+      policy.bouncer_decisions.some((d) => d.gate === 'plan.complexity' && d.answer === 'standard'),
+      rel,
+    );
+  }
+  const skill = readPlanDoc('skills/bouncer-plan/SKILL.md');
+  assert.match(skill, /\*\*AskUserQuestion — plan\.complexity\*\*/);
+  assert.match(skill, /--complexity[\s\S]*CLI is outdated/);
+  for (const rel of COMPLEXITY_LOW_REVIEW_DOCS) {
+    assert.match(readPlanDoc(rel), /complexity low: verifiability/, rel);
+  }
+  const schema = readPlanDoc('rules/document-schema.md');
+  assert.match(schema, /complexity/);
+  assert.match(schema, /\blow\b/);
+  assert.match(schema, /\bstandard\b/);
+  assert.match(schema, /S38/);
+  assert.match(readPlanDoc('references/minimality/index.md'), /bouncer\.complexity/);
+});
+
