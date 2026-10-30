@@ -68,7 +68,7 @@ reason, and totals never count it as 0.
 
 ## Per root-direct session
 
-A `direct-run.md` drive (start ACQ option D), light or full, has no coordinator
+A `direct-run.md` drive (start ACQ option D) has no coordinator
 dispatch. Open one session with the same
 `bouncer metrics start --kind root-direct-session --blueprint <dir> --label direct`
 after bootstrap and close it with `metrics end` when the drive hands off to the

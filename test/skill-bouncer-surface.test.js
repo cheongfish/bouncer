@@ -158,7 +158,7 @@ const SKILL_LOCAL_REFS = {
     'cleanup-handoff.md',
     'retro.md',
   ],
-  'bouncer-run': ['light-run.md', 'direct-run.md'],
+  'bouncer-run': ['direct-run.md'],
 };
 
 // 폐기한 두 진입 스킬은 파일이 없어야 하고, 이관된 reference는 run 아래에 남아 있어야 한다.
@@ -405,8 +405,8 @@ test('plan docs → describe the coupled-path confirm flow in SKILL step 4, scop
 
 /**
  * skills/bouncer-run 아래 모든 .md를 재귀로 읽어 [상대경로, 원문] 목록을 만든다.
- * light·direct 통합 뒤에도 문서가 inline 구현을 지시하지 않는지 검사하려고
- * 스킬 루트와 references를 한 번에 훑는다.
+ * 문서가 inline 구현을 지시하지 않는지 검사하려고 스킬 루트와 references를
+ * 한 번에 훑는다.
  *
  * @returns {Array<[string, string]>}
  */
@@ -433,9 +433,8 @@ function listBouncerRunMarkdown() {
   return out;
 }
 
-// light 직렬 직접 실행 통합: run 세션은 구현하지 않고, light-run.md는 승격·호환만 담는다.
 // 줄바꿈된 금지 문구를 잡으려면 공백을 한 칸으로 접은 뒤 정규식을 건다.
-test('bouncer-run docs → ban inline implement phrases, keep promotion table and compat stop rules', () => {
+test('bouncer-run docs → ban inline implement phrases', () => {
   const runDocs = listBouncerRunMarkdown();
   const banned = [
     /payload\.inline: true/,
@@ -449,43 +448,6 @@ test('bouncer-run docs → ban inline implement phrases, keep promotion table an
       assert.doesNotMatch(flat, re, rel);
     }
   }
-
-  const lightRun = fs.readFileSync(
-    path.join(root, 'skills/bouncer-run/references/light-run.md'),
-    'utf8',
-  );
-  const flatLightRun = lightRun.replace(/\s+/g, ' ');
-  const row = lightRun.split('\n').find(
-    (line) => line.startsWith('|') && line.includes('light-scope-revision-requires-promotion'),
-  );
-  assert.ok(row && row.includes('out-of-scope'), 'promotion row must map scope revision to out-of-scope');
-  for (const reason of [
-    'security-risk',
-    'out-of-scope',
-    'task-split',
-    'interface-semantics',
-    'reviewer-wider-scope',
-  ]) {
-    assert.ok(
-      lightRun.split('\n').some((line) => line.startsWith('|') && line.includes(reason)),
-      `promotion table must include reason ${reason}`,
-    );
-  }
-  assert.ok(flatLightRun.includes(
-    'If the `implement` payload carries an `inline` key, do not implement; stop and report a CLI version mismatch.',
-  ));
-  for (const code of [
-    'light-ledger-legacy',
-    'light-inline-removed',
-    'light-implementer-record-missing',
-  ]) {
-    assert.ok(lightRun.includes(code), `light-run.md must name ${code}`);
-  }
-  assert.doesNotMatch(
-    flatLightRun,
-    /record[^.]*worker-model[^.]*(retry|rerun)/i,
-    'must not tell the session to fill worker-model and retry the same accepted report',
-  );
 });
 
 // plan 문서의 복잡도 선언: 축약 light 안내가 없고, 닫힌 기록 두 파일만
@@ -579,5 +541,86 @@ test('plan docs → declare complexity instead of light scope', () => {
   assert.match(schema, /\bstandard\b/);
   assert.match(schema, /S38/);
   assert.match(readPlanDoc('references/minimality/index.md'), /bouncer\.complexity/);
+});
+
+// run·rules 문서의 옛 light 실행 경로. planning.md·document-schema.md는 닫힌 기록의
+// scale: light 읽기 값이라 이 목록에서 뺀다. cli.md는 제거 안내를 적어야 해서 별도 규칙이다.
+const RUN_DOCS = [
+  'skills/bouncer-run/SKILL.md',
+  'skills/bouncer-run/references/direct-run.md',
+  'skills/bouncer-run/references/agent-dispatch.md',
+  'skills/bouncer-run/references/drive-metrics.md',
+  'skills/bouncer-run/references/review-round.md',
+  'skills/bouncer-run/references/verification-recovery.md',
+  'rules/subagent-model.md',
+  'rules/commit-scope.md',
+  'docs/configuration.md',
+  'docs/install.md',
+];
+const NO_LIGHT_WORD_DOCS = [
+  'skills/bouncer-run/SKILL.md',
+  'skills/bouncer-run/references/direct-run.md',
+  'skills/bouncer-run/references/agent-dispatch.md',
+  'skills/bouncer-run/references/review-round.md',
+  'skills/bouncer-run/references/verification-recovery.md',
+  'rules/commit-scope.md',
+  'rules/subagent-model.md',
+];
+const LIGHT_LEFTOVERS = {
+  'skills/bouncer-run/references/drive-metrics.md': /light or full/,
+  'docs/configuration.md': /full·light|light 원장에는/,
+  'docs/install.md': /light drive/,
+  'config.example.json': /light 주행/,
+};
+const REMOVED_CLI_REASONS = new RegExp([
+  'light-requires-serial', 'light-ledger-legacy', 'light-inline-removed',
+  'light-implementer-record-missing', 'light-scope-revision-requires-promotion',
+  'ledger-mode-mismatch', 'promotion-stopped', 'promote-light-',
+  'promotion-diff-drift', 'light-candidate', 'full-candidate',
+].join('|'));
+
+test('run and rules docs → omit retired light-run vocabulary and keep light-mode-removed recovery', () => {
+  const banned = /light-run\.md|promote-stop|--promote-light|scale: light/;
+  for (const rel of RUN_DOCS) assert.doesNotMatch(readPlanDoc(rel), banned, rel);
+  for (const rel of NO_LIGHT_WORD_DOCS) {
+    assert.doesNotMatch(readPlanDoc(rel), /\blight(?!-mode-removed)/i, rel);
+  }
+  for (const [rel, left] of Object.entries(LIGHT_LEFTOVERS)) {
+    assert.doesNotMatch(readPlanDoc(rel), left, rel);
+  }
+  const cli = readPlanDoc('rules/cli.md');
+  assert.doesNotMatch(cli, REMOVED_CLI_REASONS);
+  for (const line of cli.split('\n')) {
+    if (/promote-stop|--promote-light/.test(line)) {
+      assert.match(line, /was removed/, line);
+    }
+  }
+  assert.match(cli, /low-candidate[\s\S]*standard-candidate/);
+  assert.match(cli, /--complexity/);
+  assert.match(cli, /light-mode-removed/);
+  for (const mark of [
+    'git worktree list', 'git bundle', 'coordinator.json', '/bouncer-finalize',
+    'git worktree remove', '/bouncer-plan', 'explicit approval', 'previous CLI',
+  ]) {
+    assert.ok(cli.includes(mark), `rules/cli.md missing ${mark}`);
+  }
+  const reviewRound = readPlanDoc('skills/bouncer-run/references/review-round.md');
+  assert.match(reviewRound, /complexity: low[\s\S]*single combined|single combined[\s\S]*complexity: low/);
+  const directRun = readPlanDoc('skills/bouncer-run/references/direct-run.md');
+  assert.match(directRun, /light-mode-removed/);
+  assert.match(directRun, /previous CLI/);
+  assert.match(directRun, /\/bouncer-finalize/);
+  assert.match(readPlanDoc('skills/bouncer-run/SKILL.md'), /direct_eligible/);
+  const install = readPlanDoc('docs/install.md');
+  assert.match(install, /\/bouncer-finalize/);
+  assert.match(install, /이전 CLI/);
+  assert.match(readPlanDoc('docs/configuration.md'), /complexity: low/);
+  const dispatch = readPlanDoc('skills/bouncer-run/references/agent-dispatch.md');
+  assert.match(dispatch, /^## Implement dispatch$/m);
+  assert.doesNotMatch(dispatch, /^## Lightweight and implement dispatch$/m);
+  assert.equal(
+    fs.existsSync(path.join(root, 'skills/bouncer-run/references/light-run.md')),
+    false,
+  );
 });
 

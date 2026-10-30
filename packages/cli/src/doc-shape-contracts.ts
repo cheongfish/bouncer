@@ -74,7 +74,7 @@ function runRefLink(name: string, triggers: string[]): LinkContract {
 const READONLY_ROLE_GUARDS = 'Hard guards (read-only)';
 const DRIVE_METRICS_HEADINGS = ['Per coordinator session', 'Per root-direct session', 'Closing report'];
 const AGENT_DISPATCH_HEADINGS = [
-  'Lightweight and implement dispatch', 'Named implementer', 'Implementer fallback', 'Intent bundle',
+  'Implement dispatch', 'Named implementer', 'Implementer fallback', 'Intent bundle',
   'Dispatch metadata and reports', 'Debugger dispatch', 'Worker model and token records', 'Worker hand-back',
 ];
 const PATH_CONTRACTS: Record<string, DocContract> = {

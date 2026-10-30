@@ -28,9 +28,12 @@ resolves the pointer, bootstraps the integration worktree, dispatches one
 `bouncer-coordinator` at a time, and on `continue` re-dispatches. It does not
 read and fix code directly, does not run `implementation`, `review`, or
 `debugging` inline, and does not reconstruct a worker's judgment from the
-diff — the coordinator already judged it. Light and full ledgers share this
-path; light policy differences live in
-[light-run.md](./references/light-run.md).
+    diff — the coordinator already judged it. Direct execution (D) and
+coordinator execution (A) share this path regardless of complexity;
+preflight `direct_eligible` (delegable, serial,
+`1 <= commit_tasks <= coordinator.direct_max_commit_tasks`) decides whether
+D is offered. When a command returns `light-mode-removed`, follow the
+recovery in `${BOUNCER_ROOT}/rules/cli.md`.
 
 Task-by-task implement, verify, review, and commit, scope revision, worker dispatch, and
 coordinator output fields belong to `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
@@ -113,7 +116,7 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    **AskUserQuestion — run.start_drive**
    <!-- acq {"gate":"run.start_drive","options":["D","A","B","C"],"recommended":"D"} -->
    1. **Re-ground**: Start the drive for the remaining tasks?
-   2. **Recommend-why**: This short, serial commit-task chain (light or full)
+   2. **Recommend-why**: This short, serial commit-task chain
       qualifies for direct execution. Root can carry the normal finish and
       one first rework; workers still implement and review. This approval
       covers the whole drive: neither autonomy value asks again per task;
@@ -146,8 +149,8 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    ```
    This is the one command run against the main checkout; it writes no source there. Keep `integrationPath` from the JSON result. On
    `ok: false`, report the reason and stop — do not retry into a different path.
-   When the ledger `mode` or pointer `scale` is `light`, also apply the policy
-   differences in [light-run.md](./references/light-run.md).
+   `coordinate bootstrap` always writes a full ledger. On `light-mode-removed`,
+   follow `${BOUNCER_ROOT}/rules/cli.md`.
 
 4. **Coordinator dispatch.** Just before dispatch, run
    `bouncer subagent-model --agent bouncer-coordinator` and report its output

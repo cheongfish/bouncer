@@ -71,7 +71,7 @@ the ledger mode:
    ancestor, so the slash-less token `agents` covers every path under the
    `agents` directory but not the sibling `agents-extra` directory.
 
-A **light** ledger and a commit with no coordinator ledger (standalone) keep the
+A commit with no coordinator ledger (standalone) keeps the
 old rule: any path outside the expected scope is `out-of-scope`. The order in
 the full drive is verification node, worktree/revision boundary, Do not touch
 (read failure included), recorded deviation, then the cross-drive check; the

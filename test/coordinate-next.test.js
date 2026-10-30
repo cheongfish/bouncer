@@ -1829,8 +1829,8 @@ const DISPATCH_CANON = [
     re: /refuse\s+with\s+`worker-tokens-missing`\s+while\s+a\s+finished\s+worker\s+key/,
   },
   {
-    label: 'records run from the integration cwd, worker keeps task or light cwd',
-    re: /from\s+the\s+integration\s+cwd[\s\S]{0,200}task\s+worktree\s+on\s+a\s+full\s+ledger,\s+the\s+integration\s+path\s+on\s+a\s+light\s+ledger/,
+    label: 'records run from the integration cwd, worker keeps the task worktree',
+    re: /from\s+the\s+integration\s+cwd[\s\S]{0,200}task\s+worktree(?![\s\S]{0,80}light\s+ledger)/,
   },
 ];
 // 카드 본문에 다시 들어오면 안 되는 정본 고유 문장. 정본 정규식 일부를 재사용한다.
