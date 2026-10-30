@@ -261,13 +261,17 @@ test('plan skill → delegates to the plan coordinator and keeps approvals with 
   assert.match(skill, /--kind plan-coordinator-session/);
 });
 
-// 후보 생성은 작성 전 단계다: 옛 "작성 후 후보 생성" 순서와 확인된 집합만 쓴다는 규칙이 모순되지 않아야 한다.
-test('plan skill → builds candidates before authoring and re-confirms paths outside the set', () => {
+test('plan authoring → drafts with unconfirmed candidates and confirms scope before writing it', () => {
   const skill = fs.readFileSync(path.join(root, 'skills/bouncer-plan/SKILL.md'), 'utf8')
     .replace(/\s+/g, ' ');
-  assert.ok(!skill.includes('After authoring, build candidates'), 'old candidate-after-authoring order must be gone');
-  assert.ok(skill.includes('Before authoring task documents, build candidates'), 'candidates must be built before authoring');
-  assert.ok(skill.includes('a path outside it returns `needs_user` and the root asks `plan.affected_paths` again'));
+  const planner = fs.readFileSync(path.join(root, 'agents/bouncer-planner.md'), 'utf8').replace(/\s+/g, ' ');
+  const coordinator = fs.readFileSync(path.join(root, 'agents/bouncer-plan-coordinator.md'), 'utf8').replace(/\s+/g, ' ');
+  const scope = fs.readFileSync(path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.match(planner, /unconfirmed candidate paths.*affected_paths.*\[\]/i);
+  assert.match(planner, /after.*confirm.*only.*confirmed/i);
+  assert.match(coordinator, /draft.*before.*scope confirmation/i);
+  assert.match(skill, /after.*draft.*plan\.affected_paths/i);
+  assert.match(scope, /after.*draft.*candidate path/i);
 });
 
 // 사용자 동의 전 표시·경로 출처·fallback 조건별 책임은 의미 단위로만 확인한다(문장 순서·공백은 고정하지 않는다).

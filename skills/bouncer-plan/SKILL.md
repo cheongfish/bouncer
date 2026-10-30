@@ -291,7 +291,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    repo root; tell the user to wrap container-up + test in one project script.
    After the draft, run `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) on
    the authored bodies before approval.
-   Before authoring task documents, build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) as advisory input for the step 4 checkpoint, which alone presents paths to the user. They are advisory only — do not write them into frontmatter. Neither intent nor Explain results go into frontmatter; step 4 alone writes user-confirmed `affected_paths`.
+   Build candidates and evidence with `graphify-runner` Steps 3–5 (`${BOUNCER_ROOT}/references/graphify-runner/index.md`) for the draft. The planner may use unconfirmed candidates in Touch and keeps task `affected_paths: []`. After the draft, step 4 presents paths to the user through `plan.affected_paths`; only confirmed values go into frontmatter. Neither intent nor Explain results go into frontmatter.
 
 4. **Scope confirm.** Write `affected_paths` only after the user confirms them
    — never from Graphify query results, candidate lists, or inspect output. When confirming affected_paths, read this reference: [scope-confirm.md](./references/scope-confirm.md). Then, at the checkpoint, the root runs **ACQ — affected_paths (`plan.affected_paths`):** propose the per-area candidate path sets for the user
@@ -303,7 +303,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    (`${BOUNCER_ROOT}/references/minimality/index.md`) (advisory, not a gate) to challenge new
    dependencies, abstractions, or files and record the rationale.
 
-   **Coupled paths (after the planner draft).** After the draft, the plan coordinator runs
+   **Coupled paths (after scope confirmation).** After confirmed paths are written, the plan coordinator runs
    `bouncer plan inspect --blueprint <dir>` once and reads `coupledPaths`. A `pairs` entry with
    `covered: false` (a generated counterpart such as `.codex/agents/<name>.toml` or a `.gitignore`
    exception line that the task's `affected_paths` do not cover) and every `candidates` entry (a test

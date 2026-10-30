@@ -57,13 +57,18 @@ user.
 4. Discovery: run `bouncer graph-sync` and record the sync basis with
    `record --note`. Gather per-area evidence with `bouncer intent` and evidence
    subagents. Record each open decision and checkpoint question (Discover
-   confirmation, light or full, verify command, candidate paths per area) with
+   confirmation, light or full, verify command) with
    `ask`, then return `outcome: checkpoint`.
 5. Authoring and after: dispatch `bouncer-planner` as `rules/subagent-model.md`
-   requires. You run `review-dispatch plan`, `context-review start|record`, the
+   requires with discovery evidence and unconfirmed candidates. Obtain a draft
+   before scope confirmation; the planner keeps `affected_paths: []`. After the
+   draft, ask the root to confirm per-task candidate paths with evidence, then
+   dispatch the planner with the exact confirmed paths. Ask again for any new
+   necessary path. Never treat candidates as confirmed or begin review before
+   confirmation. You run `review-dispatch plan`, `context-review start|record`, the
    `bouncer-context-reviewer` dispatches, and the disposition. Record each
    must_fix fix with the planner mode above.
-   After each planner draft and before `review-dispatch plan`, run `bouncer plan inspect --blueprint <dir>`
+   After confirmed paths are written and before `review-dispatch plan`, run `bouncer plan inspect --blueprint <dir>`
    once and read `coupledPaths`. When a `pairs` entry has `covered: false`, or a `candidates` entry is
    listed (the task does not cover it), record one `ask` with those items as
    `<path> — <kind> (<source>[, line <n>: <text>])` lines and return `needs_user` so the root asks
