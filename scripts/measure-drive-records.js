@@ -39,7 +39,7 @@ function isStringArray(value) {
 /**
  * `drive_record`의 모양 검사. packages/cli/src/drive-record.ts의 `isDriveRecord`와 같은 규칙이다.
  * 그 모듈은 dist로 빌드되는 TS라 이 스크립트가 require할 수 없어(dist 비의존) 규칙만 복제했다.
- * 규칙이 바뀌면 두 곳을 함께 고친다.
+ * 규칙이 바뀌면 두 곳을 함께 고친다. mode·promotion은 둘 다 없거나(옛 snapshot) 둘 다 있어야 한다.
  *
  * @param {unknown} value - 검사할 값
  * @returns {boolean} 모든 키와 타입이 맞으면 true
@@ -47,6 +47,17 @@ function isStringArray(value) {
 function isDriveRecord(value) {
   if (!isRecord(value)) return false;
   const { decision_kinds: kinds, conflicts, repair_waves: waves, reviewer, baseline, review } = value;
+  const hasMode = Object.prototype.hasOwnProperty.call(value, 'mode');
+  const hasPromotion = Object.prototype.hasOwnProperty.call(value, 'promotion');
+  if (hasMode !== hasPromotion) return false;
+  if (hasMode) {
+    if (value.mode !== 'light' && value.mode !== 'full') return false;
+    const promo = value.promotion;
+    if (!(promo === null || (isRecord(promo) && typeof promo.reason === 'string'
+      && typeof promo.task === 'string'))) {
+      return false;
+    }
+  }
   const reviewOk = review === null || (isRecord(review) && (review.contract === null
     || typeof review.contract === 'string') && isRecord(review.must_fix)
     && ['total', 'resolved', 'accepted', 'deferred', 'open'].every((k) => isCount(review.must_fix[k])));
@@ -154,9 +165,28 @@ function normalizeBlueprint(value) {
   return value.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
+function emptyModeBucket() {
+  return {
+    drives: 0, tasks: 0, worker_tokens: 0, session_tokens: 0,
+    ci_repair_waves: 0, review_repair_waves: 0,
+  };
+}
+
+/**
+ * snapshot의 drive_record에서 집계 버킷 이름을 고른다. mode 키가 없으면 옛 기록이므로 unknown이다.
+ *
+ * @param {object} driveRecord - 검사된 drive_record
+ * @returns {'light' | 'full' | 'unknown'} 버킷 키
+ */
+function modeBucket(driveRecord) {
+  if (!Object.prototype.hasOwnProperty.call(driveRecord, 'mode')) return 'unknown';
+  return driveRecord.mode === 'light' ? 'light' : 'full';
+}
+
 /**
  * 사용할 snapshot과 세션 기록으로 출력 객체를 만든다. 시각·환경을 읽지 않는 순수 함수라 같은 입력이면
- * 같은 값을 낸다.
+ * 같은 값을 낸다. `by_mode`는 light/full/unknown으로 토큰·repair wave를 나누고, `promotions`는
+ * drive_record.promotion.reason별 횟수(키 사전순)다.
  *
  * @param {object} opts - 집계 입력
  * @param {Array<{path: string, sha256: string, snapshot: object}>} opts.inputs - 사용할 snapshot(경로순)
@@ -164,15 +194,42 @@ function normalizeBlueprint(value) {
  * @param {object[]} opts.sessions - metrics 세션 기록
  * @param {object} opts.thresholds - 문턱 값
  * @param {{key: string, values: number[]} | null} opts.sweep - sweep 요청
- * @returns {object} 출력 모양(version·inputs·skipped·thresholds·totals·threshold_effects·sweep?)
+ * @returns {object} 출력 모양(version·inputs·skipped·thresholds·totals·by_mode·promotions·threshold_effects·sweep?)
  */
 function aggregate({ inputs, skipped, sessions, thresholds, sweep }) {
   const records = inputs.map((i) => i.snapshot.drive_record);
   const blueprints = new Set(inputs.map((i) => normalizeBlueprint(i.snapshot.blueprint)));
-  // 같은 blueprint의 snapshot이 둘 와도 세션은 한 번만 센다.
+  // 같은 blueprint의 snapshot이 둘 와도 세션은 한 번만 센다. 세션 토큰은 짝지은 snapshot의 mode 버킷으로 나눈다.
+  const blueprintMode = new Map();
+  for (const i of inputs) {
+    const bp = normalizeBlueprint(i.snapshot.blueprint);
+    if (!blueprintMode.has(bp)) blueprintMode.set(bp, modeBucket(i.snapshot.drive_record));
+  }
   const matched = sessions.filter((s) => isRecord(s) && typeof s.blueprint === 'string'
     && blueprints.has(normalizeBlueprint(s.blueprint)));
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const by_mode = { light: emptyModeBucket(), full: emptyModeBucket(), unknown: emptyModeBucket() };
+  for (const i of inputs) {
+    const r = i.snapshot.drive_record;
+    const bucket = by_mode[modeBucket(r)];
+    bucket.drives += 1;
+    bucket.tasks += r.tasks;
+    bucket.worker_tokens += i.snapshot.worker_tokens.total;
+    bucket.ci_repair_waves += r.repair_waves.ci;
+    bucket.review_repair_waves += r.repair_waves.review;
+  }
+  for (const s of matched) {
+    const bucket = by_mode[blueprintMode.get(normalizeBlueprint(s.blueprint))];
+    bucket.session_tokens += num(s.input_tokens) + num(s.output_tokens)
+      + num(s.cache_read_tokens) + num(s.cache_write_tokens);
+  }
+  const promoCounts = {};
+  for (const r of records) {
+    if (isRecord(r.promotion) && typeof r.promotion.reason === 'string') {
+      promoCounts[r.promotion.reason] = (promoCounts[r.promotion.reason] ?? 0) + 1;
+    }
+  }
+  const promotions = Object.fromEntries(Object.keys(promoCounts).sort().map((k) => [k, promoCounts[k]]));
   const result = {
     version: 1,
     inputs: inputs.map(({ path: p, sha256 }) => ({ path: p, sha256 })),
@@ -192,6 +249,8 @@ function aggregate({ inputs, skipped, sessions, thresholds, sweep }) {
         + num(s.cache_read_tokens) + num(s.cache_write_tokens)),
       cost: sum(matched, (s) => num(s.cost)),
     },
+    by_mode,
+    promotions,
     threshold_effects: effects(records, thresholds),
   };
   if (sweep) {

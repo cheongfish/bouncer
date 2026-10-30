@@ -1203,3 +1203,41 @@ test('review를 넘긴 snapshot 저장 → drive_record.review에 그 값이 실
   });
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(saved.path, 'utf8')).drive_record.review, review);
 });
+
+test('promoted_from이 있는 원장으로 snapshot 저장 → drive_record.promotion.reason이 그 값이고 summarizeDriveRecord와 같다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.promoted_from = {
+    archive: 'archive.json', patch: null, diff_sha: 'd'.repeat(64), reason: 'out-of-scope', task: '001',
+  };
+  fs.writeFileSync(ledgerFile, JSON.stringify(ledger));
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  assert.strictEqual(saved.code, 0, saved.err);
+  const { summarizeDriveRecord } = require('../packages/cli/dist/drive-record');
+  const snapshot = JSON.parse(fs.readFileSync(saved.json.path, 'utf8'));
+  assert.strictEqual(snapshot.drive_record.promotion.reason, 'out-of-scope');
+  assert.deepStrictEqual(snapshot.drive_record, summarizeDriveRecord(
+    JSON.parse(fs.readFileSync(ledgerFile, 'utf8')), null,
+  ));
+});
+
+test('mode light 원장으로 snapshot 저장 → drive_record.mode가 light다', () => {
+  const { repo, ledgerFile } = gitRepoWithLedger([worker(100)]);
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.mode = 'light';
+  fs.writeFileSync(ledgerFile, JSON.stringify(ledger));
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  assert.strictEqual(saved.code, 0, saved.err);
+  const snapshot = JSON.parse(fs.readFileSync(saved.json.path, 'utf8'));
+  assert.strictEqual(snapshot.drive_record.mode, 'light');
+});
+
+test('drive_record.promotion이 { reason: 1 }인 snapshot → metrics-snapshot-invalid다', () => {
+  const { repo } = gitRepoWithLedger([worker(100)]);
+  const saved = cli(repo, 'metrics', 'snapshot', '--blueprint', BLUEPRINT);
+  const bad = JSON.parse(fs.readFileSync(saved.json.path, 'utf8'));
+  bad.drive_record = { ...bad.drive_record, promotion: { reason: 1 } };
+  fs.writeFileSync(saved.json.path, JSON.stringify(bad));
+  const loaded = metrics.loadWorkerSnapshot({ commonGitDir: path.join(repo, '.git'), blueprint: BLUEPRINT });
+  assert.deepStrictEqual(loaded, { ok: false, reason: 'metrics-snapshot-invalid' });
+});

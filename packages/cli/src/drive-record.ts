@@ -12,6 +12,8 @@ export type DriveRecordReview = {
   contract: string | null;
   must_fix: { total: number; resolved: number; accepted: number; deferred: number; open: number };
 };
+export type DriveRecordPromotion = { reason: string; task: string };
+
 export type DriveRecord = {
   tasks: number; decision_kinds: Record<string, number>; scope_revisions: number;
   unexpected_paths: number; overlaps: number; conflicts: { fanin: number };
@@ -19,6 +21,9 @@ export type DriveRecord = {
   reviewer: { dispatches: number; perspectives: string[]; models: string[] };
   baseline: { command: string; exit: number; accepted: boolean } | null;
   review: DriveRecordReview | null;
+  // 새 계산은 항상 채운다. 선택인 이유는 mode·promotion 키가 없는 옛 snapshot 판독 때문이다.
+  mode?: 'light' | 'full';
+  promotion?: DriveRecordPromotion | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -37,12 +42,31 @@ function sortedUnique(values: unknown[]): string[] {
 const REVIEW_STATUSES = ['resolved', 'accepted', 'deferred', 'open'] as const;
 
 /**
+ * 원장 `promotion` 또는 `promoted_from`에서 집계 키(reason·task)만 뽑는다. summary·diff_sha·archive는
+ * light/full 비교 축이 아니라서 버린다. promotion이 있으면 그쪽을 우선한다(승격 정지 스냅샷이
+ * 남아 있는 light 원장과, 이미 full로 옮긴 promoted_from을 같은 필드로 맞추기 위해서다).
+ *
+ * @param {Record<string, unknown>} root - 원장 루트(또는 빈 객체)
+ * @returns {DriveRecordPromotion | null} reason·task 또는 둘 다 없으면 null
+ */
+function promotionOf(root: Record<string, unknown>): DriveRecordPromotion | null {
+  for (const key of ['promotion', 'promoted_from'] as const) {
+    const value = root[key];
+    if (isRecord(value) && typeof value.reason === 'string' && typeof value.task === 'string') {
+      return { reason: value.reason, task: value.task };
+    }
+  }
+  return null;
+}
+
+/**
  * 원장과 blueprint 리뷰 요약으로 실행 기록을 계산한다. 원장이 null이거나 `decisions`가 배열이
- * 아니어도 던지지 않고 모든 수를 0, `baseline`을 null로 낸다.
+ * 아니어도 던지지 않고 모든 수를 0, `baseline`을 null로 낸다. `mode`는 원장이 light일 때만
+ * `'light'`이고 그 외(부재·null 원장 포함)는 `'full'`이다 — 응답 축을 항상 light|full로 고정한다.
  *
  * @param {unknown} ledger - coordinator 원장 객체(읽기만 한다)
  * @param {DriveRecordReview | null} review - `reviewRecordFrom` 결과. 없으면 null
- * @returns {DriveRecord} 실행 기록. `review`는 인자를 그대로 싣는다
+ * @returns {DriveRecord} 실행 기록. `review`는 인자를 그대로 싣고 `mode`·`promotion`은 항상 채운다
  */
 export function summarizeDriveRecord(ledger: unknown, review: DriveRecordReview | null): DriveRecord {
   const root = isRecord(ledger) ? ledger : {};
@@ -82,6 +106,8 @@ export function summarizeDriveRecord(ledger: unknown, review: DriveRecordReview 
       command: String(last.command), exit: Number(last.exit), accepted: last.accepted === true,
     },
     review,
+    mode: root.mode === 'light' ? 'light' : 'full',
+    promotion: promotionOf(root),
   };
 }
 
@@ -122,9 +148,14 @@ function isReviewRecord(value: unknown): boolean {
   return isRecord(m) && ['total', ...REVIEW_STATUSES].every((k) => isCount(m[k]));
 }
 
+function isPromotionRecord(value: unknown): value is DriveRecordPromotion {
+  return isRecord(value) && typeof value.reason === 'string' && typeof value.task === 'string';
+}
+
 /**
  * 값이 `DriveRecord`의 모든 키와 타입을 갖췄는지 검사한다. snapshot 판독이 모양이 틀린
- * `drive_record`를 `metrics-snapshot-invalid`로 거절하는 근거다.
+ * `drive_record`를 `metrics-snapshot-invalid`로 거절하는 근거다. `mode`·`promotion`은 둘 다
+ * 없거나(옛 snapshot) 둘 다 있어야 한다 — 한쪽만 있으면 새 형식과 옛 형식이 섞인 손상으로 본다.
  *
  * @param {unknown} value - 검사할 값
  * @returns {boolean} 모든 키가 맞으면 true
@@ -132,6 +163,14 @@ function isReviewRecord(value: unknown): boolean {
 export function isDriveRecord(value: unknown): value is DriveRecord {
   if (!isRecord(value)) return false;
   const { decision_kinds: kinds, conflicts, repair_waves: waves, reviewer, baseline } = value;
+  const hasMode = Object.prototype.hasOwnProperty.call(value, 'mode');
+  const hasPromotion = Object.prototype.hasOwnProperty.call(value, 'promotion');
+  // 둘 다 없으면 옛 기록(unknown 집계). 둘 다 있으면 light|full과 null|{reason,task}만 허용한다.
+  if (hasMode !== hasPromotion) return false;
+  if (hasMode) {
+    if (value.mode !== 'light' && value.mode !== 'full') return false;
+    if (!(value.promotion === null || isPromotionRecord(value.promotion))) return false;
+  }
   return isCount(value.tasks) && isRecord(kinds) && Object.values(kinds).every(isCount)
     && isCount(value.scope_revisions) && isCount(value.unexpected_paths) && isCount(value.overlaps)
     && isRecord(conflicts) && isCount(conflicts.fanin)
