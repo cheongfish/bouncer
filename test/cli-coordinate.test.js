@@ -994,6 +994,93 @@ test('coordinate bootstrap --promote-light on a full ledger → exit 1 promote-l
   assert.strictEqual(JSON.parse(buf.out).reason, 'promote-light-requires-stopped');
 });
 
+const LIGHT_BP = '.bouncer/context/epics/089-cli-revise/blueprints/001-light';
+
+/**
+ * scale:light 계획으로 bootstrap·prepare까지 끝낸 CLI revise 거절용 fixture.
+ *
+ * @returns {{ repo: string, integration: string, worker: string, ledgerFile: string }}
+ */
+function lightPreparedCliDrive() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-light-'));
+  execFileSync('git', ['init', '-b', 'work'], { cwd: repo, encoding: 'utf8' });
+  execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: repo });
+  execFileSync('git', ['config', 'user.name', 't'], { cwd: repo });
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.js'), 'base\n');
+  fs.mkdirSync(path.join(repo, LIGHT_BP), { recursive: true });
+  fs.writeFileSync(path.join(repo, LIGHT_BP, 'index.md'),
+    '---\nbouncer:\n  status: approved\n  scale: light\n  review_scope: blueprint\n---\n# Blueprint\n');
+  fs.writeFileSync(path.join(repo, LIGHT_BP, 'review.md'),
+    '---\nbouncer:\n  id: REVIEW-BP\n  status: pending\n  review:\n    required: true\n---\n# Review\n');
+  fs.mkdirSync(path.join(repo, LIGHT_BP, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, LIGHT_BP, 'tasks/001/tasks.md'),
+    '---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: false\n'
+    + '  dependency_gate: integrated\n  affected_paths:\n    - src/a.js\n---\nbrief\n');
+  fs.writeFileSync(path.join(repo, LIGHT_BP, 'tasks/001/verification.md'),
+    '---\nbouncer:\n  id: VERIFY-001\n  status: pending\n---\n# Verification\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: LIGHT_BP });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: LIGHT_BP, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  return {
+    repo,
+    integration: boot.integrationPath,
+    worker: prepared.tasks[0].workerPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+}
+
+/**
+ * light blueprint용 revise CLI. fence는 해당 blueprint 원장에서 읽는다.
+ */
+function reviseLight(cwd, extra, repoRoot, blueprint = LIGHT_BP) {
+  const { io, buf } = capture();
+  const before = process.cwd();
+  process.chdir(cwd);
+  let code;
+  try {
+    const fence = __fence(repoRoot, blueprint);
+    code = runCli([
+      'coordinate', 'revise',
+      '--ledger-path', fence.ledgerPath, '--ledger-hash', fence.ledgerHash,
+      '--blueprint', blueprint, ...extra,
+    ], io);
+  } finally {
+    process.chdir(before);
+  }
+  return { code, buf };
+}
+
+test('coordinate revise on a marked light ledger → light-scope-revision-requires-promotion', () => {
+  const drive = lightPreparedCliDrive();
+  const before = fs.readFileSync(drive.ledgerFile);
+  const { code, buf } = reviseLight(drive.worker, [
+    '--task', '001', '--paths', 'x', '--reason', 'r',
+  ], drive.repo);
+  assert.strictEqual(code, 1, buf.err + buf.out);
+  assert.strictEqual(JSON.parse(buf.out).reason, 'light-scope-revision-requires-promotion');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('coordinate revise on a legacy light ledger → light-ledger-legacy', () => {
+  const drive = lightPreparedCliDrive();
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  delete ledger.light_runner;
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const before = fs.readFileSync(drive.ledgerFile);
+  const { code, buf } = reviseLight(drive.worker, [
+    '--task', '001', '--paths', 'x', '--reason', 'r',
+  ], drive.repo);
+  assert.strictEqual(code, 1, buf.err + buf.out);
+  assert.strictEqual(JSON.parse(buf.out).reason, 'light-ledger-legacy');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
 test('coordinate revise stdout on success and fence refusals → is one-line JSON', () => {
   const drive = preparedDrive();
   const success = revise(drive.worker, [

@@ -63,7 +63,7 @@ const {
 } = coordinatorVerification;
 import coordinatorPrepare = require('./coordinator-prepare');
 const {
-  worktreeDiffSha, prepareCoordinator,
+  worktreeDiffSha, openPromoteTask, promoteFingerprintTarget, prepareCoordinator,
   coordinateBootstrap, salvageRevokedWorker,
 } = coordinatorPrepare;
 
@@ -421,13 +421,6 @@ function writeVerificationTaskStatus(
   const bouncer = data.bouncer as Record<string, unknown>;
   bouncer.status = status;
   fs.writeFileSync(file, renderDoc(data, doc.body));
-}
-
-
-function openPromoteTask(tasks: Task[]): Task | null {
-  const commits = tasks.filter((item) => (item.execution_kind || 'commit') !== 'verification');
-  if (commits.length === 0) return null;
-  return commits.find((item) => item.status !== 'integrated') || commits[0];
 }
 
 
@@ -861,12 +854,17 @@ function coordinatePromoteStop(ctx: LockedCtx): CoordinateResult {
   }
   const openTask = openPromoteTask(ledger.tasks);
   if (!openTask) return { ok: false, reason: 'task-outside-blueprint' };
+  // worker 기준(없으면 prepare 전 integration) fingerprint. promote-light와 같은 헬퍼·기준이다.
+  const target = promoteFingerprintTarget(exec, integration.integrationPath, ledger, openTask);
+  if (!target.ok) {
+    return { ok: false, reason: target.reason, workerPath: target.workerPath };
+  }
   // fanin·terminalFailure는 건드리지 않는다. 정지는 promotion 필드만으로 기록한다.
   const promotion: PromotionRecord = {
     reason: promoteReason,
     summary: promoteSummary,
     task: openTask.id,
-    diff_sha: worktreeDiffSha(exec, integration.integrationPath),
+    diff_sha: worktreeDiffSha(exec, target.cwd, target.base),
   };
   if (typeof openTask.verify_evidence_id === 'string' && openTask.verify_evidence_id !== '') {
     promotion.verify_evidence_id = openTask.verify_evidence_id;
@@ -1869,6 +1867,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
       + '4. Replan with `/bouncer-plan`, then run again. '
       + 'The CLI only prints this guidance; it does not discard or delete anything itself.',
   },
+  'light-scope-revision-requires-promotion': {
+    cause: 'A marked light ledger cannot revise task scope in place; scope changes need a full replan after promotion.',
+    next: '`coordinate promote-stop --reason out-of-scope`(또는 task-split)로 멈춘 뒤 full로 다시 계획',
+  },
   'light-inline-removed': {
     cause: 'A light ledger task command was invoked from the integration cwd; inline light implementation is gone.',
     next: 'Align the plugin with this CLI version and implement via a subagent worker.',
@@ -1979,6 +1981,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'promote-light-incomplete': {
     cause: 'Promotion failed partway through; the response reports whether rollback restored the original state.',
     next: 'Follow the returned recovery instructions before retrying bootstrap.',
+  },
+  'promote-light-worker-remains': {
+    cause: 'The full ledger and promotion patch were written, but the old light worker worktree could not be removed.',
+    next: '사용자 승인 뒤 `git worktree remove --force <path>`와 branch 삭제를 하고 `coordinate next`로 이어 간다.',
   },
   'promotion-already-stopped': {
     cause: 'This light ledger is already promotion_stopped with a different reason or summary.',

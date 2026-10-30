@@ -743,11 +743,14 @@ function coordinateRevise(rest: string[], f: CoordFlags, io: CliIo): number {
   const coordinatorMod = require('./coordinator') as typeof import('./coordinator');
   const { reviseTaskScope } = require('./scope') as typeof import('./scope');
   const { coordinatorPathsFor } = require('./runtime-state');
-  const { assertLedgerFence, projectCheckpoint, loadLedgerBytes } = require('./coordinator-ledger');
+  const {
+    assertLedgerFence, projectCheckpoint, loadLedgerBytes, isLegacyLightLedger, ledgerModeOf,
+  } = require('./coordinator-ledger') as typeof import('./coordinator-ledger');
   const reviseRoot = process.cwd();
   const paths = coordinatorPathsFor({ repoRoot: reviseRoot, blueprint: f.blueprint as string });
-  // load bytes → fence → (이후 revise가 같은 경로를 씀). 디스크를 두 번 읽어
-  // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
+  // load bytes → fence → light 거절 → (이후 revise가 같은 경로를 씀). 디스크를 두 번 읽어
+  // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다. openLedgerFenced를 쓰지 않는
+  // 이유는 fence 통과 직후 light 원장 거절을 reviseTaskScope보다 앞에 두기 위함이다.
   const loaded = loadLedgerBytes(paths.ledgerFile);
   if (!loaded) {
     const hinted = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'ledger-checkpoint-invalid' });
@@ -755,10 +758,27 @@ function coordinateRevise(rest: string[], f: CoordFlags, io: CliIo): number {
     return 1;
   }
   const fenced = assertLedgerFence({
-    ledgerPath: f['ledger-path'], ledgerHash: f['ledger-hash'], ledgerBytes: loaded.bytes,
+    ledgerPath: typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined,
+    ledgerHash: typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined,
+    ledgerBytes: loaded.bytes,
   });
   if (!fenced.ok) {
     io.out(`${JSON.stringify(coordinatorMod.withCoordinateFailureHints(fenced))}\n`);
+    return 1;
+  }
+  // 1. 옛 light(표식 없음) → 2. 표식 light → 그 외만 reviseTaskScope로 넘긴다.
+  if (isLegacyLightLedger(loaded.ledger)) {
+    const refused = coordinatorMod.withCoordinateFailureHints({ ok: false, reason: 'light-ledger-legacy' });
+    io.out(`${JSON.stringify(refused)}\n`);
+    io.err('coordinate revise: light-ledger-legacy\n');
+    return 1;
+  }
+  if (ledgerModeOf(loaded.ledger) === 'light') {
+    const refused = coordinatorMod.withCoordinateFailureHints({
+      ok: false, reason: 'light-scope-revision-requires-promotion',
+    });
+    io.out(`${JSON.stringify(refused)}\n`);
+    io.err('coordinate revise: light-scope-revision-requires-promotion\n');
     return 1;
   }
   const result = reviseTaskScope({
