@@ -1353,6 +1353,9 @@ test('task documents deleted after finalize → pr-body renders the same body fr
     assert.strictEqual(after.code, 0, after.err);
     assert.strictEqual(after.out, before.out);
     assert.ok(after.out.startsWith('## 배경 · 변경 의도\n\n배경\n\n## 주요 변경 내용\n\n변경\n'));
+    assert.ok(after.out.includes('## 변경 그림\n\n<TODO: 작성 필요>'));
+    assert.ok(after.out.includes('## 변경 전후\n\n<TODO: 작성 필요>'));
+    assert.ok(after.out.includes('## 되돌리기 · 영향 범위\n\n<TODO: 작성 필요>'));
     assert.ok(after.out.includes('- true — passed'));
     assert.ok(after.out.includes('## 리뷰 포인트'));
   } finally {

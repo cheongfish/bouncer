@@ -218,6 +218,50 @@ function buildVerificationLines(tasks: unknown[]): string[] {
   return lines;
 }
 
+const WORKER_NOTE_KINDS = ['open_choices', 'known_weaknesses'] as const;
+const WORKER_NOTE_LABEL: Record<(typeof WORKER_NOTE_KINDS)[number], string> = {
+  open_choices: '구현 선택',
+  known_weaknesses: '알려진 약점',
+};
+
+/**
+ * task.worker_notes를 리뷰 포인트로 접는다. 종류(구현 선택 / 알려진 약점)가 다르면
+ * 원문이 같아도 두 줄을 남기고, 같은 종류·같은 원문만 id를 모아 한 줄로 쓴다.
+ * 자동 번역하지 않는다 — 원문 보존이 계약이고 한국어 요약은 최종 작성자 몫이다.
+ *
+ * @param {string[]} points - 누적 배열
+ * @param {unknown[]} tasks - digest.tasks
+ * @returns {void}
+ */
+function pushWorkerNotePoints(points: string[], tasks: unknown[]): void {
+  type NoteKind = (typeof WORKER_NOTE_KINDS)[number];
+  const groups: Array<{ kind: NoteKind; text: string; ids: string[] }> = [];
+  const indexByKey = new Map<string, number>();
+  for (const entry of tasks) {
+    const task = asRecord(entry);
+    const notes = asRecord(task.worker_notes);
+    const id = typeof task.id === 'string' ? task.id : '';
+    for (const kind of WORKER_NOTE_KINDS) {
+      for (const item of Array.isArray(notes[kind]) ? notes[kind] : []) {
+        if (typeof item !== 'string' || !item) continue;
+        // 종류와 원문을 같이 키로 쓴다. 종류만 묶으면 다른 문구가 사라지고,
+        // 원문만 묶으면 구현 선택과 약점이 한 줄로 합쳐진다.
+        const key = `${kind}\0${item}`;
+        let idx = indexByKey.get(key);
+        if (idx === undefined) {
+          idx = groups.length;
+          indexByKey.set(key, idx);
+          groups.push({ kind, text: item, ids: [] });
+        }
+        if (!groups[idx].ids.includes(id)) groups[idx].ids.push(id);
+      }
+    }
+  }
+  for (const group of groups) {
+    points.push(`${WORKER_NOTE_LABEL[group.kind]}(${group.ids.join(', ')}): ${group.text}`);
+  }
+}
+
 /**
  * accepted/deferred finding만 리뷰 포인트로 접는다.
  * task.review와 blueprint_review가 같은 규칙을 쓰게 한 헬퍼 —
@@ -298,19 +342,10 @@ function buildReviewPoints(digest: {
     points, seenFindings, asRecord(digest.blueprint_review).findings, isDeferredMustFix,
   );
 
-  // worker가 보고한 사양 해석·약점은 finding 뒤, unverified 앞에 둔다. 값은 digest
-  // task 항목(worker_notes)으로만 들어온다 — 원장을 직접 읽지 않는다.
-  for (const entry of tasks) {
-    const task = asRecord(entry);
-    const notes = asRecord(task.worker_notes);
-    const id = typeof task.id === 'string' ? task.id : '';
-    for (const item of Array.isArray(notes.open_choices) ? notes.open_choices : []) {
-      if (typeof item === 'string' && item) points.push(`구현 선택(${id}): ${item}`);
-    }
-    for (const item of Array.isArray(notes.known_weaknesses) ? notes.known_weaknesses : []) {
-      if (typeof item === 'string' && item) points.push(`알려진 약점(${id}): ${item}`);
-    }
-  }
+  // worker note는 원장을 읽지 않고 digest task.worker_notes만 쓴다. 같은 종류·같은
+  // 원문은 한 줄로 접되 출처 task id는 최초 등장 순으로 모두 남긴다 — 중복 출력으로
+  // 근거를 지우는 것과, 한쪽 task만 남겨 출처를 잃는 것을 둘 다 막는다.
+  pushWorkerNotePoints(points, tasks);
 
   const unverified = Array.isArray(digest.unverified) ? digest.unverified : [];
   for (const raw of unverified) {
@@ -396,6 +431,8 @@ function buildPrDraft(digest: unknown, opts: { now: Date; config: unknown }): Pr
 
 const SUMMARY_BACKGROUND = '배경 · 변경 의도';
 const SUMMARY_CHANGES = '주요 변경 내용';
+// pr-body는 근거를 발명하지 않으므로, flow·전후 관측이 없을 때 이 표식으로 자리를 남긴다.
+const PR_BODY_NEEDS_WRITE = '<TODO: 작성 필요>';
 const DRIVE_ISSUE_KEYS = [
   'rework_reports', 'debugger_calls', 'repair_waves',
   'fanin_verification_failures', 'blocked', 'deferred_must_fix',
@@ -449,13 +486,14 @@ function assertPrBodyDigest(digest: Record<string, unknown>): void {
 /**
  * 보존한 finalize digest와 한국어 요약으로 PR 본문 Markdown 초안을 만든다. 순수 함수 —
  * 파일·Git·원장·현재 task를 읽지 않으므로 정리 뒤에도 같은 입력이 같은 바이트를 낸다.
- * 절 순서는 관련 이슈, 배경, 변경, 로직 흐름, 리뷰 포인트, 확인 방법이며 근거 없는 절은 생략한다.
+ * 절 순서는 관련 이슈, 배경, 변경, 변경 그림, 변경 전후, 리뷰 포인트, 되돌리기 · 영향 범위,
+ * 확인 방법이다. 근거 없는 선택 절은 생략하되 필수 세 절은 비어도 지우지 않고 작성 필요 표식을 둔다.
  * 실패한 검증은 `failed`로, 미해결 must_fix·실행 이슈는 리뷰 포인트에 그대로 남긴다.
  *
  * @param {object} input
  * @param {unknown} input.digest - 파싱된 v2 digest
  * @param {string} input.summary - `## 배경 · 변경 의도`, `## 주요 변경 내용` 절을 가진 요약 Markdown
- * @param {string} [input.flow] - Mermaid 소스. 비었거나 없으면 로직 흐름 절을 생략한다
+ * @param {string} [input.flow] - Mermaid 소스. 있으면 `변경 그림` 아래 펜스, 없으면 작성 필요 표식
  * @returns {string} 끝에 개행 하나를 가진 Markdown
  * @throws 입력 shape 위반 또는 요약 절 누락 시 Error
  */
@@ -479,7 +517,14 @@ function renderPrBody(input: { digest: unknown; summary: string; flow?: string }
   blocks.push(`## ${SUMMARY_CHANGES}\n\n${changes}`);
 
   const flow = typeof input.flow === 'string' ? input.flow.replace(/\r\n/g, '\n').trim() : '';
-  if (flow) blocks.push(`## 로직 흐름\n\n\`\`\`mermaid\n${flow}\n\`\`\``);
+  // 변경 그림은 필수 절이다. flow가 있을 때만 Mermaid를 넣고, 없으면 빈 절을 지우는 대신
+  // 표식을 둔다 — 최종 작성자가 자리를 확인할 수 있어야 한다.
+  if (flow) {
+    blocks.push(`## 변경 그림\n\n\`\`\`mermaid\n${flow}\n\`\`\``);
+  } else {
+    blocks.push(`## 변경 그림\n\n${PR_BODY_NEEDS_WRITE}`);
+  }
+  blocks.push(`## 변경 전후\n\n${PR_BODY_NEEDS_WRITE}`);
 
   // 리뷰 포인트: 저장된 warnings와 blueprint_review 재계산을 합쳐 deferred must_fix를 빠뜨리지 않고
   // (같은 문자열은 한 번), 나머지는 buildReviewPoints가 이미 must_fix 중복을 뺀 목록을 쓴다.
@@ -508,6 +553,8 @@ function renderPrBody(input: { digest: unknown; summary: string; flow?: string }
     .map((key) => `${key} ${issues[key]}`);
   if (issueParts.length) points.push(`실행 이슈: ${issueParts.join(', ')}`);
   if (points.length) blocks.push(`## 리뷰 포인트\n\n${bullets(points)}`);
+
+  blocks.push(`## 되돌리기 · 영향 범위\n\n${PR_BODY_NEEDS_WRITE}`);
 
   const verification = buildVerificationLines(d.tasks as unknown[]);
   if (verification.length) blocks.push(`## 확인 방법\n\n${bullets(verification)}`);
