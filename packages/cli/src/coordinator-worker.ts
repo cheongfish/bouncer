@@ -313,7 +313,7 @@ function currentScopePaths(task: Task): string[] {
  * 같은 집합을 보게 하려고 한 곳에 둔다. 읽기만 한다.
  *
  * @param {Exec} exec - 주입 가능한 Git 실행기
- * @param {string} workerPath - worker(light는 integration) checkout
+ * @param {string} workerPath - worker checkout (light·full 모두 workers/<task>)
  * @param {string} blueprint - blueprint 상대 경로
  * @param {Task} task - ledger task(현재 scope 경로의 출처)
  * @returns {string[]} 중복을 없애 정렬한 repo 상대 경로. 없으면 빈 배열
@@ -334,7 +334,7 @@ function workerScopeDirtyPaths(exec: Exec, workerPath: string, blueprint: string
  * stamp 규칙(`commit_sha` 앞 8자 == HEAD 앞 8자)을 쓰도록 이 함수가 단일 정본이다.
  *
  * @param {Exec} exec - 주입 가능한 Git 실행기
- * @param {string} workerPath - worker(light는 integration) checkout
+ * @param {string} workerPath - worker checkout (light·full 모두 workers/<task>)
  * @param {string} blueprint - blueprint 상대 경로
  * @param {Task} task - ledger task(현재 scope 경로의 출처)
  * @param {{ integrationHead?: unknown }} ledger - integrationHead를 읽을 원장

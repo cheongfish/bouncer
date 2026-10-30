@@ -1,11 +1,13 @@
 # Direct run
 
-Opt-in `/bouncer-run` path for a short serial **full** drive: the user picked
-option D at the start ACQ, so this session runs the `coordinate advance` loop
-itself instead of dispatching `bouncer-coordinator`. D is offered only when
-`bouncer run preflight` reports `direct_eligible: true`. This session never
-reads or fixes code, and never implements, reviews, or debugs inline; workers
-are always subagents. After the one start ACQ, open no per-task ACQ.
+Opt-in `/bouncer-run` path for a short serial drive (**full** or **light**): the
+user picked option D at the start ACQ, so this session runs the
+`coordinate advance` loop itself instead of dispatching `bouncer-coordinator`.
+D is offered only when `bouncer run preflight` reports `direct_eligible: true`.
+This session never reads or fixes code, and never implements, reviews, or
+debugs inline; workers are always subagents. After the one start ACQ, open no
+per-task ACQ. On a light ledger, the promotion-signal table in
+[light-run.md](./light-run.md) applies before this document's Handoff table.
 
 ## Procedure
 

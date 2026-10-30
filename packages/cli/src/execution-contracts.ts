@@ -114,6 +114,8 @@ export type Ledger = {
   leaseSeq?: number;
   // light만 기록한다. 부재·undefined는 full(legacy 호환). 응답 mode는 항상 light|full.
   mode?: 'light';
+  // mode가 light일 때만 쓴다. 부재는 옛 inline 원장.
+  light_runner?: 'subagent';
   // light 승격 정지 스냅샷. status가 promotion_stopped일 때만 쓴다. fanin·terminalFailure와 별개.
   promotion?: PromotionRecord;
   // light 원장을 full로 승격할 때 보관 위치와 재사용할 dirty 변경 patch를 기록한다.

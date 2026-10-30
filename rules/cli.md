@@ -402,17 +402,26 @@ listed as `report`. A worker with no patch, ref, or report to keep adds no `salv
 a worker holding only a runtime report still gets `salvage` with that `report`. If preserving
 fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
 unchanged.
-`coordinate bootstrap` sets ledger `mode: light` only when blueprint
-`bouncer.scale` is `light` and the blueprint has exactly one commit task with
-an empty `depends_on`; otherwise a light scale is refused with
-`light-requires-single-task`. Light prepare assigns `workerPath` to the
-integration worktree (no worker worktree), `coordinate next` implement carries
-`payload.inline: true`, and integrate records fan-in verified without
-cherry-pick. Light `report --outcome accepted` requires blueprint-root
-`review.md` rounds from `bouncer review record` and document status `accepted`
-(`light-review-required` otherwise). `report --outcome accepted` and `record`
-refuse, before any ledger write, a worker without a confirmed task commit:
-`worker-commit-missing` (HEAD is `integrationHead` or its ancestor),
+`coordinate bootstrap` sets ledger `mode: light` and `light_runner: subagent`
+only when blueprint `bouncer.scale` is `light` and the commit tasks form a
+serial chain (first `depends_on` empty, each later commit depends only on the
+previous commit); a `scoped_terminal` blueprint also needs exactly one terminal
+verification that depends on every commit in that chain. Otherwise a light
+scale is refused with `light-requires-serial`. An in-progress light ledger
+without `light_runner: subagent` (legacy inline) is refused with
+`light-ledger-legacy` on bootstrap resume and on fenced `coordinate` mutations
+(`next`, `advance`, `prepare`, and the other write commands). Light prepare
+assigns `workerPath` under the integration sibling `workers/<ddd>` (same as
+full); `coordinate next` implement carries no `inline` key. Calling light
+task-scoped `dispatch`/`report`/`record`/`uncommit` from the integration cwd
+is refused with `light-inline-removed` before lease checks. Light
+`report --outcome accepted` also requires at least as many implementer
+`worker-model` decisions for that task as the current attempt
+(`light-implementer-record-missing` otherwise). `coordinate revise` on a marked
+light ledger refuses with `light-scope-revision-requires-promotion` (legacy
+unmarked light still `light-ledger-legacy`). `report --outcome accepted` and
+`record` refuse, before any ledger write, a worker without a confirmed task
+commit: `worker-commit-missing` (HEAD is `integrationHead` or its ancestor),
 `worker-commit-stamp-mismatch` (`commit_sha` absent or not HEAD's first 8
 characters), `worker-scope-dirty` (a dirty path inside the current scope, even
 if dirty at dispatch); the output carries `head`, `integration_head`, `stamp`,
@@ -437,12 +446,13 @@ Do not touch hit is `scope-do-not-touch-violation` and an unreadable line is
 mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
 `coordinate promote-stop` (light only) records `status: promotion_stopped` and
 a `promotion` snapshot (`reason`, `summary`, open task, `diff_sha`, optional
-evidence ids). Reasons are `security-risk`, `out-of-scope`, `task-split`,
-`interface-semantics`, `reviewer-wider-scope`. Same reason+summary is
-idempotent; afterward `prepare`/`dispatch`/`report`/`record`/`integrate` and
-`run preflight` delegation fail with `promotion-stopped`. There is no resume —
-full replan needs a new `bootstrap` and `current --set`.
-After the main checkout has an approved full blueprint, `coordinate bootstrap --promote-light` archives a promotion-stopped light ledger and saves integration dirty changes to `.bouncer/runtime/light-promoted.patch`. It resets those changes, seeds the full plan, and creates a full ledger on the same integration branch. The response and ledger include `promoted_from`; `coordinate next` passes its patch path as `promoted_patch` in the implement payload. Rejections are `promote-light-requires-stopped`, `promote-light-scale-light`, `promote-light-archive-exists`, and `promotion-diff-drift`. A failed partial promotion reports `promote-light-incomplete` and whether rollback completed.
+evidence ids) from the open task's worker worktree. Reasons are `security-risk`,
+`out-of-scope`, `task-split`, `interface-semantics`, `reviewer-wider-scope`.
+Same reason+summary is idempotent; afterward
+`prepare`/`dispatch`/`report`/`record`/`integrate` and `run preflight`
+delegation fail with `promotion-stopped`. There is no resume — full replan
+needs a new `bootstrap` and `current --set`.
+After the main checkout has an approved full blueprint, `coordinate bootstrap --promote-light` archives a promotion-stopped light ledger, preserves the open worker under `.bouncer/runtime/salvage/`, and saves its dirty changes to `.bouncer/runtime/light-promoted.patch`. It resets those changes, seeds the full plan, and creates a full ledger on the same integration branch (worker removal is the last step). The response and ledger include `promoted_from`; `coordinate next` passes its patch path as `promoted_patch` in the implement payload. Rejections are `promote-light-requires-stopped`, `promote-light-scale-light`, `promote-light-archive-exists`, `promotion-diff-drift`, `unassigned-worker-worktree`, and `promote-light-worker-remains`. A failed partial promotion reports `promote-light-incomplete` and whether rollback completed. `drive_record` (metrics snapshot / finalize digest) carries `mode` (`light`|`full`) and `promotion` (`{ reason, task }` or `null`); `node scripts/measure-drive-records.js` splits aggregates under `by_mode` and counts under `promotions`.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
@@ -451,10 +461,12 @@ automatic action's reason). Before running any action, `coordinate advance` refu
 with `worker-tokens-missing` (exit 1, no `executed`) while a checked worker key has
 no token record. The refusal runs before the automatic action so that no argv runs
 against a ledger whose worker usage is still unrecorded.
-`run preflight` also reports `direct_eligible` (delegable, `full`, serial shape,
-`1 <= commit_tasks <= coordinator.direct_max_commit_tasks`); `/bouncer-run`
-offers root-direct execution only when it is true. `bouncer metrics start
---kind root-direct-session` records that session (no `--target-digest`).
+`run preflight` also reports `direct_eligible` (delegable, scale `full` or
+`light`, serial shape, `1 <= commit_tasks <= coordinator.direct_max_commit_tasks`);
+an in-progress legacy light ledger yields `reason: light-ledger-legacy` and
+`delegable: false`. `/bouncer-run` offers root-direct execution only when
+`direct_eligible` is true. `bouncer metrics start --kind root-direct-session`
+records that session for light or full (no `--target-digest`).
 `yield` is a session boundary with no argv: the coordinator returns `continue`.
 The root runs `coordinate session-open --blueprint <dir> --ledger-path <p>
 --ledger-hash <h>` from the integration cwd before each coordinator dispatch;
@@ -703,7 +715,7 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it. In a `review_contract: brief` blueprint the final review
 allows one `--review-finding` repair (all violation findings, approved paths,
-`newPaths` allowed unless they hit a Do not touch line; accepted ones are recorded as `unexpected_paths` on the repair decision) before the one delta. A legacy blueprint (no marker) allows no
+`newPaths` allowed unless they hit a Do not touch line; accepted ones are recorded as `unexpected_paths` on the repair decision) before the one delta. A light ledger (`mode: light`) allows one `--review-finding` repair after discovery and refuses `--new-path` on that repair; it does not open a delta round. A legacy blueprint (no marker) allows no
 repair after the discovery round; its `must_fix` findings are carried as
 `deferred` and only a `blocked` finding stops for `review accept-risk`. The
 CLI refuses a review-caused repair or supplement with one of these reasons
@@ -714,6 +726,7 @@ CLI refuses a review-caused repair or supplement with one of these reasons
 | Legacy blueprint after discovery, any supplement after discovery, or a brief blueprint whose repair or delta already ran | `final-review-single-round` |
 | First brief repair that declares `newPaths` under a Do not touch line of any ledger task | `final-review-repair-do-not-touch` |
 | First brief repair with `newPaths` while a ledger task document cannot be read | `scope-do-not-touch-unreadable` |
+| Light ledger first review repair that declares `--new-path` | `light-scope-revision-requires-promotion` |
 
 A second repair therefore returns `final-review-single-round` only; a still
 open finding after the delta is reported `final-review-blocked`.

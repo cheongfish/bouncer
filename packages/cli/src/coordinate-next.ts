@@ -10,7 +10,9 @@ import reviewRepairState = require('./review-repair-state');
 const { hasReviewRepairDecision, reviewRoundExists } = reviewRepairState;
 const { COORDINATE_FAILURE_HINTS } = coordinator;
 import coordinatorLedger = require('./coordinator-ledger');
-const { assertLeaseShape, loadLedgerBytes, projectCheckpoint } = coordinatorLedger;
+const {
+  assertLeaseShape, loadLedgerBytes, projectCheckpoint, isLegacyLightLedger, ledgerModeOf,
+} = coordinatorLedger;
 import coordinatorWorker = require('./coordinator-worker');
 const {
   ensureIntegrationCwd, isBlueprintReviewModeAt, reviewContractAt, taskBriefHashOf, readBouncerBlock,
@@ -583,6 +585,9 @@ function decideNext(opts: {
   if (!loaded) return fail('missing-ledger');
   const leaseShape = assertLeaseShape(loaded.ledger);
   if (!leaseShape.ok) return fail(leaseShape.reason);
+  // 진행 중 옛 inline light는 detached 검사보다 먼저 거절한다. fenced 명령과 같은 판정·순서다.
+  // loaded.ledger는 디스크 원장(execution-contracts Ledger)이고, 아래 local Ledger는 읽기 전용 투영이다.
+  if (isLegacyLightLedger(loaded.ledger as CanonicalLedger)) return fail('light-ledger-legacy');
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   const ledger = loaded.ledger as Ledger;
   // 분리된 실행은 다음 행동을 정하지 않는다(task 범위 포함). finalize 또는 새 계획으로 안내한다.
@@ -780,10 +785,10 @@ function blueprintNext(ctx: {
         ? ledger.integrationHead
         : git(exec, integrationCwd, ['rev-parse', 'HEAD']);
       const base = typeof ledger.base === 'string' ? ledger.base : head;
-      // 최종 리뷰는 discovery 한 라운드로 끝난다. discovery가 저장됐는데 accepted가 아니면
-      // delta·repair·supplement로 되돌리지 않고 사용자 결정까지 멈춘다. 새 review status를
-      // 만들지 않으려고 기존 신호(문서 status requested, open finding)를 그대로 blocked로
-      // 읽는다. 저장된 과거 delta 이력은 읽기만 하고 여기서 새 delta를 만들지 않는다.
+      // 최종 리뷰 상한은 원장 mode와 review_contract로 갈린다. light는 discovery 뒤 repair
+      // 한 번만 열고 delta는 후속 BP로 미룬다. full legacy는 discovery 한 라운드로 끝낸다.
+      // brief만 repair 뒤 delta를 연다. 새 review status를 만들지 않으려고 기존 신호
+      // (문서 status requested, open finding)를 그대로 blocked로 읽는다.
       const contract = reviewContractAt(integrationCwd, blueprint);
       if (contract === null) {
         return ok({
@@ -791,6 +796,25 @@ function blueprintNext(ctx: {
         });
       }
       if (rootReviewHasDiscoveryRound(integrationCwd, blueprint)) {
+        const repaired = hasReviewRepairDecision(ledger.decisions);
+        // light 판정은 문서 표식이 아니라 원장 mode다. scale:light는 계약이 legacy로 접혀도
+        // 여기선 repair 안내·repair 뒤 blocked를 내고 delta argv는 만들지 않는다.
+        if (ledgerModeOf(ledger as CanonicalLedger) === 'light') {
+          return ok({
+            scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
+            cause: repaired
+              ? 'The light final review used its discovery round and the one review repair; this blueprint does '
+                + 'not open a delta round, and the root review is not accepted.'
+              : 'The light final review recorded its discovery round, the root review is not accepted, '
+                + 'and no review repair has been opened yet.',
+            next: repaired
+              ? 'Show the open findings to the user and wait for their decision (note + deferred, or '
+                + 'accepted-risk consent); do not open another repair or a delta round.'
+              : 'If an open must_fix is in scope, open the one repair with `bouncer coordinate repair '
+                + '--review-finding`; otherwise show the open findings to the user and wait for their decision '
+                + '(note + deferred, or accepted-risk consent).',
+          });
+        }
         if (contract !== 'brief') {
           return ok({
             scope: 'blueprint', action: 'blocked', reason: 'final-review-blocked', cwd: integrationCwd,
@@ -798,7 +822,6 @@ function blueprintNext(ctx: {
         }
         // brief 표식은 discovery 뒤 리뷰 원인 repair 한 번과 그 뒤 delta 한 번을 허용한다. repair와
         // terminal 재검증이 끝나(allIntegrated) 여기 도달했고 delta가 아직 없으면 delta를 연다.
-        const repaired = hasReviewRepairDecision(ledger.decisions);
         if (repaired && !rootReviewHasDeltaRound(integrationCwd, blueprint)) {
           return ok({
             scope: 'blueprint', action: 'final_review', cwd: integrationCwd,
@@ -1011,7 +1034,7 @@ function taskNext(ctx: {
         item.workerPath || cwd, task, item.dispatch.attempt,
       ),
     };
-    if (ledger.mode === 'light') payload.inline = true;
+    // light도 subagent worker로 구현한다. inline 키는 구 CLI 신호이므로 싣지 않는다.
     // patch는 실행 권한을 넓히지 않는다. implementer는 현재 brief의 affected_paths 안에서만 재사용한다.
     if (ledger.promoted_from?.patch) payload.promoted_patch = ledger.promoted_from.patch;
     return ok({ scope: 'task', action: 'implement', cwd, payload });

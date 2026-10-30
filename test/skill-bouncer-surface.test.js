@@ -398,3 +398,88 @@ test('plan docs → describe the coupled-path confirm flow in SKILL step 4, scop
   assert.match(scopeConfirm, /evidence\.text[^.]*data/);
   assert.match(planCoordinator, /plan inspect --blueprint[\s\S]*`ask`[\s\S]*needs_user/);
 });
+
+/**
+ * skills/bouncer-run 아래 모든 .md를 재귀로 읽어 [상대경로, 원문] 목록을 만든다.
+ * light·direct 통합 뒤에도 문서가 inline 구현을 지시하지 않는지 검사하려고
+ * 스킬 루트와 references를 한 번에 훑는다.
+ *
+ * @returns {Array<[string, string]>}
+ */
+function listBouncerRunMarkdown() {
+  const runRoot = path.join(root, 'skills', 'bouncer-run');
+  /** @type {Array<[string, string]>} */
+  const out = [];
+  /**
+   * @param {string} dir
+   * @returns {void}
+   */
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(abs);
+        continue;
+      }
+      if (!entry.name.endsWith('.md')) continue;
+      out.push([path.relative(root, abs).split(path.sep).join('/'), fs.readFileSync(abs, 'utf8')]);
+    }
+  }
+  walk(runRoot);
+  return out;
+}
+
+// light 직렬 직접 실행 통합: run 세션은 구현하지 않고, light-run.md는 승격·호환만 담는다.
+// 줄바꿈된 금지 문구를 잡으려면 공백을 한 칸으로 접은 뒤 정규식을 건다.
+test('bouncer-run docs → ban inline implement phrases, keep promotion table and compat stop rules', () => {
+  const runDocs = listBouncerRunMarkdown();
+  const banned = [
+    /payload\.inline: true/,
+    /implement via `payload\.inline`/,
+    /performs the `implementation` skill itself/,
+    /run the implementer \*\*inline\*\*/,
+  ];
+  for (const [rel, text] of runDocs) {
+    const flat = text.replace(/\s+/g, ' ');
+    for (const re of banned) {
+      assert.doesNotMatch(flat, re, rel);
+    }
+  }
+
+  const lightRun = fs.readFileSync(
+    path.join(root, 'skills/bouncer-run/references/light-run.md'),
+    'utf8',
+  );
+  const flatLightRun = lightRun.replace(/\s+/g, ' ');
+  const row = lightRun.split('\n').find(
+    (line) => line.startsWith('|') && line.includes('light-scope-revision-requires-promotion'),
+  );
+  assert.ok(row && row.includes('out-of-scope'), 'promotion row must map scope revision to out-of-scope');
+  for (const reason of [
+    'security-risk',
+    'out-of-scope',
+    'task-split',
+    'interface-semantics',
+    'reviewer-wider-scope',
+  ]) {
+    assert.ok(
+      lightRun.split('\n').some((line) => line.startsWith('|') && line.includes(reason)),
+      `promotion table must include reason ${reason}`,
+    );
+  }
+  assert.ok(flatLightRun.includes(
+    'If the `implement` payload carries an `inline` key, do not implement; stop and report a CLI version mismatch.',
+  ));
+  for (const code of [
+    'light-ledger-legacy',
+    'light-inline-removed',
+    'light-implementer-record-missing',
+  ]) {
+    assert.ok(lightRun.includes(code), `light-run.md must name ${code}`);
+  }
+  assert.doesNotMatch(
+    flatLightRun,
+    /record[^.]*worker-model[^.]*(retry|rerun)/i,
+    'must not tell the session to fill worker-model and retry the same accepted report',
+  );
+});

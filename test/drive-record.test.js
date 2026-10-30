@@ -9,6 +9,7 @@ const ZERO = {
   tasks: 0, decision_kinds: {}, scope_revisions: 0, unexpected_paths: 0, overlaps: 0,
   conflicts: { fanin: 0 }, repair_waves: { ci: 0, review: 0 },
   reviewer: { dispatches: 0, perspectives: [], models: [] }, baseline: null, review: null,
+  mode: 'full', promotion: null,
 };
 
 test('같은 wave의 repair 둘과 리뷰 finding이 있는 wave → ci 1, review 1로 센다', () => {
@@ -145,4 +146,38 @@ test('키 하나가 빠졌거나 타입이 틀린 객체 → isDriveRecord가 fa
   assert.strictEqual(isDriveRecord({ ...ZERO, reviewer: { dispatches: 0, perspectives: [1], models: [] } }), false);
   assert.strictEqual(isDriveRecord({ ...ZERO, decision_kinds: { a: 'x' } }), false);
   assert.strictEqual(isDriveRecord(null), false);
+});
+
+test('light 원장과 promotion 객체 → mode light와 reason·task만 남긴 promotion을 낸다', () => {
+  const ledger = {
+    mode: 'light',
+    promotion: { reason: 'out-of-scope', task: '001', summary: 's', diff_sha: 'x' },
+    tasks: [], decisions: [],
+  };
+  const record = summarizeDriveRecord(ledger, null);
+  assert.strictEqual(record.mode, 'light');
+  assert.deepStrictEqual(record.promotion, { reason: 'out-of-scope', task: '001' });
+});
+
+test('promoted_from만 있는 full 원장 → 그 reason·task를 promotion으로 낸다', () => {
+  const ledger = {
+    tasks: [], decisions: [],
+    promoted_from: {
+      archive: 'a', patch: null, diff_sha: 'd', reason: 'out-of-scope', task: '002',
+    },
+  };
+  const record = summarizeDriveRecord(ledger, null);
+  assert.strictEqual(record.mode, 'full');
+  assert.deepStrictEqual(record.promotion, { reason: 'out-of-scope', task: '002' });
+});
+
+test('mode가 light|full 밖인 DriveRecord → isDriveRecord가 false이다', () => {
+  assert.strictEqual(isDriveRecord({ ...ZERO, mode: 'x' }), false);
+});
+
+test('mode·promotion 키가 없는 옛 DriveRecord → isDriveRecord가 true이다', () => {
+  const legacy = { ...ZERO };
+  delete legacy.mode;
+  delete legacy.promotion;
+  assert.strictEqual(isDriveRecord(legacy), true);
 });

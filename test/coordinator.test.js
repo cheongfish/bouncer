@@ -1587,6 +1587,7 @@ test('dirty extra file with a verification node integrate or a light ledger → 
   assert.notStrictEqual(verified.reason, 'integration-source-mutated', JSON.stringify(verified));
   assert.strictEqual(verified.ok, true, JSON.stringify(verified));
 
+  // light 후반: 같은 상태의 full 원장과 reason이 같아야 한다(light 전용 fan-in 제거).
   const lightBp = '.bouncer/context/epics/098-x/blueprints/004-skip-light';
   const light = lightScaleRepo('bouncer-integrate-skip-light-', lightBp);
   const lightBoot = coordinate({ command: 'bootstrap', repoRoot: light.repo, blueprint: lightBp });
@@ -1594,7 +1595,14 @@ test('dirty extra file with a verification node integrate or a light ledger → 
   const lightResult = coordinate({
     command: 'integrate', repoRoot: light.repo, blueprint: lightBp, cwd: lightBoot.integrationPath,
   });
-  assert.strictEqual(lightResult.reason, 'nothing-to-integrate', JSON.stringify(lightResult));
+  const fullBp = '.bouncer/context/epics/098-x/blueprints/004-skip-full';
+  const full = lightScaleRepo('bouncer-integrate-skip-full-', fullBp, { scale: 'full' });
+  const fullBoot = coordinate({ command: 'bootstrap', repoRoot: full.repo, blueprint: fullBp });
+  fs.writeFileSync(path.join(fullBoot.integrationPath, 'extra.js'), 'direct edit\n');
+  const fullResult = coordinate({
+    command: 'integrate', repoRoot: full.repo, blueprint: fullBp, cwd: fullBoot.integrationPath,
+  });
+  assert.strictEqual(lightResult.reason, fullResult.reason, JSON.stringify({ lightResult, fullResult }));
 });
 
 test('report Changed files one path short of the commit → integrate succeeds with a report-paths-mismatch warning', () => {
@@ -4411,27 +4419,7 @@ function lightScaleRepo(prefix, blueprint, opts = {}) {
   return { repo, blueprint };
 }
 
-/**
- * blueprint 루트 review.md에 라운드 하나와 status를 심는다.
- *
- * @param {string} root - checkout 루트
- * @param {string} blueprint - blueprint 상대 경로
- * @param {string} status - bouncer.status
- * @param {boolean} withRound - rounds에 discovery 1개를 넣을지
- */
-function writeBlueprintReview(root, blueprint, status, withRound) {
-  const rounds = withRound
-    ? '    rounds:\n      - round: 1\n        mode: discovery\n        target:\n          base: aaa\n          head: bbb\n'
-          + '        perspectives:\n          - name: combined\n            target_head: bbb\n'
-          + '        previous_finding_ids: []\n        new: 0\n        resolved: 0\n        regressed: 0\n'
-    : '    rounds: []\n';
-  fs.writeFileSync(
-    path.join(root, blueprint, 'review.md'),
-    `---\nbouncer:\n  id: REVIEW-BP\n  status: ${status}\n  review:\n    required: true\n${rounds}---\n# Review\n`,
-  );
-}
-
-test('light bootstrap prepare integrate → no worker worktree, workerPath is integration, fanin verified', () => {
+test('light bootstrap prepare integrate → workerPath is workers/001 and fanin verified', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/001-ok';
   const { repo } = lightScaleRepo('bouncer-light-ok-', blueprint);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -4440,49 +4428,53 @@ test('light bootstrap prepare integrate → no worker worktree, workerPath is in
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   assert.strictEqual(ledger.mode, 'light');
+  assert.strictEqual(ledger.light_runner, 'subagent');
 
   const workersRoot = path.join(boot.integrationPath, '..', 'workers');
   const prepared = coordinate({
     command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
-  assert.strictEqual(prepared.tasks[0].workerPath, boot.integrationPath);
-  assert.strictEqual(fs.existsSync(workersRoot), false);
+  const worker = prepared.tasks[0].workerPath;
+  assert.ok(worker.endsWith(`${path.sep}workers${path.sep}001`) || worker.endsWith('/workers/001'), worker);
+  assert.strictEqual(fs.existsSync(workersRoot), true);
+  assert.strictEqual(fs.existsSync(worker), true);
 
-  const cwd = boot.integrationPath;
   const dispatched = coordinate({
-    command: 'dispatch', repoRoot: repo, blueprint, cwd, task: '001',
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
-  fs.writeFileSync(path.join(cwd, 'src/a.js'), 'changed\n');
-  execFileSync('git', ['add', 'src/a.js'], { cwd });
-  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'feat: a'], { cwd });
-  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
-  // review_scope blueprint이면 task review.md는 fan-in 증적에서 빠진다.
-  const taskDir = path.join(cwd, blueprint, 'tasks/001');
-  for (const [name, status, extra] of [
-    ['tasks.md', 'verified', `  commit_sha: '${sha.slice(0, 8)}'\n`],
-    ['verification.md', 'passed', ''],
+  assert.strictEqual(coordinate({
+    command: 'worker-model', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', role: 'implementer', model: 'test-model', tokens: 1,
+  }).ok, true);
+  fs.writeFileSync(path.join(worker, 'src/a.js'), 'changed\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'feat: a'], { cwd: worker });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const taskDir = path.join(worker, blueprint, 'tasks/001');
+  for (const [name, status] of [
+    ['tasks.md', 'verified'],
+    ['verification.md', 'passed'],
   ]) {
     const file = path.join(taskDir, name);
     const doc = readDoc(file);
     doc.data.bouncer.status = status;
-    if (extra.includes('commit_sha')) doc.data.bouncer.commit_sha = sha.slice(0, 8);
+    if (name === 'tasks.md') doc.data.bouncer.commit_sha = sha.slice(0, 8);
     fs.writeFileSync(file, renderDoc(doc.data, doc.body));
   }
-  writeBlueprintReview(cwd, blueprint, 'accepted', true);
+  writeWorkerReport(worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
   const reported = coordinate({
-    command: 'report', repoRoot: repo, blueprint, cwd, task: '001',
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
     attempt: dispatched.metadata.attempt,
     taskBriefHash: dispatched.metadata.task_brief_hash,
     outcome: 'accepted',
     summary: 'done',
   });
   assert.strictEqual(reported.ok, true, JSON.stringify(reported));
-  const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd, task: '001' });
+  const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
   assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
 
-  const faninPath = path.join(boot.integrationPath, '..', 'fanin');
   const integrated = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
     deps: {
@@ -4492,16 +4484,14 @@ test('light bootstrap prepare integrate → no worker worktree, workerPath is in
     },
   });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
-  assert.strictEqual(fs.existsSync(faninPath), false);
   const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   assert.strictEqual(after.tasks[0].status, 'integrated');
   assert.strictEqual(after.fanin, null);
   const faninDecision = after.decisions.find((d) => d.kind === 'fanin');
   assert.ok(faninDecision, JSON.stringify(after.decisions));
-  assert.strictEqual(faninDecision.candidate_head, sha);
 });
 
-test('light ledger with scale full, eligibility misshape or verification → rejects with light-requires-single-task', () => {
+test('light ledger with scale full, eligibility misshape or verification → rejects with light-requires-serial', () => {
   // scale full → mode full (light 거부가 아님). light + 잘못된 형태만 거부.
   const fullBp = '.bouncer/context/epics/089-light/blueprints/002-full';
   const full = lightScaleRepo('bouncer-light-full-', fullBp, { scale: 'full' });
@@ -4520,18 +4510,30 @@ test('light ledger with scale full, eligibility misshape or verification → rej
   });
   const twoBoot = coordinate({ command: 'bootstrap', repoRoot: two.repo, blueprint: twoBp });
   assert.strictEqual(twoBoot.ok, false, JSON.stringify(twoBoot));
-  assert.strictEqual(twoBoot.reason, 'light-requires-single-task');
+  assert.strictEqual(twoBoot.reason, 'light-requires-serial');
+
+  // 두 commit 직렬 사슬은 이제 승인된다.
+  const serialBp = '.bouncer/context/epics/089-light/blueprints/003-serial';
+  const serial = lightScaleRepo('bouncer-light-serial-', serialBp, {
+    scale: 'light',
+    tasks: [{ id: '001', depends_on: [] }, { id: '002', depends_on: ['TASKS-001'] }],
+  });
+  const serialBoot = coordinate({ command: 'bootstrap', repoRoot: serial.repo, blueprint: serialBp });
+  assert.strictEqual(serialBoot.ok, true, JSON.stringify(serialBoot));
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(serialBoot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8'))
+      .light_runner,
+    'subagent',
+  );
 
   const depBp = '.bouncer/context/epics/089-light/blueprints/004-dep';
-  // depends_on이 비어 있지 않으려면 선행 task가 있어야 listTasks가 읽는다.
-  // 단일 task에 depends_on: ['002']만 있어도 거절 조건이다.
   const dep = lightScaleRepo('bouncer-light-dep-', depBp, {
     scale: 'light',
     tasks: [{ id: '001', depends_on: ['002'] }],
   });
   const depBoot = coordinate({ command: 'bootstrap', repoRoot: dep.repo, blueprint: depBp });
   assert.strictEqual(depBoot.ok, false, JSON.stringify(depBoot));
-  assert.strictEqual(depBoot.reason, 'light-requires-single-task');
+  assert.strictEqual(depBoot.reason, 'light-requires-serial');
 
   const verBp = '.bouncer/context/epics/089-light/blueprints/005-ver';
   const ver = lightScaleRepo('bouncer-light-ver-', verBp, {
@@ -4540,10 +4542,10 @@ test('light ledger with scale full, eligibility misshape or verification → rej
   });
   const verBoot = coordinate({ command: 'bootstrap', repoRoot: ver.repo, blueprint: verBp });
   assert.strictEqual(verBoot.ok, false, JSON.stringify(verBoot));
-  assert.strictEqual(verBoot.reason, 'light-requires-single-task');
+  assert.strictEqual(verBoot.reason, 'light-requires-serial');
 });
 
-test('scoped_terminal light bootstrap → accepts one independent commit plus its terminal only', () => {
+test('scoped_terminal light bootstrap → accepts serial commits plus a terminal on the whole chain', () => {
   const ok = lightScaleRepo('bouncer-light-scoped-ok-', '.bouncer/context/epics/089-light/blueprints/007-scoped', {
     policy: 'scoped_terminal',
     tasks: [
@@ -4556,7 +4558,7 @@ test('scoped_terminal light bootstrap → accepts one independent commit plus it
   assert.strictEqual(boot.mode, 'light');
   assert.deepStrictEqual(boot.ready, ['001']);
 
-  // 같은 두 node라도 표식이 없으면(legacy light) 현행 의미대로 거절한다.
+  // 표식 없이 verification_policy도 없으면(legacy 문서) 종단이 자격에 안 맞아 거절한다.
   const legacy = lightScaleRepo('bouncer-light-scoped-legacy-', '.bouncer/context/epics/089-light/blueprints/008-legacy', {
     tasks: [
       { id: '001', depends_on: [] },
@@ -4564,10 +4566,24 @@ test('scoped_terminal light bootstrap → accepts one independent commit plus it
     ],
   });
   const legacyBoot = coordinate({ command: 'bootstrap', repoRoot: legacy.repo, blueprint: legacy.blueprint });
-  assert.strictEqual(legacyBoot.reason, 'light-requires-single-task');
+  assert.strictEqual(legacyBoot.reason, 'light-requires-serial');
+
+  // 두 commit 직렬 + 종단은 승인된다.
+  const serialOk = lightScaleRepo('bouncer-light-scoped-serial-', '.bouncer/context/epics/089-light/blueprints/007-serial', {
+    policy: 'scoped_terminal',
+    tasks: [
+      { id: '001', depends_on: [] },
+      { id: '002', depends_on: ['TASKS-001'] },
+      { id: '003', depends_on: ['TASKS-001', 'TASKS-002'], execution_kind: 'verification' },
+    ],
+  });
+  const serialBoot = coordinate({
+    command: 'bootstrap', repoRoot: serialOk.repo, blueprint: serialOk.blueprint,
+  });
+  assert.strictEqual(serialBoot.ok, true, JSON.stringify(serialBoot));
 
   const shapes = {
-    'two commits plus terminal': [
+    'two independent commits plus terminal': [
       { id: '001', depends_on: [] }, { id: '002', depends_on: [] },
       { id: '003', depends_on: ['TASKS-001', 'TASKS-002'], execution_kind: 'verification' },
     ],
@@ -4587,7 +4603,7 @@ test('scoped_terminal light bootstrap → accepts one independent commit plus it
     const bp = `.bouncer/context/epics/089-light/blueprints/0${n}-shape`;
     const r = lightScaleRepo(`bouncer-light-scoped-${n}-`, bp, { policy: 'scoped_terminal', tasks });
     const rejected = coordinate({ command: 'bootstrap', repoRoot: r.repo, blueprint: bp });
-    assert.strictEqual(rejected.reason, 'light-requires-single-task', `${label}: ${JSON.stringify(rejected)}`);
+    assert.strictEqual(rejected.reason, 'light-requires-serial', `${label}: ${JSON.stringify(rejected)}`);
   }
 });
 
@@ -4614,27 +4630,30 @@ test('opposite-mode bootstrap resume → rejects with ledger-mode-mismatch', () 
   assert.strictEqual(resumed.reason, 'ledger-mode-mismatch');
 });
 
-test('light report without a report file → accepts inline and stores no open_choices', () => {
+test('light report without a report file → rejects with report-revision-missing from worker cwd', () => {
   const blueprint = '.bouncer/context/epics/098-x/blueprints/006-light';
   const { repo } = lightScaleRepo('bouncer-light-nofile-', blueprint);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  const cwd = boot.integrationPath;
-  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
-  const dispatched = coordinate({ command: 'dispatch', repoRoot: repo, blueprint, cwd, task: '001' });
+  const worker = prepared.tasks[0].workerPath;
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
+  });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
   const reported = coordinate({
-    command: 'report', repoRoot: repo, blueprint, cwd, task: '001',
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
     attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
-    outcome: 'rework', summary: 'inline light report',
+    outcome: 'rework', summary: 'missing report file',
   });
-  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
-  assert.strictEqual(reported.decision.open_choices, undefined);
-  assert.strictEqual(reported.decision.known_weaknesses, undefined);
+  assert.strictEqual(reported.ok, false, JSON.stringify(reported));
+  assert.strictEqual(reported.reason, 'report-revision-missing');
 });
 
-test('accepted report without accepted rounds on a light ledger → rejects with light-review-required', () => {
+test('accepted light report without implementer worker-model → rejects with light-implementer-record-missing', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/007-rev';
   const { repo } = lightScaleRepo('bouncer-light-rev-', blueprint);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -4643,47 +4662,56 @@ test('accepted report without accepted rounds on a light ledger → rejects with
     command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
-  const cwd = boot.integrationPath;
+  const worker = prepared.tasks[0].workerPath;
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const dispatched = coordinate({
-    command: 'dispatch', repoRoot: repo, blueprint, cwd, task: '001',
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
-
-  writeBlueprintReview(cwd, blueprint, 'pending', false);
-  const emptyRounds = coordinate({
-    command: 'report', repoRoot: repo, blueprint, cwd, task: '001',
+  commitAndStampWorker(repo, blueprint, worker);
+  writeWorkerReport(worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
+  const before = fs.readFileSync(ledgerFile);
+  const missing = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
     attempt: dispatched.metadata.attempt,
     taskBriefHash: dispatched.metadata.task_brief_hash,
     outcome: 'accepted',
-    summary: 'no rounds',
+    summary: 'no implementer record',
   });
-  assert.strictEqual(emptyRounds.ok, false, JSON.stringify(emptyRounds));
-  assert.strictEqual(emptyRounds.reason, 'light-review-required');
+  assert.strictEqual(missing.ok, false, JSON.stringify(missing));
+  assert.strictEqual(missing.reason, 'light-implementer-record-missing');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), before);
 
-  writeBlueprintReview(cwd, blueprint, 'addressed', true);
-  const badStatus = coordinate({
-    command: 'report', repoRoot: repo, blueprint, cwd, task: '001',
-    attempt: dispatched.metadata.attempt,
-    taskBriefHash: dispatched.metadata.task_brief_hash,
-    outcome: 'accepted',
-    summary: 'not accepted status',
+  // attempt 2에서 implementer 기록이 하나뿐이어도 같은 reason이다.
+  assert.strictEqual(coordinate({
+    command: 'worker-model', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', role: 'implementer', model: 'test-model', tokens: 1,
+  }).ok, true);
+  // rework로 닫고 다시 dispatch해 attempt 2를 연다.
+  writeWorkerReport(worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash);
+  assert.strictEqual(coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'rework', summary: 'retry',
+  }).ok, true);
+  const second = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
   });
-  assert.strictEqual(badStatus.ok, false, JSON.stringify(badStatus));
-  assert.strictEqual(badStatus.reason, 'light-review-required');
-
-  writeBlueprintReview(cwd, blueprint, 'accepted', true);
-  commitAndStampWorker(repo, blueprint, cwd);
-  const okReport = coordinate({
-    command: 'report', repoRoot: repo, blueprint, cwd, task: '001',
-    attempt: dispatched.metadata.attempt,
-    taskBriefHash: dispatched.metadata.task_brief_hash,
-    outcome: 'accepted',
-    summary: 'reviewed',
+  assert.strictEqual(second.ok, true, JSON.stringify(second));
+  assert.strictEqual(second.metadata.attempt, 2);
+  commitAndStampWorker(repo, blueprint, worker);
+  writeWorkerReport(worker, '001', second.metadata.attempt, second.metadata.task_brief_hash);
+  const before2 = fs.readFileSync(ledgerFile);
+  const stillMissing = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    attempt: second.metadata.attempt, taskBriefHash: second.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'still one implementer record',
   });
-  assert.strictEqual(okReport.ok, true, JSON.stringify(okReport));
+  assert.strictEqual(stillMissing.reason, 'light-implementer-record-missing');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), before2);
 });
 
-test('light ledger with workerPath not integration → rejects dispatch and record', () => {
+test('light ledger report/record from integration cwd → rejects with light-inline-removed', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/008-path';
   const { repo } = lightScaleRepo('bouncer-light-path-', blueprint);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -4693,45 +4721,22 @@ test('light ledger with workerPath not integration → rejects dispatch and reco
   });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
-  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
-  const fakeWorker = path.join(boot.integrationPath, '..', 'workers', '001');
-  ledger.tasks[0].workerPath = fakeWorker;
-  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
-
-  const rejectedDispatch = coordinate({
-    command: 'dispatch', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
-  });
-  assert.strictEqual(rejectedDispatch.ok, false, JSON.stringify(rejectedDispatch));
-  assert.strictEqual(rejectedDispatch.reason, 'unassigned-worker-worktree');
-
-  // report 경로를 쓰기 위해 원장을 정상 light 배정으로 되돌린 뒤 dispatch·report까지 진행하고
-  // record 직전에 다시 잘못된 workerPath를 심는다.
-  const reset = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
-  reset.tasks[0].workerPath = boot.integrationPath;
-  delete reset.tasks[0].dispatch;
-  fs.writeFileSync(ledgerFile, `${JSON.stringify(reset, null, 2)}\n`);
-  const dispatched = coordinate({
-    command: 'dispatch', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
-  });
-  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
-  writeBlueprintReview(boot.integrationPath, blueprint, 'accepted', true);
-  commitAndStampWorker(repo, blueprint, boot.integrationPath);
-  const reported = coordinate({
+  const before = fs.readFileSync(ledgerFile);
+  const rejectedReport = coordinate({
     command: 'report', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
-    attempt: dispatched.metadata.attempt,
-    taskBriefHash: dispatched.metadata.task_brief_hash,
-    outcome: 'accepted',
-    summary: 'ok',
+    attempt: 1, taskBriefHash: 'a'.repeat(64), outcome: 'rework', summary: 'inline',
   });
-  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
-  const beforeRecord = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
-  beforeRecord.tasks[0].workerPath = fakeWorker;
-  fs.writeFileSync(ledgerFile, `${JSON.stringify(beforeRecord, null, 2)}\n`);
+  assert.strictEqual(rejectedReport.ok, false, JSON.stringify(rejectedReport));
+  assert.strictEqual(rejectedReport.reason, 'light-inline-removed');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), before);
+
   const rejectedRecord = coordinate({
     command: 'record', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    leaseId: 'wrong', generation: 99,
   });
   assert.strictEqual(rejectedRecord.ok, false, JSON.stringify(rejectedRecord));
-  assert.strictEqual(rejectedRecord.reason, 'unassigned-worker-worktree');
+  assert.strictEqual(rejectedRecord.reason, 'light-inline-removed');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), before);
 });
 
 // --- promote-stop (TASKS-003 / epic 089 blueprint 003) ---
@@ -4742,10 +4747,12 @@ const PROMOTE_REASONS = [
 
 /**
  * light bootstrap 뒤 prepared 상태까지 만든다. promote-stop 단언용.
+ * 002 이후 light 작업은 worker에 있으므로 workerPath도 돌려준다.
  *
  * @param {string} prefix - tmpdir prefix
  * @param {string} blueprint - blueprint 상대 경로
- * @returns {{ repo: string, blueprint: string, integrationPath: string, ledgerFile: string }}
+ * @returns {{ repo: string, blueprint: string, integrationPath: string, ledgerFile: string,
+ *   workerPath: string }}
  */
 function lightPreparedDrive(prefix, blueprint) {
   const { repo } = lightScaleRepo(prefix, blueprint);
@@ -4755,11 +4762,13 @@ function lightPreparedDrive(prefix, blueprint) {
     command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   return {
     repo,
     blueprint,
     integrationPath: boot.integrationPath,
-    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+    ledgerFile,
+    workerPath: prepared.tasks[0].workerPath,
   };
 }
 
@@ -4877,9 +4886,12 @@ test('promote-stop with a different reason or summary → rejects with promotion
 test('promotion_stopped ledger → refuses prepare dispatch report record integrate', () => {
   const blueprint = '.bouncer/context/epics/089-light/blueprints/015-refuse';
   const drive = lightPreparedDrive('bouncer-promote-refuse-', blueprint);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  const worker = ledger.tasks[0].workerPath;
   const cwd = drive.integrationPath;
+  // dispatch는 worker cwd에서만 연다(integration은 light-inline-removed). promote-stop 기대값은 그대로다.
   const dispatched = coordinate({
-    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd, task: '001',
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
   const stopped = coordinate({
@@ -4905,10 +4917,11 @@ test('promotion_stopped ledger → refuses prepare dispatch report record integr
 test('promotion_stopped light ledger with full scale and --promote-light → archives, writes the patch, and seeds a full ledger', () => {
   const blueprint = '.bouncer/context/epics/107-workflow-cost-reduction/blueprints/003-plan-run-call-reduction-replacement';
   const drive = lightPreparedDrive('bouncer-promote-light-success-', blueprint);
-  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  // light 작업은 worker에 둔다(002 이후). integration dirty가 아니라 worker 기준 patch다.
+  fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'light work\n');
   const lightPlanPath = path.join(drive.integrationPath, blueprint, 'index.md');
   fs.writeFileSync(lightPlanPath, `${fs.readFileSync(lightPlanPath, 'utf8')}\nlight-only note\n`);
-  fs.writeFileSync(path.join(drive.integrationPath, 'src/new.bin'), Buffer.from([0, 255, 1, 2]));
+  fs.writeFileSync(path.join(drive.workerPath, 'src/new.bin'), Buffer.from([0, 255, 1, 2]));
   const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
     cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
   assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
@@ -4923,11 +4936,17 @@ test('promotion_stopped light ledger with full scale and --promote-light → arc
   execFileSync('git', ['apply', '--check', patch], { cwd: drive.integrationPath });
   assert.match(fs.readFileSync(patch, 'utf8'), /GIT binary patch/);
   assert.match(fs.readFileSync(patch, 'utf8'), /src\/new\.bin/);
+  assert.ok(fs.readFileSync(patch, 'utf8').includes('src/a.js'));
   assert.doesNotMatch(fs.readFileSync(patch, 'utf8'), /light-only note|blueprints\/003-plan-run-call-reduction-replacement\/index\.md/);
   assert.strictEqual(fs.readFileSync(lightPlanPath, 'utf8'), fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8'));
   assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, 'src/new.bin')), false);
   assert.strictEqual(fs.readFileSync(path.join(drive.integrationPath, 'src/a.js'), 'utf8'),
     execFileSync('git', ['show', 'HEAD:src/a.js'], { cwd: drive.integrationPath, encoding: 'utf8' }));
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  assert.strictEqual(listed.includes(drive.workerPath), false);
+  assert.ok(typeof out.salvage === 'string' && fs.existsSync(out.salvage));
   const archived = JSON.parse(fs.readFileSync(archive, 'utf8'));
   const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
   assert.strictEqual(ledger.mode, undefined);
@@ -4971,7 +4990,8 @@ for (const [condition, mutate, expected] of [
     } else if (mutate === 'drift') {
       const index = path.join(drive.repo, blueprint, 'index.md');
       fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('scale: light', 'scale: full'));
-      fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'changed after stop\n');
+      // stop 이후 worker를 바꿔 드리프트를 만든다(integration이 아니라 worker 기준).
+      fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'changed after stop\n');
     }
     const beforeBytes = fs.existsSync(drive.ledgerFile) ? fs.readFileSync(drive.ledgerFile) : null;
     const status = execFileSync('git', ['status', '--porcelain'], { cwd: drive.integrationPath, encoding: 'utf8' });
@@ -4986,10 +5006,10 @@ for (const [condition, mutate, expected] of [
 test('promote-light with writeLedger failing on the new ledger → rolls back and returns restored true', () => {
   const blueprint = '.bouncer/context/epics/107-promote-rollback/blueprints/001-plan';
   const drive = lightPreparedDrive('bouncer-promote-light-rollback-', blueprint);
-  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
-  fs.chmodSync(path.join(drive.integrationPath, 'src/a.js'), 0o755);
-  execFileSync('git', ['add', 'src/a.js'], { cwd: drive.integrationPath });
-  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'partially staged work\n');
+  fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'light work\n');
+  fs.chmodSync(path.join(drive.workerPath, 'src/a.js'), 0o755);
+  execFileSync('git', ['add', 'src/a.js'], { cwd: drive.workerPath });
+  fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'partially staged work\n');
   const dirtyPlanPath = path.join(drive.integrationPath, blueprint, 'index.md');
   fs.writeFileSync(dirtyPlanPath, `${fs.readFileSync(dirtyPlanPath, 'utf8')}\nlight-only note\n`);
   const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
@@ -4999,22 +5019,14 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('scale: light', 'scale: full'));
   const bytes = fs.readFileSync(drive.ledgerFile);
   const originalStaged = execFileSync('git', ['diff', '--cached', '--binary'], {
-    cwd: drive.integrationPath, encoding: 'utf8',
+    cwd: drive.workerPath, encoding: 'utf8',
   });
-  const originalMode = fs.statSync(path.join(drive.integrationPath, 'src/a.js')).mode & 0o777;
+  const originalMode = fs.statSync(path.join(drive.workerPath, 'src/a.js')).mode & 0o777;
   const originalDocs = [
     `${blueprint}/index.md`, `${blueprint}/tasks/001/tasks.md`, `${blueprint}/verification.md`,
     '.bouncer/context/index.md',
   ].map((rel) => [rel, fs.existsSync(path.join(drive.integrationPath, rel))
     ? fs.readFileSync(path.join(drive.integrationPath, rel)) : null]);
-  const originalStatus = execFileSync('git', ['status', '--porcelain'], {
-    cwd: drive.integrationPath, encoding: 'utf8',
-  });
-  const originalDiff = execFileSync('git', ['diff', 'HEAD'], {
-    cwd: drive.integrationPath, encoding: 'utf8',
-  });
-  const originalDiffSha = crypto.createHash('sha256')
-    .update(originalStatus, 'utf8').update('\0').update(originalDiff, 'utf8').digest('hex');
   const beforeDiff = stopped.promotion.diff_sha;
   const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true,
     deps: { writeLedger: (file, ledger) => {
@@ -5024,34 +5036,32 @@ test('promote-light with writeLedger failing on the new ledger → rolls back an
   });
   assert.strictEqual(out.reason, 'promote-light-incomplete');
   assert.strictEqual(out.restored, true);
-  assert.strictEqual(fs.statSync(path.join(drive.integrationPath, 'src/a.js')).mode & 0o777, originalMode);
+  assert.strictEqual(fs.statSync(path.join(drive.workerPath, 'src/a.js')).mode & 0o777, originalMode);
   for (const [rel, original] of originalDocs) {
     const abs = path.join(drive.integrationPath, rel);
     assert.deepStrictEqual(fs.existsSync(abs) ? fs.readFileSync(abs) : null, original);
   }
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), bytes);
   assert.strictEqual(execFileSync('git', ['diff', '--cached', '--binary'], {
-    cwd: drive.integrationPath, encoding: 'utf8',
+    cwd: drive.workerPath, encoding: 'utf8',
   }), originalStaged);
   assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/coordinator.light-promoted.json')), false);
   assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/light-promoted.patch')), false);
-  const afterStatus = execFileSync('git', ['status', '--porcelain'], {
+  // worker는 등록된 채 남아 같은 명령 재시도가 drift 없이 이어진다.
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], {
     cwd: drive.integrationPath, encoding: 'utf8',
   });
-  const afterDiff = execFileSync('git', ['diff', 'HEAD'], {
-    cwd: drive.integrationPath, encoding: 'utf8',
-  });
-  const afterDiffSha = crypto.createHash('sha256')
-    .update(afterStatus, 'utf8').update('\0').update(afterDiff, 'utf8').digest('hex');
-  assert.strictEqual(afterDiffSha, originalDiffSha);
+  assert.ok(listed.includes(drive.workerPath));
   assert.strictEqual(beforeDiff, stopped.promotion.diff_sha);
   assert.match(beforeDiff, /^[a-f0-9]{64}$/);
+  const retry = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+  assert.strictEqual(retry.ok, true, JSON.stringify(retry));
 });
 
 test('promotion rollback fingerprint mismatch → preserves manual recovery artifacts', () => {
   const blueprint = '.bouncer/context/epics/107-promote-rollback-mismatch/blueprints/001-plan';
   const drive = lightPreparedDrive('bouncer-promote-light-mismatch-', blueprint);
-  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), 'light work\n');
+  fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'light work\n');
   const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
     cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
   assert.strictEqual(stopped.ok, true);
@@ -5062,7 +5072,9 @@ test('promotion rollback fingerprint mismatch → preserves manual recovery arti
     deps: {
       execFileSync: (file, args, options) => {
         const result = execFileSync(file, args, options);
-        if (file === 'git' && args.join(' ') === 'diff HEAD' && ++worktreeDiffCalls === 2) {
+        // fingerprint는 `git diff <base>`다(HEAD가 아닐 수 있음). 두 번째 호출이 rollback 검사다.
+        if (file === 'git' && args[0] === 'diff' && !String(args[1]).startsWith('-')
+          && ++worktreeDiffCalls === 2) {
           return `${result}injected mismatch`;
         }
         return result;
@@ -5090,6 +5102,7 @@ test('promotion seed destination symlink outside integration → rolls back with
   execFileSync('git', ['add', path.relative(drive.integrationPath, integrationPlan)], { cwd: drive.integrationPath });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
     'commit', '-m', 'tracked plan symlink'], { cwd: drive.integrationPath });
+  // fingerprint는 worker 기준이라 integration에만 올린 심링크 커밋과 무관하다.
   const stopped = coordinate({ command: 'promote-stop', repoRoot: drive.repo, blueprint,
     cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full' });
   assert.strictEqual(stopped.ok, true);
@@ -5105,6 +5118,169 @@ test('promotion seed destination symlink outside integration → rolls back with
   assert.strictEqual(dangling.reason, 'promote-light-incomplete');
   assert.strictEqual(dangling.restored, true);
   assert.strictEqual(fs.existsSync(external), false);
+});
+
+test('promote-stop after a worker commit → records a diff_sha different from an untouched worker', () => {
+  const changed = lightPreparedDrive('bouncer-promote-stop-commit-a-',
+    '.bouncer/context/epics/089-light/blueprints/020-stop-commit-a');
+  fs.writeFileSync(path.join(changed.workerPath, 'src/a.js'), 'worker commit\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: changed.workerPath });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'worker change'], { cwd: changed.workerPath });
+  const clean = lightPreparedDrive('bouncer-promote-stop-commit-b-',
+    '.bouncer/context/epics/089-light/blueprints/021-stop-commit-b');
+  const stoppedChanged = coordinate({
+    command: 'promote-stop', repoRoot: changed.repo, blueprint: changed.blueprint,
+    cwd: changed.integrationPath, reason: 'out-of-scope', summary: 'committed worker',
+  });
+  const stoppedClean = coordinate({
+    command: 'promote-stop', repoRoot: clean.repo, blueprint: clean.blueprint,
+    cwd: clean.integrationPath, reason: 'out-of-scope', summary: 'clean worker',
+  });
+  assert.strictEqual(stoppedChanged.ok, true, JSON.stringify(stoppedChanged));
+  assert.strictEqual(stoppedClean.ok, true, JSON.stringify(stoppedClean));
+  assert.notStrictEqual(stoppedChanged.promotion.diff_sha, stoppedClean.promotion.diff_sha);
+});
+
+test('promote-light after a worker commit → writes patch with the file, removes the worker, and returns salvage', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/022-promote-commit';
+  const drive = lightPreparedDrive('bouncer-promote-light-commit-', blueprint);
+  fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'worker commit\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: drive.workerPath });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'worker change'], { cwd: drive.workerPath });
+  const stopped = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full',
+  });
+  assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
+  fs.writeFileSync(path.join(drive.repo, blueprint, 'index.md'),
+    fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8').replace('scale: light', 'scale: full'));
+  const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  const patchFile = path.join(drive.integrationPath, '.bouncer/runtime/light-promoted.patch');
+  assert.ok(fs.readFileSync(patchFile, 'utf8').includes('src/a.js'));
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  assert.strictEqual(listed.includes(drive.workerPath), false);
+  assert.ok(typeof out.salvage === 'string' && fs.existsSync(out.salvage));
+});
+
+test('promote-light when salvage dir cannot be created → worker-salvage-failed and leaves ledger and worker', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/023-salvage-fail';
+  const drive = lightPreparedDrive('bouncer-promote-salvage-fail-', blueprint);
+  fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'work\n');
+  const stopped = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full',
+  });
+  assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
+  fs.writeFileSync(path.join(drive.repo, blueprint, 'index.md'),
+    fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8').replace('scale: light', 'scale: full'));
+  // salvage 자리에 일반 파일을 두면 mkdir이 실패해 보존이 거절된다.
+  const salvagePath = path.join(drive.integrationPath, '.bouncer/runtime/salvage');
+  fs.writeFileSync(salvagePath, 'not-a-directory\n');
+  const before = fs.readFileSync(drive.ledgerFile);
+  const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+  assert.strictEqual(out.ok, false, JSON.stringify(out));
+  assert.strictEqual(out.reason, 'worker-salvage-failed');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  });
+  assert.ok(listed.includes(drive.workerPath));
+});
+
+test('promote-light when worktree remove fails → promote-light-worker-remains with full ledger and patch', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/024-worker-remains';
+  const drive = lightPreparedDrive('bouncer-promote-worker-remains-', blueprint);
+  fs.writeFileSync(path.join(drive.workerPath, 'src/a.js'), 'work\n');
+  const stopped = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full',
+  });
+  assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
+  fs.writeFileSync(path.join(drive.repo, blueprint, 'index.md'),
+    fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8').replace('scale: light', 'scale: full'));
+  const out = coordinate({
+    command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true,
+    deps: {
+      execFileSync: (file, args, options) => {
+        if (file === 'git' && args[0] === 'worktree' && args[1] === 'remove') {
+          throw Object.assign(new Error('injected worktree remove failure'), { status: 1 });
+        }
+        return execFileSync(file, args, options);
+      },
+    },
+  });
+  assert.strictEqual(out.ok, false, JSON.stringify(out));
+  assert.strictEqual(out.reason, 'promote-light-worker-remains');
+  assert.strictEqual(out.workerPath, drive.workerPath);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.ok(ledger.promoted_from);
+  assert.ok(fs.existsSync(path.join(drive.integrationPath, '.bouncer/runtime/light-promoted.patch')));
+  assert.ok(typeof out.salvage === 'string' && fs.existsSync(out.salvage));
+});
+
+test('promote-stop with an unregistered workerPath → unassigned-worker-worktree', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/025-unassigned';
+  const drive = lightPreparedDrive('bouncer-promote-unassigned-', blueprint);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.tasks[0].workerPath = path.join(drive.integrationPath, '..', 'workers', '999-missing');
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const out = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'out-of-scope', summary: 'bad worker',
+  });
+  assert.strictEqual(out.ok, false, JSON.stringify(out));
+  assert.strictEqual(out.reason, 'unassigned-worker-worktree');
+  assert.strictEqual(out.workerPath, ledger.tasks[0].workerPath);
+});
+
+test('promote-light on a legacy light ledger without light_runner → light-ledger-legacy', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/026-legacy-promote';
+  const drive = lightPreparedDrive('bouncer-promote-legacy-', blueprint);
+  const stopped = coordinate({
+    command: 'promote-stop', repoRoot: drive.repo, blueprint,
+    cwd: drive.integrationPath, reason: 'task-split', summary: 'needs full',
+  });
+  assert.strictEqual(stopped.ok, true, JSON.stringify(stopped));
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  delete ledger.light_runner;
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  fs.writeFileSync(path.join(drive.repo, blueprint, 'index.md'),
+    fs.readFileSync(path.join(drive.repo, blueprint, 'index.md'), 'utf8').replace('scale: light', 'scale: full'));
+  const before = fs.readFileSync(drive.ledgerFile);
+  const out = coordinate({ command: 'bootstrap', repoRoot: drive.repo, blueprint, promoteLight: true });
+  assert.strictEqual(out.ok, false, JSON.stringify(out));
+  assert.strictEqual(out.reason, 'light-ledger-legacy');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('promote-stop before prepare → succeeds with integrationHead fingerprint', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/027-pre-prepare';
+  const { repo } = lightScaleRepo('bouncer-promote-pre-prepare-', blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks[0].workerPath, undefined);
+  fs.writeFileSync(path.join(boot.integrationPath, 'src/a.js'), 'pre-prepare dirty\n');
+  const porcelain = execFileSync('git', ['status', '--porcelain=v1'], {
+    cwd: boot.integrationPath, encoding: 'utf8',
+  });
+  const diff = execFileSync('git', ['diff', ledger.integrationHead], {
+    cwd: boot.integrationPath, encoding: 'utf8',
+  });
+  const expected = crypto.createHash('sha256')
+    .update(porcelain, 'utf8').update('\0').update(diff, 'utf8').digest('hex');
+  const out = coordinate({
+    command: 'promote-stop', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, reason: 'out-of-scope', summary: 'before prepare',
+  });
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(out.promotion.diff_sha, expected);
 });
 
 // --- coordinate repair --kind supplement -----------------------------------
@@ -5824,7 +6000,8 @@ test('note with bad text, task, mode or status → refuses with the matching rea
     [{ text: 'x'.repeat(2001) }, 'note-too-long'],
     [{ text: 'ok', task: '999' }, 'task-outside-blueprint'],
     [{ text: 'ok' }, 'ledger-not-active', (l) => { l.status = 'awaiting_confirmation'; }],
-    [{ text: 'ok' }, 'ledger-mode-mismatch', (l) => { l.mode = 'light'; }],
+    // 표식 없는 light + 열린 task = 옛 inline. fence가 light-ledger-legacy로 거절한다.
+    [{ text: 'ok' }, 'light-ledger-legacy', (l) => { l.mode = 'light'; }],
   ];
   for (const [extra, reason, mutate] of cases) {
     const drive = preparedCommitDrive('bouncer-note-bad-', MODEL_BP);
@@ -5839,6 +6016,84 @@ test('note with bad text, task, mode or status → refuses with the matching rea
     assert.strictEqual(r.reason, reason);
     assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, reason);
   }
+});
+
+test('note on a marked light ledger → records the note', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/011-note';
+  const { repo } = lightScaleRepo('bouncer-note-light-', blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const r = coordinate({
+    command: 'note', repoRoot: repo, blueprint, cwd: boot.integrationPath, text: 'handoff for light',
+  });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.decision.text, 'handoff for light');
+});
+
+test('옛 light 원장(표식 없음, prepared task) → bootstrap 재개·prepare·report·note·promote-stop이 light-ledger-legacy', () => {
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/012-legacy';
+  const { repo } = lightScaleRepo('bouncer-light-legacy-', blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const stripMark = () => {
+    const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+    delete ledger.light_runner;
+    ledger.tasks[0].status = 'prepared';
+    fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  };
+  stripMark();
+  const beforeBoot = fs.readFileSync(ledgerFile);
+  const resumed = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(resumed.reason, 'light-ledger-legacy');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), beforeBoot);
+
+  const beforePrepare = fs.readFileSync(ledgerFile);
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.reason, 'light-ledger-legacy');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), beforePrepare);
+
+  const beforeNote = fs.readFileSync(ledgerFile);
+  const noted = coordinate({
+    command: 'note', repoRoot: repo, blueprint, cwd: boot.integrationPath, text: 'x',
+  });
+  assert.strictEqual(noted.reason, 'light-ledger-legacy');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), beforeNote);
+
+  const beforePromote = fs.readFileSync(ledgerFile);
+  const promoted = coordinate({
+    command: 'promote-stop', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    reason: 'task-split', summary: 'legacy',
+  });
+  assert.strictEqual(promoted.reason, 'light-ledger-legacy');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), beforePromote);
+
+  // report도 fence를 거치므로 같은 reason이다(task 조회 전).
+  const beforeReport = fs.readFileSync(ledgerFile);
+  const reported = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    attempt: 1, taskBriefHash: 'a'.repeat(64), outcome: 'rework', summary: 'x',
+  });
+  assert.strictEqual(reported.reason, 'light-ledger-legacy');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), beforeReport);
+});
+
+test('표식 없고 모든 task가 integrated인 light 원장 → coordinateNext가 legacy로 거절하지 않음', () => {
+  const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
+  const blueprint = '.bouncer/context/epics/089-light/blueprints/013-finished';
+  const { repo } = lightScaleRepo('bouncer-light-finished-', blueprint);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  delete ledger.light_runner;
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const r = coordinateNext({ repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.notStrictEqual(r.reason, 'light-ledger-legacy', JSON.stringify(r));
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
 });
 
 // review-handoff 본문 판정 테스트의 입력. direct-run.md Handoff 형식과 같은 모양을 만든다.
@@ -7139,7 +7394,7 @@ test('accepted report on a blueprint without verification_policy and no Tests se
   assert.strictEqual(out.ok, true, JSON.stringify(out));
 });
 
-test('accepted report on a scoped_terminal light ledger without a Tests section → accepts as before', () => {
+test('accepted report on a scoped_terminal light ledger without a Tests section → rejects report-tests-invalid', () => {
   const blueprint = '.bouncer/context/epics/120-report/blueprints/024-light';
   const { repo } = lightScaleRepo('bouncer-report-tests-light-', blueprint, {
     policy: 'scoped_terminal',
@@ -7152,18 +7407,29 @@ test('accepted report on a scoped_terminal light ledger without a Tests section 
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
   const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const dispatched = coordinate({
-    command: 'dispatch', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
   });
   assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
-  writeBlueprintReview(boot.integrationPath, blueprint, 'accepted', true);
-  commitAndStampWorker(repo, blueprint, boot.integrationPath);
+  assert.strictEqual(coordinate({
+    command: 'worker-model', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', role: 'implementer', model: 'test-model', tokens: 1,
+  }).ok, true);
+  commitAndStampWorker(repo, blueprint, worker);
+  writeWorkerReport(worker, '001', dispatched.metadata.attempt, dispatched.metadata.task_brief_hash, {
+    tests: null,
+  });
+  const before = fs.readFileSync(ledgerFile);
   const out = coordinate({
-    command: 'report', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
     attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
     outcome: 'accepted', summary: 'light accepted',
   });
-  assert.strictEqual(out.ok, true, JSON.stringify(out));
+  assert.strictEqual(out.ok, false, JSON.stringify(out));
+  assert.strictEqual(out.reason, 'report-tests-invalid');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), before);
 });
 
 // CT-002: Tests 판정은 commit task만 본다. verification task는 같은 full scoped_terminal 원장에서도

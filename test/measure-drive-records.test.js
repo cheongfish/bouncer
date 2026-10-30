@@ -202,3 +202,67 @@ test('--input 없이 실행한 git 저장소 → Git common dir의 snapshot 디�
 test('git 저장소가 아닌 cwd에서 --input 없이 실행 → exit 1이다', () => {
   assert.strictEqual(run([], tmp()).code, 1);
 });
+
+test('light·full·옛 snapshot과 세션 → by_mode와 promotions로 나눈다', () => {
+  const dir = tmp();
+  const input = path.join(dir, 'snaps');
+  fs.mkdirSync(input, { recursive: true });
+  const bpLight = '.bouncer/context/epics/e/blueprints/light-bp';
+  const bpFull = '.bouncer/context/epics/e/blueprints/full-bp';
+  const bpOld = '.bouncer/context/epics/e/blueprints/old-bp';
+  const write = (name, value) => fs.writeFileSync(path.join(input, name), JSON.stringify(value));
+  write('light.json', snapshot(bpLight, 100, record({
+    mode: 'light', promotion: null, repair_waves: { ci: 1, review: 0 },
+  })));
+  write('full.json', snapshot(bpFull, 200, record({
+    mode: 'full',
+    promotion: { reason: 'out-of-scope', task: '001' },
+    repair_waves: { ci: 0, review: 1 },
+  })));
+  // mode·promotion 키가 없는 옛 기록은 unknown으로 센다.
+  write('old.json', snapshot(bpOld, 50, record()));
+  const sessions = path.join(dir, 'sessions.json');
+  fs.writeFileSync(sessions, JSON.stringify({ version: 1, sessions: [
+    { id: 's-light', kind: 'root-direct-session', blueprint: bpLight, input_tokens: 10, output_tokens: 5 },
+    { id: 's-full', kind: 'coordinator-session', blueprint: bpFull, input_tokens: 20 },
+  ] }));
+  const r = run(['--input', input, '--sessions', sessions], dir);
+  assert.strictEqual(r.code, 0, r.err);
+  assert.deepStrictEqual(r.json.promotions, { 'out-of-scope': 1 });
+  assert.strictEqual(r.json.by_mode.unknown.drives, 1);
+  assert.strictEqual(r.json.by_mode.unknown.worker_tokens, 50);
+  assert.deepStrictEqual({
+    drives: r.json.by_mode.light.drives,
+    worker_tokens: r.json.by_mode.light.worker_tokens,
+    session_tokens: r.json.by_mode.light.session_tokens,
+    ci_repair_waves: r.json.by_mode.light.ci_repair_waves,
+    review_repair_waves: r.json.by_mode.light.review_repair_waves,
+  }, {
+    drives: 1, worker_tokens: 100, session_tokens: 15, ci_repair_waves: 1, review_repair_waves: 0,
+  });
+  assert.deepStrictEqual({
+    drives: r.json.by_mode.full.drives,
+    worker_tokens: r.json.by_mode.full.worker_tokens,
+    session_tokens: r.json.by_mode.full.session_tokens,
+    ci_repair_waves: r.json.by_mode.full.ci_repair_waves,
+    review_repair_waves: r.json.by_mode.full.review_repair_waves,
+  }, {
+    drives: 1, worker_tokens: 200, session_tokens: 20, ci_repair_waves: 0, review_repair_waves: 1,
+  });
+});
+
+test('promotion이 { reason: 1 }인 snapshot → skipped에 not-snapshot으로 남긴다', () => {
+  const dir = tmp();
+  const input = path.join(dir, 'snaps');
+  fs.mkdirSync(input, { recursive: true });
+  fs.writeFileSync(path.join(input, 'bad-promo.json'), JSON.stringify(snapshot(
+    '.bouncer/context/epics/e/blueprints/bad', 1,
+    record({ mode: 'full', promotion: { reason: 1 } }),
+  )));
+  const sessions = path.join(dir, 'sessions.json');
+  fs.writeFileSync(sessions, JSON.stringify({ version: 1, sessions: [] }));
+  const r = run(['--input', input, '--sessions', sessions], dir);
+  assert.strictEqual(r.code, 0, r.err);
+  assert.deepStrictEqual(r.json.skipped, [{ path: 'snaps/bad-promo.json', reason: 'not-snapshot' }]);
+  assert.strictEqual(r.json.totals.drives, 0);
+});

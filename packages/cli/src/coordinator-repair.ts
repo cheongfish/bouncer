@@ -25,7 +25,7 @@ import type {
   Task, Ledger, FailureEvidence, RepairDecision, OutsideScopeDisposition, Exec, VerificationRunner,
 } from './execution-contracts';
 import coordinatorLedger = require('./coordinator-ledger');
-const { ledgerBytesHash } = coordinatorLedger;
+const { ledgerBytesHash, ledgerModeOf } = coordinatorLedger;
 import coordinatorGit = require('./coordinator-git');
 const { git } = coordinatorGit;
 import coordinatorVerification = require('./coordinator-verification');
@@ -273,10 +273,11 @@ function finalReviewDiscoveryStored(integrationPath: string, blueprint: string):
 
 /**
  * 최종 리뷰 이후 리뷰 원인 repair·supplement 접수 여부를 한 곳에서 판정한다. 표식이 허용 밖의
- * 값이면 구형으로 접지 않고 거절한다. 구형 blueprint는 discovery 뒤 전부 거절하고, `brief`
- * 표식은 discovery 뒤 리뷰 원인 repair를 한 번(delta 전·이전 repair 없음)만 받는다.
- * 그 repair의 새 경로는 원장 모든 task의 Do not touch 합집합과 겹치지 않으면 접수하고 기록한다.
- * 거절은 원장·문서를 쓰기 전에 끝난다.
+ * 값이면 구형으로 접지 않고 거절한다. 원장 mode가 light이면 discovery 뒤 리뷰 원인 repair를
+ * 한 번만 받고 새 경로는 승격 안내로 거절한다(delta는 열지 않는다). full 구형 blueprint는
+ * discovery 뒤 전부 거절하고, `brief` 표식은 discovery 뒤 리뷰 원인 repair를 한 번
+ * (delta 전·이전 repair 없음)만 받는다. brief repair의 새 경로는 원장 모든 task의 Do not
+ * touch 합집합과 겹치지 않으면 접수하고 기록한다. 거절은 원장·문서를 쓰기 전에 끝난다.
  *
  * @param {object} opts - 판정 입력
  * @param {string} opts.integrationPath - integration worktree
@@ -294,8 +295,20 @@ function finalReviewGate(opts: {
   const contract = reviewContractAt(integrationPath, blueprint);
   if (contract === null) return { ok: false, reason: schema.REVIEW_CONTRACT_INVALID_REASON };
   if (!finalReviewDiscoveryStored(integrationPath, blueprint)) return null;
-  // supplement는 표식과 무관하게 discovery 뒤에 닫힌다. 수정 기회는 repair 한 번뿐이다.
-  if (contract !== 'brief' || supplement) return { ok: false, reason: 'final-review-single-round' };
+  // supplement는 표식·mode와 무관하게 discovery 뒤에 닫힌다. 수정 기회는 repair 한 번뿐이다.
+  if (supplement) return { ok: false, reason: 'final-review-single-round' };
+  // light는 문서 계약이 legacy로 접혀도 원장 mode로 한 번의 리뷰 repair를 연다. 새 경로는
+  // light 범위 개정과 같아 승격이 필요하고, 두 번째 repair는 brief와 같은 single-round다.
+  if (ledgerModeOf(ledger) === 'light') {
+    if (hasReviewRepairDecision(ledger.decisions) || rootReviewHasDelta(integrationPath, blueprint)) {
+      return { ok: false, reason: 'final-review-single-round' };
+    }
+    if (newPaths && newPaths.length > 0) {
+      return { ok: false, reason: 'light-scope-revision-requires-promotion' };
+    }
+    return null;
+  }
+  if (contract !== 'brief') return { ok: false, reason: 'final-review-single-round' };
   if (hasReviewRepairDecision(ledger.decisions) || rootReviewHasDelta(integrationPath, blueprint)) {
     return { ok: false, reason: 'final-review-single-round' };
   }
@@ -1486,7 +1499,7 @@ function coordinateCriticalRecovery(ctx: RepairTaskCtx, support: RepairSupport):
  */
 const FINAL_REVIEW_REJECTION_REASONS: readonly string[] = Object.freeze([
   schema.REVIEW_CONTRACT_INVALID_REASON, 'final-review-single-round', 'final-review-repair-do-not-touch',
-  'scope-do-not-touch-unreadable',
+  'scope-do-not-touch-unreadable', 'light-scope-revision-requires-promotion',
 ]);
 
 export = {
