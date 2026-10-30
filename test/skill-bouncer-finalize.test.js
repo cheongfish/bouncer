@@ -66,6 +66,13 @@ test('draft-pr reference → marks the three sections mandatory and keeps the un
   assert.ok(draftPr.includes('변경 전 결과 미관측'));
 });
 
+test('draft-pr reference → tells the author to fill pr-body placeholders and summarize worker notes in Korean', () => {
+  const { draftPr } = loadDocs();
+  assert.ok(draftPr.includes('<TODO: 작성 필요>'));
+  assert.ok(draftPr.includes('worker_notes'));
+  assert.ok(draftPr.includes('한국어로 요약'));
+});
+
 // 사라진 reference는 부활하지 않는다.
 test('bouncer-finalize → does not ship the retired distill promotion reference', () => {
   assert.strictEqual(

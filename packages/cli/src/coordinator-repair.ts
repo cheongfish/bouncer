@@ -19,6 +19,8 @@ const { withLedgerLock } = scopeMod;
 import pathOverlapMod = require('./path-overlap');
 const { pathsOverlap } = pathOverlapMod;
 import commandArgvMod = require('./command-argv');
+import configMod = require('./config');
+const { readVerifyPolicy } = configMod;
 import leaseMod = require('./lease');
 const { checkLease, revokeLease } = leaseMod;
 import type {
@@ -141,6 +143,9 @@ type RepairIntake =
  *    다름)을 통과해야 한다. legacy·정책 미상은 `--verify`가 없으면 기존
  *    `resolveRepairVerify` 결과를 그대로 쓰도록 verify를 비워 두고, 있으면 단일
  *    argv 검사만 적용한다 — 종단 비교와 필수 검사는 scoped_terminal 전용이다.
+ * 3. 단일 argv가 확정된 뒤 integration 설정의 `verify_allowlist`를 S12와 같은
+ *    함수로 본다. basename이 목록에 없으면 기록 전에 `repair-verify-not-allowed`다.
+ *    깨진 config는 기본 목록으로 넓히지 않는다.
  *
  * @param {object} opts
  * @param {RepairSupport} opts.support - 정상 경로 helper(verification policy 조회)
@@ -187,6 +192,14 @@ function checkRepairIntake({ exec, integrationPath, blueprint, ledger, paths, ne
         return { ok: false, reason: 'repair-verify-is-terminal' };
       }
     }
+  }
+  // 기존 거절(누락·체인·종단 중복)을 먼저 유지한다. allowlist는 그 다음에 적용해
+  // `npm run ci` 같은 기본 목록 안 종단 명령이 is-terminal로 남게 한다.
+  // S12와 같은 readVerifyPolicy·isValidVerifyCommand를 써서 plan과 repair가
+  // 다른 답을 내지 않게 한다. invalid config는 기본 목록으로 폴백하지 않는다.
+  const policy = readVerifyPolicy(integrationPath);
+  if (policy.ok === false || !commandArgvMod.isValidVerifyCommand(verify, policy.allowlist)) {
+    return { ok: false, reason: 'repair-verify-not-allowed' };
   }
   return { ok: true, paths: finalPaths, verify };
 }

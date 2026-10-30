@@ -32,11 +32,13 @@ against the current HEAD and `computeDiffSha`. Refusals (exit 1, bytes unchanged
 valid entry and keeps `range_from`; it is mutually exclusive with `--confirm-quiz`.
 
 `finalize pr-body` prints a draft PR body (Markdown) to stdout from a saved v2 digest and a
-Korean summary file with `## 배경 · 변경 의도` and `## 주요 변경 내용` sections; `--flow` adds a
-Mermaid `로직 흐름` section. It is read-only: no file writes, Git lookups, ledger reads, or PR
-publishing, and the same inputs give byte-identical output. Unreadable files, invalid JSON, an
-invalid digest shape, or a missing summary section exit 1 with stderr only; a missing `--digest`,
-`--summary`, or a valueless `--flow` exits 2.
+Korean summary file with `## 배경 · 변경 의도` and `## 주요 변경 내용` sections. After 주요 변경
+it always emits `변경 그림`, `변경 전후`, then later `되돌리기 · 영향 범위` before 확인 방법.
+`--flow` fills `변경 그림` with a Mermaid fence; without it that heading still appears with
+`<TODO: 작성 필요>`, as do `변경 전후` and `되돌리기 · 영향 범위`. It is read-only: no file writes,
+Git lookups, ledger reads, or PR publishing, and the same inputs give byte-identical output.
+Unreadable files, invalid JSON, an invalid digest shape, or a missing summary section exit 1 with
+stderr only; a missing `--digest`, `--summary`, or a valueless `--flow` exits 2.
 
 `run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
 every simulated wave has width 1, `parallel` for a single wave of width 2+,
@@ -486,8 +488,11 @@ matched as plain text, never expanded. On a `scoped_terminal` blueprint `repair`
 also needs `--verify <argv>`, one command that checks only the failing files:
 `repair-verify-required` when missing, `repair-verify-not-single-argv` for shell
 operators or an empty value, `repair-verify-is-terminal` when it equals the
-terminal command. A legacy blueprint keeps the terminal verify unless `--verify`
-is given (then only the single-argv check applies). `--verify` cannot be
+terminal command, `repair-verify-not-allowed` when argv0's basename is outside
+the repository `verify_allowlist` (same basename rule as S12, so `/usr/bin/node`
+is allowed when `node` is listed). A legacy blueprint keeps the terminal verify
+unless `--verify` is given (then the single-argv and allowlist checks apply).
+`--verify` cannot be
 combined with `--resume-task`, and a valueless `--verify` or `--new-path`
 exits 2. All of these refuse before the ledger or task documents change.
 A `coordinate revise` refusal is written to stdout as JSON

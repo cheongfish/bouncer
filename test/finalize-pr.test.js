@@ -806,6 +806,66 @@ test('tasks with worker_notes → review_points lists them after findings and be
   ]);
 });
 
+test('same worker note on two tasks → review_points lists it once with both task ids in first-seen order', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [
+      { id: 'TASKS-001', worker_notes: { open_choices: ['same'], known_weaknesses: [] } },
+      { id: 'TASKS-002', worker_notes: { open_choices: ['same', 'same'], known_weaknesses: [] } },
+    ],
+    out_of_scope: [],
+    unverified: [],
+  };
+  const points = buildPrDraft(digest, { now: new Date('2026-09-24T01:00:00Z'), config: {} })
+    .sections.review_points;
+  assert.deepStrictEqual(points, ['구현 선택(TASKS-001, TASKS-002): same']);
+});
+
+test('different worker notes → review_points keeps each distinct phrase', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [
+      { id: 'TASKS-001', worker_notes: { open_choices: ['alpha'], known_weaknesses: [] } },
+      { id: 'TASKS-002', worker_notes: { open_choices: ['beta'], known_weaknesses: [] } },
+    ],
+    out_of_scope: [],
+    unverified: [],
+  };
+  const points = buildPrDraft(digest, { now: new Date('2026-09-24T01:00:00Z'), config: {} })
+    .sections.review_points;
+  assert.deepStrictEqual(points, [
+    '구현 선택(TASKS-001): alpha',
+    '구현 선택(TASKS-002): beta',
+  ]);
+});
+
+test('same note text in open_choices and known_weaknesses → review_points keeps both kinds', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [],
+    tasks: [{
+      id: 'TASKS-001',
+      worker_notes: { open_choices: ['same'], known_weaknesses: ['same'] },
+    }],
+    out_of_scope: [],
+    unverified: [],
+  };
+  const points = buildPrDraft(digest, { now: new Date('2026-09-24T01:00:00Z'), config: {} })
+    .sections.review_points;
+  assert.deepStrictEqual(points, [
+    '구현 선택(TASKS-001): same',
+    '알려진 약점(TASKS-001): same',
+  ]);
+});
+
 test('blueprint root deferred must_fix → buildPrDraft lists it under unresolved_must_fix and drops only that finding from review_points', () => {
   const digest = {
     ok: true,
@@ -986,6 +1046,18 @@ test('minimal passed digest → pr-body prints only summary sections and the ver
     '| --- | --- |',
     '| `a.ts` | 렌더러 추가 |',
     '',
+    '## 변경 그림',
+    '',
+    '<TODO: 작성 필요>',
+    '',
+    '## 변경 전후',
+    '',
+    '<TODO: 작성 필요>',
+    '',
+    '## 되돌리기 · 영향 범위',
+    '',
+    '<TODO: 작성 필요>',
+    '',
     '## 확인 방법',
     '',
     '- node --test a — passed',
@@ -1039,12 +1111,24 @@ test('failed outside_scope verification, deferred must_fix and drive issues → 
     '| --- | --- |',
     '| `a.ts` | 렌더러 추가 |',
     '',
+    '## 변경 그림',
+    '',
+    '<TODO: 작성 필요>',
+    '',
+    '## 변경 전후',
+    '',
+    '<TODO: 작성 필요>',
+    '',
     '## 리뷰 포인트',
     '',
     '- 미해결 must_fix: F-1: 나중에 고친다',
     '- vendor 변경은 이 PR 밖이다',
     '- terminal-outside-scope: vendor drift (evidence e1)',
     '- 실행 이슈: rework_reports 2, deferred_must_fix 1',
+    '',
+    '## 되돌리기 · 영향 범위',
+    '',
+    '<TODO: 작성 필요>',
     '',
     '## 확인 방법',
     '',
@@ -1059,17 +1143,45 @@ test('flow file given → pr-body adds a mermaid 로직 흐름 section before re
   const withFlow = runPrBody({ digest, flow: 'flowchart TD\n  A --> B\n' });
   assert.strictEqual(withFlow.code, 0, withFlow.err);
   assert.ok(withFlow.out.includes([
-    '## 로직 흐름',
+    '## 변경 그림',
     '',
     '```mermaid',
     'flowchart TD',
     '  A --> B',
     '```',
     '',
+    '## 변경 전후',
+    '',
+    '<TODO: 작성 필요>',
+    '',
     '## 리뷰 포인트',
   ].join('\n')));
+  assert.ok(!withFlow.out.includes('로직 흐름'));
   const without = runPrBody({ digest });
-  assert.ok(!without.out.includes('로직 흐름'));
+  assert.ok(without.out.includes('## 변경 그림\n\n<TODO: 작성 필요>'));
+  assert.ok(without.out.includes('## 변경 전후\n\n<TODO: 작성 필요>'));
+  assert.ok(!without.out.includes('```mermaid'));
+});
+
+test('no flow file → pr-body keeps mandatory sections in contract order with write-needed markers', () => {
+  const r = runPrBody({ digest: prBodyDigest() });
+  assert.strictEqual(r.code, 0, r.err);
+  const picture = r.out.indexOf('## 변경 그림');
+  const beforeAfter = r.out.indexOf('## 변경 전후');
+  const review = r.out.indexOf('## 리뷰 포인트');
+  const revert = r.out.indexOf('## 되돌리기 · 영향 범위');
+  const verify = r.out.indexOf('## 확인 방법');
+  const changes = r.out.indexOf('## 주요 변경 내용');
+  assert.ok(changes >= 0 && picture > changes);
+  assert.ok(beforeAfter > picture);
+  assert.ok(revert > beforeAfter);
+  assert.ok(verify > revert);
+  if (review >= 0) {
+    assert.ok(review > beforeAfter && review < revert);
+  }
+  assert.ok(r.out.includes('## 변경 그림\n\n<TODO: 작성 필요>'));
+  assert.ok(r.out.includes('## 변경 전후\n\n<TODO: 작성 필요>'));
+  assert.ok(r.out.includes('## 되돌리기 · 영향 범위\n\n<TODO: 작성 필요>'));
 });
 
 test('same inputs twice → pr-body output is byte-identical', () => {

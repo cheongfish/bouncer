@@ -19,7 +19,11 @@ After cleanup the task documents are gone, so build the body from the digest kep
 `bouncer finalize pr-body --digest <digest.json> --summary <summary.md> [--flow <flow.mmd>]`.
 The stdout Markdown is a draft for the root to review; the command reads only those files, never
 posts a PR, and failed verification, outside_scope, deferred must_fix and drive issues stay visible
-in it. The root still reviews the final text and asks for publish consent as before.
+in it. Missing evidence for the three mandatory sections is emitted as `<TODO: 작성 필요>` — fill
+those placeholders from Explain and the diff; never invent a before-result, impact, or automatic
+translation. Worker `tasks[].worker_notes` stay as source-tagged review bullets; 최종 본문에서
+한국어로 요약하고 출처 task id는 빼지 않는다. The root still reviews the final text
+and asks for publish consent as before.
 
 Write the summary, flow, and any extra body text with the Write tool or a quoted heredoc
 (`<<'EOF'`). An unquoted heredoc runs backtick spans such as `` `S39 <설명>` `` as command
@@ -50,10 +54,10 @@ checkboxes.
 | `관련 이슈` | Linked tracker issues with real evidence; plus one Explain Markdown link from `finalize links` (below). No issue → no issue bullet. Prefer `pr.sections.related` when it already lists facts. |
 | `배경 · 변경 의도` | Explain `## Background` and `## Intuition`, tightened against the diff. Write nested bullets, not a paragraph: a top-level `문제` bullet with one indented sub-bullet per problem, then a top-level `의도` bullet with one indented sub-bullet per intent. |
 | `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for changed files, behavior, and interfaces only. Do not write task DAG, task split/order, repair wave, scope revision, worker·agent, branch·sha, integration head, or 작업 과정. Write a table with columns `파일 / 변경`, one row per changed file or file group. |
-| `변경 그림` (필수) | Mermaid diagram chosen by change kind (rules below). Never omitted. |
-| `변경 전후` (필수) | Digest `pr.sections.verification`, Explain `## Code`, and the diff only. When no before-change observation exists, write `변경 전 결과 미관측` — never present an unobserved before-result as a run result. Write a table with columns `항목 / 변경 전 / 변경 후`, one row per behavior; when the before column is read from code or the diff rather than a run, say so in one line under the table. |
-| `리뷰 포인트` | When digest `pr.sections.unresolved_must_fix` is non-empty, open with a `미해결 must_fix` bullet listing each item verbatim (those findings are already removed from `review_points`). Then digest `pr.sections.review_points` (it already carries worker open choices and known weaknesses from `tasks[].worker_notes`), then Explain `## Code` + diff hot paths only where the digest left a gap. No guessed risk. |
-| `되돌리기 · 영향 범위` (필수) | Three items: how to revert and what it restores; data, external behavior, or contract effects a commit revert does not restore; features, consumers, or data affected if applied wrongly. State in one line that the risk classification is not approval or auto-merge grounds. |
+| `변경 그림` (필수) | Mermaid from `--flow` when present; otherwise keep the heading and `<TODO: 작성 필요>`. Fill from the change-kind table below. Never omitted. |
+| `변경 전후` (필수) | `pr-body` leaves `<TODO: 작성 필요>`. Fill from digest `pr.sections.verification`, Explain `## Code`, and the diff only. When no before-change observation exists, write `변경 전 결과 미관측` — never present an unobserved before-result as a run result. Write a table with columns `항목 / 변경 전 / 변경 후`, one row per behavior; when the before column is read from code or the diff rather than a run, say so in one line under the table. |
+| `리뷰 포인트` | When digest `pr.sections.unresolved_must_fix` is non-empty, open with a `미해결 must_fix` bullet listing each item verbatim (those findings are already removed from `review_points`). Then digest `pr.sections.review_points` (same `worker_notes` phrase and kind collapse to one bullet that keeps every source task id, e.g. `구현 선택(001, 002): same`; different phrases and different kinds stay distinct). 최종 본문에서 그 note를 한국어로 요약하고 초안에서 자동 번역하지 않는다. Then Explain `## Code` + diff hot paths only where the digest left a gap. No guessed risk. |
+| `되돌리기 · 영향 범위` (필수) | `pr-body` leaves `<TODO: 작성 필요>` here. Fill three items: how to revert and what it restores; data, external behavior, or contract effects a commit revert does not restore; features, consumers, or data affected if applied wrongly. State in one line that the risk classification is not approval or auto-merge grounds. Never invent impact. |
 | `확인 방법` | Digest `pr.sections.verification` in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. Do not re-open task `verification.md` files. Reference verification and review through the digest `evidence` field (`evidence.verification[].evidence_id`, `evidence.review`). Do not open verification or review logs. |
 
 ### Explain link
