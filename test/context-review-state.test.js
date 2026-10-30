@@ -220,8 +220,16 @@ function changeDocs(repo) {
   fs.appendFileSync(path.join(repo, BP, 'index.md'), '\nchanged plan text\n');
 }
 
-// scope_parts는 task의 Interface·Touch를 담으므로 계약 변경 fixture에는 task 문서가 필요하다.
-function writeTask(repo, interfaceText = '- `fnA`\n') {
+/**
+ * 계약 변경 fixture용 commit task 문서를 쓴다.
+ * review_risk는 기본 생략한다 — 관점이 위험 없이 verifiability만인 기존 light 단언을 바꾸지 않기 위함이다.
+ *
+ * @param {string} repo - 임시 저장소 루트
+ * @param {string} [interfaceText='- `fnA`\n'] - Interface 절 본문
+ * @param {string[]} [reviewRisk] - 있으면 bouncer.review_risk로 싣는다
+ * @returns {void}
+ */
+function writeTask(repo, interfaceText = '- `fnA`\n', reviewRisk) {
   const yaml = require('js-yaml');
   const rel = `${BP}/tasks/001/tasks.md`;
   const abs = path.join(repo, rel);
@@ -243,6 +251,7 @@ function writeTask(repo, interfaceText = '- `fnA`\n') {
       depends_on: [],
       parallel_safe: false,
       dependency_gate: 'integrated',
+      ...(reviewRisk ? { review_risk: reviewRisk } : {}),
     },
   };
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n## Interface\n${interfaceText}\n## Touch\n- \`src/a.ts\`\n`);
@@ -1873,6 +1882,16 @@ test('표식 light blueprint의 dispatch 관점 목록 변조 → start가 targe
   assert.equal(out.json.reason, 'context-review-target-invalid');
   assert.equal(out.json.cause, 'dispatch perspectives differ from verifiability');
   assert.equal(findState(repo), null);
+
+  // commit task에 review_risk가 있으면 정본은 verifiability,risk_security다.
+  // 목록을 verifiability만으로 줄인 payload가 통과하면 round 대조 기준이 위험을 지운다.
+  const riskRepo = makeRepo({ marked: true, complexity: 'low' });
+  writeTask(riskRepo, '- `fnA`\n', ['credential']);
+  const riskOut = start(riskRepo, markedDispatch(riskRepo, 'pd.json', ['verifiability']));
+  assert.equal(riskOut.code, 1);
+  assert.equal(riskOut.json.reason, 'context-review-target-invalid');
+  assert.equal(riskOut.json.cause, 'dispatch perspectives differ from verifiability,risk_security');
+  assert.equal(findState(riskRepo), null);
 });
 
 test('표식 blueprint에 single dispatch → start·record·restart·route가 각각 target-invalid로 거부한다', () => {
