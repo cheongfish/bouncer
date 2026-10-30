@@ -1435,6 +1435,158 @@ test('scoped_terminal light bootstrap → 구현 둘이거나 종단이 없으�
   assert.strictEqual(boot.reason, 'light-requires-serial');
 });
 
+/**
+ * 두 commit 직렬 + 종단(모든 commit에 의존) light fixture. plan gate를 거치지 않고
+ * 문서를 직접 쓴다 — light 단일 task 제약은 후속 BP2 몫이다.
+ */
+function makeTwoCommitLightRepo(epicNo) {
+  const epic = `.bouncer/context/epics/${epicNo}-scoped`;
+  const blueprint = `${epic}/blueprints/001-drive`;
+  const repo = makeRepo({
+    'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n', 'src/beta.js': 'beta base\n',
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'source']);
+  const ids = { epic_id: epicNo, blueprint_id: '001' };
+  writePlanDoc(repo, `${epic}/index.md`, 'bouncer.epic', { id: epicNo, epic_id: epicNo, status: 'approved' }, '# Epic\n');
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: epicNo, name: 'scoped-two', description: 'd' });
+  writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
+    id: '001', ...ids, status: 'approved', commit_type: 'feat', review_scope: 'blueprint',
+    verification_policy: 'scoped_terminal', scale: 'light',
+  }, '# Blueprint\n\n## Intent\n- 두 commit 직렬 light\n');
+  writePlanDoc(repo, `${blueprint}/review.md`, 'bouncer.review', {
+    id: 'REVIEW-001', ...ids, status: 'pending', review: { required: true },
+  }, '# Review\n\n## Findings\n- <finding>\n');
+  const body = '# Tasks\n\n## Goal & intent\n바꾼다.\n\n## Touch\n- Modify path\n\n## Checklist\n- [ ] 바꾼다\n';
+  writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-001', ...ids, status: 'ready', depends_on: [], parallel_safe: false,
+    dependency_gate: 'integrated', affected_paths: ['src/alpha.js'], verify: 'node --test test/001.test.js',
+  }, body);
+  writePlanDoc(repo, `${blueprint}/tasks/002/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-002', ...ids, status: 'ready', depends_on: ['TASKS-001'], parallel_safe: false,
+    dependency_gate: 'integrated', affected_paths: ['src/beta.js'], verify: 'node --test test/002.test.js',
+  }, body);
+  // 종단은 모든 commit id에 의존해야 isLightEligible(scoped)를 통과한다.
+  writePlanDoc(repo, `${blueprint}/tasks/003/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-003', ...ids, status: 'ready', execution_kind: 'verification',
+    depends_on: ['TASKS-001', 'TASKS-002'], parallel_safe: false, dependency_gate: 'integrated',
+    affected_paths: [], verify: 'npm test',
+  }, body);
+  for (const id of ['001', '002', '003']) {
+    writePlanDoc(repo, `${blueprint}/tasks/${id}/verification.md`, 'bouncer.verification',
+      { id: `VERIFY-${id}`, ...ids, status: 'pending' }, '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n');
+  }
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  return { repo, blueprint, terminalId: '003' };
+}
+
+test('two-commit serial light drive via advance → no task review and exactly one final_review', () => {
+  const { advance } = require('../packages/cli/dist/coordinate-advance');
+  const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
+  const { recordReview } = require('../packages/cli/dist/review-record');
+  const { captureReviewSnapshot } = require('../packages/cli/dist/review-snapshot');
+  const { repo, blueprint, terminalId } = makeTwoCommitLightRepo('095');
+  const runVerification = () => ({
+    ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+  });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(boot.mode, 'light');
+  const integrationPath = boot.integrationPath;
+  const fileFor = { '001': 'src/alpha.js', '002': 'src/beta.js' };
+  const stops = [];
+
+  const runAdvance = () => advance({
+    repoRoot: repo,
+    blueprint,
+    deps: {
+      next: (opts) => coordinateNext({
+        repoRoot: opts.repoRoot, blueprint: opts.blueprint, cwd: integrationPath, task: opts.task,
+      }),
+      // integrate·verification_node의 실제 runner는 fixture 밖이라, 같은 명령을 coordinate로
+      // 돌리되 runVerification만 주입한다. prepare 등 나머지 자동 단계는 실제 CLI를 쓴다.
+      runArgv: (argv, cwd) => {
+        if (argv.includes('integrate')) {
+          const taskFlag = argv.indexOf('--task');
+          const task = taskFlag >= 0 ? argv[taskFlag + 1] : undefined;
+          const result = coordinate({
+            command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task,
+            deps: { runVerification },
+          });
+          return { stdout: `${JSON.stringify(result)}\n`, status: result.ok ? 0 : 1 };
+        }
+        const launcher = path.join(__dirname, '..', 'packages', 'cli', 'bin', 'bouncer');
+        const result = require('node:child_process').spawnSync(
+          process.execPath, [launcher, ...argv.slice(1)],
+          { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+        );
+        return {
+          stdout: result.stdout || '',
+          status: typeof result.status === 'number' ? result.status : 1,
+        };
+      },
+    },
+  });
+
+  for (let guard = 0; guard < 40; guard += 1) {
+    const out = runAdvance();
+    assert.strictEqual(out.ok, true, JSON.stringify(out));
+    const stop = out.stop.next;
+    stops.push(stop);
+    if (stop.action === 'done' || stop.action === 'blocked') break;
+    if (stop.action === 'drive_tasks') {
+      // prepare는 advance 자동 단계로 이미 끝나 workerPath가 원장에 있다.
+      const ledger = loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json'));
+      for (const id of stop.task_ids || []) {
+        const worker = ledger.tasks.find((entry) => entry.id === id).workerPath;
+        assert.ok(worker, `missing worker for ${id}`);
+        const sha = commitInWorker(worker, fileFor[id], `changed by ${id}\n`, `feat: light ${id}`);
+        writeTerminalEvidence(worker, blueprint, id, sha);
+        assert.strictEqual(coordinate({
+          command: 'worker-model', repoRoot: repo, blueprint, cwd: integrationPath,
+          task: id, role: 'implementer', model: 'test-model', tokens: 1,
+        }).ok, true);
+        const recorded = acceptDispatchAndRecord(repo, blueprint, worker, id);
+        assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+      }
+      continue;
+    }
+    if (stop.action === 'final_review') {
+      const argv = stop.argv || [];
+      const baseSha = argv[argv.indexOf('--base') + 1];
+      const head = argv[argv.indexOf('--head') + 1];
+      const frozen = captureReviewSnapshot({
+        repoRoot: integrationPath, blueprintDir: blueprint, taskId: null, base: baseSha, head,
+      });
+      assert.strictEqual(frozen.ok, true, JSON.stringify(frozen));
+      const roundFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-e2e-light2-')), 'round.json');
+      fs.writeFileSync(roundFile, `${JSON.stringify({
+        round: {
+          round: 1, mode: 'discovery',
+          target: { base: baseSha, head, snapshot_id: frozen.snapshot_id },
+          perspectives: [{ name: 'combined', target_head: head }],
+          previous_finding_ids: [], new: 0, resolved: 0, regressed: 0,
+        },
+        findings: [],
+      })}\n`);
+      assert.strictEqual(recordReview({
+        repoRoot: integrationPath, blueprintDir: blueprint, roundFile, status: 'accepted',
+      }).ok, true);
+      continue;
+    }
+    assert.fail(`unexpected stop action: ${stop.action}`);
+  }
+
+  assert.strictEqual(stops.filter((s) => s.action === 'review').length, 0);
+  assert.strictEqual(stops.filter((s) => s.action === 'final_review').length, 1);
+  assert.ok(stops.some((s) => s.action === 'done'), JSON.stringify(stops.map((s) => s.action)));
+  assert.ok(
+    loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json'))
+      .tasks.some((entry) => entry.id === terminalId && entry.status === 'integrated'),
+  );
+});
+
 test('light single-task drive → worker worktree로 prepare부터 done까지 진행됨', () => {
   const { recordReview } = require('../packages/cli/dist/review-record');
   const { coordinateNext } = require('../packages/cli/dist/coordinate-next');

@@ -632,6 +632,114 @@ test('brief contract with discovery only and no review repair → final-review-b
   assert.ok(r.next.includes('--review-finding'));
 });
 
+/**
+ * 표식 light 원장(mode·light_runner)에 discovery와 열린 must_fix를 심은 최종 리뷰 fixture.
+ * 판정 입력은 원장 mode라 index의 review_contract는 두지 않는다(light는 계약이 legacy로 접힌다).
+ * repair --paths가 추적 파일을 요구하므로 src/a.js를 integration HEAD에 커밋하고 원장 scope에 넣는다.
+ */
+function lightFinalReviewDrive(prefix, blueprint) {
+  const drive = preparedCommitDrive(prefix, blueprint);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'index.md'),
+    '---\nbouncer:\n  status: approved\n  review_scope: blueprint\n  scale: light\n---\n# Blueprint\n',
+  );
+  fs.mkdirSync(path.join(drive.integrationPath, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), '// product\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: drive.integrationPath });
+  execFileSync('git', [
+    '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'src', '--', 'src/a.js',
+  ], { cwd: drive.integrationPath });
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.mode = 'light';
+  ledger.light_runner = 'subagent';
+  ledger.tasks.forEach((entry) => {
+    entry.status = 'integrated';
+    entry.affected_paths = ['src/a.js'];
+  });
+  writeLedger(drive.ledgerFile, ledger);
+  fs.writeFileSync(
+    path.join(drive.integrationPath, blueprint, 'review.md'),
+    '---\nbouncer:\n  status: requested\n  review:\n    rounds:\n      - round: 1\n        mode: discovery\n'
+      + '    findings:\n      - id: F1\n        severity: major\n        status: open\n'
+      + '        actionability: must_fix\n---\n# Review\n',
+  );
+  return drive;
+}
+
+function lightReviewRepair(drive, extra = {}) {
+  return coordinate({
+    command: 'repair', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integrationPath,
+    reviewFindings: ['F1'], summary: 'must_fix', paths: ['src/a.js'], decision: 'repair finding',
+    ...extra,
+  });
+}
+
+test('light ledger after discovery then first review-caused repair → is accepted and records one repair decision', () => {
+  const drive = lightFinalReviewDrive(
+    'bouncer-next-light-repair-', '.bouncer/context/epics/088-n/blueprints/040-light-fr',
+  );
+  const repaired = lightReviewRepair(drive);
+  assert.strictEqual(repaired.ok, true, JSON.stringify(repaired));
+  const decisions = loadLedger(drive.ledgerFile).decisions
+    .filter((entry) => entry.kind === 'repair' && entry.failure?.command === 'review');
+  assert.strictEqual(decisions.length, 1);
+});
+
+test('light ledger after discovery with an integrated review repair → final-review-blocked without delta', () => {
+  const drive = lightFinalReviewDrive(
+    'bouncer-next-light-blocked-', '.bouncer/context/epics/088-n/blueprints/041-light-fr',
+  );
+  // repair 접수는 구현 전 final-review-single-round로 거절되므로, 재통합 뒤 상태는 원장에 직접 심는다.
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.decisions = [{
+    kind: 'repair', wave: 1, failure: { command: 'review', findings: ['F1'] },
+  }];
+  ledger.tasks.push({
+    id: '002', depends_on: ['001'], parallel_safe: false, dependency_gate: 'integrated',
+    execution_kind: 'commit', status: 'integrated', dynamic: true,
+    affected_paths: ['src/a.js'],
+  });
+  writeLedger(drive.ledgerFile, ledger);
+  const after = assertNoWrite(drive, () => nextOf(drive));
+  assert.strictEqual(after.action, 'blocked');
+  assert.strictEqual(after.reason, 'final-review-blocked');
+  assert.ok(!(after.argv || []).includes('delta'));
+  assert.strictEqual(after.argv, undefined);
+});
+
+test('light ledger after one review repair then a second repair or supplement → final-review-single-round', () => {
+  const drive = lightFinalReviewDrive(
+    'bouncer-next-light-second-', '.bouncer/context/epics/088-n/blueprints/042-light-fr',
+  );
+  const ledger = loadLedger(drive.ledgerFile);
+  ledger.decisions = [{
+    kind: 'repair', wave: 1, failure: { command: 'review', findings: ['F1'] },
+  }];
+  ledger.tasks.push({
+    id: '002', depends_on: ['001'], parallel_safe: false, dependency_gate: 'integrated',
+    execution_kind: 'commit', status: 'integrated', dynamic: true,
+    affected_paths: ['src/a.js'],
+  });
+  writeLedger(drive.ledgerFile, ledger);
+  const before = fs.readFileSync(drive.ledgerFile);
+  assert.strictEqual(lightReviewRepair(drive).reason, 'final-review-single-round');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+  assert.strictEqual(lightReviewRepair(drive, {
+    kind: 'supplement', paths: ['test/a.test.js'], summary: 'missing test',
+  }).reason, 'final-review-single-round');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
+test('light ledger first review repair with --new-path → light-scope-revision-requires-promotion', () => {
+  const drive = lightFinalReviewDrive(
+    'bouncer-next-light-newpath-', '.bouncer/context/epics/088-n/blueprints/043-light-fr',
+  );
+  const before = fs.readFileSync(drive.ledgerFile);
+  const out = lightReviewRepair(drive, { newPaths: ['src/new.js'] });
+  assert.strictEqual(out.reason, 'light-scope-revision-requires-promotion');
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+});
+
 test('unknown review_contract with all integrated → blocked review-contract-invalid', () => {
   const drive = briefReviewDrive('bouncer-next-brief-bad-', '.bouncer/context/epics/088-n/blueprints/035-b', [], [], 'other');
   fs.rmSync(path.join(drive.integrationPath, '.bouncer/context/epics/088-n/blueprints/035-b/review.md'));

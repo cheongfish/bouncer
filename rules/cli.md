@@ -703,7 +703,7 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it. In a `review_contract: brief` blueprint the final review
 allows one `--review-finding` repair (all violation findings, approved paths,
-`newPaths` allowed unless they hit a Do not touch line; accepted ones are recorded as `unexpected_paths` on the repair decision) before the one delta. A legacy blueprint (no marker) allows no
+`newPaths` allowed unless they hit a Do not touch line; accepted ones are recorded as `unexpected_paths` on the repair decision) before the one delta. A light ledger (`mode: light`) allows one `--review-finding` repair after discovery and refuses `--new-path` on that repair; it does not open a delta round. A legacy blueprint (no marker) allows no
 repair after the discovery round; its `must_fix` findings are carried as
 `deferred` and only a `blocked` finding stops for `review accept-risk`. The
 CLI refuses a review-caused repair or supplement with one of these reasons
@@ -714,6 +714,7 @@ CLI refuses a review-caused repair or supplement with one of these reasons
 | Legacy blueprint after discovery, any supplement after discovery, or a brief blueprint whose repair or delta already ran | `final-review-single-round` |
 | First brief repair that declares `newPaths` under a Do not touch line of any ledger task | `final-review-repair-do-not-touch` |
 | First brief repair with `newPaths` while a ledger task document cannot be read | `scope-do-not-touch-unreadable` |
+| Light ledger first review repair that declares `--new-path` | `light-scope-revision-requires-promotion` |
 
 A second repair therefore returns `final-review-single-round` only; a still
 open finding after the delta is reported `final-review-blocked`.
