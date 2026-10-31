@@ -351,6 +351,17 @@ class StructError extends Error {
 }
 
 /**
+ * 구조 비교용 토큰 값. 문자열·템플릿 조각은 내용이 `(`·`[`·`}` 같아도 구조 토큰이 아니므로
+ * 빈 값으로 본다. 이름으로 쓰는 값(멤버 키 등)은 Token.value를 그대로 쓴다.
+ *
+ * @param {Token} t - 토큰
+ * @returns {string} punct·id·num은 value, str은 빈 문자열
+ */
+function structValue(t: Token): string {
+  return t.kind === 'str' ? '' : t.value;
+}
+
+/**
  * 주석·문자열·템플릿·정규식을 토큰으로 가린다. 이름 문자열을 정의로 승격하지 않기
  * 위해 본문 검색 없이 구조 토큰만 남긴다.
  *
@@ -643,7 +654,7 @@ class Collector {
   }
 
   peekValue(n = 0): string {
-    return this.peek(n).value;
+    return structValue(this.peek(n));
   }
 
   next(): Token {
@@ -651,7 +662,7 @@ class Collector {
     if (t.kind !== 'eof') {
       this.i += 1;
       this.lastLine = t.line;
-      this.lastValue = t.value;
+      this.lastValue = structValue(t);
     }
     return t;
   }
@@ -691,7 +702,7 @@ class Collector {
   }
 
   isNameFollowedByCall(offset = 0): boolean {
-    const n = this.peek(offset + 1).value;
+    const n = structValue(this.peek(offset + 1));
     return n === '(' || n === '<' || n === ':' || n === ',' || n === '}' || n === '='
       || n === '?' || n === ';';
   }
@@ -758,7 +769,7 @@ class Collector {
     }
     if (
       this.peekValue() === 'namespace'
-      || (this.peekValue() === 'module' && this.peek(1).value !== '.')
+      || (this.peekValue() === 'module' && structValue(this.peek(1)) !== '.')
     ) {
       this.next();
       if (this.peekKind() === 'id' || this.peekKind() === 'str') this.next();
@@ -1111,7 +1122,7 @@ class Collector {
       while (this.eat(',') || this.eat(';')) { /* empty */ }
       if (this.peekValue() === '}') return;
       this.skipDecorators();
-      if (kind === 'class' && this.peekValue() === 'static' && this.peek(1).value === '{') {
+      if (kind === 'class' && this.peekValue() === 'static' && structValue(this.peek(1)) === '{') {
         this.next();
         this.parseBlock(stack);
         continue;
@@ -1187,6 +1198,14 @@ class Collector {
         }
         continue;
       }
+      if (kind === 'class' && this.eat(':')) {
+        // 클래스 필드 `name: T = init;` — `:` 뒤는 타입이고 `;`로 끝난다. 식으로 걸으면
+        // 다음 멤버(생성자 등)까지 삼킨다.
+        this.skipType();
+        if (this.eat('=')) this.parseExprUntil(new Set([',', ';', '}']), nextStack);
+        this.eat(';');
+        continue;
+      }
       if (this.eat(':')) {
         const asMethod = this.looksLikeArrow() || this.isFunctionStart();
         this.parseExprUntil(new Set([',', '}']), nextStack);
@@ -1223,17 +1242,18 @@ class Collector {
     let saw = false;
     while (this.peek().kind !== 'eof') {
       const t = this.peek();
-      if (stops.has(t.value)) return;
+      const sv = structValue(t);
+      if (stops.has(sv)) return;
       // `{` 는 parseObject 가 짝을 맞추므로, 여기에 남은 `}` 는 바깥 본문 닫힘이다.
       // 세미콜론이 없어도 본문 `}` 를 식에 삼키면 파일 전체가 unparseable 이 된다.
-      if (t.value === '}') return;
+      if (sv === '}') return;
       if (
         saw && t.line > this.lastLine && !EXPR_CONTINUES.has(this.lastValue)
         && this.startsStatement()
       ) {
         return;
       }
-      if (t.value === '=>' ) {
+      if (sv === '=>') {
         this.next();
         if (this.peekValue() === '{') this.parseBlock(stack);
         saw = true;
@@ -1254,28 +1274,65 @@ class Collector {
         saw = true;
         continue;
       }
-      if (t.value === '{') {
+      if (sv === '{') {
         this.parseObject(stack);
         saw = true;
         continue;
       }
-      if (t.value === '(') {
+      if (sv === '(') {
         this.next();
         this.parseExprUntil(new Set([')']), stack);
         this.expect(')');
         saw = true;
         continue;
       }
-      if (t.value === '[') {
+      if (sv === '[') {
         this.next();
         this.parseExprUntil(new Set([']']), stack);
         this.expect(']');
         saw = true;
         continue;
       }
+      // TS 단언 `x as T`·`x satisfies T`의 T는 타입이다. 식으로 걸으면 `{ a: X<A, B> }`의
+      // 쉼표 제네릭을 객체 멤버 구분으로 오인해 파일 전체가 unparseable이 된다.
+      if (
+        saw && t.kind === 'id' && (t.value === 'as' || t.value === 'satisfies')
+        && this.lastValue !== '.' && this.lastValue !== '?.'
+      ) {
+        this.next();
+        this.skipType();
+        continue;
+      }
+      // 호출 앞의 타입 인자 `f<A, B>(…)`·`new M<A, (x) => B>(…)`. 쉼표가 든 타입 인자를
+      // 식으로 걸면 안쪽 `(x) => B`가 파싱을 어긋나게 한다. 닫는 `>` 뒤가 `(`일 때만 타입 인자로 본다.
+      if (sv === '<' && saw && /^[A-Za-z_$]/.test(this.lastValue) && this.trySkipTypeArgs()) {
+        continue;
+      }
       this.next();
       saw = true;
     }
+  }
+
+  /**
+   * `<…>` 뒤에 `(`가 이어질 때만 타입 인자 목록으로 보고 건너뛴다. 아니면 비교식이므로
+   * 위치를 되돌린다.
+   *
+   * @returns {boolean} 건너뛰었으면 true
+   */
+  trySkipTypeArgs(): boolean {
+    const savedI = this.i;
+    const savedLine = this.lastLine;
+    const savedVal = this.lastValue;
+    try {
+      this.skipBalanced('<', '>');
+      if (this.peekValue() === '(') return true;
+    } catch (error) {
+      if (!(error instanceof StructError)) throw error;
+    }
+    this.i = savedI;
+    this.lastLine = savedLine;
+    this.lastValue = savedVal;
+    return false;
   }
 
   skipBalanced(open: string, close: string): void {
@@ -1284,8 +1341,9 @@ class Collector {
     while (depth > 0) {
       const t = this.peek();
       if (t.kind === 'eof') throw new StructError();
-      if (t.value === open) depth += 1;
-      else if (t.value === close) depth -= 1;
+      const sv = structValue(t);
+      if (sv === open) depth += 1;
+      else if (sv === close) depth -= 1;
       this.next();
     }
   }
@@ -1360,6 +1418,12 @@ class Collector {
       }
       if (this.peekValue() === '<') this.skipBalanced('<', '>');
       if (this.peekValue() === '(') this.skipBalanced('(', ')');
+      // `import('m').Stats`·`ns.T<A>`처럼 호출형·제네릭 뒤에 이어지는 한정자도 같은 타입이다.
+      while (this.peekValue() === '.' && this.peekKind(1) === 'id') {
+        this.next();
+        this.next();
+        if (this.peekValue() === '<') this.skipBalanced('<', '>');
+      }
       // `=>` 는 괄호 함수 타입 `(x) => y` 만 이어 붙인다. 식별자 뒤 `=>` 는
       // `const f: number = () =>` 의 값 화살표이므로 여기서 삼키지 않는다.
     }

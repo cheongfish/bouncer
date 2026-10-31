@@ -69,3 +69,35 @@ test('정상 파일이 정의를 담으면 → resolved이고 unparsed_files가 
   assert.equal(result.symbol_ref.path, 'src/ok.ts');
   assert.equal('unparsed_files' in result, false);
 });
+
+// 아래 구문은 예전에 파서를 어긋나게 해 파일 전체를 색인에서 빼던 형태다. 구문 뒤의 함수를 찾아야 한다.
+const PARSEABLE_CONSTRUCTS = {
+  'as 단언 뒤 객체 타입 안의 쉼표 제네릭': 'const a = (d as { b: Record<string, unknown> }).b;',
+  '객체 리터럴 값의 as 단언에 쉼표 제네릭': 'const s = { a: d as Record<string, unknown> | null, n: 1 };',
+  'satisfies 단언에 쉼표 제네릭': 'const s = { a: 1 } satisfies Record<string, number>;',
+  '쉼표 제네릭의 화살표 타입 인자 호출': 'const m = new Map<string, (c: X) => Y>([["a", h]]);',
+  '타입 인자가 있는 함수 호출': 'const v = g<string, number>(1);',
+  '필드 선언이 있는 클래스의 생성자': 'class E extends Error { code: string; constructor(c: string) { super(c); this.code = c; } }',
+  '초기값이 있는 클래스 필드': 'class E { code: string = "a"; other = 1; method() { return 1; } }',
+  '템플릿 조각이 여는 괄호 문자': 'const t = g ? `[${h(g)}] ` : "";',
+  '템플릿 조각이 닫는 중괄호 문자': 'const t = `${a}(${b.join(", ")}): ${c}`;',
+  'import() 타입의 한정자': 'function stat(a: string): import("node:fs").Stats | null { return null; }',
+};
+
+for (const [label, construct] of Object.entries(PARSEABLE_CONSTRUCTS)) {
+  test(`${label}가 앞에 있어도 → 뒤의 함수를 resolved로 찾는다`, () => {
+    const result = resolveIn({ 'src/a.ts': `${construct}\nfunction target() { return 1; }\n` }, 'target');
+    assert.equal(result.status, 'resolved');
+    assert.equal(result.symbol_ref.path, 'src/a.ts');
+  });
+}
+
+test('비교식의 꺾쇠는 → 타입 인자로 오인해 뒤의 정의를 삼키지 않는다', () => {
+  const src = 'const c = a < b && d > (e);\nfunction target() { return 1; }\n';
+  assert.equal(resolveIn({ 'src/a.ts': src }, 'target').status, 'resolved');
+});
+
+test('문자열 값이 구조 문자와 같아도 → 괄호 짝에 영향을 주지 않는다', () => {
+  const src = 'const s = ["(", "[", "{", "}"];\nfunction target() { return "}"; }\n';
+  assert.equal(resolveIn({ 'src/a.ts': src }, 'target').status, 'resolved');
+});
