@@ -164,6 +164,7 @@ function handle(raw) {
     additionalContext = `Bouncer ${role}:${notice}`;
   }
   process.stdout.write(`${JSON.stringify({ hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
     updatedInput: replacement || input,
     additionalContext,
   } })}\n`);
