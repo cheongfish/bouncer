@@ -344,7 +344,8 @@ refused with `worker-tokens-replace-target-missing`, and `--replace` with a valu
 usage (exit 2). The `worker-tokens-missing` check covers these keys:
 `coordinate record --task <T>` checks the keys of task T,
 `coordinate advance --task <T>` checks the keys of task T and the keys with no task,
-and `coordinate advance` without `--task` checks only the keys with no task. Refusals: `worker-model-role-invalid`,
+and `coordinate advance` without `--task` checks the keys with no task. `coordinate advance` also checks the
+`implementer` keys of every task, because that record is written after the worker finished. Refusals: `worker-model-role-invalid`,
 `worker-model-perspective-invalid`, `worker-model-strategy-invalid`,
 `worker-model-reviewer-tier-invalid`, `tokens-invalid`, `model-invalid` (worker-model
 only), `task-outside-blueprint`; none writes the ledger. The strategy and tier

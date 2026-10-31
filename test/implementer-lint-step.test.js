@@ -35,3 +35,14 @@ test('implementer Codex TOML → carries the same eslint run step as the Markdow
   const toml = read('.codex/agents/bouncer-implementer.toml');
   assert.ok(toml.includes('npx eslint <changed'), 'TOML 사본에 eslint 실행 항목이 없다');
 });
+
+test('implementer Guardrails → tells that fail or error words in Tests are refused as report-tests-invalid', () => {
+  // coordinator-fanin.ts의 Tests 낱말 거절 규칙을 implementer가 미리 알도록 문장을 고정한다.
+  // 절 본문의 공백을 한 칸으로 줄여 줄바꿈과 들여쓰기가 문장 비교를 흔들지 않게 한다.
+  const section = guardrailsSection(read('agents/bouncer-implementer.md')).replace(/\s+/g, ' ');
+  const sentence = 'In `## Tests`, write only the assigned command and a pass line such as `12 pass, 0 fail (exit 0)`; '
+    + 'any other word starting with `fail`, the whole word `error` or `errors`, `실패`, `오류`, or a non-zero `exit` code, '
+    + 'even in prose like "fails before the change", is refused as `report-tests-invalid`, '
+    + 'so put failure narration in `## Red run`.';
+  assert.ok(section.includes(sentence), 'Tests 절 낱말 제약 문장이 Guardrails에 없다');
+});

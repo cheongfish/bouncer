@@ -1863,7 +1863,9 @@ test('cli rules → name worker-tokens-missing', () => {
       + '`{kind: worker-tokens, role, unreported: true, task?, perspective?}`.',
     'The `worker-tokens-missing` check covers these keys: `coordinate record --task <T>` checks the keys of task T, '
       + '`coordinate advance --task <T>` checks the keys of task T and the keys with no task, '
-      + 'and `coordinate advance` without `--task` checks only the keys with no task.',
+      + 'and `coordinate advance` without `--task` checks the keys with no task. '
+      + '`coordinate advance` also checks the `implementer` keys of every task, '
+      + 'because that record is written after the worker finished.',
     '`coordinate worker-tokens --blueprint <dir> --role <implementer|reviewer|debugger> --tokens <n|unreported> '
       + '--ledger-path <p> --ledger-hash <h> [--task <ddd>] [--perspective <name>]`',
   ];

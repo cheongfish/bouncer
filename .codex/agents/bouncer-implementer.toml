@@ -155,6 +155,11 @@ read code/tests/repo context needed to implement.
 - Before you report, run the task `bouncer.verify` command in your worker cwd and
   write that command and its result in `## Tests`. An accepted report without it
   is refused as `report-tests-invalid` on a `scoped_terminal` blueprint.
+- In `## Tests`, write only the assigned command and a pass line such as
+  `12 pass, 0 fail (exit 0)`; any other word starting with `fail`, the whole
+  word `error` or `errors`, `실패`, `오류`, or a non-zero `exit` code, even in
+  prose like "fails before the change", is refused as `report-tests-invalid`,
+  so put failure narration in `## Red run`.
 - Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
   unfinished task, not a smaller diff.
 - Never simplify away: input validation at trust boundaries, error handling
