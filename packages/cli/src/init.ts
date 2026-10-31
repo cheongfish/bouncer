@@ -150,74 +150,23 @@ function defaultConfig(repoRoot: string) {
     // 채우지 않고 키를 비워 /bouncer-init이 묻게 한다.
     // 기존 config에 남은 pr.labels는 알 수 없는 키로 읽고, create 인자로 쓰지 않는다.
     pr: detected ? { draft: true, base: detected } : { draft: true },
-    // host별 model ID용 placeholder slot. 모든 값은 "inherit"로 시작해 init이
-    // 편집 가능한 형태를 보여 주되 model을 고정하지 않음; resolveSubagentModel은
-    // "inherit"를 parent-session fallback으로 처리.
-    // provider block은 분리 — host마다 model namespace가 다름
-    // (Claude / Cursor / Codex / Antigravity slug는 호환되지 않음).
-    // plan의 context reviewer도 같은 inherit 슬롯이 있어야 init이 편집 자리를
-    // 보여 준다. 키가 없으면 resolve는 null로 수렴해 동작은 같지만, 사용자가
-    // 모델을 고를 자리가 사라진다. 이미 init을 돌린 소비자 config는 건드리지
-    // 않는다(부모 세션 상속 = 같은 동작).
-    // run이 위임하는 coordinator도 같은 이유로 슬롯을 갖는다 — drive 전체를
-    // 끌고 가는 역할이라 worker와 다른 모델을 고르고 싶을 수 있다.
-    subagents: {
-      claude: {
-        'bouncer-reviewer': 'inherit',
-        'bouncer-implementer': 'inherit',
-        'bouncer-debugger': 'inherit',
-        'bouncer-context-reviewer': 'inherit',
-        'bouncer-coordinator': 'inherit',
-        'bouncer-planner': 'inherit',
-        'bouncer-plan-coordinator': 'inherit',
-      },
-      cursor: {
-        'bouncer-reviewer': 'inherit',
-        'bouncer-implementer': 'inherit',
-        'bouncer-debugger': 'inherit',
-        'bouncer-context-reviewer': 'inherit',
-        'bouncer-coordinator': 'inherit',
-        'bouncer-planner': 'inherit',
-        'bouncer-plan-coordinator': 'inherit',
-      },
-      codex: {
-        'bouncer-reviewer': 'inherit',
-        'bouncer-implementer': 'inherit',
-        'bouncer-debugger': 'inherit',
-        'bouncer-context-reviewer': 'inherit',
-        'bouncer-coordinator': 'inherit',
-        'bouncer-planner': 'inherit',
-        'bouncer-plan-coordinator': 'inherit',
-      },
-      antigravity: {
-        'bouncer-reviewer': 'inherit',
-        'bouncer-implementer': 'inherit',
-        'bouncer-debugger': 'inherit',
-        'bouncer-context-reviewer': 'inherit',
-        'bouncer-coordinator': 'inherit',
-        'bouncer-planner': 'inherit',
-        'bouncer-plan-coordinator': 'inherit',
-      },
-    },
-    // plan 단계 두 역할(planner·plan-coordinator)도 같은 이유로 슬롯을 갖는다.
-    // 역할 등급 예시. 등급 값은 전부 "inherit"라 모델은 계속 부모 세션을 상속하고,
-    // 모델을 고정하지 않는 위 계약을 지킨다. 계획 문서를 쓰는 planner만 strong/high이고
-    // 나머지 여섯 역할은 standard/medium이다. 이미 init된 저장소 config에는
-    // 쓰지 않는다 — 두 블록은 사용자가 직접 추가한다(재작성 경로를 만들지 않는 계약).
+    // 서브에이전트 모델은 계층으로 해석한다: subagents.<provider>.<role> slug(override) >
+    // roles.<role>.tier를 model_tiers.<provider>.<tier>로 매핑한 값 > 부모 세션 상속.
+    // 신규 config는 override 슬롯을 두지 않는다 — 필요한 역할만 사용자가 subagents에 추가한다.
+    // 등급 값은 전부 "inherit"라 모델은 계속 부모 세션을 상속하고, 모델을 고정하지 않는다.
+    // 이미 init된 저장소 config에는 쓰지 않는다(재작성 경로를 만들지 않는 계약).
     model_tiers: Object.fromEntries(['claude', 'cursor', 'codex', 'antigravity'].map((provider) => [
       provider,
       { strong: 'inherit', standard: 'inherit', light: 'inherit' },
     ])),
     roles: {
-      ...Object.fromEntries([
-        'bouncer-reviewer',
-        'bouncer-implementer',
-        'bouncer-debugger',
-        'bouncer-context-reviewer',
-        'bouncer-coordinator',
-      ].map((agent) => [agent, { tier: 'standard', effort: 'medium' }])),
-      'bouncer-planner': { tier: 'strong', effort: 'high' },
-      'bouncer-plan-coordinator': { tier: 'standard', effort: 'medium' },
+      'bouncer-reviewer': { tier: 'strong' },
+      'bouncer-context-reviewer': { tier: 'strong' },
+      'bouncer-planner': { tier: 'standard', effort: 'high' },
+      'bouncer-implementer': { tier: 'light', effort: 'high' },
+      'bouncer-debugger': { tier: 'light', effort: 'high' },
+      'bouncer-coordinator': { tier: 'standard' },
+      'bouncer-plan-coordinator': { tier: 'standard' },
     },
   };
 }
