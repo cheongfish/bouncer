@@ -86,13 +86,20 @@ function syncVersions(opts = {}) {
     throw new Error(`${path.join(root, 'plugin.json')}:version: invalid strict SemVer 2.0`);
   }
 
+  // 같은 파일에 version과 runtimeCompatibility 수정이 함께 있어도 한 객체에 모두 반영하도록
+  // 파일마다 한 번만 읽는다. 따로 읽으면 나중에 쓴 수정이 먼저 쓴 수정을 덮어쓴다.
+  const loaded = new Map();
+  const load = (file) => {
+    if (!loaded.has(file)) loaded.set(file, readJson(file));
+    return loaded.get(file);
+  };
   const edits = [];
   for (const [rel, selectors, targetVersion] of [
     ...TARGETS.map(([rel, selectors]) => [rel, selectors, version]),
     ...PLUGIN_TARGETS.map(([rel, selectors]) => [rel, selectors, pluginVersion]),
   ]) {
     const file = path.join(root, rel);
-    const parsed = readJson(file);
+    const parsed = load(file);
     const fields = selectors(parsed.data);
     for (const [label, object, key] of fields) {
       if (!object || !Object.hasOwn(object, key)) {
@@ -110,7 +117,7 @@ function syncVersions(opts = {}) {
     }
     for (const rel of COMPAT_TARGETS) {
       const file = path.join(root, rel);
-      const parsed = readJson(file);
+      const parsed = load(file);
       if (parsed.data.runtimeCompatibility !== compat) {
         edits.push({ file, rel, label: 'runtimeCompatibility', parsed, object: parsed.data,
           key: 'runtimeCompatibility', targetVersion: compat });
@@ -122,15 +129,18 @@ function syncVersions(opts = {}) {
   }
 
   // 모든 파일과 필수 필드를 읽고 검증한 뒤에만 write 모드가 첫 교체를 한다.
+  for (const edit of edits) edit.object[edit.key] = edit.targetVersion;
+  const written = new Map();
   for (const edit of edits) {
-    edit.object[edit.key] = edit.targetVersion;
+    if (written.has(edit.file)) continue;
+    written.set(edit.file, edit.rel);
     try {
       fs.writeFileSync(edit.file, `${JSON.stringify(edit.parsed.data, null, 2)}\n`);
     } catch (err) {
       throw new Error(`${edit.file}: write failed; rerun --check or --write: ${err.message}`, { cause: err });
     }
   }
-  return { ok: true, mode, version, changed: mode === 'write' ? edits.map(({ rel }) => rel) : [] };
+  return { ok: true, mode, version, changed: mode === 'write' ? [...written.values()] : [] };
 }
 
 /**

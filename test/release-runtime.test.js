@@ -317,6 +317,21 @@ test('sync-versions write with drifted host manifests → copies plugin.json run
   assert.doesNotThrow(() => syncVersions({ root, mode: 'check' }));
 });
 
+test('sync-versions write with host manifests whose version and runtimeCompatibility both drifted → fixes both in one run', () => {
+  const root = compatFixture();
+  for (const rel of HOST_MANIFESTS) {
+    fs.writeFileSync(path.join(root, rel), JSON.stringify({ version: '1.2.0', runtimeCompatibility: '>=1.0.0 <2.0.0' }));
+  }
+  const result = syncVersions({ root, mode: 'write' });
+  assert.deepEqual(result.changed.sort(), [...HOST_MANIFESTS].sort());
+  for (const rel of HOST_MANIFESTS) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
+    assert.deepEqual({ version: manifest.version, range: manifest.runtimeCompatibility },
+      { version: '1.2.3', range: '>=1.2.3 <2.0.0' }, rel);
+  }
+  assert.doesNotThrow(() => syncVersions({ root, mode: 'check' }));
+});
+
 test('(k) E404 with another or missing pkgid and partial summary → no publish', () => {
   for (const error of [
     { code: 'E404', pkgid: '@cheongfish/bouncer@1.2.4', summary: 'no match for @cheongfish/bouncer@1.2.3' },
