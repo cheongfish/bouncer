@@ -499,7 +499,9 @@ test('coordinate worker-model --help → lists both review flags and says review
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /--strategy <single\|parallel>/);
   assert.match(r.out, /--reviewer-tier <standard\|strong>/);
-  assert.match(r.out, /reviewer-only/);
+  // "--perspective is reviewer-only." 는 기존 문장이라 /reviewer-only/ 만으로는 두 review 플래그의
+  // reviewer 전용 설명이 빠져도 통과한다. 새 문장을 직접 묶어 그 설명이 사라지면 실패하게 한다.
+  assert.match(r.out, /--strategy and --reviewer-tier are reviewer-only/);
 });
 
 test('coordinate worker-tokens --help → does not list the review flags', () => {
