@@ -426,6 +426,9 @@ test('config --help/-h → subagents 키를 stdout에 출력하고 다른 argv�
       'model_tiers.<provider>.<tier>', 'roles.<agent>.tier', 'roles.<agent>.effort',
       'strong | standard | light', 'low | medium | high',
       'review.min_reviewer_tier', 'standard | strong', 'review-min-reviewer-tier-invalid',
+      'complexity.single_max_source_files', 'complexity.single_max_source_lines',
+      'complexity.strong_min_source_files', 'complexity.strong_min_modules', 'complexity.strong_min_total_files',
+      'complexity.risk_paths', 'complexity.generated_paths',
       'claude', 'cursor', 'codex', 'antigravity', 'print', 'inherit', ...NAMED_AGENTS]) {
       assert.ok(r.out.includes(v), v);
     }

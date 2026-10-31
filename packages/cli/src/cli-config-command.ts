@@ -49,6 +49,34 @@ Key under "review" (read by "bouncer review-dispatch"):
                                 this key can only raise it; any other value is rejected with
                                 review-min-reviewer-tier-invalid)
 
+Keys under "complexity" (read by plan inspect and review-dispatch; shared thresholds for the
+single / strong size judgments):
+  complexity.single_max_source_files   integer >= 0
+                                default: 2 (at most this many source files, with the lines cap below and no
+                                risk signal, make a change single)
+  complexity.single_max_source_lines   integer >= 0
+                                default: 200
+  complexity.strong_min_source_files   integer >= 1
+                                default: 8 (this many source files is a strong cause)
+  complexity.strong_min_modules        integer >= 1
+                                default: 4
+  complexity.strong_min_total_files    integer >= 1
+                                default: 11 (all files, tests and docs included)
+  complexity.risk_paths         array of path patterns | absent
+                                default: commit-guard*, commit-hook*, hooks/, AGENTS.md, rules/acq-gates.json,
+                                validate-gates*, coordinator-ledger*, guards.ts ([] clears the repo-specific list)
+  complexity.generated_paths    array of directory prefixes | absent
+                                default: scripts/lib/, .codex/agents/, packages/cli/dist/ ([] turns exclusion off)
+                                generated files leave the size counts but still count for risk paths
+  Pattern rules (case-sensitive; no "*" in a pattern that has "/"; at most 3 "*"; at most 200 characters):
+    name only (commit-guard*, AGENTS.md, *.pem)  matches the file name at any depth; "*" is any string
+    ends with "/" (hooks/, src/payments/)       matches when those directory names appear consecutively
+    other with "/" (rules/acq-gates.json)       matches that repo-relative path exactly
+  A generated_paths entry must end with "/" and is matched from the repository root.
+  A threshold that is not an integer in range, an unknown key under "complexity", or a bad pattern
+  (empty, absolute, "..", backslash, leading "./", surrounding spaces, only "*" and "/", "a//b")
+  makes the configuration invalid; it never falls back to the defaults.
+
 Key under "metrics" (read by "bouncer metrics end"):
   metrics.pricing               { "<model slug>": { "input_per_mtok": <n>, "output_per_mtok": <n> } } | absent
                                 default: absent (cost is recorded as null with reason no-pricing)

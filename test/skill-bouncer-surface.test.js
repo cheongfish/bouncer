@@ -579,6 +579,16 @@ const REMOVED_CLI_REASONS = new RegExp([
   'promotion-diff-drift', 'light-candidate', 'full-candidate',
 ].join('|'));
 
+test('configuration doc → lists the seven complexity keys', () => {
+  const doc = readPlanDoc('docs/configuration.md');
+  for (const key of [
+    'single_max_source_files', 'single_max_source_lines', 'strong_min_source_files', 'strong_min_modules',
+    'strong_min_total_files', 'risk_paths', 'generated_paths',
+  ]) {
+    assert.ok(doc.includes(`complexity.${key}`), key);
+  }
+});
+
 test('run and rules docs → omit retired light-run vocabulary and keep light-mode-removed recovery', () => {
   const banned = /light-run\.md|promote-stop|--promote-light|scale: light/;
   for (const rel of RUN_DOCS) assert.doesNotMatch(readPlanDoc(rel), banned, rel);

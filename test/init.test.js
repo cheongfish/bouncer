@@ -14,7 +14,7 @@ const {
   readGraphifyLock,
   GRAPHIFY_LOCK_REL,
 } = require('../packages/cli/dist/graphify');
-const { DEFAULT_VERIFY_ALLOWLIST } = require('../packages/cli/dist/config');
+const { DEFAULT_VERIFY_ALLOWLIST, DEFAULT_COMPLEXITY_POLICY } = require('../packages/cli/dist/config');
 const { TEMPLATES } = require('../packages/cli/dist/templates');
 const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
 
@@ -120,6 +120,20 @@ test('init with an existing base_branch → does not rewrite it', () => {
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const existing = JSON.parse(read(repo, '.bouncer/config.json'));
   assert.equal(existing.base_branch, 'keep-me');
+});
+
+test('config.example.json → carries the seven complexity keys equal to the default policy', () => {
+  const example = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.example.json'), 'utf8'));
+  const policy = DEFAULT_COMPLEXITY_POLICY;
+  assert.deepStrictEqual(example.complexity, {
+    single_max_source_files: policy.singleMaxSourceFiles,
+    single_max_source_lines: policy.singleMaxSourceLines,
+    strong_min_source_files: policy.strongMinSourceFiles,
+    strong_min_modules: policy.strongMinModules,
+    strong_min_total_files: policy.strongMinTotalFiles,
+    risk_paths: policy.riskPaths,
+    generated_paths: policy.generatedPaths,
+  });
 });
 
 test('init → writes the exact config.json shape', () => {

@@ -69,6 +69,28 @@
     "waves_per_session": "auto",
     "direct_max_commit_tasks": 3
   },
+  "complexity": {
+    "single_max_source_files": 2,
+    "single_max_source_lines": 200,
+    "strong_min_source_files": 8,
+    "strong_min_modules": 4,
+    "strong_min_total_files": 11,
+    "risk_paths": [
+      "commit-guard*",
+      "commit-hook*",
+      "hooks/",
+      "AGENTS.md",
+      "rules/acq-gates.json",
+      "validate-gates*",
+      "coordinator-ledger*",
+      "guards.ts"
+    ],
+    "generated_paths": [
+      "scripts/lib/",
+      ".codex/agents/",
+      "packages/cli/dist/"
+    ]
+  },
   "pr": {
     "draft": true,
     "base": "main"

@@ -21,6 +21,13 @@
 | `coordinator.waves_per_session` | `"auto"` \| 정수 `1`–`8` (선택). 부재 시 `"auto"`(상한 4) | 한 coordinator 세션이 처리할 직렬·무예외 wave 수 상한. `coordinate next`가 상한에 닿았거나 예외·병렬 wave가 끼면 `yield`로 세션을 끊도록 알린다. 그 밖의 값이면 prepare가 `coordinator-config-invalid`로 거절하고 읽기 전용 `next`는 상한 1로 접는다 | `"auto"` · `1` (wave마다 새 세션) |
 | `metrics.pricing` | `{ "<모델 slug>": { "input_per_mtok": 수, "output_per_mtok": 수 } }` (선택). 단가는 0 이상 유한 수 | `bouncer metrics end`가 `--model`과 입력·출력 토큰이 모두 있을 때만 비용을 계산하는 단가표(100만 토큰당). 없으면 비용은 `null`과 `no-pricing` 사유로 남고, 모양이 틀리면 `invalid-pricing` | `{"claude-sonnet-4": {"input_per_mtok": 3, "output_per_mtok": 15}}` |
 | `coordinator.direct_max_commit_tasks` | 정수 `>= 0` (선택). 부재 시 `3` | 시작 ACQ가 "직접 실행(coordinator 없음)"을 보이는 직렬 드라이브의 열린 commit task 수 상한. `0`이면 끄고, 정수가 아니거나 음수면 preflight가 `0`으로 접어 꺼진 것으로 본다(드라이브는 실패하지 않음) | `3` · `0` |
+| `complexity.single_max_source_files` | 정수 `>= 0` (선택). 부재 시 `2` | 변경이 single(작은 변경)이려면 소스 파일이 이 수 이하여야 한다. 소스는 테스트·문서·`.bouncer/context`·README·CHANGELOG·생성물을 뺀 파일이다. 정수가 아니거나 범위 밖이면 설정 오류(`invalid`)로 거절하고 기본값으로 접지 않는다 | `2` · `5` |
+| `complexity.single_max_source_lines` | 정수 `>= 0` (선택). 부재 시 `200` | single의 소스 줄 상한(추가+삭제 합). 줄 수를 알 수 없으면 single이 아니다 | `200` |
+| `complexity.strong_min_source_files` | 정수 `>= 1` (선택). 부재 시 `8` | 소스 파일이 이 수 이상이면 strong 근거 | `8` |
+| `complexity.strong_min_modules` | 정수 `>= 1` (선택). 부재 시 `4` | 접촉 모듈(`packages/<name>` 단위)이 이 수 이상이면 strong 근거 | `4` |
+| `complexity.strong_min_total_files` | 정수 `>= 1` (선택). 부재 시 `11` | 테스트·문서를 포함한 전체 파일이 이 수 이상이면 strong 근거. 상한은 없다 | `11` |
+| `complexity.risk_paths` | 패턴 문자열 배열 (선택). 부재 시 `commit-guard*`·`commit-hook*`·`hooks/`·`AGENTS.md`·`rules/acq-gates.json`·`validate-gates*`·`coordinator-ledger*`·`guards.ts` | 저장소 고유 위험 경로. 걸린 파일은 소스 여부와 무관하게 위험 신호가 된다. `[]`이면 저장소 고유 목록을 비운다(일반 규칙은 그대로). 패턴 규칙은 아래 표 아래 설명 참고 | `["src/payments/", "*.pem"]` |
+| `complexity.generated_paths` | `/`로 끝나는 접두 배열 (선택). 부재 시 `scripts/lib/`·`.codex/agents/`·`packages/cli/dist/` | 저장소 루트 기준 생성물 접두. 이 아래 파일은 크기 수치에서만 빠지고 위험 경로 평가에는 들어간다. `[]`이면 생성물 제외를 끈다. `*`는 쓸 수 없다 | `["out/"]` |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
@@ -32,6 +39,13 @@
 | `roles.<agent>.effort` | `low` \| `medium` \| `high` | 디스패치에 넘기는 추론 effort. Codex custom agent TOML의 `model_reasoning_effort`로도 시드 | 없음. 없거나 `null`이면 effort를 넘기지 않음(`null`). Codex TOML에는 `"medium"`으로 씀. `bouncer init` 예시는 `"medium"` |
 | `review.min_reviewer_tier` | `standard` \| `strong` (선택) | `bouncer review-dispatch`가 리뷰어 등급의 하한으로 읽는다. 등급은 리뷰 범위의 commit task 3개 이상이거나 `review_risk`가 비어 있지 않으면 `strong`, 아니면 `standard`이고, 이 키는 그 값을 올리기만 한다. `complexity: low`는 commit task 수 문턱을 적용하지 않는다. `strong` 등급은 `model_tiers.<provider>.strong` 매핑이 `inherit`이 아닌 모델 slug일 때만 적용되고, `inherit`이면 미적용(`tier-inherit`)으로 보고한다. 그 밖의 값(`light`·오타·비문자열)이면 `review-min-reviewer-tier-invalid`로 거절 | 없음. 규모와 위험만으로 등급을 정함 |
 | `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
+
+`complexity.risk_paths` 패턴은 대소문자를 구분하며 세 꼴이다. `/`가 없으면 파일 이름 비교이고 `*`는
+임의 문자열이다(`commit-guard*`, `AGENTS.md`는 어느 깊이에서든, `*.pem`). `/`로 끝나면 디렉터리 패턴으로,
+그 디렉터리 이름들이 경로의 디렉터리 조각 안에 연속으로 있으면 맞는다(`hooks/`, `src/payments/`). 그 밖에
+`/`가 있으면 저장소 상대 경로 정확 일치이며(`rules/acq-gates.json`), `/`가 든 패턴에서 `*`는 쓸 수 없다.
+빈 문자열, 200자 초과, `*` 4개 이상, 절대 경로, `..` 조각, 역슬래시, `./` 시작, 앞뒤 공백, `*`와 `/`만으로
+된 값, `a//b`는 설정 오류다. `complexity` 안의 위 일곱 키 밖의 키도 오타 방지를 위해 설정 오류다.
 
 `bouncer init`은 새 config를 만들 때 `package.json`에 `scripts.build`가 있으면 `worktree.setup`을 `"npm run build"`로 넣습니다. 이미 있는 config에는 자동으로 들어가지 않으니 필요하면 직접 추가하세요.
 

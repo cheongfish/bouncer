@@ -18,6 +18,8 @@ import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import epicRegistry = require('./epic-registry');
 const { readEpicRegistry, COMMON_EPICS } = epicRegistry;
+import complexitySignals = require('./complexity-signals');
+const { classifyRoutingPaths } = complexitySignals;
 import codexAgents = require('./codex-agents');
 const { NAMED_AGENTS, codexAgentTomlFor } = codexAgents;
 
@@ -32,27 +34,6 @@ const VERIFY_FILES = [
   'Taskfile.yml',
 ] as const;
 
-// light/full 추천 신호용 경로 규칙. 설정 파일로 열지 않는 코드 상수 —
-// review_risk(frontmatter)와 별개 계약이라 여기만 소유한다.
-const SECURITY_SEGMENTS = new Set([
-  'auth',
-  'credential',
-  'credentials',
-  'secret',
-  'secrets',
-  'token',
-  'tokens',
-  'permission',
-  'permissions',
-]);
-const MANIFEST_EXACT = new Set([
-  'package.json',
-  'package-lock.json',
-  'bun.lock',
-  'yarn.lock',
-  'pnpm-lock.yaml',
-  'go.mod',
-]);
 const MODULE_EXCLUDED = new Set(['test', 'tests', 'docs']);
 
 type InspectFail = {
@@ -76,9 +57,8 @@ type CurrentInfo = {
   base: string | null;
 };
 
-type RiskKind = 'security' | 'manifest' | 'build' | 'migration';
-
-type RiskPath = { path: string; kind: RiskKind };
+// 위험 경로 규칙과 타입은 complexity-signals.ts가 갖는다. 여기서는 Routing 출력 모양에만 쓴다.
+type RiskPath = complexitySignals.RiskPath;
 
 type Routing = {
   advisory: true;
@@ -417,98 +397,6 @@ function collectVerifySignals(repoRoot: string): string[] {
 function normalizeRelDir(value: unknown): string | null {
   if (typeof value !== 'string' || value === '') return null;
   return toPosix(value).replace(/\/+$/, '');
-}
-
-/**
- * basename이 `prefix*suffix` 형태(단일 `*`)와 맞는지 본다.
- * 설정/외부 glob 엔진 없이 상수 규칙만 쓰기 위함.
- *
- * @param {string} name - 파일 basename
- * @param {string} prefix - `*` 앞
- * @param {string} suffix - `*` 뒤
- * @returns {boolean} 매칭 여부
- */
-function matchStar(name: string, prefix: string, suffix: string): boolean {
-  return name.startsWith(prefix) && name.endsWith(suffix)
-    && name.length >= prefix.length + suffix.length;
-}
-
-/**
- * 경로를 `/` 조각으로 나누고 마지막 조각의 확장자를 벗긴다.
- * `tokenizer`≠`token`처럼 부분 문자열 오탐을 막으려면 확장자 없는
- * 조각과 정확히 비교해야 한다.
- *
- * @param {string} relPath - repo-relative posix 경로
- * @returns {string[]} 확장자 없는 경로 조각
- */
-function pathSegments(relPath: string): string[] {
-  const parts = toPosix(relPath).split('/').filter(Boolean);
-  return parts.map((part, index) => {
-    if (index !== parts.length - 1) return part;
-    // `.github` 같은 leading-dot 디렉터리는 확장자가 아니다.
-    if (part.startsWith('.')) return part;
-    const dot = part.lastIndexOf('.');
-    return dot > 0 ? part.slice(0, dot) : part;
-  });
-}
-
-/**
- * 한 경로가 걸리는 첫 risk kind를 고른다. 우선순위는 security → manifest →
- * build → migration — 한 path에 여러 kind를 쌓지 않아 recommendation 근거가
- * 중복되지 않게 한다.
- *
- * @param {string} relPath - repo-relative 경로
- * @returns {RiskKind | null} 매칭 kind, 없으면 null
- */
-function classifyOnePath(relPath: string): RiskKind | null {
-  const posix = toPosix(relPath);
-  const base = path.posix.basename(posix);
-  const segments = pathSegments(posix);
-
-  if (segments.some((seg) => SECURITY_SEGMENTS.has(seg))) return 'security';
-
-  if (
-    MANIFEST_EXACT.has(base)
-    || matchStar(base, 'requirements', '.txt')
-  ) {
-    return 'manifest';
-  }
-
-  if (
-    matchStar(base, 'Dockerfile', '')
-    || base === 'Makefile'
-    || matchStar(base, 'tsconfig', '.json')
-    || posix === '.github/workflows'
-    || posix.startsWith('.github/workflows/')
-  ) {
-    return 'build';
-  }
-
-  // migrations/ 접두·조각, schema 조각. `schemas` 복수형은 규칙에 없어 제외.
-  if (
-    segments.includes('migrations')
-    || segments.includes('schema')
-  ) {
-    return 'migration';
-  }
-  return null;
-}
-
-/**
- * 경로 목록을 risk kind로 분류한다. I/O 없음 — 단위 테스트가 규칙만
- * 고정하고 planInspect는 집계 전에 같은 헬퍼를 재사용한다.
- *
- * @param {string[]} pathList - repo-relative 경로 목록
- * @returns {Array<{ path: string, kind: RiskKind }>} 매칭된 {path, kind}만, 입력 순
- */
-function classifyRoutingPaths(pathList: string[]): RiskPath[] {
-  const out: RiskPath[] = [];
-  for (const relPath of pathList) {
-    if (typeof relPath !== 'string' || relPath === '') continue;
-    const kind = classifyOnePath(relPath);
-    if (kind !== null) out.push({ path: toPosix(relPath), kind });
-  }
-  return out;
 }
 
 /**
