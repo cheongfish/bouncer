@@ -60,6 +60,15 @@ let fixtureRepo = null;
 let warningRepo = null;
 let cleanRepo = null;
 let epipeDir = null;
+let renameRepo = null;
+
+const RENAME_BP = {
+  old: '.bouncer/context/epics/e1/blueprints/bp-old/index.md',
+  neighbor: '.bouncer/context/epics/e1/blueprints/bp-neighbor/index.md',
+  other: '.bouncer/context/epics/e1/blueprints/bp-other/index.md',
+  new: '.bouncer/context/epics/e1/blueprints/bp-new/index.md',
+  x: '.bouncer/context/epics/e1/blueprints/bp-x/index.md',
+};
 
 /**
  * slug epic·blueprint 문서와 `SharedToken` 질의가 100건·64KiB를 넘도록 임시 git 저장소를 만든다.
@@ -136,6 +145,112 @@ function createCleanOntologyFixture() {
     }, `# ${slug}\n\n## Contract\n\n\`${SHARED_TOKEN}\`\n`);
   }
   return root;
+}
+
+/**
+ * 두 번 rename된 파일과 과거 이름만 기록한 blueprint를 커밋한 저장소를 만든다.
+ * 기대 집합 {bp-old, bp-new}는 이 구성에서 정하고, 구현 출력을 보고 맞추지 않는다.
+ *
+ * @returns {string} git init된 fixture 루트 절대 경로
+ */
+function createRenameOntologyFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-rename-'));
+  gitIn(root, ['init', '-q']);
+  gitIn(root, ['config', 'user.name', 't']);
+  gitIn(root, ['config', 'user.email', 't@example.com']);
+  gitIn(root, ['config', 'commit.gpgsign', 'false']);
+  const epicRel = '.bouncer/context/epics/e1';
+  writeContextDoc(root, `${epicRel}/index.md`, {
+    type: 'bouncer.epic',
+    bouncer: { id: 'e1', status: 'approved' },
+  }, '# e1\n');
+  writeContextDoc(root, `${epicRel}/blueprints/bp-old/index.md`, {
+    type: 'bouncer.blueprint',
+    bouncer: { id: 'bp-old', status: 'approved' },
+  }, '# bp-old\n\n## Contract\n\n`src/old-name.ts` `SharedEntity`\n');
+  writeContextDoc(root, `${epicRel}/blueprints/bp-neighbor/index.md`, {
+    type: 'bouncer.blueprint',
+    bouncer: { id: 'bp-neighbor', status: 'approved' },
+  }, '# bp-neighbor\n\n## Contract\n\n`SharedEntity`\n');
+  writeContextDoc(root, `${epicRel}/blueprints/bp-other/index.md`, {
+    type: 'bouncer.blueprint',
+    bouncer: { id: 'bp-other', status: 'approved' },
+  }, '# bp-other\n\n## Contract\n\n`src/other.ts`\n');
+  writeTrackedFile(root, 'src/old-name.ts', [
+    'export const lineA = 1;',
+    'export const lineB = 2;',
+    'export const lineC = 3;',
+    'export const lineD = 4;',
+    'export const lineE = 5;',
+    'export const lineF = 6;',
+    'export const lineG = 7;',
+    'export const lineH = 8;',
+    '',
+  ].join('\n'));
+  writeTrackedFile(root, 'src/other.ts', 'export const other = true;\n');
+  gitIn(root, ['add', '-A']);
+  gitIn(root, ['commit', '-m', 'initial names', '--quiet']);
+  gitIn(root, ['mv', 'src/old-name.ts', 'src/mid-name.ts']);
+  gitIn(root, ['commit', '-m', 'rename to mid-name', '--quiet']);
+  fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
+  gitIn(root, ['mv', 'src/mid-name.ts', 'lib/new-name.ts']);
+  fs.appendFileSync(path.join(root, 'lib', 'new-name.ts'), 'export const lineI = 9;\n');
+  gitIn(root, ['add', 'lib/new-name.ts']);
+  gitIn(root, ['commit', '-m', 'rename to lib/new-name.ts', '--quiet']);
+  writeContextDoc(root, `${epicRel}/blueprints/bp-new/index.md`, {
+    type: 'bouncer.blueprint',
+    bouncer: { id: 'bp-new', status: 'approved' },
+  }, '# bp-new\n\n## Contract\n\n`lib/new-name.ts`\n');
+  gitIn(root, ['add', '-A']);
+  gitIn(root, ['commit', '-m', 'record current name', '--quiet']);
+  return root;
+}
+
+/**
+ * 커밋 없이 context 문서만 있는 저장소를 만든다. unborn HEAD에서 git log가
+ * 실패해도 질의는 한 키 조회로 끝나야 한다.
+ *
+ * @returns {string} git init만 된 fixture 루트
+ */
+function createUnbornOntologyFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-unborn-'));
+  gitIn(root, ['init', '-q']);
+  writeContextDoc(root, '.bouncer/context/epics/e1/index.md', {
+    type: 'bouncer.epic',
+    bouncer: { id: 'e1', status: 'approved' },
+  }, '# e1\n');
+  writeContextDoc(root, '.bouncer/context/epics/e1/blueprints/bp-x/index.md', {
+    type: 'bouncer.blueprint',
+    bouncer: { id: 'bp-x', status: 'approved' },
+  }, '# bp-x\n\n## Contract\n\n`src/x.ts`\n');
+  return root;
+}
+
+/**
+ * 로컬 identity로 git을 실행한다. fixture 커밋이 환경 gpg/author 설정에 의존하지 않게 한다.
+ *
+ * @param {string} root - 저장소 루트
+ * @param {string[]} args - git 인자
+ * @returns {import('node:child_process').SpawnSyncReturns<string>} 성공한 spawn 결과
+ */
+function gitIn(root, args) {
+  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, `${args.join(' ')}\n${result.stderr}`);
+  return result;
+}
+
+/**
+ * 일반 추적 파일을 쓴다. context 문서가 아닌 소스 fixture용이다.
+ *
+ * @param {string} root - fixture 루트
+ * @param {string} rel - 저장소 상대 posix 경로
+ * @param {string} body - 파일 본문
+ * @returns {void}
+ */
+function writeTrackedFile(root, rel, body) {
+  const abs = path.join(root, ...rel.split('/'));
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, body);
 }
 
 /**
@@ -222,6 +337,38 @@ function runOntologyEntity(repo, extra = []) {
 }
 
 /**
+ * file·impact·entity 질의를 CLI 경계에서 실행한다. 주입 없이 실제 git 저장소를 쓴다.
+ *
+ * @param {string} repo - --repo 절대 경로
+ * @param {'entity' | 'file' | 'impact'} mode - ontology 모드
+ * @param {string} value - --entity 또는 --file 값
+ * @param {string[]} [extra] - --limit 등 뒤에 붙는 옵션
+ * @returns {import('node:child_process').SpawnSyncReturns<string>} spawn 결과
+ */
+function runOntologyQuery(repo, mode, value, extra = []) {
+  const selector = mode === 'entity' ? '--entity' : '--file';
+  return spawnSync(
+    process.execPath,
+    [BOUNCER, 'ontology', mode, selector, value, '--repo', repo, ...extra],
+    { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: LARGE_BUFFER },
+  );
+}
+
+/**
+ * 결과 행의 blueprint 경로에서 slug를 모아 집합으로 돌린다.
+ * 기대 집합은 fixture 문서 id에서 오고 구현 정렬에 의존하지 않는다.
+ *
+ * @param {{results: {blueprint: string}[]}} body - ontology JSON
+ * @returns {Set<string>} blueprint slug 집합
+ */
+function blueprintSlugsOf(body) {
+  return new Set(body.results.map((row) => {
+    const segments = row.blueprint.split('/');
+    return segments[segments.indexOf('blueprints') + 1];
+  }));
+}
+
+/**
  * stdout을 파일 디스크립터로 리다이렉트해 파이프 절단과 무관한 전체 출력을 받는다.
  *
  * @param {string} repo - fixture 루트
@@ -251,6 +398,7 @@ test.before(() => {
   fixtureRepo = createLargeOntologyFixture();
   warningRepo = createWarningOntologyFixture();
   cleanRepo = createCleanOntologyFixture();
+  renameRepo = createRenameOntologyFixture();
   epipeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-epipe-'));
 });
 
@@ -258,6 +406,7 @@ test.after(() => {
   if (fixtureRepo) fs.rmSync(fixtureRepo, { recursive: true, force: true });
   if (warningRepo) fs.rmSync(warningRepo, { recursive: true, force: true });
   if (cleanRepo) fs.rmSync(cleanRepo, { recursive: true, force: true });
+  if (renameRepo) fs.rmSync(renameRepo, { recursive: true, force: true });
   if (epipeDir) fs.rmSync(epipeDir, { recursive: true, force: true });
 });
 
@@ -424,4 +573,86 @@ test('ontology --help는 → --warnings를 안내한다', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, COMMAND_USAGE.ontology);
   assert.equal(result.stdout.includes('--warnings'), true);
+});
+
+test('rename된 현재 경로를 file로 질의하면 → 과거 이름만 기록한 blueprint가 포함되고 aliases에 과거 이름이 있다', () => {
+  const result = runOntologyQuery(renameRepo, 'file', 'lib/new-name.ts');
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepStrictEqual(blueprintSlugsOf(parsed), new Set(['bp-old', 'bp-new']));
+  assert.equal(blueprintSlugsOf(parsed).has('bp-other'), false);
+  assert.equal(parsed.total, 2);
+  assert.deepStrictEqual(parsed.aliases, ['src/mid-name.ts', 'src/old-name.ts']);
+  const oldRow = parsed.results.find((row) => row.blueprint === RENAME_BP.old);
+  assert.ok(oldRow);
+  assert.ok(oldRow.evidence.some((item) => item.kind === 'contract' && item.source === RENAME_BP.old));
+  assert.ok(oldRow.files.includes('src/old-name.ts'));
+});
+
+test('rename된 현재 경로를 impact로 질의하면 → 과거 이름 blueprint의 이웃 blueprint까지 한 단계 확장된다', () => {
+  const result = runOntologyQuery(renameRepo, 'impact', 'lib/new-name.ts');
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepStrictEqual(blueprintSlugsOf(parsed), new Set(['bp-old', 'bp-new', 'bp-neighbor']));
+  assert.equal(blueprintSlugsOf(parsed).has('bp-other'), false);
+  const neighbor = parsed.results.find((row) => row.blueprint === RENAME_BP.neighbor);
+  assert.ok(neighbor);
+  assert.ok(neighbor.via.includes(RENAME_BP.old));
+});
+
+test('이력 없는 경로와 rename 안 된 경로는 → aliases가 비고 결과가 한 키 조회와 같다', () => {
+  const missing = runOntologyQuery(renameRepo, 'file', 'docs/never.md');
+  assert.equal(missing.status, 0, missing.stderr);
+  const missingBody = JSON.parse(missing.stdout);
+  assert.deepStrictEqual(missingBody.results, []);
+  assert.equal(missingBody.total, 0);
+  assert.deepStrictEqual(missingBody.aliases, []);
+
+  const other = runOntologyQuery(renameRepo, 'file', 'src/other.ts');
+  assert.equal(other.status, 0, other.stderr);
+  const otherBody = JSON.parse(other.stdout);
+  assert.deepStrictEqual(blueprintSlugsOf(otherBody), new Set(['bp-other']));
+  assert.deepStrictEqual(otherBody.aliases, []);
+});
+
+test('entity 질의는 → aliases가 빈 배열이고 결과가 변경 전과 같다', () => {
+  const result = runOntologyQuery(renameRepo, 'entity', 'SharedEntity');
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepStrictEqual(blueprintSlugsOf(parsed), new Set(['bp-old', 'bp-neighbor']));
+  assert.deepStrictEqual(parsed.aliases, []);
+});
+
+test('rename 합집합에 --limit을 걸면 → total은 합집합 전체이고 truncated가 true다', () => {
+  const result = runOntologyQuery(renameRepo, 'file', 'lib/new-name.ts', ['--limit', '1']);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.results.length, 1);
+  assert.equal(parsed.total, 2);
+  assert.equal(parsed.truncated, true);
+});
+
+test('디렉터리와 pathspec 문법 값을 질의하면 → exit 0, aliases가 비고 결과가 한 키 조회와 같다', () => {
+  for (const value of ['lib', 'src', ':(exclude)lib/new-name.ts']) {
+    const result = runOntologyQuery(renameRepo, 'file', value);
+    assert.equal(result.status, 0, `${value}\n${result.stderr}`);
+    const parsed = JSON.parse(result.stdout);
+    assert.deepStrictEqual(parsed.aliases, [], value);
+    assert.deepStrictEqual(parsed.results, [], value);
+    assert.equal(parsed.total, 0, value);
+  }
+});
+
+test('커밋이 없는 저장소를 질의하면 → exit 0, aliases가 비고 results가 한 키 조회와 같다', () => {
+  const root = createUnbornOntologyFixture();
+  try {
+    const result = runOntologyQuery(root, 'file', 'src/x.ts');
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    const parsed = JSON.parse(result.stdout);
+    assert.deepStrictEqual(parsed.aliases, []);
+    assert.deepStrictEqual(blueprintSlugsOf(parsed), new Set(['bp-x']));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
