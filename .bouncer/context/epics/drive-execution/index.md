@@ -91,3 +91,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [retro-friction-and-revise-union](blueprints/retro-friction-and-revise-union/index.md): retro 마찰 4건을 direct-run·coordinator·implementer·dispatch 문서에서 막고, `coordinate revise`가 기본으로 직전 범위에 더하며 교체는 `--replace`로만 하게 한다.
 - [retro-followups-coupled-paths](blueprints/retro-followups-coupled-paths/index.md): direct-run의 must_fix 리뷰 원문 인계 규칙, `coordinate dispatch`의 보고 디렉터리 생성, revise 정규화 중복 제거 테스트를 더하고 `plan inspect`가 결합 경로를 읽기 전용으로 출력하게 한다.
 - [retro-dispatch-model-tokens-deferred](blueprints/retro-dispatch-model-tokens-deferred/index.md): 구현자 모델 전달 문서, brief delta 라운드의 경미 지적 이연 기록, 계획 리뷰의 테스트 도달 가능성 판정, `worker-tokens --tokens unreported`와 `worker-tokens-missing` 거절을 더한다.
+- [worker-tokens-duplicate-guard](blueprints/worker-tokens-duplicate-guard/index.md): `coordinate worker-tokens`가 같은 키의 중복 기록을 거절하고 `--replace`로만 교체하게 하며, coordinator 문서에 worker 보고 대기 불가 종료 문단을, 계획 작성 규칙에 Checklist 분기 matrix 행 규칙과 문서 문구 단언 규칙을 더한다.

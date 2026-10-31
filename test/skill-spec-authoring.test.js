@@ -47,3 +47,23 @@ test('spec-authoring review-rounds example → passes collectFindingFailures', (
     allowedStatuses: ['resolved', 'accepted', 'deferred'], reviewStatus: 'accepted',
   }), []);
 });
+
+// 새 Checklist 규칙 두 항목은 기존 문장과 겹치는 낱말이 아니라 항목 전체 문장에 묶는다.
+// 부분 정규식은 새 문장이 지워져도 통과하므로, 공백을 접은 본문에 문장 전체가 있는지와
+// 문장을 지운 본문에 그 앞부분이 남지 않는지를 함께 본다.
+const flatText = (text) => text.replace(/\s+/g, ' ');
+const BRANCH_MATRIX_RULE = '- **Checklist** (branch matrix): Interface가 두 축 이상의 분기 matrix(예: perspective × tier)를 '
+  + '제공하면 matrix의 셀마다 Checklist 항목을 하나씩 쓴다. 항목은 그 셀의 입력 값과 기대 결과를 literal로 적고, '
+  + '"matrix 전체를 확인한다" 같은 묶음 항목 하나로 셀 단위를 대신하지 않는다.';
+const DOC_WORDING_RULE = '- **Checklist** (doc wording): 문서·help 문구는 피할 수 있으면 단언하지 않고 존재·구조·링크를 '
+  + '단언한다. 문구 자체가 계약이면 패턴이 새 문장의 처음부터 끝까지를 묶게 쓰고, 그 문장을 지우면 테스트가 '
+  + '실패하는지 확인한다. 기존 문장과 겹치는 낱말 일부만 묶는 패턴은 문장을 지워도 통과한다.';
+
+test('spec-authoring Checklist rules → carry the branch matrix and doc wording sentences whole', () => {
+  const md = flatText(readSkill('spec-authoring'));
+  for (const rule of [BRANCH_MATRIX_RULE, DOC_WORDING_RULE]) {
+    assert.ok(md.includes(rule));
+    assert.ok(!md.replace(rule, '').includes(rule.slice(0, 40)));
+  }
+  assert.doesNotMatch(md, /\blight/i);
+});

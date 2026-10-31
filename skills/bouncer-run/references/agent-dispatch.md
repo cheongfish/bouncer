@@ -353,7 +353,8 @@ wait for a worker's usage. If that value is not here when you record the model, 
 --blueprint <dir> --role <role> [--task <NNN>] [--perspective <name>] --tokens
 <n>` using the same task and perspective. If the host gives no value, record
 `--tokens unreported` for that key instead: it is counted as missing, never
-estimated. `coordinate record --task <NNN>` and `coordinate advance` refuse with
+estimated. To correct a recorded value, repeat the same `worker-tokens` call with `--replace`: it swaps the
+latest record of that key instead of appending another. `coordinate record --task <NNN>` and `coordinate advance` refuse with
 `worker-tokens-missing` while a finished worker key has neither record.
 
 ## Worker hand-back

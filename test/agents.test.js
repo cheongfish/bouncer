@@ -592,3 +592,19 @@ test('coordinator repair paths rule → judges the regression test file for a pr
   const guards = flatSection('bouncer-coordinator', 'Hard guards');
   assert.ok(guards.includes(COORDINATOR_SENTENCE), 'coordinator repair 문장 없음');
 });
+
+// 기다릴 수 없는 worker 보고의 출구 문단. 문단 전체를 한 패턴으로 묶어 한 문장만 남기거나
+// 이름만 언급하는 변형으로는 통과하지 못하게 한다. 문서 줄바꿈 위치와 무관하도록 공백을 접는다.
+const EXIT_PARAGRAPH = /If a worker's final report cannot be awaited, stop waiting instead of guessing\.\s+A worker that terminated with no report is `worker-report-missing`; a worker whose state cannot be established from a real host handle is `worker-state-unknown`\.\s+Do not judge from partial output and do not dispatch another worker for that task\.\s+Leave a `coordinate note`, then return `blocked` naming that cause with the preserved ledger and worktree paths; the root decides whether the single recovery re-dispatch applies\./;
+const flat = (text) => text.replace(/\s+/g, ' ');
+
+test('coordinator doc without the unawaitable-report paragraph → fails; with it → Task round holds it', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const flatMd = flat(md);
+  assert.match(flatMd, EXIT_PARAGRAPH);
+  // 문단을 지운 문서에는 stop 이름이 남지 않아야 한다(= 문단을 지우면 이 테스트가 실패한다).
+  assert.doesNotMatch(flatMd.replace(flatMd.match(EXIT_PARAGRAPH)[0], ''), /worker-report-missing/);
+  // 문단은 Worker dispatch 절(20줄 상한) 밖, Task round 절 안에 있다.
+  assert.doesNotMatch(flat(roleSection(md, 'Worker dispatch')), /cannot be awaited/);
+  assert.match(flat(roleSection(md, 'Task round')), EXIT_PARAGRAPH);
+});

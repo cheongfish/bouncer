@@ -510,3 +510,17 @@ test('coordinate worker-tokens --help → does not list the review flags', () =>
   assert.doesNotMatch(r.out, /--strategy/);
   assert.doesNotMatch(r.out, /--reviewer-tier/);
 });
+
+test('coordinate worker-tokens --help → states the --replace and duplicate contract sentences', () => {
+  const r = capture(['coordinate', 'worker-tokens', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /--replace \(no value, worker-tokens only\) swaps the latest worker-tokens record of the same key instead of appending\./);
+  assert.match(r.out, /A second record for a key whose worker-model calls are all filled is refused as worker-tokens-duplicate\./);
+  assert.ok(r.out.includes('[--replace]'));
+});
+
+test('coordinate worker-model --help → does not mention --replace', () => {
+  const r = capture(['coordinate', 'worker-model', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.doesNotMatch(r.out, /--replace/);
+});

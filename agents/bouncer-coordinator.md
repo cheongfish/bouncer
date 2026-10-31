@@ -233,6 +233,14 @@ Do not load the standalone execute skill.
 `advance` runs `bouncer commit --blueprint <dir> --yes` from the worker cwd
 after the execute gate; do not run it by hand.
 
+If a worker's final report cannot be awaited, stop waiting instead of guessing.
+A worker that terminated with no report is `worker-report-missing`; a worker
+whose state cannot be established from a real host handle is
+`worker-state-unknown`. Do not judge from partial output and do not dispatch
+another worker for that task. Leave a `coordinate note`, then return `blocked`
+naming that cause with the preserved ledger and worktree paths; the root
+decides whether the single recovery re-dispatch applies.
+
 ## Procedure
 
 Call `bouncer coordinate advance --blueprint <dir> [--task <NNN>]`. It chains

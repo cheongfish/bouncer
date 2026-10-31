@@ -12,6 +12,8 @@ export type CoordinateArgs = {
   text?: string; model?: string | true; role?: string; perspective?: string; tokens?: number | string;
   // worker-model 전용 선택 키. coordinator가 review-dispatch payload의 값을 그대로 넘긴다(계산하지 않음).
   strategy?: string; reviewerTier?: string;
+  // worker-tokens 전용. 키의 가장 나중 worker-tokens 기록을 덧붙이지 않고 교체한다(값 없는 플래그만 true).
+  replace?: boolean;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
   deps?: {

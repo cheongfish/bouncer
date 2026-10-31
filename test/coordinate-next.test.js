@@ -2401,3 +2401,26 @@ test('task next dispatch with a plugin version mismatch → keeps card-missing r
     fs.rmSync(pluginRoot, { recursive: true, force: true });
   }
 });
+
+// worker-tokens 중복 거절·--replace 계약 문장은 문서 세 곳이 같은 literal로 말해야 한다.
+// 문장을 지우면 실패하도록 includes와 함께 앞 40자가 남지 않는지도 묶는다.
+test('worker-tokens duplicate and replace docs → state the three contract sentences', () => {
+  const fold = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8').replace(/\s+/g, ' ');
+  const cli = fold('rules/cli.md');
+  const dispatch = fold('skills/bouncer-run/references/agent-dispatch.md');
+  const L1 = '`worker-tokens` refuses a second record for a `(task, role, perspective)` key with '
+    + '`worker-tokens-duplicate` (exit 1, `existing` is the latest record, ledger unchanged) once every '
+    + '`worker-model` record of that key has a token or `unreported` record.';
+  const L2 = '`worker-tokens --replace` (a flag with no value, `worker-tokens` only) swaps the latest '
+    + '`worker-tokens` record of the key and returns it as `replaced`; a key with no `worker-tokens` record is '
+    + 'refused with `worker-tokens-replace-target-missing`, and `--replace` with a value or on `worker-model` is '
+    + 'usage (exit 2).';
+  const L3 = 'To correct a recorded value, repeat the same `worker-tokens` call with `--replace`: it swaps the '
+    + 'latest record of that key instead of appending another.';
+  assert.ok(cli.includes(L1));
+  assert.ok(cli.includes(L2));
+  assert.ok(dispatch.includes(L3));
+  for (const [doc, sentence] of [[cli, L1], [cli, L2], [dispatch, L3]]) {
+    assert.ok(!doc.replace(sentence, '').includes(sentence.slice(0, 40)), sentence);
+  }
+});
