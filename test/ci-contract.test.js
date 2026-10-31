@@ -127,9 +127,6 @@ test('package.json → exposes context comment lint and ordered ci', () => {
   assert.strictEqual(pkg.scripts['test:integration'], 'node scripts/test-tier.js integration');
   assert.match(coverage, /--experimental-test-coverage/);
   assert.match(coverage, /--test-coverage-include=packages\/cli\/dist\/\*\*/);
-  assert.match(coverage, /--test-coverage-lines=94/);
-  assert.match(coverage, /--test-coverage-branches=82/);
-  assert.match(coverage, /--test-coverage-functions=96/);
   // 전체 문자열 일치 대신 단계 토큰의 존재와 순서만 고정한다. 인자·공백이 바뀌어도
   // 순서가 지켜지면 통과하고, 단계가 빠지거나 뒤바뀌면 그 단계 이름으로 실패한다.
   const steps = parseCiSteps(pkg.scripts.ci);

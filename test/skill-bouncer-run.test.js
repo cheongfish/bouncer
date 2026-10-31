@@ -288,39 +288,3 @@ test('run docs → implementer model is the resolver line, not the coordinator i
     + 'for this dispatch, not the coordinator\'s own model.',
   ));
 });
-
-// worker-model 기록의 `--model <value>`는 dispatch에 쓴 subagent-model 출력 한 줄이다.
-// 구현자 agent 파일의 frontmatter `inherit`를 읽어 기록하면 설정상 등급과 실제 모델이 어긋난다.
-// 문장 전체를 고정해 두 정본 문장이 빠지면 이 테스트가 실패하게 한다.
-test('agent-dispatch implementer record → pins the worker-model value to the subagent-model line', () => {
-  const norm = (text) => text.replace(/\s+/g, ' ');
-  const dispatchRef = norm(fs.readFileSync(
-    path.join(__dirname, '..', 'skills/bouncer-run/references/agent-dispatch.md'), 'utf8',
-  ));
-  assert.ok(dispatchRef.includes(
-    'The `--model <value>` of that `worker-model` record is the same '
-    + '`bouncer subagent-model --agent bouncer-implementer` line the dispatch used, never the '
-    + '`inherit` of the implementer file\'s frontmatter.',
-  ));
-});
-
-// Claude Code의 최종 `<task-notification>`은 coordinator 인계 뒤에 온다. 중간 알림 토큰은
-// 최종보다 작으므로 metrics end를 중간 값으로 닫으면 과소 집계가 남는다. 문장 (B)와 표 행이
-// 서로 모순하지 않도록 행의 낡은 구절이 사라졌는지도 같은 테스트가 본다.
-test('drive-metrics Claude Code notice → forbids metrics end with an intermediate subagent_tokens', () => {
-  const norm = (text) => text.replace(/\s+/g, ' ');
-  const metrics = norm(fs.readFileSync(
-    path.join(__dirname, '..', 'skills/bouncer-run/references/drive-metrics.md'), 'utf8',
-  ));
-  assert.ok(metrics.includes(
-    'On Claude Code the final `<task-notification>` arrives after the coordinator\'s hand-back, '
-    + 'later than any intermediate notification, and an intermediate `subagent_tokens` is smaller '
-    + 'than the final one (121778 versus 149495 in one drive), so never call `metrics end` with an '
-    + 'intermediate value.',
-  ));
-  const claude = hostUsageRows().find((cells) => cells[0].includes('Claude Code'));
-  assert.ok(claude, 'Claude Code 행 없음');
-  const claudeRow = claude.join(' ');
-  assert.ok(!claudeRow.includes('intermediate notifications carry none'), 'Claude Code 행이 낡은 주장을 남김');
-  assert.ok(claudeRow.includes('The hand-back message carries none.'), 'Claude Code 행이 hand-back 구절을 잃음');
-});

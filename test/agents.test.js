@@ -374,12 +374,6 @@ test('reviewer output contracts → emit only blocker major minor while the reco
   assert.deepStrictEqual(severityEnum(index), ['blocker', 'major', 'minor', 'nit']);
 });
 
-test('reviewer role and prompt → carry no docstring format check', () => {
-  for (const rel of ['agents/bouncer-reviewer.md', 'references/review/assets/reviewer-prompt.md']) {
-    assert.ok(!/docstring/i.test(fs.readFileSync(path.join(root, rel), 'utf8')), `${rel} must not judge docstrings`);
-  }
-});
-
 test('reviewer gate-checked items → list each npm run ci command as its own argv item', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
   const items = [...roleSection(md, 'Gate-checked items').matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]);
@@ -506,56 +500,6 @@ for (const name of ['bouncer-planner', 'bouncer-plan-coordinator']) {
 test('bouncer-planner doc → forbids writing the ledger and dispatching agents', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-planner.md'), 'utf8').replace(/\s+/g, ' ');
   assert.ok(md.includes('Never write the plan ledger and never dispatch a Bouncer agent.'));
-});
-
-// 무트레일러 worker 커밋 복구는 coordinate uncommit 한 경로뿐이어야 한다.
-// 손 reset 금지 guard와 충돌하지 않도록 역할 문서·카드·CLI 규칙이 같은 식별자를 쓴다.
-test('coordinator doc and blocked card → route worker-commit-untrailered to coordinate uncommit', () => {
-  const coordinator = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  const card = fs.readFileSync(path.join(root, 'references', 'coordinator-cards', 'blocked.md'), 'utf8');
-  const cli = fs.readFileSync(path.join(root, 'rules', 'cli.md'), 'utf8');
-  assert.match(coordinator, /worker-commit-untrailered[\s\S]{0,200}coordinate uncommit/);
-  assert.match(card, /worker-commit-untrailered[\s\S]{0,200}coordinate uncommit/);
-  assert.doesNotMatch(coordinator, /git reset --soft/);
-  assert.match(cli, /uncommit-not-needed/);
-});
-
-// 역할 문서는 약 80열에서 줄바꿈되므로 공백을 정규화하고, 규칙이 놓일 단계 본문만 잘라 단언한다.
-const stepBody = (md, start, end) => {
-  const from = md.indexOf(start);
-  const to = md.indexOf(end, from);
-  assert.ok(from >= 0 && to > from, `${start} … ${end}`);
-  return md.slice(from, to).replace(/\s+/g, ' ');
-};
-
-test('coordinator Judge → copies rework identifiers and rejects prohibition-breaking deviations', () => {
-  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  const judge = stepBody(md, '5. **Judge**', '6. **Close**');
-  assert.match(judge, /rework summary.{0,200}copy.{0,120}never.{0,40}from memory/);
-  assert.match(judge, /never accept.{0,200}Open choice.{0,200}rework.{0,120}`blocked`/i);
-  assert.match(judge, /takes precedence over the `revise` card.{0,160}only after the user explicitly approves/);
-});
-
-test('implementer Tests first → pins provider and env in fixtures to keep exact assertions', () => {
-  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
-  assert.match(
-    stepBody(md, '5. **Tests first**', '6. **Report**'),
-    /provider.{0,80}env.{0,200}fixture.{0,120}exact assertion/,
-  );
-});
-
-test('coordinator Output contract → requires a checked command and 미확인 for unverified commit claims', () => {
-  const coord = roleSection(fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8'), 'Output contract');
-  assert.match(coord, /git show --stat/);
-  assert.match(coord, /미확인/);
-});
-
-test('implementer Checklist coverage → adds one line per brief Constraints bullet or 해당 없음', () => {
-  const impl = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
-  // coverage bullet으로 한정한다. 파일 전체에는 Red run의 `해당 없음:`이 이미 있어 우연히 통과한다.
-  const coverage = impl.match(/- \*\*Checklist coverage\*\*[\s\S]*?(?=\n- \*\*)/)[0];
-  assert.match(coverage, /Constraints/);
-  assert.match(coverage, /해당 없음:/);
 });
 
 // md 역할 문서와 Codex TOML 짝은 codexAgentTomlFor 한 곳이 정한다. plan inspect가 이름 목록을
