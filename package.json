@@ -50,6 +50,8 @@
     "pretest": "npm run build",
     "verify:security": "npm test && npm audit --audit-level=high",
     "verify:strict": "npm test && npm run typecheck && npm run lint",
+    "verify:files": "npm run build && node --test",
+    "verify:bp": "npm test && npm run typecheck && npm run lint && npm run lint:docs && npm run check:emit",
     "check:versions": "node scripts/sync-versions.js --check",
     "sync:versions": "node scripts/sync-versions.js --write"
   },
