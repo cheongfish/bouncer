@@ -7,6 +7,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
+// advance가 계약 카드를 붙이는 경로는 플러그인 자산 루트가 있어야 카드를 읽는다. 홈에 설치본이 없는
+// 환경(CI)에서도 같은 결과가 나오도록 저장소 루트를 자산 루트로 고정한다(coordinate-next.test.js와 같은 방식).
+process.env.BOUNCER_HOME ??= path.join(__dirname, '..');
 const { runCli } = require('../packages/cli/dist/cli');
 const { createGitTemplate } = require('./helpers/git-fixture');
 
