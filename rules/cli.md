@@ -131,10 +131,15 @@ gate report the same `G32` (composite gate `freshness-approval`). Recover by
 fixing the missing reference or the merge result SHA, or by merging/rebasing
 the prerequisite into this checkout, then rerun. A Git lookup error is a
 failure, never a pass. Blueprints without the key are unaffected.
-With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
-module/risk signals and a `low-candidate`/`standard-candidate` recommendation);
-without that flag `routing` is `null`. The signal does not select or approve
-complexity.
+With `--blueprint <dir>` it also fills advisory `routing`. `modules` and
+`riskPaths` come from the shared complexity signal (generated paths are left out
+of modules). The `low-candidate`/`standard-candidate` recommendation is
+`standard-candidate` only when the module count reaches `complexity.strong_min_modules`
+or a risk path exists; task count and `depends_on` are not grounds. `serial`
+(from the drive shape) is reference only. A malformed `complexity` block adds
+`complexity-config-invalid` to `reasons` and keeps the default policy without
+changing the recommendation. Without that flag `routing` is `null`. The signal
+does not select or approve complexity.
 `validate` decides gate success. `verify` writes the evidence used by G13.
 `execute prepare` creates or reuses the correct standalone worktree; in a
 coordinator drive it reports the assigned worker instead. `commit --yes` is

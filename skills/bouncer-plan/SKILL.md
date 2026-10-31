@@ -153,26 +153,27 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    longer than 40 characters.
    **ACQ — Complexity (`plan.complexity`):** show the auto-allocated
    order in the Re-ground and say it can be changed by replying with a new order.
-   Recommend `low` only when there is no public interface, protected path, or
-   cross-module state change and the change is narrow; otherwise recommend
-   `standard`. Base that recommendation on the discovery handoff and
-   `plan inspect` routing; the user still confirms. The declaration is not
-   approval.
-   When routing and the handoff recommend `standard`:
+   Recommend `standard` when `plan inspect` routing is `standard-candidate`
+   (modules at or above `complexity.strong_min_modules`, or any risk path) or when
+   discovery confirmed a public interface or cross-module state change; otherwise
+   recommend `low`. The task count and the `depends_on` count are not grounds: a
+   serial chain of narrow tasks is still `low`. `serial` in routing is reference
+   only. The user still confirms. The declaration is not approval.
+   When the rule above gives `standard`:
    **AskUserQuestion — plan.complexity**
    <!-- acq {"gate":"plan.complexity","options":["A","B","C"],"recommended":"A"} -->
    1. **Re-ground**: 이 계획의 `bouncer.complexity`를 확정함
-   2. **Recommend-why**: 공개 인터페이스·보호 경로·모듈 간 상태 변경이 있거나 변경이 넓어 standard를 추천함
+   2. **Recommend-why**: routing이 standard-candidate(모듈이 complexity.strong_min_modules개 이상이거나 위험 경로가 있음)이거나 공개 인터페이스·모듈 간 상태 변경이 확인되어 standard를 추천함
    3. **Options**:
       - A) standard (Recommended)
       - B) low
       - C) 중단
 
-   When they recommend `low`:
+   Otherwise, when the rule above gives `low`:
    **AskUserQuestion — plan.complexity**
    <!-- acq {"gate":"plan.complexity","options":["A","B","C"],"recommended":"A"} -->
    1. **Re-ground**: 이 계획의 `bouncer.complexity`를 확정함
-   2. **Recommend-why**: 공개 인터페이스·보호 경로·모듈 간 상태 변경이 없고 변경이 좁아 low를 추천함
+   2. **Recommend-why**: routing이 low-candidate이고 공개 인터페이스·모듈 간 상태 변경이 확인되지 않아 low를 추천함
    3. **Options**:
       - A) low (Recommended)
       - B) standard

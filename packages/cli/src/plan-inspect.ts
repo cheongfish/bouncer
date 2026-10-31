@@ -19,7 +19,14 @@ const { listTasksDocs } = tasksDocs;
 import epicRegistry = require('./epic-registry');
 const { readEpicRegistry, COMMON_EPICS } = epicRegistry;
 import complexitySignals = require('./complexity-signals');
-const { classifyRoutingPaths } = complexitySignals;
+const { classifyRoutingPaths, computeComplexitySignals } = complexitySignals;
+import type { ComplexityPolicy } from './config';
+import configMod = require('./config');
+const { readComplexityPolicy, readCoordinatorPolicy, DEFAULT_COMPLEXITY_POLICY } = configMod;
+import schema = require('./schema');
+const { DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES } = schema;
+import dagShape = require('./dag-shape');
+const { analyzeDriveShape } = dagShape;
 import codexAgents = require('./codex-agents');
 const { NAMED_AGENTS, codexAgentTomlFor } = codexAgents;
 
@@ -33,8 +40,6 @@ const VERIFY_FILES = [
   'Makefile',
   'Taskfile.yml',
 ] as const;
-
-const MODULE_EXCLUDED = new Set(['test', 'tests', 'docs']);
 
 type InspectFail = {
   ok: false;
@@ -60,14 +65,24 @@ type CurrentInfo = {
 // 위험 경로 규칙과 타입은 complexity-signals.ts가 갖는다. 여기서는 Routing 출력 모양에만 쓴다.
 type RiskPath = complexitySignals.RiskPath;
 
+// serial은 drive_shape에서 온 참고 값이다. 추천 판정에는 쓰지 않는다(직렬 여부로 올리거나 내리지 않는다).
 type Routing = {
   advisory: true;
   tasks: number;
   dependencies: number;
   modules: string[];
   riskPaths: RiskPath[];
+  serial: boolean | null;
   recommendation: 'low-candidate' | 'standard-candidate';
   reasons: string[];
+};
+
+// summarizeRouting의 주입 seam. 생략하면 기본 정책이고 drive shape와 config 오류는 없는 것으로 본다.
+// planInspect만 실제 config와 drive_shape를 넣어 호출한다.
+type RoutingOptions = {
+  policy?: ComplexityPolicy;
+  driveShape?: string | null;
+  configInvalid?: boolean;
 };
 
 type InspectRegistry =
@@ -127,6 +142,12 @@ type RoutingTask = { paths: string[]; dependsOn: string[] };
 
 // loadRoutingTasks가 낸 commit task. 결합 경로는 task id를 출력에 싣기 위해 id가 필요하다.
 type CommitTask = RoutingTask & { id: string };
+
+// analyzeDriveShape 입력 한 항목. dag-shape의 타입을 빌려 필드 이름이 어긋나지 않게 한다.
+type ShapeInput = Parameters<typeof analyzeDriveShape>[0][number];
+
+// loadRoutingTasks의 두 출력. commitTasks는 routing용, shapeTasks는 drive shape용이다.
+type RoutingLoad = { commitTasks: CommitTask[]; shapeTasks: ShapeInput[] };
 
 /**
  * `\d{3}-<slug>` 디렉터리 이름만 모아 최댓값 + 1을 세 자리로 채운다.
@@ -397,25 +418,6 @@ function collectVerifySignals(repoRoot: string): string[] {
 function normalizeRelDir(value: unknown): string | null {
   if (typeof value !== 'string' || value === '') return null;
   return toPosix(value).replace(/\/+$/, '');
-}
-
-/**
- * 모듈 토큰: 첫 경로 조각. `test`/`tests`/`docs`와 루트 파일(슬래시 없음)은
- * 접촉 모듈이 아니므로 세지 않는다 — light 후보를 path count로 키우지 않기 위함.
- *
- * @param {string[]} pathList - affected_paths 합집합
- * @returns {string[]} 정렬·중복 제거된 모듈 이름
- */
-function collectModules(pathList: string[]): string[] {
-  const modules = new Set<string>();
-  for (const relPath of pathList) {
-    const posix = toPosix(relPath);
-    if (!posix.includes('/')) continue;
-    const head = posix.split('/')[0];
-    if (!head || MODULE_EXCLUDED.has(head)) continue;
-    modules.add(head);
-  }
-  return [...modules].sort();
 }
 
 // 결합 경로 탐지의 상수. 테스트 파일 탐색 범위와 근거 길이는 계획 점검 출력의 계약이다.
@@ -773,11 +775,17 @@ function detectCoupledPaths(repoRoot: string, tasks: { id: string; paths: string
  * commit task 요약으로 advisory routing을 만든다. 선택·승인은 하지 않고
  * recommendation/reasons만 낸다 — complexity 선언은 사용자 소유다.
  *
+ * 추천은 공용 신호의 모듈 수(`complexity.strong_min_modules` 이상)나 위험 경로가 있을 때만
+ * standard다. 작업 수와 `depends_on` 개수는 근거가 아니다 — 직렬 체인도 좁으면 low다.
+ *
  * @param {Array<{ paths: string[], dependsOn: string[] }>} taskList - 이미
  *   commit-only로 걸러진 task 입력. paths는 affected_paths, dependsOn은 depends_on
+ * @param {RoutingOptions} [opts] - policy(기본 정책), driveShape(참고용 serial 값),
+ *   configInvalid(config 오류면 reasons에 사유만 더하고 추천은 바꾸지 않는다)
  * @returns {Routing} advisory routing 객체
  */
-function summarizeRouting(taskList: RoutingTask[]): Routing {
+function summarizeRouting(taskList: RoutingTask[], opts: RoutingOptions = {}): Routing {
+  const policy = opts.policy ?? DEFAULT_COMPLEXITY_POLICY;
   const tasks = taskList.length;
   let dependencies = 0;
   const allPaths: string[] = [];
@@ -790,23 +798,26 @@ function summarizeRouting(taskList: RoutingTask[]): Routing {
     }
   }
 
-  const modules = collectModules(allPaths);
-  const riskPaths = classifyRoutingPaths(allPaths);
+  // 모듈·위험 경로 계산은 공용 신호를 그대로 쓴다. 여기서 따로 세면 complexity-signals와 어긋난다.
+  const signals = computeComplexitySignals({
+    files: allPaths.map((p) => ({ path: p })),
+    driveShape: opts.driveShape ?? null,
+    policy,
+  });
+  const { modules, riskPaths } = signals;
+  const moduleStrong = modules.length >= policy.strongMinModules;
   const reasons: string[] = [];
-  // 조건 이름 = 필드명. 스킬이 reasons를 그대로 인용할 수 있게 짧게 둔다.
-  if (tasks >= 2) reasons.push('tasks');
-  if (dependencies > 0) reasons.push('dependencies');
-  if (modules.length >= 3) reasons.push('modules');
+  // 조건 이름 = 근거 이름. 스킬이 reasons를 그대로 인용할 수 있게 짧게 둔다.
+  if (moduleStrong) reasons.push('modules');
   if (riskPaths.length > 0) reasons.push('riskPaths');
   // empty는 standard 트리거가 아니다. 근거만 남기고 low-candidate를 유지한다.
   if (allPaths.length === 0) reasons.push('affected-paths-empty');
+  // config 오류는 기본 정책으로 계산을 이어 가되 사유만 드러낸다. 이 사유만으로는 추천을 올리지 않는다.
+  if (opts.configInvalid === true) reasons.push('complexity-config-invalid');
 
-  const recommendation = (
-    tasks >= 2
-    || dependencies > 0
-    || modules.length >= 3
-    || riskPaths.length > 0
-  ) ? 'standard-candidate' : 'low-candidate';
+  const recommendation = (moduleStrong || riskPaths.length > 0)
+    ? 'standard-candidate'
+    : 'low-candidate';
 
   return {
     advisory: true,
@@ -814,26 +825,46 @@ function summarizeRouting(taskList: RoutingTask[]): Routing {
     dependencies,
     modules,
     riskPaths,
+    serial: signals.serial,
     recommendation,
     reasons,
   };
 }
 
 /**
- * blueprint의 commit task에서 paths/dependsOn만 모은다. verification task는
- * tasks 카운트·모듈·위험 경로에 넣지 않는다 — light 신호는 구현 커밋 범위다.
+ * readyWave가 선행을 `other.id === depends_on 항목`으로 찾으므로, 문서 값 `TASKS-001`과
+ * 번호 `001`을 같은 키로 맞춘다. run-preflight의 ledgerId 규칙과 같은 모양이다.
+ *
+ * @param {string} raw - 문서 id(`TASKS-NNN`) 또는 상대 경로
+ * @returns {string} `TASKS-NNN`이면 세 자리 번호, 아니면 원문
+ */
+function shapeTaskId(raw: string): string {
+  const match = /^TASKS-(\d{3})$/.exec(raw);
+  return match ? match[1] : raw;
+}
+
+/**
+ * blueprint의 tasks 문서를 읽어 두 입력을 낸다. `commitTasks`는 routing과 결합 경로의 commit-only
+ * 목록이다. `shapeTasks`는 analyzeDriveShape에 넣을 전체 목록으로 verification도 포함한다 —
+ * commit task가 verification을 선행으로 든 경우 그 edge를 analyzeDriveShape가 무시하려면 id가 필요하다.
+ * shape 입력은 모든 task를 열린 상태로 본다: 이 점검은 계획 중인 blueprint의 직렬성을 묻기 때문이다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} blueprintDir - 정본 blueprint 상대 경로
- * @returns {RoutingTask[]} summarizeRouting 입력
+ * @returns {{ commitTasks: CommitTask[], shapeTasks: ShapeInput[] }} routing 입력과 drive shape 입력
  */
-function loadRoutingTasks(repoRoot: string, blueprintDir: string): CommitTask[] {
+function loadRoutingTasks(repoRoot: string, blueprintDir: string): RoutingLoad {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
-  const out: CommitTask[] = [];
+  const commitTasks: CommitTask[] = [];
+  const shapeTasks: ShapeInput[] = [];
   for (const entry of listing.entries) {
-    if (entry.executionKind !== 'commit') continue;
+    const isCommit = entry.executionKind === 'commit';
     let paths: string[] = [];
     let dependsOn: string[] = [];
+    // 값이 없거나 형식이 틀리면 기본값으로 읽는다. 스키마 거절은 다른 gate의 소관이다.
+    let parallelSafe: boolean = DEFAULT_PARALLEL_SAFE;
+    let dependencyGate: string = DEFAULT_DEPENDENCY_GATE;
+    let exclusive: string[] = [...DEFAULT_EXCLUSIVE_RESOURCES];
     try {
       const doc = readDoc(path.join(repoRoot, entry.tasks.rel));
       const data = doc.data && typeof doc.data === 'object'
@@ -851,15 +882,35 @@ function loadRoutingTasks(repoRoot: string, blueprintDir: string): CommitTask[] 
             (p): p is string => typeof p === 'string' && p !== '',
           );
         }
+        if (typeof bouncer.parallel_safe === 'boolean') parallelSafe = bouncer.parallel_safe;
+        if (typeof bouncer.dependency_gate === 'string') dependencyGate = bouncer.dependency_gate;
+        if (Array.isArray(bouncer.exclusive_resources)) {
+          exclusive = bouncer.exclusive_resources.filter(
+            (p): p is string => typeof p === 'string' && p !== '',
+          );
+        }
       }
     } catch (_e) {
-      // 파싱 실패 task는 빈 paths로만 센다. inspect가 draft를 고치지 않는다.
+      // 파싱 실패 task는 빈 paths와 기본 shape 값으로만 센다. inspect가 draft를 고치지 않는다.
     }
     // id가 없는 문서는 상대 경로로 식별한다. 출력 키가 빈 값이 되어 task를 구분하지 못하는 일을 막는다.
     const id = entry.tasks.id ?? entry.tasks.rel;
-    out.push({ id, paths, dependsOn });
+    // 실행 종류가 null(execution_kind 값이 잘못됨)인 항목은 commit으로 세지 않는다 — 기존 routing 규칙을 유지한다.
+    if (isCommit) commitTasks.push({ id, paths, dependsOn });
+    shapeTasks.push({
+      id: shapeTaskId(id),
+      depends_on: dependsOn.map(shapeTaskId),
+      dependency_gate: dependencyGate,
+      parallel_safe: parallelSafe,
+      affected_paths: paths,
+      exclusive_resources: exclusive,
+      execution_kind: isCommit ? 'commit' : 'verification',
+      // serial 판정은 review_risk를 보지 않는다. 형식만 맞춘 빈 목록을 넣는다.
+      review_risk: [],
+      open: true,
+    });
   }
-  return out;
+  return { commitTasks, shapeTasks };
 }
 
 /**
@@ -922,9 +973,20 @@ function planInspect({ repoRoot, epicDir, blueprintDir }: {
     }
     // 4. 결합 경로는 routing과 같은 commit task 목록에서 읽기 전용으로 계산한다. routing·gate
     //    판정에는 넣지 않는다 — 생성 짝과 테스트 후보는 사용자가 확정할 질문이지 범위 결정이 아니다.
-    const commitTasks = loadRoutingTasks(repoRoot, rel);
-    routing = summarizeRouting(commitTasks);
-    coupledPaths = detectCoupledPaths(repoRoot, commitTasks);
+    const loaded = loadRoutingTasks(repoRoot, rel);
+    // drive shape는 참고용 serial 값만 낸다. 동시 폭은 실행 설정과 같은 한도를 쓰고, 설정이 invalid면
+    // 1로 접어 잘못된 값이 병렬 폭을 넓히지 않게 한다(run-preflight와 같은 규칙).
+    const coordinator = readCoordinatorPolicy(repoRoot);
+    const maxParallel = coordinator.ok ? coordinator.maxParallel : 1;
+    const shape = analyzeDriveShape(loaded.shapeTasks, { maxParallel });
+    // 복잡도 설정이 invalid여도 점검은 실패하지 않는다. 기본 정책으로 계산하고 사유만 드러낸다.
+    const complexity = readComplexityPolicy(repoRoot);
+    routing = summarizeRouting(loaded.commitTasks, {
+      policy: complexity.ok ? complexity.policy : DEFAULT_COMPLEXITY_POLICY,
+      driveShape: shape.drive_shape,
+      configInvalid: !complexity.ok,
+    });
+    coupledPaths = detectCoupledPaths(repoRoot, loaded.commitTasks);
   }
 
   const epicNames = listDirNames(path.join(repoRoot, EPICS_REL));

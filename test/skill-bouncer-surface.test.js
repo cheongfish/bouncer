@@ -541,6 +541,10 @@ test('plan docs → declare complexity instead of light scope', () => {
   assert.match(schema, /\bstandard\b/);
   assert.match(schema, /S38/);
   assert.match(readPlanDoc('references/minimality/index.md'), /bouncer\.complexity/);
+  // 추천 기준은 routing의 모듈 문턱(complexity.strong_min_modules)과 위험 경로뿐이고, task 수·depends_on은 근거가 아니다.
+  assert.match(skill, /complexity\.strong_min_modules/);
+  assert.match(skill, /The task count and the `depends_on` count are not grounds/);
+  assert.equal((skill.match(/\*\*Recommend-why\*\*/g) || []).length, 2);
 });
 
 // run·rules 문서의 옛 light 실행 경로. planning.md·document-schema.md는 닫힌 기록의

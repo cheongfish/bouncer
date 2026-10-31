@@ -379,7 +379,8 @@ test('classifyRoutingPaths with security/manifest/build/migration paths and near
 
 test('summarizeRouting with test/docs/root files and empty paths → excludes the files from modules and flags empty paths', () => {
   const light = summarizeRouting([{
-    paths: ['scripts/lib/a.ts', 'test/a.test.js', 'docs/x.md', 'CHANGELOG.md'],
+    // scripts/lib/는 생성물 접두라 모듈에서 빠지므로 입력은 소스 경로 scripts/a.ts로 둔다.
+    paths: ['scripts/a.ts', 'test/a.test.js', 'docs/x.md', 'CHANGELOG.md'],
     dependsOn: [],
   }]);
   assert.strictEqual(light.advisory, true);
@@ -403,10 +404,80 @@ test('summarizeRouting with test/docs/root files and empty paths → excludes th
   assert.strictEqual(full.dependencies, 1);
   assert.deepStrictEqual(full.modules, ['a', 'b', 'c']);
   assert.strictEqual(full.recommendation, 'standard-candidate');
-  assert.ok(full.reasons.includes('tasks'));
-  assert.ok(full.reasons.includes('dependencies'));
-  assert.ok(full.reasons.includes('modules'));
+  // 작업 수·의존 수는 더 이상 추천 근거가 아니고, 모듈 3개는 문턱 4 미만이라 modules도 없다.
+  assert.ok(!full.reasons.includes('tasks'));
+  assert.ok(!full.reasons.includes('dependencies'));
+  assert.ok(!full.reasons.includes('modules'));
   assert.ok(full.reasons.includes('riskPaths'));
+});
+
+test('summarizeRouting with a serial pair in three modules or fewer and no risk → recommends low-candidate with empty reasons', () => {
+  const routing = summarizeRouting([
+    { paths: ['a/x.ts'], dependsOn: [] },
+    { paths: ['b/y.ts'], dependsOn: ['TASKS-001'] },
+  ]);
+  assert.strictEqual(routing.tasks, 2);
+  assert.strictEqual(routing.dependencies, 1);
+  assert.deepStrictEqual(routing.modules, ['a', 'b']);
+  assert.strictEqual(routing.recommendation, 'low-candidate');
+  assert.deepStrictEqual(routing.reasons, []);
+  // 순수 호출은 drive shape를 받지 않으므로 serial은 알 수 없음(null)이다.
+  assert.strictEqual(routing.serial, null);
+});
+
+test('summarizeRouting with four source modules → adds the modules reason and recommends standard-candidate', () => {
+  const routing = summarizeRouting([{
+    paths: ['packages/cli/src/a.ts', 'packages/web/x.ts', 'skills/x.md', 'rules/x.md'],
+    dependsOn: [],
+  }]);
+  assert.deepStrictEqual(routing.modules, ['packages/cli', 'packages/web', 'rules', 'skills']);
+  assert.strictEqual(routing.recommendation, 'standard-candidate');
+  assert.deepStrictEqual(routing.reasons, ['modules']);
+});
+
+test('summarizeRouting with AGENTS.md only → tags it as a repo risk and recommends standard-candidate', () => {
+  const routing = summarizeRouting([{ paths: ['AGENTS.md'], dependsOn: [] }]);
+  assert.deepStrictEqual(routing.riskPaths, [{ path: 'AGENTS.md', kind: 'repo' }]);
+  assert.strictEqual(routing.recommendation, 'standard-candidate');
+  assert.deepStrictEqual(routing.reasons, ['riskPaths']);
+});
+
+test('summarizeRouting with generated paths only → leaves them out of modules and keeps low-candidate', () => {
+  const routing = summarizeRouting([{
+    paths: ['.codex/agents/a.toml', 'scripts/lib/a.ts'],
+    dependsOn: [],
+  }]);
+  assert.deepStrictEqual(routing.modules, []);
+  assert.deepStrictEqual(routing.riskPaths, []);
+  assert.strictEqual(routing.recommendation, 'low-candidate');
+  assert.deepStrictEqual(routing.reasons, []);
+});
+
+test('summarizeRouting with a generated commit-guard file → keeps its repo risk even though it is generated', () => {
+  // 생성물은 크기·모듈에서만 빠지고 위험 평가에는 남는다(computeComplexitySignals 계약).
+  const routing = summarizeRouting([{ paths: ['scripts/lib/commit-guard.js'], dependsOn: [] }]);
+  assert.deepStrictEqual(routing.riskPaths, [{ path: 'scripts/lib/commit-guard.js', kind: 'repo' }]);
+  assert.strictEqual(routing.recommendation, 'standard-candidate');
+});
+
+test('summarizeRouting with configInvalid → adds complexity-config-invalid without changing a low recommendation', () => {
+  const routing = summarizeRouting([{ paths: ['a/x.ts'], dependsOn: [] }], { configInvalid: true });
+  assert.deepStrictEqual(routing.reasons, ['complexity-config-invalid']);
+  assert.strictEqual(routing.recommendation, 'low-candidate');
+});
+
+test('summarizeRouting with an injected policy and drive shape → applies the policy threshold and maps serial', () => {
+  const { DEFAULT_COMPLEXITY_POLICY } = require('../packages/cli/dist/config');
+  const pair = [{ paths: ['a/x.ts'], dependsOn: [] }, { paths: ['b/y.ts'], dependsOn: [] }];
+  const strict = summarizeRouting(pair, {
+    policy: { ...DEFAULT_COMPLEXITY_POLICY, strongMinModules: 2 },
+    driveShape: 'serial',
+  });
+  assert.strictEqual(strict.recommendation, 'standard-candidate');
+  assert.deepStrictEqual(strict.reasons, ['modules']);
+  assert.strictEqual(strict.serial, true);
+  assert.strictEqual(summarizeRouting(pair, { driveShape: 'parallel' }).serial, false);
+  assert.strictEqual(summarizeRouting(pair, { driveShape: 'unknown' }).serial, null);
 });
 
 function writeRoutingBlueprint(repo, {
@@ -508,6 +579,120 @@ test('plan inspect without --blueprint → keeps prior fields and sets routing n
   assert.strictEqual(payload.current.status, 'empty');
   assert.strictEqual(payload.routing, null);
   assert.strictEqual(payload.coupledPaths, null);
+});
+
+// 직렬·병렬·설정 케이스용 commit task 문서. parallel_safe는 명시한 경우만 true로 쓴다.
+function writeShapeTask(repo, blueprintDir, task) {
+  writeDoc(repo, `${blueprintDir}/tasks/${task.id}/tasks.md`, {
+    type: 'bouncer.tasks', title: `T${task.id}`, description: 'd',
+    resource: `${blueprintDir}/tasks/${task.id}/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `TASKS-${task.id}`,
+      epic_id: '010',
+      blueprint_id: '001',
+      status: 'draft',
+      execution_kind: 'commit',
+      depends_on: task.dependsOn || [],
+      parallel_safe: task.parallelSafe === true,
+      affected_paths: task.paths,
+    },
+  });
+}
+
+test('plan inspect --blueprint with a serial dependency chain → reports serial true and low-candidate', () => {
+  const repo = makeRepo();
+  const blueprintDir = writeRoutingBlueprint(repo, { tasks: [] });
+  writeShapeTask(repo, blueprintDir, { id: '001', paths: ['a/x.ts'] });
+  writeShapeTask(repo, blueprintDir, { id: '002', paths: ['b/y.ts'], dependsOn: ['TASKS-001'] });
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.strictEqual(payload.routing.serial, true);
+  assert.strictEqual(payload.routing.recommendation, 'low-candidate');
+  assert.deepStrictEqual(payload.routing.reasons, []);
+});
+
+test('plan inspect --blueprint with two parallel-safe disjoint tasks → reports serial false', () => {
+  const repo = makeRepo();
+  const blueprintDir = writeRoutingBlueprint(repo, { tasks: [] });
+  writeShapeTask(repo, blueprintDir, { id: '001', paths: ['a/x.ts'], parallelSafe: true });
+  writeShapeTask(repo, blueprintDir, { id: '002', paths: ['b/y.ts'], parallelSafe: true });
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.strictEqual(payload.routing.serial, false);
+  assert.strictEqual(payload.routing.recommendation, 'low-candidate');
+});
+
+test('plan inspect --blueprint with no commit task → reports serial null', () => {
+  const repo = makeRepo();
+  const blueprintDir = writeRoutingBlueprint(repo, { tasks: [] });
+
+  const payload = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+
+  assert.strictEqual(payload.routing.tasks, 0);
+  assert.strictEqual(payload.routing.serial, null);
+  assert.strictEqual(payload.routing.recommendation, 'low-candidate');
+  assert.deepStrictEqual(payload.routing.reasons, ['affected-paths-empty']);
+});
+
+test('plan inspect --blueprint with complexity.strong_min_modules 2 → recommends standard-candidate for two modules', () => {
+  const repo = makeRepo();
+  const blueprintDir = writeRoutingBlueprint(repo, { tasks: [] });
+  writeShapeTask(repo, blueprintDir, { id: '001', paths: ['a/x.ts', 'b/y.ts'] });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    `${JSON.stringify({ complexity: { strong_min_modules: 2 } })}\n`,
+  );
+
+  const result = inspect(repo, ['--blueprint', blueprintDir]);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.routing.recommendation, 'standard-candidate');
+  assert.ok(payload.routing.reasons.includes('modules'));
+});
+
+test('plan inspect --blueprint with an invalid complexity block → stays ok with complexity-config-invalid and default policy', () => {
+  const repo = makeRepo();
+  const blueprintDir = writeRoutingBlueprint(repo, { tasks: [] });
+  writeShapeTask(repo, blueprintDir, { id: '001', paths: ['a/x.ts'] });
+  writeShapeTask(repo, blueprintDir, { id: '002', paths: ['b/y.ts'], dependsOn: ['TASKS-001'] });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    `${JSON.stringify({ complexity: 'x' })}\n`,
+  );
+
+  const result = inspect(repo, ['--blueprint', blueprintDir]);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.ok, true);
+  assert.deepStrictEqual(payload.routing.reasons, ['complexity-config-invalid']);
+  assert.strictEqual(payload.routing.recommendation, 'low-candidate');
+});
+
+test('plan inspect --blueprint with generated_paths cleared → counts the generated agent as a module', () => {
+  const repo = makeRepo();
+  const blueprintDir = writeRoutingBlueprint(repo, { tasks: [] });
+  writeShapeTask(repo, blueprintDir, {
+    id: '001',
+    paths: ['.codex/agents/a.toml', 'b/y.ts', 'c/z.ts', 'd/w.ts'],
+  });
+
+  // 기본 생성물 목록에서는 .codex가 빠져 모듈이 셋(b·c·d)이라 low다.
+  const defaults = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+  assert.deepStrictEqual(defaults.routing.modules, ['b', 'c', 'd']);
+  assert.strictEqual(defaults.routing.recommendation, 'low-candidate');
+
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    `${JSON.stringify({ complexity: { generated_paths: [] } })}\n`,
+  );
+  const cleared = parsePayload(inspect(repo, ['--blueprint', blueprintDir]));
+  assert.deepStrictEqual(cleared.routing.modules, ['.codex', 'b', 'c', 'd']);
+  assert.strictEqual(cleared.routing.recommendation, 'standard-candidate');
 });
 
 test('plan inspect with a malformed or missing --blueprint → rejects with invalid-blueprint-dir', () => {
