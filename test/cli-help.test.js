@@ -493,3 +493,18 @@ test('coordinate revise --help → documents the Do not touch release flag and i
   assert.match(r.out, /scope-do-not-touch-conflict/);
   assert.match(r.out, /release-do-not-touch-unknown/);
 });
+
+test('coordinate worker-model --help → lists both review flags and says reviewer-only', () => {
+  const r = capture(['coordinate', 'worker-model', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /--strategy <single\|parallel>/);
+  assert.match(r.out, /--reviewer-tier <standard\|strong>/);
+  assert.match(r.out, /reviewer-only/);
+});
+
+test('coordinate worker-tokens --help → does not list the review flags', () => {
+  const r = capture(['coordinate', 'worker-tokens', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.doesNotMatch(r.out, /--strategy/);
+  assert.doesNotMatch(r.out, /--reviewer-tier/);
+});

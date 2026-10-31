@@ -334,13 +334,16 @@ dispatch, and the dispatch receives that same value.
   and resolve again if they differ; follow the payload's `reviewer_tier` /
   `reviewer_tier_applied` procedure in `${BOUNCER_ROOT}/rules/subagent-model.md` item 1. Record `bouncer coordinate worker-model
   --blueprint <dir> --role reviewer --model <value> --task <NNN> --perspective
-  <name>` immediately before dispatch. A model rejection stops dispatch; do not
-  record a retry value.
+  <name> --strategy <strategy> --reviewer-tier <reviewer_tier>` immediately before
+  dispatch. Copy the payload's `strategy` and `reviewer_tier` into those two flags
+  as-is; the payload already holds the computed values, so do not recompute them.
+  A model rejection stops dispatch; do not record a retry value.
 - **Reviewer, final review.** Use the execute `review-dispatch` payload's
   `agent_dispatch` snapshot, re-resolving immediately before dispatch if current
   config differs and keeping the payload's `reviewer_tier` as
   `${BOUNCER_ROOT}/rules/subagent-model.md` item 1 describes. The same record without `--task` (the final review spans the
-  blueprint): `--role reviewer --model <value> [--perspective <name>]`. A
+  blueprint): `--role reviewer --model <value> [--perspective <name>] --strategy <strategy>
+  --reviewer-tier <reviewer_tier>`, copying the payload's two values as-is the same way. A
   rejected model stops dispatch; do not record a retry value.
 
 Where each host puts a worker's final usage, and when it has none, is owned by

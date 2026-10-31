@@ -313,12 +313,19 @@ can show running or terminated.
 no `model` key is written. A valueless or blank `--model` is refused with
 `model-invalid` before any attempt opens. `coordinate worker-model --blueprint
 <dir> --role <implementer|reviewer|debugger> --model <value> --ledger-path <p>
---ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]` runs from
+--ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]
+[--strategy <single|parallel>] [--reviewer-tier <standard|strong>]` runs from
 the integration cwd and appends `{kind: worker-model, role, model, task?,
-perspective?, tokens?}` to the ledger
+perspective?, tokens?, strategy?, reviewer_tier?}` to the ledger
 decisions (and to that task's decisions when `--task` is given) without
 changing dispatch, lease, status, or attempt. `--perspective` is reviewer-only
-and must be an execute review perspective. `--tokens` is the host-reported
+and must be an execute review perspective. `--strategy` and `--reviewer-tier`
+are reviewer-only too. They copy the `strategy` and `reviewer_tier` the
+`review-dispatch` payload gave, as-is, and are written only when the flag is
+given; the coordinator does not recompute them. `reviewer_tier` records the
+computed tier, not whether the model mapping applied (`reviewer_tier_applied`
+is not written). `--strategy` and `--reviewer-tier` are refused as usage (exit 2)
+on `worker-tokens`. `--tokens` is the host-reported
 subagent token count (`/^\d+$/`, safe integer); without it no `tokens` key is
 written and the record counts as missing. `coordinate worker-tokens --blueprint
 <dir> --role <implementer|reviewer|debugger> --tokens <n|unreported> --ledger-path <p>
@@ -332,8 +339,10 @@ the sum never reads that key as zero. The `worker-tokens-missing` check covers t
 `coordinate record --task <T>` checks the keys of task T,
 `coordinate advance --task <T>` checks the keys of task T and the keys with no task,
 and `coordinate advance` without `--task` checks only the keys with no task. Refusals: `worker-model-role-invalid`,
-`worker-model-perspective-invalid`, `tokens-invalid`, `model-invalid` (worker-model
-only), `task-outside-blueprint`; none writes the ledger. The recorded model is
+`worker-model-perspective-invalid`, `worker-model-strategy-invalid`,
+`worker-model-reviewer-tier-invalid`, `tokens-invalid`, `model-invalid` (worker-model
+only), `task-outside-blueprint`; none writes the ledger. The strategy and tier
+checks run after the perspective check and before `tokens-invalid`. The recorded model is
 what the coordinator passed to the dispatch, not proof of the model the host ran.
 Plan and execute metadata are configuration observations only; they do not
 attest which model the host actually ran. A rejected configured model stops the

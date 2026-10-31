@@ -92,10 +92,16 @@ type DispatchDecision = {
 // 같은 키 체계로 다루도록 worker-model에도 허용한다.
 const WORKER_RECORD_ROLES: readonly string[] = ['implementer', 'reviewer', 'debugger'];
 type WorkerRecordRole = 'implementer' | 'reviewer' | 'debugger';
+// strategy·reviewer_tier는 review-dispatch payload의 계산 결과를 옮겨 적는 키다. 모델 매핑이
+// 적용됐는지(reviewer_tier_applied)는 기록하지 않는다. 006의 집계는 계산된 등급으로 읽는다.
+// 열거는 review-dispatch의 payload 값과 같아야 하므로 여기서 하나만 정의한다.
+const WORKER_REVIEW_STRATEGY: readonly string[] = ['single', 'parallel'];
+const WORKER_REVIEWER_TIER: readonly string[] = ['standard', 'strong'];
 // tokens는 호스트가 준 값일 때만 키를 쓴다. 키가 없으면 metrics summary가 누락으로 센다.
 type WorkerModelDecision = {
   kind: 'worker-model'; role: WorkerRecordRole; model: string;
   task?: string; perspective?: string; tokens?: number;
+  strategy?: string; reviewer_tier?: string;
 };
 // 완료 알림이 hand-back 뒤에 늦게 오는 경우, 토큰만 담아 덧붙이는 기록이다.
 // unreported는 호스트가 토큰을 주지 않았다는 명시 기록이다. 값을 0이나 추정치로 채우지 않으려고
@@ -875,7 +881,9 @@ function coordinateNote(ctx: LockedCtx): CoordinateResult {
  */
 function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
   const { cwd, integration, ledger, commitWrite } = ctx;
-  const { command, repoRoot, blueprint, task, model, role, perspective, tokens } = ctx.args;
+  const {
+    command, repoRoot, blueprint, task, model, role, perspective, tokens, strategy, reviewerTier,
+  } = ctx.args;
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   if (role === undefined || !WORKER_RECORD_ROLES.includes(role)) {
     return { ok: false, reason: 'worker-model-role-invalid' };
@@ -891,6 +899,17 @@ function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
     && (recordRole !== 'reviewer'
       || !REVIEW_PERSPECTIVE.includes(perspective))) {
     return { ok: false, reason: 'worker-model-perspective-invalid' };
+  }
+  // 리뷰 전략과 등급은 reviewer 기록 전용이고 값이 열거 안이어야 한다. 두 키는 서로 독립이라
+  // 한쪽만 와도 된다. worker-tokens에는 CLI가 이 플래그를 usage(2)로 막아 여기까지 오지 않는다.
+  // 검사 순서는 perspective 뒤, tokens 앞이다. 첫 거절 사유가 호출자에게 보이는 우선순위다.
+  if (command === 'worker-model' && strategy !== undefined
+    && (recordRole !== 'reviewer' || !WORKER_REVIEW_STRATEGY.includes(strategy))) {
+    return { ok: false, reason: 'worker-model-strategy-invalid' };
+  }
+  if (command === 'worker-model' && reviewerTier !== undefined
+    && (recordRole !== 'reviewer' || !WORKER_REVIEWER_TIER.includes(reviewerTier))) {
+    return { ok: false, reason: 'worker-model-reviewer-tier-invalid' };
   }
   // worker-model은 tokens가 선택이라 없으면 키를 쓰지 않고, worker-tokens는 필수다.
   // `unreported`는 worker-tokens 전용 값이다. worker-model에 오면 숫자 검사로 떨어져 tokens-invalid가 된다.
@@ -913,6 +932,9 @@ function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
     ? {
       kind: 'worker-model', role: recordRole, model: (model as string).trim(), ...scope,
       ...(parsedTokens !== null ? { tokens: parsedTokens } : {}),
+      // 플래그가 없으면 키를 쓰지 않는다. 구 호출과 기록 모양이 같아야 집계가 섞이지 않는다.
+      ...(strategy !== undefined ? { strategy } : {}),
+      ...(reviewerTier !== undefined ? { reviewer_tier: reviewerTier } : {}),
     }
     // unreported는 tokens 키를 쓰지 않는다. 숫자 기록과 모양이 섞이면 합산이 0을 답으로 오해한다.
     : unreported
@@ -1496,6 +1518,8 @@ const LEASE_CHECKED_COMMANDS = new Set(['dispatch', 'report', 'record']);
  * @param {number | string} [opts.tokens] - worker-model 선택, worker-tokens 필수 토큰 수(0 이상 안전 정수).
  *   worker-tokens에서만 정확한 값 `unreported`를 받아 호스트가 토큰을 주지 않은 사실을 기록한다.
  * @param {string} [opts.perspective] - worker-model reviewer 관점
+ * @param {string} [opts.strategy] - worker-model reviewer 리뷰 전략(single|parallel). 값은 payload 그대로다
+ * @param {string} [opts.reviewerTier] - worker-model reviewer 등급(standard|strong). 값은 payload 그대로다
  * @param {number} [opts.attempt] - dispatch report attempt
  * @param {string} [opts.taskBriefHash] - dispatch report brief hash
  * @param {string} [opts.leaseId] - task lease id
@@ -2145,6 +2169,17 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     // 열거를 하드코딩하면 REVIEW_PERSPECTIVE(review-policy 정본)와 어긋난다 — 상수에서 만든다.
     next: `Retry with a reviewer perspective (${REVIEW_PERSPECTIVE.join(', ')}), `
       + 'or drop `--perspective` for the debugger.',
+  },
+  'worker-model-strategy-invalid': {
+    cause: 'The strategy is not single or parallel (case-sensitive), or it was given with a non-reviewer role.',
+    // 열거는 WORKER_REVIEW_STRATEGY에서 만든다. 하드코딩하면 기록 상수와 문구가 갈라진다.
+    next: `Retry the reviewer record with \`--strategy\` set to one of (${WORKER_REVIEW_STRATEGY.join(', ')}), `
+      + 'or drop `--strategy` for the implementer and debugger.',
+  },
+  'worker-model-reviewer-tier-invalid': {
+    cause: 'The reviewer tier is not standard or strong (case-sensitive), or it was given with a non-reviewer role.',
+    next: `Retry the reviewer record with \`--reviewer-tier\` set to one of (${WORKER_REVIEWER_TIER.join(', ')}), `
+      + 'or drop `--reviewer-tier` for the implementer and debugger.',
   },
   'summary-required': {
     cause: 'Report requires a non-empty summary.',

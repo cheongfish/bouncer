@@ -10,6 +10,8 @@ export type CoordinateArgs = {
   resumeTask?: string; disposition?: string; newPaths?: string[]; verify?: string;
   attempt?: number; taskBriefHash?: string; acceptBrokenBaseline?: boolean;
   text?: string; model?: string | true; role?: string; perspective?: string; tokens?: number | string;
+  // worker-model 전용 선택 키. coordinator가 review-dispatch payload의 값을 그대로 넘긴다(계산하지 않음).
+  strategy?: string; reviewerTier?: string;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
   deps?: {
