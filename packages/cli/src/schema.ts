@@ -281,14 +281,6 @@ function isValidExclusiveResources(value: unknown): boolean {
 }
 
 /**
- * epic·blueprint `bouncer.supersedes` 형식만 판정한다.
- * 부재(undefined)와 빈 배열은 통과 — 기존 문서 소급 없이 신규부터 자리를 쓰기 위함.
- * 참조 무결성(존재·자기참조·순환·중복)은 검사하지 않는다. S27이 이 헬퍼만 본다.
- *
- * @param {unknown} value - 프론트매터의 supersedes 값. 키가 없으면 undefined
- * @returns {boolean} 허용 형태면 true, 그 외(null·비배열·공백/비문자열 원소)면 false
- */
-/**
  * task `bouncer.commit_intent`·`commit_summary` 형식만 판정한다.
  * 부재는 통과 — 옛 tasks.md를 소급하지 않기 위함. 값은 YAML 리스트여야 한다.
  * 스칼라 문자열은 js-yaml이 `commit_intent: 문장`으로 읽어 커밋 직전에야
@@ -302,15 +294,6 @@ function isValidAuthoredLineList(value: unknown): boolean {
   if (value === undefined) return true;
   if (!Array.isArray(value) || value.length > 2) return false;
   return value.every((entry) => typeof entry === 'string');
-}
-
-function isValidSupersedes(value: unknown): boolean {
-  // 키 부재만 허용. null은 "명시적으로 잘못된 값"이라 거절한다(scale 부재 계약과 구분).
-  if (value === undefined) return true;
-  if (!Array.isArray(value)) return false;
-  return value.every(
-    (entry) => typeof entry === 'string' && entry.trim() !== '',
-  );
 }
 
 // public-name: legacy-input-detector
@@ -344,7 +327,7 @@ export = {
   REVIEW_CONTRACT_ENUM, REVIEW_CONTRACT_INVALID_REASON, REVIEW_CONTRACT_INVALID_CAUSE,
   REVIEW_CONTRACT_INVALID_MESSAGE, reviewContractOf, planReviewContractOf,
   PLAN_FULL_PERSPECTIVES, PLAN_LOW_PERSPECTIVES, planPerspectivesOf, planDeltaPerspectiveOf,
-  AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
+  AUTONOMY_ENUM, DEFAULT_AUTONOMY,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,
   isValidExclusiveResources, EXCLUSIVE_RESOURCE_ID_RE, isValidAuthoredLineList,

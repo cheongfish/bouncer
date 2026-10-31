@@ -106,8 +106,7 @@ function epicDoc() {
 bouncer:
   id: '001'
   epic_id: '001'
-  status: approved
-  supersedes: []`, `# 001 plan review 측정 epic
+  status: approved`, `# 001 plan review 측정 epic
 
 ## Intent
 리뷰 진행 상태를 기록하는 모듈을 만든다.
@@ -127,8 +126,7 @@ bouncer:
   status: approved
   commit_type: feat
   scale: full
-  review_scope: blueprint
-  supersedes: []`, `# ${plan.id} ${plan.title}
+  review_scope: blueprint`, `# ${plan.id} ${plan.title}
 
 Epic: [001](../../index.md)
 

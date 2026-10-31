@@ -3,7 +3,7 @@ const path = require('node:path');
 import schema = require('./schema');
 const {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat,
-  KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM,
+  KIND_TO_TYPE, SCALE_ENUM, DEPENDENCY_GATE_ENUM,
   isValidDependsOn, isValidExclusiveResources, isValidAuthoredLineList,
   executionKindOf, planReviewContractOf,
 } = schema;
@@ -262,15 +262,6 @@ function checkStructural(
       && !(typeof attribution === 'string' && attribution.trim() !== '' && !/[\r\n]/.test(attribution))) {
       add('S36', 'attribution must be a non-empty single-line string');
     }
-  }
-
-  // S27: epic·blueprint만. 부재는 통과(소급 없음). 형식만 schema.isValidSupersedes —
-  // 경로 존재·자기참조·순환·중복은 검사하지 않는다.
-  if (
-    (docType === 'bouncer.epic' || docType === 'bouncer.blueprint')
-    && !isValidSupersedes(bouncer.supersedes)
-  ) {
-    add('S27', 'supersedes must be an array of non-empty document paths');
   }
 
   if (docType === 'bouncer.tasks') {

@@ -82,8 +82,7 @@ function epicDoc() {
 bouncer:
   id: '001'
   epic_id: '001'
-  status: approved
-  supersedes: []`, '# 001 직렬 4-task 측정 epic\n\n## Intent\n같은 직렬 계획을 실행 방식별로 비교한다.');
+  status: approved`, '# 001 직렬 4-task 측정 epic\n\n## Intent\n같은 직렬 계획을 실행 방식별로 비교한다.');
 }
 
 function blueprintDoc() {
@@ -96,8 +95,7 @@ bouncer:
   status: approved
   commit_type: feat
   scale: full
-  review_scope: blueprint
-  supersedes: []`, '# 001 직렬 4-task 측정 blueprint\n\nEpic: [001](../../index.md)\n\n## Intent\n앞 단계 모듈을 이어 받는 4개 모듈을 차례로 만든다.');
+  review_scope: blueprint`, '# 001 직렬 4-task 측정 blueprint\n\nEpic: [001](../../index.md)\n\n## Intent\n앞 단계 모듈을 이어 받는 4개 모듈을 차례로 만든다.');
 }
 
 function commitTaskDoc(n) {

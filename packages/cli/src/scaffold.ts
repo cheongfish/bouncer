@@ -214,8 +214,7 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }: {
   if (!fs.existsSync(canonicalEpicAbs)) {
     const data = bouncerDoc('bouncer.epic', isSlugEpic ? name : `${epicId} ${name}`, authoredDescription, rel,
       ['bouncer', 'epic'], timestamp,
-      // supersedes는 epic·blueprint 전용. 빈 배열은 "자리만" — 값은 사람이 채운다.
-      { id: epicKey, epic_id: epicKey, status: 'draft', supersedes: [] });
+      { id: epicKey, epic_id: epicKey, status: 'draft' });
     const body = templateBody('epic.md', { epicId: epicKey, name });
     created.push(writeRel(repoRoot, rel, data, body));
   }
@@ -484,7 +483,6 @@ function scaffoldBlueprint({
 
   const idx = `${dir}/index.md`;
   // commit_type·scale은 blueprint 전용(epic/tasks 등에는 쓰지 않음).
-  // supersedes는 epic·blueprint 공용 — 빈 배열로 자리만 잡고 값은 사람이 채운다.
   // status 뒤에 두어 frontmatter 키 순서를 고정한다. 경량 선언은 plan이
   // scale을 light로 바꾸고, 되돌릴 때는 full로 되돌린다(키 삭제 아님).
   created.push(writeRel(repoRoot, idx,
@@ -516,7 +514,6 @@ function scaffoldBlueprint({
         // 귀속 기록은 선택 키다. 필수 판정은 plan gate가 맡고 여기서는 값을 쓰기만 한다.
         ...(area === undefined ? {} : { area }),
         ...(attribution === undefined ? {} : { attribution }),
-        supersedes: [],
       }),
     body('blueprint.md')));
 

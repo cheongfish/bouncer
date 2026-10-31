@@ -68,13 +68,11 @@ the user to `scale: full` plus a `complexity` declaration, then the plan gate
 is re-run; an `approved` document is not edited in place — replan with
 `/bouncer-plan` for re-approval; any other unclosed status uses a new
 blueprint slug. `complexity` outside `low`|`standard` is S20. `complexity`
-without `review_contract: brief` is S38. Epic and blueprint
-`bouncer.supersedes` lists document paths this one replaces; validation checks
-shape only (absent or an array of non-empty strings), not referential integrity.
+without `review_contract: brief` is S38.
 Blueprint `bouncer.area` and `bouncer.attribution` are optional: `area` names the
 registry area the blueprint belongs to (a lowercase slug such as `ordering`) and
 `attribution` is one line saying why. `bouncer scaffold blueprint --area <a>
---attribution <text>` writes them before `supersedes`. A present value of the
+--attribution <text>` writes them after `review_contract`. A present value of the
 wrong shape (non-string or non-slug `area`; non-string, blank, or multi-line
 `attribution`) is S36; absence passes, and the registry lookup is not a
 structural check.
