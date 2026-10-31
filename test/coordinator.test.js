@@ -2377,6 +2377,15 @@ test('workerTokensGuard with a task-001 implementer key filled by numeric worker
   assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
 });
 
+test('workerTokensGuard with a task-001 implementer key filled by worker-model tokens and no task → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-impl-inline-', TOKEN_GUARD_BP);
+  // worker-model에 --tokens를 함께 주면 같은 기록이 키를 채운다. 별도 worker-tokens 없이도 거절하지 않아야 한다.
+  const modeled = workerModelCall(drive, { role: 'implementer', model: 'm', task: '001', tokens: 96315 });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
 test('workerTokensGuard with a task-001 implementer key filled by unreported and no task → is ok', () => {
   const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
   const drive = preparedCommitDrive('bouncer-guard-impl-unrep-', TOKEN_GUARD_BP);
