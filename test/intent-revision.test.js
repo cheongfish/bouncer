@@ -19,6 +19,7 @@ const {
   listDefinitionsAtRevision,
 } = require('../packages/cli/dist/intent-revision');
 const { canonicalJson } = require('../packages/cli/dist/canonical-json');
+const { resolveIntentAtRevision, expandShaAmong } = require('../packages/cli/dist/intent-provenance');
 
 const dirs = [];
 
@@ -513,4 +514,480 @@ test('Explain 본문 blob이 maxBuffer 1024를 넘음 → 같은 메시지로 th
     () => readBlobAt({ repoRoot: big.repo, ref: big.c, path: big.rels[0], maxBuffer: 1024 }),
     /git output exceeds 1024 bytes/,
   );
+});
+
+// ── resolveIntentAtRevision: 고정 SHA 기준 provenance ────────────────────────────────────
+// 아래 fixture는 test/terminal-intent-provenance.test.js의 Explain·trailer 형식을 따르되 이 파일 안에만 둔다.
+// 기대값은 fixture가 커밋한 SHA와 git rev-parse로 얻고, 조회 결과로 기대값을 만들지 않는다.
+
+const PROV_KIND = 'exported-function';
+const PROV_EXPLAIN = '.bouncer/context/epics/001-demo/blueprints/001-demo/explain.md';
+const PROV_BROKEN = '.bouncer/context/epics/002-bad/blueprints/002-bad/explain.md';
+const PROV_TASK_1 = 'EPIC-001/BP-001/TASK-001';
+const PROV_TASK_2 = 'EPIC-001/BP-001/TASK-002';
+const PROV_REGISTRY_EXPLAIN = '.bouncer/context/epics/plan-workflow/blueprints/registry-gates/explain.md';
+
+/**
+ * Bouncer-Task·Bouncer-Intent trailer가 붙은 커밋 메시지를 만든다.
+ *
+ * @param {string} subject - 제목 한 줄
+ * @param {string} task - trailer의 stable Task ID
+ * @returns {string} 커밋 메시지
+ */
+function provMessage(subject, task) {
+  return `${subject}\n\nBouncer-Task: ${task}\nBouncer-Intent: EPIC-001/BP-001\n`;
+}
+
+/**
+ * task_commits 한 행을 YAML 조각으로 적는다. sha는 8자 접두사다.
+ *
+ * @param {string} task - stable Task ID
+ * @param {string} sha8 - 8자 접두사
+ * @param {string} anchor - intent_anchor (`task-NNN`)
+ * @returns {string} YAML 조각
+ */
+function provRow(task, sha8, anchor) {
+  return [
+    `    - task: ${JSON.stringify(task)}`,
+    `      sha: ${JSON.stringify(sha8)}`,
+    `      intent_anchor: ${JSON.stringify(anchor)}`,
+  ].join('\n');
+}
+
+/**
+ * 001-demo Explain 원문을 만든다. Background·Intuition·Code 세 절에 `tag`를 넣어 어느 시점의 본문인지 구분한다.
+ *
+ * @param {string[]} rows - provRow 결과
+ * @param {string} tag - 본문 머리말(base, head, tampered 등)
+ * @returns {string} explain.md 본문
+ */
+function provExplain(rows, tag) {
+  return [
+    '---',
+    'type: bouncer.explain',
+    'title: intent at revision fixture',
+    'description: fixture',
+    `resource: ${PROV_EXPLAIN}`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-16T00:00:00+09:00'",
+    'bouncer:',
+    '  id: EXPLAIN-001',
+    "  epic_id: '001'",
+    "  blueprint_id: '001'",
+    '  status: published',
+    '  task_commits:',
+    ...rows,
+    '---',
+    '# Explain',
+    '',
+    '## Background',
+    '',
+    `${tag} background`,
+    '',
+    '## Intuition',
+    '',
+    `${tag} intuition`,
+    '',
+    '## Code',
+    '',
+    `${tag} code`,
+    '',
+  ].join('\n');
+}
+
+/**
+ * 함수 좌표를 커밋 시점 기준으로 직접 만든다. blob_sha는 git rev-parse로 얻어 조회 함수의 판정을 빌리지 않는다.
+ *
+ * @param {string} repo - 저장소 루트
+ * @param {string} rev - 커밋 SHA
+ * @param {string} rel - 저장소 상대 경로
+ * @param {string} name - qualified_name
+ * @param {string} kind - symbol kind
+ * @param {number} line - 정의가 있는 한 줄(start = end)
+ * @returns {object} SymbolRef 형태 객체
+ */
+function symbolAt(repo, rev, rel, name, kind, line) {
+  return {
+    path: rel,
+    qualified_name: name,
+    kind,
+    start_line: line,
+    end_line: line,
+    blob_sha: revParse(repo, `${rev}:${rel}`),
+  };
+}
+
+/**
+ * 001-demo task 문서 하나를 쓴다. 조회는 이 문서를 읽지 않지만 실제 커밋 구성과 맞춘다.
+ *
+ * @param {string} repo - 저장소 루트
+ * @param {string} digits - '001' | '002'
+ * @returns {void}
+ */
+function provTaskDoc(repo, digits) {
+  writeText(repo, `.bouncer/context/epics/001-demo/blueprints/001-demo/tasks/${digits}/tasks.md`, [
+    '# Tasks',
+    '',
+    '## Goal & intent',
+    '',
+    `task ${digits}`,
+    '',
+  ].join('\n'));
+}
+
+/**
+ * 의도 조회 fixture를 만든다. G0(trailer 없음) → G1(TASK-001 trailer) → B(Explain 커밋, 파싱 실패 Explain 포함)
+ * → H(TASK-002 trailer). 마지막에 커밋하지 않은 작업 트리 변경(tampered)을 얹어 HEAD와 디스크를 다르게 둔다.
+ *
+ * @returns {{ repo: string, g0: string, g1: string, b: string, h: string }} 저장소와 커밋 SHA 네 개
+ */
+function buildIntentFixture() {
+  const repo = tmpDir('bouncer-intent-at-revision-');
+  git(repo, ['init', '-q', '-b', 'main']);
+  writeText(repo, 'src/one.ts', 'export function shared() { return 1; }\n');
+  writeText(repo, 'src/two.ts', 'export function shared() { return 2; }\n');
+  writeText(repo, 'src/other.ts', 'export function other() { return 0; }\n');
+  const g0 = commitAll(repo, 'G0');
+
+  writeText(repo, 'src/one.ts', 'export function shared() { return 10; }\n');
+  provTaskDoc(repo, '001');
+  const g1 = commitAll(repo, provMessage('G1', PROV_TASK_1));
+
+  writeText(repo, PROV_BROKEN, 'no frontmatter\n');
+  writeText(repo, PROV_EXPLAIN, provExplain([provRow(PROV_TASK_1, g1.slice(0, 8), 'task-001')], 'base'));
+  const b = commitAll(repo, 'B');
+
+  writeText(repo, 'src/one.ts', 'export function shared() { return 11; }\n');
+  provTaskDoc(repo, '002');
+  writeText(repo, PROV_EXPLAIN, provExplain([
+    provRow(PROV_TASK_1, g1.slice(0, 8), 'task-001'),
+    // 두 번째 행의 sha는 연결 증거가 아니다. TASK-002는 H의 trailer로 이어진다. 같은 커밋 안에서
+    // H 자신의 8자는 쓸 수 없으므로 B의 8자를 쓴다.
+    provRow(PROV_TASK_2, b.slice(0, 8), 'task-002'),
+  ], 'head'));
+  const h = commitAll(repo, provMessage('H', PROV_TASK_2));
+
+  // 커밋하지 않은 작업 트리: 고정 SHA 결과에 섞이면 안 되는 본문과 함수 정의다.
+  writeText(repo, 'src/one.ts', 'export function shared() { return 99; }\n');
+  writeText(repo, PROV_EXPLAIN, provExplain([provRow(PROV_TASK_1, g1.slice(0, 8), 'task-001')], 'tampered'));
+  return { repo, g0, g1, b, h };
+}
+
+test('B 고정 SHA의 shared → TASK-001 근거 한 건만 나오고 작업 트리의 tampered 본문은 없다', () => {
+  const fx = buildIntentFixture();
+  const result = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.history_ref, fx.b);
+  assert.equal(result.explain_docs, 1);
+  assert.equal(result.total_linked, 1);
+  assert.equal(result.candidates.length, 1);
+  const [cand] = result.candidates;
+  assert.equal(cand.commit, fx.g1);
+  assert.equal(cand.task, PROV_TASK_1);
+  assert.equal(cand.explain, PROV_EXPLAIN);
+  assert.equal(cand.explain_blob_sha, revParse(fx.repo, `${fx.b}:${PROV_EXPLAIN}`));
+  assert.deepEqual(cand.sections.map((s) => s.name), ['Background', 'Intuition', 'Code']);
+  assert.match(cand.sections[0].body, /base background/);
+  assert.match(cand.sections[1].body, /base intuition/);
+  assert.match(cand.sections[2].body, /base code/);
+  assert.equal(JSON.stringify(result).includes('tampered'), false);
+});
+
+test('H 고정 SHA의 shared → TASK-002 근거가 head 본문과 함께 나오고 total_linked는 2다', () => {
+  const fx = buildIntentFixture();
+  const result = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.h,
+    symbolRef: symbolAt(fx.repo, fx.h, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.total_linked, 2);
+  const task2 = result.candidates.find((cand) => cand.task === PROV_TASK_2);
+  assert.ok(task2, 'TASK-002 candidate must be present at H');
+  assert.equal(task2.commit, fx.h);
+  assert.equal(task2.explain_blob_sha, revParse(fx.repo, `${fx.h}:${PROV_EXPLAIN}`));
+  assert.match(task2.sections[0].body, /head background/);
+});
+
+test('G1 시점(Explain 아직 없음) → unlinked이고 explain_docs 0이며, trailer 없는 other 조회는 explain_docs 1로 구분된다', () => {
+  const fx = buildIntentFixture();
+  const noExplain = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.g1,
+    symbolRef: symbolAt(fx.repo, fx.g1, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.equal(noExplain.status, 'unlinked');
+  assert.equal(noExplain.explain_docs, 0);
+  assert.deepEqual(noExplain.candidates, []);
+  assert.equal(noExplain.total_linked, 0);
+
+  const noLink = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/other.ts', 'other', PROV_KIND, 1),
+  });
+  assert.equal(noLink.status, 'unlinked');
+  assert.equal(noLink.explain_docs, 1);
+  assert.deepEqual(noLink.candidates, []);
+});
+
+test('작업 트리를 다시 바꾼 뒤 같은 B 조회 → canonical JSON과 digest가 그대로이고 H 조회와 digest가 다르다', () => {
+  const fx = buildIntentFixture();
+  const first = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  writeText(fx.repo, 'src/one.ts', 'export function shared() { return 1234; }\n');
+  writeText(fx.repo, PROV_EXPLAIN, provExplain([provRow(PROV_TASK_1, fx.g1.slice(0, 8), 'task-001')], 'other tamper'));
+  const second = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.equal(canonicalJson(second), canonicalJson(first));
+  assert.equal(second.digest, first.digest);
+
+  const atHead = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.h,
+    symbolRef: symbolAt(fx.repo, fx.h, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.notEqual(atHead.digest, first.digest);
+});
+
+/**
+ * registry 시나리오 fixture를 만든다. R1은 옛 trailer(EPIC-071/BP-002) 커밋, R2는 slug Explain을 두되 registry가
+ * 없는 커밋, R3은 alias registry를 둔 커밋, R4는 registry를 스키마 위반으로 바꾼 커밋이다.
+ *
+ * @returns {{ repo: string, r1: string, r2: string, r3: string, r4: string }} 저장소와 커밋 SHA 네 개
+ */
+function buildRegistryFixture() {
+  const repo = tmpDir('bouncer-intent-registry-');
+  git(repo, ['init', '-q', '-b', 'main']);
+  writeText(repo, 'src/one.ts', 'export function aliased() { return 1; }\n');
+  const r1 = commitAll(repo, 'R1\n\nBouncer-Task: EPIC-071/BP-002/TASK-001\nBouncer-Intent: EPIC-071/BP-002\n');
+
+  writeText(repo, PROV_REGISTRY_EXPLAIN, [
+    '---',
+    'type: bouncer.explain',
+    'title: fixture',
+    'description: fixture',
+    `resource: ${PROV_REGISTRY_EXPLAIN}`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-14T00:00:00+09:00'",
+    'bouncer:',
+    '  id: EXPLAIN-001',
+    '  epic_id: plan-workflow',
+    '  blueprint_id: registry-gates',
+    '  status: published',
+    '  task_commits: []',
+    '---',
+    '# Explain',
+    '',
+    '## Background',
+    '',
+    'migrated explain background',
+    '',
+  ].join('\n'));
+  const r2 = commitAll(repo, 'R2');
+
+  writeText(repo, REGISTRY_REL, JSON.stringify({
+    version: 2,
+    profile: 'domain-only',
+    domainEpicLimit: 3,
+    areas: [],
+    epics: [{
+      slug: 'plan-workflow', legacy_id: '071', kind: 'domain', active: true,
+      blueprint_aliases: { '002': 'registry-gates' },
+    }],
+  }));
+  const r3 = commitAll(repo, 'R3');
+
+  writeText(repo, REGISTRY_REL, REGISTRY_BAD);
+  const r4 = commitAll(repo, 'R4');
+  return { repo, r1, r2, r3, r4 };
+}
+
+test('registry 없는 R2 시점 → unlinked이고 registry_blob_sha가 null이다', () => {
+  const fx = buildRegistryFixture();
+  const result = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.r2,
+    symbolRef: symbolAt(fx.repo, fx.r2, 'src/one.ts', 'aliased', PROV_KIND, 1),
+  });
+  assert.equal(result.status, 'unlinked');
+  assert.equal(result.explain_docs, 1);
+  assert.equal(result.registry_blob_sha, null);
+});
+
+test('alias registry가 있는 R3 시점 → resolved이고 후보 commit은 옛 trailer 커밋 R1이다', () => {
+  const fx = buildRegistryFixture();
+  const result = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.r3,
+    symbolRef: symbolAt(fx.repo, fx.r3, 'src/one.ts', 'aliased', PROV_KIND, 1),
+  });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.registry_blob_sha, revParse(fx.repo, `${fx.r3}:${REGISTRY_REL}`));
+  assert.equal(result.candidates[0].commit, fx.r1);
+  assert.equal(result.candidates[0].explain, PROV_REGISTRY_EXPLAIN);
+});
+
+test('손상된 registry의 R4 시점 → unlinked이고 registry_blob_sha는 손상된 blob SHA다(null이 아니다)', () => {
+  const fx = buildRegistryFixture();
+  const result = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.r4,
+    symbolRef: symbolAt(fx.repo, fx.r4, 'src/one.ts', 'aliased', PROV_KIND, 1),
+  });
+  assert.equal(result.status, 'unlinked');
+  assert.equal(result.registry_blob_sha, revParse(fx.repo, `${fx.r4}:${REGISTRY_REL}`));
+  assert.notEqual(result.registry_blob_sha, null);
+});
+
+test('shared 좌표의 blob·끝 줄·이름·kind·경로를 틀리게 준 호출 → 모두 symbolRef does not match로 throw한다', () => {
+  const fx = buildIntentFixture();
+  const good = symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1);
+  const variants = [
+    { ...good, blob_sha: '0'.repeat(40) },
+    { ...good, end_line: 2 },
+    { ...good, qualified_name: 'other' },
+    { ...good, kind: 'arrow-function' },
+    { ...good, path: 'src/nope.ts' },
+    // src/two.ts에도 같은 이름의 shared가 있다. 다른 파일의 정의로 대체하지 않고 거절해야 한다.
+    { ...good, path: 'src/two.ts' },
+  ];
+  for (const symbolRef of variants) {
+    assertRejects(
+      () => resolveIntentAtRevision({ repoRoot: fx.repo, historyRef: fx.b, symbolRef }),
+      /^symbolRef does not match/,
+    );
+  }
+});
+
+test('historyRef가 HEAD·짧은 abc·40자 0 → 고정 커밋으로 풀리지 않아 throw한다', () => {
+  const fx = buildIntentFixture();
+  const symbolRef = symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1);
+  for (const historyRef of ['HEAD', 'abc', '0'.repeat(40)]) {
+    assertRejects(() => resolveIntentAtRevision({ repoRoot: fx.repo, historyRef, symbolRef }));
+  }
+});
+
+test('limit가 0·6·문자열 3·1.5 → limit 범위 오류로 throw한다', () => {
+  const fx = buildIntentFixture();
+  const symbolRef = symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1);
+  for (const limit of [0, 6, '3', 1.5]) {
+    assertRejects(
+      () => resolveIntentAtRevision({ repoRoot: fx.repo, historyRef: fx.b, symbolRef, limit }),
+      /limit must be an integer between 1 and 5/,
+    );
+  }
+});
+
+test('Git 저장소가 아닌 repoRoot → resolveIntentAtRevision이 throw한다', () => {
+  const fx = buildIntentFixture();
+  const plain = tmpDir('bouncer-intent-plain-');
+  assertRejects(() => resolveIntentAtRevision({
+    repoRoot: plain,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1),
+  }));
+});
+
+test('symbolRef가 null·start_line 문자열·start_line 2 > end_line 1 → invalid symbolRef로 throw한다', () => {
+  const fx = buildIntentFixture();
+  const good = symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1);
+  const bad = [null, { ...good, start_line: '1' }, { ...good, start_line: 2, end_line: 1 }];
+  for (const symbolRef of bad) {
+    assertRejects(
+      () => resolveIntentAtRevision({ repoRoot: fx.repo, historyRef: fx.b, symbolRef }),
+      /^invalid symbolRef:/,
+    );
+  }
+});
+
+test('H 조회에 limit 1을 주면 → candidates는 1건이고 total_linked는 적용 전 2다', () => {
+  const fx = buildIntentFixture();
+  const result = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.h,
+    symbolRef: symbolAt(fx.repo, fx.h, 'src/one.ts', 'shared', PROV_KIND, 1),
+    limit: 1,
+  });
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.total_linked, 2);
+});
+
+test('같은 8자 접두사를 가진 커밋이 목록에 둘 → ambiguous로 돌려주고 하나를 고르지 않는다', () => {
+  const commits = [`aaaaaaaa11${'0'.repeat(30)}`, `aaaaaaaa22${'0'.repeat(30)}`];
+  assert.deepEqual(expandShaAmong(commits, 'aaaaaaaa'), { status: 'ambiguous' });
+});
+
+test('접두사가 하나뿐이면 → unique로 40자를 돌려주고, 목록에 없으면 → missing이다', () => {
+  assert.deepEqual(
+    expandShaAmong([`aaaaaaaa11${'0'.repeat(30)}`, `bbbbbbbb22${'0'.repeat(30)}`], 'aaaaaaaa'),
+    { status: 'unique', full: `aaaaaaaa11${'0'.repeat(30)}` },
+  );
+  assert.deepEqual(expandShaAmong([], 'aaaaaaaa'), { status: 'missing' });
+  assert.deepEqual(expandShaAmong([`bbbbbbbb22${'0'.repeat(30)}`], 'aaaaaaaa'), { status: 'missing' });
+});
+
+test('replace ref를 걸고 GIT_DIR을 다른 저장소로 바꾼 뒤에도 → B 조회의 canonical JSON이 그대로다', () => {
+  const fx = buildIntentFixture();
+  const symbolRef = symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1);
+  const before = canonicalJson(resolveIntentAtRevision({ repoRoot: fx.repo, historyRef: fx.b, symbolRef }));
+
+  // B의 부모를 G0으로 바꾸는 replace ref다. 고정 조회가 이를 따르면 blame·log 결과가 달라진다.
+  git(fx.repo, ['replace', '--graft', fx.b, fx.g0]);
+  const afterReplace = canonicalJson(resolveIntentAtRevision({ repoRoot: fx.repo, historyRef: fx.b, symbolRef }));
+  assert.equal(afterReplace, before);
+
+  const other = tmpDir('bouncer-intent-other-');
+  git(other, ['init', '-q', '-b', 'main']);
+  const savedGitDir = process.env.GIT_DIR;
+  process.env.GIT_DIR = path.join(other, '.git');
+  try {
+    const underOtherDir = canonicalJson(resolveIntentAtRevision({ repoRoot: fx.repo, historyRef: fx.b, symbolRef }));
+    assert.equal(underOtherDir, before);
+  } finally {
+    if (savedGitDir === undefined) delete process.env.GIT_DIR;
+    else process.env.GIT_DIR = savedGitDir;
+  }
+});
+
+test('파싱에 실패한 Explain만 있는 G1b → explain_docs 0이고 unlinked이다', () => {
+  const repo = tmpDir('bouncer-intent-broken-only-');
+  git(repo, ['init', '-q', '-b', 'main']);
+  writeText(repo, 'src/one.ts', 'export function shared() { return 1; }\n');
+  commitAll(repo, provMessage('G1', PROV_TASK_1));
+  writeText(repo, PROV_BROKEN, 'no frontmatter\n');
+  const g1b = commitAll(repo, 'G1b');
+  const result = resolveIntentAtRevision({
+    repoRoot: repo,
+    historyRef: g1b,
+    symbolRef: symbolAt(repo, g1b, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.equal(result.status, 'unlinked');
+  assert.equal(result.explain_docs, 0);
+});
+
+test('고정 SHA provenance 조회를 마침 → HEAD·status·.git/index 바이트가 호출 전과 같다', () => {
+  const fx = buildIntentFixture();
+  const before = repoState(fx.repo);
+  resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.h,
+    symbolRef: symbolAt(fx.repo, fx.h, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.deepEqual(repoState(fx.repo), before);
 });

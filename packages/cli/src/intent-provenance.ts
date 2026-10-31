@@ -22,6 +22,10 @@ import epicRegistryMod = require('./epic-registry');
 const { readEpicRegistry } = epicRegistryMod;
 import paths = require('./paths');
 const { toPosix } = paths;
+import intentRevision = require('./intent-revision');
+const { resolveHistoryRef, listExplainSourcesAt, readRegistryAt, listDefinitionsAtRevision } = intentRevision;
+import canonicalJsonMod = require('./canonical-json');
+const { sha256Canonical } = canonicalJsonMod;
 
 const DEFAULT_LIMIT = 3;
 const MAX_LIMIT = 5;
@@ -32,6 +36,17 @@ const TRAILER_RE = /^(Bouncer-Task|Bouncer-Intent)\s*:\s*(.*?)\s*$/;
 // loadExplainDocs가 걷는 경로와 같은 canonical Explain만 projection 입력이 된다.
 // 번호(`NNN-slug`)와 slug 두 경로 형식을 모두 받되 세그먼트 해석은 parseContextPath에 맡긴다.
 const EXPLAIN_SHAPE_RE = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/explain\.md$/;
+// 고정 SHA 조회가 부르는 Git의 stdout 상한. intent-revision의 GIT_MAX_BUFFER와 같은 256 MiB다.
+// 그 상수는 export되지 않아 같은 값을 여기 둔다. 넘으면 잘린 결과 대신 던진다.
+const PINNED_GIT_MAX_BUFFER = 268435456;
+// 고정 SHA 조회가 상위 프로세스에서 물려받으면 안 되는 객체 DB 지정. intent-revision의 목록과 같다.
+const PINNED_CLEARED_ENV = [
+  'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_COMMON_DIR', 'GIT_NAMESPACE',
+];
+const FULL_SHA_RE = /^[0-9a-f]{40}$/;
+const SHORT_SHA_RE = /^[0-9a-f]{8}$/;
+const INTENT_AT_REVISION_PROJECTION = 'intent-at-revision/1';
 
 /** loadExplainDocs가 걷는 canonical Explain 경로(번호·slug 두 형식)인지 판정한다. */
 function isCanonicalExplainPath(rel: string): boolean {
@@ -130,6 +145,8 @@ type ExplainDoc = {
   body: string;
   rows: ExplainRow[];
   sections: SelectedSection[];
+  // 고정 SHA에서 읽은 blob SHA. 작업 트리에서 읽은 Explain은 null이다.
+  blob_sha: string | null;
 };
 
 type ExplainRow = {
@@ -159,6 +176,55 @@ type LinkedDraft = CommitMeta & {
   task: string;
   explain: string;
   sections: SelectedSection[];
+  explain_blob_sha: string | null;
+};
+
+// Git 호출 하나의 실행기. 작업 트리 조회와 고정 SHA 조회가 각자의 env·revision을 닫아서 넘긴다.
+type GitRun = (args: string[]) => GitResult;
+// 고정 SHA 모드의 옵션. 있으면 env를 고정하고 stdout 상한을 건다.
+type PinnedGit = { maxBuffer: number };
+
+// 연결과 정렬이 끝난 후보. 본문 예산과 직렬화 전의 절 목록을 가진다.
+type RankedLink = {
+  relation: Relation;
+  commit: string;
+  task: string;
+  explain: string;
+  explain_blob_sha: string | null;
+  freshness: Freshness;
+  // historical 연결은 빈 배열이다. 과거 함수 커밋의 설계 절이 현재 동작의 근거처럼 보이지 않게 한다.
+  parts: SelectedSection[];
+  ct: number;
+};
+
+type IntentAtRevisionCandidate = {
+  relation: Relation;
+  commit: string;
+  task: string;
+  explain: string;
+  explain_blob_sha: string;
+  freshness: Freshness;
+  sections: SelectedSection[];
+};
+
+type IntentAtRevisionResult = {
+  schema_version: 1;
+  projection_version: 'intent-at-revision/1';
+  history_ref: string;
+  symbol_ref: SymbolRef;
+  status: 'resolved' | 'unlinked';
+  explain_docs: number;
+  registry_blob_sha: string | null;
+  total_linked: number;
+  candidates: IntentAtRevisionCandidate[];
+  digest: string;
+};
+
+type IntentAtRevisionInput = {
+  repoRoot: string;
+  historyRef: string;
+  symbolRef: SymbolRef;
+  limit?: number;
 };
 
 /**
@@ -210,62 +276,34 @@ function resolveIntentProvenance(input: ResolveIntentInput): IntentResult {
     return unlinkedResult(symbol, symbolRef);
   }
 
-  const metas = collectCommitMetas(repoReal, symbolRef, symbol);
+  // 1. 이력·trailer·Explain은 작업 트리에서 읽고, 짧은 SHA는 기존처럼 rev-parse로 펼친다.
+  // 연결·정렬 규칙은 고정 SHA 조회와 같은 linkAndRank가 맡는다.
+  const run: GitRun = (args) => runGit(repoReal, args);
+  const metas = collectCommitMetas(run, symbolRef, symbol, null);
   const registry = readRegistryOrNull(repoReal);
   const explains = loadExplainDocs(repoReal);
-  const shaIndex = buildShaIndex(repoReal, explains);
-  const linked: LinkedDraft[] = [];
-  for (const meta of metas) {
-    const hit = linkCommit(repoReal, meta.sha, explains, shaIndex, registry);
-    if (!hit) continue;
-    const doc = explains.find((item) => item.rel === hit.explain);
-    const taskDigits = taskDigitsOf(hit.task);
-    linked.push({
-      ...meta,
-      task: hit.task,
-      explain: hit.explain,
-      sections: doc ? selectSections(doc, taskDigits) : [],
-    });
-  }
-
-  if (linked.length === 0) {
+  const ranked = linkAndRank({
+    run,
+    metas,
+    registry,
+    explains,
+    expand: (sha8) => expandShortSha(repoReal, sha8),
+  });
+  if (ranked.length === 0) {
     return unlinkedResult(symbol, symbolRef);
   }
 
-  const currentSha = pickCurrentSha(metas);
-  const drafts = linked.map((item) => {
-    const freshness = freshnessOf(item, linked, currentSha);
-    return {
-      relation: item.relation,
-      commit: item.sha,
-      task: item.task,
-      explain: item.explain,
-      freshness,
-      sections: freshness === 'historical' ? [] : item.sections.map((part) => part.name),
-      body: freshness === 'historical' ? '' : serializeSections(item.sections),
-      ct: item.ct,
-    };
-  });
-
-  drafts.sort((left, right) => {
-    const rank = FRESHNESS_RANK[left.freshness] - FRESHNESS_RANK[right.freshness];
-    if (rank !== 0) return rank;
-    if (right.ct !== left.ct) return right.ct - left.ct;
-    if (left.commit !== right.commit) return left.commit < right.commit ? -1 : 1;
-    return left.explain < right.explain ? -1 : 1;
-  });
-
-  const sliced = drafts.slice(0, limit);
-  const truncated = applyBodyBudget(sliced);
-  const candidates: ProvenanceCandidate[] = sliced.map((item) => ({
+  // 2. 본문 예산은 limit 뒤에 적용한다. 예산은 이 조회의 출력 크기 계약이라 고정 SHA 조회에는 붙이지 않는다.
+  const candidates: ProvenanceCandidate[] = ranked.slice(0, limit).map((item) => ({
     relation: item.relation,
     commit: item.commit,
     task: item.task,
     explain: item.explain,
     freshness: item.freshness,
-    sections: item.sections,
-    body: item.body,
+    sections: item.parts.map((part) => part.name),
+    body: serializeSections(item.parts),
   }));
+  const truncated = applyBodyBudget(candidates);
 
   return {
     status: 'resolved',
@@ -305,18 +343,36 @@ function unlinkedResult(symbol: string, symbolRef: SymbolRef): IntentResult {
  * cwd를 저장소 루트로 두고 argv 배열만 넘긴다. 셸 문자열을 만들지 않아
  * path·SHA가 플래그로 해석되거나 보간되지 않게 한다.
  *
+ * pinned를 주면 고정 SHA 조회용 Git이 된다. 상속된 GIT_DIR 같은 객체 DB 지정을 지우고 replace ref를 끈다.
+ * 다른 저장소를 가리키는 env가 남으면 같은 SHA라도 다른 답이 나오기 때문이다. stdout은 상한으로 막는다.
+ * pinned가 없으면 env와 인자가 기존과 같다.
+ *
  * @param {string} repoRoot - git cwd
  * @param {string[]} args - `git` 다음 argv
+ * @param {PinnedGit} [pinned] - 고정 SHA 모드의 출력 상한. 있으면 env를 고정한다
  * @returns {GitResult} status·stdout·stderr. 비0도 throw하지 않는다
+ * @throws {Error} 고정 모드에서 출력이 상한을 넘으면 `git output exceeds <maxBuffer> bytes`
  */
-function runGit(repoRoot: string, args: string[]): GitResult {
+function runGit(repoRoot: string, args: string[], pinned?: PinnedGit): GitResult {
+  // 1. 고정 모드에서만 env를 바꾼다. 기존 호출의 env는 그대로 둔다.
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  if (pinned) {
+    for (const key of PINNED_CLEARED_ENV) delete env[key];
+    env.GIT_NO_REPLACE_OBJECTS = '1';
+  }
   const result = spawnSync('git', args, {
     cwd: repoRoot,
     encoding: 'utf8',
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    env,
     stdio: ['ignore', 'pipe', 'pipe'],
+    // 2. 상한도 고정 모드에서만 건다. 기존 호출은 spawnSync 기본값을 그대로 쓴다.
+    ...(pinned ? { maxBuffer: pinned.maxBuffer } : {}),
   });
   if (result.error) {
+    // 3. ENOBUFS는 고정 모드의 출력 상한 초과다. 잘린 출력을 쓰지 않도록 던진다.
+    if (pinned && (result.error as NodeJS.ErrnoException).code === 'ENOBUFS') {
+      throw new Error(`git output exceeds ${pinned.maxBuffer} bytes`);
+    }
     // ENOENT는 git 바이너리 부재다. unlinked로 접으면 설치 문제가 연결 부재로 보인다.
     throw new Error('git command is not executable', { cause: result.error });
   }
@@ -347,31 +403,40 @@ function requireGitRepo(repoRoot: string): void {
 /**
  * blame의 현재 line 소유 commit과 `--follow` 파일 이력을 모은다.
  * rename은 follow가 담당하고, 같은 함수를 만진 commit은 `-G`로 표시한다.
+ * revision이 있으면 그 커밋을 시작점으로 읽는다. 없으면 작업 트리 HEAD 기준 기존 호출과 같다.
  *
- * @param {string} repoRoot - git cwd
+ * @param {GitRun} run - 이 조회의 Git 실행기
  * @param {SymbolRef} symbolRef - 현재 함수 좌표
  * @param {string} symbol - `-G`에 쓸 함수명
+ * @param {string | null} revision - 고정 SHA. null이면 revision 인자를 넣지 않는다
  * @returns {CommitMeta[]} 중복 없는 commit 목록
  */
-function collectCommitMetas(repoRoot: string, symbolRef: SymbolRef, symbol: string): CommitMeta[] {
-  const blame = runGit(repoRoot, [
+function collectCommitMetas(
+  run: GitRun,
+  symbolRef: SymbolRef,
+  symbol: string,
+  revision: string | null,
+): CommitMeta[] {
+  // revision은 blame·log에서 경로 앞에 둔다. null이면 인자 배열이 기존 호출과 같아진다.
+  const at = revision === null ? [] : [revision];
+  const blame = run([
     'blame', '--line-porcelain', '-L', `${symbolRef.start_line},${symbolRef.end_line}`,
-    '--', symbolRef.path,
+    ...at, '--', symbolRef.path,
   ]);
   if (blame.status !== 0) {
     throw gitFailure('git blame failed', blame);
   }
   const blameShas = parseBlameShas(blame.stdout);
 
-  const follow = runGit(repoRoot, [
-    'log', '--follow', '--format=%H%x1f%ct', '--', symbolRef.path,
+  const follow = run([
+    'log', '--follow', '--format=%H%x1f%ct', ...at, '--', symbolRef.path,
   ]);
   if (follow.status !== 0) {
     throw gitFailure('git log --follow failed', follow);
   }
 
-  const functionLog = runGit(repoRoot, [
-    'log', '--follow', '-G', escapeRegExp(symbol), '--format=%H', '--', symbolRef.path,
+  const functionLog = run([
+    'log', '--follow', '-G', escapeRegExp(symbol), '--format=%H', ...at, '--', symbolRef.path,
   ]);
   if (functionLog.status !== 0) {
     throw gitFailure('git log -G failed', functionLog);
@@ -397,7 +462,7 @@ function collectCommitMetas(repoRoot: string, symbolRef: SymbolRef, symbol: stri
     if (bySha.has(sha)) continue;
     bySha.set(sha, {
       sha,
-      ct: committerUnix(repoRoot, sha),
+      ct: committerUnix(run, sha),
       relation: 'blame',
       functionTouch: true,
     });
@@ -424,8 +489,8 @@ function parseBlameShas(stdout: string): Set<string> {
   return shas;
 }
 
-function committerUnix(repoRoot: string, sha: string): number {
-  const result = runGit(repoRoot, ['log', '-1', '--format=%ct', sha]);
+function committerUnix(run: GitRun, sha: string): number {
+  const result = run(['log', '-1', '--format=%ct', sha]);
   if (result.status !== 0) {
     throw gitFailure('git log %ct failed', result);
   }
@@ -474,7 +539,7 @@ function freshnessOf(item: LinkedDraft, linked: LinkedDraft[], currentSha: strin
  * 상충·malformed trailer는 SHA fallback의 입력이 아니며, 모호 SHA·저장소 밖
  * 경로와 같이 증거가 되지 않는다.
  *
- * @param {string} repoRoot - git cwd
+ * @param {GitRun} run - 이 조회의 Git 실행기
  * @param {string} sha - 40자리 commit
  * @param {ExplainDoc[]} explains - 저장소 안 canonical Explain
  * @param {Map<string, LinkHit[]>} shaIndex - full SHA → task·explain
@@ -482,13 +547,13 @@ function freshnessOf(item: LinkedDraft, linked: LinkedDraft[], currentSha: strin
  * @returns {LinkHit | null} 하나면 hit, 없거나 모호·거절이면 null
  */
 function linkCommit(
-  repoRoot: string,
+  run: GitRun,
   sha: string,
   explains: ExplainDoc[],
   shaIndex: Map<string, LinkHit[]>,
   registry: Registry,
 ): LinkHit | null {
-  const message = runGit(repoRoot, ['log', '-1', '--format=%B', sha]);
+  const message = run(['log', '-1', '--format=%B', sha]);
   if (message.status !== 0) {
     throw gitFailure('git log %B failed', message);
   }
@@ -590,11 +655,19 @@ function expandShortSha(repoRoot: string, shortSha: string): ShaExpand {
   return { status: 'unique', full };
 }
 
-function buildShaIndex(repoRoot: string, explains: ExplainDoc[]): Map<string, LinkHit[]> {
+/**
+ * Explain task_commits의 짧은 SHA를 full SHA 역색인으로 만든다. 펼치는 방법은 호출자가 고른다.
+ * 작업 트리는 rev-parse, 고정 SHA는 historyRef 도달 집합이다. 같은 규칙을 두 조회가 쓰게 하려고 주입받는다.
+ *
+ * @param {ExplainDoc[]} explains - 파싱에 성공한 Explain
+ * @param {(sha8: string) => ShaExpand} expand - 8자 접두사 펼침
+ * @returns {Map<string, LinkHit[]>} full SHA → 연결 후보. 모호·부재 접두사는 넣지 않는다
+ */
+function buildShaIndex(explains: ExplainDoc[], expand: (sha8: string) => ShaExpand): Map<string, LinkHit[]> {
   const index = new Map<string, LinkHit[]>();
   for (const doc of explains) {
     for (const row of doc.rows) {
-      const expanded = expandShortSha(repoRoot, row.sha8);
+      const expanded = expand(row.sha8);
       // 모호한 짧은 SHA는 어느 task에도 붙이지 않는다. 한 쪽을 찍으면 다른 객체의
       // 의도가 현재 함수 근거로 승격된다.
       if (expanded.status !== 'unique') continue;
@@ -657,6 +730,13 @@ function walkExplain(absDir: string, repoReal: string, files: string[]): void {
   }
 }
 
+/**
+ * 작업 트리의 Explain 파일 하나를 읽어 판정한다. 읽기 실패는 이 파일만 버린다.
+ *
+ * @param {string} abs - Explain 절대 경로
+ * @param {string} repoReal - realpath 저장소 루트
+ * @returns {ExplainDoc | null} 파싱에 성공한 Explain 또는 버린 파일이면 null
+ */
 function parseExplainDoc(abs: string, repoReal: string): ExplainDoc | null {
   let raw: string;
   try {
@@ -665,9 +745,20 @@ function parseExplainDoc(abs: string, repoReal: string): ExplainDoc | null {
     if (isSkippableFsError(error)) return null;
     throw error;
   }
+  return parseExplainText({ rel: toPosix(path.relative(repoReal, abs)), raw, blobSha: null });
+}
+
+/**
+ * Explain 원문 하나를 판정한다. 파일 I/O가 없어서 작업 트리 파일과 고정 SHA blob이 같은 규칙을 쓴다.
+ * 깨진 frontmatter, 형식 위반, key 불일치는 null이다. 이 판정이 explain_docs의 정의다.
+ *
+ * @param {{ rel: string, raw: string, blobSha: string | null }} input - 저장소 상대 경로, 원문, blob SHA
+ * @returns {ExplainDoc | null} 파싱에 성공한 Explain 또는 버린 문서면 null
+ */
+function parseExplainText(input: { rel: string; raw: string; blobSha: string | null }): ExplainDoc | null {
   let parsed: { data: unknown; body: string };
   try {
-    parsed = parseFrontmatter(raw);
+    parsed = parseFrontmatter(input.raw);
   } catch (_e) {
     // 깨진 frontmatter는 이 파일만 증거가 아니다. 다른 Explain을 지우지 않는다.
     return null;
@@ -682,14 +773,23 @@ function parseExplainDoc(abs: string, repoReal: string): ExplainDoc | null {
   // 번호 쌍이거나 slug 쌍일 때만 증거다. 형식이 섞이거나 어느 쪽도 아니면 이 파일은 버린다.
   const keys = parsePointerKey(`${epicId}/${bpId}`);
   if (!keys) return null;
-  const rel = toPosix(path.relative(repoReal, abs));
+  const rel = input.rel;
   const rows = parseTaskCommitRows(rec.task_commits, epicId, bpId, keys.format);
   const explainSections = parseExplainSections(parsed.body);
   const sections: SelectedSection[] = [];
   pushSection(sections, 'Background', stripExcludedHeadings(explainSections.background));
   pushSection(sections, 'Intuition', stripExcludedHeadings(explainSections.intuition));
   pushSection(sections, 'Code', stripExcludedHeadings(explainSections.code));
-  return { rel, epicId, bpId, intentId: formatStableIntentId(keys), body: parsed.body, rows, sections };
+  return {
+    rel,
+    epicId,
+    bpId,
+    intentId: formatStableIntentId(keys),
+    body: parsed.body,
+    rows,
+    sections,
+    blob_sha: input.blobSha,
+  };
 }
 
 /**
@@ -1031,9 +1131,281 @@ function isInsideRepo(absPath: string, repoReal: string): boolean {
   return absPath.startsWith(prefix);
 }
 
+/**
+ * 두 조회가 공유하는 연결·정렬 핵심이다. 커밋마다 trailer를 먼저 보고, trailer가 없을 때만 Explain SHA 역색인으로
+ * task를 찾는다. 연결된 커밋에 freshness를 매기고 기존 순서(freshness 순위, 커밋 시각 내림차순, 커밋 SHA,
+ * Explain 경로)로 세운다. 본문 예산과 limit은 호출자가 맡는다. total_linked를 세야 해서 전부 돌려준다.
+ *
+ * @param {object} input - 연결 입력
+ * @param {GitRun} input.run - 이 조회의 Git 실행기. 작업 트리 또는 고정 SHA
+ * @param {CommitMeta[]} input.metas - 함수 이력 후보 커밋
+ * @param {Registry} input.registry - 등록부. 없거나 깨졌으면 null이라 원래 문자열끼리 비교한다
+ * @param {ExplainDoc[]} input.explains - 파싱에 성공한 Explain
+ * @param {(sha8: string) => ShaExpand} input.expand - 짧은 SHA 펼침 방식
+ * @returns {RankedLink[]} 정렬된 연결. 없으면 빈 배열이다
+ */
+function linkAndRank(input: {
+  run: GitRun;
+  metas: CommitMeta[];
+  registry: Registry;
+  explains: ExplainDoc[];
+  expand: (sha8: string) => ShaExpand;
+}): RankedLink[] {
+  const shaIndex = buildShaIndex(input.explains, input.expand);
+  const linked: LinkedDraft[] = [];
+  for (const meta of input.metas) {
+    const hit = linkCommit(input.run, meta.sha, input.explains, shaIndex, input.registry);
+    if (!hit) continue;
+    const doc = input.explains.find((item) => item.rel === hit.explain);
+    const taskDigits = taskDigitsOf(hit.task);
+    linked.push({
+      ...meta,
+      task: hit.task,
+      explain: hit.explain,
+      sections: doc ? selectSections(doc, taskDigits) : [],
+      explain_blob_sha: doc ? doc.blob_sha : null,
+    });
+  }
+  if (linked.length === 0) return [];
+
+  const currentSha = pickCurrentSha(input.metas);
+  const ranked: RankedLink[] = linked.map((item) => {
+    const freshness = freshnessOf(item, linked, currentSha);
+    return {
+      relation: item.relation,
+      commit: item.sha,
+      task: item.task,
+      explain: item.explain,
+      explain_blob_sha: item.explain_blob_sha,
+      freshness,
+      // historical 연결은 현재 동작의 근거로 쓰지 않도록 절을 비운다.
+      parts: freshness === 'historical' ? [] : item.sections,
+      ct: item.ct,
+    };
+  });
+
+  ranked.sort((left, right) => {
+    const rank = FRESHNESS_RANK[left.freshness] - FRESHNESS_RANK[right.freshness];
+    if (rank !== 0) return rank;
+    if (right.ct !== left.ct) return right.ct - left.ct;
+    if (left.commit !== right.commit) return left.commit < right.commit ? -1 : 1;
+    return left.explain < right.explain ? -1 : 1;
+  });
+  return ranked;
+}
+
+/**
+ * historyRef 하나의 Git 이력과 트리로 provenance를 만든다. 작업 트리·HEAD·인덱스는 읽지 않으므로 같은 입력은
+ * 같은 canonical JSON과 digest를 낸다. 리뷰 중인 작업 트리 변경이 근거를 바꾸지 못하게 하는 것이 목적이다.
+ *
+ * symbolRef는 historyRef 트리의 정의와 정확히 맞아야 한다. 이름이 같은 다른 파일의 정의로 대체하지 않는다.
+ * 연결 없음, Explain 없음, registry 없음은 throw가 아니라 상태 값으로 돌려준다.
+ *
+ * @param {object} input - 조회 입력
+ * @param {string} input.repoRoot - 저장소 루트. Git 객체 DB만 읽는다
+ * @param {string} input.historyRef - 7~40자 hex 커밋 참조. 확정된 40자 SHA로 고정된다
+ * @param {SymbolRef} input.symbolRef - historyRef 시점의 정의 좌표와 blob SHA
+ * @param {number} [input.limit] - 반환 후보 수. 생략 시 3, 허용 1..5. total_linked는 limit 적용 전이다
+ * @returns {IntentAtRevisionResult} 상태(resolved·unlinked), Explain 수, registry blob SHA, 후보, digest
+ * @throws {Error} historyRef·limit·symbolRef 형태가 틀리거나, 정의 신원이 맞지 않거나, Git이 실패하거나
+ *   출력이 상한을 넘으면 던진다. 메시지는 비어 있지 않다
+ */
+function resolveIntentAtRevision(input: IntentAtRevisionInput): IntentAtRevisionResult {
+  // 1. limit와 symbolRef 형태는 Git을 띄우기 전에 거절한다. 잘못된 입력이 Git 호출을 만들지 않게 한다.
+  const limit = requireLimit(input.limit);
+  const symbolRef = requireSymbolRefShape(input.symbolRef);
+  // 2. historyRef를 40자 SHA로 확정한다. 이 뒤의 모든 읽기는 확정된 SHA만 쓴다.
+  const sha = resolveHistoryRef({ repoRoot: input.repoRoot, ref: input.historyRef });
+  // 3. 정의 신원이 이 SHA에서 맞지 않으면 이력을 읽지 않는다. 같은 이름의 다른 정의로 대체하지 않는다.
+  requireSymbolIdentityAt({ repoRoot: input.repoRoot, sha, symbolRef });
+
+  const run: GitRun = (args) => runGit(input.repoRoot, args, { maxBuffer: PINNED_GIT_MAX_BUFFER });
+  // 4. 이력·registry·Explain을 모두 같은 SHA에서 읽는다. 작업 트리와 HEAD는 여기서 읽지 않는다.
+  const metas = collectCommitMetas(run, symbolRef, symbolRef.qualified_name, sha);
+  const registryRead = readRegistryAt({ repoRoot: input.repoRoot, ref: sha });
+  // 깨진 registry는 던지지 않고 invalid로 온다. 연결에는 registry가 없는 것처럼 null을 쓰되, registry_blob_sha는
+  // 그 blob SHA를 그대로 보고한다. 그래야 "없음(null)"과 "있으나 깨짐(SHA)"이 구분된다.
+  const registry = registryRead.status === 'ok' && registryRead.registry.ok ? registryRead.registry.registry : null;
+  const explains: ExplainDoc[] = [];
+  for (const source of listExplainSourcesAt({ repoRoot: input.repoRoot, ref: sha })) {
+    // 작업 트리 walker와 같은 제외 규칙을 쓴다. 같은 트리라면 두 경로가 같은 Explain 집합을 본다.
+    if (source.rel.split('/').some((segment) => SKIP_DIR_NAMES.has(segment))) continue;
+    const doc = parseExplainText({ rel: source.rel, raw: source.text, blobSha: source.blob_sha });
+    // 파싱에 실패해 버려진 문서는 explain_docs에도 세지 않는다. Explain 부재와 연결 부재를 구분하는 기준이다.
+    if (doc) explains.push(doc);
+  }
+
+  // 5. 짧은 SHA는 historyRef에서 도달 가능한 커밋 안에서만 펼친다. 객체 DB 전체로 펼치면 historyRef 밖의 객체가
+  // 모호성을 만들어 같은 입력의 결과가 저장소 상태에 따라 달라진다.
+  const reachable = revListShas(run, sha);
+  const ranked = linkAndRank({
+    run,
+    metas,
+    registry,
+    explains,
+    expand: (sha8) => expandShaAmong(reachable, sha8),
+  });
+
+  // 6. limit은 출력 후보만 자른다. total_linked는 자르기 전 연결 수다.
+  const candidates: IntentAtRevisionCandidate[] = ranked.slice(0, limit).map((item) => ({
+    relation: item.relation,
+    commit: item.commit,
+    task: item.task,
+    explain: item.explain,
+    explain_blob_sha: requireBlobSha(item.explain_blob_sha),
+    freshness: item.freshness,
+    sections: item.parts.map((part) => ({ name: part.name, body: part.body })),
+  }));
+  const body: Omit<IntentAtRevisionResult, 'digest'> = {
+    schema_version: 1,
+    projection_version: INTENT_AT_REVISION_PROJECTION,
+    history_ref: sha,
+    symbol_ref: symbolRef,
+    status: ranked.length > 0 ? 'resolved' : 'unlinked',
+    explain_docs: explains.length,
+    registry_blob_sha: registryRead.blob_sha,
+    total_linked: ranked.length,
+    candidates,
+  };
+  // 7. digest는 digest를 뺀 객체의 canonical JSON 해시다. 키 순서에 흔들리지 않는다.
+  return { ...body, digest: sha256Canonical(body) };
+}
+
+/**
+ * 고정 SHA 조회의 Explain은 항상 blob SHA를 가진다. null이 오면 구현 불변식이 깨진 것이므로 던진다.
+ *
+ * @param {string | null} value - Explain blob SHA
+ * @returns {string} 확인된 blob SHA
+ * @throws {Error} null이면 내부 불변식 위반이다
+ */
+function requireBlobSha(value: string | null): string {
+  if (value === null) throw new Error('explain blob sha is missing for a pinned candidate');
+  return value;
+}
+
+/**
+ * 고정 SHA의 `task_commits` 짧은 SHA를 historyRef 도달 커밋 목록 안에서 펼친다. 파일 시스템을 읽지 않는 순수 함수다.
+ * 접두사가 같은 커밋이 둘 이상이면 하나를 고르지 않고 ambiguous다. 목록 밖 객체는 모호성에 넣지 않는다.
+ *
+ * @param {string[]} commits - 40자 소문자 hex 커밋 목록
+ * @param {string} sha8 - 8자 소문자 hex 접두사
+ * @returns {ShaExpand} 하나면 unique(40자), 둘 이상이면 ambiguous, 없으면 missing.
+ *   입력이 위 형식이 아니면 missing이다
+ */
+function expandShaAmong(commits: string[], sha8: string): ShaExpand {
+  if (typeof sha8 !== 'string' || !SHORT_SHA_RE.test(sha8)) return { status: 'missing' };
+  if (!Array.isArray(commits) || !commits.every((item) => typeof item === 'string' && FULL_SHA_RE.test(item))) {
+    return { status: 'missing' };
+  }
+  const matches = commits.filter((item) => item.startsWith(sha8));
+  if (matches.length === 0) return { status: 'missing' };
+  if (matches.length > 1) return { status: 'ambiguous' };
+  return { status: 'unique', full: matches[0] };
+}
+
+/**
+ * historyRef에서 도달 가능한 커밋 SHA를 한 번 읽는다. 고정 SHA 조회에서 짧은 SHA를 펼치는 유일한 근거다.
+ *
+ * @param {GitRun} run - 고정 SHA Git 실행기
+ * @param {string} sha - 확정된 40자 SHA
+ * @returns {string[]} 도달 가능한 커밋 목록
+ * @throws {Error} git rev-list가 실패하거나 출력이 상한을 넘으면
+ */
+function revListShas(run: GitRun, sha: string): string[] {
+  const result = run(['rev-list', sha]);
+  if (result.status !== 0) throw gitFailure('git rev-list failed', result);
+  return result.stdout.split('\n').map((line) => line.trim()).filter((line) => line !== '');
+}
+
+/**
+ * 호출 전에 symbolRef 형태를 검사하고 허용된 여섯 필드만 복사한다. 형태 오류는 `invalid symbolRef:`로 거절한다.
+ * path 규칙은 intent-revision의 assertRepoPath와 같다. 그 함수는 export되지 않아 같은 규칙을 여기 둔다.
+ * 두 벌이 갈라지면 형태 오류가 Git 단계까지 밀려 메시지 접두사가 달라진다.
+ *
+ * @param {unknown} value - 호출자가 넘긴 symbolRef
+ * @returns {SymbolRef} 검증된 좌표의 복사본
+ * @throws {Error} 형태가 틀리면 `invalid symbolRef: <사유>`
+ */
+function requireSymbolRefShape(value: unknown): SymbolRef {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalidSymbolRef('must be an object');
+  const record = value as Record<string, unknown>;
+  if (!isRepoRelativePath(record.path)) invalidSymbolRef('path must be a repo-relative path');
+  if (typeof record.qualified_name !== 'string' || record.qualified_name === '') {
+    invalidSymbolRef('qualified_name must be a non-empty string');
+  }
+  if (typeof record.kind !== 'string' || record.kind === '') invalidSymbolRef('kind must be a non-empty string');
+  if (typeof record.blob_sha !== 'string' || !FULL_SHA_RE.test(record.blob_sha)) {
+    invalidSymbolRef('blob_sha must be 40 lowercase hex characters');
+  }
+  const start = record.start_line;
+  const end = record.end_line;
+  if (!isLineNumber(start) || !isLineNumber(end) || start > end) {
+    invalidSymbolRef('start_line and end_line must be integers with 1 <= start_line <= end_line');
+  }
+  return {
+    path: record.path,
+    qualified_name: record.qualified_name,
+    kind: record.kind,
+    start_line: start,
+    end_line: end,
+    blob_sha: record.blob_sha,
+  };
+}
+
+function invalidSymbolRef(reason: string): never {
+  throw new Error(`invalid symbolRef: ${reason}`);
+}
+
+/**
+ * 저장소 상대 경로 형태인지 본다. 절대 경로·역슬래시·빈 세그먼트·`.`·`..`는 같은 파일을 여러 이름으로 가리키므로 거절한다.
+ *
+ * @param {unknown} value - 검사할 값
+ * @returns {boolean} 형태가 맞으면 true
+ */
+function isRepoRelativePath(value: unknown): value is string {
+  if (typeof value !== 'string' || value === '') return false;
+  if (value.startsWith('/') || value.includes('\\')) return false;
+  return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+}
+
+function isLineNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+}
+
+/**
+ * historyRef 트리에서 symbolRef가 가리키는 정의가 정확히 같은지 확인한다. 경로가 파싱된 파일이고 blob SHA가 같으며
+ * (qualified_name, kind, start_line, end_line)이 모두 같은 정의가 있어야 통과한다. 통과하기 전에는 이력을 읽지 않는다.
+ *
+ * @param {object} input - 조회 입력
+ * @param {string} input.repoRoot - 저장소 루트
+ * @param {string} input.sha - 확정된 40자 SHA
+ * @param {SymbolRef} input.symbolRef - 형태가 검증된 좌표
+ * @returns {void}
+ * @throws {Error} 경로가 파싱된 파일이 아니거나 blob SHA·정의가 다르면 `symbolRef does not match ...`
+ */
+function requireSymbolIdentityAt(input: { repoRoot: string; sha: string; symbolRef: SymbolRef }): void {
+  const { symbolRef } = input;
+  const mismatch = (): Error => new Error(
+    `symbolRef does not match the definitions at ${input.sha}: ${symbolRef.path} ${symbolRef.qualified_name}`,
+  );
+  const file = listDefinitionsAtRevision({ repoRoot: input.repoRoot, ref: input.sha, path: symbolRef.path });
+  // 1. 부재·symlink·submodule·파싱 실패는 정의가 없다는 뜻이다. 다른 상태로 나눠도 신원은 맞지 않는다.
+  if (file.status !== 'parsed') throw mismatch();
+  // 2. 같은 경로라도 blob이 다르면 다른 본문이다.
+  if (file.blob_sha !== symbolRef.blob_sha) throw mismatch();
+  // 3. 좌표 네 개가 모두 같은 정의만 인정한다. 같은 이름이 다른 줄에 있으면 그 줄은 다른 정의다.
+  const found = file.definitions.some((item) => item.qualified_name === symbolRef.qualified_name
+    && item.kind === symbolRef.kind
+    && item.start_line === symbolRef.start_line
+    && item.end_line === symbolRef.end_line);
+  if (!found) throw mismatch();
+}
+
 export = {
   isCanonicalExplainPath,
   resolveIntentProvenance,
+  resolveIntentAtRevision,
+  expandShaAmong,
   projectSectionHashes,
   projectExplainSectionHashes,
   projectExplainSectionBodies,
