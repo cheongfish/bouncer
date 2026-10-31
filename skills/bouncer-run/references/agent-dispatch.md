@@ -324,7 +324,9 @@ dispatch, and the dispatch receives that same value.
   Claude Code hook `additionalContext` changes dispatch facts, report the
   change to the user. The implementer's worker record is `bouncer coordinate worker-model
   --blueprint <dir> --role implementer --model <value> --task <NNN> --tokens
-  <n>`, written when the host reports the worker's tokens.
+  <n>`, written when the host reports the worker's tokens. The `--model <value>`
+  of that `worker-model` record is the same `bouncer subagent-model --agent bouncer-implementer`
+  line the dispatch used, never the `inherit` of the implementer file's frontmatter.
 - **Debugger.** Immediately before each debugger dispatch, record `bouncer
   coordinate worker-model --blueprint <dir> --role debugger --model <value>
   --task <NNN>`. A rejected model stops dispatch; do not record a retry value.
