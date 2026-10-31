@@ -8,11 +8,11 @@ bouncer ontology file --file src/cli.ts --repo /path/to/checkout --limit 10
 bouncer ontology impact --file docs/context-ontology.md
 ```
 
-`--repo`를 생략하면 현재 디렉터리를 사용한다. 상대 경로는 현재 디렉터리 기준으로 해석되며, 해당 경로가 Git checkout 자체여야 한다. 하위 디렉터리에서 실행해도 저장소 루트로 자동 이동하지 않는다. `--limit`은 기본 20, 범위는 1부터 100이다. 결과 배열은 안정적으로 정렬되고, `total`은 전체 개수이며 `truncated`는 지정한 limit 때문에 일부가 생략됐음을 나타낸다.
+`--repo`를 생략하면 현재 디렉터리를 사용한다. 상대 경로는 현재 디렉터리 기준으로 해석되며, 해당 경로가 Git checkout 자체여야 한다. 하위 디렉터리에서 실행해도 저장소 루트로 자동 이동하지 않는다. `--limit`은 기본 20, 범위는 1부터 100이다. `--warnings`는 `summary`(기본) 또는 `detail`이다. 결과 배열은 안정적으로 정렬되고, `total`은 전체 개수이며 `truncated`는 지정한 limit 때문에 일부가 생략됐음을 나타낸다.
 
 질의는 정확히 일치한다. 예를 들어 `entity`는 토큰을 부분 검색하지 않고 `file`은 저장소 상대 경로만 받는다. `impact`는 주어진 파일과 직접 연결된 blueprint에서 시작해 공유 엔티티나 파일을 통해 한 단계만 확장한다. 이 관계는 발견 후보를 보여줄 뿐 인과 관계나 실제 변경 영향을 증명하지 않는다.
 
-정상 응답에는 결과가 없어도 `version`, 질의, `results`, `total`, `truncated`, `warnings`가 포함된다. 빈 `results`는 일치 항목이 없다는 뜻이다. 반면 `warnings`는 읽을 수 없는 문서나 제외된 경로처럼 색인 과정에서 확인한 제한을 별도로 알린다. 경고가 있어도 사용 가능한 결과는 반환한다. draft 문서도 색인 대상이므로 상태를 확인한 뒤 해석한다.
+정상 응답에는 결과가 없어도 `version`, 질의, `results`, `total`, `truncated`, `warnings`가 포함된다. 빈 `results`는 일치 항목이 없다는 뜻이다. 기본 `warnings`는 `{ "total": <n>, "by_code": { "<code>": <n> } }` 요약이다. `by_code` 키는 코드 사전순이며 개수 합이 `total`과 같다. 경고가 없으면 `{ "total": 0, "by_code": {} }`이다. `--warnings detail`일 때만 `details` 배열이 붙고, 항목은 `{code, source, line, detail}`이며 코드·출처·줄·설명 순이다. 경고가 있어도 사용 가능한 결과는 반환한다. draft 문서도 색인 대상이므로 상태를 확인한 뒤 해석한다.
 
 잘못된 옵션, 안전하지 않은 경로, 범위를 벗어난 limit, 코어가 거절하는 입력은 stderr에 `ontology:` 설명을 출력하고 exit 2로 끝난다. 저장소나 파일 I/O 실패는 stderr와 exit 1을 사용한다. stdout은 성공한 JSON 한 줄에만 사용한다.
 

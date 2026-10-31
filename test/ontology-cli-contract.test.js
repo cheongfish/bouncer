@@ -19,7 +19,46 @@ const PIPE_CUTOFF = 65536;
 const LARGE_BUFFER = 4 * 1024 * 1024;
 const EPIPE_TIMEOUT_MS = 20_000;
 
+const EXPECTED_WARNING_SUMMARY = {
+  total: 5,
+  by_code: { 'document-invalid': 3, 'path-rejected': 2 },
+};
+const EXPECTED_WARNING_DETAILS = [
+  {
+    code: 'document-invalid',
+    source: '.bouncer/context/epics/e1/blueprints/bad-1/index.md',
+    line: 0,
+    detail: 'frontmatter is invalid',
+  },
+  {
+    code: 'document-invalid',
+    source: '.bouncer/context/epics/e1/blueprints/bad-2/index.md',
+    line: 0,
+    detail: 'frontmatter is invalid',
+  },
+  {
+    code: 'document-invalid',
+    source: '.bouncer/context/epics/e1/blueprints/bad-3/index.md',
+    line: 0,
+    detail: 'frontmatter is invalid',
+  },
+  {
+    code: 'path-rejected',
+    source: '.bouncer/context/notes/a.md',
+    line: 0,
+    detail: 'document path is outside the canonical context layout',
+  },
+  {
+    code: 'path-rejected',
+    source: '.bouncer/context/notes/b.md',
+    line: 0,
+    detail: 'document path is outside the canonical context layout',
+  },
+];
+
 let fixtureRepo = null;
+let warningRepo = null;
+let cleanRepo = null;
 let epipeDir = null;
 
 /**
@@ -47,6 +86,54 @@ function createLargeOntologyFixture() {
       type: 'bouncer.blueprint',
       bouncer: { id: slug, status: 'approved' },
     }, `# ${slug}\n\n## Contract\n\n${tokens.join(' ')}\n`);
+  }
+  return root;
+}
+
+/**
+ * 경고 계약용 저장소를 만든다. 깨진 blueprint 3개와 layout 밖 Markdown 2개만 두어
+ * 기대 경고 5건을 문서 구성에서 셀 수 있게 한다. 100건 fixture와 분리한다.
+ *
+ * @returns {string} git init된 fixture 루트 절대 경로
+ */
+function createWarningOntologyFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-warn-'));
+  const git = spawnSync('git', ['init', '-q'], { cwd: root, encoding: 'utf8' });
+  assert.equal(git.status, 0, git.stderr);
+  for (const slug of ['bad-1', 'bad-2', 'bad-3']) {
+    const rel = `.bouncer/context/epics/e1/blueprints/${slug}/index.md`;
+    const abs = path.join(root, ...rel.split('/'));
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, 'not-frontmatter\n');
+  }
+  for (const name of ['a.md', 'b.md']) {
+    const rel = `.bouncer/context/notes/${name}`;
+    const abs = path.join(root, ...rel.split('/'));
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, '# note\n');
+  }
+  return root;
+}
+
+/**
+ * 경고가 나오지 않는 작은 저장소를 만든다. 앞 task의 100건 fixture를 재사용하지 않는다.
+ *
+ * @returns {string} git init된 fixture 루트 절대 경로
+ */
+function createCleanOntologyFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-clean-'));
+  const git = spawnSync('git', ['init', '-q'], { cwd: root, encoding: 'utf8' });
+  assert.equal(git.status, 0, git.stderr);
+  const epicRel = '.bouncer/context/epics/e1';
+  writeContextDoc(root, `${epicRel}/index.md`, {
+    type: 'bouncer.epic',
+    bouncer: { id: 'e1', status: 'approved' },
+  }, '# e1\n');
+  for (const slug of ['bp-a', 'bp-b', 'bp-c']) {
+    writeContextDoc(root, `${epicRel}/blueprints/${slug}/index.md`, {
+      type: 'bouncer.blueprint',
+      bouncer: { id: slug, status: 'approved' },
+    }, `# ${slug}\n\n## Contract\n\n\`${SHARED_TOKEN}\`\n`);
   }
   return root;
 }
@@ -109,6 +196,32 @@ function ontologyArgv(repo) {
 }
 
 /**
+ * 경고·거절 계약용 ontology argv. extra는 --warnings·--limit처럼 뒤에 붙는 옵션이다.
+ *
+ * @param {string} repo - --repo 절대 경로
+ * @param {string[]} [extra] - entity 공통 인자 뒤에 붙일 옵션
+ * @returns {string[]} node 다음의 bouncer argv
+ */
+function ontologyEntityArgv(repo, extra = []) {
+  return [BOUNCER, 'ontology', 'entity', '--entity', SHARED_TOKEN, '--repo', repo, ...extra];
+}
+
+/**
+ * ontology entity를 한 번 실행한다.
+ *
+ * @param {string} repo - fixture 루트
+ * @param {string[]} [extra] - 추가 옵션
+ * @returns {import('node:child_process').SpawnSyncReturns<string>} spawn 결과
+ */
+function runOntologyEntity(repo, extra = []) {
+  return spawnSync(process.execPath, ontologyEntityArgv(repo, extra), {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    maxBuffer: LARGE_BUFFER,
+  });
+}
+
+/**
  * stdout을 파일 디스크립터로 리다이렉트해 파이프 절단과 무관한 전체 출력을 받는다.
  *
  * @param {string} repo - fixture 루트
@@ -136,11 +249,15 @@ function runOntologyToFile(repo, outPath) {
 
 test.before(() => {
   fixtureRepo = createLargeOntologyFixture();
+  warningRepo = createWarningOntologyFixture();
+  cleanRepo = createCleanOntologyFixture();
   epipeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-epipe-'));
 });
 
 test.after(() => {
   if (fixtureRepo) fs.rmSync(fixtureRepo, { recursive: true, force: true });
+  if (warningRepo) fs.rmSync(warningRepo, { recursive: true, force: true });
+  if (cleanRepo) fs.rmSync(cleanRepo, { recursive: true, force: true });
   if (epipeDir) fs.rmSync(epipeDir, { recursive: true, force: true });
 });
 
@@ -227,3 +344,84 @@ test(
     assert.equal(result.error, undefined);
   },
 );
+
+test('기본 질의는 → warnings가 {total, by_code} 요약이고 항목 본문이 없다', () => {
+  const result = runOntologyEntity(warningRepo);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepStrictEqual(parsed.warnings, EXPECTED_WARNING_SUMMARY);
+  assert.equal(Object.hasOwn(parsed.warnings, 'details'), false);
+  assert.equal(result.stdout.includes('bad-1'), false);
+});
+
+test('--warnings detail은 → details 5건이 total·by_code와 일치하고 항목 모양이 같다', () => {
+  const result = runOntologyEntity(warningRepo, ['--warnings', 'detail']);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.warnings.total, 5);
+  assert.deepStrictEqual(parsed.warnings.by_code, EXPECTED_WARNING_SUMMARY.by_code);
+  assert.deepStrictEqual(parsed.warnings.details, EXPECTED_WARNING_DETAILS);
+});
+
+test('--warnings summary 명시는 → 기본 질의와 같은 응답이다', () => {
+  const implicit = runOntologyEntity(warningRepo);
+  const explicit = runOntologyEntity(warningRepo, ['--warnings', 'summary']);
+  assert.equal(implicit.status, 0, implicit.stderr);
+  assert.equal(explicit.status, 0, explicit.stderr);
+  assert.deepStrictEqual(JSON.parse(explicit.stdout), JSON.parse(implicit.stdout));
+});
+
+test('경고 없는 저장소는 → warnings가 {total: 0, by_code: {}}이다', () => {
+  const result = runOntologyEntity(cleanRepo);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepStrictEqual(parsed.warnings, { total: 0, by_code: {} });
+});
+
+test('warnings 옵션과 무관하게 → results·total·truncated가 같고 --limit 1이면 truncated가 true다', () => {
+  const summary = runOntologyEntity(cleanRepo, ['--warnings', 'summary']);
+  const detail = runOntologyEntity(cleanRepo, ['--warnings', 'detail']);
+  assert.equal(summary.status, 0, summary.stderr);
+  assert.equal(detail.status, 0, detail.stderr);
+  const summaryBody = JSON.parse(summary.stdout);
+  const detailBody = JSON.parse(detail.stdout);
+  assert.deepStrictEqual(detailBody.results, summaryBody.results);
+  assert.deepStrictEqual(detailBody.total, summaryBody.total);
+  assert.deepStrictEqual(detailBody.truncated, summaryBody.truncated);
+  assert.deepStrictEqual(detailBody.query, summaryBody.query);
+
+  const limited = runOntologyEntity(cleanRepo, ['--limit', '1']);
+  assert.equal(limited.status, 0, limited.stderr);
+  const limitedBody = JSON.parse(limited.stdout);
+  assert.equal(limitedBody.results.length, 1);
+  assert.equal(limitedBody.total, 3);
+  assert.equal(limitedBody.truncated, true);
+});
+
+test('--warnings 값이 잘못되면 → exit 2와 stderr 설명, stdout 비어 있음', () => {
+  const cases = [
+    { extra: ['--warnings', 'bogus'], stderr: 'ontology: --warnings must be summary or detail\n' },
+    { extra: ['--warnings'], stderr: 'ontology: --warnings requires a value\n' },
+    {
+      extra: ['--warnings', 'summary', '--warnings', 'detail'],
+      stderr: 'ontology: --warnings may be specified only once\n',
+    },
+  ];
+  for (const { extra, stderr } of cases) {
+    const result = runOntologyEntity(warningRepo, extra);
+    assert.equal(result.status, 2, extra.join(' '));
+    assert.equal(result.stdout.length, 0, extra.join(' '));
+    assert.equal(result.stderr, stderr, extra.join(' '));
+  }
+});
+
+test('ontology --help는 → --warnings를 안내한다', () => {
+  const { COMMAND_USAGE } = require('../packages/cli/dist/cli-usage');
+  const result = spawnSync(process.execPath, [BOUNCER, 'ontology', '--help'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, COMMAND_USAGE.ontology);
+  assert.equal(result.stdout.includes('--warnings'), true);
+});
