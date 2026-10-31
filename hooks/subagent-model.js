@@ -8,6 +8,20 @@ const ROLES = new Set(['reviewer', 'debugger', 'implementer', 'coordinator', 'co
 const MODEL_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/@+\x5B\]-]*$/;
 const EFFORTS = new Set(['low', 'medium', 'high']);
 const COMMAND_TIMEOUT_MS = 20000;
+// Claude Code의 Agent 도구 model 인자는 계열 별칭(opus·sonnet·haiku·fable)만 받는다. 풀 슬러그를 돌려주면
+// 호스트가 훅의 updatedInput을 스키마 위반으로 거절하므로, 별칭이 있는 계열은 별칭으로 바꿔 쓴다.
+const CLAUDE_FAMILY = /^claude-(opus|sonnet|haiku|fable)(?:-|$)/;
+
+/**
+ * 풀 슬러그를 Agent 도구가 받는 계열 별칭으로 바꾼다. 계열을 알 수 없는 값은 그대로 둔다.
+ *
+ * @param {string} model - config가 돌려준 모델 토큰
+ * @returns {string} 별칭 또는 원래 토큰
+ */
+function toAgentModel(model) {
+  const family = CLAUDE_FAMILY.exec(model);
+  return family ? family[1] : model;
+}
 
 /**
  * 조회 stdout(끝 개행 하나 제거 후)을 해석한다. JSON 객체면 model·effort를 검증해 돌려주고,
@@ -64,7 +78,8 @@ function isStrongTierModel(role, cwd, model) {
     // JSON.parse의 SyntaxError만 여기로 온다: --tier를 모르는 옛 runtime의 평문이므로 확인 불가로 처리한다.
     return false;
   }
-  return Boolean(parsed) && typeof parsed === 'object' && parsed.source === 'tier' && parsed.model === model;
+  return Boolean(parsed) && typeof parsed === 'object' && parsed.source === 'tier'
+    && toAgentModel(parsed.model) === toAgentModel(model);
 }
 
 /**
@@ -115,7 +130,8 @@ function handle(raw) {
   if (!lookup) {
     return fail(role, '모델 조회 결과가 JSON 객체도 단일 모델 토큰도 아닙니다. Bouncer CLI 출력을 확인하세요.');
   }
-  const { model, effort, legacy } = lookup;
+  const { effort, legacy } = lookup;
+  const model = toAgentModel(lookup.model);
 
   const previous = input.model;
   let replacement;
