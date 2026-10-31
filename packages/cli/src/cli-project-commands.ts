@@ -618,9 +618,9 @@ export = {
   },
   ontology: {
     run: cmdOntologyLazy,
-    usage: `  ontology   entity --entity <token> [--repo <dir>] [--limit <1..100>]
-             file --file <path> [--repo <dir>] [--limit <1..100>]
-             impact --file <path> [--repo <dir>] [--limit <1..100>]
+    usage: `  ontology   entity --entity <token> [--repo <dir>] [--limit <1..100>] [--warnings <summary|detail>]
+             file --file <path> [--repo <dir>] [--limit <1..100>] [--warnings <summary|detail>]
+             impact --file <path> [--repo <dir>] [--limit <1..100>] [--warnings <summary|detail>]
              Search canonical Bouncer context in memory (read-only JSON).
 `,
   },

@@ -278,7 +278,7 @@ function loadContextOntology(input: { repoRoot: string }): Ontology {
 
 /**
  * 색인에서 정확 엔티티·파일 일치 또는 한 단계 영향 결과를 결정적으로 반환한다.
- * limit과 질의 값을 먼저 검증하고 입력 색인을 변경하지 않는다.
+ * file·impact는 git --follow 이름 집합의 합집합을 쓰고, 색인 자체는 변경하지 않는다.
  *
  * @param {Ontology} index - loadContextOntology가 반환한 색인
  * @param {Query} query - entity, file, impact 중 하나와 검색 값
@@ -302,7 +302,16 @@ function queryContextOntology(index: Ontology, query: Query): object {
     (query.mode === 'entity' && (hasNonAscii || /\s/.test(query.value)))
   ) throw inputError('invalid entity token');
   if (query.mode !== 'entity') validateFileQuery(query.value);
-  const matching = query.mode === 'entity' ? index.entities.get(query.value) : index.files.get(query.value);
+  // 이름 집합은 질의마다 계산한다. 색인·모듈 캐시에 넣으면 커밋 사이 이력이 고정된다.
+  const names = query.mode === 'entity'
+    ? [query.value]
+    : collectRenameNames(index.repoRoot, query.value);
+  const aliases = query.mode === 'entity'
+    ? []
+    : names.filter((name) => name !== query.value).sort(compare);
+  const matching = query.mode === 'entity'
+    ? index.entities.get(query.value)
+    : unionFileMatches(index, names);
   const direct = new Set(matching ?? []);
   let selected = direct;
   const via = new Map<string, string[]>();
@@ -311,7 +320,7 @@ function queryContextOntology(index: Ontology, query: Query): object {
     const starts = [...direct];
     for (const bp of starts) {
       via.set(bp, [bp]);
-      evidenceByBp.set(bp, [...(index.fileEvidence.get(bp)?.get(query.value) ?? [])]);
+      evidenceByBp.set(bp, unionFileEvidence(index, bp, names));
     }
     const expanded = new Set<string>(starts);
     const sharedEntities = new Set<string>();
@@ -326,6 +335,9 @@ function queryContextOntology(index: Ontology, query: Query): object {
     }
     for (const bp of starts) {
       for (const token of sharedEntities) {
+        // 합집합 시작점마다 그 bp가 가진 토큰만 확장한다. 공유 집합 전체를
+        // 쓰면 현재 이름 bp가 과거 이름 이웃의 via를 가로챈다.
+        if (!index.entities.get(token)?.has(bp)) continue;
         for (const other of index.entities.get(token) ?? []) {
           if (expanded.has(other)) continue;
           expanded.add(other);
@@ -339,6 +351,7 @@ function queryContextOntology(index: Ontology, query: Query): object {
     }
     for (const bp of starts) {
       for (const file of sharedFiles) {
+        if (!index.files.get(file)?.has(bp)) continue;
         for (const other of index.files.get(file) ?? []) {
           if (expanded.has(other)) continue;
           expanded.add(other);
@@ -364,7 +377,7 @@ function queryContextOntology(index: Ontology, query: Query): object {
         ? evidenceByBp.get(bp) ?? []
         : query.mode === 'entity'
           ? index.entityEvidence.get(bp)?.get(query.value) ?? []
-          : index.fileEvidence.get(bp)?.get(query.value) ?? [],
+          : unionFileEvidence(index, bp, names),
     ),
   }));
   const limited = results.slice(0, limit);
@@ -374,8 +387,82 @@ function queryContextOntology(index: Ontology, query: Query): object {
     results: limited,
     total: results.length,
     truncated: results.length > limited.length,
+    aliases,
     warnings: uniqueWarnings(index.warnings),
   };
+}
+
+/**
+ * 질의 경로 P의 git --follow 이름 집합 N(P)를 구한다.
+ * unborn HEAD와 blob이 아닌 경로에서 log가 128/오류로 떨어지는 것을 질의 실패로
+ * 올리지 않기 위해, 그 경우는 P 한 키로 접는다. 옛 이름 → 새 이름은 추적하지 않는다.
+ *
+ * @param {string} repoRoot - 색인의 저장소 루트
+ * @param {string} queryPath - validateFileQuery를 통과한 저장소 상대 경로 P
+ * @returns {string[]} P를 포함한 이름 목록(등장 순, 중복 제거)
+ */
+function collectRenameNames(repoRoot: string, queryPath: string): string[] {
+  // 1. 커밋이 없으면 log --follow가 128로 끝나 ontology-io-failed가 되므로 여기서 접는다.
+  const head = runGit(repoRoot, ['rev-parse', '--verify', '--quiet', 'HEAD']);
+  if (head.status === 1) return [queryPath];
+  if (head.status !== 0) throw ioError('git rev-parse failed for HEAD', head);
+  // 2. 디렉터리·없는 경로·pathspec 문법은 blob이 아니다. follow가 하위 파일을 끌어오거나
+  // magic을 해석하기 전에 한 키 조회로 막는다.
+  const objectType = runGit(repoRoot, ['cat-file', '-t', `HEAD:${queryPath}`]);
+  if (objectType.status !== 0 || objectType.stdout.trim() !== 'blob') return [queryPath];
+  // 3. --literal-pathspecs는 log 앞 전역 옵션이다. P를 magic 없는 리터럴로 넘긴다.
+  const logged = runGit(repoRoot, [
+    '--literal-pathspecs',
+    'log',
+    '--follow',
+    '--name-only',
+    '-M',
+    '-z',
+    '--format=',
+    '--',
+    queryPath,
+  ]);
+  if (logged.status !== 0) throw ioError(`git log failed for ${queryPath}`, logged);
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const part of logged.stdout.split('\0')) {
+    if (!part || seen.has(part)) continue;
+    seen.add(part);
+    names.push(part);
+  }
+  if (!seen.has(queryPath)) names.push(queryPath);
+  return names;
+}
+
+/**
+ * N(P) 각 이름이 가리키는 blueprint를 합친다. 기록 키는 문서 문자열 그대로 둔다.
+ *
+ * @param {Ontology} index - 파일 맵을 가진 색인
+ * @param {string[]} names - 질의 경로의 이름 집합
+ * @returns {Set<string>} 일치 blueprint 경로 집합
+ */
+function unionFileMatches(index: Ontology, names: string[]): Set<string> {
+  const matching = new Set<string>();
+  for (const name of names) {
+    for (const bp of index.files.get(name) ?? []) matching.add(bp);
+  }
+  return matching;
+}
+
+/**
+ * 한 blueprint에 대해 N(P)에 속한 이름들의 file 증거를 이어 붙인다.
+ *
+ * @param {Ontology} index - 파일 증거 맵을 가진 색인
+ * @param {string} bp - blueprint 문서 경로
+ * @param {string[]} names - 질의 경로의 이름 집합
+ * @returns {Evidence[]} 이름별 증거 배열을 이은 목록(중복 제거 전)
+ */
+function unionFileEvidence(index: Ontology, bp: string, names: string[]): Evidence[] {
+  const items: Evidence[] = [];
+  for (const name of names) {
+    items.push(...(index.fileEvidence.get(bp)?.get(name) ?? []));
+  }
+  return items;
 }
 
 /**

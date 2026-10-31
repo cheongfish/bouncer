@@ -3,7 +3,20 @@
 import path = require('node:path');
 
 type CliIo = { out: (s: string) => void; err: (s: string) => void };
-type Parsed = { mode: 'entity' | 'file' | 'impact'; value: string; repoRoot: string; limit: number };
+type WarningsMode = 'summary' | 'detail';
+type Parsed = {
+  mode: 'entity' | 'file' | 'impact';
+  value: string;
+  repoRoot: string;
+  limit: number;
+  warningsMode: WarningsMode;
+};
+type WarningItem = { code: string; source: string; line: number; detail: string };
+type WarningsSummary = {
+  total: number;
+  by_code: Record<string, number>;
+  details?: WarningItem[];
+};
 
 /**
  * ontology 명령의 argv를 검증하고, 유효한 입력에서만 메모리 색인을 만든다.
@@ -38,8 +51,15 @@ function run(rest: string[], io: CliIo): number {
       mode: parsed.mode,
       value: parsed.value,
       limit: parsed.limit,
-    });
-    io.out(`${JSON.stringify(result)}\n`);
+    }) as Record<string, unknown>;
+    // 코어 배열은 유지하고 CLI만 접는다. aliases 등 이후 필드는 키 순서를 그대로 통과시킨다.
+    const output: Record<string, unknown> = {};
+    for (const key of Object.keys(result)) {
+      output[key] = key === 'warnings'
+        ? summarizeWarnings(result[key], parsed.warningsMode)
+        : result[key];
+    }
+    io.out(`${JSON.stringify(output)}\n`);
     return 0;
   } catch (error) {
     return reportCoreError(error, io);
@@ -61,10 +81,13 @@ function parse(args: string[]): Parsed | { error: string } {
   let value: string | undefined;
   let repo: string | undefined;
   let limit = 20;
+  let warningsMode: WarningsMode = 'summary';
   const seen = new Set<string>();
   for (let i = 1; i < args.length; i++) {
     const option = args[i];
-    if (option !== selector && option !== '--repo' && option !== '--limit') {
+    if (
+      option !== selector && option !== '--repo' && option !== '--limit' && option !== '--warnings'
+    ) {
       return { error: `unknown or inapplicable option: ${option}` };
     }
     if (seen.has(option)) return { error: `${option} may be specified only once` };
@@ -75,7 +98,12 @@ function parse(args: string[]): Parsed | { error: string } {
     }
     if (option === selector) value = next;
     else if (option === '--repo') repo = next;
-    else {
+    else if (option === '--warnings') {
+      if (next !== 'summary' && next !== 'detail') {
+        return { error: '--warnings must be summary or detail' };
+      }
+      warningsMode = next;
+    } else {
       if (
         !/^\d+$/.test(next) ||
         !Number.isSafeInteger(Number(next)) ||
@@ -98,7 +126,42 @@ function parse(args: string[]): Parsed | { error: string } {
     return { error: '--file must be a safe repository-relative path' };
   }
   // 상대 경로는 process cwd 기준이다. 코어가 Git root를 검증하므로 하위 경로를 승격하지 않는다.
-  return { mode, value, repoRoot: path.resolve(repo ?? process.cwd()), limit };
+  return { mode, value, repoRoot: path.resolve(repo ?? process.cwd()), limit, warningsMode };
+}
+
+/**
+ * 코어가 중복 제거한 경고 배열을 코드별 개수 요약으로 접는다.
+ * 기본 응답에서 수백 건의 본문이 결과를 가리지 않게 하기 위함이며, detail만 원본 순서를 보존한다.
+ *
+ * @param {unknown} warnings - 코어 응답의 warnings 배열
+ * @param {WarningsMode} mode - summary면 개수만, detail이면 details도 포함
+ * @returns {WarningsSummary} total·사전순 by_code, detail일 때만 details
+ */
+function summarizeWarnings(warnings: unknown, mode: WarningsMode): WarningsSummary {
+  const items = Array.isArray(warnings) ? warnings.filter(isWarningItem) : [];
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    counts.set(item.code, (counts.get(item.code) ?? 0) + 1);
+  }
+  const byCode: Record<string, number> = {};
+  for (const code of [...counts.keys()].sort()) {
+    byCode[code] = counts.get(code) as number;
+  }
+  const summary: WarningsSummary = { total: items.length, by_code: byCode };
+  if (mode === 'detail') summary.details = items;
+  return summary;
+}
+
+/**
+ * 코어 경고 항목만 세어 요약 개수가 본문과 어긋나지 않게 한다.
+ *
+ * @param {unknown} value - warnings 배열의 원소
+ * @returns {value is WarningItem} code가 있는 경고 항목이면 true
+ */
+function isWarningItem(value: unknown): value is WarningItem {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Partial<WarningItem>;
+  return typeof item.code === 'string';
 }
 
 /**

@@ -23,4 +23,63 @@ if (fs.existsSync(sourceDir) && !require('./build-stamp').checkBuildFresh(packag
 }
 
 const { runCli } = require('../dist/cli');
-process.exit(runCli(process.argv.slice(2)));
+
+// 종료 코드를 이벤트 루프로 넘기기 전에 잡아 둔다. stdout EPIPE는 runCli 반환 뒤에
+// 비동기로 올 수 있어, 수신 측이 먼저 닫혀도(| head) 그 코드를 유지해야 한다.
+let exitCode = 0;
+
+/**
+ * stdout EPIPE만 흡수한다. 파이프 반대편이 먼저 닫혀도 성공 질의를 실패로 바꾸지 않기 위함이다.
+ * stderr나 다른 코드는 숨기면 I/O 실패가 성공으로 위장된다.
+ *
+ * @param {NodeJS.ErrnoException} err - 스트림 `error` 이벤트
+ * @returns {void}
+ */
+function onStdoutError(err) {
+  if (err && err.code === 'EPIPE') {
+    process.exit(exitCode);
+    return;
+  }
+  throw err;
+}
+
+/**
+ * stdout·stderr에 남은 바이트가 커널로 넘어간 뒤에만 같은 코드로 종료한다.
+ * `process.exit`를 write 직후 호출하면 OS 파이프 버퍼(보통 65,536바이트)에서 출력이 잘린다.
+ *
+ * @param {number} code - `runCli`가 반환한 종료 코드
+ * @returns {void}
+ */
+function exitWhenFlushed(code) {
+  let remaining = 0;
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    process.exit(code);
+  };
+
+  /**
+   * 아직 전달되지 않은 기록이 있는 스트림만 drain을 기다린다.
+   *
+   * @param {NodeJS.WriteStream} stream - stdout 또는 stderr
+   * @returns {void}
+   */
+  function wait(stream) {
+    if (!stream.writable || stream.destroyed || stream.writableEnded) return;
+    if (!stream.writableNeedDrain && stream.writableLength === 0) return;
+    remaining += 1;
+    stream.once('drain', () => {
+      remaining -= 1;
+      if (remaining === 0) finish();
+    });
+  }
+
+  wait(process.stdout);
+  wait(process.stderr);
+  if (remaining === 0) finish();
+}
+
+process.stdout.on('error', onStdoutError);
+exitCode = runCli(process.argv.slice(2));
+exitWhenFlushed(exitCode);
