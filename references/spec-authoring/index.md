@@ -238,6 +238,9 @@ body content only; never edits harness-owned frontmatter fields. Used from
      - **Checklist** (doc wording): 문서·help 문구는 피할 수 있으면 단언하지 않고 존재·구조·링크를
        단언한다. 문구 자체가 계약이면 패턴이 새 문장의 처음부터 끝까지를 묶게 쓰고, 그 문장을 지우면
        테스트가 실패하는지 확인한다. 기존 문장과 겹치는 낱말 일부만 묶는 패턴은 문장을 지워도 통과한다.
+     - **Checklist** (call form): 같은 결과라도 호출 형태가 다르면 다른 경로를 타는 셀(예: 한 기록에 값을
+       함께 담는 호출과 값을 따로 채우는 두 번째 호출)은 항목에 호출 형태를 literal로 적는다. 형태를
+       적지 않으면 구현자가 가까운 다른 형태로 읽어 테스트가 의도한 경로를 건너뛴다.
      - **complexity declaration**: record `bouncer.complexity` (`low` |
        `standard`; absence is `standard`) on the blueprint. It does not shrink
        task sections — every commit task uses the same eight sections.

@@ -62,7 +62,9 @@ how often the coordinator reports progress. After a user answer, continue with
 a new coordinator session and the same input. When a session returns, close its
 metrics record with `metrics end --blueprint` as soon as the ledger carries a
 blueprint; before that, keep the session's host tokens and duration and close
-the record with those same values right after the blueprint is bound.
+the record with those same values right after the blueprint is bound. A session
+that was already opened with `metrics start --blueprint` closes with `metrics end`
+and no `--blueprint` (passing it again is `invalid-metrics-input`).
 The coordinator returns an `outcome`. If a question the root did not answer shows an answer in `plan-ledger status`, the root stops and reports its `qid`. Any other `blocked` outcome stops with its code, message, and next; a missing or unknown outcome gets one re-dispatch with the same input, then stops as no progress. A stop leaves the ledger open so the next `/bouncer-plan` resumes it.
 
 Apply `${BOUNCER_ROOT}/AGENTS.md` hard rule 1: `.bouncer/context/**` bodies,

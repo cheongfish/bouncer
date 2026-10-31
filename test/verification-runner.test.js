@@ -394,6 +394,27 @@ test('a failing verification → keeps the output where a reader will see it', (
   assert.ok(tail.length <= 100, `bounded at the failure limit, got ${tail.length}`);
 });
 
+test('a failing run whose failed test names fall outside the last 100 lines → output keeps those names', () => {
+  const lines = ['✖ early failing case (3.2ms)', ...Array.from({ length: 300 }, (_, i) => `noise ${i}`)];
+  const result = executeVerify('node -e 0', {
+    cwd: process.cwd(),
+    exec: () => ({ status: 1, stdout: `${lines.join('\n')}\n`, stderr: '' }),
+  });
+
+  assert.strictEqual(result.ok, false);
+  assert.match(result.output, /failed tests before the tail:\n {2}✖ early failing case\n---/);
+  assert.ok(result.output.includes('noise 299'), 'the tail still ends at the last line printed');
+});
+
+test('a failing run whose failed test line is already in the tail → output is the plain tail', () => {
+  const result = executeVerify('node -e 0', {
+    cwd: process.cwd(),
+    exec: () => ({ status: 1, stdout: 'noise\n✖ visible case (1ms)\n', stderr: '' }),
+  });
+
+  assert.strictEqual(result.output, 'noise\n✖ visible case (1ms)');
+});
+
 test('runVerification → prefers tasks.bouncer.verify over config.verify', () => {
   const declared = 'node -e "process.exit(0)"';
   const repo = setupRepo('npm test');

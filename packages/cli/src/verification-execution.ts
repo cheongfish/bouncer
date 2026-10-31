@@ -28,6 +28,32 @@ function outputTail(stdout: unknown, stderr: unknown, lines = OUTPUT_TAIL_LINES)
   return combined.split('\n').slice(-lines).join('\n').trim();
 }
 
+// node:test가 실패한 테스트에 붙이는 줄 머리(`✖ 이름`). 요약 줄(`✖ failing tests:`)은 이름이 아니다.
+const FAILED_TEST_LINE = /^\s*✖ (?!failing tests:)(.+?)(?: \(\d+(?:\.\d+)?ms\))?$/;
+const MAX_FAILED_TEST_NAMES = 50;
+
+/**
+ * 실패한 실행의 증적 tail. `npm run ci`처럼 여러 단계가 이어지면 마지막 100줄이 실패한 테스트와 상관없는
+ * 요약으로 채워져 어느 테스트가 실패했는지 사후에 알 수 없다. 그래서 tail에 보이지 않는 실패 테스트 이름을
+ * 전체 출력에서 모아 tail 앞에 한 블록으로 붙인다. 이름이 없거나 모두 tail 안에 있으면 tail 그대로다.
+ * @param {unknown} stdout - 실행 표준 출력
+ * @param {unknown} stderr - 실행 표준 오류
+ * @returns {string} 실패 테스트 이름 블록(있으면)과 출력 tail
+ */
+function failureOutput(stdout: unknown, stderr: unknown): string {
+  const tail = outputTail(stdout, stderr);
+  const combined = [stdout, stderr].filter(Boolean).join('');
+  const names: string[] = [];
+  for (const line of combined.split('\n')) {
+    const match = FAILED_TEST_LINE.exec(line);
+    if (match && !names.includes(match[1]) && !tail.includes(line.trim())) names.push(match[1]);
+  }
+  if (names.length === 0) return tail;
+  const shown = names.slice(0, MAX_FAILED_TEST_NAMES).map((name) => `  ✖ ${name}`);
+  const more = names.length > shown.length ? [`  … and ${names.length - shown.length} more`] : [];
+  return ['failed tests before the tail:', ...shown, ...more, '---', tail].join('\n');
+}
+
 /**
  * cwd의 `.bouncer/config.json`에서 런타임 허용 목록을 읽는다.
  * allowlist 옵션을 생략한 finalize `executeVerify(command, { cwd })`가
@@ -133,7 +159,7 @@ function executeVerify(command: string, { cwd, exec, allowlist }: {
       return {
         ok: false,
         exitCode: 1,
-        output: outputTail(stdout, stderr),
+        output: failureOutput(stdout, stderr),
       };
     }
     const status = result && typeof result === 'object' && 'status' in result
@@ -157,7 +183,7 @@ function executeVerify(command: string, { cwd, exec, allowlist }: {
     return {
       ok: false,
       exitCode: Number.isInteger(status) ? Number(status) : 1,
-      output: outputTail(stdout, stderr),
+      output: failureOutput(stdout, stderr),
     };
   } catch (error) {
     const status = typeof error === 'object' && error !== null && 'status' in error
@@ -172,7 +198,7 @@ function executeVerify(command: string, { cwd, exec, allowlist }: {
     return {
       ok: false,
       exitCode: Number.isInteger(status) ? Number(status) : 1,
-      output: outputTail(stdout, stderr),
+      output: failureOutput(stdout, stderr),
     };
   }
 }
