@@ -638,3 +638,12 @@ test('run and rules docs → omit retired light-run vocabulary and keep light-mo
   );
 });
 
+// 리뷰어 등급·single 판정은 task 수가 아니라 복잡도 신호(파일·줄·위험)로 정한다. 설정·규칙·워크플로
+// 문서가 옛 task 수 문턱을 다시 서술하면 문서와 판정이 어긋나므로 이 구절의 부재를 확인한다.
+test('complexity threshold docs → do not describe a task 수 문턱', () => {
+  for (const rel of ['docs/configuration.md', 'rules/planning.md', 'docs/workflow.md']) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    assert.ok(!text.includes('task 수 문턱'), rel);
+  }
+});
+

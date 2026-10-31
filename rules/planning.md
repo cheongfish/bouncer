@@ -56,7 +56,8 @@ from path count, diff size, or task count.
 
 `low` changes only plan-review perspectives (`verifiability`, plus
 `risk_security` when any commit task declares `review_risk`), execute-review
-`single`/`combined`, and reviewer-tier task-count thresholds. A declared
+`single`/`combined`, and the reviewer-tier size thresholds (source files, source
+lines, modules, total files). Risk signals (`review_risk`, risk paths) stay on. A declared
 `review_risk` still adds the security perspective, and a strong reviewer tier
 stays strong on `low`. Document set, task sections, epic assignment, quiz, and
 execution path stay the same as `standard`.

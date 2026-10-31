@@ -551,8 +551,12 @@ bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --
   # discovery perspectives and security are never listed for a delta)
   # review_contract: brief, complexity standard, no --task (final review): strategy parallel, perspectives
   # spec_scope, correctness_tests; security only when review_risk has authentication|authorization|credential
-  # complexity low: single [combined] regardless of size; unmarked or --task: small diff → single [combined]; else parallel
-  # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk appends security
+  # complexity low: single [combined] regardless of size; standard (unmarked or --task): single [combined] only when
+  # source files <= 2, source lines <= 200 and no review_risk or risk path (complexity-signals); else parallel
+  # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk or a security-kind risk path appends security
+  # a non-default complexity policy adds "complexity policy non-default: ..." after the tier reason
+  # rejected before any git call: invalid review.min_reviewer_tier (review-min-reviewer-tier-invalid), then invalid
+  # complexity config (complexity-config-invalid, next: complexity)
   # --mode delta is allowed for the one delta after the single repair of a brief final review
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
@@ -621,15 +625,18 @@ Re-resolution before dispatch follows `${BOUNCER_ROOT}/rules/subagent-model.md` 
 `review-dispatch` is read-only. It returns JSON for Plan (`single`, or
 `perspectives` for a `review_contract: brief` blueprint; older stored `clustered`
 payloads are still read) or Execute (`single | parallel`; `security` joins a
-general or task-scoped review when `review_risk` is non-empty, and a brief
+general or task-scoped review when `review_risk` is non-empty or a security-kind risk path is touched, and a brief
 final review only for authentication, authorization, or credential risk). Plan
 of an unmarked blueprint is `single`. A marked (`review_contract: brief`)
 blueprint is `perspectives`: standard gets the four plan perspectives; low is
 `verifiability` and, when any commit task declares `review_risk`, also
-`risk_security`. There is no Plan `skip`. The reviewer-tier task-count
-threshold applies to standard only. Execute for `complexity: low` is
-`single` combined regardless of size; standard keeps the current small-diff
-rule. Plan `single` also includes
+`risk_security`. There is no Plan `skip`. The reviewer tier is `strong` when the
+union of commit tasks' `affected_paths` (plan) or the scoped `review_risk` /
+risk paths hit a strong cause (source files, modules, total files); `complexity:
+low` skips only the size causes and keeps the risk causes. Execute for
+`complexity: low` is `single` combined regardless of size; standard is `single`
+only when the frozen snapshot passes the source-file, source-line, and risk
+checks, else `parallel`. Plan `single` also includes
 `snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
 (per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
 `structure_parts` (per-document structure sha256; the `follow_up` input),

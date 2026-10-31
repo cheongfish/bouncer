@@ -45,9 +45,9 @@ Keys for role tiers and effort (resolved by "bouncer subagent-model"):
 
 Key under "review" (read by "bouncer review-dispatch"):
   review.min_reviewer_tier      standard | strong
-                                default: absent (the tier follows commit task count and review_risk;
-                                this key can only raise it; any other value is rejected with
-                                review-min-reviewer-tier-invalid)
+                                default: absent (the tier follows review_risk, risk paths, and the
+                                complexity size thresholds; this key can only raise it; any other
+                                value is rejected with review-min-reviewer-tier-invalid)
 
 Keys under "complexity" (read by plan inspect and review-dispatch; shared thresholds for the
 single / strong size judgments):
