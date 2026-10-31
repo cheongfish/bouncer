@@ -41,7 +41,7 @@ type ResolveSymbolInput = {
 type ResolveResult =
   | { status: 'resolved'; symbol_ref: SymbolRef; diagnostics: SymbolCandidate[] }
   | { status: 'ambiguous'; candidates: SymbolCandidate[]; diagnostics: SymbolCandidate[] }
-  | { status: 'unresolved'; candidates: SymbolCandidate[]; diagnostics: SymbolCandidate[] };
+  | { status: 'unresolved'; candidates: SymbolCandidate[]; diagnostics: SymbolCandidate[]; unparsed_files: string[] };
 
 type RawHit = {
   path: string;
@@ -122,9 +122,10 @@ function resolveSymbol(input: ResolveSymbolInput): ResolveResult {
   const repoReal = resolveRepoRoot(input.repoRoot);
   const files = listScriptFiles(repoReal);
   const hits: SymbolCandidate[] = [];
+  const unparsed: string[] = [];
 
   for (const abs of files) {
-    const collected = collectFromFile(abs, repoReal, symbol);
+    const collected = collectFromFile(abs, repoReal, symbol, unparsed);
     hits.push(...collected);
   }
 
@@ -153,7 +154,8 @@ function resolveSymbol(input: ResolveSymbolInput): ResolveResult {
   if (sourceHits.length > 1) {
     return { status: 'ambiguous', candidates: sourceHits, diagnostics };
   }
-  return { status: 'unresolved', candidates: diagnostics, diagnostics };
+  // 구문 오류로 통째로 버려진 source 파일을 알려, 빈 결과가 "정의 없음"인지 "색인 실패"인지 구분하게 한다.
+  return { status: 'unresolved', candidates: diagnostics, diagnostics, unparsed_files: unparsed.sort() };
 }
 
 /**
@@ -267,9 +269,15 @@ function isInsideRepo(absPath: string, repoReal: string): boolean {
  * @param {string} absPath - 저장소 안 파일 절대 경로
  * @param {string} repoReal - realpath 루트
  * @param {string} symbol - 찾을 함수명
+ * @param {string[]} unparsed - 구문 오류로 버려진 source 파일의 상대 경로를 쌓는 출력 목록
  * @returns {SymbolCandidate[]} 역할·blob SHA·opaque ref가 붙은 후보
  */
-function collectFromFile(absPath: string, repoReal: string, symbol: string): SymbolCandidate[] {
+function collectFromFile(
+  absPath: string,
+  repoReal: string,
+  symbol: string,
+  unparsed: string[],
+): SymbolCandidate[] {
   let bytes: Buffer;
   try {
     bytes = fs.readFileSync(absPath);
@@ -284,7 +292,7 @@ function collectFromFile(absPath: string, repoReal: string, symbol: string): Sym
     tokens = tokenize(bytes.toString('utf8'));
   } catch (error) {
     // 이 파일의 토큰 오류만 삼킨다. 다른 파일 후보와 상태를 공유하지 않는다.
-    if (error instanceof StructError) return [];
+    if (error instanceof StructError) return noteUnparsed(unparsed, rel, bytes, symbol);
     throw error;
   }
   let raw: RawHit[];
@@ -292,7 +300,7 @@ function collectFromFile(absPath: string, repoReal: string, symbol: string): Sym
     raw = collectDefinitions(tokens, symbol, rel);
   } catch (error) {
     // 이 파일의 불일치 괄호·헤더 오류만 삼킨다. 이름을 본문에서 찾아 후보를 만들지 않는다.
-    if (error instanceof StructError) return [];
+    if (error instanceof StructError) return noteUnparsed(unparsed, rel, bytes, symbol);
     throw error;
   }
   const blobSha = gitBlobSha(bytes);
@@ -312,6 +320,24 @@ function collectFromFile(absPath: string, repoReal: string, symbol: string): Sym
       symbol_ref: symbolRef,
     };
   });
+}
+
+/**
+ * 파싱에 실패한 source 파일을 출력 목록에 기록하고 빈 후보를 돌려준다.
+ * 정의를 대신 찾는 것이 아니라, 요청한 이름이 본문에 나오는 source 파일만 "색인 실패 의심"으로
+ * 알린다. generated/test/vendor와 이름이 없는 파일은 조회 결과에 영향이 없어 기록하지 않는다.
+ *
+ * @param {string[]} unparsed - 출력 목록
+ * @param {string} rel - 저장소 상대 posix 경로
+ * @param {Buffer} bytes - 파일 본문
+ * @param {string} symbol - 요청한 함수명
+ * @returns {SymbolCandidate[]} 항상 빈 배열
+ */
+function noteUnparsed(unparsed: string[], rel: string, bytes: Buffer, symbol: string): SymbolCandidate[] {
+  if (classifyRole(rel) !== 'source') return [];
+  const mentions = new RegExp(`(?<![A-Za-z0-9_$])${symbol.replace(/[$]/g, '\\$&')}(?![A-Za-z0-9_$])`);
+  if (mentions.test(bytes.toString('utf8'))) unparsed.push(rel);
+  return [];
 }
 
 /**

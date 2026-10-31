@@ -110,6 +110,8 @@ type IntentResult =
       symbol: string;
       candidates: unknown[];
       truncated: boolean;
+      /** 구문 오류로 색인에서 빠진 source 파일. 비면 키를 생략한다. */
+      unparsed_files?: string[];
     };
 
 type GitResult = { status: number; stdout: string; stderr: string };
@@ -183,12 +185,16 @@ function resolveIntentProvenance(input: ResolveIntentInput): IntentResult {
 
   // 2. 정의가 없거나 동명이면 provenance를 만들지 않는다. TASKS-001 상태를 보존한다.
   if (selected.status !== 'resolved') {
-    return {
+    const base = {
       status: selected.status,
       symbol,
       candidates: selected.candidates,
       truncated: false,
     };
+    if (selected.status === 'unresolved' && selected.unparsed_files.length > 0) {
+      return { ...base, status: 'unresolved', unparsed_files: selected.unparsed_files };
+    }
+    return base;
   }
 
   const repoReal = fs.realpathSync(input.repoRoot);

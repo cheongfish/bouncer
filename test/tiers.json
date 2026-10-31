@@ -8,6 +8,7 @@
     "plugin-doc-cites.test.js",
     "plugin-wiring.test.js",
     "schema.test.js",
+    "symbol-index.test.js",
     "skill-bouncer-finalize.test.js",
     "skill-bouncer-run.test.js",
     "skill-bouncer-surface.test.js",
