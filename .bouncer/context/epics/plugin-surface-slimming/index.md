@@ -30,3 +30,4 @@ bouncer:
 * [실행 기록 보존과 예상 경로 정책, 조기 검증과 호스트 표면 정비](blueprints/measure-scope-env-surface/index.md) - finalize snapshot·digest와 집계 스크립트, commit guard·coordinate report 범위 정책, prepare baseline, 호스트 표면 테스트를 바꾼다.
 * [light 실행과 직접 실행 경로 통합](blueprints/light-direct-run-unification/index.md) - coordinator 원장·prepare·next·fan-in·promote와 preflight 직접 자격, drive_record와 집계 스크립트, `/bouncer-run` 문서를 바꾼다.
 * [light 선언 제거와 복잡도 선언 통합](blueprints/complexity-declaration/index.md) - blueprint `complexity` 선언과 scaffold·구조 검사, plan gate·routing·approve, 리뷰 전략과 리뷰어 등급, coordinator 원장·preflight·promote 경로, plan·run 문서와 벤치마크 응답기를 바꾼다.
+* [복잡도 신호 계산 통합과 리뷰 문턱 재조정](blueprints/complexity-signals/index.md) - 공용 신호 모듈과 `complexity.*` 설정, 리뷰 snapshot 파일별 줄 수, plan inspect routing과 review-dispatch의 리뷰 전략·리뷰어 등급 기준, worker-model 기록과 drive_record 집계, plan·규칙·설정 문서를 바꾼다.
