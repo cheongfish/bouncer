@@ -8,8 +8,8 @@ const {
 const ZERO = {
   tasks: 0, decision_kinds: {}, scope_revisions: 0, unexpected_paths: 0, overlaps: 0,
   conflicts: { fanin: 0 }, repair_waves: { ci: 0, review: 0 },
-  reviewer: { dispatches: 0, perspectives: [], models: [] }, baseline: null, review: null,
-  mode: 'full', promotion: null,
+  reviewer: { dispatches: 0, perspectives: [], models: [], strategies: [], tiers: [] },
+  baseline: null, review: null, mode: 'full', promotion: null,
 };
 
 test('같은 wave의 repair 둘과 리뷰 finding이 있는 wave → ci 1, review 1로 센다', () => {
@@ -77,6 +77,33 @@ test('reviewer worker-model 결정 → 횟수와 고유 perspective·model을 �
   ] };
   assert.deepStrictEqual(summarizeDriveRecord(ledger, null).reviewer, {
     dispatches: 3, perspectives: ['correctness', 'scope'], models: ['opus', 'sonnet'],
+    strategies: [], tiers: [],
+  });
+});
+
+test('reviewer 결정의 strategy·reviewer_tier → 고유 값을 사전순으로 낸다', () => {
+  const reviewer = (model, strategy, reviewer_tier) => ({
+    kind: 'worker-model', role: 'reviewer', perspective: 'scope', model, strategy, reviewer_tier,
+  });
+  const ledger = { tasks: [], decisions: [
+    reviewer('opus', 'parallel', 'strong'),
+    reviewer('sonnet', 'single', 'standard'),
+    reviewer('opus', 'parallel', 'strong'),
+  ] };
+  assert.deepStrictEqual(summarizeDriveRecord(ledger, null).reviewer, {
+    dispatches: 3, perspectives: ['scope'], models: ['opus', 'sonnet'],
+    strategies: ['parallel', 'single'], tiers: ['standard', 'strong'],
+  });
+});
+
+test('strategy·reviewer_tier가 문자열이 아닌 reviewer 결정과 implementer·debugger 결정 → 두 키에 세지 않는다', () => {
+  const ledger = { tasks: [], decisions: [
+    { kind: 'worker-model', role: 'reviewer', perspective: 'scope', model: 'opus', strategy: 1, reviewer_tier: null },
+    { kind: 'worker-model', role: 'implementer', perspective: 'x', model: 'haiku', strategy: 'parallel', reviewer_tier: 'strong' },
+    { kind: 'worker-model', role: 'debugger', perspective: 'x', model: 'haiku', strategy: 'single', reviewer_tier: 'light' },
+  ] };
+  assert.deepStrictEqual(summarizeDriveRecord(ledger, null).reviewer, {
+    dispatches: 1, perspectives: ['scope'], models: ['opus'], strategies: [], tiers: [],
   });
 });
 
@@ -180,4 +207,17 @@ test('mode·promotion 키가 없는 옛 DriveRecord → isDriveRecord가 true이
   delete legacy.mode;
   delete legacy.promotion;
   assert.strictEqual(isDriveRecord(legacy), true);
+});
+
+test('reviewer.strategies·tiers가 없는 옛 DriveRecord → isDriveRecord가 true이다', () => {
+  const legacy = { ...ZERO, reviewer: { dispatches: 0, perspectives: [], models: [] } };
+  assert.strictEqual(isDriveRecord(legacy), true);
+});
+
+test('reviewer.strategies·tiers가 문자열 배열이 아님 → isDriveRecord가 false이다', () => {
+  const reviewerWith = (extra) => ({ ...ZERO, reviewer: { ...ZERO.reviewer, ...extra } });
+  assert.strictEqual(isDriveRecord(reviewerWith({ strategies: [1] })), false);
+  assert.strictEqual(isDriveRecord(reviewerWith({ tiers: ['strong', 2] })), false);
+  assert.strictEqual(isDriveRecord(reviewerWith({ strategies: 'parallel' })), false);
+  assert.strictEqual(isDriveRecord(reviewerWith({ tiers: null })), false);
 });

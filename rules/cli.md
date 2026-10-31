@@ -464,6 +464,12 @@ Do not touch hit is `scope-do-not-touch-violation` and an unreadable line is
 `coordinate next` may still pass a stored `promoted_patch` for an already
 promoted full ledger. `drive_record` (metrics snapshot / finalize digest)
 carries `mode` (`light`|`full`) and `promotion` (`{ reason, task }` or `null`);
+`reviewer.strategies` and `reviewer.tiers` are the sorted unique `strategy` and
+`reviewer_tier` values of the reviewer `worker-model` decisions (`coordinate
+worker-model`, role `reviewer`); an absent key reads as an old snapshot.
+`tiers` is the computed tier recorded in the payload, not whether the model
+mapping applied (`reviewer_tier_applied` is not recorded here), so a dispatch
+computed as `strong` with no mapping still counts as `strong`.
 `node scripts/measure-drive-records.js` splits aggregates under `by_mode` and
 counts under `promotions`.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,

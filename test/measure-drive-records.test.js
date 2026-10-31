@@ -38,8 +38,15 @@ function fixture() {
   fs.mkdirSync(path.join(input, 'sub'), { recursive: true });
   const write = (name, value) => fs.writeFileSync(path.join(input, name), typeof value === 'string'
     ? value : JSON.stringify(value));
-  write('a.json', snapshot(BP_A, 10, record({ tasks: 1, repair_waves: { ci: 2, review: 0 } })));
+  // a.json은 새 키(strategies·tiers)가 있는 snapshot, b.json은 키가 없는 옛 snapshot이다. 둘 다 집계돼야 한다.
+  write('a.json', snapshot(BP_A, 10, record({
+    tasks: 1, repair_waves: { ci: 2, review: 0 },
+    reviewer: { dispatches: 0, perspectives: [], models: [], strategies: ['parallel'], tiers: ['strong'] },
+  })));
   write('b.json', snapshot(BP_B, 5, record({ tasks: 4, unexpected_paths: 3 })));
+  write('badstrategy.json', snapshot('.bouncer/context/epics/e/blueprints/e', 1, record({
+    reviewer: { dispatches: 0, perspectives: [], models: [], strategies: [1], tiers: [] },
+  })));
   write('broken.json', '{');
   write('old.json', snapshot('.bouncer/context/epics/e/blueprints/c', 7));
   write('shape.json', { version: 2 });
@@ -95,9 +102,9 @@ test('깨진 파일·drive_record 없는 snapshot·모양이 틀린 파일 → s
   const reasons = Object.fromEntries(r.json.skipped.map((s) => [path.basename(s.path), s.reason]));
   assert.deepStrictEqual(reasons, {
     'badrecord.json': 'not-snapshot', 'broken.json': 'invalid-json', 'old.json': 'no-drive-record',
-    'shape.json': 'not-snapshot',
+    'shape.json': 'not-snapshot', 'badstrategy.json': 'not-snapshot',
   });
-  assert.strictEqual(r.json.skipped.filter((s) => s.reason === 'not-snapshot').length, 2);
+  assert.strictEqual(r.json.skipped.filter((s) => s.reason === 'not-snapshot').length, 3);
 });
 
 test('입력 디렉터리의 notes.txt·하위 디렉터리·symlink → inputs와 skipped 어디에도 없다', () => {

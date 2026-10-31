@@ -36,6 +36,11 @@ function isStringArray(value) {
   return Array.isArray(value) && value.every((v) => typeof v === 'string');
 }
 
+// 키가 없으면 옛 snapshot으로 보고 통과시킨다. 키가 있으면 문자열 배열이어야 한다(TS 쪽과 같은 규칙).
+function isOptionalStringArray(value) {
+  return value === undefined || isStringArray(value);
+}
+
 /**
  * `drive_record`의 모양 검사. packages/cli/src/drive-record.ts의 `isDriveRecord`와 같은 규칙이다.
  * 그 모듈은 dist로 빌드되는 TS라 이 스크립트가 require할 수 없어(dist 비의존) 규칙만 복제했다.
@@ -67,6 +72,7 @@ function isDriveRecord(value) {
     && isRecord(waves) && isCount(waves.ci) && isCount(waves.review)
     && isRecord(reviewer) && isCount(reviewer.dispatches)
     && isStringArray(reviewer.perspectives) && isStringArray(reviewer.models)
+    && isOptionalStringArray(reviewer.strategies) && isOptionalStringArray(reviewer.tiers)
     && (baseline === null || (isRecord(baseline) && typeof baseline.command === 'string'
       && Number.isSafeInteger(baseline.exit) && typeof baseline.accepted === 'boolean'))
     && reviewOk;
