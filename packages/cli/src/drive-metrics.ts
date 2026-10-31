@@ -591,6 +591,38 @@ function pendingWorkerTokenKeys(decisions: unknown[]): PendingWorkerTokenKey[] {
 }
 
 /**
+ * 한 worker 키 `(task, role, perspective)`의 기록 상태를 한 번에 센다. 키 규칙은
+ * `sumWorkerDecisions`·`pendingWorkerTokenKeys`와 같다(task·perspective 부재는 빈 문자열).
+ * worker-tokens 중복 거절이 pending 판정과 갈라지지 않도록 `runs`·`filled` 정의를 그대로 따른다:
+ * `runs`는 worker-model 수, `filled`는 숫자 `tokens`가 달린 기록(worker-model 포함)과 `unreported`
+ * 기록 수다. 입력은 바꾸지 않는다.
+ *
+ * @param {unknown[]} decisions - 원장 decisions
+ * @param {string | undefined} task - 키의 task. 없으면 blueprint 범위 키
+ * @param {string} role - 키의 role
+ * @param {string | undefined} perspective - 키의 perspective. 없으면 관점 없는 키
+ * @returns {{ runs: number; filled: number; tokensRecords: number; latest: Record<string, unknown> | null }}
+ *   `tokensRecords`는 키의 worker-tokens 기록 수, `latest`는 그중 배열상 가장 나중 기록(없으면 null)
+ */
+function workerKeyState(
+  decisions: unknown[], task: string | undefined, role: string, perspective: string | undefined,
+): { runs: number; filled: number; tokensRecords: number; latest: Record<string, unknown> | null } {
+  const state = { runs: 0, filled: 0, tokensRecords: 0, latest: null as Record<string, unknown> | null };
+  const wanted = JSON.stringify([task ?? '', role, perspective ?? '']);
+  for (const d of decisions) {
+    if (!isRecord(d) || (d.kind !== 'worker-model' && d.kind !== 'worker-tokens')) continue;
+    if (JSON.stringify([d.task ?? '', d.role, d.perspective ?? '']) !== wanted) continue;
+    if (d.kind === 'worker-model') state.runs += 1;
+    if (typeof d.tokens === 'number' || d.unreported === true) state.filled += 1;
+    if (d.kind === 'worker-tokens') {
+      state.tokensRecords += 1;
+      state.latest = d;
+    }
+  }
+  return state;
+}
+
+/**
  * worker 집계의 출처를 정해 합산한다. 우선순위는 live 원장 → 저장 snapshot → unavailable이다.
  * 원장 파일이 있으면(깨졌으면 거절) 언제나 원장이 이기므로 오래된 snapshot이 live 자료를
  * 대신하지 않는다. 원장이 없을 때만 snapshot을 읽고, 깨진 snapshot은 0으로 접지 않고 거절한다.
@@ -878,4 +910,5 @@ function listCoordinatorSessions(opts: { file: string; blueprint: string }): Arr
 export = {
   EXCEPTION_KINDS, isException, metricsFilePath, startSession, endSession, summarize,
   listCoordinatorSessions, saveWorkerSnapshot, loadWorkerSnapshot, pendingWorkerTokenKeys,
+  workerKeyState,
 };

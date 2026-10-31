@@ -7280,3 +7280,22 @@ test('fenced prepare on mode light → light-mode-removed and identical ledger b
   const status = coordinate({ command: 'status', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.strictEqual(status.ok, true, JSON.stringify(status));
 });
+
+test('worker-tokens on a key with no worker-model → first record passes and the second is a duplicate', () => {
+  const drive = preparedCommitDrive('bouncer-worker-tokens-dup-', MODEL_BP);
+  const first = workerTokensCall(drive, { role: 'reviewer', task: '001', perspective: 'security', tokens: 1 });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  const second = workerTokensCall(drive, { role: 'reviewer', task: '001', perspective: 'security', tokens: 2 });
+  assert.strictEqual(second.ok, false, JSON.stringify(second));
+  assert.strictEqual(second.reason, 'worker-tokens-duplicate');
+});
+
+test('worker-tokens on a key filled by worker-model --tokens → first worker-tokens is accepted', () => {
+  const drive = preparedCommitDrive('bouncer-worker-tokens-filled-', MODEL_BP);
+  const modeled = workerModelCall(drive, {
+    role: 'reviewer', model: 'm', task: '001', perspective: 'security', tokens: 500,
+  });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const r = workerTokensCall(drive, { role: 'reviewer', task: '001', perspective: 'security', tokens: 700 });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+});

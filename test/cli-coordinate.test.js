@@ -2032,3 +2032,162 @@ test('coordinate bootstrap --promote-light → exit 2 before creating a ledger',
   assert.strictEqual(code, 2);
   assert.match(buf.err, /--promote-light was removed/);
 });
+
+// worker-tokens 중복 거절과 --replace 교체 경로. 문구는 계약(Interface literal)이라 전체 일치로 묶는다.
+const WT_DUP_CAUSE = 'This worker key already has a worker-tokens record for every worker-model call recorded for it.';
+const WT_DUP_NEXT = 'Use `--replace` only to correct the wrongly recorded value of the same call. '
+  + 'For a rework call whose `bouncer coordinate worker-model` record is missing, record worker-model first, '
+  + 'then worker-tokens.';
+const WT_MISSING_CAUSE = 'No worker-tokens record exists for this key, so --replace has nothing to swap.';
+const WT_MISSING_NEXT = 'Drop `--replace` and append the record with `bouncer coordinate worker-tokens`; '
+  + '`--replace` only corrects a record that already exists.';
+
+function secModel(drive, extra = []) {
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--task', '001', '--perspective', 'security',
+    ...extra,
+  ]);
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+}
+
+function secTokens(drive, tokens, extra = [], key = ['--task', '001', '--perspective', 'security']) {
+  return coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'reviewer', ...key, '--tokens', tokens, ...extra,
+  ]);
+}
+
+const readLedger = (drive) => JSON.parse(fs.readFileSync(ledgerOf(drive), 'utf8'));
+const secRecords = (list) => list.filter((d) => d.kind === 'worker-tokens' && d.task === '001' && d.perspective === 'security');
+
+test('worker-tokens second record on a filled key → exits 1 with worker-tokens-duplicate and keeps the ledger', () => {
+  const drive = preparedDrive();
+  secModel(drive);
+  const first = secTokens(drive, '0');
+  assert.strictEqual(first.code, 0, first.buf.err + first.buf.out);
+  const firstOut = JSON.parse(first.buf.out);
+  assert.ok(!('replaced' in firstOut));
+  const before = fs.readFileSync(ledgerOf(drive));
+  const second = secTokens(drive, '900');
+  assert.strictEqual(second.code, 1, second.buf.err + second.buf.out);
+  const out = JSON.parse(second.buf.out);
+  assert.strictEqual(out.reason, 'worker-tokens-duplicate');
+  assert.deepStrictEqual(out.existing, { kind: 'worker-tokens', role: 'reviewer', tokens: 0, task: '001', perspective: 'security' });
+  assert.strictEqual(out.cause, WT_DUP_CAUSE);
+  assert.strictEqual(out.next, WT_DUP_NEXT);
+  assert.ok(out.next.includes('--replace'));
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('worker-tokens --replace on a filled key → swaps the latest record in ledger and task and returns replaced', () => {
+  const drive = preparedDrive();
+  secModel(drive);
+  assert.strictEqual(secTokens(drive, '0').code, 0);
+  const replaced = secTokens(drive, '900', ['--replace']);
+  assert.strictEqual(replaced.code, 0, replaced.buf.err + replaced.buf.out);
+  const ledger = readLedger(drive);
+  assert.deepStrictEqual(secRecords(ledger.decisions).map((d) => d.tokens), [900]);
+  assert.deepStrictEqual(secRecords(ledger.tasks.find((t) => t.id === '001').decisions).map((d) => d.tokens), [900]);
+  assert.strictEqual(JSON.parse(replaced.buf.out).replaced.tokens, 0);
+});
+
+test('worker-tokens on a blueprint-scope key → duplicate is refused and --replace leaves task decisions untouched', () => {
+  const drive = preparedDrive();
+  const key = ['--perspective', 'combined'];
+  const model = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', ...key,
+  ]);
+  assert.strictEqual(model.code, 0, model.buf.err + model.buf.out);
+  assert.strictEqual(secTokens(drive, '0', [], key).code, 0);
+  const before = fs.readFileSync(ledgerOf(drive));
+  const dup = secTokens(drive, '900', [], key);
+  assert.strictEqual(dup.code, 1, dup.buf.err + dup.buf.out);
+  assert.strictEqual(JSON.parse(dup.buf.out).reason, 'worker-tokens-duplicate');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+  const tasksBefore = JSON.stringify(readLedger(drive).tasks);
+  const replaced = secTokens(drive, '900', ['--replace'], key);
+  assert.strictEqual(replaced.code, 0, replaced.buf.err + replaced.buf.out);
+  const ledger = readLedger(drive);
+  const scoped = ledger.decisions.filter((d) => d.kind === 'worker-tokens' && !d.task && d.perspective === 'combined');
+  assert.deepStrictEqual(scoped.map((d) => d.tokens), [900]);
+  assert.strictEqual(JSON.stringify(ledger.tasks), tasksBefore);
+});
+
+test('worker-tokens --replace with unreported on either side → swaps and keeps only the new value key', () => {
+  const a = preparedDrive();
+  secModel(a);
+  assert.strictEqual(secTokens(a, 'unreported').code, 0);
+  const aOut = secTokens(a, '40', ['--replace']);
+  assert.strictEqual(aOut.code, 0, aOut.buf.err + aOut.buf.out);
+  assert.deepStrictEqual(secRecords(readLedger(a).decisions).map((d) => ({ tokens: d.tokens })), [{ tokens: 40 }]);
+  assert.ok(!('unreported' in secRecords(readLedger(a).decisions)[0]));
+  assert.strictEqual(JSON.parse(aOut.buf.out).replaced.unreported, true);
+
+  const b = preparedDrive();
+  secModel(b);
+  assert.strictEqual(secTokens(b, '40').code, 0);
+  const bOut = secTokens(b, 'unreported', ['--replace']);
+  assert.strictEqual(bOut.code, 0, bOut.buf.err + bOut.buf.out);
+  const records = secRecords(readLedger(b).decisions);
+  assert.deepStrictEqual(records.map((d) => d.unreported), [true]);
+  assert.ok(!('tokens' in records[0]));
+  assert.strictEqual(JSON.parse(bOut.buf.out).replaced.tokens, 40);
+});
+
+test('worker-tokens --replace on a key with no worker-tokens record → exits 1 with worker-tokens-replace-target-missing', () => {
+  const filled = preparedDrive();
+  secModel(filled, ['--tokens', '500']);
+  const beforeFilled = fs.readFileSync(ledgerOf(filled));
+  const r = secTokens(filled, '700', ['--replace']);
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  const out = JSON.parse(r.buf.out);
+  assert.strictEqual(out.reason, 'worker-tokens-replace-target-missing');
+  assert.strictEqual(out.cause, WT_MISSING_CAUSE);
+  assert.strictEqual(out.next, WT_MISSING_NEXT);
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(filled)), beforeFilled);
+
+  const bare = preparedDrive();
+  secModel(bare);
+  const beforeBare = fs.readFileSync(ledgerOf(bare));
+  const r2 = secTokens(bare, '700', ['--replace']);
+  assert.strictEqual(r2.code, 1, r2.buf.err + r2.buf.out);
+  assert.strictEqual(JSON.parse(r2.buf.out).reason, 'worker-tokens-replace-target-missing');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(bare)), beforeBare);
+});
+
+test('worker-tokens on other keys and two worker-model calls → first records pass and only the third is refused', () => {
+  const drive = preparedDrive();
+  secModel(drive);
+  assert.strictEqual(secTokens(drive, '0').code, 0);
+  const otherPerspective = secTokens(drive, '5', [], ['--task', '001', '--perspective', 'correctness_tests']);
+  assert.strictEqual(otherPerspective.code, 0, otherPerspective.buf.err + otherPerspective.buf.out);
+  const otherRole = coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'implementer', '--task', '001', '--tokens', '5',
+  ]);
+  assert.strictEqual(otherRole.code, 0, otherRole.buf.err + otherRole.buf.out);
+
+  const calls = preparedDrive();
+  secModel(calls);
+  secModel(calls);
+  assert.strictEqual(secTokens(calls, '1').code, 0);
+  const second = secTokens(calls, '2');
+  assert.strictEqual(second.code, 0, second.buf.err + second.buf.out);
+  const third = secTokens(calls, '3');
+  assert.strictEqual(third.code, 1, third.buf.err + third.buf.out);
+  assert.strictEqual(JSON.parse(third.buf.out).reason, 'worker-tokens-duplicate');
+});
+
+test('worker-model --replace or worker-tokens --replace with a value → exits 2 with usage and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const model = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--replace',
+  ]);
+  assert.strictEqual(model.code, 2, model.buf.err + model.buf.out);
+  assert.ok(model.buf.err.includes('--replace is worker-tokens only'), model.buf.err);
+  const valued = coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'reviewer', '--tokens', '5', '--replace', 'x',
+  ]);
+  assert.strictEqual(valued.code, 2, valued.buf.err + valued.buf.out);
+  assert.ok(valued.buf.err.includes('--replace takes no value'), valued.buf.err);
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});

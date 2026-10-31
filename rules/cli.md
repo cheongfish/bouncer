@@ -335,7 +335,13 @@ completion notice that arrives after the worker-model record (a missing
 `--tokens` is usage, exit 2). A `worker-tokens --tokens unreported` record appends
 `{kind: worker-tokens, role, unreported: true, task?, perspective?}`. The host gave
 no value, so the key is filled without a number; no `tokens` key is written, so
-the sum never reads that key as zero. The `worker-tokens-missing` check covers these keys:
+the sum never reads that key as zero. `worker-tokens` refuses a second record for a `(task, role, perspective)` key with
+`worker-tokens-duplicate` (exit 1, `existing` is the latest record, ledger unchanged) once every
+`worker-model` record of that key has a token or `unreported` record.
+`worker-tokens --replace` (a flag with no value, `worker-tokens` only) swaps the latest
+`worker-tokens` record of the key and returns it as `replaced`; a key with no `worker-tokens` record is
+refused with `worker-tokens-replace-target-missing`, and `--replace` with a value or on `worker-model` is
+usage (exit 2). The `worker-tokens-missing` check covers these keys:
 `coordinate record --task <T>` checks the keys of task T,
 `coordinate advance --task <T>` checks the keys of task T and the keys with no task,
 and `coordinate advance` without `--task` checks only the keys with no task. Refusals: `worker-model-role-invalid`,

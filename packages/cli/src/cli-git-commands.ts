@@ -658,6 +658,12 @@ function checkWorkerFlags(f: CoordFlags, command: string, io: CliIo): number | u
       if (hasFlag(f, name)) return usage(`--${name} is worker-model only`);
     }
   }
+  // --replace는 worker-tokens 전용이다. worker-model에서는 교체할 대상이 없어 조용히 무시되면 안 되고,
+  // parseFlags는 뒤 토큰을 값으로 먹으므로 값이 붙은 형태(true가 아님)는 교체 의도를 잃어 usage(2)로 막는다.
+  if (command === 'worker-model' && hasFlag(f, 'replace')) return usage('--replace is worker-tokens only');
+  if (command === 'worker-tokens' && hasFlag(f, 'replace') && f.replace !== true) {
+    return usage('--replace takes no value');
+  }
   // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
   // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
   // --strategy·--reviewer-tier도 같은 이유로 값 없는 형태를 usage(2)로 막는다.
@@ -878,6 +884,7 @@ function coordinateCall(
       ledgerHash: typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined,
       userConfirmed: f['user-confirmed'] === true,
       acceptBrokenBaseline: command === 'prepare' && f['accept-broken-baseline'] === true,
+      replace: command === 'worker-tokens' && f.replace === true ? true : undefined,
     }) as { ok: boolean };
     const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
     if (result.ok && hasFlag(f, 'write-input')) {

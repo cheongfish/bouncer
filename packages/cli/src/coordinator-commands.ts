@@ -882,7 +882,7 @@ function coordinateNote(ctx: LockedCtx): CoordinateResult {
 function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
   const { cwd, integration, ledger, commitWrite } = ctx;
   const {
-    command, repoRoot, blueprint, task, model, role, perspective, tokens, strategy, reviewerTier,
+    command, repoRoot, blueprint, task, model, role, perspective, tokens, strategy, reviewerTier, replace,
   } = ctx.args;
   ensureIntegrationCwd(repoRoot, blueprint, cwd);
   if (role === undefined || !WORKER_RECORD_ROLES.includes(role)) {
@@ -940,12 +940,52 @@ function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
     : unreported
       ? { kind: 'worker-tokens', role: recordRole, unreported: true, ...scope }
       : { kind: 'worker-tokens', role: recordRole, tokens: parsedTokens as number, ...scope };
+  // 중복·교체 판정은 모든 형식 거절 뒤, 쓰기 전에 한다. 거절은 commitWrite() 앞에서 반환해야 원장 bytes가 같다.
+  // worker-model은 호출마다 새 자리를 열므로 이 판정 대상이 아니다.
+  let replaced: unknown;
+  if (command === 'worker-tokens') {
+    const state = driveMetrics.workerKeyState(ledger.decisions, task, recordRole, perspective);
+    if (replace === true) {
+      // 교체 대상이 없으면 덧붙임으로 조용히 바뀌지 않게 거절한다. --replace는 있는 기록을 고치는 길이다.
+      if (state.latest === null) return { ok: false, reason: 'worker-tokens-replace-target-missing' };
+      replaced = state.latest;
+      removeLatestWorkerTokens(ledger.decisions, task, recordRole, perspective);
+      if (owner) removeLatestWorkerTokens(owner.decisions || [], task, recordRole, perspective);
+    } else if (state.tokensRecords >= 1 && state.runs <= state.filled) {
+      // 비어 있는 호출 자리(runs > filled)가 없으면 같은 호출의 값을 겹쳐 쌓는 것이다. 합계가 어긋난다.
+      return { ok: false, reason: 'worker-tokens-duplicate', existing: state.latest };
+    }
+  }
   if (owner) owner.decisions = [...(owner.decisions || []), recorded];
   ledger.decisions.push(recorded);
   { const lost = commitWrite(); if (lost) return lost; }
   return withCheckpoint({
-    ok: true as const, command, decision: recorded,
+    ok: true as const, command, decision: recorded, ...(replaced !== undefined ? { replaced } : {}),
   }, ledger, integration.ledgerFile);
+}
+
+/**
+ * decision 배열에서 한 키의 가장 나중 `worker-tokens` 기록 하나만 제자리에서 뺀다. 키 규칙은
+ * `driveMetrics.workerKeyState`와 같다. 없으면 아무것도 바꾸지 않는다.
+ *
+ * @param {unknown[]} decisions - 원장 또는 task decisions. 제자리에서 바뀐다
+ * @param {string | undefined} task - 키의 task
+ * @param {string} role - 키의 role
+ * @param {string | undefined} perspective - 키의 perspective
+ * @returns {void}
+ */
+function removeLatestWorkerTokens(
+  decisions: unknown[], task: string | undefined, role: string, perspective: string | undefined,
+): void {
+  const wanted = JSON.stringify([task ?? '', role, perspective ?? '']);
+  for (let i = decisions.length - 1; i >= 0; i -= 1) {
+    const d = decisions[i] as Record<string, unknown> | null;
+    if (d && typeof d === 'object' && d.kind === 'worker-tokens'
+      && JSON.stringify([d.task ?? '', d.role, d.perspective ?? '']) === wanted) {
+      decisions.splice(i, 1);
+      return;
+    }
+  }
 }
 
 /**
@@ -1621,6 +1661,19 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Record `bouncer coordinate worker-tokens --role <role> [--task <ddd>] [--perspective <name>] '
       + '--tokens <n>` for each pending key from the host usage, or `--tokens unreported` when the host gave none, '
       + 'then rerun.',
+  },
+  // 같은 호출의 값을 겹쳐 쌓으면 합계가 어긋난다. 정정 경로는 --replace 하나뿐이고, 새 호출의 자리는
+  // worker-model 기록이 연다. 문구는 rules/cli.md·usage와 함께 계약이라 바꾸면 문서 테스트가 깨진다.
+  'worker-tokens-duplicate': {
+    cause: 'This worker key already has a worker-tokens record for every worker-model call recorded for it.',
+    next: 'Use `--replace` only to correct the wrongly recorded value of the same call. '
+      + 'For a rework call whose `bouncer coordinate worker-model` record is missing, '
+      + 'record worker-model first, then worker-tokens.',
+  },
+  'worker-tokens-replace-target-missing': {
+    cause: 'No worker-tokens record exists for this key, so --replace has nothing to swap.',
+    next: 'Drop `--replace` and append the record with `bouncer coordinate worker-tokens`; '
+      + '`--replace` only corrects a record that already exists.',
   },
   'bootstrap-requires-main-checkout': {
     cause: 'Bootstrap must run from the main checkout, not an integration or worker worktree.',
