@@ -109,9 +109,9 @@
   },
   "model_tiers": {
     "claude": {
-      "strong": "claude-opus-5-5",
-      "standard": "claude-sonnet-5-5",
-      "light": "claude-haiku-5-5"
+      "strong": "opus",
+      "standard": "sonnet",
+      "light": "haiku"
     },
     "codex": {
       "strong": "gpt-6.1-sol",
