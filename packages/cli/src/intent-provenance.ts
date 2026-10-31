@@ -182,7 +182,8 @@ type LinkedDraft = CommitMeta & {
 // Git 호출 하나의 실행기. 작업 트리 조회와 고정 SHA 조회가 각자의 env·revision을 닫아서 넘긴다.
 type GitRun = (args: string[]) => GitResult;
 // 고정 SHA 모드의 옵션. 있으면 env를 고정하고 stdout 상한을 건다.
-type PinnedGit = { maxBuffer: number };
+// attrSource는 속성(.gitattributes)을 읽을 커밋이다. 작업 트리 속성이 `log -G`·blame 결과를 바꾸지 못하게 한다.
+type PinnedGit = { maxBuffer: number; attrSource: string };
 
 // 연결과 정렬이 끝난 후보. 본문 예산과 직렬화 전의 절 목록을 가진다.
 type RankedLink = {
@@ -345,6 +346,9 @@ function unlinkedResult(symbol: string, symbolRef: SymbolRef): IntentResult {
  *
  * pinned를 주면 고정 SHA 조회용 Git이 된다. 상속된 GIT_DIR 같은 객체 DB 지정을 지우고 replace ref를 끈다.
  * 다른 저장소를 가리키는 env가 남으면 같은 SHA라도 다른 답이 나오기 때문이다. stdout은 상한으로 막는다.
+ * 속성도 고정한다. Git은 작업 트리의 .gitattributes를 읽는데, `-diff`처럼 파일을 바이너리로 만드는 속성이 있으면
+ * `log -G`가 그 파일의 모든 커밋을 잡지 못한다. GIT_ATTR_SOURCE로 속성을 attrSource 커밋 트리에서만 읽게 한다.
+ * 이 env는 Git 2.40 이상에서만 읽힌다. 더 오래된 Git은 이를 무시하므로 작업 트리 속성이 다시 섞인다.
  * pinned가 없으면 env와 인자가 기존과 같다.
  *
  * @param {string} repoRoot - git cwd
@@ -359,6 +363,8 @@ function runGit(repoRoot: string, args: string[], pinned?: PinnedGit): GitResult
   if (pinned) {
     for (const key of PINNED_CLEARED_ENV) delete env[key];
     env.GIT_NO_REPLACE_OBJECTS = '1';
+    // 속성 소스를 고정 커밋으로 둔다. 상속된 GIT_ATTR_SOURCE도 여기서 덮어써 호출자 환경에 기대지 않는다.
+    env.GIT_ATTR_SOURCE = pinned.attrSource;
   }
   const result = spawnSync('git', args, {
     cwd: repoRoot,
@@ -1219,9 +1225,11 @@ function resolveIntentAtRevision(input: IntentAtRevisionInput): IntentAtRevision
   // 3. 정의 신원이 이 SHA에서 맞지 않으면 이력을 읽지 않는다. 같은 이름의 다른 정의로 대체하지 않는다.
   requireSymbolIdentityAt({ repoRoot: input.repoRoot, sha, symbolRef });
 
-  const run: GitRun = (args) => runGit(input.repoRoot, args, { maxBuffer: PINNED_GIT_MAX_BUFFER });
   // 4. 이력·registry·Explain을 모두 같은 SHA에서 읽는다. 작업 트리와 HEAD는 여기서 읽지 않는다.
-  const metas = collectCommitMetas(run, symbolRef, symbolRef.qualified_name, sha);
+  // 속성도 같은 SHA 트리에서만 읽도록 attrSource를 넘긴다.
+  const run: GitRun = (args) => runGit(input.repoRoot, args, { maxBuffer: PINNED_GIT_MAX_BUFFER, attrSource: sha });
+  // `-G`에는 정의의 bare 이름을 넘긴다. 점이 낀 qualified_name은 본문 텍스트에 그대로 나오지 않아 -G가 0건이 된다.
+  const metas = collectCommitMetas(run, symbolRef, bareSymbolName(symbolRef.qualified_name), sha);
   const registryRead = readRegistryAt({ repoRoot: input.repoRoot, ref: sha });
   // 깨진 registry는 던지지 않고 invalid로 온다. 연결에는 registry가 없는 것처럼 null을 쓰되, registry_blob_sha는
   // 그 blob SHA를 그대로 보고한다. 그래야 "없음(null)"과 "있으나 깨짐(SHA)"이 구분된다.
@@ -1269,6 +1277,18 @@ function resolveIntentAtRevision(input: IntentAtRevisionInput): IntentAtRevision
   };
   // 7. digest는 digest를 뺀 객체의 canonical JSON 해시다. 키 순서에 흔들리지 않는다.
   return { ...body, digest: sha256Canonical(body) };
+}
+
+/**
+ * qualified_name(`Outer.member`)의 마지막 세그먼트를 bare 이름으로 꺼낸다. 작업 트리 조회가 `symbol`에 넘기는
+ * 식별자와 같다. symbol-index는 정의 이름을 마지막 세그먼트로만 맞추므로 같은 기준이어야 두 경로가 같은 이력을 본다.
+ *
+ * @param {string} qualifiedName - 정의의 qualified_name. 식별자는 점을 포함하지 않는다
+ * @returns {string} 마지막 세그먼트. 점이 없으면 입력 그대로다
+ */
+function bareSymbolName(qualifiedName: string): string {
+  const parts = qualifiedName.split('.');
+  return parts[parts.length - 1];
 }
 
 /**

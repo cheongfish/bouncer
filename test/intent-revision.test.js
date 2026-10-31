@@ -64,9 +64,10 @@ function tmpDir(prefix) {
  * @param {string} cwd - git을 실행할 디렉터리
  * @param {string[]} args - git argv
  * @param {string} [input] - stdin 본문
+ * @param {Record<string, string>} [extraEnv] - 이 호출에만 덧씌울 env(예: 커밋 시각 고정)
  * @returns {string} stdout(utf8)
  */
-function git(cwd, args, input) {
+function git(cwd, args, input, extraEnv = {}) {
   const env = { ...process.env };
   for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']) delete env[key];
   return execFileSync('git', args, {
@@ -80,6 +81,7 @@ function git(cwd, args, input) {
       GIT_AUTHOR_EMAIL: 't@example.com',
       GIT_COMMITTER_NAME: 'bouncer-test',
       GIT_COMMITTER_EMAIL: 't@example.com',
+      ...extraEnv,
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -673,6 +675,52 @@ function buildIntentFixture() {
   return { repo, g0, g1, b, h };
 }
 
+/**
+ * 커밋 시각을 고정해 커밋한다. freshness는 commit 시각 순서에 기대므로 같은 초에 찍힌 두 커밋은
+ * "나중"이 되지 못해 비교 결과가 실행 시각에 흔들린다. 시각을 직접 적어 그 흔들림을 없앤다.
+ *
+ * @param {string} repo - 저장소 루트
+ * @param {string} message - 커밋 메시지
+ * @param {number} unixSeconds - 커밋 시각(초)
+ * @returns {string} 새 커밋의 40자 SHA
+ */
+function commitDated(repo, message, unixSeconds) {
+  git(repo, ['add', '-A']);
+  const date = `${unixSeconds} +0000`;
+  git(repo, ['-c', 'commit.gpgsign=false', 'commit', '-q', '-m', message], undefined, {
+    GIT_AUTHOR_DATE: date,
+    GIT_COMMITTER_DATE: date,
+  });
+  return revParse(repo, 'HEAD');
+}
+
+/**
+ * 같은 정의 줄을 두 번 바꾼 fixture를 만든다. C1은 `render`를 처음 쓴 커밋이라 `-G render`로만 잡히고 blame은
+ * 아니다. C2는 조회 줄을 마지막으로 바꾼 커밋이라 blame이다. B는 두 TASK의 Explain만 커밋한다. 두 커밋 모두
+ * trailer로 연결하므로 이 fixture는 `-G`가 함수 이력을 잡는지만 본다.
+ *
+ * @param {string} rel - 함수가 있는 저장소 상대 경로
+ * @param {string} c1Body - C1 본문(`render` 포함)
+ * @param {string} c2Body - C2 본문(`render` 포함, 같은 줄)
+ * @returns {{ repo: string, c1: string, c2: string, b: string }} 저장소와 세 커밋 SHA
+ */
+function buildRenderFixture(rel, c1Body, c2Body) {
+  const repo = tmpDir('bouncer-intent-render-');
+  git(repo, ['init', '-q', '-b', 'main']);
+  writeText(repo, 'README.md', '');
+  commitDated(repo, 'C0', 1700000000);
+  writeText(repo, rel, c1Body);
+  const c1 = commitDated(repo, provMessage('C1', PROV_TASK_1), 1700000100);
+  writeText(repo, rel, c2Body);
+  const c2 = commitDated(repo, provMessage('C2', PROV_TASK_2), 1700000200);
+  writeText(repo, PROV_EXPLAIN, provExplain([
+    provRow(PROV_TASK_1, c1.slice(0, 8), 'task-001'),
+    provRow(PROV_TASK_2, c2.slice(0, 8), 'task-002'),
+  ], 'base'));
+  const b = commitDated(repo, 'B', 1700000300);
+  return { repo, c1, c2, b };
+}
+
 test('B 고정 SHA의 shared → TASK-001 근거 한 건만 나오고 작업 트리의 tampered 본문은 없다', () => {
   const fx = buildIntentFixture();
   const result = resolveIntentAtRevision({
@@ -990,4 +1038,75 @@ test('고정 SHA provenance 조회를 마침 → HEAD·status·.git/index 바이
     symbolRef: symbolAt(fx.repo, fx.h, 'src/one.ts', 'shared', PROV_KIND, 1),
   });
   assert.deepEqual(repoState(fx.repo), before);
+});
+
+/**
+ * 결과 후보 중 commit SHA가 같은 것을 찾는다. 후보가 없으면 테스트가 실패하도록 undefined를 그대로 돌려준다.
+ *
+ * @param {{ candidates: Array<{ commit: string }> }} result - resolveIntentAtRevision 결과
+ * @param {string} sha - 찾을 40자 커밋
+ * @returns {object | undefined} 해당 후보
+ */
+function candidateOf(result, sha) {
+  return result.candidates.find((item) => item.commit === sha);
+}
+
+test('클래스 메서드 Box.render의 이전 정의 커밋 → 이름 bare render로 -G가 잡혀 possibly-superseded가 된다', () => {
+  const fx = buildRenderFixture(
+    'src/box.ts',
+    'class Box {\n  render() { return 1; }\n}\n',
+    'class Box {\n  render() { return 2; }\n}\n',
+  );
+  const result = resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/box.ts', 'Box.render', 'class-method', 2),
+  });
+  assert.equal(result.status, 'resolved');
+  assert.equal(candidateOf(result, fx.c2).freshness, 'current');
+  assert.equal(candidateOf(result, fx.c1).freshness, 'possibly-superseded');
+});
+
+test('작업 트리에 -diff .gitattributes가 생김 → 같은 B 조회의 canonical JSON과 digest가 그대로다', () => {
+  const fx = buildRenderFixture(
+    'src/top.ts',
+    'export function render() { return 1; }\n',
+    'export function render() { return 2; }\n',
+  );
+  const query = () => resolveIntentAtRevision({
+    repoRoot: fx.repo,
+    historyRef: fx.b,
+    symbolRef: symbolAt(fx.repo, fx.b, 'src/top.ts', 'render', 'exported-function', 1),
+  });
+  const before = query();
+  assert.equal(candidateOf(before, fx.c1).freshness, 'possibly-superseded');
+
+  // -diff는 이 파일을 바이너리로 만들어 작업 트리 속성이 바뀌면 `-G` 결과가 0건이 된다. 고정 SHA 조회는 이 속성을
+  // 읽으면 안 되므로 결과가 바뀌지 않아야 한다.
+  writeText(fx.repo, '.gitattributes', 'src/top.ts -diff\n');
+  const after = query();
+  assert.equal(canonicalJson(after), canonicalJson(before));
+  assert.equal(after.digest, before.digest);
+});
+
+test('task_commits의 8자 SHA가 historyRef 도달 커밋 안에 하나뿐 → trailer 없는 커밋이 TASK-001 근거로 연결된다', () => {
+  const repo = tmpDir('bouncer-intent-short-sha-');
+  git(repo, ['init', '-q', '-b', 'main']);
+  writeText(repo, 'src/one.ts', 'export function shared() { return 1; }\n');
+  const c1 = commitDated(repo, 'C1 without trailer', 1700000100);
+  // Explain 행은 8자 접두사만 적는다. 펼침은 historyRef에서 rev-list로 도달하는 커밋 목록 안에서만 한다.
+  writeText(repo, PROV_EXPLAIN, provExplain([provRow(PROV_TASK_1, c1.slice(0, 8), 'task-001')], 'base'));
+  const b = commitDated(repo, 'B', 1700000200);
+  const result = resolveIntentAtRevision({
+    repoRoot: repo,
+    historyRef: b,
+    symbolRef: symbolAt(repo, b, 'src/one.ts', 'shared', PROV_KIND, 1),
+  });
+  assert.equal(result.status, 'resolved');
+  assert.equal(result.explain_docs, 1);
+  assert.equal(result.total_linked, 1);
+  const [cand] = result.candidates;
+  assert.equal(cand.commit, c1);
+  assert.equal(cand.task, PROV_TASK_1);
+  assert.equal(cand.explain, PROV_EXPLAIN);
 });
