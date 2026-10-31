@@ -33,6 +33,7 @@
     "public-name-regression.test.js",
     "terminal-intent-provenance.test.js",
     "typescript-module-contract.test.js",
-    "master-rules.test.js"
+    "master-rules.test.js",
+    "intent-revision.test.js"
   ]
 }

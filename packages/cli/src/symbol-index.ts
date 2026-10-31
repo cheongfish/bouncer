@@ -7,6 +7,7 @@ const { toPosix } = posixPath;
 import fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { TextDecoder } = require('node:util');
 
 type SymbolKind =
   | 'function-declaration'
@@ -43,6 +44,15 @@ type ResolveResult =
   | { status: 'ambiguous'; candidates: SymbolCandidate[]; diagnostics: SymbolCandidate[] }
   | { status: 'unresolved'; candidates: SymbolCandidate[]; diagnostics: SymbolCandidate[]; unparsed_files: string[] };
 
+// 파일 하나를 열거한 결과. 세 상태를 구분해야 빈 결과가 "정의 없음"인지 "읽지 못함"인지 알 수 있다.
+// unsupported는 role·blob_sha를 담지 않는다. 색인 대상이 아니므로 분류 결과를 만들지 않는다.
+type UnsupportedReason = 'extension' | 'declaration-file' | 'binary';
+
+type FileDefinitions =
+  | { status: 'parsed'; path: string; role: SymbolRole; blob_sha: string; definitions: SymbolRef[] }
+  | { status: 'unsupported'; path: string; reason: UnsupportedReason }
+  | { status: 'parse_failed'; path: string; role: SymbolRole; blob_sha: string };
+
 type RawHit = {
   path: string;
   qualified_name: string;
@@ -69,6 +79,8 @@ const SKIP_DIR_NAMES = new Set(['.git', 'node_modules', '.worktrees', 'graphify-
 const SCRIPT_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']);
 const IDENT_START = /[A-Za-z_$]/;
 const IDENT_PART = /[A-Za-z0-9_$]/;
+// fatal: 잘못된 UTF-8을 TypeError로 드러낸다. ignoreBOM: BOM을 본문에 남겨 스캐너와 resolveSymbol이 같은 문자열을 본다.
+const UTF8_STRICT_DECODER = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 // 이 키워드 뒤의 `/` 만 정규식이다. 식별자·숫자·`)` 뒤의 `/` 는 나눗셈이므로
 // 본문을 정규식으로 삼켜 다른 파일 후보를 지우지 않는다.
@@ -156,6 +168,108 @@ function resolveSymbol(input: ResolveSymbolInput): ResolveResult {
   }
   // 구문 오류로 통째로 버려진 source 파일을 알려, 빈 결과가 "정의 없음"인지 "색인 실패"인지 구분하게 한다.
   return { status: 'unresolved', candidates: diagnostics, diagnostics, unparsed_files: unparsed.sort() };
+}
+
+/**
+ * 파일 하나의 본문에서 지원하는 모든 함수 정의를 이름 필터 없이 열거한다. resolveSymbol과
+ * 같은 토큰 파서를 쓰고 이름 일치 조건만 끈다. 구문 오류와 지원 불가는 정의 없음과 구분해 상태로 돌려준다.
+ * 입력 계약 위반(빈 path, Buffer가 아닌 bytes)만 throw하고, 나머지 실패는 throw하지 않는 상태다.
+ * 저장소와 Git 객체 DB는 읽지 않는다. blob SHA도 호출자가 준 bytes에서만 계산한다.
+ *
+ * @param {object} input - 열거 입력
+ * @param {string} input.path - 저장소 상대 posix 경로. 확장자·선언 파일 여부와 역할 분류에 쓴다
+ * @param {Buffer} input.bytes - 파일 본문 바이트
+ * @returns {FileDefinitions} parsed면 definitions가 (start_line, end_line, qualified_name, kind) 오름차순이다.
+ *   unsupported면 reason이 extension·declaration-file·binary 중 하나다. parse_failed는 definitions 키가 없다
+ */
+function listDefinitionsInText(input: { path: string; bytes: Buffer }): FileDefinitions {
+  // 1. 입력 계약은 결과 상태로 바꾸지 않고 바로 거절한다. 빈 path는 확장자와 역할을 정할 수 없고,
+  // 문자열 bytes는 NUL 검사와 blob SHA가 바이트 기준이라 조용히 잘못된 답을 내게 된다.
+  // 거절 오류는 plain Error로 낸다. TextDecoder의 TypeError와 구분되어야 테스트가 가드를 확인할 수 있다.
+  const rel = input.path;
+  const bytes = input.bytes;
+  if (typeof rel !== 'string' || rel.length === 0) {
+    throw new Error('path must be a non-empty string');
+  }
+  if (!Buffer.isBuffer(bytes)) {
+    throw new Error('bytes must be a Buffer');
+  }
+
+  // 2. 지원 불가는 파싱 전에 가린다. 확장자 → 선언 파일 → 바이너리 순으로 보고 첫 사유만 낸다.
+  const name = path.basename(rel);
+  if (!SCRIPT_EXTS.has(path.extname(name).toLowerCase())) {
+    return { status: 'unsupported', path: rel, reason: 'extension' };
+  }
+  if (isDeclarationFileName(name)) {
+    return { status: 'unsupported', path: rel, reason: 'declaration-file' };
+  }
+  // NUL이 있으면 바이너리로 본다. UTF-8이 아니면 토큰 스캐너가 의미 없는 문자열을 만들므로 같이 거른다.
+  const text = bytes.includes(0) ? null : decodeUtf8(bytes);
+  if (text === null) {
+    return { status: 'unsupported', path: rel, reason: 'binary' };
+  }
+
+  // 3. 구문 열거. role과 blob_sha는 지원 파일에만 붙는다. 구문 실패도 blob_sha를 남겨 어떤 본문이 실패했는지 식별하게 한다.
+  const blobSha = gitBlobSha(bytes);
+  const role = classifyRole(rel);
+  let raw: RawHit[];
+  try {
+    raw = collectDefinitions(tokenize(text), null, rel);
+  } catch (error) {
+    // 구문 오류(StructError)만 이 파일의 parse_failed로 접는다. 그 밖의 예외는 원인을 숨기지 않고 던진다.
+    if (error instanceof StructError) {
+      return { status: 'parse_failed', path: rel, role, blob_sha: blobSha };
+    }
+    throw error;
+  }
+
+  // 4. 정렬 키를 고정해 같은 본문이면 항상 같은 순서가 나오게 한다. 정렬 계약은 compareDefinitions에 있다.
+  const definitions: SymbolRef[] = raw
+    .map((hit) => ({
+      path: hit.path,
+      qualified_name: hit.qualified_name,
+      kind: hit.kind,
+      start_line: hit.start_line,
+      end_line: hit.end_line,
+      blob_sha: blobSha,
+    }))
+    .sort(compareDefinitions);
+  return { status: 'parsed', path: rel, role, blob_sha: blobSha, definitions };
+}
+
+/**
+ * UTF-8 엄격 디코딩. 잘못된 바이트면 null을 돌려 바이너리로 분류하게 한다. BOM은 지우지 않는다.
+ * 지우면 토큰 스캐너의 BOM 건너뛰기가 헛돌고 resolveSymbol의 `bytes.toString('utf8')` 결과와 어긋난다.
+ *
+ * @param {Buffer} bytes - 파일 본문
+ * @returns {string | null} 디코딩한 본문. UTF-8이 아니면 null
+ */
+function decodeUtf8(bytes: Buffer): string | null {
+  try {
+    return UTF8_STRICT_DECODER.decode(bytes);
+  } catch (error) {
+    // fatal 디코더가 잘못된 바이트에서 던지는 TypeError만 "UTF-8 아님"으로 흡수한다. 다른 예외는 던진다.
+    if (error instanceof TypeError) return null;
+    throw error;
+  }
+}
+
+/**
+ * 열거 결과의 정렬 키 (start_line, end_line, qualified_name, kind)를 비교한다. 문자열은 `<`로 비교해
+ * 로케일이 순서를 바꾸지 못하게 한다. 같은 키의 두 정의는 0을 돌려 입력 순서를 그대로 둔다.
+ *
+ * @param {SymbolRef} left - 왼쪽 정의
+ * @param {SymbolRef} right - 오른쪽 정의
+ * @returns {number} 음수·0·양수
+ */
+function compareDefinitions(left: SymbolRef, right: SymbolRef): number {
+  if (left.start_line !== right.start_line) return left.start_line - right.start_line;
+  if (left.end_line !== right.end_line) return left.end_line - right.end_line;
+  if (left.qualified_name !== right.qualified_name) {
+    return left.qualified_name < right.qualified_name ? -1 : 1;
+  }
+  if (left.kind !== right.kind) return left.kind < right.kind ? -1 : 1;
+  return 0;
 }
 
 /**
@@ -251,8 +365,18 @@ function walkDir(absDir: string, repoReal: string, files: string[]): void {
 
 function isScriptFileName(name: string): boolean {
   // .d.ts는 구현이 아니라 서명이다. 확장자만으로 source를 정하지는 않고 파싱 대상에서만 뺀다.
-  if (name.endsWith('.d.ts') || name.endsWith('.d.mts') || name.endsWith('.d.cts')) return false;
+  if (isDeclarationFileName(name)) return false;
   return SCRIPT_EXTS.has(path.extname(name).toLowerCase());
+}
+
+/**
+ * 선언 파일 이름인지 본다. 색인 walker와 단일 파일 열거가 같은 규칙을 써야 두 경로가 다른 답을 내지 않는다.
+ *
+ * @param {string} name - 파일 이름(디렉터리 제외)
+ * @returns {boolean} .d.ts·.d.mts·.d.cts이면 true
+ */
+function isDeclarationFileName(name: string): boolean {
+  return name.endsWith('.d.ts') || name.endsWith('.d.mts') || name.endsWith('.d.cts');
 }
 
 function isInsideRepo(absPath: string, repoReal: string): boolean {
@@ -612,7 +736,7 @@ function scanPunct(s: ScanState, line: number): Token {
  * @param {string} rel - 저장소 상대 posix 경로
  * @returns {RawHit[]} 이 파일의 후보
  */
-function collectDefinitions(tokens: Token[], symbol: string, rel: string): RawHit[] {
+function collectDefinitions(tokens: Token[], symbol: string | null, rel: string): RawHit[] {
   return new Collector(tokens, symbol, rel).run();
 }
 
@@ -620,14 +744,15 @@ class Collector {
   tokens: Token[];
   i = 0;
   hits: RawHit[] = [];
-  symbol: string;
+  // null이면 이름을 가리지 않고 모든 이름 있는 정의를 수집한다(파일 열거 경로).
+  symbol: string | null;
   rel: string;
   lastLine = 1;
   lastValue = '';
   ambient = 0;
   eof: Token;
 
-  constructor(tokens: Token[], symbol: string, rel: string) {
+  constructor(tokens: Token[], symbol: string | null, rel: string) {
     this.tokens = tokens;
     this.symbol = symbol;
     this.rel = rel;
@@ -643,6 +768,18 @@ class Collector {
     this.parseStmts([]);
     if (this.peek().kind !== 'eof') throw new StructError();
     return this.hits;
+  }
+
+  /**
+   * 정의 이름이 찾는 대상인지 본다. 익명 함수(name이 null)는 이름이 없으므로 symbol이 null이어도
+   * 정의로 올리지 않는다. stack만 쓰면 바깥 함수 이름으로 잘못 기록된다.
+   *
+   * @param {string | null} name - 정의의 이름. 계산된 키·익명이면 null
+   * @returns {boolean} 수집 대상이면 true
+   */
+  matchesName(name: string | null): boolean {
+    if (name === null) return false;
+    return this.symbol === null || name === this.symbol;
   }
 
   peek(n = 0): Token {
@@ -977,7 +1114,7 @@ class Collector {
           const nextStack = [...stack, name];
           const arrow = kind !== 'var' && this.looksLikeArrow();
           this.parseExprUntil(new Set([',', ';']), nextStack);
-          if (arrow && name === this.symbol && this.ambient === 0) {
+          if (arrow && this.matchesName(name) && this.ambient === 0) {
             this.hits.push({
               path: this.rel,
               qualified_name: nextStack.join('.'),
@@ -1047,7 +1184,7 @@ class Collector {
     if (this.eat('{')) {
       this.parseStmts(nextStack);
       const end = this.expect('}');
-      if (!opts.expression && !this.ambient && name === this.symbol) {
+      if (!opts.expression && !this.ambient && this.matchesName(name)) {
         this.hits.push({
           path: this.rel,
           qualified_name: nextStack.join('.'),
@@ -1186,7 +1323,7 @@ class Collector {
         const skipCtor = kind === 'class' && name === 'constructor';
         if (
           hasBody && !computed && !isGetSet && !privateName && !skipCtor
-          && this.ambient === 0 && name === this.symbol
+          && this.ambient === 0 && this.matchesName(name)
         ) {
           this.hits.push({
             path: this.rel,
@@ -1211,7 +1348,7 @@ class Collector {
         this.parseExprUntil(new Set([',', '}']), nextStack);
         if (
           kind === 'object' && asMethod && !computed && !isGetSet && this.ambient === 0
-          && name === this.symbol
+          && this.matchesName(name)
         ) {
           this.hits.push({
             path: this.rel,
@@ -1508,4 +1645,4 @@ function compareCandidates(left: SymbolCandidate, right: SymbolCandidate): numbe
   return 0;
 }
 
-export = { resolveSymbol };
+export = { resolveSymbol, listDefinitionsInText };
