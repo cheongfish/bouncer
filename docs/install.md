@@ -248,9 +248,10 @@ Codex도 named/custom agent를 지원하므로, Antigravity에서도 로드에 �
 `CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT`가 없어 자동 판별 신호가 없습니다.
 Cursor와 같이 provider를 명시하세요.
 
-Claude Code와 Codex는 plugin-root 변수가 없는 터미널에서도 `CLAUDECODE`,
-`CODEX_THREAD_ID`로 provider를 자동 판별합니다. Cursor와 Antigravity는
-자동 판별하지 않으므로 `subagents.provider`를 명시해야 합니다.
+Claude Code, Codex, Cursor CLI는 plugin-root 변수가 없는 터미널에서도
+`CLAUDECODE`, `CODEX_THREAD_ID`, `CURSOR_AGENT`로 provider를 자동 판별합니다
+(중첩 시 앞의 것이 이깁니다). Antigravity는 자동 판별하지 않으므로
+`subagents.provider`를 명시해야 합니다.
 
 워크플로는 PATH의 `bouncer-root --auto`로 설치 후보를 고릅니다. provider pin은
 루트 탐색과 별개로 유지합니다.
