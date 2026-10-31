@@ -10,7 +10,6 @@
 | [install.md](install.md) | runtime(npm)과 호스트별 plugin 설치, Graphify 설정 |
 | [workflow.md](workflow.md) | `/bouncer-*` 단계 개요 |
 | [configuration.md](configuration.md) | `.bouncer/config.json` 필드와 예시 |
-| [context-ontology.md](context-ontology.md) | context ontology 사용법 |
 | [threat-model.md](threat-model.md) | 강제력이 막는 실수와 막지 않는 우회 |
 | [Changelog](../CHANGELOG.md) | 변경 이력 |
 

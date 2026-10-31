@@ -32,7 +32,6 @@
     "public-name-regression.test.js",
     "terminal-intent-provenance.test.js",
     "typescript-module-contract.test.js",
-    "master-rules.test.js",
-    "ontology-cli-contract.test.js"
+    "master-rules.test.js"
   ]
 }

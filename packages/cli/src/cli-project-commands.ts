@@ -89,19 +89,6 @@ function cmdIntentLazy(rest: string[], io: CliIo): number {
   return intentCommand.run(rest, io);
 }
 
-/**
- * ontology parser와 색인을 첫 명령 실행까지 지연한다. help 구성은 registry usage만
- * 읽으므로 전체 CLI와 다른 project command에서 검색 코어를 적재하지 않는다.
- *
- * @param {string[]} rest - `ontology` 뒤의 모드와 옵션
- * @param {CliIo} io - stdout/stderr 싱크
- * @returns {number} ontology 전용 handler의 종료 코드
- */
-function cmdOntologyLazy(rest: string[], io: CliIo): number {
-  const command = require('./cli-ontology-command') as { run: (rest: string[], io: CliIo) => number };
-  return command.run(rest, io);
-}
-
 function cmdGraphifyBin(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { parseFlags } = require('./cli-flags') as typeof import('./cli-flags');
@@ -615,14 +602,6 @@ export = {
   intent: {
     run: cmdIntentLazy,
     usage: cliUsage.COMMAND_USAGE['intent'],
-  },
-  ontology: {
-    run: cmdOntologyLazy,
-    usage: `  ontology   entity --entity <token> [--repo <dir>] [--limit <1..100>] [--warnings <summary|detail>]
-             file --file <path> [--repo <dir>] [--limit <1..100>] [--warnings <summary|detail>]
-             impact --file <path> [--repo <dir>] [--limit <1..100>] [--warnings <summary|detail>]
-             Search canonical Bouncer context in memory (read-only JSON).
-`,
   },
   'graphify-bin': {
     run: cmdGraphifyBin,
