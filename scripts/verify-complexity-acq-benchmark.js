@@ -4,19 +4,20 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { resolveSpawn } = require('./spawn-win');
 
-// light 직렬 직접 실행·옛 inline 원장 가림(run-preflight) task의 검증 범위다. 전체 CI
-// (`npm run ci`)는 마지막 verification task가 한 번만 돌리므로, 이 래퍼는 이 변경이 닿는
-// 테스트와 정적 검사만 고른다. 단계 순서는 빌드 → 테스트 → 정적 검사 → 테스트 이름
-// 규칙으로, 앞 단계가 뒤 단계의 입력을 만든다.
+// complexity ACQ 응답기(TASKS-004)의 검증 범위다. 전체 CI(`npm run ci`)는 마지막 verification
+// task가 한 번만 돌리므로, 이 래퍼는 이 변경이 닿는 테스트와 정적 검사만 고른다. 단계 순서는
+// 빌드 → 테스트 → 정적 검사 → 테스트 이름 규칙으로, 앞 단계가 뒤 단계의 입력을 만든다.
 const TESTS = [
-  'test/run-preflight.test.js',
+  'benchmarks/acp/responder.test.cjs',
+  'test/acq-gate-ids.test.js',
 ];
 const LINT_FILES = [
-  'packages/cli/src/execution-contracts.ts',
-  'packages/cli/src/coordinator-ledger.ts',
-  'packages/cli/src/run-preflight.ts',
-  'test/run-preflight.test.js',
-  'scripts/verify-light-preflight.js',
+  'benchmarks/acp/responder.cjs',
+  'benchmarks/acp/responder.test.cjs',
+  'scripts/verify-complexity-acq-benchmark.js',
+];
+const TEST_NAME_FILES = [
+  'test/acq-gate-ids.test.js',
 ];
 
 const repoRoot = path.join(__dirname, '..');
@@ -33,15 +34,17 @@ const node = process.execPath;
  * @returns {void} exit 0이면 반환한다. 아니면 stderr 한 줄 뒤 같은 코드(없으면 1)로 종료
  */
 function step(label, command, args) {
-  process.stdout.write(`\n== verify-light-preflight: ${label}\n`);
+  process.stdout.write(`\n== verify-complexity-acq-benchmark: ${label}\n`);
   const call = resolveSpawn(command, args);
   const result = spawnSync(call.command, call.args, { cwd: repoRoot, stdio: 'inherit', shell: call.shell });
   if (result.error) {
-    process.stderr.write(`verify-light-preflight: ${label} failed to spawn: ${result.error.message}\n`);
+    process.stderr.write(
+      `verify-complexity-acq-benchmark: ${label} failed to spawn: ${result.error.message}\n`,
+    );
     process.exit(1);
   }
   if (result.status !== 0) {
-    process.stderr.write(`verify-light-preflight: ${label} failed (exit ${result.status})\n`);
+    process.stderr.write(`verify-complexity-acq-benchmark: ${label} failed (exit ${result.status})\n`);
     // 신호로 죽으면 status가 null이라 실패를 0으로 삼키지 않도록 1로 바꾼다.
     process.exit(result.status == null ? 1 : result.status);
   }
@@ -49,17 +52,18 @@ function step(label, command, args) {
 
 // 인자를 받지 않는다. 인자가 붙으면 범위를 잘못 고른 호출이므로 usage(2)로 막는다.
 if (process.argv.length !== 2) {
-  process.stderr.write('usage: node scripts/verify-light-preflight.js\n');
+  process.stderr.write('usage: node scripts/verify-complexity-acq-benchmark.js\n');
   process.exit(2);
 }
 
 // 1. 테스트는 packages/cli/dist를 읽으므로 빌드가 먼저다.
 step('build', 'npm', ['run', 'build']);
-// 2. 이 변경이 닿는 run-preflight 테스트.
+// 2. 응답기 단언과 카탈로그 ID 정합(002가 통과시킨 acq-gate-ids).
 step('tests', node, ['--test', ...TESTS]);
-// 3. 변경한 ts·js 다섯 경로에 eslint를 건다.
-step('lint', 'npx', ['eslint', ...LINT_FILES]);
-// 4. 테스트 이름 규칙(`<condition> → <result>`).
-step('lint:test-names', node, ['scripts/check-test-names.js', ...TESTS]);
+// 3. 변경한 cjs·js에 eslint를 건다.
+// benchmarks/**는 eslint ignore다. --no-warn-ignored로 그 경로를 목록에 남겨도 경고로 실패하지 않는다.
+step('lint', 'npx', ['eslint', '--no-warn-ignored', ...LINT_FILES]);
+// 4. 테스트 이름 규칙(`<condition> → <결과>`). responder.test.cjs는 기존 이름 형식을 따른다.
+step('lint:test-names', node, ['scripts/check-test-names.js', ...TEST_NAME_FILES]);
 
-process.stdout.write('\nverify-light-preflight: ok\n');
+process.stdout.write('\nverify-complexity-acq-benchmark: ok\n');

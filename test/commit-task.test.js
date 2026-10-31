@@ -176,7 +176,7 @@ function fullBlueprint(repo, {
   writeDoc(repo, `${blueprintDir}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${blueprintDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    // scale light는 bootstrap이 light 원장을 만드는 입력이다. 금지선 판정 없이 scope 밖을 거절하는 경로를 연다.
+    // scale은 선언 호환용이다. 옛 light 원장은 bootstrap 뒤 mode를 수동으로 찍는다.
     bouncer: {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved', ...(scale ? { scale } : {}),
     },
@@ -561,8 +561,12 @@ test('out-of-scope recovery → is return-to-plan standalone and coordinator-rev
   assert.strictEqual(standalone.recovery.action, 'return-to-plan');
   assert.ok(typeof standalone.recovery.detail === 'string' && standalone.recovery.detail.length > 0);
 
-  // light 원장 drive는 금지선 없이도 scope 밖을 막고 scope 재개정으로 복구한다.
-  const { worker, blueprint } = coordinatorFixture({ scale: 'light' });
+  // 옛 mode:light 원장은 금지선 없이도 scope 밖을 막고 scope 재개정으로 복구한다.
+  const { worker, blueprint, integrationPath } = coordinatorFixture();
+  const ledgerFile = path.join(integrationPath, '.bouncer/runtime/coordinator.json');
+  const stamped = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  stamped.mode = 'light';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(stamped, null, 2)}\n`);
   const coordinator = commitTask({
     repoRoot: worker,
     blueprintDir: blueprint,

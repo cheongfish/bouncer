@@ -74,7 +74,7 @@ function runRefLink(name: string, triggers: string[]): LinkContract {
 const READONLY_ROLE_GUARDS = 'Hard guards (read-only)';
 const DRIVE_METRICS_HEADINGS = ['Per coordinator session', 'Per root-direct session', 'Closing report'];
 const AGENT_DISPATCH_HEADINGS = [
-  'Lightweight and implement dispatch', 'Named implementer', 'Implementer fallback', 'Intent bundle',
+  'Implement dispatch', 'Named implementer', 'Implementer fallback', 'Intent bundle',
   'Dispatch metadata and reports', 'Debugger dispatch', 'Worker model and token records', 'Worker hand-back',
 ];
 const PATH_CONTRACTS: Record<string, DocContract> = {
@@ -149,7 +149,7 @@ const PATH_CONTRACTS: Record<string, DocContract> = {
     },
   },
   'rules/plugin-root.md': { headings: { required: ['Master and product rules'] } },
-  'rules/planning.md': { headings: { required: ['Lightweight cycle'] } },
+  'rules/planning.md': { headings: { required: ['Complexity declaration'] } },
   // 102-001에서 execute 스킬의 reference가 run 소유로 옮겨졌다. coordinator 카드가 그
   // reference의 읽는 쪽이라, 링크가 실재하고 조건부 적재 문장 안에 있어야 한다.
   'references/coordinator-cards/implement.md': {

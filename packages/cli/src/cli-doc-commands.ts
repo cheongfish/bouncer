@@ -87,7 +87,9 @@ function cmdScaffold(rest: string[], io: CliIo) {
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { readEpicRegistry } = require('./epic-registry') as typeof import('./epic-registry');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
-  const { SCALE_ENUM, DEFAULT_SCALE } = require('./schema') as typeof import('./schema');
+  const {
+    SCALE_DECLARABLE_ENUM, DEFAULT_SCALE, COMPLEXITY_ENUM, DEFAULT_COMPLEXITY,
+  } = require('./schema') as typeof import('./schema');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
   const { readVerifyPolicy } = require('./config') as typeof import('./config');
   // 명령을 선택한 뒤에만 기능을 읽어 다른 경로의 적재를 피한다.
@@ -165,15 +167,25 @@ function cmdScaffold(rest: string[], io: CliIo) {
           }
           order = parsed;
         }
-        // scale은 선택 인자다. 생략은 기존 계약(full)이고, 알 수 없는 값은
-        // 라이브러리에 닿기 전에 사용법 오류(2)로 거절해 파일을 하나도 만들지
-        // 않는다. `--scale` 뒤에 값이 없으면 parseFlags가 boolean true를 주므로
-        // 문자열 검사가 그 형태도 같이 거른다.
+        // scale·complexity는 선택 인자다. `--scale light`는 전용 안내로 거절하고
+        // 라이브러리에 닿기 전에 파일을 만들지 않는다. 값 없는 플래그는 boolean true다.
+        if (f.scale === 'light') {
+          io.err('scaffold blueprint: --scale light was removed; declare --complexity low instead\n');
+          return 2;
+        }
         const scale = f.scale === undefined ? DEFAULT_SCALE : f.scale;
-        if (typeof scale !== 'string' || !SCALE_ENUM.includes(scale)) {
+        if (typeof scale !== 'string' || !SCALE_DECLARABLE_ENUM.includes(scale)) {
           io.err(
-            `scaffold blueprint: --scale must be one of ${SCALE_ENUM.join('|')}, `
+            `scaffold blueprint: --scale must be one of ${SCALE_DECLARABLE_ENUM.join('|')}, `
             + `got ${JSON.stringify(f.scale)}\n`,
+          );
+          return 2;
+        }
+        const complexity = f.complexity === undefined ? DEFAULT_COMPLEXITY : f.complexity;
+        if (typeof complexity !== 'string' || !COMPLEXITY_ENUM.includes(complexity)) {
+          io.err(
+            `scaffold blueprint: --complexity must be one of ${COMPLEXITY_ENUM.join('|')}, `
+            + `got ${JSON.stringify(f.complexity)}\n`,
           );
           return 2;
         }
@@ -197,6 +209,7 @@ function cmdScaffold(rest: string[], io: CliIo) {
           name,
           timestamp,
           scale,
+          complexity,
           area,
           attribution,
         });

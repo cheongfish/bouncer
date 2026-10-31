@@ -111,7 +111,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    decision in one chat message and wait for the answers before the Discover
    ACQ. These are discovery's clarifying questions, not an ACQ gate, and
    `config.autonomy` never skips them. Do not write an assumed answer into the
-   framing. For batching independent questions, light declaration versus
+   framing. For batching independent questions, complexity declaration versus
    approval, and step handoff, read [roundtrip.md](./references/roundtrip.md). When discovery surfaces ordering or fan-in among units of work,
    capture them as candidate task dependencies (`depends_on`) and parallel
    readiness (`parallel_safe`) — task numbers alone do not decide execution
@@ -151,14 +151,33 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    as the suggested `--order`. Suggestions only; the user may override them.
    Reject a slug that is digits only, starts with a three-digit prefix, or is
    longer than 40 characters.
-   **Light path.** At the same checkpoint the root runs
-   **ACQ — Light scope (`plan.light_scope`):** show the auto-allocated
+   **ACQ — Complexity (`plan.complexity`):** show the auto-allocated
    order in the Re-ground and say it can be changed by replying with a new order.
-   Recommend light only when one commit task is expected and no public interface, protected path, or cross-module state change is involved; otherwise recommend full.
-   Base that recommendation only on the discovery handoff; the user still declares light or full.
-   On a light declaration, create no new epic beyond case (1) or (2) above; pick the
-   target epic with the same attribution and allocate only a blueprint order under it.
-   Without a declaration, use the normal path for epic/blueprint slugs and order.
+   Recommend `low` only when there is no public interface, protected path, or
+   cross-module state change and the change is narrow; otherwise recommend
+   `standard`. Base that recommendation on the discovery handoff and
+   `plan inspect` routing; the user still confirms. The declaration is not
+   approval.
+   When routing and the handoff recommend `standard`:
+   **AskUserQuestion — plan.complexity**
+   <!-- acq {"gate":"plan.complexity","options":["A","B","C"],"recommended":"A"} -->
+   1. **Re-ground**: 이 계획의 `bouncer.complexity`를 확정함
+   2. **Recommend-why**: 공개 인터페이스·보호 경로·모듈 간 상태 변경이 있거나 변경이 넓어 standard를 추천함
+   3. **Options**:
+      - A) standard (Recommended)
+      - B) low
+      - C) 중단
+
+   When they recommend `low`:
+   **AskUserQuestion — plan.complexity**
+   <!-- acq {"gate":"plan.complexity","options":["A","B","C"],"recommended":"A"} -->
+   1. **Re-ground**: 이 계획의 `bouncer.complexity`를 확정함
+   2. **Recommend-why**: 공개 인터페이스·보호 경로·모듈 간 상태 변경이 없고 변경이 좁아 low를 추천함
+   3. **Options**:
+      - A) low (Recommended)
+      - B) standard
+      - C) 중단
+
    The planner creates the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
@@ -166,8 +185,13 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
      --description "<description>"
    bouncer scaffold blueprint \
      --epic-dir <.bouncer/context/epics/epic-slug> --order <n> --name <slug> \
-     --attribution "<one-line attribution reason>"
+     --attribution "<one-line attribution reason>" \
+     --complexity <low|standard>
    ```
+   After `scaffold blueprint`, read the new `index.md` and confirm it carries a
+   `bouncer.complexity` key. If the key is missing, stop and tell the user the
+   CLI is outdated — do not author against a scaffold that cannot record the
+   declaration.
    Run the `scaffold epic` command only in the two cases above. Add
    `--attribution` for every non-legacy epic, and for `features` also add
    `--area <area>` chosen from `registry.areas`.
@@ -176,22 +200,6 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    not approval), run `bouncer epic add-area --name <a> --yes` or
    `bouncer epic add-domain --slug <s> --reason <text> --yes`. Existing blueprints
    are not moved after a promotion.
-   **Light scaffold.** When this step received a light declaration, add
-   `--scale light` to the blueprint command. That creates five initial
-   documents: blueprint `index.md`, `tasks/001/{tasks,verification}.md`, root
-   `review.md`, and a `context-review.md` (the new blueprint carries the
-   `review_contract: brief` marker). Everything except `context-review.md` is
-   100 lines or fewer in total; the `context-review.md` is not counted. An
-   existing light blueprint without the marker has only the first four. The new
-   blueprint also records `bouncer.verification_policy: scoped_terminal`, so a
-   light plan is complete only with one terminal verification task: run
-   `bouncer scaffold task --blueprint <dir> --id 002 --execution-kind
-   verification --depends-on TASKS-001 --verify "<full command>"` after the
-   implementation task (two more documents outside the 100-line budget). Omit the
-   flag or use `--scale full` and all five documents are created as described
-   below. Values
-   outside `light`/`full` create no documents and exit with code 2. Do not attach
-   `--scale light` by guess when there was no declaration.
    The epic and blueprint outputs must both remain under
    `.bouncer/context/epics/...` (slug dirs like `auth` / `signup`, never
    `EPIC-`/`BP-` prefixes or number prefixes on new scaffolds).
@@ -218,8 +226,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    `tasks/<NNN>/tasks.md` under the blueprint, fill every implementation-ready
    section before approval — Goal & intent, Current behavior, Target behavior,
    Interface, Touch, Do not touch, Constraints, Checklist.    Those sections are
-   the sole brief for `/bouncer-run`. When collecting task evidence for a
-   `scale: full` blueprint, after the task bundle is scaffolded and before
+   the sole brief for `/bouncer-run`.    When collecting task evidence, after the task bundle is scaffolded and before
    writing Current behavior and Touch, read
    [evidence-dispatch.md](./references/evidence-dispatch.md). Author each named
    section, including Touch, per `${BOUNCER_ROOT}/references/spec-authoring/index.md`.
@@ -247,18 +254,9 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    integration branches are `<type>/<epic-slug>-<blueprint-slug>-<slug>`; worker
    branches are `bouncer/<epic-slug>-<blueprint-slug>-<task-id>`. Reused worktrees
    retain their actual branch and are never renamed.
-   **Light declaration.** When the user declared the light path, blueprint
-   `index.md` frontmatter `bouncer.scale` must be `light`. Step 2 with
-   `--scale light` already sets that. Scaffolding without `--scale` writes
-   `scale: full`; if you later decide on light, change the value to `light` (do
-   not add a new key). Absence or `full` is the normal path; consumers only
-   check `scale === 'light'`.
-   **Light authoring scope.** Fill only Goal & intent, Touch, and Checklist in
-   light task bodies — the template has no Interface or Do not touch headings
-   and those three are the only required sections. Needing a public interface, a protected path,
-   an error contract, or state changes across multiple modules signals a return to
-   full: set `scale` back, run `bouncer scaffold context-review --blueprint <dir>`,
-   fill Interface and Do not touch, and rejoin the normal path.
+   After scaffold, blueprint `index.md` must already carry `bouncer.complexity`
+   (`low` or `standard`). Do not invent a substitute key. Every task uses the
+   same eight sections (Goal & intent through Checklist).
    **Verify command (required per commit task on a `scoped_terminal` blueprint).**
    Every new blueprint carries `bouncer.verification_policy: scoped_terminal`.
    Each commit task needs its own task-only `bouncer.verify` (a single argv that
@@ -329,18 +327,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    basis for accepting it, and takes explicit consent for that ID. On approval
    the root runs `context-review close`.
 
-   **Skip this entire step when the blueprint's
-   `bouncer.scale` is `light` and it has no `bouncer.review_contract` marker** —
-   that existing blueprint has no `context-review.md`
-   (a new light scaffold always carries the marker). Do
-   not scaffold the document just to run the judgment, and do not substitute a
-   lighter inline review or an empty accepted `context-review.md`; go to step
-   6. Light matches CLI `strategy: skip` — do not invent reviewer calls. On a
-   unmarked light plan the user's `affected_paths` confirmation and G3–G5
-   carry approved scope.
-
-   For a `scale: full` blueprint, or a light blueprint with the marker, first
-   resolve `bouncer-context-reviewer` with `bouncer subagent-model --agent
+   First resolve `bouncer-context-reviewer` with `bouncer subagent-model --agent
    bouncer-context-reviewer` and report it. A model rejection stops dispatch;
    report the provider, role, configured model, host reason, and config location.
    If Claude Code's hook adds `additionalContext` that changes dispatch facts,
@@ -350,8 +337,9 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    blueprint without the marker has strategy `single` (one `combined` reviewer;
    older `clustered` payloads are only read). A marked blueprint has strategy
    `perspectives`: call one reviewer per entry of the payload `perspectives` in
-   one message, in parallel (full: `consistency`, `scope_minimality`,
-   `verifiability`, `risk_security`; light: `verifiability` only), and never
+   one message, in parallel (standard: `consistency`, `scope_minimality`,
+   `verifiability`, `risk_security`; complexity low: verifiability, plus
+   `risk_security` when any commit task declares `review_risk`), and never
    merge or split them. Follow-ups, routing, records, restart: see the reference.
    On `ok: false`, `previous-payload-*`, or digest mismatch, stop without
    reviewers and report. Behavioral brief: the `context-review` skill
@@ -382,8 +370,8 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate plan
    ```
-   The CLI owns plan-gate checks and codes, including the full/light exception
-   and G19 task-DAG integrity (missing / self / duplicate / cycle), plus G20
+   The CLI owns plan-gate checks and codes, including G19 task-DAG integrity
+   (missing / self / duplicate / cycle), plus G20
    verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
    cause, path, and recovery action. The root runs `plan-ledger close` only after `validate --gate plan` passes; a rejected approval or a failed gate leaves the ledger open.
@@ -403,7 +391,7 @@ Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback.
 **Index:**
 - Before step 1 — `plan.request` Request (when invocation had no description)
 - Step 1 — `plan.discovery` Discover confirm
-- Step 2 — `plan.light_scope` Light scope
+- Step 2 — `plan.complexity` Complexity
 - Step 3 — `plan.verify_command` Verify command
 - Step 4 — `plan.affected_paths` affected_paths
 - Step 6 — `plan.approval` Approval

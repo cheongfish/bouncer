@@ -169,8 +169,10 @@ git clone -b release <사내-git-url> ./bouncer-release
 판정 정본은 `rules/commit-scope.md`입니다. coordinator가 활성인 drive는 승인
 `affected_paths`가 아니라 원장 scope로 판정합니다. full drive는 scope 밖이어도
 `Do not touch`와 겹치지 않으면 허용하고, `Do not touch`와 겹치는 staged 파일과
-금지선을 읽지 못한 경우(`scope-do-not-touch-unreadable`)를 `deny`합니다. light
-drive와 coordinator 없는 실행은 scope 밖 staged 파일을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
+금지선을 읽지 못한 경우(`scope-do-not-touch-unreadable`)를 `deny`합니다. 옛 light
+원장(읽기 전용)과 coordinator 없는 실행은 scope 밖 staged 파일을 `deny`합니다.
+새 CLI로 올리기 전에 진행 중인 drive를 이전 CLI로 `/bouncer-finalize`까지 끝내야
+합니다. Claude Code의 `PreToolUse` 가드와
 **판정이 같은 공개 명령**(`bouncer commit-guard`)입니다. 두 commit 훅과 SessionStart
 그래프 훅(`bouncer graph-sync`)은 내부 모듈을 읽지 않고 PATH의 `bouncer`
 또는 `BOUNCER_BIN`(절대 경로)을 호출하며, 자기 플러그인 루트를 `BOUNCER_HOME`으로

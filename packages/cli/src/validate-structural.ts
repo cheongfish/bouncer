@@ -194,12 +194,27 @@ function checkStructural(
   }
 
   // S20: blueprint만. 부재는 0.7 문서 통과용으로 허용; 잘못된 값만 거절.
-  if (
-    docType === 'bouncer.blueprint'
-    && bouncer.scale !== undefined
-    && !(SCALE_ENUM as unknown[]).includes(bouncer.scale)
-  ) {
-    add('S20', `scale "${bouncer.scale}" not in enum for ${docType}`);
+  // 닫히지 않은 scale: light는 재계획 안내. 닫힌 문서는 읽기 호환으로 통과한다.
+  if (docType === 'bouncer.blueprint') {
+    const closed = bouncer.status === 'closed' || bouncer.status === 'partial_closed';
+    if (bouncer.scale === 'light' && !closed) {
+      add(
+        'S20',
+        'scale "light" was removed; replan with /bouncer-plan and declare complexity low '
+          + '(closed blueprints keep reading it)',
+      );
+    } else if (
+      bouncer.scale !== undefined
+      && !(SCALE_ENUM as unknown[]).includes(bouncer.scale)
+    ) {
+      add('S20', `scale "${bouncer.scale}" not in enum for ${docType}`);
+    }
+    if (
+      bouncer.complexity !== undefined
+      && !(schema.COMPLEXITY_ENUM as unknown[]).includes(bouncer.complexity)
+    ) {
+      add('S20', `complexity "${bouncer.complexity}" not in enum for ${docType}`);
+    }
   }
 
   // S31: review_scope는 켜져 있으면 값 'blueprint'만 받는다. 부재는 구형
@@ -214,14 +229,18 @@ function checkStructural(
 
   // S38: review_contract는 켜져 있으면 값 'brief'만 받는다. 부재는 legacy 계약이므로
   // 통과한다. 잘못된 표식을 legacy로 오인하면 리뷰 관점이 조용히 바뀌므로 값과
-  // review_scope 전제를 각각 거절한다. light도 표식을 받는다(plan 리뷰가 verifiability
-  // 한 관점으로 돈다). light를 접는 reviewContractOf가 아니라 planReviewContractOf를
-  // 써야 light의 잘못된 값도 여기서 거절된다.
-  if (docType === 'bouncer.blueprint' && planReviewContractOf(bouncer) !== 'legacy') {
-    if (planReviewContractOf(bouncer) === null) {
-      add('S38', 'review_contract must be brief');
-    } else if (bouncer.review_scope !== 'blueprint') {
-      add('S38', 'review_contract requires review_scope blueprint');
+  // review_scope 전제를 각각 거절한다. complexity 키가 있으면 brief가 전제다 —
+  // 강도 선언만 있고 리뷰 계약이 없으면 low/standard 관점이 조용히 skip으로 빠진다.
+  if (docType === 'bouncer.blueprint') {
+    const contract = planReviewContractOf(bouncer);
+    if (contract !== 'legacy') {
+      if (contract === null) {
+        add('S38', 'review_contract must be brief');
+      } else if (bouncer.review_scope !== 'blueprint') {
+        add('S38', 'review_contract requires review_scope blueprint');
+      }
+    } else if (bouncer.complexity !== undefined) {
+      add('S38', 'complexity requires review_contract brief');
     }
   }
 

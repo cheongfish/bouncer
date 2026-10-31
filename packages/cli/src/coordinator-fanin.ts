@@ -124,11 +124,10 @@ function testsReportProblem(body: string, command: string): string | null {
  * @param {string} args.integrationPath - 계획 정본을 읽을 integration checkout
  * @param {string} args.blueprint - blueprint 상대 경로
  * @param {Task[]} args.items - fan-in 대상 task
- * @param {boolean} args.light - light 원장이면 true (보고 파일 부재 허용)
  * @returns {{ task: string; expected_command: string; problem: string } | null} 첫 위반. 없으면 null
  */
-function scopedTestReportFailure({ integrationPath, blueprint, items, light }: {
-  integrationPath: string; blueprint: string; items: Task[]; light: boolean;
+function scopedTestReportFailure({ integrationPath, blueprint, items }: {
+  integrationPath: string; blueprint: string; items: Task[];
 }): { task: string; expected_command: string; problem: string } | null {
   for (const item of items) {
     const declared = readBouncerBlock(path.join(integrationPath, blueprint, 'tasks', item.id, 'tasks.md'));
@@ -137,7 +136,6 @@ function scopedTestReportFailure({ integrationPath, blueprint, items, light }: {
       return { task: item.id, expected_command: '', problem: 'task-command-missing' };
     }
     if (!item.dispatch || typeof item.workerPath !== 'string') {
-      if (light) continue;
       return { task: item.id, expected_command: expected, problem: 'report-missing' };
     }
     let body: string;
@@ -145,7 +143,6 @@ function scopedTestReportFailure({ integrationPath, blueprint, items, light }: {
       body = fs.readFileSync(reportPathFor(item.workerPath, item.id, item.dispatch.attempt), 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        if (light) continue;
         return { task: item.id, expected_command: expected, problem: 'report-missing' };
       }
       throw error;
@@ -572,7 +569,7 @@ function integrateCommitWave({
     // wave 전체 검증을 fan-in에서 다시 돌리지 않는 대신 거는 입구 검사다.
     if (scopedTerminal) {
       const mismatch = scopedTestReportFailure({
-        integrationPath: integration.integrationPath, blueprint, light: false,
+        integrationPath: integration.integrationPath, blueprint,
         items: ordered.map((id) => ledger.tasks.find((x) => x.id === id) as Task),
       });
       if (mismatch) return { ok: false, reason: 'worker-test-report-mismatch', ...mismatch };

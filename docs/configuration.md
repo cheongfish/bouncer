@@ -11,7 +11,7 @@
 | `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`). 실행 시 argv로 파싱되며 `shell: false` | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
 | `verify_allowlist` | argv0 실행 파일명 문자열 배열. Windows에서는 `npm.cmd`·`node.exe`처럼 관용 확장자를 벗긴 뒤 비교 | 런타임 검증 실행 직전 허용 목록. 없거나 배열이 아니면 기본값(`npm`·`node`·`make` 등). plan/S12의 `tasks.bouncer.verify` 검사는 이 키가 아니라 기본 목록만 사용 | `["npm", "node", "make"]` |
 | `worktree.setup` | 단일 실행 문자열 (선택). `verify`와 같은 argv 규칙(`&&`·`;`·파이프·리디렉션 불가)과 `verify_allowlist`를 적용 | worktree 의존성 준비(`seed-worktree`·finalize) 끝에 worktree에서 한 번 실행. **main checkout의 config**에서 읽는다. 허용 목록 밖·형식 오류·실행 실패는 `dependency-install-failed`(message가 `worktree.setup`으로 시작) | `"npm run build"` |
-| `worktree.baseline` | 단일 실행 문자열 (선택). `worktree.setup`과 같은 argv 규칙과 `verify_allowlist`를 적용 | full drive의 첫 `coordinate prepare`가 worker를 만들기 전에 integration base에서 한 번 실행(30분 시간 초과). **main checkout의 config**에서 읽는다. 0이 아닌 exit은 `baseline-ci-failed`로 멈추고, 사용자가 깨진 base를 승인하면 `--accept-broken-baseline`으로 prepare를 다시 돌려 진행한다(그 재실행도 baseline을 다시 돌려 결과를 원장에 남긴다). 통과·수락 뒤에는 다시 돌리지 않는다. 문자열이 아니거나 허용 목록 밖이면 `baseline-config-invalid`. light 원장에는 적용하지 않는다 | `"npm run check-base"` |
+| `worktree.baseline` | 단일 실행 문자열 (선택). `worktree.setup`과 같은 argv 규칙과 `verify_allowlist`를 적용 | full drive의 첫 `coordinate prepare`가 worker를 만들기 전에 integration base에서 한 번 실행(30분 시간 초과). **main checkout의 config**에서 읽는다. 0이 아닌 exit은 `baseline-ci-failed`로 멈추고, 사용자가 깨진 base를 승인하면 `--accept-broken-baseline`으로 prepare를 다시 돌려 진행한다(그 재실행도 baseline을 다시 돌려 결과를 원장에 남긴다). 통과·수락 뒤에는 다시 돌리지 않는다. 문자열이 아니거나 허용 목록 밖이면 `baseline-config-invalid`. 모든 원장에 적용한다 | `"npm run check-base"` |
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
 | `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
 | `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |
@@ -20,7 +20,7 @@
 | `coordinator.max_parallel` | 정수 `>= 1` (선택). 부재 시 `2` | `bouncer coordinate prepare`가 한 wave에서 여는 lease 수 상한. 잘못된 값이면 prepare가 `coordinator-config-invalid`로 거절 | `2` · `1` |
 | `coordinator.waves_per_session` | `"auto"` \| 정수 `1`–`8` (선택). 부재 시 `"auto"`(상한 4) | 한 coordinator 세션이 처리할 직렬·무예외 wave 수 상한. `coordinate next`가 상한에 닿았거나 예외·병렬 wave가 끼면 `yield`로 세션을 끊도록 알린다. 그 밖의 값이면 prepare가 `coordinator-config-invalid`로 거절하고 읽기 전용 `next`는 상한 1로 접는다 | `"auto"` · `1` (wave마다 새 세션) |
 | `metrics.pricing` | `{ "<모델 slug>": { "input_per_mtok": 수, "output_per_mtok": 수 } }` (선택). 단가는 0 이상 유한 수 | `bouncer metrics end`가 `--model`과 입력·출력 토큰이 모두 있을 때만 비용을 계산하는 단가표(100만 토큰당). 없으면 비용은 `null`과 `no-pricing` 사유로 남고, 모양이 틀리면 `invalid-pricing` | `{"claude-sonnet-4": {"input_per_mtok": 3, "output_per_mtok": 15}}` |
-| `coordinator.direct_max_commit_tasks` | 정수 `>= 0` (선택). 부재 시 `3` | 시작 ACQ가 "직접 실행(coordinator 없음)"을 보이는 직렬 드라이브(full·light)의 열린 commit task 수 상한. `0`이면 끄고, 정수가 아니거나 음수면 preflight가 `0`으로 접어 꺼진 것으로 본다(드라이브는 실패하지 않음) | `3` · `0` |
+| `coordinator.direct_max_commit_tasks` | 정수 `>= 0` (선택). 부재 시 `3` | 시작 ACQ가 "직접 실행(coordinator 없음)"을 보이는 직렬 드라이브의 열린 commit task 수 상한. `0`이면 끄고, 정수가 아니거나 음수면 preflight가 `0`으로 접어 꺼진 것으로 본다(드라이브는 실패하지 않음) | `3` · `0` |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
@@ -30,7 +30,7 @@
 | `model_tiers.<provider>.<tier>` | `"inherit"` \| 호스트 모델 slug. `<tier>`는 `strong`·`standard`·`light` | 역할 등급을 호스트 모델로 옮기는 표. `subagents` slot이 없을 때 `bouncer subagent-model`이 읽는다. 빈 값·비문자열이면 상속하지 않고 `tier-unmapped`로 거절 | 없음. 역할 등급에 매핑이 없으면 `tier-unmapped`. `bouncer init` 예시는 `"inherit"` |
 | `roles.<agent>.tier` | `strong` \| `standard` \| `light` | 에이전트가 쓰는 등급 | 없음. 없으면 등급 없음이라 모델은 상속. `bouncer init` 예시는 `"standard"` |
 | `roles.<agent>.effort` | `low` \| `medium` \| `high` | 디스패치에 넘기는 추론 effort. Codex custom agent TOML의 `model_reasoning_effort`로도 시드 | 없음. 없거나 `null`이면 effort를 넘기지 않음(`null`). Codex TOML에는 `"medium"`으로 씀. `bouncer init` 예시는 `"medium"` |
-| `review.min_reviewer_tier` | `standard` \| `strong` (선택) | `bouncer review-dispatch`가 리뷰어 등급의 하한으로 읽는다. 등급은 리뷰 범위의 commit task 3개 이상이거나 `review_risk`가 비어 있지 않으면 `strong`, 아니면 `standard`이고, 이 키는 그 값을 올리기만 한다. `strong` 등급은 `model_tiers.<provider>.strong` 매핑이 `inherit`이 아닌 모델 slug일 때만 적용되고, `inherit`이면 미적용(`tier-inherit`)으로 보고한다. 그 밖의 값(`light`·오타·비문자열)이면 `review-min-reviewer-tier-invalid`로 거절 | 없음. 규모와 위험만으로 등급을 정함 |
+| `review.min_reviewer_tier` | `standard` \| `strong` (선택) | `bouncer review-dispatch`가 리뷰어 등급의 하한으로 읽는다. 등급은 리뷰 범위의 commit task 3개 이상이거나 `review_risk`가 비어 있지 않으면 `strong`, 아니면 `standard`이고, 이 키는 그 값을 올리기만 한다. `complexity: low`는 commit task 수 문턱을 적용하지 않는다. `strong` 등급은 `model_tiers.<provider>.strong` 매핑이 `inherit`이 아닌 모델 slug일 때만 적용되고, `inherit`이면 미적용(`tier-inherit`)으로 보고한다. 그 밖의 값(`light`·오타·비문자열)이면 `review-min-reviewer-tier-invalid`로 거절 | 없음. 규모와 위험만으로 등급을 정함 |
 | `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
 
 `bouncer init`은 새 config를 만들 때 `package.json`에 `scripts.build`가 있으면 `worktree.setup`을 `"npm run build"`로 넣습니다. 이미 있는 config에는 자동으로 들어가지 않으니 필요하면 직접 추가하세요.
@@ -48,7 +48,7 @@ brief로 대신하지 않습니다. 모델 거절은 named-agent 부재가 아�
 거절 사유와 설정 위치를 사용자에게 알려야 합니다. 이미 `bouncer init`을 돌린 config에는 이 키가
 없을 수 있는데, 없어도 부모 모델을 상속하므로 동작은 같습니다.
 
-**직접 실행(선택).** `direct_eligible`(위임 가능한 full·light 직렬 체인이고 commit task 수가
+**직접 실행(선택).** `direct_eligible`(위임 가능한 직렬 체인이고 commit task 수가
 `coordinator.direct_max_commit_tasks` 이하)일 때 시작 ACQ는 D를 권장하고,
 그렇지 않으면 D 없이 A를 권장합니다. D를 고르면 root가 coordinator 없이
 `coordinate advance`를 돌리고 worker는 서브에이전트로 띄웁니다.

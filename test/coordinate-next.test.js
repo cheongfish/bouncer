@@ -298,33 +298,15 @@ test('blueprint next에서 detached → run-detached로 거절하고 원장을 �
   assert.strictEqual(typeof r.next, 'string');
 });
 
-test('blueprint next에서 promotion_stopped → blocked', () => {
+test('blueprint next에서 mode light → light-mode-removed', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/001-promote-stop';
   const drive = preparedCommitDrive('bouncer-next-promote-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
-  ledger.status = 'promotion_stopped';
   ledger.mode = 'light';
-  ledger.light_runner = 'subagent';
-  ledger.promotion = {
-    reason: 'task-split',
-    summary: 'needs full',
-    task: '001',
-    diff_sha: 'a'.repeat(64),
-  };
   writeLedger(drive.ledgerFile, ledger);
   const r = assertNoWrite(drive, () => nextOf(drive));
-  assert.strictEqual(r.ok, true);
-  assert.strictEqual(r.action, 'blocked');
-  assertCardFor(r);
-  assert.strictEqual(r.reason, 'promotion-stopped');
-  assert.strictEqual(
-    r.cause,
-    __coordinatorMod.COORDINATE_FAILURE_HINTS['promotion-stopped'].cause,
-  );
-  assert.strictEqual(
-    r.next,
-    __coordinatorMod.COORDINATE_FAILURE_HINTS['promotion-stopped'].next,
-  );
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'light-mode-removed');
 });
 
 test('blueprint next에서 awaiting_confirmation → repair-wave-limit를 씀', () => {
@@ -463,8 +445,6 @@ test('light ledger with a terminal verification node → integrate first, prepar
   const blueprint = '.bouncer/context/epics/088-n/blueprints/010-light-terminal';
   const drive = preparedCommitDrive('bouncer-next-light-terminal-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
-  ledger.mode = 'light';
-  ledger.light_runner = 'subagent';
   ledger.tasks.push({
     id: '002', depends_on: ['001'], execution_kind: 'verification', dependency_gate: 'integrated',
     parallel_safe: false, affected_paths: [], exclusive_resources: [], status: 'pending',
@@ -641,7 +621,8 @@ function lightFinalReviewDrive(prefix, blueprint) {
   const drive = preparedCommitDrive(prefix, blueprint);
   fs.writeFileSync(
     path.join(drive.integrationPath, blueprint, 'index.md'),
-    '---\nbouncer:\n  status: approved\n  review_scope: blueprint\n  scale: light\n---\n# Blueprint\n',
+    '---\nbouncer:\n  status: approved\n  review_scope: blueprint\n  scale: full\n'
+      + '  review_contract: brief\n---\n# Blueprint\n',
   );
   fs.mkdirSync(path.join(drive.integrationPath, 'src'), { recursive: true });
   fs.writeFileSync(path.join(drive.integrationPath, 'src/a.js'), '// product\n');
@@ -650,8 +631,6 @@ function lightFinalReviewDrive(prefix, blueprint) {
     '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'src', '--', 'src/a.js',
   ], { cwd: drive.integrationPath });
   const ledger = loadLedger(drive.ledgerFile);
-  ledger.mode = 'light';
-  ledger.light_runner = 'subagent';
   ledger.tasks.forEach((entry) => {
     entry.status = 'integrated';
     entry.affected_paths = ['src/a.js'];
@@ -685,7 +664,7 @@ test('light ledger after discovery then first review-caused repair → is accept
   assert.strictEqual(decisions.length, 1);
 });
 
-test('light ledger after discovery with an integrated review repair → final-review-blocked without delta', () => {
+test('brief ledger after discovery with an integrated review repair → final_review with --mode delta', () => {
   const drive = lightFinalReviewDrive(
     'bouncer-next-light-blocked-', '.bouncer/context/epics/088-n/blueprints/041-light-fr',
   );
@@ -701,10 +680,8 @@ test('light ledger after discovery with an integrated review repair → final-re
   });
   writeLedger(drive.ledgerFile, ledger);
   const after = assertNoWrite(drive, () => nextOf(drive));
-  assert.strictEqual(after.action, 'blocked');
-  assert.strictEqual(after.reason, 'final-review-blocked');
-  assert.ok(!(after.argv || []).includes('delta'));
-  assert.strictEqual(after.argv, undefined);
+  assert.strictEqual(after.action, 'final_review');
+  assert.ok((after.argv || []).includes('delta'), JSON.stringify(after));
 });
 
 test('light ledger after one review repair then a second repair or supplement → final-review-single-round', () => {
@@ -730,14 +707,12 @@ test('light ledger after one review repair then a second repair or supplement �
   assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
 });
 
-test('light ledger first review repair with --new-path → light-scope-revision-requires-promotion', () => {
+test('full ledger first review repair with --new-path → is accepted', () => {
   const drive = lightFinalReviewDrive(
     'bouncer-next-light-newpath-', '.bouncer/context/epics/088-n/blueprints/043-light-fr',
   );
-  const before = fs.readFileSync(drive.ledgerFile);
   const out = lightReviewRepair(drive, { newPaths: ['src/new.js'] });
-  assert.strictEqual(out.reason, 'light-scope-revision-requires-promotion');
-  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
+  assert.strictEqual(out.ok, true, JSON.stringify(out));
 });
 
 test('unknown review_contract with all integrated → blocked review-contract-invalid', () => {
@@ -1854,8 +1829,8 @@ const DISPATCH_CANON = [
     re: /refuse\s+with\s+`worker-tokens-missing`\s+while\s+a\s+finished\s+worker\s+key/,
   },
   {
-    label: 'records run from the integration cwd, worker keeps task or light cwd',
-    re: /from\s+the\s+integration\s+cwd[\s\S]{0,200}task\s+worktree\s+on\s+a\s+full\s+ledger,\s+the\s+integration\s+path\s+on\s+a\s+light\s+ledger/,
+    label: 'records run from the integration cwd, worker keeps the task worktree',
+    re: /from\s+the\s+integration\s+cwd[\s\S]{0,200}task\s+worktree(?![\s\S]{0,80}light\s+ledger)/,
   },
 ];
 // 카드 본문에 다시 들어오면 안 되는 정본 고유 문장. 정본 정규식 일부를 재사용한다.
@@ -2027,7 +2002,7 @@ test('agent-dispatch 정본 → attempt metadata·stale Brief revision·intent b
   assert.match(md, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
 });
 
-test('표식 light 원장의 implement → inline 키가 없고 cwd는 worker 경로', () => {
+test('표식 없는 full 원장의 implement → inline 키가 없고 cwd는 worker 경로', () => {
   const blueprint = '.bouncer/context/epics/089-n/blueprints/001-inline';
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-next-inline-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -2039,7 +2014,7 @@ test('표식 light 원장의 implement → inline 키가 없고 cwd는 worker �
   fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
   fs.writeFileSync(
     path.join(repo, blueprint, 'index.md'),
-    '---\nbouncer:\n  status: approved\n  scale: light\n  review_scope: blueprint\n---\n# Blueprint\n',
+    '---\nbouncer:\n  status: approved\n  scale: full\n  review_scope: blueprint\n---\n# Blueprint\n',
   );
   fs.writeFileSync(
     path.join(repo, blueprint, 'review.md'),
@@ -2053,7 +2028,7 @@ test('표식 light 원장의 implement → inline 키가 없고 cwd는 worker �
   execFileSync('git', ['commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  assert.strictEqual(boot.mode, 'light');
+  assert.strictEqual(boot.mode, 'full');
   const prepared = coordinate({
     command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   });
@@ -2076,7 +2051,7 @@ test('표식 light 원장의 implement → inline 키가 없고 cwd는 worker �
   assert.strictEqual(r.payload.attempt, 1);
 });
 
-test('옛 light 원장에서 coordinateNext → light-ledger-legacy', () => {
+test('옛 light 원장에서 coordinateNext → light-mode-removed', () => {
   const blueprint = '.bouncer/context/epics/089-n/blueprints/001-legacy-next';
   const drive = preparedCommitDrive('bouncer-next-legacy-light-', blueprint);
   const ledger = loadLedger(drive.ledgerFile);
@@ -2086,7 +2061,7 @@ test('옛 light 원장에서 coordinateNext → light-ledger-legacy', () => {
   writeLedger(drive.ledgerFile, ledger);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.ok, false);
-  assert.strictEqual(r.reason, 'light-ledger-legacy');
+  assert.strictEqual(r.reason, 'light-mode-removed');
 });
 
 test('full ledger의 implement → payload.inline을 생략함', () => {

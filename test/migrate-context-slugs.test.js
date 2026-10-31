@@ -72,10 +72,10 @@ function buildFixture(repo) {
     repoRoot: repo, epicDir: LEGACY_EPIC, blueprintId: '001', name: 'hash-rewrite', timestamp: TS,
   });
   scaffoldBlueprint({
-    repoRoot: repo, epicDir: DOMAIN_EPIC, blueprintId: '002', name: 'slug-ids', timestamp: TS, scale: 'light',
+    repoRoot: repo, epicDir: DOMAIN_EPIC, blueprintId: '002', name: 'slug-ids', timestamp: TS,
   });
   scaffoldBlueprint({
-    repoRoot: repo, epicDir: DOMAIN_EPIC, blueprintId: '003', name: 'registry-gates', timestamp: TS, scale: 'light',
+    repoRoot: repo, epicDir: DOMAIN_EPIC, blueprintId: '003', name: 'registry-gates', timestamp: TS,
   });
   scaffoldExplain({ repoRoot: repo, blueprintDir: RICH_OLD, timestamp: TS });
   // scaffold가 비워 둔 affected_paths가 있어야 이관 뒤 기본 validate(S7)를 통과한다.
@@ -617,7 +617,7 @@ test('이관한 저장소에서 새 blueprint를 만들고 승인해 커밋까�
   const epicDir = `${CTX}/epics/consumer-epic-registry`;
   const bp = `${epicDir}/blueprints/new-work`;
   const scaffolded = run([
-    'scaffold', 'blueprint', '--epic-dir', epicDir, '--name', 'new-work', '--order', '4', '--scale', 'light',
+    'scaffold', 'blueprint', '--epic-dir', epicDir, '--name', 'new-work', '--order', '4', '--complexity', 'low',
   ]);
   assert.equal(scaffolded.code, 0, scaffolded.err);
   assert.equal(data(repo, `${bp}/index.md`).bouncer.order, 4);

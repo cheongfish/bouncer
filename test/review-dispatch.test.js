@@ -204,7 +204,7 @@ function writeVerificationTask(repo, number, {
   });
 }
 
-function writePlanTree(repo, { scale = 'full', tasks = ['001'], reviewContract } = {}) {
+function writePlanTree(repo, { scale = 'full', complexity, tasks = ['001'], reviewContract } = {}) {
   writeBundleIndex(repo);
   writeDoc(repo, `${EPIC_REL}/index.md`, {
     type: 'bouncer.epic',
@@ -224,6 +224,7 @@ function writePlanTree(repo, { scale = 'full', tasks = ['001'], reviewContract }
     timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved', scale,
+      ...(complexity === undefined ? {} : { complexity }),
       // S38: 표식은 review_scope blueprint가 전제다. 표식 fixture만 이 전제를 갖춘다.
       ...(reviewContract === undefined ? {} : { review_scope: 'blueprint', review_contract: reviewContract }),
     },
@@ -377,25 +378,6 @@ test('snapshot contract → exposes the same pure digest helpers without I/O dep
   Module._load = originalLoad;
 });
 
-test('plan with light scale → returns skip without perspectives', () => {
-  const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
-  const before = git(repo, ['status', '--porcelain']);
-  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
-  assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.phase, 'plan');
-  assert.strictEqual(result.strategy, 'skip');
-  assert.strictEqual(result.agent_dispatch, undefined);
-  assert.deepStrictEqual(result.perspectives, []);
-  assert.strictEqual(result.task_count, 1);
-  // skip 응답에는 문서별 digest·follow_up 필드가 없다.
-  assert.strictEqual(result.parts, undefined);
-  assert.strictEqual(result.scope_parts, undefined);
-  assert.strictEqual(result.follow_up, undefined);
-  assert.strictEqual(result.changed_documents, undefined);
-  assert.strictEqual(git(repo, ['status', '--porcelain']), before);
-});
-
 test('plan with a single commit task → returns combined', () => {
   const repo = makeRepo();
   writePlanTree(repo, { scale: 'full', tasks: ['001'] });
@@ -426,9 +408,9 @@ test('plan with review_contract brief on a full blueprint → returns perspectiv
   assert.strictEqual(result.follow_up, 'full');
 });
 
-test('plan with review_contract brief on a light blueprint → returns verifiability with follow_up', () => {
+test('plan with review_contract brief and complexity low → returns verifiability with follow_up', () => {
   const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'], reviewContract: 'brief' });
+  writePlanTree(repo, { complexity: 'low', tasks: ['001'], reviewContract: 'brief' });
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.strategy, 'perspectives');
@@ -466,18 +448,18 @@ test('legacy blueprint with a non single/clustered previous strategy → returns
 });
 
 test('review_contract brief blueprint with a bogus previous strategy → keeps the three-strategy cause', () => {
-  for (const scale of ['full', 'light']) {
+  for (const complexity of [undefined, 'low']) {
     const repo = makeRepo();
-    writePlanTree(repo, { scale, tasks: ['001'], reviewContract: 'brief' });
+    writePlanTree(repo, { scale: 'full', complexity, tasks: ['001'], reviewContract: 'brief' });
     const first = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
     const result = classifyPlanReview({
       repoRoot: repo, blueprintDir: BP_REL, previous: { ...previousPayload(first), strategy: 'bogus' },
     });
-    assert.strictEqual(result.reason, 'previous-payload-invalid', scale);
-    assert.strictEqual(result.cause, 'previous strategy must be single, clustered or perspectives', scale);
+    assert.strictEqual(result.reason, 'previous-payload-invalid', String(complexity));
+    assert.strictEqual(result.cause, 'previous strategy must be single, clustered or perspectives', String(complexity));
     const ok = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: first });
-    assert.strictEqual(ok.ok, true, scale);
-    assert.strictEqual(ok.strategy, 'perspectives', scale);
+    assert.strictEqual(ok.ok, true, String(complexity));
+    assert.strictEqual(ok.strategy, 'perspectives', String(complexity));
   }
 });
 
@@ -923,6 +905,16 @@ function writeStructuralAndDraftFailureTree(repo) {
 
 const DRAFT_CODES = ['G5', 'G19', 'G20'];
 
+test('validateBlueprint planDraft with structural failures → skips draft checks', () => {
+  const repo = makeRepo();
+  writeStructuralAndDraftFailureTree(repo);
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.failures.length > 0);
+  assert.ok(result.failures.every((f) => f.code.startsWith('S')), JSON.stringify(result.failures));
+  assert.ok(!result.failures.some((f) => DRAFT_CODES.includes(f.code)), JSON.stringify(result.failures));
+});
+
 test('plan with structural and draft failures → structural failure wins and classifies as structural', () => {
   const repo = makeRepo();
   writeStructuralAndDraftFailureTree(repo);
@@ -932,16 +924,6 @@ test('plan with structural and draft failures → structural failure wins and cl
   assert.ok(result.failures.length > 0);
   assert.ok(result.failures.every((f) => f.code.startsWith('S')), JSON.stringify(result.failures));
   assert.ok(!('perspectives' in result) || result.perspectives === undefined);
-});
-
-test('validateBlueprint planDraft with structural failures → skips draft checks', () => {
-  const repo = makeRepo();
-  writeStructuralAndDraftFailureTree(repo);
-  const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
-  assert.strictEqual(result.ok, false);
-  assert.ok(result.failures.length > 0);
-  assert.ok(result.failures.every((f) => f.code.startsWith('S')), JSON.stringify(result.failures));
-  assert.ok(!result.failures.some((f) => DRAFT_CODES.includes(f.code)), JSON.stringify(result.failures));
 });
 
 test('execute with a small diff → returns single combined', () => {
@@ -995,9 +977,9 @@ test('execute over the file threshold → returns parallel', () => {
 
 // light scale은 diff 크기와 무관하게 단일 combined. full(또는 scale 미선언)은
 // 기존 임계값을 유지한다 — 경로 수·줄 수로 light를 추론하지 않는다.
-test('execute with light scale and a large diff via --blueprint → returns single combined', () => {
+test('execute with complexity low and a large diff via --blueprint → returns single combined', () => {
   const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  writePlanTree(repo, { complexity: 'low', tasks: ['001'] });
   const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
   for (const name of ['a', 'b', 'c', 'd']) {
@@ -1048,9 +1030,9 @@ test('execute with full scale and a large diff even with --blueprint → stays p
 
 // CT-002: light는 combined만 쓰지만 non-empty review_risk는 security를 붙인다.
 // light large-diff 케이스만 있으면 risk append 분기가 light 경로에서 빠질 수 있다.
-test('execute with light scale and review_risk → yields combined and security', () => {
+test('execute with complexity low and review_risk → yields combined and security', () => {
   const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  writePlanTree(repo, { complexity: 'low', tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
   const base = commitBaseline(repo);
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
@@ -1163,11 +1145,11 @@ test('task 없는 execute에 --mode delta → usage exit 2이고 stdout JSON이 
 
 // review_contract 표식 fixture. big=true면 임계값을 넘기는 4파일 diff, 아니면 1파일 diff를 커밋한다.
 function markedRepo({
-  reviewContract = 'brief', unmarked = false, scale = 'full', risk, big = false, tasks = ['001'], config,
+  reviewContract = 'brief', unmarked = false, scale = 'full', complexity, risk, big = false, tasks = ['001'], config,
 } = {}) {
   const repo = makeRepo();
   if (config) writeConfig(repo, config);
-  writePlanTree(repo, { scale, tasks, reviewContract: unmarked ? undefined : reviewContract });
+  writePlanTree(repo, { scale, complexity, tasks, reviewContract: unmarked ? undefined : reviewContract });
   if (risk !== undefined) {
     tasks.forEach((n, i) => writeCommitTask(repo, n, { reviewRisk: risk[i] ?? risk[0] }));
   }
@@ -1249,16 +1231,15 @@ test('review_contract other on a full blueprint → discovery rejects with revie
 });
 
 // light는 run 쪽 표식 해석기에서 legacy로 읽힌다. 잘못된 값의 거절은 S38이 맡는다.
-test('review_contract other on a light blueprint → execute discovery ignores the marker', () => {
-  const out = discover(markedRepo({ reviewContract: 'other', scale: 'light' }));
-  assert.strictEqual(out.ok, true);
-  assert.strictEqual(out.strategy, 'single');
-  assert.deepStrictEqual(out.perspectives, ['combined']);
+test('review_contract other with complexity low → execute discovery rejects review-contract-invalid', () => {
+  const out = discover(markedRepo({ reviewContract: 'other', complexity: 'low' }));
+  assert.strictEqual(out.ok, false);
+  assert.ok(String(out.error).startsWith('review-contract-invalid'), out.error);
 });
 
-test('review_contract brief on a light blueprint without a task → execute discovery equals the unmarked light', () => {
-  const marked = discover(markedRepo({ scale: 'light' }));
-  const unmarked = discover(markedRepo({ unmarked: true, scale: 'light' }));
+test('review_contract brief on a low blueprint without a task → execute discovery equals unmarked low', () => {
+  const marked = discover(markedRepo({ complexity: 'low' }));
+  const unmarked = discover(markedRepo({ unmarked: true, complexity: 'low' }));
   assert.strictEqual(marked.ok, true);
   assert.strictEqual(marked.strategy, unmarked.strategy);
   assert.deepStrictEqual(marked.perspectives, unmarked.perspectives);
@@ -1938,17 +1919,6 @@ test('깨진 context-review 메타데이터 → 최초 상태로 보지 않고 r
   assert.strictEqual(result.perspectives, undefined);
 });
 
-test('light blueprint → cycle이 있어도 previous 검사 없이 skip을 유지한다', () => {
-  const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
-  const dir = path.join(repo, '.bouncer', 'runtime', 'context-review');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${BP_REL.split('/').join('__')}`), 'noise');
-  const skip = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
-  assert.strictEqual(skip.ok, true);
-  assert.strictEqual(skip.strategy, 'skip');
-});
-
 test('--previous를 두 번 주면 → 사용법 오류 exit 2이고 분류하지 않는다', () => {
   const { repo, file } = startedRepo();
   const dup = capture(planArgs(repo, ['--previous', file, '--previous', file]));
@@ -2366,22 +2336,23 @@ test('plan with a legacy full blueprint → reads the blueprint index exactly on
   assert.deepStrictEqual(files, [path.join(repo, BP_REL, 'index.md')]);
 });
 
-test('plan with a brief light blueprint → reads the index once and keeps verifiability', () => {
+test('plan with a brief low blueprint → reads the index once and keeps verifiability', () => {
   const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'], reviewContract: 'brief' });
+  writePlanTree(repo, { complexity: 'low', tasks: ['001'], reviewContract: 'brief' });
   const { readIndex, files } = countingReadIndex(readDocForTest);
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, deps: { readIndex } });
   assert.strictEqual(result.ok, true);
-  assert.notStrictEqual(result.strategy, 'skip');
+  assert.strictEqual(result.strategy, 'perspectives');
+  assert.deepStrictEqual(result.perspectives, ['verifiability']);
   assert.strictEqual(files.length, 1);
 });
 
-test('plan with an unmarked light blueprint → reads the index once and returns skip', () => {
+test('plan with an unmarked blueprint → reads the index once and returns single', () => {
   const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
   const { readIndex, files } = countingReadIndex(readDocForTest);
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, deps: { readIndex } });
-  assert.strictEqual(result.strategy, 'skip');
+  assert.strictEqual(result.strategy, 'single');
   assert.strictEqual(files.length, 1);
 });
 
@@ -2417,22 +2388,24 @@ test('plan with a broken index file on disk → structural failure wins over the
 });
 
 // 현재 분류 결과 matrix. 기대값은 리뷰 계약 규칙에서 유도한다: brief 관점은 task 없는
-// full 리뷰에만 적용되고, light는 계약과 무관하게 combined 하나이며, delta는 combined로 접는다.
-for (const scale of ['full', 'light']) {
+// standard 리뷰에만 적용되고, low는 계약과 무관하게 combined 하나이며, delta는 combined로 접는다.
+for (const complexity of ['standard', 'low']) {
   for (const contract of ['legacy', 'brief']) {
     for (const scope of ['root', 'task']) {
       for (const mode of ['discovery', 'delta']) {
         if (mode === 'delta' && scope === 'task') continue; // delta는 task 없는 리뷰 전용
-        test(`execute ${scale}/${contract}/${scope}/${mode} with a credential risk → returns the contract's classification`, () => {
+        test(`execute ${complexity}/${contract}/${scope}/${mode} with a credential risk → returns the contract's classification`, () => {
           // provider와 등급 매핑을 고정해 등급 근거 줄이 실행 환경 설정에 흔들리지 않게 한다.
           const fx = markedRepo({
-            scale, unmarked: contract === 'legacy', big: true, risk: [['credential']], config: STRONG_CLAUDE,
+            scale: 'full',
+            complexity: complexity === 'low' ? 'low' : undefined,
+            unmarked: contract === 'legacy', big: true, risk: [['credential']], config: STRONG_CLAUDE,
           });
           const out = classifyExecuteReview({
             repoRoot: fx.repo, blueprintDir: BP_REL, taskId: scope === 'task' ? '001' : undefined,
             base: fx.base, head: fx.head, reviewMode: mode,
           });
-          const brief = contract === 'brief' && scale === 'full' && scope === 'root';
+          const brief = contract === 'brief' && complexity === 'standard' && scope === 'root';
           assert.strictEqual(out.ok, true);
           assert.strictEqual(out.changed_files, 4);
           assert.deepStrictEqual(out.risk_flags, ['credential']);
@@ -2449,11 +2422,11 @@ for (const scale of ['full', 'light']) {
               'review_risk credential adds security reviewer',
               'reviewer tier strong — review_risk credential',
             ]);
-          } else if (scale === 'light') {
+          } else if (complexity === 'low') {
             assert.strictEqual(out.strategy, 'single');
             assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
             assert.deepStrictEqual(out.reasons, [
-              'blueprint scale is light — single combined reviewer regardless of diff size',
+              'blueprint complexity is low — single combined reviewer regardless of diff size',
               'review_risk credential adds security reviewer',
               'reviewer tier strong — review_risk credential',
             ]);
@@ -2535,18 +2508,6 @@ test('plan with a malformed review_risk on one task → returns the union failur
   assert.strictEqual(plan.reviewer_tier, undefined);
   // 실패 사유가 S30이어야 한다: 다른 이유의 plan 실패로는 이 사례가 통과하지 못하게 한다.
   assert.ok(plan.failures.some((f) => f.code === 'S30'), JSON.stringify(plan.failures));
-});
-
-test('plan with light unmarked blueprint → skip payload has no reviewer_tier', () => {
-  const repo = makeRepo();
-  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
-  // 하한 값이 잘못돼도 reviewer가 없는 skip 경로는 검사하지 않는다.
-  writeConfig(repo, { review: { min_reviewer_tier: 'light' } });
-  const plan = tierPlan(repo);
-  assert.strictEqual(plan.ok, true);
-  assert.strictEqual(plan.strategy, 'skip');
-  assert.strictEqual(plan.reviewer_tier, undefined);
-  assert.strictEqual(plan.reviewer_tier_applied, undefined);
 });
 
 test('plan with strong tier and model_tiers.claude.strong → agent_dispatch.model is the mapped slug', () => {
@@ -2777,4 +2738,92 @@ test('execute with min_reviewer_tier strong → raises a small task to strong', 
     tasks: ['001'], risks: [[]], taskId: '001', cfg: { review: { min_reviewer_tier: 'strong' } },
   });
   assert.strictEqual(out.reviewer_tier, 'strong');
+});
+
+function largeDiff(repo) {
+  const base = commitBaseline(repo);
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  for (const name of ['a', 'b', 'c', 'd']) {
+    fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
+  }
+  git(repo, ['add', 'src']);
+  git(repo, ['commit', '-qm', 'large']);
+  return { base, head: git(repo, ['rev-parse', 'HEAD']).trim() };
+}
+
+test('execute large diff with complexity low → single combined; standard stays parallel', () => {
+  const lowRepo = makeRepo();
+  writePlanTree(lowRepo, { complexity: 'low', tasks: ['001'] });
+  const lowDiff = largeDiff(lowRepo);
+  const low = classifyExecuteReview({
+    repoRoot: lowRepo, blueprintDir: BP_REL, taskId: '001', base: lowDiff.base, head: lowDiff.head,
+  });
+  assert.deepStrictEqual([low.strategy, low.perspectives], ['single', ['combined']]);
+  assert.ok(low.reasons.some((r) => r.includes('blueprint complexity is low')), low.reasons.join('|'));
+  const stdRepo = makeRepo();
+  writePlanTree(stdRepo, { tasks: ['001'] });
+  const stdDiff = largeDiff(stdRepo);
+  const standard = classifyExecuteReview({
+    repoRoot: stdRepo, blueprintDir: BP_REL, taskId: '001', base: stdDiff.base, head: stdDiff.head,
+  });
+  assert.strictEqual(standard.strategy, 'parallel');
+});
+
+test('plan three empty-risk tasks → low is standard tier and standard is strong', () => {
+  const lowRepo = makeRepo();
+  writePlanTree(lowRepo, { complexity: 'low', tasks: ['001', '002', '003'], reviewContract: 'brief' });
+  ['001', '002', '003'].forEach((n) => writeCommitTask(lowRepo, n, { reviewRisk: [] }));
+  const low = classifyPlanReview({ repoRoot: lowRepo, blueprintDir: BP_REL });
+  assert.strictEqual(low.reviewer_tier, 'standard');
+  assert.deepStrictEqual(low.perspectives, ['verifiability']);
+  assert.ok(low.reasons.some((r) => r.includes('complexity low (no task-count threshold)')), low.reasons.join('|'));
+  const stdRepo = makeRepo();
+  writePlanTree(stdRepo, { tasks: ['001', '002', '003'], reviewContract: 'brief' });
+  const standard = classifyPlanReview({ repoRoot: stdRepo, blueprintDir: BP_REL });
+  assert.strictEqual(standard.reviewer_tier, 'strong');
+  assert.deepStrictEqual(standard.perspectives, PLAN_PERSPECTIVES);
+});
+
+test('plan low with credential review_risk → verifiability and risk_security and strong', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { complexity: 'low', tasks: ['001'], reviewContract: 'brief' });
+  writeCommitTask(repo, '001', { reviewRisk: ['credential'] });
+  const plan = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.deepStrictEqual(plan.perspectives, ['verifiability', 'risk_security']);
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+});
+
+test('execute low with credential and a large diff → single combined+security on task and root; delta drops security', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { complexity: 'low', tasks: ['001'] });
+  writeCommitTask(repo, '001', { reviewRisk: ['credential'] });
+  writeConfig(repo, STRONG_CLAUDE);
+  const { base, head } = largeDiff(repo);
+  for (const taskId of ['001', undefined]) {
+    const out = classifyExecuteReview({ repoRoot: repo, blueprintDir: BP_REL, taskId, base, head });
+    assert.deepStrictEqual(
+      [out.strategy, out.perspectives, out.reviewer_tier],
+      ['single', ['combined', 'security'], 'strong'],
+    );
+    assert.ok(out.reasons.some((r) => r.includes('review_risk credential adds security reviewer')), out.reasons.join('|'));
+  }
+  const delta = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head, reviewMode: 'delta',
+  });
+  assert.strictEqual(delta.strategy, 'single');
+  assert.deepStrictEqual(delta.perspectives, ['combined']);
+});
+
+test('plan with complexity medium → structural validation failed; execute names invalid complexity', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { complexity: 'medium', tasks: ['001'], reviewContract: 'brief' });
+  const plan = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(plan.ok, false);
+  assert.strictEqual(plan.error, 'structural validation failed');
+  assert.ok(plan.failures.some((f) => f.code === 'S20'), JSON.stringify(plan.failures));
+  const { base, head } = largeDiff(repo);
+  const exe = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
+  });
+  assert.deepStrictEqual(exe, { ok: false, error: 'blueprint complexity invalid: expected low or standard' });
 });

@@ -115,9 +115,9 @@
       "when": "Use suggested free three-digit IDs from bouncer plan inspect. task_facts.reusable_draft is null, so an existing draft is never reused; stop for a human instead."
     },
     {
-      "gate": "plan.light_scope",
-      "answer": "full",
-      "when": "This task changes the public CLI option contract for every command; do not declare it light (same criterion as ledger-001)."
+      "gate": "plan.complexity",
+      "answer": "standard",
+      "when": "This task changes the public CLI option contract for every command; do not declare it low (same criterion as ledger-001)."
     },
     {
       "gate": "plan.verify_command",

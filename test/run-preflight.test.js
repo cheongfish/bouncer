@@ -215,7 +215,7 @@ test('run preflight with a promotion_stopped ledger → marks it as not delegabl
   assert.strictEqual(result.code, 0);
   assert.strictEqual(payload.ok, true);
   assert.strictEqual(payload.delegable, false);
-  assert.strictEqual(payload.reason, 'promotion-stopped');
+  assert.strictEqual(payload.reason, 'light-mode-removed');
 });
 
 test('run preflight with declared auto autonomy → treats it as no fallback', () => {
@@ -420,38 +420,38 @@ test('run preflight with two independent parallel_safe tasks → direct_eligible
   assert.strictEqual(payload.direct_eligible, false);
 });
 
-test('run preflight with a two-task serial light blueprint → direct_eligible is true', () => {
+test('run preflight with a two-task serial complexity-low blueprint → direct_eligible is true', () => {
   const repo = makeRepo();
   writeChain(repo, 2);
   const indexRel = `${BP_REL}/index.md`;
   const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
-  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: full\n  complexity: low'));
 
   assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, true);
 });
 
-test('run preflight with a two-task serial light blueprint and direct_max_commit_tasks 0 → direct_eligible is false', () => {
+test('run preflight with a two-task serial complexity-low blueprint and direct_max_commit_tasks 0 → direct_eligible is false', () => {
   const repo = makeRepo();
   writeChain(repo, 2);
   writeDirectConfig(repo, 0);
   const indexRel = `${BP_REL}/index.md`;
   const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
-  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: full\n  complexity: low'));
 
   assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, false);
 });
 
-test('run preflight with a four-task serial light blueprint → direct_eligible is false', () => {
+test('run preflight with a four-task serial complexity-low blueprint → direct_eligible is false', () => {
   const repo = makeRepo();
   writeChain(repo, 4);
   const indexRel = `${BP_REL}/index.md`;
   const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
-  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: full\n  complexity: low'));
 
   assert.strictEqual(parsePayload(preflight(repo)).direct_eligible, false);
 });
 
-test('run preflight with an independent light plan → direct_eligible is false', () => {
+test('run preflight with an independent complexity-low plan → direct_eligible is false', () => {
   const repo = makeRepo();
   // depends_on만 비우면 parallel_safe 기본(false)이라 wave가 한 칸씩 열려 serial이 된다.
   // 독립(비직렬) 보존 사례이므로 parallel_safe를 켜 parallel shape를 만든다.
@@ -462,7 +462,7 @@ test('run preflight with an independent light plan → direct_eligible is false'
   setPointer(repo);
   const indexRel = `${BP_REL}/index.md`;
   const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
-  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: full\n  complexity: low'));
 
   const payload = parsePayload(preflight(repo));
 
@@ -470,7 +470,7 @@ test('run preflight with an independent light plan → direct_eligible is false'
   assert.strictEqual(payload.direct_eligible, false);
 });
 
-test('run preflight with an active legacy light ledger → reason is light-ledger-legacy', () => {
+test('run preflight with an active legacy light ledger → reason is light-mode-removed', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -486,12 +486,12 @@ test('run preflight with an active legacy light ledger → reason is light-ledge
 
   const payload = parsePayload(preflight(repo));
 
-  assert.strictEqual(payload.reason, 'light-ledger-legacy');
+  assert.strictEqual(payload.reason, 'light-mode-removed');
   assert.strictEqual(payload.delegable, false);
   assert.strictEqual(payload.direct_eligible, false);
 });
 
-test('run preflight with a promotion_stopped legacy light ledger → reason is light-ledger-legacy', () => {
+test('run preflight with a promotion_stopped legacy light ledger → reason is light-mode-removed', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -513,19 +513,18 @@ test('run preflight with a promotion_stopped legacy light ledger → reason is l
 
   const payload = parsePayload(preflight(repo));
 
-  assert.strictEqual(payload.reason, 'light-ledger-legacy');
+  assert.strictEqual(payload.reason, 'light-mode-removed');
   assert.strictEqual(payload.delegable, false);
   assert.strictEqual(payload.direct_eligible, false);
 });
 
-test('run preflight with a finished legacy light ledger → reason is null and delegable is true', () => {
+test('run preflight with a finished mode light ledger → light-mode-removed', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
   const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
-  // 모든 task가 integrated면 옛 inline drive가 끝난 상태. legacy로 보지 않고 문서만 본다.
   fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
     version: 1, blueprint: BP_REL, base: 'main', mode: 'light', status: 'active',
     tasks: [{ id: '001', status: 'integrated' }], decisions: [],
@@ -533,8 +532,8 @@ test('run preflight with a finished legacy light ledger → reason is null and d
 
   const payload = parsePayload(preflight(repo));
 
-  assert.strictEqual(payload.reason, null);
-  assert.strictEqual(payload.delegable, true);
+  assert.strictEqual(payload.reason, 'light-mode-removed');
+  assert.strictEqual(payload.delegable, false);
 });
 
 test('run preflight with a closed blueprint → direct_eligible is false', () => {
@@ -567,9 +566,7 @@ function writeLedger(repo, status) {
   const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
   fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
-    version: 1, blueprint: BP_REL, base: 'main', mode: 'light',
-    // 새 원장 표식. tasks:[]라 없어도 legacy가 아니지만 새 모양과 맞춘다.
-    light_runner: 'subagent',
+    version: 1, blueprint: BP_REL, base: 'main',
     status, tasks: [], decisions: [],
   }, null, 2)}\n`);
 }
@@ -888,7 +885,7 @@ test('run preflight when pointer targets another blueprint on a legacy tree → 
   assert.strictEqual(parsePayload(result).reason, 'pointer-mismatch');
 });
 
-test('run preflight on a scoped_terminal light plan → delegable with the policy, legacy when the marker is absent', () => {
+test('run preflight on a scoped_terminal plan → delegable with the policy, legacy when the marker is absent', () => {
   const repo = makeRepo();
   writePlanTree(repo, {
     task001: { verify: 'node --test test/a.test.js' },
@@ -900,18 +897,41 @@ test('run preflight on a scoped_terminal light plan → delegable with the polic
   // blueprint index에 새 계획의 표식과 light scale을 쓴다.
   const idx = path.join(repo, BP_REL, 'index.md');
   const raw = fs.readFileSync(idx, 'utf8');
-  fs.writeFileSync(idx, raw.replace('scale: full', 'scale: light\n  verification_policy: scoped_terminal'));
+  fs.writeFileSync(idx, raw.replace('scale: full', 'scale: full\n  verification_policy: scoped_terminal'));
   setPointer(repo);
   const scoped = parsePayload(preflight(repo));
   assert.strictEqual(scoped.ok, true, JSON.stringify(scoped));
-  assert.strictEqual(scoped.blueprint.scale, 'light');
+  assert.strictEqual(scoped.blueprint.scale, 'full');
   assert.strictEqual(scoped.blueprint.verification_policy, 'scoped_terminal');
   assert.strictEqual(scoped.delegable, true);
   // 종단 node는 구현 task가 통합되기 전에는 ready wave에 들어오지 않는다.
   assert.deepStrictEqual(scoped.readyWave, ['001']);
 
-  fs.writeFileSync(idx, raw.replace('scale: full', 'scale: light'));
+  fs.writeFileSync(idx, raw);
   const legacy = parsePayload(preflight(repo));
   assert.strictEqual(legacy.blueprint.verification_policy, 'legacy');
   assert.strictEqual(legacy.delegable, true);
+});
+
+test('run preflight with approved scale light → light-mode-removed', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+  const payload = parsePayload(preflight(repo));
+  assert.strictEqual(payload.delegable, false);
+  assert.strictEqual(payload.reason, 'light-mode-removed');
+});
+
+test('run preflight with closed scale light → blueprint-closed', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { bpStatus: 'closed' });
+  setPointer(repo);
+  const indexRel = `${BP_REL}/index.md`;
+  const text = fs.readFileSync(path.join(repo, indexRel), 'utf8');
+  fs.writeFileSync(path.join(repo, indexRel), text.replace('scale: full', 'scale: light'));
+  const payload = parsePayload(preflight(repo));
+  assert.strictEqual(payload.reason, 'blueprint-closed');
 });

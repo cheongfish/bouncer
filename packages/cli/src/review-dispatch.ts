@@ -29,7 +29,8 @@ import contextReviewState = require('./context-review-state');
 const { isRecord } = guards;
 import schema = require('./schema');
 const {
-  executionKindOf, reviewContractOf, planReviewContractOf, PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES,
+  executionKindOf, reviewContractOf, planReviewContractOf,
+  complexityOf, planPerspectivesOf,
 } = schema;
 import reviewSnapshot = require('./review-snapshot');
 const { captureReviewSnapshot } = reviewSnapshot;
@@ -84,12 +85,6 @@ type PlanDispatchBase = {
   reasons: string[];
 };
 
-// skip에는 문서별 digest·follow_up이 없다 — light는 context review 자체를
-// 건너뛰므로 부분 재시작 신호가 의미 없다.
-type PlanDispatchSkip = PlanDispatchBase & {
-  strategy: 'skip';
-};
-
 type PlanDocContent = { body: string; structure: Record<string, unknown> };
 
 type RevisionDiffEntry = {
@@ -104,7 +99,7 @@ type PlanDispatchReview = PlanDispatchBase & {
   agent_dispatch: AgentDispatch;
   reviewer_tier: ReviewerTier;
   reviewer_tier_applied: boolean;
-  // perspectives는 review_contract: brief 표식 blueprint의 관점 병렬 호출(full 4관점, light verifiability).
+  // perspectives는 review_contract: brief 표식 blueprint의 관점 병렬 호출(standard 4관점, low는 verifiability).
   strategy: 'single' | 'clustered' | 'perspectives';
   snapshot_version: number;
   parts: Record<string, string>;
@@ -119,7 +114,7 @@ type PlanDispatchReview = PlanDispatchBase & {
 
 const LEGACY_REASON = 'legacy-payload-no-content';
 
-type PlanDispatchOk = PlanDispatchSkip | PlanDispatchReview;
+type PlanDispatchOk = PlanDispatchReview;
 
 type ExecuteDispatchOk = {
   ok: true;
@@ -454,6 +449,11 @@ function checkPreviousContent(
   const structureParts = previous.structure_parts as Record<string, unknown>;
   const contentMap = previous.documents_content as Record<string, unknown>;
   const checked: Record<string, PlanDocContent> = {};
+  const bpEntry = contentMap[`${bp}/index.md`];
+  const bpStructure = isRecord(bpEntry) && isRecord(bpEntry.structure) ? bpEntry.structure : {};
+  // 저장된 blueprint 구조의 complexity를 넘겨 멱등(isDeepStrictEqual)을 유지한다.
+  // low만 구조에 complexity·review_risk가 있어, 인자를 빼면 재정규화가 키를 지운다.
+  const storedComplexity = bpStructure.complexity === 'low' ? 'low' as const : undefined;
   for (const rel of documents) {
     const entry = contentMap[rel];
     if (!isRecord(entry) || typeof entry.body !== 'string'
@@ -461,8 +461,7 @@ function checkPreviousContent(
       return bad(`previous content for ${rel} must carry body and structure`);
     }
     const structure = entry.structure as Record<string, unknown>;
-    // 같은 정규화를 다시 거쳐도 변하지 않아야 한다: 기본값을 빠뜨리거나 정렬이 틀린 구조 거절.
-    const normalized = normalizeStructure(structureKindOf(rel, bp), structure);
+    const normalized = normalizeStructure(structureKindOf(rel, bp), structure, storedComplexity);
     if (!isDeepStrictEqual(normalized, structure)) return bad(`previous structure for ${rel} is not normalized`);
     if (hashBody(entry.body) !== parts[rel]) return bad(`previous parts hash differs from content for ${rel}`);
     if (hashStructure(normalized) !== structureParts[rel]) {
@@ -551,6 +550,7 @@ function checkPreviousBinding(
 type PlanIndexRead = {
   contract: 'brief' | 'legacy' | null;
   scale: string;
+  complexity: 'low' | 'standard' | null;
   /** 읽기·파싱 실패 사유. 있으면 contract는 legacy, scale은 full로 접혀 있다. */
   readError: string | null;
 };
@@ -579,6 +579,7 @@ function readPlanIndex(
     return {
       contract: 'legacy',
       scale: 'full',
+      complexity: 'standard',
       readError: error instanceof Error ? error.message : String(error),
     };
   }
@@ -586,6 +587,7 @@ function readPlanIndex(
   return {
     contract: planReviewContractOf(bouncer),
     scale: bouncer && typeof bouncer.scale === 'string' ? bouncer.scale : 'full',
+    complexity: complexityOf(bouncer),
     readError: null,
   };
 }
@@ -645,33 +647,15 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
   if (index.readError !== null) {
     return { ok: false, error: `blueprint index unreadable: ${index.readError}` };
   }
-  const scale = index.scale;
+  const complexity = index.complexity === 'low' ? 'low' : 'standard';
 
   const marked = contract === 'brief';
 
   const snapshot = computePlanSnapshot({ repoRoot, blueprintDir: bp });
   if (!snapshot.ok) return snapshot;
 
-  // 2. 표식 없는 light는 context review를 건너뛰는 신호(선언된 scale)만 본다. task 수로 skip을
-  //    추론하면 full 소규모 Plan이 context review를 건너뛴다. 표식 light는 skip하지 않고
-  //    아래 경로로 내려가 verifiability 한 관점 리뷰를 받는다.
-  if (scale === 'light' && !marked) {
-    return {
-      ok: true,
-      phase: 'plan',
-      target: { digest: snapshot.digest, documents: snapshot.documents },
-      strategy: 'skip',
-      task_count: countCommitTasks(repoRoot, bp),
-      clusters: [],
-      perspectives: [],
-      reasons: ['blueprint scale is light — context review is skipped'],
-    };
-  }
-
-  // previous는 light skip 전에 검사하지 않는다 — skip 응답에 follow_up 자체가
-  // 없으므로 깨진 previous로 skip 경로를 막지 않는다. single/clustered만 본다.
-  // 저장된 리뷰 증거가 있으면 previous가 필수이고 latest_dispatch와 같아야 한다:
-  // 누락을 최초(full)로 해석하면 후속 리뷰가 전체 리뷰로 되돌아 반복 한도가 무력해진다.
+  // 표식 없는 blueprint는 complexity와 무관하게 지금의 full 경로(single)를 탄다.
+  // skip 전략은 없다 — 강도 선언만으로 context review를 건너뛰면 승인 기록이 갈라진다.
   const bound = checkPreviousBinding(repoRoot, bp, previous, contract);
   if (bound) return bound;
   let previousSnap: PreviousSnapshot = null;
@@ -726,13 +710,12 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
 
   const taskCount = commitTasks.tasks.length;
   // 등급은 모든 commit task의 review_risk 합집합과 task 수로 정한다. S30 위반은 축소하지 않고
-  // 그대로 돌려준다. 이 지점은 light 최초 계획 리뷰(skip)가 이미 반환한 뒤라 reviewer가 있는
-  // 경로뿐이다.
+  // 그대로 돌려준다. skip 경로가 없어 모든 성공 payload에 reviewer가 있다.
   const planRisk = unionCommitReviewRisk({ repoRoot, blueprintDir: bp });
   if (!planRisk.ok) return planRisk;
   const planTier = decideReviewerTier({
     repoRoot, agentName: 'bouncer-context-reviewer', baseDispatch: agentDispatch,
-    taskCount, riskFlags: planRisk.flags,
+    taskCount, riskFlags: planRisk.flags, complexity,
   });
   if (!planTier.ok) return planTier;
   // 모든 full 최초 계획 리뷰는 task 수와 무관하게 single combined reviewer 한 명이 읽는다.
@@ -750,9 +733,9 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
     }]
     : [];
   if (marked) {
-    // 표식 blueprint는 같은 cluster·reviewFields에 관점만 바꿔 싣는다: full은 4관점 병렬,
-    // light는 verifiability 하나. light용 별도 strategy 이름은 만들지 않는다.
-    const perspectives = scale === 'light' ? PLAN_LIGHT_PERSPECTIVES : PLAN_FULL_PERSPECTIVES;
+    // 표식 blueprint는 같은 cluster·reviewFields에 관점만 바꿔 싣는다: standard는 4관점,
+    // low는 verifiability(위험 있으면 risk_security). 별도 strategy 이름은 만들지 않는다.
+    const perspectives = planPerspectivesOf(complexity, planRisk.flags.length > 0);
     return {
       ok: true,
       phase: 'plan',
@@ -847,30 +830,31 @@ function classifyExecuteReview({
   }
 
   const bp = toPosix(blueprintDir);
-  // light 분기는 선언된 `bouncer.scale`만 본다. diff 크기·경로 수로 light를
-  // 추론하면 full 대규모 변경이 축소 리뷰로 빠지고, light 큰 diff는 parallel로
+  // complexity 분기는 선언된 `bouncer.complexity`만 본다. diff 크기·경로 수로 low를
+  // 추론하면 standard 대규모 변경이 축소 리뷰로 빠지고, low 큰 diff는 parallel로
   // 갈라져 단일 reviewer 계약이 깨진다.
-  let scale = 'full';
   let reviewContract: 'brief' | 'legacy' | null;
+  let complexity: 'low' | 'standard';
   try {
     const bpDoc = readDoc(path.join(repoRoot, bp, 'index.md'));
-    const bouncer = (bpDoc.data as { bouncer?: { scale?: string } } | null)?.bouncer;
-    if (bouncer && typeof bouncer.scale === 'string') scale = bouncer.scale;
+    const bouncer = (bpDoc.data as { bouncer?: unknown } | null)?.bouncer;
+    const parsed = complexityOf(bouncer);
+    if (parsed === null) {
+      return { ok: false, error: 'blueprint complexity invalid: expected low or standard' };
+    }
+    complexity = parsed;
     reviewContract = reviewContractOf(bouncer);
   } catch (error) {
-    // index 부재·파싱 실패를 기본 full로 접으면 light 선언을 놓친 채 parallel을
-    // 고른다. Plan 분류기와 같이 읽기 실패를 그대로 드러낸다.
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, error: `blueprint index unreadable: ${message}` };
   }
 
-  // 표식 해석 실패는 light 여부와 무관하게 거절한다. 깨진 표식을 legacy로 접으면
+  // 표식 해석 실패는 complexity와 무관하게 거절한다. 깨진 표식을 legacy로 접으면
   // 리뷰 관점이 조용히 바뀐다(fallback 없음).
   if (reviewContract === null) return { ok: false, error: REVIEW_CONTRACT_INVALID };
-  // 브리프 관점은 task 없는 최종 리뷰의 full blueprint에만 적용한다. task 범위 리뷰는
-  // 표식과 무관하게 현행 규칙이고, light 표식 조합은 plan gate(S38)가 막으므로
-  // 분류기에서는 light 분기를 그대로 둔다.
-  const briefReview = reviewContract === 'brief' && scale !== 'light' && (taskId == null || taskId === '');
+  // 브리프 관점은 task 없는 최종 리뷰의 standard blueprint에만 적용한다. low는
+  // 크기와 무관하게 single combined이고 brief 관점을 쓰지 않는다.
+  const briefReview = reviewContract === 'brief' && complexity !== 'low' && (taskId == null || taskId === '');
 
   let targetTask: string | null = null;
   let risk: { ok: true; flags: string[] } | DispatchFail;
@@ -921,6 +905,7 @@ function classifyExecuteReview({
     baseDispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
     taskCount: targetTask === null ? countCommitTasks(repoRoot, bp) : 1,
     riskFlags: risk.flags,
+    complexity,
   });
   if (!tier.ok) return tier;
 
@@ -980,17 +965,17 @@ function classifyExecuteReview({
   } else {
     const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
       && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
-    const lightScale = scale === 'light';
-    // light는 크기 임계를 건너뛴다. full만 EXECUTE_SMALL_*로 single/parallel을 고른다.
-    const single = lightScale || small;
+    const lowComplexity = complexity === 'low';
+    // low는 크기 임계를 건너뛴다. standard만 EXECUTE_SMALL_*로 single/parallel을 고른다.
+    const single = lowComplexity || small;
     strategy = single ? 'single' : 'parallel';
     perspectives = single
       ? ['combined']
       : ['spec_scope', 'correctness_tests', 'minimality_maintainability'];
     if (risk.flags.length > 0) perspectives.push('security');
     reasons.push(
-      lightScale
-        ? 'blueprint scale is light — single combined reviewer regardless of diff size'
+      lowComplexity
+        ? 'blueprint complexity is low — single combined reviewer regardless of diff size'
         : small
           ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
             + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
@@ -1051,19 +1036,27 @@ function classifyExecuteReview({
  *   - min: `review.min_reviewer_tier` 하한. 없으면 null
  * @returns {{ tier: ReviewerTier, reason: string }} 등급과 reasons에 실을 근거 한 줄
  */
-function computeReviewerTier({ taskCount, riskFlags, min }: {
+function computeReviewerTier({ taskCount, riskFlags, min, complexity }: {
   taskCount: number;
   riskFlags: string[];
   min: ReviewerTier | null;
+  complexity?: 'low' | 'standard';
 }): { tier: ReviewerTier; reason: string } {
   const causes: string[] = [];
-  if (taskCount >= REVIEWER_STRONG_MIN_TASKS) {
+  // low는 task 수 문턱을 평가하지 않는다. standard 결과 문자열은 한 글자도 바꾸지 않는다.
+  if (complexity !== 'low' && taskCount >= REVIEWER_STRONG_MIN_TASKS) {
     causes.push(`commit task count ${taskCount} >= ${REVIEWER_STRONG_MIN_TASKS}`);
   }
   if (riskFlags.length > 0) causes.push(`review_risk ${riskFlags.join(',')}`);
   if (min === 'strong') causes.push('review.min_reviewer_tier strong');
   if (causes.length > 0) {
     return { tier: 'strong', reason: `reviewer tier strong — ${causes.join('; ')}` };
+  }
+  if (complexity === 'low') {
+    return {
+      tier: 'standard',
+      reason: 'reviewer tier standard — complexity low (no task-count threshold) and review_risk empty',
+    };
   }
   return {
     tier: 'standard',
@@ -1120,8 +1113,7 @@ function applyReviewerTier({ repoRoot, agentName, baseDispatch, tier }: {
 }
 
 /**
- * `review.min_reviewer_tier`를 읽어 등급 계산·적용을 한 번에 한다. reviewer가 있는 경로만 부른다
- * (light 최초 계획 리뷰 skip은 호출하지 않으므로 그 설정을 검사하지 않는다).
+ * `review.min_reviewer_tier`를 읽어 등급 계산·적용을 한 번에 한다. reviewer가 있는 경로만 부른다.
  * 값이 standard/strong이 아니면(light·오타·비문자열) 하한이 조용히 무시되어 약한 리뷰가
  * 나가지 않도록 성공 payload 없이 거절한다.
  *
@@ -1131,12 +1123,13 @@ function applyReviewerTier({ repoRoot, agentName, baseDispatch, tier }: {
  *   설정 오류면 `review-min-reviewer-tier-invalid`. 성공의 reasons는 등급 근거 한 줄이고,
  *   strong 미적용이면 미적용 사유 한 줄이 뒤에 붙는다
  */
-function decideReviewerTier({ repoRoot, agentName, baseDispatch, taskCount, riskFlags }: {
+function decideReviewerTier({ repoRoot, agentName, baseDispatch, taskCount, riskFlags, complexity }: {
   repoRoot: string;
   agentName: string;
   baseDispatch: AgentDispatch;
   taskCount: number;
   riskFlags: string[];
+  complexity?: 'low' | 'standard';
 }): DispatchFail | {
   ok: true; agent_dispatch: AgentDispatch; reviewer_tier: ReviewerTier;
   reviewer_tier_applied: boolean; reasons: string[];
@@ -1153,7 +1146,7 @@ function decideReviewerTier({ repoRoot, agentName, baseDispatch, taskCount, risk
     };
   }
   const { tier, reason } = computeReviewerTier({
-    taskCount, riskFlags, min: rawMin === undefined ? null : rawMin,
+    taskCount, riskFlags, min: rawMin === undefined ? null : rawMin, complexity,
   });
   const applied = applyReviewerTier({ repoRoot, agentName, baseDispatch, tier });
   return {
@@ -1346,7 +1339,7 @@ function buildClusters(tasks: CommitTaskSignals[]): PlanCluster[] {
 }
 
 /**
- * commit task 개수만 센다. light skip 응답의 task_count용.
+ * commit task 개수만 센다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} blueprintDir - blueprint 상대 경로

@@ -114,10 +114,10 @@ function openLedgerFenced({ ledgerFile, ledgerPath, ledgerHash, validate }: {
   const { ledger, bytes } = loaded;
   const leaseShape = assertLeaseShape(ledger);
   if (!leaseShape.ok) return leaseShape;
-  // 진행 중 옛 inline light는 fence 불일치보다 먼저 거절한다. 원장을 쓰기 전에
+  // mode:light 원장은 fence 불일치보다 먼저 거절한다. 원장을 쓰기 전에
   // 모든 fenced 명령이 같은 reason으로 멈추게 하려는 순서다.
-  if (isLegacyLightLedger(ledger)) {
-    return { ok: false, reason: 'light-ledger-legacy' };
+  if (isRemovedLightLedger(ledger)) {
+    return { ok: false, reason: 'light-mode-removed' };
   }
   const rejected = validate ? validate(ledger) : null;
   if (rejected) return rejected;
@@ -419,19 +419,14 @@ function ledgerModeOf(ledger: Ledger): 'light' | 'full' {
 }
 
 /**
- * 옛 inline light 원장인지 판정한다. 파일·git을 읽지 않는 순수 함수다.
- * light_runner가 'subagent'가 아니면(부재·오타 포함) 표식 없는 옛 원장으로 보고,
- * 아직 integrated가 아닌 task가 하나라도 있으면 진행 중 legacy로 본다.
- * 모든 task가 integrated인 끝난 옛 원장은 finalize만 남은 상태라 false다.
+ * 제거된 light 원장인지 판정한다. 파일·git을 읽지 않는 순수 함수다.
+ * 표식·task 상태와 관계없이 mode === 'light'이면 true다.
  *
  * @param {Ledger} ledger - 이미 파싱된 원장
- * @returns {boolean} 진행 중·정지된 옛 inline light 원장이면 true
+ * @returns {boolean} mode가 light이면 true
  */
-function isLegacyLightLedger(ledger: Ledger): boolean {
-  if (ledger.mode !== 'light') return false;
-  // 'subagent'만 새 runner다. 다른 문자열을 넓혀 해석하지 않는다.
-  if (ledger.light_runner === 'subagent') return false;
-  return (ledger.tasks || []).some((task) => task.status !== 'integrated');
+function isRemovedLightLedger(ledger: Ledger): boolean {
+  return ledger.mode === 'light';
 }
 
 export = {
@@ -440,6 +435,6 @@ export = {
   // coordinator-commands가 checkpoint와 같은 ready 계산·한도 폴백을 쓰도록 함께 내보낸다.
   readyWaveGated, maxParallelForRead,
   withCheckpoint, openLedgerFenced, recheckLedgerCheckpoint, validateFaninLedger,
-  ledgerModeOf, isLegacyLightLedger,
+  ledgerModeOf, isRemovedLightLedger,
 };
 

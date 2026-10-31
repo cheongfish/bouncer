@@ -15,7 +15,7 @@ const { renderDoc } = render;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 import templates = require('./templates');
-const { templateBody, TEMPLATES } = templates;
+const { templateBody } = templates;
 import epicIndex = require('./epic-index');
 const { ensureEpicIndexEntry, listEpicDirNames } = epicIndex;
 import tasksDocs = require('./tasks-docs');
@@ -24,7 +24,8 @@ const {
 } = tasksDocs;
 import schema = require('./schema');
 const {
-  DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM,
+  DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_DECLARABLE_ENUM,
+  DEFAULT_COMPLEXITY, COMPLEXITY_ENUM,
   DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE,
   EXECUTION_KIND_ENUM, isValidDependsOn,
 } = schema;
@@ -119,43 +120,30 @@ function isBlueprintReviewScope(repoRoot: string, blueprintDirRel: string): bool
   return Boolean(bouncer && bouncer.review_scope === 'blueprint');
 }
 
-/**
- * blueprint가 선언한 scale을 돌려준다. 선언은 사람이 쓴 index.md의
- * `bouncer.scale`뿐이다 — 경로 수·diff 크기로 추론하지 않는다.
- * 알 수 없는 값이나 읽기 실패는 기본값(full)으로 떨어뜨린다: 문서 세트를
- * 줄이는 쪽이 아니라 늘리는 쪽이 안전한 실패다.
- */
-function blueprintScale(repoRoot: string, blueprintDirRel: string): string {
-  const bouncer = readBlueprintBouncer(repoRoot, blueprintDirRel);
-  const scale = bouncer ? bouncer.scale : undefined;
-  return typeof scale === 'string' && (SCALE_ENUM as unknown[]).includes(scale)
-    ? scale
-    : DEFAULT_SCALE;
-}
-
 // blueprint area slug 형식. epic-registry의 slug 규칙과 같은 모양이다.
 const AREA_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** 알 수 없는 scale은 파일을 하나도 쓰기 전에 거절한다. */
+/** 새 선언은 full만 받는다. light는 파일을 쓰기 전에 거절한다. */
 function requireScale(scale: unknown): string {
   if (scale === undefined) return DEFAULT_SCALE;
-  if (typeof scale !== 'string' || !(SCALE_ENUM as unknown[]).includes(scale)) {
-    throw new Error(`scale must be one of ${SCALE_ENUM.join(' | ')}, got ${JSON.stringify(scale)}`);
+  if (scale === 'light') {
+    throw new Error('scale light was removed; declare complexity low instead');
+  }
+  if (typeof scale !== 'string' || !(SCALE_DECLARABLE_ENUM as unknown[]).includes(scale)) {
+    throw new Error(`scale must be one of ${SCALE_DECLARABLE_ENUM.join(' | ')}, got ${JSON.stringify(scale)}`);
   }
   return scale;
 }
 
-/**
- * scale에 맞는 템플릿 이름. light는 `<base>-light.md`가 실제로 있을 때만
- * 그 이름을 쓰고, 없으면 공용 템플릿으로 떨어진다 — full 본문을 바이트
- * 단위로 유지하면서, light가 full과 같은 본문을 쓰는 문서(verification)는
- * 사본을 두지 않기 위함. 사본을 두면 공용 템플릿만 고칠 때 light가 조용히
- * 뒤처진다.
- */
-function templateNameFor(base: string, scale: string): string {
-  if (scale !== 'light') return base;
-  const lightName = base.replace(/\.md$/, '-light.md');
-  return lightName in TEMPLATES ? lightName : base;
+/** 허용 밖 complexity는 파일을 쓰기 전에 거절한다. 생략은 standard다. */
+function requireComplexity(complexity: unknown): 'low' | 'standard' {
+  if (complexity === undefined) return DEFAULT_COMPLEXITY;
+  if (typeof complexity !== 'string' || !(COMPLEXITY_ENUM as unknown[]).includes(complexity)) {
+    throw new Error(
+      `complexity must be one of ${COMPLEXITY_ENUM.join('|')}, got ${JSON.stringify(complexity)}`,
+    );
+  }
+  return complexity as 'low' | 'standard';
 }
 
 /**
@@ -257,7 +245,7 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }: {
  * @param {string} options.blueprintDir - `.bouncer/context/epics/...` 아래 blueprint 상대 경로
  * @param {string} options.taskId - zero-padded task 번호
  * @param {string} options.timestamp - 생성 시각
- * @param {string} [options.scale] - light | full. 생략하면 blueprint가 선언한 값을 따른다
+ * @param {string} [options.scale] - 무시한다. 템플릿은 공용 본문만 쓴다.
  * @param {unknown} [options.executionKind] - commit | verification. 기본 commit
  * @param {unknown} [options.dependsOn] - verification 선행 TASKS-NNN 배열
  * @param {unknown} [options.verify] - verification 단일 실행 명령
@@ -265,7 +253,7 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }: {
  * @returns {string[]} 생성한 문서의 저장소 상대 경로 (tasks.md, verification.md[, review.md])
  */
 function scaffoldTask({
-  repoRoot, blueprintDir, taskId, timestamp, scale,
+  repoRoot, blueprintDir, taskId, timestamp,
   executionKind = 'commit', dependsOn, verify, verifyAllowlist,
 }: {
   repoRoot: string;
@@ -328,11 +316,9 @@ function scaffoldTask({
   }
 
   const ids = expectedTaskDocIds(taskId);
-  // 호출자가 scale을 주지 않으면 blueprint가 선언한 값을 따른다. 나중에 붙는
-  // task도 같은 blueprint 계약을 쓰게 하려는 것 — 새 플래그를 만들지 않는다.
-  const taskScale = requireScale(scale === undefined ? blueprintScale(repoRoot, bp) : scale);
+  // 템플릿은 공용 본문만 쓴다. scale 상속을 두면 light 사본이 다시 생긴다.
   const body = (templateName: string) => templateBody(
-    templateNameFor(templateName, taskScale), { epicId, blueprintId, name: taskId },
+    templateName, { epicId, blueprintId, name: taskId },
   );
   const [tasksBase, verifyBase, reviewBase] = TASK_UNIT_BASENAMES;
 
@@ -368,7 +354,6 @@ function scaffoldTask({
         commit_summary: [],
       }),
     // verification은 commit 본문의 백틱 경로 Touch 표를 물려받으면 G20에 걸린다.
-    // light에는 `-light` 사본이 없어 templateNameFor가 같은 본문으로 떨어진다.
     body(isVerification ? 'verification-tasks.md' : tasksBase)));
 
   created.push(writeRel(repoRoot, verifyRel,
@@ -417,7 +402,7 @@ function scaffoldTask({
  *   이미 쓰인 order·blueprint, legacy epic
  */
 function scaffoldBlueprint({
-  repoRoot, epicDir, blueprintId, order, name, timestamp, scale, area, attribution,
+  repoRoot, epicDir, blueprintId, order, name, timestamp, scale, complexity, area, attribution,
 }: {
   repoRoot: string;
   epicDir: string;
@@ -426,13 +411,11 @@ function scaffoldBlueprint({
   name: string;
   timestamp: string;
   scale?: string;
+  complexity?: string;
   area?: string;
   attribution?: string;
 }): string[] {
-  // scripts/가 scale을 읽는 네 곳: scaffoldBlueprint는 문서 집합을 고르고,
-  // scaffoldTask는 이후 task에 blueprint가 선언한 scale을 상속하며, plan gate는
-  // light 계약(작성 규칙과 문서 집합)을, 구조 검증(S20)은 enum 값을 검사한다. 모두 선언된
-  // bouncer.scale만 읽고 크기를 추론하지 않는다.
+  // complexity는 사람이 선언한 값만 쓴다. 경로 수·diff로 추론하지 않는다.
   if (!isCanonicalEpicDir(epicDir)) {
     throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
   }
@@ -467,9 +450,10 @@ function scaffoldBlueprint({
     requireNumericId(blueprintId, 'blueprintId');
     blueprintKey = blueprintId;
   }
-  // 알 수 없는 scale은 첫 파일을 쓰기 전에 거절한다 — 반쯤 만들어진
+  // 알 수 없는 scale·complexity는 첫 파일을 쓰기 전에 거절한다 — 반쯤 만들어진
   // blueprint 디렉터리를 남기지 않기 위함.
   const bpScale = requireScale(scale);
+  const bpComplexity = requireComplexity(complexity);
   // area·attribution도 같은 이유로 첫 파일 전에 모양을 거절한다. 두 값은 선택이라
   // 생략은 키 부재(기존 frontmatter와 동일)이고, 있는 값만 S36과 같은 규칙으로 검사한다.
   if (area !== undefined && !AREA_SLUG_RE.test(area)) {
@@ -495,7 +479,7 @@ function scaffoldBlueprint({
   const created: string[] = [];
   // 템플릿 자리표시자 <BP-id>는 형식의 blueprint key(번호 또는 slug)로 채운다.
   const body = (templateName: string) => templateBody(
-    templateNameFor(templateName, bpScale), { epicId, blueprintId: blueprintKey, name },
+    templateName, { epicId, blueprintId: blueprintKey, name },
   );
 
   const idx = `${dir}/index.md`;
@@ -517,6 +501,8 @@ function scaffoldBlueprint({
         ...(format === 'slug' ? { order } : {}),
         commit_type: DEFAULT_COMMIT_TYPE,
         scale: bpScale,
+        // complexity는 scale 바로 뒤에 둔다. 기본 standard, --complexity low만 low다.
+        complexity: bpComplexity,
         // 새 blueprint는 task별 리뷰 대신 루트 review.md 하나다.
         // 기존 문서의 필드 부재는 구형 계약으로 남긴다(여기서 소급하지 않음).
         review_scope: 'blueprint',
@@ -524,9 +510,8 @@ function scaffoldBlueprint({
         // 표식이 없는 기존 blueprint는 legacy로 남으므로 소급하지 않는다. 표식의
         // 의미(명령 누락 거절·terminal topology)는 plan gate가 판정한다.
         verification_policy: 'scoped_terminal',
-        // 새 계획은 full·light 모두 브리프 계약 표식을 받는다. full은 4관점 plan 리뷰와
-        // 브리프 이행 최종 리뷰를, light는 verifiability 1관점 plan 리뷰를 받는다(run
-        // 최종 리뷰는 reviewContractOf가 light를 legacy로 읽어 지금과 같다). 기존 문서는 소급하지 않는다.
+        // 새 계획은 브리프 계약 표식을 받는다. low는 verifiability 관점, standard는
+        // 4관점 plan 리뷰와 브리프 이행 최종 리뷰를 받는다. 기존 문서는 소급하지 않는다.
         review_contract: 'brief',
         // 귀속 기록은 선택 키다. 필수 판정은 plan gate가 맡고 여기서는 값을 쓰기만 한다.
         ...(area === undefined ? {} : { area }),
@@ -536,7 +521,6 @@ function scaffoldBlueprint({
     body('blueprint.md')));
 
   // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.
-  // 표식 light도 verifiability 관점 context review를 받으므로 light에도 만든다.
   created.push(...scaffoldContextReview({
     repoRoot, blueprintDir: dir, timestamp,
   }));
@@ -561,7 +545,7 @@ function scaffoldBlueprint({
   // (기존 문서 인식은 listTasksDocs 가 유지 — 거절은 004.)
   // index에 review_scope를 먼저 썼으므로 아래 scaffoldTask는 task review.md를 생략한다.
   const taskCreated = scaffoldTask({
-    repoRoot, blueprintDir: dir, taskId: '001', timestamp, scale: bpScale,
+    repoRoot, blueprintDir: dir, taskId: '001', timestamp,
   });
   created.push(...taskCreated);
 

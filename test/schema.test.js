@@ -116,9 +116,9 @@ test('review_contract → brief is accepted, absence is legacy, anything else is
   assert.equal(schema.reviewContractOf({ review_contract: 'other' }), null);
 });
 
-test('review_contract on a light blueprint → reviewContractOf reads legacy and planReviewContractOf keeps the marker', () => {
-  assert.equal(schema.reviewContractOf({ scale: 'light', review_contract: 'brief' }), 'legacy');
-  assert.equal(schema.reviewContractOf({ scale: 'light', review_contract: 'other' }), 'legacy');
+test('review_contract on a light blueprint → reviewContractOf does not fold by scale', () => {
+  assert.equal(schema.reviewContractOf({ scale: 'light', review_contract: 'brief' }), 'brief');
+  assert.equal(schema.reviewContractOf({ scale: 'light', review_contract: 'other' }), null);
   assert.equal(schema.reviewContractOf({ scale: 'full', review_contract: 'brief' }), 'brief');
   assert.equal(typeof schema.planReviewContractOf, 'function');
   assert.equal(schema.planReviewContractOf({ scale: 'light', review_contract: 'brief' }), 'brief');
@@ -129,11 +129,71 @@ test('review_contract on a light blueprint → reviewContractOf reads legacy and
   assert.equal(schema.planReviewContractOf({ scale: 'light', review_contract: 'other' }), null);
 });
 
-test('plan 관점 정본 → full은 4관점·light는 verifiability이고 delta 관점은 scale로만 정해진다', () => {
+test('complexityOf → 부재·비객체는 standard, 허용값은 그대로, 허용 밖은 null', () => {
+  assert.deepStrictEqual(schema.COMPLEXITY_ENUM, ['low', 'standard']);
+  assert.strictEqual(schema.DEFAULT_COMPLEXITY, 'standard');
+  assert.deepStrictEqual(schema.SCALE_DECLARABLE_ENUM, ['full']);
+  assert.strictEqual(schema.complexityOf(undefined), 'standard');
+  assert.strictEqual(schema.complexityOf(null), 'standard');
+  assert.strictEqual(schema.complexityOf({}), 'standard');
+  assert.strictEqual(schema.complexityOf({ complexity: 'low' }), 'low');
+  assert.strictEqual(schema.complexityOf({ complexity: 'standard' }), 'standard');
+  assert.strictEqual(schema.complexityOf({ complexity: '' }), null);
+  assert.strictEqual(schema.complexityOf({ complexity: null }), null);
+  assert.strictEqual(schema.complexityOf({ complexity: 'medium' }), null);
+});
+
+test('plan 관점 정본 → standard는 4관점·low는 verifiability이고 delta는 complexity로만 정해진다', () => {
   assert.deepEqual(schema.PLAN_FULL_PERSPECTIVES, ['consistency', 'scope_minimality', 'verifiability', 'risk_security']);
-  assert.deepEqual(schema.PLAN_LIGHT_PERSPECTIVES, ['verifiability']);
-  assert.equal(schema.planDeltaPerspectiveOf('full'), 'combined');
-  assert.equal(schema.planDeltaPerspectiveOf('light'), 'verifiability');
+  assert.deepEqual(schema.PLAN_LOW_PERSPECTIVES, ['verifiability']);
+  assert.equal(schema.PLAN_LIGHT_PERSPECTIVES, undefined);
+  assert.deepEqual(schema.planPerspectivesOf('low', false), ['verifiability']);
+  assert.deepEqual(schema.planPerspectivesOf('low', true), ['verifiability', 'risk_security']);
+  assert.deepEqual(schema.planPerspectivesOf('standard', true), schema.PLAN_FULL_PERSPECTIVES);
+  assert.equal(schema.planDeltaPerspectiveOf('standard'), 'combined');
+  assert.equal(schema.planDeltaPerspectiveOf('low'), 'verifiability');
+});
+
+test('normalizeStructure with complexity low → adds sorted review_risk; standard omits the key', () => {
+  const { normalizeStructure, digestPlanContent } = require('../packages/cli/dist/plan-snapshot-contract');
+  assert.deepStrictEqual(
+    normalizeStructure('task', { review_risk: ['b', 'a'] }, 'low').review_risk,
+    ['a', 'b'],
+  );
+  assert.strictEqual(
+    Object.prototype.hasOwnProperty.call(normalizeStructure('task', { review_risk: ['b', 'a'] }, 'standard'), 'review_risk'),
+    false,
+  );
+  assert.strictEqual(
+    Object.prototype.hasOwnProperty.call(normalizeStructure('task', { review_risk: ['b', 'a'] }), 'review_risk'),
+    false,
+  );
+  const bpLow = normalizeStructure('blueprint', { scale: 'full', review_scope: 'blueprint' }, 'low');
+  assert.strictEqual(bpLow.complexity, 'low');
+  const bpStd = normalizeStructure('blueprint', { scale: 'full', review_scope: 'blueprint' }, 'standard');
+  assert.deepStrictEqual(Object.keys(bpStd).sort(), ['review_scope', 'scale']);
+  const docs = ['t.md'];
+  const lowA = digestPlanContent(docs, {
+    't.md': { body: 'x', structure: normalizeStructure('task', { review_risk: ['credential'] }, 'low') },
+  });
+  const lowB = digestPlanContent(docs, {
+    't.md': { body: 'x', structure: normalizeStructure('task', { review_risk: ['public_interface'] }, 'low') },
+  });
+  const lowOrder = digestPlanContent(docs, {
+    't.md': { body: 'x', structure: normalizeStructure('task', { review_risk: ['b', 'a'] }, 'low') },
+  });
+  const lowOrderFlip = digestPlanContent(docs, {
+    't.md': { body: 'x', structure: normalizeStructure('task', { review_risk: ['a', 'b'] }, 'low') },
+  });
+  assert.notStrictEqual(lowA, lowB);
+  assert.strictEqual(lowOrder, lowOrderFlip);
+  const stdA = digestPlanContent(docs, {
+    't.md': { body: 'x', structure: normalizeStructure('task', { review_risk: ['credential'] }, 'standard') },
+  });
+  const stdB = digestPlanContent(docs, {
+    't.md': { body: 'x', structure: normalizeStructure('task', { review_risk: ['public_interface'] }, 'standard') },
+  });
+  assert.strictEqual(stdA, stdB);
 });
 
 test('prerequisites merged_commit 형식 → 40자리 소문자 SHA만 받는다', () => {

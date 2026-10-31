@@ -332,8 +332,6 @@ function docShapeTargetsWithoutContract(verify: string, repoRoot: string | undef
  *
  * @param {DocLeaf | undefined} blueprintIndex - blueprint index.md 문서
  * @param {DocLeaf[]} tasksList - blueprint의 모든 tasks.md
- * @param {boolean} isLight - blueprint scale이 light인지
- *
  * @param {FailureEntry[]} failures - G20 결과 누적 배열
  * @param {string | undefined} repoRoot - verify의 절대 경로 인자를 저장소 상대로 바꿀 루트(선택)
  * @returns {void} 결과는 failures에 push로만 남긴다
@@ -341,7 +339,6 @@ function docShapeTargetsWithoutContract(verify: string, repoRoot: string | undef
 function checkScopedTerminalPolicy(
   blueprintIndex: DocLeaf | undefined,
   tasksList: DocLeaf[],
-  isLight: boolean,
   failures: FailureEntry[],
   repoRoot?: string,
 ): void {
@@ -462,17 +459,6 @@ function checkScopedTerminalPolicy(
     }
   }
 
-  if (isLight) {
-    const only = commits[0];
-    const dependsOn = bouncerOf(only).depends_on;
-    if (commits.length !== 1 || (Array.isArray(dependsOn) && dependsOn.length > 0)) {
-      failures.push({
-        code: 'G20',
-        message: 'scoped_terminal light requires one independent commit task plus the terminal verification',
-        file: bpFile,
-      });
-    }
-  }
 }
 
 // G32 복구 안내. gate hint(validate.ts)와 approvePlan이 같은 문장을 써야 두 경로의 next가 갈라지지 않는다.
@@ -546,8 +532,6 @@ function checkPlanGate(stage: GateStageCtx): void {
   } else if (bpStatus !== 'approved') {
     add('G2', 'blueprint.status != approved', 'blueprintIndex');
   }
-  const { isLight } = planScaleOf(docs);
-
   const tasksList = planTasksOf(docs);
   if (tasksList.length === 0) {
     add('G3', 'tasks.status != ready', 'tasks');
@@ -575,7 +559,7 @@ function checkPlanGate(stage: GateStageCtx): void {
     checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   }
   checkVerificationTaskGraph(tasksList, failures);
-  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures, stage.repoRoot);
+  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, failures, stage.repoRoot);
   // repoRoot 없이 부른 단위 호출은 선행 선언을 읽을 위치가 없어 건너뛴다(선언 없는 기존 경로와 같다).
   if (stage.repoRoot && stage.blueprintDir) {
     failures.push(...planPrerequisiteFailures({
@@ -583,25 +567,6 @@ function checkPlanGate(stage: GateStageCtx): void {
       exec: stage.deps && stage.deps.exec,
     }));
   }
-}
-
-/**
- * blueprint `scale`로 plan 검사의 light 여부를 고른다.
- * plan gate와 plan draft 검사가 같은 헬퍼를 써야 light 문서에 대한 G20 답이 갈라지지 않는다.
- *
- * @param {BlueprintDocs} docs - 로드된 blueprint 문서 묶음
- * @returns {{ isLight: boolean }} blueprint `scale`이 light이면 isLight가 true
- */
-function planScaleOf(docs: BlueprintDocs): { isLight: boolean } {
-  // 축약 계약의 유일한 발동 신호는 blueprint index.md의 `bouncer.scale`이다.
-  // 사용자 선언(그리고 그것을 쓰는 scaffold --scale)만이 여기 도달한다 —
-  // 게이트는 경로 수·diff 크기로 light를 추론하지 않는다.
-  const bpData = asData(docs.blueprintIndex);
-  const bpBouncer = bpData && bpData.bouncer && typeof bpData.bouncer === 'object'
-    ? bpData.bouncer as Record<string, unknown>
-    : undefined;
-  const isLight = Boolean(bpBouncer && bpBouncer.scale === 'light');
-  return { isLight };
 }
 
 /**
@@ -794,7 +759,6 @@ function checkPlanDraft(
   failures: FailureEntry[],
   ctx: GateContext = {},
 ): void {
-  const { isLight } = planScaleOf(docs);
   const tasksList = planTasksOf(docs);
   if (tasksList.length === 0) {
     // plan gate의 빈 목록 분기에서 status 코드(G3)만 뺀 것이다.
@@ -809,7 +773,7 @@ function checkPlanDraft(
   // plan gate와 같은 조건: G19가 실패하면 모양 경고를 건너뛴다.
   if (failures.length === beforeG19) checkTaskDagShape(tasksList, ctx, rels.blueprintIndex);
   checkVerificationTaskGraph(tasksList, failures);
-  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, isLight, failures, ctx.repoRoot);
+  checkScopedTerminalPolicy(docs.blueprintIndex, tasksList, failures, ctx.repoRoot);
   // 정식 gate·approvePlan과 같은 helper를 쓴다. repoRoot가 없으면 선언을 읽을 수 없어 건너뛴다.
   if (ctx.repoRoot && ctx.blueprintDir) {
     failures.push(...planPrerequisiteFailures({

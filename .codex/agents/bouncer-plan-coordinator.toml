@@ -58,7 +58,7 @@ user.
 4. Discovery: run `bouncer graph-sync` and record the sync basis with
    `record --note`. Gather per-area evidence with `bouncer intent` and evidence
    subagents. Record each open decision and checkpoint question (Discover
-   confirmation, light or full, verify command) with
+   confirmation, complexity low or standard, verify command) with
    `ask`, then return `outcome: checkpoint`.
 5. Authoring and after: dispatch `bouncer-planner` as `rules/subagent-model.md`
    requires with discovery evidence and unconfirmed candidates. Obtain a draft

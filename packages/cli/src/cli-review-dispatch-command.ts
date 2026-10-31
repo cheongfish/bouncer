@@ -54,7 +54,7 @@ const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
              (JSON). Writes only the snapshot artifact under .bouncer/runtime/
              review-snapshots/ and returns target.snapshot_id/snapshot_path; --head
              must be the current HEAD. On failure it prints reason/cause/next, exit 1.
-             When that blueprint's scale is light, returns single/combined
+             When that blueprint's complexity is low, returns single/combined
              regardless of diff size. A blueprint with review_contract brief gets the
              brief-compliance perspectives; only it accepts --mode delta without --task.
 `;
@@ -126,8 +126,8 @@ places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
 
 Plan fields (\`single\` or \`perspectives\`; older stored \`clustered\` payloads are still read;
 absent on \`skip\` and failures):
-  A blueprint with review_contract brief gets strategy \`perspectives\`: full runs consistency, scope_minimality,
-  verifiability and risk_security in parallel; light runs verifiability only (one reviewer call per perspective).
+  A blueprint with review_contract brief gets strategy \`perspectives\`: standard runs consistency, scope_minimality,
+  verifiability and risk_security in parallel; low runs verifiability only (risk_security when review_risk is set).
   snapshot_version 2. target.digest hashes the ordered {file, body, structure} of
                    every plan document; status/title/timestamp/commit evidence are excluded
   parts            per-document body sha256 (epic index, blueprint index, each tasks.md)

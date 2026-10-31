@@ -11,7 +11,7 @@ bouncer:
   id: worker-lint-check
   epic_id: drive-execution
   blueprint_id: worker-lint-check
-  status: approved
+  status: closed
   order: 68
   commit_type: feat
   scale: light

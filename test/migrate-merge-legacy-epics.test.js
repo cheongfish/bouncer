@@ -226,7 +226,7 @@ function buildFixture(repo, { unresolvedRow = false } = {}) {
   }
   const bp = (epic, name, order) => {
     scaffoldBlueprint({
-      repoRoot: repo, epicDir: `${EPICS}/${epic}`, name, order, timestamp: TS, scale: 'light',
+      repoRoot: repo, epicDir: `${EPICS}/${epic}`, name, order, timestamp: TS,
     });
     const rel = `${EPICS}/${epic}/blueprints/${name}/tasks/001/tasks.md`;
     const doc = readDoc(path.join(repo, rel));
@@ -427,7 +427,7 @@ test('등록부 형식이 깨졌으면 → S35로 쓰기 0회 거절한다', () 
 test('대상 epic에 같은 slug가 이미 있으면 → migrate-slug-conflict로 쓰기 0회 거절한다', () => {
   const repo = template.copy();
   scaffoldBlueprint({
-    repoRoot: repo, epicDir: `${EPICS}/d1`, name: 'x', order: 5, timestamp: TS, scale: 'light',
+    repoRoot: repo, epicDir: `${EPICS}/d1`, name: 'x', order: 5, timestamp: TS,
   });
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'clash');

@@ -18,4 +18,4 @@ Canonical context remains the only repository-knowledge source at finalize.
 
 ## Quiz question count
 
-`${BOUNCER_ROOT}/references/explain-diff/index.md` owns question count sizing (1–10 ordinarily, exactly one question on `scale: light`).
+`${BOUNCER_ROOT}/references/explain-diff/index.md` owns question count sizing (1–10).

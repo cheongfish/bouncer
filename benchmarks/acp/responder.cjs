@@ -6,7 +6,9 @@ const { spawnSync } = require('node:child_process');
 const { deniedShellReason } = require('../shell-policy.cjs');
 
 const pluginRoot = path.resolve(__dirname, '..', '..');
-const bouncerCli = path.join(pluginRoot, 'scripts', 'bouncer');
+// scripts/bouncer 래퍼는 제거됐다. activate_pointer가 `bouncer current` JSON을 읽으려면
+// checkout launcher(`packages/cli/bin/bouncer`)를 써야 한다.
+const bouncerCli = path.join(pluginRoot, 'packages', 'cli', 'bin', 'bouncer');
 
 // Stage worktrees keep container gitdir links (/workspace/...); host-side calls map them through the
 // environment, the way run-bouncer-full.cjs does, instead of rewriting the link the container still uses.
@@ -92,7 +94,9 @@ const IMPLEMENTED_ANSWERS = {
   'plan.request': ['repeat_request_file'],
   'plan.discovery': ['confirm'],
   'plan.id_allocation': ['accept_suggested_ids', 'accept_suggested_ids_or_reuse_sole_draft'],
+  // 재생 전용: 002가 카탈로그를 plan.complexity로 바꿨지만 녹취 세 case는 옛 ID로 묻는다.
   'plan.light_scope': ['full'],
+  'plan.complexity': ['standard'],
   'plan.verify_command': ['npm test', 'recommended_package_script', 'policy_verification_command'],
   'plan.affected_paths': ['confirm_proposed_paths'],
   'plan.activate_pointer': ['set_sole_ready_blueprint'],
@@ -335,12 +339,20 @@ const gates = [
       return option ? { option, basis: 'content', reason: 'reuse the sole existing benchmark draft' } : null;
     },
     reason: 'first IDs free' },
+  // 재생 전용: fixtures/acq/plan-id-light-en*.md가 옛 선택지(full vs light)로 묻는다.
   { gate: 'plan.light_scope', phase: 'bouncer-plan',
     decide({ options }) {
       const option = labelMatch(options, /\bfull\b|\bnormal\b|일반|전체/i, /\blight\b|경량|--scale light/i);
       return option ? { option, basis: 'content' } : null;
     },
     reason: 'public CLI contract' },
+  { gate: 'plan.complexity', phase: 'bouncer-plan',
+    decide({ options }) {
+      // standard가 없으면 추측하지 않는다. 추천 자리의 Low를 고르면 정책 answer: standard와 어긋난다.
+      const option = labelMatch(options, /\bstandard\b|\bnormal\b|일반|기본/i, /\blow\b|낮|경량/i);
+      return option ? { option, basis: 'content' } : null;
+    },
+    reason: 'policy complexity is standard' },
   { gate: 'plan.verify_command', phase: 'bouncer-plan',
     decide({ policy, options, workDir }) {
       // package.json이 없는 과제(Go·Python·Rust)는 정책 검증 명령을 이름으로 가진 권장 선택지를 고른다.

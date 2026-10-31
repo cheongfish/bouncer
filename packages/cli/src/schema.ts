@@ -57,12 +57,34 @@ const LEGACY_GUIDANCE =
 // 값은 "0.1". 1.0 승격은 epic 029 소관이며 이 상수를 임의로 올리지 않는다.
 const BOUNCER_SCHEMA_VERSION = '0.1';
 
-// blueprint bouncer.scale 허용값. 소비자는 scale === 'light'만 보고,
-// 부재·'full'은 모두 일반 경로로 읽힌다(full 분기 금지).
+// blueprint bouncer.scale 허용값. 닫힌 문서의 light 읽기 호환을 위해 enum에
+// light를 남긴다. 새 선언은 SCALE_DECLARABLE_ENUM만 받는다.
 const SCALE_ENUM = ['light', 'full'];
+const SCALE_DECLARABLE_ENUM = ['full'];
 
-// scaffold가 blueprint에 쓰는 기본값. 경량 선언은 plan이 이 값을 light로 바꾼다.
+// scaffold가 blueprint에 쓰는 기본값. 경량 선언은 complexity: low다.
 const DEFAULT_SCALE = 'full';
+
+// blueprint `bouncer.complexity` 허용값. 키 부재는 standard로 읽는다 —
+// 소급하지 않고 새 계획만 기본값을 쓴다. 허용 밖은 null이라 호출자가 거절한다.
+const COMPLEXITY_ENUM = ['low', 'standard'];
+const DEFAULT_COMPLEXITY: 'low' | 'standard' = 'standard';
+
+/**
+ * blueprint `bouncer` 블록의 complexity를 해석한다. 부재·비객체는 standard다.
+ * 허용 밖(빈 문자열·null·medium 등)은 null — S20과 execute 분류기가 거절한다.
+ *
+ * @param {unknown} bouncer - blueprint index.md의 bouncer 객체
+ * @returns {'low' | 'standard' | null} 해석된 값, 허용 밖은 null
+ */
+function complexityOf(bouncer: unknown): 'low' | 'standard' | null {
+  if (bouncer == null || typeof bouncer !== 'object' || Array.isArray(bouncer)) return 'standard';
+  const rec = bouncer as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(rec, 'complexity')) return 'standard';
+  return (COMPLEXITY_ENUM as unknown[]).includes(rec.complexity)
+    ? rec.complexity as 'low' | 'standard'
+    : null;
+}
 
 // blueprint `bouncer.verification_policy` 허용값은 하나뿐이다. 구현 task는 자기
 // 전용 `bouncer.verify`를 갖고, 전체 검증은 마지막 verification node에서 한 번
@@ -100,22 +122,39 @@ const REVIEW_CONTRACT_INVALID_CAUSE = 'review_contract must be brief';
 const REVIEW_CONTRACT_INVALID_MESSAGE = `${REVIEW_CONTRACT_INVALID_REASON}: ${REVIEW_CONTRACT_INVALID_CAUSE}`;
 
 // 표식(review_contract: brief) blueprint의 plan 리뷰 관점. review-dispatch plan이 내는 값과
-// context-review가 round를 대조하는 기준이 같은 정본을 보도록 여기 둔다. full은 4관점 병렬,
-// light는 verifiability 하나다.
+// context-review가 round를 대조하는 기준이 같은 정본을 보도록 여기 둔다. standard는 4관점,
+// low는 verifiability(위험 있으면 risk_security를 덧붙임).
 const PLAN_FULL_PERSPECTIVES = ['consistency', 'scope_minimality', 'verifiability', 'risk_security'];
-const PLAN_LIGHT_PERSPECTIVES = ['verifiability'];
+const PLAN_LOW_PERSPECTIVES = ['verifiability'];
 
 /**
- * 표식 blueprint의 delta round가 가져야 하는 관점 이름을 검증된 scale로 고른다.
- * full은 4관점을 하나로 합친 `combined`, light는 verifiability 하나다. 관점 개수로 light를
- * 추론하지 않고 호출자가 loadDispatch로 검증한 scale만 받는다 — 잘못된 scale은 loadDispatch가
- * 이미 거절하므로 여기서는 다시 검사하지 않는다.
+ * 표식 blueprint의 discovery 관점 목록을 complexity와 review_risk 유무로 고른다.
+ * 관점 개수로 low를 추론하지 않는다 — 호출자가 complexityOf로 검증한 값만 받는다.
  *
- * @param {'full' | 'light'} scale - loadDispatch가 검증한 blueprint scale
+ * @param {'low' | 'standard'} complexity - 검증된 complexity
+ * @param {boolean} hasReviewRisk - commit task review_risk 합집합이 비어 있지 않은지
+ * @returns {string[]} discovery round 관점 목록
+ */
+function planPerspectivesOf(complexity: 'low' | 'standard', hasReviewRisk: boolean): string[] {
+  if (complexity === 'low') {
+    return hasReviewRisk
+      ? [...PLAN_LOW_PERSPECTIVES, 'risk_security']
+      : [...PLAN_LOW_PERSPECTIVES];
+  }
+  return [...PLAN_FULL_PERSPECTIVES];
+}
+
+/**
+ * 표식 blueprint의 delta round가 가져야 하는 관점 이름을 검증된 complexity로 고른다.
+ * standard는 4관점을 하나로 합친 `combined`, low는 verifiability 하나다. low의 delta는
+ * review_risk가 있어도 한 관점으로 고정한다 — delta는 지난 지적이 풀렸는지 확인하고
+ * risk_security는 discovery가 맡기 때문이다.
+ *
+ * @param {'low' | 'standard'} complexity - loadDispatch가 검증한 complexity
  * @returns {string} delta round의 단일 관점 이름
  */
-function planDeltaPerspectiveOf(scale: 'full' | 'light'): string {
-  return scale === 'light' ? PLAN_LIGHT_PERSPECTIVES[0] : 'combined';
+function planDeltaPerspectiveOf(complexity: 'low' | 'standard'): string {
+  return complexity === 'low' ? PLAN_LOW_PERSPECTIVES[0] : 'combined';
 }
 
 /**
@@ -139,16 +178,13 @@ function planReviewContractOf(bouncer: unknown): 'brief' | 'legacy' | null {
 /**
  * blueprint `bouncer` 블록의 run(최종 리뷰) 쪽 리뷰 계약 표식을 해석한다.
  * 구조 검사(S38)와 review-dispatch가 같은 판정을 쓰도록 한 곳에 둔다.
- * light는 키 값과 관계없이 legacy다: 표식 light의 최종 리뷰는 표식 없는 light와
- * 같아야 하고, 잘못된 값의 거절은 S38이 맡는다. run 쪽 소비자를 건드리지 않고
- * light 처리를 해석기 한 곳에서만 바꾸려는 선택이다.
+ * scale로 접지 않는다 — low 최종 리뷰도 brief를 그대로 읽어 repair 1회와
+ * delta 1회를 받게 하려는 선택이다. 잘못된 값의 거절은 S38이 맡는다.
  *
  * @param {unknown} bouncer - blueprint index.md의 bouncer 객체
- * @returns {'brief' | 'legacy' | null} light는 항상 legacy, 그 밖에는 planReviewContractOf와 같다
+ * @returns {'brief' | 'legacy' | null} planReviewContractOf와 같다
  */
 function reviewContractOf(bouncer: unknown): 'brief' | 'legacy' | null {
-  if (bouncer != null && typeof bouncer === 'object' && !Array.isArray(bouncer)
-    && (bouncer as Record<string, unknown>).scale === 'light') return 'legacy';
   return planReviewContractOf(bouncer);
 }
 
@@ -301,11 +337,13 @@ function detectLegacyFormat({ repoRoot, data }: { repoRoot?: unknown; data?: unk
 export = {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, KIND_TO_TYPE,
   LEGACY_GUIDANCE, detectLegacyFormat,
-  BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
+  BOUNCER_SCHEMA_VERSION, SCALE_ENUM, SCALE_DECLARABLE_ENUM, DEFAULT_SCALE,
+  COMPLEXITY_ENUM, DEFAULT_COMPLEXITY, complexityOf,
+  DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
   VERIFICATION_POLICY_ENUM, verificationPolicyOf,
   REVIEW_CONTRACT_ENUM, REVIEW_CONTRACT_INVALID_REASON, REVIEW_CONTRACT_INVALID_CAUSE,
   REVIEW_CONTRACT_INVALID_MESSAGE, reviewContractOf, planReviewContractOf,
-  PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES, planDeltaPerspectiveOf,
+  PLAN_FULL_PERSPECTIVES, PLAN_LOW_PERSPECTIVES, planPerspectivesOf, planDeltaPerspectiveOf,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,

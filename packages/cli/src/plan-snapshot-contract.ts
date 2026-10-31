@@ -42,22 +42,31 @@ function sortedStrings(value: unknown): string[] {
 
 /**
  * 실행 판단 구조를 schema 기본값으로 정규화한다. 상태·제목·시각은 digest 대상이 아니다.
+ * complexity가 'low'일 때만 blueprint에 complexity, task에 정렬된 review_risk를 싣는다.
+ * 생략·standard는 기존 키 집합을 유지해 기존 계획 digest가 바뀌지 않게 한다.
  *
  * @param {StructureKind} kind - epic | blueprint | task
  * @param {unknown} bouncer - 문서 frontmatter의 bouncer 객체
+ * @param {'low' | 'standard'} [complexity] - blueprint complexity. low일 때만 추가 필드를 싣는다
  * @returns {PlanStructure} 키 순서가 고정된 정규화 구조
  */
-function normalizeStructure(kind: StructureKind, bouncer: unknown): PlanStructure {
+function normalizeStructure(
+  kind: StructureKind,
+  bouncer: unknown,
+  complexity?: 'low' | 'standard',
+): PlanStructure {
   const b = (bouncer !== null && typeof bouncer === 'object' && !Array.isArray(bouncer)
     ? bouncer : {}) as Record<string, unknown>;
   if (kind === 'epic') return {};
   if (kind === 'blueprint') {
-    return {
+    const structure: PlanStructure = {
       scale: b.scale === 'light' ? 'light' : 'full',
       review_scope: b.review_scope === 'blueprint' ? 'blueprint' : null,
     };
+    if (complexity === 'low') structure.complexity = 'low';
+    return structure;
   }
-  return {
+  const structure: PlanStructure = {
     affected_paths: sortedStrings(b.affected_paths),
     depends_on: b.depends_on === undefined ? [...DEFAULT_DEPENDS_ON] : sortedStrings(b.depends_on),
     parallel_safe: b.parallel_safe === undefined ? DEFAULT_PARALLEL_SAFE : b.parallel_safe === true,
@@ -66,6 +75,8 @@ function normalizeStructure(kind: StructureKind, bouncer: unknown): PlanStructur
       ? [...DEFAULT_EXCLUSIVE_RESOURCES] : sortedStrings(b.exclusive_resources),
     execution_kind: executionKindOf(b) ?? 'commit',
   };
+  if (complexity === 'low') structure.review_risk = sortedStrings(b.review_risk);
+  return structure;
 }
 
 /**

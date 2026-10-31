@@ -2,7 +2,7 @@
   "version": 1,
   "workflows": {
     "bouncer-init": ["init.graphify_promotion", "init.gitignore", "init.base_branch", "init.pre_commit_hook"],
-    "bouncer-plan": ["plan.request", "plan.discovery", "plan.light_scope", "plan.verify_command", "plan.affected_paths", "plan.approval"],
+    "bouncer-plan": ["plan.request", "plan.discovery", "plan.complexity", "plan.verify_command", "plan.affected_paths", "plan.approval"],
     "bouncer-run": ["run.start_drive"],
     "bouncer-finalize": ["finalize.remainder", "finalize.pr"]
   }

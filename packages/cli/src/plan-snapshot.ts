@@ -16,6 +16,7 @@ import snapshotContract = require('./plan-snapshot-contract');
 const {
   SNAPSHOT_VERSION, digestPlanContent, normalizeStructure, structureKindOf, hashBody, hashStructure,
 } = snapshotContract;
+import schema = require('./schema');
 
 // 계획 snapshot digest의 단일 구현. review-dispatch(frozen target)와 context review 기록이
 // 같은 hex를 내야 하므로 둘 다 여기서 가져간다. review-dispatch는
@@ -70,6 +71,21 @@ function readPlanContent(repoRoot: string, blueprintDir: string): PlanContent {
   const documents = planDocumentRels(repoRoot, bp);
   const content: Record<string, PlanDocContent> = {};
   const scope_parts: Record<string, string> = {};
+  // low 계획만 review_risk를 구조에 싣는다. blueprint를 먼저 읽어 모든
+  // normalizeStructure 호출에 같은 인자를 넘겨야 previous 재정규화가 멱등이다.
+  let planComplexity: 'low' | 'standard' = 'standard';
+  const bpRel = `${bp}/index.md`;
+  if (documents.includes(bpRel)) {
+    try {
+      const bpDoc = readDoc(path.join(repoRoot, bpRel));
+      const bpBouncer = (bpDoc.data as { bouncer?: unknown } | null)?.bouncer;
+      const parsed = schema.complexityOf(bpBouncer);
+      if (parsed === 'low') planComplexity = 'low';
+    } catch (_error) {
+      // index 파싱 실패는 아래 루프가 snapshot document unreadable로 돌린다.
+      // 여기서 기본 standard로 두면 실패 전 digest가 바뀌지 않는다.
+    }
+  }
 
   for (const rel of documents) {
     const abs = path.join(repoRoot, rel);
@@ -88,7 +104,7 @@ function readPlanContent(repoRoot: string, blueprintDir: string): PlanContent {
     }
     const bouncer = (data as { bouncer?: unknown } | null)?.bouncer;
     const kind = structureKindOf(rel, bp);
-    content[rel] = { body, structure: normalizeStructure(kind, bouncer) };
+    content[rel] = { body, structure: normalizeStructure(kind, bouncer, planComplexity) };
 
     // epic·blueprint index는 Interface/Touch가 없다. tasks.md만 관찰용 scope_parts에 넣는다.
     if (kind !== 'task') continue;

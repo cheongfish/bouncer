@@ -176,7 +176,7 @@ for (const fixture of require('./fixtures/acq/cases.json')) {
     // finalize·plan 게이트 증거 판정은 실제 git·drive·bouncer CLI가 필요하므로 case가 요구할 때만 참으로 주입한다.
     const catalog = loadCatalog();
     // 과거 plan 녹취의 ID는 재생 동안에만 legacy gate로 등록해 현재 catalog를 오염시키지 않는다.
-    const legacyIds = ['plan.id_allocation'];
+    const legacyIds = ['plan.id_allocation', 'plan.light_scope'];
     catalog['bouncer-plan'] = [...catalog['bouncer-plan'], ...legacyIds];
     const deps = {
       catalog,
@@ -184,17 +184,20 @@ for (const fixture of require('./fixtures/acq/cases.json')) {
       planGateEvidence: () => Boolean(fixture.planGateEvidence),
     };
     const catalogIds = new Set(Object.values(catalog).flat());
+    // 002가 정책의 plan.light_scope를 plan.complexity로 바꿨다. 녹취 세 case는 옛 게이트로
+    // 묻으므로 승인 파일은 그대로 두고 재생용 복사본에만 full 답을 더한다.
+    const replayPolicy = { ...fastifyPolicy, bouncer_decisions: [...fastifyPolicy.bouncer_decisions,
+      { gate: 'plan.light_scope', answer: 'full' }] };
     assert.match(fixture.source, FIXTURE_SOURCE);
     assert.ok(fixture.gates.every((gate) => catalogIds.has(gate)), `${fixture.file} has a gate outside the catalog`);
     try {
       if (fixture.expect === 'answer') {
-        // 녹취는 실제 fastify-001 정책(bouncer_decisions 포함)으로 재생한다.
-        const result = answerTextQuestion(fastifyPolicy, fixture.phase, text, workDir, deps);
+        const result = answerTextQuestion(replayPolicy, fixture.phase, text, workDir, deps);
         assert.ok(result, `${fixture.source} is unanswered`);
         assert.equal(result.reply, fixture.reply);
         assert.deepEqual(result.choices.map((choice) => choice.gate), fixture.gates);
       } else if (fixture.expect === 'violation') {
-        assert.equal(turnQuestionState(fastifyPolicy, fixture.phase, text, workDir, deps).kind, 'violation');
+        assert.equal(turnQuestionState(replayPolicy, fixture.phase, text, workDir, deps).kind, 'violation');
       } else {
         assert.fail(`unknown expect: ${fixture.expect}`);
       }
@@ -253,17 +256,32 @@ test('the block recommended letter decides the proceed option, not a label mark'
   rmSync(init, { recursive: true });
 });
 
-test('answers bundled discovery, light scope, and first ID blocks in order', () => {
+test('plan.complexity Standard at B or C → that letter; Low-only → null', () => {
+  const workDir = workdirWith({ epics: [] });
+  const standardAtB = acq('plan.complexity', 'complexity', ['Low (Recommended)', 'Standard', '중단']);
+  const standardAtC = acq('plan.complexity', 'complexity', ['Low', '중단', 'Standard']);
+  const lowOnlyQuestion = acq('plan.complexity', 'complexity', ['Low', '중단']);
+  try {
+    assert.equal(answerTextQuestion(policy, 'bouncer-plan', standardAtB, workDir)?.reply, 'B');
+    assert.equal(answerTextQuestion(policy, 'bouncer-plan', standardAtC, workDir)?.reply, 'C');
+    assert.equal(answerTextQuestion(policy, 'bouncer-plan', lowOnlyQuestion, workDir), null);
+  } finally {
+    rmSync(workDir, { recursive: true });
+  }
+});
+
+test('answers bundled discovery, complexity, and first ID blocks in order', () => {
   const workDir = workdirWith({ epics: [] });
   const text = [prdFacts,
     acq('plan.discovery', '위 framing 승인', ['위 framing 승인 (Recommended)', '수정']),
-    acq('plan.light_scope', 'scope', ['light (Recommended)', 'full']),
+    acq('plan.complexity', 'scope', ['Low (Recommended)', 'Standard']),
     acq('plan.id_allocation', 'nextEpicId: 001', ['Epic 001, Blueprint 001 (Recommended)', '다른 id 지정'])].join('\n\n');
   const catalog = loadCatalog();
   catalog['bouncer-plan'] = [...catalog['bouncer-plan'], 'plan.id_allocation'];
   const result = answerTextQuestion(policy, 'bouncer-plan', text, workDir, { catalog });
   assert.equal(result.reply, 'A / B / A');
-  assert.deepEqual(result.choices.map((choice) => choice.gate), ['plan.discovery', 'plan.light_scope', 'plan.id_allocation']);
+  assert.deepEqual(result.choices.map((choice) => choice.gate),
+    ['plan.discovery', 'plan.complexity', 'plan.id_allocation']);
   assert.ok(result.choices.every((choice) => choice.identified_by === 'block'));
   rmSync(workDir, { recursive: true });
 });
@@ -316,9 +334,9 @@ test('recommended option that is not an unambiguous proceed → unanswerable', (
 
 test('keeps policy answers that differ from the recommendation', () => {
   const workDir = workdirWith({ epics: [] });
-  const light = acq('plan.light_scope', 'narrow-scope light로 갈지', ['경량(light) — maintenance epic (Recommended)',
-    '일반 경로 — 신규 epic과 전체 문서', '취소']);
-  assert.equal(answerTextQuestion(policy, 'bouncer-plan', light, workDir)?.reply, 'B');
+  const complexity = acq('plan.complexity', 'narrow-scope light로 갈지',
+    ['Low — narrow change (Recommended)', 'Standard — full review', '취소']);
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', complexity, workDir)?.reply, 'B');
   const otherId = acq('plan.id_allocation', 'epic/blueprint id를 정할지', ['epic `002` + blueprint `001` (Recommended)',
     '다른 id 지정', '취소']);
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', otherId, workDir), null);
@@ -453,10 +471,11 @@ test('host git calls map a container gitdir link inside a stage worktree', () =>
 test('a block gate selects the gate without wording hints', () => {
   const workDir = workdirWith({ epics: [] });
   try {
-    const text = acq('plan.light_scope', '위 내용을 이대로 확정할지', ['Full plan (Recommended)', 'Light plan', '중단']);
+    const text = acq('plan.complexity', '위 내용을 이대로 확정할지',
+      ['Standard plan (Recommended)', 'Low plan', '중단']);
     const result = answerTextQuestion(policy, 'bouncer-plan', text, workDir);
     assert.equal(result.reply, 'A');
-    assert.equal(result.choices[0].gate, 'plan.light_scope');
+    assert.equal(result.choices[0].gate, 'plan.complexity');
     assert.equal(result.choices[0].identified_by, 'block');
     // 다른 단계의 ID, 정책이 없는 ID는 멈춘다.
     assert.equal(answerTextQuestion(policy, 'bouncer-run', text, workDir), null);
@@ -759,7 +778,8 @@ test('proposed 정책 → loadPolicy가 explicit user approval로 거부', () =>
 });
 
 test('IMPLEMENTED_ANSWERS 키 → 모두 loadCatalog 결과 합집합이나 legacy ID 안', () => {
-  const known = new Set([...Object.values(loadCatalog()).flat(), 'plan.activate_pointer', 'plan.id_allocation', 'finalize.quiz', 'commit.next_task']);
+  const known = new Set([...Object.values(loadCatalog()).flat(), 'plan.activate_pointer', 'plan.id_allocation',
+    'plan.light_scope', 'finalize.quiz', 'commit.next_task']);
   for (const id of Object.keys(IMPLEMENTED_ANSWERS)) assert.ok(known.has(id), id);
 });
 

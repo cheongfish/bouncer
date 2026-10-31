@@ -1333,24 +1333,16 @@ test('commit failure → restores transient docs and approved status', () => {
   );
 });
 
-test('a light blueprint with a missing context-review → finalize does not invent a deletion', () => {
+test('a blueprint with a missing context-review → finalize does not invent a deletion', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const indexAbs = path.join(repo, `${BP_REL}/index.md`);
   const raw = fs.readFileSync(indexAbs, 'utf8').replace(
     'status: approved',
-    'status: approved\n  scale: light',
+    'status: approved',
   );
   // scale는 approved와 같은 bouncer 맵에 둬야 한다 — 문자열 치환이 깨지면 fixture를 고친다.
-  if (!/scale: light/.test(raw)) {
-    const yaml = require('js-yaml');
-    const { parseFrontmatter } = require('../packages/cli/dist/frontmatter');
-    const { data, body } = parseFrontmatter(fs.readFileSync(indexAbs, 'utf8'));
-    data.bouncer.scale = 'light';
-    fs.writeFileSync(indexAbs, `---\n${yaml.dump(data)}---\n${body}`);
-  } else {
-    fs.writeFileSync(indexAbs, raw);
-  }
+  fs.writeFileSync(indexAbs, raw);
   assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
   const g = fakeGit(['src/auth/login.ts'], []);
   const res = finalize({

@@ -28,19 +28,11 @@ approved scope may be dirty. A refusal (`worker-commit-missing`,
 unchanged; follow its `next` (`coordinate advance` creates the task commit),
 then report/record again. Do not work around it by editing the ledger.
 
-## Lightweight and implement dispatch
+## Implement dispatch
 
-A light ledger (`mode: light` / pointer `scale` `light`) uses the same named
-`bouncer-implementer` dispatch as a full ledger. Light policy differences
-(promotion stop, commit scope, baseline skip, root review shape) live in
-`${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`; they do not move
-implementation into the run session. Keep the host
-`named agents are unavailable` fallback wording as a separate sentence —
-do not replace it with a light branch. Reviewer and `bouncer-debugger` stay
-named regardless of scale.
-
-Returning to `full` and restoring the missing plan documents is owned by
-`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`.
+Every ledger uses the same named `bouncer-implementer` dispatch. Keep the host
+`named agents are unavailable` fallback wording as a separate sentence.
+Reviewer and `bouncer-debugger` stay named.
 
 ## Named implementer
 
@@ -135,7 +127,7 @@ permanently, send it elsewhere, or write it into another worktree. Re-reading
 is skipped only for a document whose body is already in the prompt.
 
 For the verify-recovery implementer re-dispatch, use the same named-dispatch
-order. A `/bouncer-run` drive (light or full) always retains the named
+order. A `/bouncer-run` drive always retains the named
 orchestration boundary for implement.
 
 For review, freeze the target first (base, HEAD, task-brief revision,
@@ -296,7 +288,7 @@ Interface, Touch, Do not touch, Constraints, and Checklist, the shared
 `bouncer intent sections --task <current.task.path> --role debugger`,
 and the assigned read-only cwd. Do not pass the
 full Explain body or another role's report. The `debugging` skill remains its
-behavioral brief. Even on the light path, debugger dispatch remains named.
+behavioral brief. Debugger dispatch remains named.
 
 When named agents are unavailable, use a fresh generic
 read-only subagent whose payload carries the entire body of
@@ -315,7 +307,7 @@ every section with those same inputs before it diagnoses.
 Under a coordinator drive, run every `bouncer coordinate worker-model` and
 `worker-tokens` record from the integration cwd with the held `--ledger-path
 <p> --ledger-hash <h>` pair. The worker itself keeps its own cwd: the task
-worktree on a full ledger, the integration path on a light ledger. Each record
+worktree. Each record
 uses the value `bouncer subagent-model --agent <name>` printed for that
 dispatch, and the dispatch receives that same value.
 

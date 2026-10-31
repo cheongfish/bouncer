@@ -65,12 +65,16 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 3 aggregate Verify evidence, merge duplicate fingerprints, record
             severity_changes and origin, then decide must_fix or advisory from
             the brief, evidence, and changed range — never a reviewer vote.
-            In a blueprint with `review_contract: brief` (full blueprints
-            only; light has no mark) the final review judges the approved
+            In a blueprint with `review_contract: brief` and
+            `complexity: standard` the final review judges the approved
             brief's eight sections and the blueprint Contract: perspectives
             are `spec_scope` and `correctness_tests`, plus `security` only
             when `review_risk` has `authentication`, `authorization`, or
-            `credential`. A `must_fix` is limited to a brief violation
+            `credential`. A blueprint with `complexity: low` uses one
+            `single combined` reviewer for that final review even when
+            `review_contract: brief`; those brief perspectives apply to
+            standard only. One repair and one delta still follow the brief
+            values. A `must_fix` is limited to a brief violation
             (change outside Do not touch or `affected_paths`, a violated or
             refused Interface, a Constraints breach, a skipped or looser
             Checklist item, an unmet Contract failure mode, or a defect of
@@ -120,7 +124,7 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             user and send them to `/bouncer-plan`.
 5 verify    Re-run latest verify (standalone) or the terminal verification
             (coordinator final review).
-6 certify   Task and light reviews, and the one delta of a
+6 certify   Task reviews, and the one delta of a
             `review_contract: brief` final review (a legacy blueprint's final
             review has no delta): dispatch one delta reviewer with previous findings, resolution,
             revision-origin evidence, and the `Red run` lines (the fix

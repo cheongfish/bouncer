@@ -141,25 +141,15 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
   중이면 coordinator가 rework·scope revision·terminal blocked 중 하나로
   판정합니다. `/bouncer-run`은 이 상한을 복제하지 않고 review-round
   reference를 따릅니다.
-- **좁은 범위 작업**은 `/bouncer-plan`이 경량 여부를 묻고 blueprint
-  `bouncer.scale`을 `light`로 바꿉니다. 무엇이 줄고 무엇이 그대로인지는
-  [`rules/planning.md`](../rules/planning.md) `## Lightweight cycle`에
-  있습니다.
-- **새 경량 계획은 초기 문서 다섯·100줄(context-review 제외)입니다.** 선언을
-  받으면 plan이 `bouncer scaffold blueprint --scale light`로 blueprint
-  `index.md`, `tasks/001/{tasks,verification}.md`, 루트 `review.md`,
-  `context-review.md`를 만들고 `review_contract: brief` 표식을 기록합니다.
-  `verifiability` 관점 하나로 검증 가능성 리뷰를 받으며 `context-review.md`는
-  100줄 예산에 세지 않습니다. 종단 검증 task를 더하면 문서가 둘 늘어납니다.
-  표식이 없는 기존 경량 계획은 문서 넷에 `context-review.md`가 없어 계획 문서
-  판정 단계도 없습니다. run의 최종 리뷰는 표식 없는 경량과
-  같습니다. task 본문은
-  Goal & intent·Touch·Checklist 셋만 쓰는 작성 규칙을 따르고, `affected_paths`
-  확정과 G5는 일반 경로와 똑같이 받습니다. `review_scope`가 없으면 기존처럼 `tasks/<NNN>/{tasks,verification,review}.md`를 씁니다.
-- **full로 돌아가려면** blueprint `index.md`의 `bouncer.scale`을 `full`로
-  되돌리고, `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를
-  만든 뒤 task에 Interface·Do not touch 절을 채웁니다. 그 다음 plan 게이트를
-  다시 돌리면 판정 문서와 다섯 절을 쓰는 일반 경로가 됩니다.
+- **복잡도 선언**은 `/bouncer-plan`이 discovery handoff와 `plan inspect`
+  routing으로 `low` 또는 `standard`를 추천하고, 사용자가 `plan.complexity`
+  ACQ에서 확정합니다. 선언은 승인이 아닙니다. `low`는 계획 리뷰 관점·실행
+  리뷰 `single`/`combined`·리뷰어 등급의 task 수 문턱만 바꿉니다. 문서 집합·
+  task 절·epic 배정·퀴즈·실행 경로는 `standard`와 같습니다. 정본은
+  [`rules/planning.md`](../rules/planning.md) `## Complexity declaration`입니다.
+- **scaffold**는 `bouncer scaffold blueprint --complexity <low|standard>`로
+  같은 문서 집합을 만듭니다. 모든 commit task는 같은 여덟 절을 씁니다.
+  `scoped_terminal` blueprint는 종단 검증 task가 필요합니다.
 - **마감한 blueprint는 잠깁니다.** `finalize --yes` 뒤 `closed` blueprint에는
   task를 다시 붙이지 않습니다. 후속 작업은 `/bouncer-plan`으로 별도 blueprint를
   계획합니다.

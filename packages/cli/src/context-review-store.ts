@@ -18,7 +18,9 @@ const { toPosix } = paths;
 import layout = require('./layout');
 const { isCanonicalBlueprintDir } = layout;
 import schema = require('./schema');
-const { planReviewContractOf, PLAN_FULL_PERSPECTIVES, PLAN_LIGHT_PERSPECTIVES } = schema;
+const { planReviewContractOf, complexityOf, planPerspectivesOf } = schema;
+import tasksDocs = require('./tasks-docs');
+const { listTasksDocs, taskExecutionKind } = tasksDocs;
 
 // 컨텍스트 리뷰의 디스크 접근만 모은다. cycle 재시작 한도·finding 판정은 여기 두지 않고
 // context-review-state가 맡긴다. 전이는 이 모듈의 함수로만 읽고 쓴다.
@@ -191,9 +193,37 @@ function targetInvalid(cause: unknown, next: string): Fail {
   return fail('context-review-target-invalid', cause, next);
 }
 
-// scale은 loadDispatch가 index.md에서 읽어 검증한 내부 값이다. 저장 payload(text)와 공개 CLI 출력에는
-// 들어가지 않는다 — recordReport가 delta 관점을 고를 때만 쓴다.
-type LoadedDispatch = Dispatch & { scale: 'full' | 'light' };
+// complexity는 loadDispatch가 index.md에서 읽어 검증한 내부 값이다. 저장 payload(text)와
+// 공개 CLI 출력에는 들어가지 않는다 — recordReport가 delta 관점을 고를 때만 쓴다.
+type LoadedDispatch = Dispatch & { complexity: 'low' | 'standard' };
+
+/**
+ * commit task의 review_risk가 하나라도 있는지 본다. review-dispatch를 가져오면
+ * 순환이 생기므로 listTasksDocs로 직접 읽는다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} bp - blueprint 상대 경로
+ * @returns {boolean} 비어 있지 않은 review_risk가 있으면 true
+ */
+function commitTasksHaveReviewRisk(repoRoot: string, bp: string): boolean {
+  const listing = listTasksDocs({ repoRoot, blueprintDir: bp });
+  for (const entry of listing.entries) {
+    let data: unknown;
+    try {
+      data = readDoc(path.join(repoRoot, entry.rel)).data;
+    } catch (_error) {
+      // 깨진 task는 snapshot 대조가 나중에 거절한다. 여기서 위험을 있다고 치면
+      // 관점 목록이 어긋나 다른 거절 문구가 된다.
+      continue;
+    }
+    if (taskExecutionKind(data) !== 'commit') continue;
+    const bouncer = isRecord(data) && isRecord((data as { bouncer?: unknown }).bouncer)
+      ? (data as { bouncer: Record<string, unknown> }).bouncer : {};
+    const risk = bouncer.review_risk;
+    if (Array.isArray(risk) && risk.length > 0) return true;
+  }
+  return false;
+}
 
 /**
  * dispatch 파일을 읽어 blueprint·현재 snapshot·문서 집합과 대조한다.
@@ -254,16 +284,16 @@ function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Loade
     return targetInvalid('strategy perspectives has no context review', next);
   }
   // record가 round 관점을 대조하는 기준이 payload의 perspectives라서, 손으로 바꾼 목록이
-  // 기준이 되지 못하게 scale이 정하는 값(full 4관점 / light verifiability)과 같아야 한다.
+  // 기준이 되지 못하게 complexity·review_risk가 정하는 값과 같아야 한다.
+  const parsedComplexity = complexityOf(meta);
+  if (parsedComplexity === null) {
+    return targetInvalid('blueprint complexity invalid: expected low or standard', next);
+  }
   if (marked) {
-    const expected = meta.scale === 'light' ? PLAN_LIGHT_PERSPECTIVES : PLAN_FULL_PERSPECTIVES;
+    const expected = planPerspectivesOf(parsedComplexity, commitTasksHaveReviewRisk(repoRoot, bp));
     if (!isDeepStrictEqual(payload.perspectives, expected)) {
       return targetInvalid(`dispatch perspectives differ from ${expected.join(',')}`, next);
     }
-  }
-  // light 거절은 표식 없는 light에만 남는다. 표식 light는 verifiability 리뷰를 받는다.
-  if (meta.scale === 'light' && !marked) {
-    return targetInvalid('light blueprint skips context review', 'no review is needed');
   }
   const snap = computePlanSnapshot({ repoRoot, blueprintDir: bp });
   if (!snap.ok) return targetInvalid(snap.error, next);
@@ -289,9 +319,10 @@ function loadDispatch(repoRoot: string, bp: string, dispatchFile: string): Loade
     || !isDeepStrictEqual(payload.documents_content, partSnap.documents_content)) {
     return targetInvalid('dispatch parts/content differ from the current blueprint', next);
   }
-  // scale은 위에서 perspectives 목록 대조에 쓴 값과 같은 출처(index.md)다. light가 아니면 full로 읽는다.
-  const scale = meta.scale === 'light' ? 'light' : 'full';
-  return { sha256: sha256(bytes), digest: snap.digest, text: bytes.toString('utf8'), scale };
+  return {
+    sha256: sha256(bytes), digest: snap.digest, text: bytes.toString('utf8'),
+    complexity: parsedComplexity,
+  };
 }
 
 function isFail(value: unknown): value is Fail {

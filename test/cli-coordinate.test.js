@@ -613,12 +613,12 @@ test('coordinate release → is no longer a command', () => {
   const drive = preparedDrive();   // 기존 :472 테스트의 fixture
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 2);
-  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, promote-stop, session-open, worker-model, or worker-tokens/);
+  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, session-open, worker-model, or worker-tokens/);
   const help = capture(); runCli(['help'], help.io);
   assert.doesNotMatch(help.buf.out, /coordinate release/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, promote-stop, session-open, worker-model, or worker-tokens/);
+  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, session-open, worker-model, or worker-tokens/);
 });
 
 
@@ -935,17 +935,6 @@ test('CLI review-dispatch execute without --task → exits 0', () => {
 
 // CT-003: whitespace-only --summary는 core summary-required(1)로 가지 않고
 // Interface empty-summary와 같이 usage(2)여야 한다. fence는 검사 순서상 앞이므로 붙인다.
-test('coordinate promote-stop with a whitespace-only --summary → is usage exit 2', () => {
-  const drive = preparedDrive();
-  const { code, buf } = coordinateCli(drive.integration, 'promote-stop', [
-    ...ledgerFlagArgs(drive.repo),
-    '--repo', drive.repo,
-    '--reason', 'security-risk',
-    '--summary', '   ',
-  ], { fence: false });
-  assert.strictEqual(code, 2, buf.err + buf.out);
-  assert.match(buf.err, /--summary is required/);
-});
 
 test('coordinate CLI stdout → is one-line JSON without ledger copies', () => {
   const repo = planCommittedRepo();
@@ -983,102 +972,6 @@ test('coordinate CLI stdout → is one-line JSON without ledger copies', () => {
 
   const refused = coordinateCli(boot.integrationPath, 'dispatch', ['--task', '001'], { fence: false });
   assert.strictEqual(refused.buf.out.trimEnd().includes('\n'), false);
-});
-
-test('coordinate bootstrap --promote-light on a full ledger → exit 1 promote-light-requires-stopped', () => {
-  const repo = planCommittedRepo();
-  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
-  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  const { code, buf } = coordinateCli(repo, 'bootstrap', ['--repo', repo, '--promote-light']);
-  assert.strictEqual(code, 1, buf.err + buf.out);
-  assert.strictEqual(JSON.parse(buf.out).reason, 'promote-light-requires-stopped');
-});
-
-const LIGHT_BP = '.bouncer/context/epics/089-cli-revise/blueprints/001-light';
-
-/**
- * scale:light 계획으로 bootstrap·prepare까지 끝낸 CLI revise 거절용 fixture.
- *
- * @returns {{ repo: string, integration: string, worker: string, ledgerFile: string }}
- */
-function lightPreparedCliDrive() {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-light-'));
-  execFileSync('git', ['init', '-b', 'work'], { cwd: repo, encoding: 'utf8' });
-  execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: repo });
-  execFileSync('git', ['config', 'user.name', 't'], { cwd: repo });
-  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(repo, 'src/a.js'), 'base\n');
-  fs.mkdirSync(path.join(repo, LIGHT_BP), { recursive: true });
-  fs.writeFileSync(path.join(repo, LIGHT_BP, 'index.md'),
-    '---\nbouncer:\n  status: approved\n  scale: light\n  review_scope: blueprint\n---\n# Blueprint\n');
-  fs.writeFileSync(path.join(repo, LIGHT_BP, 'review.md'),
-    '---\nbouncer:\n  id: REVIEW-BP\n  status: pending\n  review:\n    required: true\n---\n# Review\n');
-  fs.mkdirSync(path.join(repo, LIGHT_BP, 'tasks/001'), { recursive: true });
-  fs.writeFileSync(path.join(repo, LIGHT_BP, 'tasks/001/tasks.md'),
-    '---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: false\n'
-    + '  dependency_gate: integrated\n  affected_paths:\n    - src/a.js\n---\nbrief\n');
-  fs.writeFileSync(path.join(repo, LIGHT_BP, 'tasks/001/verification.md'),
-    '---\nbouncer:\n  id: VERIFY-001\n  status: pending\n---\n# Verification\n');
-  execFileSync('git', ['add', '-A'], { cwd: repo });
-  execFileSync('git', ['commit', '-m', 'plan'], { cwd: repo });
-  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: LIGHT_BP });
-  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  const prepared = coordinate({
-    command: 'prepare', repoRoot: repo, blueprint: LIGHT_BP, cwd: boot.integrationPath,
-  });
-  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
-  return {
-    repo,
-    integration: boot.integrationPath,
-    worker: prepared.tasks[0].workerPath,
-    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
-  };
-}
-
-/**
- * light blueprint용 revise CLI. fence는 해당 blueprint 원장에서 읽는다.
- */
-function reviseLight(cwd, extra, repoRoot, blueprint = LIGHT_BP) {
-  const { io, buf } = capture();
-  const before = process.cwd();
-  process.chdir(cwd);
-  let code;
-  try {
-    const fence = __fence(repoRoot, blueprint);
-    code = runCli([
-      'coordinate', 'revise',
-      '--ledger-path', fence.ledgerPath, '--ledger-hash', fence.ledgerHash,
-      '--blueprint', blueprint, ...extra,
-    ], io);
-  } finally {
-    process.chdir(before);
-  }
-  return { code, buf };
-}
-
-test('coordinate revise on a marked light ledger → light-scope-revision-requires-promotion', () => {
-  const drive = lightPreparedCliDrive();
-  const before = fs.readFileSync(drive.ledgerFile);
-  const { code, buf } = reviseLight(drive.worker, [
-    '--task', '001', '--paths', 'x', '--reason', 'r',
-  ], drive.repo);
-  assert.strictEqual(code, 1, buf.err + buf.out);
-  assert.strictEqual(JSON.parse(buf.out).reason, 'light-scope-revision-requires-promotion');
-  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
-});
-
-test('coordinate revise on a legacy light ledger → light-ledger-legacy', () => {
-  const drive = lightPreparedCliDrive();
-  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
-  delete ledger.light_runner;
-  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
-  const before = fs.readFileSync(drive.ledgerFile);
-  const { code, buf } = reviseLight(drive.worker, [
-    '--task', '001', '--paths', 'x', '--reason', 'r',
-  ], drive.repo);
-  assert.strictEqual(code, 1, buf.err + buf.out);
-  assert.strictEqual(JSON.parse(buf.out).reason, 'light-ledger-legacy');
-  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before);
 });
 
 test('coordinate revise stdout on success and fence refusals → is one-line JSON', () => {
@@ -1430,20 +1323,22 @@ test('coordinate session-open with a stale --ledger-hash → refuses with stale-
   assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
 });
 
-test('coordinate session-open on a marked light ledger → succeeds; promotion_stopped or partial_closed → refuses', () => {
+test('coordinate session-open on a mode light ledger → light-mode-removed; inactive ledgers refuse', () => {
   const marked = preparedDrive();
   mutateLedger(marked, (ledger) => {
     ledger.mode = 'light';
     ledger.light_runner = 'subagent';
   });
+  const beforeMarked = fs.readFileSync(ledgerOf(marked));
   const ok = coordinateCli(marked.integration, 'session-open', ['--repo', marked.repo]);
-  assert.strictEqual(ok.code, 0, ok.buf.err + ok.buf.out);
+  assert.strictEqual(ok.code, 1, ok.buf.err + ok.buf.out);
+  assert.strictEqual(JSON.parse(ok.buf.out).reason, 'light-mode-removed');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(marked)), beforeMarked);
 
   const cases = [
-    ['promotion-stopped', (ledger) => { ledger.status = 'promotion_stopped'; }],
     ['ledger-not-active', (ledger) => { ledger.status = 'partial_closed'; }],
     ['ledger-not-active', (ledger) => { ledger.status = 'awaiting_confirmation'; }],
-    ['light-ledger-legacy', (ledger) => { ledger.mode = 'light'; delete ledger.light_runner; }],
+    ['light-mode-removed', (ledger) => { ledger.mode = 'light'; delete ledger.light_runner; }],
   ];
   for (const [reason, edit] of cases) {
     const drive = preparedDrive();
@@ -1730,7 +1625,7 @@ test('coordinate usage → lists worker-model', () => {
   assert.match(buf.out, /coordinate worker-tokens --blueprint <dir>/);
 });
 
-test('coordinate CLI bootstrap on a scoped_terminal light plan → light ledger, then prepare opens only the implementation', () => {
+test('coordinate CLI bootstrap on a scoped_terminal plan → full ledger, then prepare opens only the implementation', () => {
   const repo = planCommittedRepo();
   const touch = (rel, mutate) => {
     const abs = path.join(repo, rel);
@@ -1738,7 +1633,7 @@ test('coordinate CLI bootstrap on a scoped_terminal light plan → light ledger,
     fs.writeFileSync(abs, mutate(fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : ''));
   };
   touch(`${BP_REL}/index.md`, (raw) => raw.replace(
-    'status: approved', 'status: approved\n  scale: light\n  review_scope: blueprint\n  verification_policy: scoped_terminal',
+    'status: approved', 'status: approved\n  scale: full\n  review_scope: blueprint\n  verification_policy: scoped_terminal',
   ));
   touch(`${BP_REL}/review.md`, () => '---\nbouncer:\n  id: REVIEW-BP\n  status: pending\n  review:\n    required: true\n---\n# Review\n');
   touch(`${BP_REL}/tasks/001/tasks.md`, (raw) => raw.replace('affected_paths:', 'verify: node --test test/a.test.js\n  affected_paths:'));
@@ -1757,7 +1652,7 @@ test('coordinate CLI bootstrap on a scoped_terminal light plan → light ledger,
   const bootCli = coordinateCli(repo, 'bootstrap', ['--repo', repo]);
   assert.strictEqual(bootCli.code, 0, bootCli.buf.err + bootCli.buf.out);
   const boot = JSON.parse(bootCli.buf.out);
-  assert.strictEqual(boot.mode, 'light');
+  assert.strictEqual(boot.mode, 'full');
   assert.deepStrictEqual(boot.ready, ['001']);
   const preparedCli = coordinateCli(boot.integrationPath, 'prepare', ['--repo', repo]);
   assert.strictEqual(preparedCli.code, 0, preparedCli.buf.err + preparedCli.buf.out);
@@ -2054,4 +1949,25 @@ test('coordinate uncommit without --task → exits 2 with the task usage error',
   const r = coordinateCli(drive.worker, 'uncommit', ['--repo', drive.repo]);
   assert.strictEqual(r.code, 2);
   assert.match(r.buf.err, /coordinate uncommit: --task is required/);
+});
+
+test('coordinate promote-stop → exit 2 was removed even with a missing --repo', () => {
+  const { io, buf } = capture();
+  const code = runCli(['coordinate', 'promote-stop', '--repo', '/no/such/path', '--summary'], io);
+  assert.strictEqual(code, 2);
+  assert.match(buf.err, /promote-stop was removed/);
+});
+
+test('coordinate promote-stop with a valueless --summary → exit 2 was removed', () => {
+  const { io, buf } = capture();
+  const code = runCli(['coordinate', 'promote-stop', '--summary'], io);
+  assert.strictEqual(code, 2);
+  assert.match(buf.err, /promote-stop was removed/);
+});
+
+test('coordinate bootstrap --promote-light → exit 2 before creating a ledger', () => {
+  const { io, buf } = capture();
+  const code = runCli(['coordinate', 'bootstrap', '--promote-light', '--repo', '/no/such/path', '--blueprint', BP_REL], io);
+  assert.strictEqual(code, 2);
+  assert.match(buf.err, /--promote-light was removed/);
 });
