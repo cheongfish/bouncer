@@ -1270,19 +1270,20 @@ type WorkerTokensGuardFail = {
  * `pending` 개수는 거절 응답에 필요 없어 떼어 낸다. 입력은 바꾸지 않는다.
  *
  * @param {unknown[]} decisions - 원장 decisions
- * @param {(task: string | null) => boolean} keep - 키의 task를 검사 범위에 넣을지 정한다.
- *   task가 문자열이 아니면 null로 넘어온다(task 없는 blueprint 범위 키)
+ * @param {(task: string | null, role: string | null) => boolean} keep - 키를 검사 범위에 넣을지 정한다.
+ *   task·role이 문자열이 아니면 null로 넘어온다(task 없는 blueprint 범위 키). role을 함께 받아야
+ *   구현자 키만 task와 무관하게 골라낼 수 있다
  * @returns {WorkerTokensPendingKey[]} 범위 안 미충족 키. 없으면 빈 배열
  */
 function pendingWorkerTokensIn(
   decisions: unknown[],
-  keep: (task: string | null) => boolean,
+  keep: (task: string | null, role: string | null) => boolean,
 ): WorkerTokensPendingKey[] {
   const scoped = decisions.filter((d) => {
     // 객체가 아닌 원소는 worker 기록이 아니므로 범위와 무관하게 pendingWorkerTokenKeys가 무시한다.
     if (typeof d !== 'object' || d === null) return false;
-    const t = (d as { task?: unknown }).task;
-    return keep(typeof t === 'string' ? t : null);
+    const { task: t, role: r } = d as { task?: unknown; role?: unknown };
+    return keep(typeof t === 'string' ? t : null, typeof r === 'string' ? r : null);
   });
   return driveMetrics.pendingWorkerTokenKeys(scoped)
     .map(({ task, role, perspective }) => ({ task, role, perspective }));
@@ -1304,8 +1305,9 @@ function workerTokensMissing(pending: WorkerTokensPendingKey[]): WorkerTokensGua
 
 /**
  * `advance`가 자동 행동을 실행하기 전에 원장의 미충족 worker 토큰 키를 판정한다.
- * 검사 범위는 task 없는 키와, `task`를 주면 그 task의 키다. 다른 task의 키는 병렬 wave에서 아직 실행 중일 수
- * 있어 보지 않는다. advance 없이 `task`만 주면 task 없는 키만 본다.
+ * 검사 범위는 task 없는 키, `task`를 주면 그 task의 키, 그리고 모든 task의 구현자 키다. 구현자 기록은 worker가
+ * 끝난 뒤 남기므로 task와 무관하게 보고, 실행 중 worker 때문에 거절되지 않는다. reviewer·debugger의 다른 task
+ * 키는 병렬 wave에서 아직 실행 중일 수 있어 보지 않는다. `task`를 주지 않으면 task 없는 키와 구현자 키만 본다.
  * 판정할 수 없으면 거절하지 않는다(`ok: true`). 원장 부재, JSON 파싱 실패, decisions가 배열이 아님,
  * 경로 해석 실패가 여기에 든다. 그 경우 뒤이은 advance 경로가 기존 reason으로 실패하거나 진행한다.
  * 이 guard는 원장을 쓰지 않는다.
@@ -1337,7 +1339,10 @@ function workerTokensGuard(opts: {
     ? (ledger as { decisions?: unknown }).decisions : undefined;
   if (!Array.isArray(decisions)) return { ok: true };
   const task = opts.task;
-  const pending = pendingWorkerTokensIn(decisions, (t) => t === null || (task !== undefined && t === task));
+  // 구현자 키는 task와 무관하게 본다. 이 역할의 기록은 worker가 끝난 뒤에만 남으므로 미충족이면 그 worker는
+  // 이미 끝난 것이고, 구현자 토큰이 빠진 채 advance가 다음 단계로 넘어가는 구멍을 여기서 막는다.
+  const pending = pendingWorkerTokensIn(decisions, (t, role) => (
+    t === null || (task !== undefined && t === task) || role === 'implementer'));
   return pending.length > 0 ? workerTokensMissing(pending) : { ok: true };
 }
 

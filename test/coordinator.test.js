@@ -2328,6 +2328,78 @@ test('workerTokensGuard with a tokenless task-001 key and task 001 → lists tha
   assert.deepStrictEqual(guarded.pending, [{ task: '001', role: 'reviewer', perspective: 'security' }]);
 });
 
+test('workerTokensGuard with a tokenless task-001 implementer key and no task → lists that key', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-impl-notask-', TOKEN_GUARD_BP);
+  const modeled = workerModelCall(drive, { role: 'implementer', model: 'm', task: '001' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const guarded = workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP });
+  assert.strictEqual(guarded.ok, false, JSON.stringify(guarded));
+  assert.strictEqual(guarded.reason, 'worker-tokens-missing');
+  assert.deepStrictEqual(guarded.pending, [{ task: '001', role: 'implementer', perspective: null }]);
+});
+
+test('workerTokensGuard with a tokenless task-001 implementer key and task 002 → lists that key', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-impl-other-', TOKEN_GUARD_BP);
+  const modeled = workerModelCall(drive, { role: 'implementer', model: 'm', task: '001' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  // guard는 원장 decisions만 읽으므로 blueprint에 없는 task 002도 검사 범위 인자로 유효하다.
+  const guarded = workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP, task: '002' });
+  assert.strictEqual(guarded.ok, false, JSON.stringify(guarded));
+  assert.strictEqual(guarded.reason, 'worker-tokens-missing');
+  assert.deepStrictEqual(guarded.pending, [{ task: '001', role: 'implementer', perspective: null }]);
+});
+
+test('workerTokensGuard with a tokenless task-001 reviewer key and no task → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-rev-notask-', TOKEN_GUARD_BP);
+  const modeled = workerModelCall(drive, { role: 'reviewer', model: 'm', task: '001', perspective: 'security' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with a tokenless task-001 debugger key and no task → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-dbg-notask-', TOKEN_GUARD_BP);
+  const modeled = workerModelCall(drive, { role: 'debugger', model: 'm', task: '001' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with a task-001 implementer key filled by numeric worker-tokens and no task → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-impl-num-', TOKEN_GUARD_BP);
+  const modeled = workerModelCall(drive, { role: 'implementer', model: 'm', task: '001' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const filled = workerTokensCall(drive, { role: 'implementer', tokens: 96315, task: '001' });
+  assert.strictEqual(filled.ok, true, JSON.stringify(filled));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('workerTokensGuard with a task-001 implementer key filled by unreported and no task → is ok', () => {
+  const { workerTokensGuard } = require('../packages/cli/dist/coordinator-commands');
+  const drive = preparedCommitDrive('bouncer-guard-impl-unrep-', TOKEN_GUARD_BP);
+  const modeled = workerModelCall(drive, { role: 'implementer', model: 'm', task: '001' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const filled = workerTokensCall(drive, { role: 'implementer', tokens: 'unreported', task: '001' });
+  assert.strictEqual(filled.ok, true, JSON.stringify(filled));
+  assert.deepStrictEqual(workerTokensGuard({ repoRoot: drive.repo, blueprint: TOKEN_GUARD_BP }), { ok: true });
+});
+
+test('record of task 001 with a tokenless task-002 implementer key on a two-task blueprint → still records', () => {
+  const blueprint = '.bouncer/context/epics/108-x/blueprints/002-two-token-guard';
+  // 001은 커밋만 해 두고 record는 아래에서 한다. 002는 이미 record돼 있다.
+  const drive = twoRecordedWave('bouncer-record-impl-scope-', blueprint, { deferRecord: ['001'] });
+  const modeled = workerModelCall(drive, { role: 'implementer', model: 'm', task: '002' });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  acceptDispatchReport(drive.repo, blueprint, drive.workers['001'], '001');
+  const recorded = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint, cwd: drive.workers['001'], task: '001',
+  });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+});
+
 test('accepted report from a worker with only uncommitted source edits → rejects with worker-commit-missing and keeps the ledger bytes', () => {
   const { drive, report } = openReportAttempt(
     'bouncer-report-nocommit-', '.bouncer/context/epics/112-x/blueprints/001-a', { commit: false },

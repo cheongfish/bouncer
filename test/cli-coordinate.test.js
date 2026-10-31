@@ -1133,6 +1133,59 @@ test('CLI coordinate advance without --task ignores a tokenless task-scoped key 
   assert.strictEqual(body.stop.reason, 'worker');
 });
 
+test('CLI coordinate advance without --task with a tokenless task-001 implementer → worker-tokens-missing exit 1', () => {
+  const drive = preparedDrive();
+  const modeled = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'implementer', '--model', 'inherit', '--task', '001',
+  ]);
+  assert.strictEqual(modeled.code, 0, modeled.buf.err + modeled.buf.out);
+  const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
+  const before = fs.readFileSync(ledgerFile);
+  // 구현자 키는 task 범위 밖의 advance에서도 검사되므로 --task 없이 부른 advance가 거절해야 한다.
+  const r = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo], { fence: false });
+  assertTokensMissing(r, [{ task: '001', role: 'implementer', perspective: null }]);
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), before);
+});
+
+test('CLI coordinate advance after worker-tokens fills the task-001 implementer key → stops at worker', () => {
+  const drive = preparedDrive();
+  const modeled = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'implementer', '--model', 'inherit', '--task', '001',
+  ]);
+  assert.strictEqual(modeled.code, 0, modeled.buf.err + modeled.buf.out);
+  // 채우기 전 거절이 있어야 아래 통과 단언이 구현자 키의 채움 효과를 증명한다.
+  const rejected = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo], { fence: false });
+  assertTokensMissing(rejected, [{ task: '001', role: 'implementer', perspective: null }]);
+  const filled = coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'implementer', '--tokens', '96315', '--task', '001',
+  ]);
+  assert.strictEqual(filled.code, 0, filled.buf.err + filled.buf.out);
+  const r = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo], { fence: false });
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const body = JSON.parse(r.buf.out);
+  assert.strictEqual(body.ok, true);
+  assert.strictEqual(body.stop.reason, 'worker');
+});
+
+test('CLI coordinate advance after worker-tokens unreported fills the task-001 implementer key → stops at worker', () => {
+  const drive = preparedDrive();
+  const modeled = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'implementer', '--model', 'inherit', '--task', '001',
+  ]);
+  assert.strictEqual(modeled.code, 0, modeled.buf.err + modeled.buf.out);
+  const rejected = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo], { fence: false });
+  assertTokensMissing(rejected, [{ task: '001', role: 'implementer', perspective: null }]);
+  const filled = coordinateCli(drive.integration, 'worker-tokens', [
+    '--repo', drive.repo, '--role', 'implementer', '--tokens', 'unreported', '--task', '001',
+  ]);
+  assert.strictEqual(filled.code, 0, filled.buf.err + filled.buf.out);
+  const r = coordinateCli(drive.integration, 'advance', ['--repo', drive.repo], { fence: false });
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const body = JSON.parse(r.buf.out);
+  assert.strictEqual(body.ok, true);
+  assert.strictEqual(body.stop.reason, 'worker');
+});
+
 test('CLI coordinate advance after worker-tokens fills the key → stops at worker', () => {
   const drive = preparedDrive();
   // blueprint 범위(task 없음, perspective combined) reviewer 키를 모델링한다.
