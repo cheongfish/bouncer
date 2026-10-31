@@ -61,6 +61,7 @@ let warningRepo = null;
 let cleanRepo = null;
 let epipeDir = null;
 let renameRepo = null;
+let impactRepo = null;
 
 const RENAME_BP = {
   old: '.bouncer/context/epics/e1/blueprints/bp-old/index.md',
@@ -204,6 +205,72 @@ function createRenameOntologyFixture() {
   gitIn(root, ['add', '-A']);
   gitIn(root, ['commit', '-m', 'record current name', '--quiet']);
   return root;
+}
+
+const IMPACT_DIR = '.bouncer/context/epics/e1/blueprints';
+const impactBp = (slug) => `${IMPACT_DIR}/${slug}/index.md`;
+
+/**
+ * impact 연결 근거 계약용 저장소를 만든다. 질의 파일 `src/a.ts`를 기준으로 관계가 손으로 셀 수 있다.
+ * - bp-a, bp-c: `src/a.ts`를 직접 언급한다(시작점).
+ * - bp-b: 시작점 bp-a와 엔티티 `Shared1`만 공유한다(한 단계 이웃).
+ * - bp-n: bp-a와 `EntA`, bp-c와 `Joint`를 공유한다(시작점 둘에 연결되는 이웃).
+ * - bp-t: bp-a와 Explain `## Code`의 `src/touched-only.ts`만 공유한다(엔티티 없이 파일만 공유하는 이웃).
+ * - bp-far: bp-b와만 `Far1`을 공유한다(두 단계 거리, 나오면 안 된다).
+ * - bp-unrel: 아무와도 겹치지 않는다.
+ *
+ * @returns {string} git init만 된 fixture 루트
+ */
+function createImpactGraphFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-impact-'));
+  gitIn(root, ['init', '-q']);
+  writeContextDoc(root, '.bouncer/context/epics/e1/index.md', {
+    type: 'bouncer.epic',
+    bouncer: { id: 'e1', status: 'approved' },
+  }, '# e1\n');
+  const bodies = {
+    'bp-a': '`src/a.ts` `EntA` `Shared1`',
+    'bp-b': '`Shared1` `EntB` `Far1`',
+    'bp-c': '`src/a.ts` `EntC` `Joint`',
+    'bp-n': '`EntA` `Joint`',
+    'bp-t': '`OnlyT`',
+    'bp-far': '`Far1`',
+    'bp-unrel': '`Unrel`',
+  };
+  for (const [slug, tokens] of Object.entries(bodies)) {
+    writeContextDoc(root, impactBp(slug), {
+      type: 'bouncer.blueprint',
+      bouncer: { id: slug, status: 'approved' },
+    }, `# ${slug}\n\n## Contract\n\n${tokens}\n`);
+  }
+  for (const slug of ['bp-a', 'bp-t']) {
+    writeContextDoc(root, `${IMPACT_DIR}/${slug}/explain.md`, {
+      type: 'bouncer.explain',
+      bouncer: { id: `EXPLAIN-${slug}`, status: 'published' },
+    }, '# explain\n\n## Code\n\n- `src/touched-only.ts`\n');
+  }
+  return root;
+}
+
+/**
+ * fixture 루트 기준 `src/a.ts`의 impact 결과를 JSON으로 돌려준다.
+ *
+ * @returns {{results: {blueprint: string, via: string[], entities: string[], files: string[], evidence: {source: string}[]}[]}} 파싱된 응답
+ */
+function runImpactOnA() {
+  const result = runOntologyQuery(impactRepo, 'impact', 'src/a.ts');
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+/**
+ * 결과 행에서 evidence 출처 문서 경로 집합을 뽑는다.
+ *
+ * @param {{evidence: {source: string}[]}} row - 결과 행
+ * @returns {string[]} 정렬된 출처 경로
+ */
+function evidenceSourcesOf(row) {
+  return [...new Set(row.evidence.map((item) => item.source))].sort();
 }
 
 /**
@@ -399,6 +466,7 @@ test.before(() => {
   warningRepo = createWarningOntologyFixture();
   cleanRepo = createCleanOntologyFixture();
   renameRepo = createRenameOntologyFixture();
+  impactRepo = createImpactGraphFixture();
   epipeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-ontology-epipe-'));
 });
 
@@ -407,6 +475,7 @@ test.after(() => {
   if (warningRepo) fs.rmSync(warningRepo, { recursive: true, force: true });
   if (cleanRepo) fs.rmSync(cleanRepo, { recursive: true, force: true });
   if (renameRepo) fs.rmSync(renameRepo, { recursive: true, force: true });
+  if (impactRepo) fs.rmSync(impactRepo, { recursive: true, force: true });
   if (epipeDir) fs.rmSync(epipeDir, { recursive: true, force: true });
 });
 
@@ -655,4 +724,65 @@ test('커밋이 없는 저장소를 질의하면 → exit 0, aliases가 비고 r
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('impact는 → 직접 일치 시작점과 한 단계 이웃만 반환하고 두 단계 거리·무관 blueprint는 뺀다', () => {
+  const parsed = runImpactOnA();
+  assert.deepStrictEqual(
+    blueprintSlugsOf(parsed),
+    new Set(['bp-a', 'bp-c', 'bp-b', 'bp-n', 'bp-t']),
+  );
+  assert.equal(blueprintSlugsOf(parsed).has('bp-far'), false);
+  assert.equal(blueprintSlugsOf(parsed).has('bp-unrel'), false);
+});
+
+test('impact 시작점은 → via가 자기 자신이고 evidence 출처도 자기 문서뿐이다', () => {
+  const parsed = runImpactOnA();
+  for (const slug of ['bp-a', 'bp-c']) {
+    const row = parsed.results.find((item) => item.blueprint === impactBp(slug));
+    assert.ok(row, slug);
+    assert.deepStrictEqual(row.via, [impactBp(slug)], slug);
+    assert.deepStrictEqual(evidenceSourcesOf(row), [impactBp(slug)], slug);
+  }
+});
+
+test('impact 엔티티 이웃은 → via가 연결한 시작점이고 evidence가 시작점·이웃 두 문서에서 온다', () => {
+  const parsed = runImpactOnA();
+  const row = parsed.results.find((item) => item.blueprint === impactBp('bp-b'));
+  assert.ok(row);
+  assert.deepStrictEqual(row.via, [impactBp('bp-a')]);
+  assert.deepStrictEqual(evidenceSourcesOf(row), [impactBp('bp-a'), impactBp('bp-b')]);
+  assert.ok(row.entities.includes('Shared1'));
+});
+
+test('impact 파일 이웃은 → 엔티티 없이 파일만 공유해도 시작점 via와 시작점·Explain evidence로 포함된다', () => {
+  const parsed = runImpactOnA();
+  const row = parsed.results.find((item) => item.blueprint === impactBp('bp-t'));
+  assert.ok(row);
+  assert.deepStrictEqual(row.via, [impactBp('bp-a')]);
+  assert.deepStrictEqual(row.files, ['src/touched-only.ts']);
+  assert.deepStrictEqual(row.entities, ['OnlyT']);
+  assert.deepStrictEqual(
+    evidenceSourcesOf(row),
+    [`${IMPACT_DIR}/bp-a/explain.md`, `${IMPACT_DIR}/bp-t/explain.md`],
+  );
+});
+
+test('impact 이웃의 via는 → 항상 직접 일치 시작점 중 하나다', () => {
+  const parsed = runImpactOnA();
+  const starts = new Set([impactBp('bp-a'), impactBp('bp-c')]);
+  for (const row of parsed.results) {
+    for (const via of row.via) assert.ok(starts.has(via), `${row.blueprint} via ${via}`);
+  }
+});
+
+test('시작점 둘에 연결된 이웃 bp-n은 → via에 연결된 시작점을 모두 싣고 evidence도 합친다', () => {
+  const parsed = runImpactOnA();
+  const row = parsed.results.find((item) => item.blueprint === impactBp('bp-n'));
+  assert.ok(row);
+  assert.deepStrictEqual(row.via, [impactBp('bp-a'), impactBp('bp-c')]);
+  assert.deepStrictEqual(
+    evidenceSourcesOf(row),
+    [impactBp('bp-a'), impactBp('bp-c'), impactBp('bp-n')],
+  );
 });

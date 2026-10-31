@@ -323,43 +323,30 @@ function queryContextOntology(index: Ontology, query: Query): object {
       evidenceByBp.set(bp, unionFileEvidence(index, bp, names));
     }
     const expanded = new Set<string>(starts);
-    const sharedEntities = new Set<string>();
-    const sharedFiles = new Set<string>();
+    const startSet = new Set(starts);
+    const link = (start: string, other: string, startEv: Evidence[], otherEv: Evidence[]): void => {
+      // 시작점끼리는 각자 직접 일치이므로 이웃으로 다시 연결하지 않는다.
+      if (startSet.has(other)) return;
+      expanded.add(other);
+      // 이웃은 연결된 시작점을 모두 via에 싣고, 연결마다의 근거를 합친다.
+      const vias = via.get(other) ?? [];
+      if (!vias.includes(start)) vias.push(start);
+      via.set(other, vias);
+      evidenceByBp.set(other, [...(evidenceByBp.get(other) ?? []), ...startEv, ...otherEv]);
+    };
     for (const bp of starts) {
+      // 시작점마다 그 bp가 가진 토큰·파일만 확장한다. 합집합 전체를 쓰면
+      // 현재 이름 bp가 과거 이름 이웃의 via를 가로챈다.
       for (const [token, bps] of index.entities) {
-        if (bps.has(bp)) sharedEntities.add(token);
-      }
-      for (const [file, bps] of index.files) {
-        if (bps.has(bp)) sharedFiles.add(file);
-      }
-    }
-    for (const bp of starts) {
-      for (const token of sharedEntities) {
-        // 합집합 시작점마다 그 bp가 가진 토큰만 확장한다. 공유 집합 전체를
-        // 쓰면 현재 이름 bp가 과거 이름 이웃의 via를 가로챈다.
-        if (!index.entities.get(token)?.has(bp)) continue;
-        for (const other of index.entities.get(token) ?? []) {
-          if (expanded.has(other)) continue;
-          expanded.add(other);
-          via.set(other, [bp]);
-          evidenceByBp.set(other, [
-            ...(index.entityEvidence.get(bp)?.get(token) ?? []),
-            ...(index.entityEvidence.get(other)?.get(token) ?? []),
-          ]);
+        if (!bps.has(bp)) continue;
+        for (const other of bps) {
+          link(bp, other, index.entityEvidence.get(bp)?.get(token) ?? [], index.entityEvidence.get(other)?.get(token) ?? []);
         }
       }
-    }
-    for (const bp of starts) {
-      for (const file of sharedFiles) {
-        if (!index.files.get(file)?.has(bp)) continue;
-        for (const other of index.files.get(file) ?? []) {
-          if (expanded.has(other)) continue;
-          expanded.add(other);
-          via.set(other, [bp]);
-          evidenceByBp.set(other, [
-            ...(index.fileEvidence.get(bp)?.get(file) ?? []),
-            ...(index.fileEvidence.get(other)?.get(file) ?? []),
-          ]);
+      for (const [file, bps] of index.files) {
+        if (!bps.has(bp)) continue;
+        for (const other of bps) {
+          link(bp, other, index.fileEvidence.get(bp)?.get(file) ?? [], index.fileEvidence.get(other)?.get(file) ?? []);
         }
       }
     }
