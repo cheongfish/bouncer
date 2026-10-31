@@ -40,7 +40,11 @@ this payload and the repo files you read.
 ## Procedure
 
 1. Create each document with `bouncer scaffold` inside the write cwd, then
-   write its body following `references/spec-authoring/index.md`.
+   write its body following `references/spec-authoring/index.md`. When a
+   Checklist names tests, read the `Tests` and `Test trust` sections of
+   `${BOUNCER_ROOT}/references/coding-standards/index.md` and write each test
+   cell as the protected contract, the cases chosen by risk, and the wrong
+   behavior it must catch.
 2. Draft task bodies and report candidate paths with evidence; leave
    `affected_paths: []` until the root confirms scope.
 3. After confirmation, write only the confirmed per-task paths. If another path

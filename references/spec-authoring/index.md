@@ -231,7 +231,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
        fail, widen the brief or narrow verify / defer the contract change —
        do not leave the gap for execute to discover.
-     - **Checklist** (behavior assertions): test assertions follow the `Tests` section of `${BOUNCER_ROOT}/references/coding-standards/index.md`.
+     - **Checklist** (behavior assertions): test assertions follow the `Tests` and `Test trust` sections of `${BOUNCER_ROOT}/references/coding-standards/index.md`. Write each test cell as the contract it protects (cite the blueprint evidence or the approved requirement), the cases chosen by risk (normal, boundary, rejection, state preserved on failure), and the wrong behavior it must catch. An expected value comes from the requirement or an independently computed example, never from what the current code returns; when the evidence cannot decide it, leave it as an open decision.
      - **Checklist** (branch matrix): Interface가 두 축 이상의 분기 matrix(예: perspective × tier)를
        제공하면 matrix의 셀마다 Checklist 항목을 하나씩 쓴다. 항목은 그 셀의 입력 값과 기대 결과를
        literal로 적고, "matrix 전체를 확인한다" 같은 묶음 항목 하나로 셀 단위를 대신하지 않는다.

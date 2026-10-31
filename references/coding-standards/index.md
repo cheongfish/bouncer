@@ -13,8 +13,8 @@ coordinator) read this file instead of restating it.
 
 When implementing a task, judging a diff against `correctness_tests` or
 `minimality_maintainability`, or writing a Checklist that names test
-assertions. The implementer applies it while editing; the reviewer judges
-violations of it.
+assertions. The implementer applies it while editing; the planner while writing the
+Checklist test cells; the reviewer judges violations of it.
 
 ## Core rules
 
@@ -27,7 +27,17 @@ violations of it.
 
 ## Tests
 
-Assert observable behavior: return values, exit codes, error codes, emitted data, and file or state changes. Do not assert document wording, source text, or internal implementation details with regexes or substring checks; assert a format only when that format is itself the contract (for example a commit message or a machine-read field). Use real git, child processes, or network only in integration tests and substitute injected seams in unit tests. Name each test as "<condition> → <result>".
+A test protects a requirement: it takes its expected value from the requirement and fails on a behavior that violates it.
+
+- Before writing a test, name the requirement it protects and the wrong behavior it must catch; show both in the test name, input, and expected value, or cite the task's contract.
+- Take expected values from the requirement, an independently computed example, or a stated invariant. Never compute them with the code under test.
+- Assert the observable result: return values, output, error codes, file or state changes, and interactions visible at an external boundary. A return, type, or success code alone is enough only when it is the whole requirement; otherwise check the content, the required side effects, and the state preserved after a rejection or failure.
+- Choose cases by the risk of the change (normal, boundary, rejection, state preserved on failure). Do not list every combination or repeat a test that catches the same error.
+- A mock or fake controls a dependency outside the unit under test and never replaces the unit's own decision. Use real git, child processes, or network only in integration tests.
+- Do not pin an implementation shape: executed source text, generated JavaScript, ASTs, module caches, internal call order, or file placement. A behavior-preserving rename, move, or refactor must not fail a consumer-contract test. Check structure only for an explicit structural contract (a dependency boundary, lazy loading, a protocol order, a host or distribution path) and cite the approved requirement, task brief, or host spec; a comment that declares a contract is not a citation.
+- A file whose content is the product contract (a skill, rule, or template) may be checked: parse its structure, and assert wording only when the exact string or format is the contract (a commit message, a machine-read field, a fixed user-facing line). Do not pin headings, step numbers, spacing, or incidental prose.
+- Do not expose an internal helper only for a test. A unit test of a pure rule stays inside its feature and may change with it.
+- Name each test as "<condition> → <result>".
 
 `npm run lint:test-names` checks this name rule in `test/*.test.js`.
 
@@ -37,8 +47,13 @@ Assert observable behavior: return values, exit codes, error codes, emitted data
   implementation currently returns.
 - A mock or fake replaces only an external dependency; never replace the unit
   under test.
-- Run a new test before the implementation and confirm it fails for the
-  expected reason. A test that passes before the change proves nothing.
+- For a new behavior or a bug fix, run the test before the implementation and
+  confirm it fails for the expected reason, not for an import or environment
+  error. A test that passes before such a change proves nothing.
+- A test that strengthens or converts coverage of existing behavior may pass
+  first. Record why a red run does not apply and which existing contract it
+  protects. A documentation change relies on structure and link checks and a
+  review of representative cases, not on a test that its prose was copied.
 - Do not claim a defect is detected or a behavior is covered without a run
   that shows it.
 - A reviewer judging the `Red run` lines of a call slot reports a
@@ -49,6 +64,20 @@ Assert observable behavior: return values, exit codes, error codes, emitted data
   default severity is `minor`; use `major` when the test guards a public
   contract. Without a slot value the reviewer does not assert that a defect is
   detected.
+
+## Test review
+
+A reviewer judging a new or changed test asks:
+
+1. Which requirement does it protect, and does it link to the plan's contract?
+2. Which wrong behavior makes it fail? It must not only confirm that an implementation exists or that a configured mock reply comes back.
+3. Does the expected value come from a source independent of the implementation?
+4. Are the boundary, rejection, and state-preserved-on-failure cases that matter for this change covered?
+5. If the implementation is moved or renamed without a behavior change, does a consumer-contract test keep passing?
+6. For a structural check: is the protected contract cited from an independent source, and is the check no wider than that contract?
+7. For a wording check: is the exact content itself the product contract, or does it pin incidental wording or treat a string's presence as proof of meaning?
+
+Report a miss as `correctness_tests`. A unit test inside a feature that changes with its internals is not a violation.
 
 ## Error handling
 

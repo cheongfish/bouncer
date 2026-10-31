@@ -210,6 +210,7 @@ that cannot be reached: when a structural failure comes first (such as a marker
 that state. Judge the red by its command, input, first failure point, and target
 assertion. Report each omission under one perspective only, never twice.
 Also judge reachability of every Checklist test step, not only the red: its input must pass every guard the same command checks before the target branch. Read the handler the step calls and flag a step whose input an earlier guard refuses (for example a `coordinate report` test on a verification task, refused as `dispatch-commit-task-required` before the report branch), citing that guard as `file:line`.
+Also judge that each Checklist test cell names the contract it protects, the cases chosen by risk, and the wrong behavior it must catch, with the expected value taken from the plan evidence rather than from what the current code returns (the `Tests` section of `${BOUNCER_ROOT}/references/coding-standards/index.md`). Flag a cell that only says a result is returned, a function is called, or a mock replies.
 
 ### risk_security
 

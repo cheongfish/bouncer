@@ -105,8 +105,8 @@ The permitted perspectives are:
 
 Under `correctness_tests`, report a new or changed test that violates the
 `Tests` or `Test trust` sections of `${BOUNCER_ROOT}/references/coding-standards/index.md`.
-Read that file's `Test trust` section and judge the `Red run` lines supplied in
-the call slot by it. A `Red run` finding defaults to `minor`; use `major` when
+Judge each new or changed test by the `Test review` questions of that file, and
+judge the `Red run` lines supplied in the call slot by its `Test trust` section. A `Red run` finding defaults to `minor`; use `major` when
 the test guards a public contract. Never state that a defect is detected
 without a run that shows it, and you are not required to re-run tests.
 
