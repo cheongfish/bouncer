@@ -131,10 +131,15 @@ gate report the same `G32` (composite gate `freshness-approval`). Recover by
 fixing the missing reference or the merge result SHA, or by merging/rebasing
 the prerequisite into this checkout, then rerun. A Git lookup error is a
 failure, never a pass. Blueprints without the key are unaffected.
-With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
-module/risk signals and a `low-candidate`/`standard-candidate` recommendation);
-without that flag `routing` is `null`. The signal does not select or approve
-complexity.
+With `--blueprint <dir>` it also fills advisory `routing`. `modules` and
+`riskPaths` come from the shared complexity signal (generated paths are left out
+of modules). The `low-candidate`/`standard-candidate` recommendation is
+`standard-candidate` only when the module count reaches `complexity.strong_min_modules`
+or a risk path exists; task count and `depends_on` are not grounds. `serial`
+(from the drive shape) is reference only. A malformed `complexity` block adds
+`complexity-config-invalid` to `reasons` and keeps the default policy without
+changing the recommendation. Without that flag `routing` is `null`. The signal
+does not select or approve complexity.
 `validate` decides gate success. `verify` writes the evidence used by G13.
 `execute prepare` creates or reuses the correct standalone worktree; in a
 coordinator drive it reports the assigned worker instead. `commit --yes` is
@@ -308,12 +313,19 @@ can show running or terminated.
 no `model` key is written. A valueless or blank `--model` is refused with
 `model-invalid` before any attempt opens. `coordinate worker-model --blueprint
 <dir> --role <implementer|reviewer|debugger> --model <value> --ledger-path <p>
---ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]` runs from
+--ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]
+[--strategy <single|parallel>] [--reviewer-tier <standard|strong>]` runs from
 the integration cwd and appends `{kind: worker-model, role, model, task?,
-perspective?, tokens?}` to the ledger
+perspective?, tokens?, strategy?, reviewer_tier?}` to the ledger
 decisions (and to that task's decisions when `--task` is given) without
 changing dispatch, lease, status, or attempt. `--perspective` is reviewer-only
-and must be an execute review perspective. `--tokens` is the host-reported
+and must be an execute review perspective. `--strategy` and `--reviewer-tier`
+are reviewer-only too. They copy the `strategy` and `reviewer_tier` the
+`review-dispatch` payload gave, as-is, and are written only when the flag is
+given; the coordinator does not recompute them. `reviewer_tier` records the
+computed tier, not whether the model mapping applied (`reviewer_tier_applied`
+is not written). `--strategy` and `--reviewer-tier` are refused as usage (exit 2)
+on `worker-tokens`. `--tokens` is the host-reported
 subagent token count (`/^\d+$/`, safe integer); without it no `tokens` key is
 written and the record counts as missing. `coordinate worker-tokens --blueprint
 <dir> --role <implementer|reviewer|debugger> --tokens <n|unreported> --ledger-path <p>
@@ -327,8 +339,10 @@ the sum never reads that key as zero. The `worker-tokens-missing` check covers t
 `coordinate record --task <T>` checks the keys of task T,
 `coordinate advance --task <T>` checks the keys of task T and the keys with no task,
 and `coordinate advance` without `--task` checks only the keys with no task. Refusals: `worker-model-role-invalid`,
-`worker-model-perspective-invalid`, `tokens-invalid`, `model-invalid` (worker-model
-only), `task-outside-blueprint`; none writes the ledger. The recorded model is
+`worker-model-perspective-invalid`, `worker-model-strategy-invalid`,
+`worker-model-reviewer-tier-invalid`, `tokens-invalid`, `model-invalid` (worker-model
+only), `task-outside-blueprint`; none writes the ledger. The strategy and tier
+checks run after the perspective check and before `tokens-invalid`. The recorded model is
 what the coordinator passed to the dispatch, not proof of the model the host ran.
 Plan and execute metadata are configuration observations only; they do not
 attest which model the host actually ran. A rejected configured model stops the
@@ -450,6 +464,12 @@ Do not touch hit is `scope-do-not-touch-violation` and an unreadable line is
 `coordinate next` may still pass a stored `promoted_patch` for an already
 promoted full ledger. `drive_record` (metrics snapshot / finalize digest)
 carries `mode` (`light`|`full`) and `promotion` (`{ reason, task }` or `null`);
+`reviewer.strategies` and `reviewer.tiers` are the sorted unique `strategy` and
+`reviewer_tier` values of the reviewer `worker-model` decisions (`coordinate
+worker-model`, role `reviewer`); an absent key reads as an old snapshot.
+`tiers` is the computed tier recorded in the payload, not whether the model
+mapping applied (`reviewer_tier_applied` is not recorded here), so a dispatch
+computed as `strong` with no mapping still counts as `strong`.
 `node scripts/measure-drive-records.js` splits aggregates under `by_mode` and
 counts under `promotions`.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
@@ -546,8 +566,12 @@ bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --
   # discovery perspectives and security are never listed for a delta)
   # review_contract: brief, complexity standard, no --task (final review): strategy parallel, perspectives
   # spec_scope, correctness_tests; security only when review_risk has authentication|authorization|credential
-  # complexity low: single [combined] regardless of size; unmarked or --task: small diff → single [combined]; else parallel
-  # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk appends security
+  # complexity low: single [combined] regardless of size; standard (unmarked or --task): single [combined] only when
+  # source files <= 2, source lines <= 200 and no review_risk or risk path (complexity-signals); else parallel
+  # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk or a security-kind risk path appends security
+  # a non-default complexity policy adds "complexity policy non-default: ..." after the tier reason
+  # rejected before any git call: invalid review.min_reviewer_tier (review-min-reviewer-tier-invalid), then invalid
+  # complexity config (complexity-config-invalid, next: complexity)
   # --mode delta is allowed for the one delta after the single repair of a brief final review
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
@@ -616,15 +640,18 @@ Re-resolution before dispatch follows `${BOUNCER_ROOT}/rules/subagent-model.md` 
 `review-dispatch` is read-only. It returns JSON for Plan (`single`, or
 `perspectives` for a `review_contract: brief` blueprint; older stored `clustered`
 payloads are still read) or Execute (`single | parallel`; `security` joins a
-general or task-scoped review when `review_risk` is non-empty, and a brief
+general or task-scoped review when `review_risk` is non-empty or a security-kind risk path is touched, and a brief
 final review only for authentication, authorization, or credential risk). Plan
 of an unmarked blueprint is `single`. A marked (`review_contract: brief`)
 blueprint is `perspectives`: standard gets the four plan perspectives; low is
 `verifiability` and, when any commit task declares `review_risk`, also
-`risk_security`. There is no Plan `skip`. The reviewer-tier task-count
-threshold applies to standard only. Execute for `complexity: low` is
-`single` combined regardless of size; standard keeps the current small-diff
-rule. Plan `single` also includes
+`risk_security`. There is no Plan `skip`. The reviewer tier is `strong` when the
+union of commit tasks' `affected_paths` (plan) or the scoped `review_risk` /
+risk paths hit a strong cause (source files, modules, total files); `complexity:
+low` skips only the size causes and keeps the risk causes. Execute for
+`complexity: low` is `single` combined regardless of size; standard is `single`
+only when the frozen snapshot passes the source-file, source-line, and risk
+checks, else `parallel`. Plan `single` also includes
 `snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
 (per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
 `structure_parts` (per-document structure sha256; the `follow_up` input),

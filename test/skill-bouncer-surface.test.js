@@ -541,6 +541,10 @@ test('plan docs → declare complexity instead of light scope', () => {
   assert.match(schema, /\bstandard\b/);
   assert.match(schema, /S38/);
   assert.match(readPlanDoc('references/minimality/index.md'), /bouncer\.complexity/);
+  // 추천 기준은 routing의 모듈 문턱(complexity.strong_min_modules)과 위험 경로뿐이고, task 수·depends_on은 근거가 아니다.
+  assert.match(skill, /complexity\.strong_min_modules/);
+  assert.match(skill, /The task count and the `depends_on` count are not grounds/);
+  assert.equal((skill.match(/\*\*Recommend-why\*\*/g) || []).length, 2);
 });
 
 // run·rules 문서의 옛 light 실행 경로. planning.md·document-schema.md는 닫힌 기록의
@@ -578,6 +582,16 @@ const REMOVED_CLI_REASONS = new RegExp([
   'ledger-mode-mismatch', 'promotion-stopped', 'promote-light-',
   'promotion-diff-drift', 'light-candidate', 'full-candidate',
 ].join('|'));
+
+test('configuration doc → lists the seven complexity keys', () => {
+  const doc = readPlanDoc('docs/configuration.md');
+  for (const key of [
+    'single_max_source_files', 'single_max_source_lines', 'strong_min_source_files', 'strong_min_modules',
+    'strong_min_total_files', 'risk_paths', 'generated_paths',
+  ]) {
+    assert.ok(doc.includes(`complexity.${key}`), key);
+  }
+});
 
 test('run and rules docs → omit retired light-run vocabulary and keep light-mode-removed recovery', () => {
   const banned = /light-run\.md|promote-stop|--promote-light|scale: light/;
@@ -622,5 +636,14 @@ test('run and rules docs → omit retired light-run vocabulary and keep light-mo
     fs.existsSync(path.join(root, 'skills/bouncer-run/references/light-run.md')),
     false,
   );
+});
+
+// 리뷰어 등급·single 판정은 task 수가 아니라 복잡도 신호(파일·줄·위험)로 정한다. 설정·규칙·워크플로
+// 문서가 옛 task 수 문턱을 다시 서술하면 문서와 판정이 어긋나므로 이 구절의 부재를 확인한다.
+test('complexity threshold docs → do not describe a task 수 문턱', () => {
+  for (const rel of ['docs/configuration.md', 'rules/planning.md', 'docs/workflow.md']) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    assert.ok(!text.includes('task 수 문턱'), rel);
+  }
 });
 

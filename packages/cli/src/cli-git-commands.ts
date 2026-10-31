@@ -545,6 +545,9 @@ const COORDINATE_STRING_FLAG_FIELDS: Record<string, string> = {
   role: 'role',
   perspective: 'perspective',
   tokens: 'tokens',
+  // worker-model 전용. worker-tokens에는 checkWorkerFlags가 막아 core에 닿지 않는다.
+  strategy: 'strategy',
+  reviewerTier: 'reviewer-tier',
   taskBriefHash: 'task-brief-hash',
   text: 'text',
 };
@@ -648,9 +651,17 @@ function checkWorkerFlags(f: CoordFlags, command: string, io: CliIo): number | u
   if (command === 'worker-model' && !hasFlag(f, 'model')) return usage('--model is required');
   // --tokens는 worker-tokens에서 필수, worker-model에서 선택이다.
   if (command === 'worker-tokens' && !hasFlag(f, 'tokens')) return usage('--tokens is required');
+  // 리뷰 전략·등급 플래그는 worker-model 전용이다. worker-tokens에 주면 키가 조용히 버려지므로
+  // 값 유무보다 먼저 usage(2)로 막아, 잘못 옮긴 호출이 성공한 것처럼 보이지 않게 한다.
+  if (command === 'worker-tokens') {
+    for (const name of ['strategy', 'reviewer-tier']) {
+      if (hasFlag(f, name)) return usage(`--${name} is worker-model only`);
+    }
+  }
   // 값 없는 --task·--perspective(true)를 undefined로 접으면 task·관점 없는 decision이
   // 조용히 기록된다. 누락과 달리 "있으나 값 없음"이므로 usage(2)로 막는다.
-  for (const name of ['task', 'perspective', 'tokens']) {
+  // --strategy·--reviewer-tier도 같은 이유로 값 없는 형태를 usage(2)로 막는다.
+  for (const name of ['task', 'perspective', 'tokens', 'strategy', 'reviewer-tier']) {
     if (hasFlag(f, name) && !nonEmpty(f[name])) return usage(`--${name} requires a value`);
   }
   return undefined;

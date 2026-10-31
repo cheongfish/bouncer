@@ -1530,6 +1530,67 @@ test('coordinate worker-model with a negative, fractional or valueless --tokens 
   assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
 });
 
+test('coordinate worker-model with --strategy parallel and --reviewer-tier strong → records both keys in stdout and the ledger', () => {
+  const drive = preparedDrive();
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--task', '001',
+    '--strategy', 'parallel', '--reviewer-tier', 'strong',
+  ]);
+  assert.strictEqual(r.code, 0, r.buf.err + r.buf.out);
+  const expected = {
+    kind: 'worker-model', role: 'reviewer', model: 'inherit', task: '001',
+    strategy: 'parallel', reviewer_tier: 'strong',
+  };
+  assert.deepStrictEqual(JSON.parse(r.buf.out).decision, expected);
+  const ledger = JSON.parse(fs.readFileSync(ledgerOf(drive), 'utf8'));
+  assert.deepStrictEqual(ledger.decisions[ledger.decisions.length - 1], expected);
+});
+
+test('coordinate worker-model with --strategy serial → exits 1 with worker-model-strategy-invalid and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const r = coordinateCli(drive.integration, 'worker-model', [
+    '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', '--strategy', 'serial',
+  ]);
+  assert.strictEqual(r.code, 1, r.buf.err + r.buf.out);
+  assert.strictEqual(JSON.parse(r.buf.out).reason, 'worker-model-strategy-invalid');
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-model with a valueless --strategy or --reviewer-tier → is usage exit 2 and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const cases = [
+    ['--strategy', '--strategy requires a value'],
+    ['--reviewer-tier', '--reviewer-tier requires a value'],
+  ];
+  for (const [flag, message] of cases) {
+    const r = coordinateCli(drive.integration, 'worker-model', [
+      '--repo', drive.repo, '--role', 'reviewer', '--model', 'inherit', flag,
+    ]);
+    assert.strictEqual(r.code, 2, `${flag}: ${r.buf.err}${r.buf.out}`);
+    assert.match(r.buf.err, new RegExp(`coordinate worker-model: ${message}`));
+  }
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
+test('coordinate worker-tokens with --strategy or --reviewer-tier → is usage exit 2 and keeps the ledger', () => {
+  const drive = preparedDrive();
+  const before = fs.readFileSync(ledgerOf(drive));
+  const cases = [
+    ['--strategy', 'single', '--strategy is worker-model only'],
+    ['--reviewer-tier', 'strong', '--reviewer-tier is worker-model only'],
+  ];
+  for (const [flag, value, message] of cases) {
+    const r = coordinateCli(drive.integration, 'worker-tokens', [
+      '--repo', drive.repo, '--role', 'reviewer', '--tokens', '900', flag, value,
+    ]);
+    assert.strictEqual(r.code, 2, `${flag}: ${r.buf.err}${r.buf.out}`);
+    assert.ok(r.buf.err.includes(`coordinate worker-tokens: ${message}`), r.buf.err);
+  }
+  assert.deepStrictEqual(fs.readFileSync(ledgerOf(drive)), before);
+});
+
 test('coordinate worker-tokens with a current fence → appends a worker-tokens decision', () => {
   const drive = preparedDrive();
   const r = coordinateCli(drive.integration, 'worker-tokens', [

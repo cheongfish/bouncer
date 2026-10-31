@@ -144,7 +144,7 @@ run의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implemente
 - **복잡도 선언**은 `/bouncer-plan`이 discovery handoff와 `plan inspect`
   routing으로 `low` 또는 `standard`를 추천하고, 사용자가 `plan.complexity`
   ACQ에서 확정합니다. 선언은 승인이 아닙니다. `low`는 계획 리뷰 관점·실행
-  리뷰 `single`/`combined`·리뷰어 등급의 task 수 문턱만 바꿉니다. 문서 집합·
+  리뷰 `single`/`combined`·리뷰어 등급의 크기 문턱만 바꿉니다. `review_risk`와 위험 경로는 그대로 봅니다. 문서 집합·
   task 절·epic 배정·퀴즈·실행 경로는 `standard`와 같습니다. 정본은
   [`rules/planning.md`](../rules/planning.md) `## Complexity declaration`입니다.
 - **scaffold**는 `bouncer scaffold blueprint --complexity <low|standard>`로

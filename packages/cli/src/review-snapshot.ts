@@ -68,6 +68,8 @@ type ReviewSnapshot = {
   index_entries: IndexEntry[];
   changed_files: number;
   changed_lines: number;
+  // 파일별 변경 줄 수(files와 같은 순서). 이 필드가 생기기 전에 저장된 snapshot에는 없으므로 선택 필드다.
+  file_lines?: Array<{ path: string; lines: number }>;
 };
 
 type SnapshotFail = { ok: false; reason: string; cause: string; next: string };
@@ -591,6 +593,12 @@ function collectSnapshot(args: ScopeArgs, deps: SnapshotDeps): ReviewSnapshot {
   }
 
   files.sort((x, y) => (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
+  // files와 같은 순서·같은 값 원천(trackedLines, untrackedLines)에서 만든다. 그 밖(untracked binary·symlink)과
+  // binary 추적 파일(numstat null)은 0줄이다. 정렬이 다르면 snapshot 해시가 호출마다 갈린다.
+  const fileLines = files.map((f) => ({
+    path: f.path,
+    lines: untrackedLines.get(f.path) ?? trackedLines.get(f.path) ?? 0,
+  }));
   return {
     version: SNAPSHOT_VERSION,
     scope: { blueprint: toPosix(args.blueprintDir), task: args.taskId ? args.taskId : null },
@@ -600,6 +608,7 @@ function collectSnapshot(args: ScopeArgs, deps: SnapshotDeps): ReviewSnapshot {
     index_entries: indexEntries,
     changed_files: files.length,
     changed_lines: changedLines,
+    file_lines: fileLines,
   };
 }
 

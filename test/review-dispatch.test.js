@@ -11,9 +11,8 @@ const { runCli } = require('../packages/cli/dist/cli');
 const {
   classifyPlanReview,
   classifyExecuteReview,
-  EXECUTE_SMALL_MAX_FILES,
-  EXECUTE_SMALL_MAX_LINES,
 } = require('../packages/cli/dist/review-dispatch');
+const { DEFAULT_COMPLEXITY_POLICY } = require('../packages/cli/dist/config');
 const { validateBlueprint } = require('../packages/cli/dist/validate');
 const { registerFixtureEpic } = require('./helpers/epic-registry');
 
@@ -322,9 +321,12 @@ function expectedDigest(repo) {
   return { digest, documents };
 }
 
-test('size constants → are exported from one module', () => {
-  assert.strictEqual(EXECUTE_SMALL_MAX_FILES, 3);
-  assert.strictEqual(EXECUTE_SMALL_MAX_LINES, 200);
+test('size policy defaults → come from config DEFAULT_COMPLEXITY_POLICY only', () => {
+  assert.strictEqual(DEFAULT_COMPLEXITY_POLICY.singleMaxSourceFiles, 2);
+  assert.strictEqual(DEFAULT_COMPLEXITY_POLICY.singleMaxSourceLines, 200);
+  // 옛 크기·등급 상수는 review-dispatch 모듈 export에서 사라져야 한다(복제된 문턱이 남으면 판정이 갈린다).
+  const dispatch = require('../packages/cli/dist/review-dispatch');
+  assert.deepStrictEqual(Object.keys(dispatch).filter((name) => /SMALL|STRONG_MIN/.test(name)), []);
 });
 
 test('snapshot contract → exposes the same pure digest helpers without I/O dependencies', () => {
@@ -941,8 +943,9 @@ test('execute with a small diff → returns single combined', () => {
   });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.strategy, 'single');
-  assert.ok(result.changed_files <= EXECUTE_SMALL_MAX_FILES);
-  assert.ok(result.changed_lines <= EXECUTE_SMALL_MAX_LINES);
+  assert.ok(result.changed_files <= DEFAULT_COMPLEXITY_POLICY.singleMaxSourceFiles);
+  assert.ok(result.changed_lines <= DEFAULT_COMPLEXITY_POLICY.singleMaxSourceLines);
+  assert.strictEqual(result.reasons[0], 'source files 2 <= 2, source lines 2 <= 200, no risk signal');
   assert.deepStrictEqual(result.risk_flags, []);
   assert.deepStrictEqual(result.perspectives, ['combined']);
   assert.deepStrictEqual(result.target, {
@@ -969,7 +972,8 @@ test('execute over the file threshold → returns parallel', () => {
   });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.strategy, 'parallel');
-  assert.ok(result.changed_files > EXECUTE_SMALL_MAX_FILES);
+  assert.ok(result.changed_files > DEFAULT_COMPLEXITY_POLICY.singleMaxSourceFiles);
+  assert.strictEqual(result.reasons[0], 'diff exceeds single thresholds: source files 4 > 2');
   assert.deepStrictEqual(result.perspectives, [
     'spec_scope', 'correctness_tests', 'minimality_maintainability',
   ]);
@@ -992,7 +996,7 @@ test('execute with complexity low and a large diff via --blueprint → returns s
     repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
   });
   assert.strictEqual(out.ok, true);
-  assert.ok(out.changed_files > EXECUTE_SMALL_MAX_FILES);
+  assert.ok(out.changed_files > DEFAULT_COMPLEXITY_POLICY.singleMaxSourceFiles);
   assert.strictEqual(out.strategy, 'single');
   assert.deepStrictEqual(out.perspectives, ['combined']);
 
@@ -1049,7 +1053,7 @@ test('execute with complexity low and review_risk → yields combined and securi
   assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
 });
 
-test('execute with risk flags → appends security on single and parallel', () => {
+test('execute with risk flags → appends security on parallel for one source file and for many', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
@@ -1063,9 +1067,12 @@ test('execute with risk flags → appends security on single and parallel', () =
     repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
   });
   assert.strictEqual(small.ok, true);
-  assert.strictEqual(small.strategy, 'single');
+  // review_risk가 있으면 소스 1개여도 single이 아니다: 위험 신호는 크기 문턱과 무관하게 parallel로 보낸다.
+  assert.strictEqual(small.strategy, 'parallel');
   assert.deepStrictEqual(small.risk_flags, ['public_interface']);
-  assert.deepStrictEqual(small.perspectives, ['combined', 'security']);
+  assert.deepStrictEqual(small.perspectives, [
+    'spec_scope', 'correctness_tests', 'minimality_maintainability', 'security',
+  ]);
 
   // CT-003: 제목이 single·parallel 둘 다인데 parallel+security를 빠뜨리면
   // append 분기가 한쪽만 깨져도 통과한다.
@@ -1204,12 +1211,14 @@ test('review_contract brief with security flag in a second task → unions acros
   assert.deepStrictEqual(out.perspectives, [...BRIEF_PERSPECTIVES, 'security']);
 });
 
-test('review_contract brief with a task-scoped review → keeps the legacy perspective rules', () => {
+test('review_contract brief with a task-scoped review → uses the size-and-risk rule (review_risk forces parallel)', () => {
   const fx = markedRepo({ risk: [['public_interface']] });
   const out = classifyExecuteReview({
     repoRoot: fx.repo, blueprintDir: BP_REL, taskId: '001', base: fx.base, head: fx.head,
   });
-  assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
+  assert.deepStrictEqual(out.perspectives, [
+    'spec_scope', 'correctness_tests', 'minimality_maintainability', 'security',
+  ]);
 });
 
 test('review_contract brief without a task and --mode delta → returns single combined', () => {
@@ -1427,8 +1436,8 @@ test('execute with review_risk S30 → rejects without perspectives', () => {
 });
 
 test('execute with a lines-only breach → returns parallel', () => {
-  // CT-002: 파일 ≤3이어도 줄 합계 >200이면 parallel. 파일 임계만 보면 분기 한쪽이 빠진다.
-  const lines = Array.from({ length: EXECUTE_SMALL_MAX_LINES + 1 }, (_, i) => `// ${i}`).join('\n') + '\n';
+  // CT-002: 파일 ≤2여도 줄 합계 >200이면 parallel. 파일 임계만 보면 분기 한쪽이 빠진다.
+  const lines = Array.from({ length: DEFAULT_COMPLEXITY_POLICY.singleMaxSourceLines + 1 }, (_, i) => `// ${i}`).join('\n') + '\n';
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });
   const base = commitBaseline(repo);
@@ -1442,9 +1451,10 @@ test('execute with a lines-only breach → returns parallel', () => {
     repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
   });
   assert.strictEqual(result.ok, true);
-  assert.ok(result.changed_files <= EXECUTE_SMALL_MAX_FILES);
-  assert.ok(result.changed_lines > EXECUTE_SMALL_MAX_LINES);
+  assert.ok(result.changed_files <= DEFAULT_COMPLEXITY_POLICY.singleMaxSourceFiles);
+  assert.ok(result.changed_lines > DEFAULT_COMPLEXITY_POLICY.singleMaxSourceLines);
   assert.strictEqual(result.strategy, 'parallel');
+  assert.strictEqual(result.reasons[0], 'diff exceeds single thresholds: source lines 202 > 200');
   assert.deepStrictEqual(result.perspectives, [
     'spec_scope', 'correctness_tests', 'minimality_maintainability',
   ]);
@@ -2434,7 +2444,7 @@ for (const complexity of ['standard', 'low']) {
             assert.strictEqual(out.strategy, 'parallel');
             assert.deepStrictEqual(out.perspectives,
               ['spec_scope', 'correctness_tests', 'minimality_maintainability', 'security']);
-            assert.strictEqual(out.reasons[0], 'diff exceeds small thresholds (files=4, lines=4)');
+            assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: source files 4 > 2; review_risk credential');
           }
         });
       }
@@ -2482,9 +2492,10 @@ test('plan with two commit tasks and empty review_risk → reviewer_tier standar
   assert.ok(plan.reasons.some((r) => r.startsWith('reviewer tier standard')), plan.reasons.join('|'));
 });
 
-test('plan with three commit tasks → reviewer_tier strong', () => {
+test('plan with three commit tasks and empty review_risk → reviewer_tier standard', () => {
+  // 세 task가 소스 3개(shared·a·b)를 합쳐도 크기 문턱(8개)과 모듈 문턱(4개)에 못 미쳐 standard다.
   const plan = tierPlan(tierPlanRepo(['001', '002', '003']));
-  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.strictEqual(plan.reviewer_tier, 'standard');
 });
 
 test('plan with one commit task and public_interface review_risk → reviewer_tier strong', () => {
@@ -2511,7 +2522,7 @@ test('plan with a malformed review_risk on one task → returns the union failur
 });
 
 test('plan with strong tier and model_tiers.claude.strong → agent_dispatch.model is the mapped slug', () => {
-  const repo = tierPlanRepo(['001', '002', '003']);
+  const repo = tierPlanRepo(['001'], [['public_interface']]);
   writeConfig(repo, STRONG_CLAUDE);
   const plan = tierPlan(repo);
   assert.strictEqual(plan.reviewer_tier, 'strong');
@@ -2522,7 +2533,7 @@ test('plan with strong tier and model_tiers.claude.strong → agent_dispatch.mod
 });
 
 test('plan with strong tier mapped to inherit → keeps the slot dispatch with a tier-inherit reason', () => {
-  const repo = tierPlanRepo(['001', '002', '003']);
+  const repo = tierPlanRepo(['001'], [['public_interface']]);
   writeConfig(repo, {
     subagents: { provider: 'claude', claude: { 'bouncer-context-reviewer': 'slot-model' } },
     model_tiers: { claude: { strong: 'inherit' } },
@@ -2539,7 +2550,7 @@ test('plan with strong tier mapped to inherit → keeps the slot dispatch with a
 });
 
 test('plan with strong tier mapped to inherit and no slot → keeps the null model dispatch with the reason', () => {
-  const repo = tierPlanRepo(['001', '002', '003']);
+  const repo = tierPlanRepo(['001'], [['public_interface']]);
   writeConfig(repo, {
     subagents: { provider: 'claude' },
     model_tiers: { claude: { strong: 'inherit' } },
@@ -2555,7 +2566,7 @@ test('plan with strong tier mapped to inherit and no slot → keeps the null mod
 });
 
 test('plan with strong tier and no strong mapping → keeps the old agent_dispatch with a not-applied reason', () => {
-  const repo = tierPlanRepo(['001', '002', '003']);
+  const repo = tierPlanRepo(['001'], [['public_interface']]);
   writeConfig(repo, {
     subagents: { provider: 'claude', claude: { 'bouncer-context-reviewer': 'slot-model' } },
   });
@@ -2596,7 +2607,7 @@ test('plan with no model_tiers → agent_dispatch equals the slot-only resolutio
 });
 
 test('plan with strong tier and an unknown provider → not applied with a not-applied reason', () => {
-  const repo = tierPlanRepo(['001', '002', '003']);
+  const repo = tierPlanRepo(['001'], [['public_interface']]);
   writeConfig(repo, { model_tiers: { claude: { strong: 'claude-strong-x' } } });
   const saved = {};
   const keys = ['CLAUDE_PLUGIN_ROOT', 'PLUGIN_ROOT', 'CLAUDECODE', 'CODEX_THREAD_ID'];
@@ -2668,9 +2679,9 @@ test('execute task scope with authentication review_risk → reviewer_tier stron
   assert.strictEqual(out.reviewer_tier, 'strong');
 });
 
-test('execute blueprint scope with three commit tasks and empty review_risk → reviewer_tier strong', () => {
+test('execute blueprint scope with three commit tasks and empty review_risk → reviewer_tier standard', () => {
   const out = tierExecute({ tasks: ['001', '002', '003'], risks: [[], [], []] });
-  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.strictEqual(out.reviewer_tier, 'standard');
 });
 
 test('execute blueprint scope with two commit tasks and empty review_risk → reviewer_tier standard', () => {
@@ -2769,18 +2780,18 @@ test('execute large diff with complexity low → single combined; standard stays
   assert.strictEqual(standard.strategy, 'parallel');
 });
 
-test('plan three empty-risk tasks → low is standard tier and standard is strong', () => {
+test('plan three empty-risk tasks → low and standard are both standard tier', () => {
   const lowRepo = makeRepo();
   writePlanTree(lowRepo, { complexity: 'low', tasks: ['001', '002', '003'], reviewContract: 'brief' });
   ['001', '002', '003'].forEach((n) => writeCommitTask(lowRepo, n, { reviewRisk: [] }));
   const low = classifyPlanReview({ repoRoot: lowRepo, blueprintDir: BP_REL });
   assert.strictEqual(low.reviewer_tier, 'standard');
   assert.deepStrictEqual(low.perspectives, ['verifiability']);
-  assert.ok(low.reasons.some((r) => r.includes('complexity low (no task-count threshold)')), low.reasons.join('|'));
+  assert.ok(low.reasons.some((r) => r.includes('complexity low (size thresholds skipped)')), low.reasons.join('|'));
   const stdRepo = makeRepo();
   writePlanTree(stdRepo, { tasks: ['001', '002', '003'], reviewContract: 'brief' });
   const standard = classifyPlanReview({ repoRoot: stdRepo, blueprintDir: BP_REL });
-  assert.strictEqual(standard.reviewer_tier, 'strong');
+  assert.strictEqual(standard.reviewer_tier, 'standard');
   assert.deepStrictEqual(standard.perspectives, PLAN_PERSPECTIVES);
 });
 
@@ -2826,4 +2837,466 @@ test('plan with complexity medium → structural validation failed; execute name
     repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
   });
   assert.deepStrictEqual(exe, { ok: false, error: 'blueprint complexity invalid: expected low or standard' });
+});
+
+// --- 복잡도 신호 기준 판정: 신호(complexity-signals)와 설정(complexity 블록)으로 전략·등급을 고른다 ---
+
+// 파일 경로 → 내용 목록을 base 커밋 뒤에 쓰고 한 커밋으로 묶어 execute 입력을 만든다.
+// cfg는 base 커밋 전에 써야 .bouncer/config.json이 diff의 소스 파일로 세이지 않는다.
+function signalFixture({ files, complexity, cfg, risk, tasks = ['001'] } = {}) {
+  const repo = makeRepo();
+  writePlanTree(repo, { complexity, tasks });
+  if (risk !== undefined) writeCommitTask(repo, '001', { reviewRisk: risk });
+  if (cfg) writeConfig(repo, cfg);
+  const base = commitBaseline(repo);
+  for (const [rel, body] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), body);
+  }
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-qm', 'signal change']);
+  return { repo, base, head: git(repo, ['rev-parse', 'HEAD']).trim() };
+}
+
+// n줄짜리 파일 내용(줄 수 = n).
+function lineText(n) {
+  return `${Array.from({ length: n }, (_, i) => `// ${i}`).join('\n')}\n`;
+}
+
+// taskId를 생략하면 blueprint 범위 리뷰다(extra에 taskId: undefined를 넘기면 그렇게 된다).
+function execOf(fx, extra = {}) {
+  return classifyExecuteReview({
+    repoRoot: fx.repo, blueprintDir: BP_REL, taskId: '001', base: fx.base, head: fx.head, ...extra,
+  });
+}
+
+// task마다 affected_paths(=Touch 백틱)를 주는 plan fixture. 등급은 이 합집합으로 정해진다.
+function planAffectedRepo(pathsByTask, { complexity, risk, reviewContract } = {}) {
+  const repo = makeRepo();
+  const tasks = Object.keys(pathsByTask);
+  writePlanTree(repo, { complexity, tasks, reviewContract });
+  for (const n of tasks) {
+    const paths = pathsByTask[n];
+    const touchText = paths.map((p) => `- \`${p}\`\n`).join('');
+    writeCommitTask(repo, n, { touchText, affectedPaths: paths, reviewRisk: risk?.[n] });
+  }
+  return repo;
+}
+
+const srcPaths = (prefix, n) => Array.from({ length: n }, (_, i) => `src/${prefix}${i + 1}.ts`);
+const testPaths = (n) => Array.from({ length: n }, (_, i) => `test/t${i + 1}.test.js`);
+const LOW_COMPLEXITY_REASON = 'reviewer tier standard — complexity low (size thresholds skipped) and no risk signal';
+const COMPLEXITY_INVALID = {
+  ok: false, error: 'complexity config invalid', reason: 'complexity-config-invalid', next: 'complexity',
+};
+const MIN_TIER_INVALID = {
+  ok: false, error: 'review config invalid', reason: 'review-min-reviewer-tier-invalid', next: 'review.min_reviewer_tier',
+};
+
+test('execute 2 source files and 6 test files → single combined', () => {
+  const files = { 'src/a.ts': lineText(2), 'src/b.ts': lineText(3) };
+  for (let i = 1; i <= 6; i += 1) files[`test/t${i}.test.js`] = lineText(1);
+  const out = execOf(signalFixture({ files }));
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'single');
+  assert.deepStrictEqual(out.perspectives, ['combined']);
+  assert.strictEqual(out.reasons[0], 'source files 2 <= 2, source lines 5 <= 200, no risk signal');
+});
+
+test('execute 3 source files → parallel with the source-files cause', () => {
+  const files = { 'src/a.ts': lineText(1), 'src/b.ts': lineText(1), 'src/c.ts': lineText(1) };
+  const out = execOf(signalFixture({ files }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: source files 3 > 2');
+});
+
+test('execute 200 source lines in one file → single', () => {
+  const out = execOf(signalFixture({ files: { 'src/a.ts': lineText(200) } }));
+  assert.strictEqual(out.strategy, 'single');
+  assert.strictEqual(out.reasons[0], 'source files 1 <= 2, source lines 200 <= 200, no risk signal');
+});
+
+test('execute 201 source lines in one file → parallel with the source-lines cause', () => {
+  const out = execOf(signalFixture({ files: { 'src/a.ts': lineText(201) } }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: source lines 201 > 200');
+});
+
+test('execute src/commit-guard.ts without review_risk → parallel without security and strong', () => {
+  const out = execOf(signalFixture({ files: { 'src/commit-guard.ts': lineText(1) } }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: risk path src/commit-guard.ts');
+  assert.deepStrictEqual(out.perspectives, ['spec_scope', 'correctness_tests', 'minimality_maintainability']);
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.ok(out.reasons.includes('reviewer tier strong — risk path src/commit-guard.ts'), out.reasons.join('|'));
+});
+
+test('execute src/auth/x.ts without review_risk → parallel with security and strong', () => {
+  const out = execOf(signalFixture({ files: { 'src/auth/x.ts': lineText(1) } }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: risk path src/auth/x.ts');
+  assert.strictEqual(out.reasons[1], 'risk path src/auth/x.ts adds security reviewer');
+  assert.deepStrictEqual(out.perspectives.at(-1), 'security');
+  assert.strictEqual(out.reviewer_tier, 'strong');
+});
+
+test('execute package.json only → parallel without security', () => {
+  const out = execOf(signalFixture({ files: { 'package.json': lineText(1) } }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: risk path package.json');
+  assert.strictEqual(out.reasons[1], 'review_risk empty — no security reviewer');
+  assert.ok(!out.perspectives.includes('security'), out.perspectives.join(','));
+});
+
+test('execute low with src/auth/x.ts → combined and security', () => {
+  const out = execOf(signalFixture({ complexity: 'low', files: { 'src/auth/x.ts': lineText(1) } }));
+  assert.strictEqual(out.strategy, 'single');
+  assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
+  assert.strictEqual(out.reasons[1], 'risk path src/auth/x.ts adds security reviewer');
+  assert.strictEqual(out.reviewer_tier, 'strong');
+});
+
+test('execute generated-only .codex/agents/a.toml → single combined and standard', () => {
+  const out = execOf(signalFixture({ files: { '.codex/agents/a.toml': lineText(1) } }));
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.changed_files, 1);
+  assert.strictEqual(out.strategy, 'single');
+  assert.deepStrictEqual(out.perspectives, ['combined']);
+  assert.strictEqual(out.reasons[0], 'source files 0 <= 2, source lines 0 <= 200, no risk signal');
+  assert.strictEqual(out.reviewer_tier, 'standard');
+});
+
+test('execute scripts/lib/commit-guard.js only → parallel and strong', () => {
+  const out = execOf(signalFixture({ files: { 'scripts/lib/commit-guard.js': lineText(1) } }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: risk path scripts/lib/commit-guard.js');
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.ok(!out.perspectives.includes('security'), out.perspectives.join(','));
+});
+
+test('execute 7 source files → standard tier and 8 source files → strong tier', () => {
+  const seven = {};
+  const eight = {};
+  for (let i = 1; i <= 8; i += 1) {
+    eight[`src/s${i}.ts`] = lineText(1);
+    if (i <= 7) seven[`src/s${i}.ts`] = lineText(1);
+  }
+  const standard = execOf(signalFixture({ files: seven }));
+  assert.strictEqual(standard.reviewer_tier, 'standard');
+  const strong = execOf(signalFixture({ files: eight }));
+  assert.strictEqual(strong.reviewer_tier, 'strong');
+  assert.ok(strong.reasons.includes('reviewer tier strong — source files 8 >= 8'), strong.reasons.join('|'));
+});
+
+test('execute 3 modules with 3 source files → standard tier and 4 modules → strong tier', () => {
+  const three = {};
+  const four = {};
+  for (const p of ['a', 'b', 'c', 'd']) {
+    four[`packages/${p}/x.ts`] = lineText(1);
+    if (p !== 'd') three[`packages/${p}/x.ts`] = lineText(1);
+  }
+  assert.strictEqual(execOf(signalFixture({ files: three })).reviewer_tier, 'standard');
+  const out = execOf(signalFixture({ files: four }));
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.ok(out.reasons.includes('reviewer tier strong — modules 4 >= 4'), out.reasons.join('|'));
+});
+
+test('execute 10 test files only → standard tier and 11 test files → strong tier', () => {
+  const ten = {};
+  const eleven = {};
+  for (let i = 1; i <= 11; i += 1) {
+    eleven[`test/t${i}.test.js`] = lineText(1);
+    if (i <= 10) ten[`test/t${i}.test.js`] = lineText(1);
+  }
+  assert.strictEqual(execOf(signalFixture({ files: ten }), { taskId: undefined }).reviewer_tier, 'standard');
+  const out = execOf(signalFixture({ files: eleven }), { taskId: undefined });
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.ok(out.reasons.includes('reviewer tier strong — total files 11 >= 11'), out.reasons.join('|'));
+});
+
+test('execute low with 8 source files → standard tier and low with src/commit-guard.ts → strong tier', () => {
+  const files = {};
+  for (let i = 1; i <= 8; i += 1) files[`src/s${i}.ts`] = lineText(1);
+  const low = execOf(signalFixture({ complexity: 'low', files }));
+  assert.strictEqual(low.strategy, 'single');
+  assert.strictEqual(low.reviewer_tier, 'standard');
+  const guard = execOf(signalFixture({ complexity: 'low', files: { 'src/commit-guard.ts': lineText(1) } }));
+  assert.strictEqual(guard.reviewer_tier, 'strong');
+});
+
+test('plan one task with 7 source paths → reviewer_tier standard and 8 source paths → strong', () => {
+  const seven = tierPlan(planAffectedRepo({ '001': srcPaths('p', 7) }));
+  assert.strictEqual(seven.reviewer_tier, 'standard');
+  const eight = tierPlan(planAffectedRepo({ '001': srcPaths('p', 8) }));
+  assert.strictEqual(eight.reviewer_tier, 'strong');
+  assert.ok(eight.reasons.includes('reviewer tier strong — source files 8 >= 8'), eight.reasons.join('|'));
+});
+
+test('plan 4 and 4 source paths across two tasks → unions to 8 and reviewer_tier strong', () => {
+  const plan = tierPlan(planAffectedRepo({ '001': srcPaths('a', 4), '002': srcPaths('b', 4) }));
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+});
+
+test('plan three tasks sharing one source path → dedupes the union and stays standard', () => {
+  const plan = tierPlan(planAffectedRepo({ '001': ['src/a.ts'], '002': ['src/a.ts'], '003': ['src/a.ts'] }));
+  assert.strictEqual(plan.reviewer_tier, 'standard');
+});
+
+test('plan affected paths in 3 modules → standard and in 4 modules → strong', () => {
+  const three = tierPlan(planAffectedRepo({ '001': ['packages/a/x.ts', 'packages/b/x.ts', 'packages/c/x.ts'] }));
+  assert.strictEqual(three.reviewer_tier, 'standard');
+  const four = tierPlan(planAffectedRepo({
+    '001': ['packages/a/x.ts', 'packages/b/x.ts', 'packages/c/x.ts', 'packages/d/x.ts'],
+  }));
+  assert.strictEqual(four.reviewer_tier, 'strong');
+  assert.ok(four.reasons.includes('reviewer tier strong — modules 4 >= 4'), four.reasons.join('|'));
+});
+
+test('plan 10 test paths only → standard and 11 test paths → strong', () => {
+  assert.strictEqual(tierPlan(planAffectedRepo({ '001': testPaths(10) })).reviewer_tier, 'standard');
+  const plan = tierPlan(planAffectedRepo({ '001': testPaths(11) }));
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.ok(plan.reasons.includes('reviewer tier strong — total files 11 >= 11'), plan.reasons.join('|'));
+});
+
+test('plan with a src/auth/x.ts affected path → strong and the reason names the risk path', () => {
+  const plan = tierPlan(planAffectedRepo({ '001': ['src/auth/x.ts'] }));
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.ok(plan.reasons.includes('reviewer tier strong — risk path src/auth/x.ts'), plan.reasons.join('|'));
+});
+
+test('plan with complexity low and 8 source paths → reviewer_tier standard', () => {
+  // S38: low 선언은 review_contract brief 표식과 짝이어야 구조 검사를 통과한다.
+  const plan = tierPlan(planAffectedRepo({ '001': srcPaths('p', 8) }, { complexity: 'low', reviewContract: 'brief' }));
+  assert.strictEqual(plan.reviewer_tier, 'standard');
+  assert.ok(plan.reasons.includes(LOW_COMPLEXITY_REASON), plan.reasons.join('|'));
+});
+
+test('plan strategy and task_count with 8 source paths in one task → single combined as before', () => {
+  const plan = tierPlan(planAffectedRepo({ '001': srcPaths('p', 8) }));
+  assert.strictEqual(plan.strategy, 'single');
+  assert.strictEqual(plan.task_count, 1);
+  assert.deepStrictEqual(plan.perspectives, ['combined']);
+});
+
+test('plan with an empty affected_paths → structural S7 failure and no reviewer_tier', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  writeCommitTask(repo, '001', { affectedPaths: [] });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.ok, false);
+  assert.strictEqual(plan.error, 'structural validation failed');
+  assert.ok(plan.failures.some((f) => f.code === 'S7'), JSON.stringify(plan.failures));
+  assert.strictEqual(plan.reviewer_tier, undefined);
+});
+
+test('plan with a non-default policy → the non-default line follows the tier reason', () => {
+  // 등급 사유 바로 뒤에 non-default 줄이 온다. 매핑을 두어 미적용 사유가 끼지 않게 한다.
+  const repo = planAffectedRepo({ '001': srcPaths('p', 3) });
+  writeConfig(repo, { ...STRONG_CLAUDE, complexity: { strong_min_source_files: 3 } });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.reviewer_tier, 'strong');
+  assert.strictEqual(plan.reviewer_tier_applied, true);
+  assert.strictEqual(plan.reasons.at(-2), 'reviewer tier strong — source files 3 >= 3');
+  assert.strictEqual(plan.reasons.at(-1), 'complexity policy non-default: strong_min_source_files=3');
+});
+
+test('plan with the default policy → has no non-default line', () => {
+  const plan = tierPlan(planAffectedRepo({ '001': srcPaths('p', 3) }));
+  assert.ok(!plan.reasons.some((r) => r.startsWith('complexity policy non-default')), plan.reasons.join('|'));
+});
+
+test('plan with a non-default policy and a legacy previous → the non-default line precedes the migration reason', () => {
+  const repo = planAffectedRepo({ '001': srcPaths('p', 3) });
+  writeConfig(repo, { complexity: { strong_min_source_files: 3 } });
+  const v2 = planOf(repo);
+  const legacy = {
+    ok: true, phase: 'plan', strategy: 'single', target: v2.target, parts: v2.parts, scope_parts: v2.scope_parts,
+  };
+  const out = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL, previous: legacy });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.reasons.at(-2), 'complexity policy non-default: strong_min_source_files=3');
+  assert.ok(out.reasons.at(-1).startsWith('legacy-payload-no-content'), out.reasons.join('|'));
+});
+
+test('execute with single_max_source_files 5 and 4 source files → single with the non-default line last', () => {
+  const files = { 'src/a.ts': lineText(1), 'src/b.ts': lineText(1), 'src/c.ts': lineText(1), 'src/d.ts': lineText(1) };
+  const out = execOf(signalFixture({ files, cfg: { complexity: { single_max_source_files: 5 } } }));
+  assert.strictEqual(out.strategy, 'single');
+  assert.strictEqual(out.reasons.at(-1), 'complexity policy non-default: single_max_source_files=5');
+});
+
+test('execute delta with a non-default policy → the non-default line precedes the delta line', () => {
+  const out = execOf(signalFixture({
+    files: { 'src/a.ts': lineText(1) }, cfg: { complexity: { single_max_source_files: 5 } },
+  }), { reviewMode: 'delta' });
+  assert.strictEqual(out.reasons.at(-2), 'complexity policy non-default: single_max_source_files=5');
+  assert.strictEqual(out.reasons.at(-1), 'delta review — single combined reviewer after discovery');
+});
+
+test('execute with a non-default policy and an unmapped strong tier → not-applied reason then non-default line', () => {
+  const out = execOf(signalFixture({
+    files: { 'src/a.ts': lineText(1) }, risk: ['public_interface'], cfg: { complexity: { single_max_source_files: 5 } },
+  }));
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.strictEqual(out.reviewer_tier_applied, false);
+  assert.ok(out.reasons.at(-2).includes('not applied'), out.reasons.join('|'));
+  assert.strictEqual(out.reasons.at(-1), 'complexity policy non-default: single_max_source_files=5');
+});
+
+test('execute with the default policy → has no non-default line', () => {
+  const out = execOf(signalFixture({ files: { 'src/a.ts': lineText(1) } }));
+  assert.ok(!out.reasons.some((r) => r.startsWith('complexity policy non-default')), out.reasons.join('|'));
+});
+
+test('execute with risk_paths in a reordered default list → has no non-default line', () => {
+  const cfg = { complexity: { risk_paths: [...DEFAULT_COMPLEXITY_POLICY.riskPaths].reverse() } };
+  const out = execOf(signalFixture({ files: { 'src/a.ts': lineText(1) }, cfg }));
+  assert.ok(!out.reasons.some((r) => r.startsWith('complexity policy non-default')), out.reasons.join('|'));
+});
+
+test('execute with all seven policy keys changed → the non-default line lists each key in config order', () => {
+  const cfg = {
+    complexity: {
+      single_max_source_files: 5,
+      single_max_source_lines: 300,
+      strong_min_source_files: 9,
+      strong_min_modules: 5,
+      strong_min_total_files: 12,
+      risk_paths: ['src/payments/', 'deploy.sh'],
+      generated_paths: ['gen/'],
+    },
+  };
+  const out = execOf(signalFixture({ files: { 'src/a.ts': lineText(1) }, cfg }));
+  assert.strictEqual(
+    out.reasons.at(-1),
+    'complexity policy non-default: single_max_source_files=5; single_max_source_lines=300; '
+    + 'strong_min_source_files=9; strong_min_modules=5; strong_min_total_files=12; '
+    + 'risk_paths=custom(2); generated_paths=custom(1)',
+  );
+});
+
+test('execute with risk_paths empty → commit-guard diff is single and the line says custom(0)', () => {
+  const out = execOf(signalFixture({
+    files: { 'src/commit-guard.ts': lineText(1) }, cfg: { complexity: { risk_paths: [] } },
+  }));
+  assert.strictEqual(out.strategy, 'single');
+  assert.strictEqual(out.reasons[0], 'source files 1 <= 2, source lines 1 <= 200, no risk signal');
+  assert.strictEqual(out.reasons.at(-1), 'complexity policy non-default: risk_paths=custom(0)');
+});
+
+test('execute with risk_paths src/payments/ → src/payments/a.ts is a risk path', () => {
+  const out = execOf(signalFixture({
+    files: { 'src/payments/a.ts': lineText(1) }, cfg: { complexity: { risk_paths: ['src/payments/'] } },
+  }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: risk path src/payments/a.ts');
+});
+
+test('execute with generated_paths empty → .codex/agents/a.toml counts as a source file', () => {
+  const out = execOf(signalFixture({
+    files: { '.codex/agents/a.toml': lineText(1) }, cfg: { complexity: { generated_paths: [] } },
+  }));
+  assert.strictEqual(out.reasons[0], 'source files 1 <= 2, source lines 1 <= 200, no risk signal');
+});
+
+test('execute with single_max_source_lines 10 → 10 lines is single and 11 lines is parallel', () => {
+  const cfg = { complexity: { single_max_source_lines: 10 } };
+  assert.strictEqual(execOf(signalFixture({ files: { 'src/a.ts': lineText(10) }, cfg })).strategy, 'single');
+  const over = execOf(signalFixture({ files: { 'src/a.ts': lineText(11) }, cfg }));
+  assert.strictEqual(over.strategy, 'parallel');
+  assert.strictEqual(over.reasons[0], 'diff exceeds single thresholds: source lines 11 > 10');
+});
+
+test('execute with single_max_source_files 0 → one source file is parallel', () => {
+  const out = execOf(signalFixture({
+    files: { 'src/a.ts': lineText(1) }, cfg: { complexity: { single_max_source_files: 0 } },
+  }));
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.strictEqual(out.reasons[0], 'diff exceeds single thresholds: source files 1 > 0');
+});
+
+test('execute with strong_min_source_files 3 → 3 source files strong and 2 standard', () => {
+  const cfg = { complexity: { strong_min_source_files: 3 } };
+  const three = execOf(signalFixture({
+    files: { 'src/a.ts': lineText(1), 'src/b.ts': lineText(1), 'src/c.ts': lineText(1) }, cfg,
+  }));
+  assert.strictEqual(three.reviewer_tier, 'strong');
+  const two = execOf(signalFixture({ files: { 'src/a.ts': lineText(1), 'src/b.ts': lineText(1) }, cfg }));
+  assert.strictEqual(two.reviewer_tier, 'standard');
+});
+
+test('execute with strong_min_modules 2 → two modules are strong', () => {
+  const out = execOf(signalFixture({
+    files: { 'packages/a/x.ts': lineText(1), 'packages/b/x.ts': lineText(1) },
+    cfg: { complexity: { strong_min_modules: 2 } },
+  }));
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.ok(out.reasons.includes('reviewer tier strong — modules 2 >= 2'), out.reasons.join('|'));
+});
+
+test('execute with strong_min_total_files 3 → three files are strong', () => {
+  const out = execOf(signalFixture({
+    files: { 'src/a.ts': lineText(1), 'src/b.ts': lineText(1), 'src/c.ts': lineText(1) },
+    cfg: { complexity: { strong_min_total_files: 3 } },
+  }));
+  assert.strictEqual(out.reviewer_tier, 'strong');
+  assert.ok(out.reasons.includes('reviewer tier strong — total files 3 >= 3'), out.reasons.join('|'));
+});
+
+test('complexity single_max_source_files -1 → plan rejects complexity-config-invalid', () => {
+  const repo = planAffectedRepo({ '001': srcPaths('p', 1) });
+  writeConfig(repo, { complexity: { single_max_source_files: -1 } });
+  assert.deepStrictEqual(tierPlan(repo), COMPLEXITY_INVALID);
+});
+
+test('complexity single_max_source_files -1 → execute rejects before git and writes no snapshot', () => {
+  const fx = signalFixture({ files: { 'src/a.ts': lineText(1) }, cfg: { complexity: { single_max_source_files: -1 } } });
+  let gitCalls = 0;
+  const out = execOf(fx, {
+    base: 'no-such-ref',
+    exec: () => {
+      gitCalls += 1;
+      throw new Error('git must not run before the policy check');
+    },
+  });
+  assert.deepStrictEqual(out, COMPLEXITY_INVALID);
+  assert.strictEqual(gitCalls, 0);
+  assert.strictEqual(fs.existsSync(path.join(fx.repo, '.bouncer/runtime/review-snapshots')), false);
+});
+
+test('complexity invalid with review.min_reviewer_tier light → plan and execute reject the min-tier error first', () => {
+  const cfg = { complexity: { single_max_source_files: -1 }, review: { min_reviewer_tier: 'light' } };
+  const repo = planAffectedRepo({ '001': srcPaths('p', 1) });
+  writeConfig(repo, cfg);
+  assert.deepStrictEqual(tierPlan(repo), MIN_TIER_INVALID);
+  const fx = signalFixture({ files: { 'src/a.ts': lineText(1) }, cfg });
+  assert.deepStrictEqual(execOf(fx), MIN_TIER_INVALID);
+});
+
+test('complexity invalid with an invalid review_risk → execute returns the S30 rejection', () => {
+  const fx = signalFixture({
+    files: { 'src/a.ts': lineText(1) }, risk: 'public_interface',
+    cfg: { complexity: { single_max_source_files: -1 } },
+  });
+  const out = execOf(fx);
+  assert.strictEqual(out.ok, false);
+  assert.match(out.error, /S30 review_risk must be an array/);
+});
+
+test('complexity invalid with an invalid review_risk → plan returns the S30 failure', () => {
+  const repo = planAffectedRepo({ '001': ['src/a.ts'] }, { risk: { '001': 'public_interface' } });
+  writeConfig(repo, { complexity: { single_max_source_files: -1 } });
+  const plan = tierPlan(repo);
+  assert.strictEqual(plan.ok, false);
+  assert.ok(plan.failures.some((f) => f.code === 'S30'), JSON.stringify(plan.failures));
+});
+
+test('complexity invalid with a broken previous payload → plan returns the previous rejection first', () => {
+  const repo = planAffectedRepo({ '001': ['src/a.ts'] });
+  writeConfig(repo, { complexity: { single_max_source_files: -1 } });
+  const out = classifyPlanReview({
+    repoRoot: repo, blueprintDir: BP_REL, previous: { ok: true, target: { digest: 'x', documents: [] } },
+  });
+  assert.strictEqual(out.reason, 'previous-payload-invalid');
 });

@@ -24,11 +24,79 @@ type WavesPerSessionResult =
   | { ok: true; cap: number }
   | { ok: false; reason: 'invalid' };
 
+// 복잡도 판정 정책 모양의 정본. complexity-signals.ts는 이 타입을 `import type`으로만 가져오고
+// (컴파일 때 지워진다) 이 파일은 complexity-signals.ts를 가져오지 않아 런타임 순환이 없다. 문턱 다섯과
+// 저장소 고유 위험 경로·생성물 접두를 한 모양으로 묶는다. 타입을 내보내려고 `export =` 대신 이름
+// 목록 `export { ... }`를 쓴다(컴파일 결과의 `require` 소비자에게는 같은 객체다).
+export type ComplexityPolicy = {
+  singleMaxSourceFiles: number;
+  singleMaxSourceLines: number;
+  strongMinSourceFiles: number;
+  strongMinModules: number;
+  strongMinTotalFiles: number;
+  riskPaths: string[];
+  generatedPaths: string[];
+};
+
+type ComplexityPolicyResult =
+  | { ok: true; policy: ComplexityPolicy }
+  | { ok: false; reason: 'invalid' };
+
 // 모델 slug별 100만 토큰당 단가. 계측 비용 계산의 유일한 입력이다.
 type MetricsPricing = Record<string, { input_per_mtok: number; output_per_mtok: number }>;
 type MetricsPricingResult =
   | { ok: true; pricing: MetricsPricing }
   | { ok: false; reason: 'invalid' };
+
+// 저장소 고유 위험 경로의 기본 목록. 일반 위험 규칙(security·manifest·build·migration)과 달리
+// 이 저장소의 게이트·훅 코드를 가리키며, 설정의 `complexity.risk_paths`로 통째로 바꾼다.
+const DEFAULT_RISK_PATHS: readonly string[] = Object.freeze([
+  'commit-guard*',
+  'commit-hook*',
+  'hooks/',
+  'AGENTS.md',
+  'rules/acq-gates.json',
+  'validate-gates*',
+  'coordinator-ledger*',
+  'guards.ts',
+]);
+
+// 생성물 접두(저장소 루트 기준). 이 아래 파일은 크기 수치에서만 빠지고 위험 평가에는 들어간다.
+const DEFAULT_GENERATED_PATHS: readonly string[] = Object.freeze([
+  'scripts/lib/',
+  '.codex/agents/',
+  'packages/cli/dist/',
+]);
+
+// 기본 정책. 소비자(004)가 적용된 값이 기본값과 다른지 이 상수와 비교해 드러낸다.
+const DEFAULT_COMPLEXITY_POLICY: Readonly<ComplexityPolicy> = Object.freeze({
+  singleMaxSourceFiles: 2,
+  singleMaxSourceLines: 200,
+  strongMinSourceFiles: 8,
+  strongMinModules: 4,
+  strongMinTotalFiles: 11,
+  riskPaths: [...DEFAULT_RISK_PATHS],
+  generatedPaths: [...DEFAULT_GENERATED_PATHS],
+});
+
+// 설정 키 → [정책 필드, 최솟값]. 키 집합이 곧 허용 키 목록이라 오타 키를 거절하는 근거도 된다.
+const COMPLEXITY_THRESHOLD_KEYS: ReadonlyArray<
+  readonly [string, 'singleMaxSourceFiles' | 'singleMaxSourceLines' | 'strongMinSourceFiles'
+    | 'strongMinModules' | 'strongMinTotalFiles', number]
+> = [
+  ['single_max_source_files', 'singleMaxSourceFiles', 0],
+  ['single_max_source_lines', 'singleMaxSourceLines', 0],
+  ['strong_min_source_files', 'strongMinSourceFiles', 1],
+  ['strong_min_modules', 'strongMinModules', 1],
+  ['strong_min_total_files', 'strongMinTotalFiles', 1],
+];
+const COMPLEXITY_KEYS = new Set([
+  ...COMPLEXITY_THRESHOLD_KEYS.map(([key]) => key),
+  'risk_paths',
+  'generated_paths',
+]);
+const MAX_PATTERN_LENGTH = 200;
+const MAX_PATTERN_STARS = 3;
 
 // prepare·readyWave가 공유하는 동시 실행 기본값. config 파일·coordinator 키
 // 부재와 같은 답을 내야 모든 호출처가 같은 폭으로 열린다.
@@ -194,6 +262,96 @@ function readCoordinatorPolicy(repoRoot: string): CoordinatorPolicy {
 }
 
 /**
+ * 위험 경로·생성물 패턴 한 항목이 허용 모양인지 본다. 안 맞는 패턴을 조용히 "아무것도 안 맞는
+ * 패턴"으로 두면 운영자는 보호가 켜졌다고 믿으므로, 모양이 틀린 항목은 설정 오류로 거절한다.
+ * 매칭은 정규식 없이 글롭 비교로 하기에 길이·`*` 개수 상한이 최악 비용을 묶는다.
+ *
+ * @param {unknown} value - 배열 항목 원본
+ * @param {boolean} generated - true면 생성물 접두 규칙(`/`로 끝나고 `*` 금지)을 더한다
+ * @returns {boolean} 허용 모양이면 true
+ */
+function isValidComplexityPattern(value: unknown, generated: boolean): boolean {
+  if (typeof value !== 'string' || value === '' || value.length > MAX_PATTERN_LENGTH) return false;
+  if (value !== value.trim()) return false;
+  if (value.split('*').length - 1 > MAX_PATTERN_STARS) return false;
+  if (value.startsWith('/') || value.startsWith('./') || value.includes('\\')) return false;
+  // `*`와 `/`만 있는 값(`*`, `**`, `/`)은 모든 경로에 맞거나 아무 경로에도 안 맞아 의미가 없다.
+  if (/^[*/]+$/.test(value)) return false;
+  const hasSlash = value.includes('/');
+  // `/`가 있는 패턴은 디렉터리 조각 또는 정확 경로 비교라 `*`를 쓸 수 없다.
+  if (hasSlash && value.includes('*')) return false;
+  const body = value.endsWith('/') ? value.slice(0, -1) : value;
+  const segments = body.split('/');
+  if (segments.some((segment) => segment === '' || segment === '..')) return false;
+  if (generated && (!value.endsWith('/') || value.includes('*'))) return false;
+  return true;
+}
+
+/**
+ * 패턴 배열 키를 읽는다. 키 부재는 기본 목록, 명시적 `[]`는 그대로 빈 목록(끄기)이다.
+ *
+ * @param {Record<string, unknown>} complexity - `complexity` 객체
+ * @param {string} key - `risk_paths` 또는 `generated_paths`
+ * @param {readonly string[]} fallback - 키 부재 때의 기본 목록
+ * @param {boolean} generated - 생성물 접두 규칙 여부
+ * @returns {string[] | null} 목록, 배열이 아니거나 항목이 틀리면 null
+ */
+function readPatternList(
+  complexity: Record<string, unknown>,
+  key: string,
+  fallback: readonly string[],
+  generated: boolean,
+): string[] | null {
+  if (!Object.prototype.hasOwnProperty.call(complexity, key)) return [...fallback];
+  const raw = complexity[key];
+  if (!Array.isArray(raw)) return null;
+  if (!raw.every((entry) => isValidComplexityPattern(entry, generated))) return null;
+  return [...raw] as string[];
+}
+
+/**
+ * `.bouncer/config.json`의 `complexity` 블록을 읽어 복잡도 정책을 낸다. 파일·키 부재는 기본
+ * 정책이다. 그 밖의 읽기 오류(JSON 파손, 파일이 디렉터리라 EISDIR 등)와 모양 위반은 invalid이며
+ * 기본값으로 접지 않는다: 접으면 운영자가 좁히거나 넓힌 문턱이 조용히 무시된다. 소비자별 처리
+ * (plan inspect는 기본값으로 계속, review-dispatch는 거절)는 호출부가 정한다.
+ *
+ * @param {string} repoRoot - 정책을 읽을 checkout 루트
+ * @returns {ComplexityPolicyResult} 정책 또는 invalid
+ */
+function readComplexityPolicy(repoRoot: string): ComplexityPolicyResult {
+  const parsed = readConfigResult(repoRoot);
+  if (parsed.ok === false) {
+    if (parsed.reason === 'missing') return { ok: true, policy: { ...DEFAULT_COMPLEXITY_POLICY } };
+    return { ok: false, reason: 'invalid' };
+  }
+  if (!isRecord(parsed.value) || !Object.prototype.hasOwnProperty.call(parsed.value, 'complexity')) {
+    return { ok: true, policy: { ...DEFAULT_COMPLEXITY_POLICY } };
+  }
+  const complexity = parsed.value.complexity;
+  if (!isRecord(complexity)) return { ok: false, reason: 'invalid' };
+  // 오타 키(`single_max_source_file`)는 조용히 기본값이 되기 쉬워 거절한다.
+  if (Object.keys(complexity).some((key) => !COMPLEXITY_KEYS.has(key))) {
+    return { ok: false, reason: 'invalid' };
+  }
+  const policy: ComplexityPolicy = { ...DEFAULT_COMPLEXITY_POLICY };
+  for (const [key, field, min] of COMPLEXITY_THRESHOLD_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(complexity, key)) continue;
+    const value = complexity[key];
+    // 상한은 두지 않는다(큰 값은 "그 신호를 사실상 끈다"는 정당한 선택). 하한과 정수성만 본다.
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < min) {
+      return { ok: false, reason: 'invalid' };
+    }
+    policy[field] = value;
+  }
+  const riskPaths = readPatternList(complexity, 'risk_paths', DEFAULT_RISK_PATHS, false);
+  const generatedPaths = readPatternList(complexity, 'generated_paths', DEFAULT_GENERATED_PATHS, true);
+  if (riskPaths === null || generatedPaths === null) return { ok: false, reason: 'invalid' };
+  policy.riskPaths = riskPaths;
+  policy.generatedPaths = generatedPaths;
+  return { ok: true, policy };
+}
+
+/**
  * `worktree.<key>` 문자열 명령을 읽는 공통 판독기. `setup`과 `baseline`이 형태 규칙을 공유해
  * 두 키가 다른 답을 내지 않게 한다. 형태만 본다 — argv 파싱과 허용 목록 검사는 호출자가
  * command-argv로 한다. config.ts가 command-argv를 가져오면 순환하기 때문이다.
@@ -347,12 +505,16 @@ function readMetricsPricing(repoRoot: string): MetricsPricingResult {
   return { ok: true, pricing };
 }
 
-export = {
+export {
   readMetricsPricing,
   readConfigResult,
   readConfig,
   readVerifyPolicy,
   readCoordinatorPolicy,
+  readComplexityPolicy,
+  DEFAULT_COMPLEXITY_POLICY,
+  DEFAULT_RISK_PATHS,
+  DEFAULT_GENERATED_PATHS,
   readWorktreeSetup,
   readWorktreeBaseline,
   readWavesPerSession,

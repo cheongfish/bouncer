@@ -44,3 +44,15 @@ test('context-review Metrics 문단이 tier·effort 전달을 빠뜨리면 → �
   assert.match(metrics, /reviewer_tier_applied[\s\S]{0,200}--tier <reviewer_tier>/);
   assert.match(metrics, /drive-metrics\.md/);
 });
+
+test('agent-dispatch의 reviewer 두 항목 → --strategy와 --reviewer-tier를 함께 적는다', () => {
+  // 두 reviewer 항목은 "- **" 머리글로 시작한다. 항목 본문 사이에서 다음 항목 머리글까지 잘라 검사한다.
+  const md = read('skills/bouncer-run/references/agent-dispatch.md');
+  for (const heading of ['- **Reviewer, per task.**', '- **Reviewer, final review.**']) {
+    const start = md.indexOf(heading);
+    assert.ok(start >= 0, `${heading} 항목 없음`);
+    const end = md.indexOf('\n- **', start + heading.length);
+    const entry = md.slice(start, end > start ? end : undefined);
+    assert.match(entry, /--strategy[\s\S]{0,200}--reviewer-tier/, heading);
+  }
+});

@@ -18,7 +18,10 @@ export type DriveRecord = {
   tasks: number; decision_kinds: Record<string, number>; scope_revisions: number;
   unexpected_paths: number; overlaps: number; conflicts: { fanin: number };
   repair_waves: { ci: number; review: number };
-  reviewer: { dispatches: number; perspectives: string[]; models: string[] };
+  // strategies·tiers는 새 계산이 항상 채우되 선택이다. 키가 없는 옛 snapshot도 유효한 DriveRecord로 읽어야 해서다.
+  reviewer: {
+    dispatches: number; perspectives: string[]; models: string[]; strategies?: string[]; tiers?: string[];
+  };
   baseline: { command: string; exit: number; accepted: boolean } | null;
   review: DriveRecordReview | null;
   // 새 계산은 항상 채운다. 선택인 이유는 mode·promotion 키가 없는 옛 snapshot 판독 때문이다.
@@ -101,6 +104,10 @@ export function summarizeDriveRecord(ledger: unknown, review: DriveRecordReview 
       dispatches: reviewers.length,
       perspectives: sortedUnique(reviewers.map((d) => d.perspective)),
       models: sortedUnique(reviewers.map((d) => d.model)),
+      // tiers는 payload의 계산된 등급이다. 모델 매핑 적용 여부(reviewer_tier_applied)는 기록하지 않으므로
+      // 매핑이 없어 미적용인 dispatch도 여기서는 계산된 등급으로 센다. 어휘 검증은 기록 단계(coordinate)가 한다.
+      strategies: sortedUnique(reviewers.map((d) => d.strategy)),
+      tiers: sortedUnique(reviewers.map((d) => d.reviewer_tier)),
     },
     baseline: last === null ? null : {
       command: String(last.command), exit: Number(last.exit), accepted: last.accepted === true,
@@ -142,6 +149,11 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === 'string');
 }
 
+// 키가 없으면 옛 snapshot으로 보고 통과시킨다. 키가 있으면 문자열 배열이어야 한다(null·숫자 원소는 손상).
+function isOptionalStringArray(value: unknown): boolean {
+  return value === undefined || isStringArray(value);
+}
+
 function isReviewRecord(value: unknown): boolean {
   if (!isRecord(value) || !(value.contract === null || typeof value.contract === 'string')) return false;
   const m = value.must_fix;
@@ -177,6 +189,7 @@ export function isDriveRecord(value: unknown): value is DriveRecord {
     && isRecord(waves) && isCount(waves.ci) && isCount(waves.review)
     && isRecord(reviewer) && isCount(reviewer.dispatches)
     && isStringArray(reviewer.perspectives) && isStringArray(reviewer.models)
+    && isOptionalStringArray(reviewer.strategies) && isOptionalStringArray(reviewer.tiers)
     && (baseline === null || (isRecord(baseline) && typeof baseline.command === 'string'
       && Number.isSafeInteger(baseline.exit) && typeof baseline.accepted === 'boolean'))
     && (value.review === null || isReviewRecord(value.review));

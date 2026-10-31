@@ -10,6 +10,7 @@ const {
   loadReviewSnapshot,
   checkReviewSnapshotCurrent,
 } = require('../packages/cli/dist/review-snapshot');
+const { canonicalJson } = require('../packages/cli/dist/canonical-json');
 
 // 실제 Git 저장소를 쓰는 integration 테스트다. 기대 값은 fixture에서 직접 만든 내용과
 // 줄 수에서 계산하며 구현의 출력에서 가져오지 않는다.
@@ -473,4 +474,76 @@ test('current-state check → accepts an unchanged tree and rejects edits, new f
 
   git(repo, ['commit', '--allow-empty', '-qm', 'drift']);
   assert.strictEqual(checkReviewSnapshotCurrent(args({ head: base })).reason, 'head-mismatch');
+});
+
+test('file_lines with tracked, staged and untracked files → lists each file\'s added plus deleted lines', () => {
+  const { repo, base } = setup();
+  write(repo, 'committed.txt', 'a\nb\n');
+  git(repo, ['add', 'committed.txt']);
+  git(repo, ['commit', '-qm', 'committed']);
+  write(repo, 'staged.txt', 'x\n');
+  git(repo, ['add', 'staged.txt']);
+  write(repo, 'keep.txt', 'one\nTWO\n');
+  write(repo, 'untracked.txt', 'u1\nu2\nu3\n');
+  const { snapshot } = capture(repo, base);
+  assert.deepStrictEqual(snapshot.file_lines, [
+    { path: 'committed.txt', lines: 2 },
+    { path: 'keep.txt', lines: 2 },
+    { path: 'staged.txt', lines: 1 },
+    { path: 'untracked.txt', lines: 3 },
+  ]);
+  assert.strictEqual(snapshot.file_lines.reduce((sum, f) => sum + f.lines, 0), snapshot.changed_lines);
+  assert.strictEqual(snapshot.changed_lines, 8);
+});
+
+test('file_lines with an untracked binary file → counts the file with 0 lines', () => {
+  const { repo, base } = setup();
+  fs.writeFileSync(path.join(repo, 'b.bin'), Buffer.from([0, 1, 2, 255, 0]));
+  const { snapshot } = capture(repo, base);
+  assert.deepStrictEqual(snapshot.file_lines, [{ path: 'b.bin', lines: 0 }]);
+  assert.strictEqual(snapshot.changed_lines, 0);
+  assert.strictEqual(snapshot.changed_files, 1);
+});
+
+test(
+  'file_lines with a deleted tracked file and an untracked symlink → counts deleted lines and 0 for the link',
+  { skip: process.platform === 'win32' },
+  () => {
+    const repo = makeRepo();
+    write(repo, 'a.txt', 'a\n');
+    write(repo, 'd.txt', '1\n2\n3\n4\n');
+    git(repo, ['add', '-A']);
+    git(repo, ['commit', '-qm', 'add d']);
+    const base = git(repo, ['rev-parse', 'HEAD']);
+    fs.rmSync(path.join(repo, 'd.txt'));
+    fs.symlinkSync('a.txt', path.join(repo, 'e.lnk'));
+    const { snapshot } = capture(repo, base);
+    assert.deepStrictEqual(snapshot.file_lines, [{ path: 'd.txt', lines: 4 }, { path: 'e.lnk', lines: 0 }]);
+    assert.strictEqual(snapshot.file_lines.reduce((sum, f) => sum + f.lines, 0), snapshot.changed_lines);
+    assert.strictEqual(snapshot.changed_lines, 4);
+  },
+);
+
+test('file_lines → follows the files order', () => {
+  const { repo, base } = setup();
+  write(repo, 'z.txt', 'z\n');
+  write(repo, 'a.txt', 'a\n');
+  write(repo, 'm/n.txt', 'n\n');
+  const { snapshot } = capture(repo, base);
+  assert.deepStrictEqual(snapshot.file_lines.map((f) => f.path), snapshot.files.map((f) => f.path));
+});
+
+test('stored snapshot without file_lines → still loads through the stored path', () => {
+  const { repo, base } = setup();
+  const { snapshot } = capture(repo, base);
+  // 손으로 만든 옛 snapshot: file_lines 필드가 없다. 저장은 canonical JSON이면 되고 id는 그 해시다.
+  const old = { ...snapshot };
+  delete old.file_lines;
+  const id = require('node:crypto').createHash('sha256').update(canonicalJson(old)).digest('hex');
+  const dir = path.join(repo, '.bouncer/runtime/review-snapshots', id);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'snapshot.json'), `${canonicalJson(old)}\n`);
+  const loaded = loadReviewSnapshot({ repoRoot: repo, snapshotId: id });
+  assert.strictEqual(loaded.ok, true, JSON.stringify(loaded));
+  assert.strictEqual(loaded.snapshot.file_lines, undefined);
 });

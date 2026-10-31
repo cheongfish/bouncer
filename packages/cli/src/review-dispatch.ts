@@ -37,20 +37,18 @@ const { captureReviewSnapshot } = reviewSnapshot;
 import subagents = require('./subagents');
 const { resolveSubagentDispatch, resolveSubagentRole } = subagents;
 import config = require('./config');
-const { readConfig } = config;
+const { readConfig, readComplexityPolicy, DEFAULT_COMPLEXITY_POLICY } = config;
+import complexitySignals = require('./complexity-signals');
+const { computeComplexitySignals, singleVerdict, strongCauses } = complexitySignals;
 
-// Execute 경계값은 한 모듈에만 둔다. CLI와 workflow가 서로 다른 상수를
-// 복제하면 single/parallel 판정이 갈라진다. Plan은 항상 single이라 경계값이 없다.
-const EXECUTE_SMALL_MAX_FILES = 3;
-const EXECUTE_SMALL_MAX_LINES = 200;
+// 문턱(단일 크기·강한 등급)과 저장소 위험 경로는 config의 정책 한 곳에서만 읽는다. 여기서 같은
+// 숫자를 복제하면 plan·execute·plan inspect가 서로 다른 답을 낸다.
+type ComplexityPolicy = config.ComplexityPolicy;
+type SignalFile = complexitySignals.SignalFile;
 
 // S30과 같은 허용 목록(review-policy 정본). validate-structural이 먼저 거절하지만
 // Execute 경로는 구조 게이트 없이 이 필드를 읽으므로 여기서도 동일 enum으로 막는다.
 const { REVIEW_RISK_ENUM } = reviewPolicy;
-
-// 리뷰어 등급 임계: 리뷰 범위의 commit task가 이 수 이상이면 strong 리뷰어를 쓴다.
-// 규모 기준을 한 곳에 두어 plan과 execute가 서로 다른 경계를 갖지 않게 한다.
-const REVIEWER_STRONG_MIN_TASKS = 3;
 
 // 브리프 이행 최종 리뷰가 security 관점을 붙이는 위험 집합. public_interface는 브리프
 // 이행 판정(spec_scope·correctness_tests)이 이미 다루므로 여기에 넣지 않는다.
@@ -153,6 +151,8 @@ type CommitTaskSignals = {
   number: string;
   interfaceKeys: string[];
   touchPaths: string[];
+  // frontmatter `bouncer.affected_paths`의 문자열 항목. plan 등급의 파일 신호 입력이다.
+  affectedPaths: string[];
 };
 
 /**
@@ -193,6 +193,8 @@ function signalsFromBody(number: string, body: string): CommitTaskSignals {
     number,
     interfaceKeys: extractBacktickKeys(interfaceText),
     touchPaths: extractPathCandidates(touchText),
+    // 본문에는 affected_paths가 없다(frontmatter 값). 빈 목록은 "본문만으로는 모름"이며, 호출부가 채운다.
+    affectedPaths: [],
   };
 }
 
@@ -709,15 +711,28 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
   if (!commitTasks.ok) return commitTasks;
 
   const taskCount = commitTasks.tasks.length;
-  // 등급은 모든 commit task의 review_risk 합집합과 task 수로 정한다. S30 위반은 축소하지 않고
-  // 그대로 돌려준다. skip 경로가 없어 모든 성공 payload에 reviewer가 있다.
+  // 등급은 모든 commit task의 review_risk 합집합과 affected_paths 합집합으로 정한다. S30 위반은
+  // 축소하지 않고 그대로 돌려준다. skip 경로가 없어 모든 성공 payload에 reviewer가 있다.
   const planRisk = unionCommitReviewRisk({ repoRoot, blueprintDir: bp });
   if (!planRisk.ok) return planRisk;
+  // 설정 검사는 신호 계산보다 먼저 한다. 잘못된 설정으로 낸 등급은 근거가 없으므로 거절이 이긴다.
+  const minTier = readReviewMinTier(repoRoot);
+  if (!minTier.ok) return minTier;
+  const policy = readComplexityPolicy(repoRoot);
+  if (!policy.ok) return complexityConfigFail();
+  // plan은 파일 줄 수를 모른다(affected_paths만 있다). 그래서 파일 수·모듈·위험 조건만 보고
+  // 줄 조건은 쓰지 않는다. 같은 경로가 여러 task에 있으면 한 번만 센다.
+  const planPaths = [...new Set(commitTasks.tasks.flatMap((task) => task.affectedPaths))].sort();
+  const planSignals = computeComplexitySignals({
+    files: planPaths.map((path) => ({ path })), policy: policy.policy,
+  });
   const planTier = decideReviewerTier({
     repoRoot, agentName: 'bouncer-context-reviewer', baseDispatch: agentDispatch,
-    taskCount, riskFlags: planRisk.flags, complexity,
+    causes: strongCauses(planSignals, policy.policy, { riskFlags: planRisk.flags, complexity }),
+    min: minTier.min, complexity,
   });
-  if (!planTier.ok) return planTier;
+  const policyNote = describeNonDefaultPolicy(policy.policy);
+  const policyReasons = policyNote === null ? [] : [policyNote];
   // 모든 full 최초 계획 리뷰는 task 수와 무관하게 single combined reviewer 한 명이 읽는다.
   // clustered(local+global) 다중 호출은 비용 대비 효과가 낮아 신규 dispatch에서 제거했다 —
   // 과거 clustered payload는 checkPreviousShape·loadDispatch가 읽기 호환으로 계속 받는다.
@@ -750,6 +765,7 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
       reasons: [
         `review_contract brief — ${perspectives.join(', ')} plan review perspectives`,
         ...planTier.reasons,
+        ...policyReasons,
         ...migrationReasons,
       ],
       ...reviewFields,
@@ -769,6 +785,7 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous, deps }: {
     reasons: [
       `commit task count ${taskCount} — single combined reviewer (every full plan review is single)`,
       ...planTier.reasons,
+      ...policyReasons,
       ...migrationReasons,
     ],
     ...reviewFields,
@@ -898,16 +915,12 @@ function classifyExecuteReview({
   }
   if (!risk.ok) return risk;
 
-  // task 범위 리뷰는 task 하나, blueprint 범위 리뷰는 blueprint의 commit task 수로 규모를 본다.
-  // 위험은 위에서 구한 risk.flags(task 범위는 그 task, blueprint 범위는 합집합)를 그대로 쓴다.
-  const tier = decideReviewerTier({
-    repoRoot, agentName: 'bouncer-reviewer',
-    baseDispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
-    taskCount: targetTask === null ? countCommitTasks(repoRoot, bp) : 1,
-    riskFlags: risk.flags,
-    complexity,
-  });
-  if (!tier.ok) return tier;
+  // 설정 검사는 git 호출과 snapshot 수집보다 먼저 한다. 거절이면 git을 부르지 않고 snapshot 디렉터리도
+  // 만들지 않는다. min 검사가 complexity 검사보다 앞서는 순서는 brief 계약이다.
+  const minTier = readReviewMinTier(repoRoot);
+  if (!minTier.ok) return minTier;
+  const policy = readComplexityPolicy(repoRoot);
+  if (!policy.ok) return complexityConfigFail();
 
   let resolvedBase: string;
   let resolvedHead: string;
@@ -945,6 +958,16 @@ function classifyExecuteReview({
     snapshot_path: captured.snapshot_path,
   };
 
+  // 신호는 동결한 snapshot의 파일·줄 수에서만 만든다. 분류 입력과 리뷰어 입력이 같은 artifact에서
+  // 나와야 "분류는 작다, 리뷰어는 크다"처럼 갈라지지 않는다. 등급도 같은 신호로 정한다.
+  const signals = computeComplexitySignals({ files: signalFilesOf(stats), policy: policy.policy });
+  const tier = decideReviewerTier({
+    repoRoot, agentName: 'bouncer-reviewer',
+    baseDispatch: resolveSubagentDispatch({ repoRoot, agentName: 'bouncer-reviewer' }),
+    causes: strongCauses(signals, policy.policy, { riskFlags: risk.flags, complexity }),
+    min: minTier.min, complexity,
+  });
+
   // 계약별 계산 분리: snapshot·stats·risk는 위에서 공통으로 만들었고, 아래는 선택된 계약의
   // 전략·관점·reasons만 계산한다. legacy 값을 먼저 만들고 brief로 덮어쓰면 두 계약의 규칙이
   // 한 변수에 섞여 어느 쪽이 최종인지 읽기 어렵다.
@@ -963,34 +986,44 @@ function classifyExecuteReview({
         : 'review_risk has no authentication/authorization/credential — no security reviewer',
     );
   } else {
-    const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
-      && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
-    const lowComplexity = complexity === 'low';
-    // low는 크기 임계를 건너뛴다. standard만 EXECUTE_SMALL_*로 single/parallel을 고른다.
-    const single = lowComplexity || small;
+    // low는 선언이 크기 판정을 대신한다: 크기·위험과 무관하게 single이다. standard만 singleVerdict로
+    // 소스 파일·소스 줄·위험 신호를 본다.
+    let single: boolean;
+    if (complexity === 'low') {
+      single = true;
+      reasons.push('blueprint complexity is low — single combined reviewer regardless of diff size');
+    } else {
+      const verdict = singleVerdict(signals, policy.policy, risk.flags);
+      single = verdict.single;
+      reasons.push(verdict.single
+        ? verdict.reasons[0]
+        : `diff exceeds single thresholds: ${verdict.reasons.join('; ')}`);
+    }
     strategy = single ? 'single' : 'parallel';
     perspectives = single
       ? ['combined']
       : ['spec_scope', 'correctness_tests', 'minimality_maintainability'];
-    if (risk.flags.length > 0) perspectives.push('security');
-    reasons.push(
-      lowComplexity
-        ? 'blueprint complexity is low — single combined reviewer regardless of diff size'
-        : small
-          ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
-            + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
-          : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
-      risk.flags.length > 0
-        ? `review_risk ${risk.flags.join(',')} adds security reviewer`
-        : 'review_risk empty — no security reviewer',
-    );
+    // security는 review_risk가 있거나 security 종류 위험 경로가 있을 때만 붙는다. manifest·build·
+    // migration·repo 경로는 등급(strong)과 전략(parallel)만 올리고 security 관점은 붙이지 않는다.
+    const securityPath = signals.riskPaths.find((hit) => hit.kind === 'security');
+    if (risk.flags.length > 0 || securityPath !== undefined) perspectives.push('security');
+    reasons.push(risk.flags.length > 0
+      ? `review_risk ${risk.flags.join(',')} adds security reviewer`
+      : securityPath !== undefined
+        ? `risk path ${securityPath.path} adds security reviewer`
+        : 'review_risk empty — no security reviewer');
   }
+
+  // 등급 사유 뒤에 non-default 줄을 둔다. 기본 문턱이 아닌 결과를 payload만 보고 설명하게 하려는 것이다.
+  reasons.push(...tier.reasons);
+  const policyNote = describeNonDefaultPolicy(policy.policy);
+  if (policyNote !== null) reasons.push(policyNote);
 
   // delta는 risk_flags·diff 통계를 discovery와 같게 두고 reviewer만 combined로
   // 접는다. security를 다시 붙이면 repair 뒤 토큰 절감 목적이 무너진다.
   if (reviewMode === 'delta') {
-    // 등급 근거를 delta 안내보다 앞에 두어 delta 줄이 계속 마지막 reason이 되게 한다.
-    reasons.push(...tier.reasons, 'delta review — single combined reviewer after discovery');
+    // delta 안내는 항상 마지막 reason이다.
+    reasons.push('delta review — single combined reviewer after discovery');
     return {
       ok: true,
       phase: 'execute',
@@ -1007,7 +1040,6 @@ function classifyExecuteReview({
     };
   }
 
-  reasons.push(...tier.reasons);
   return {
     ok: true,
     phase: 'execute',
@@ -1025,43 +1057,145 @@ function classifyExecuteReview({
 }
 
 /**
- * 리뷰 범위의 규모와 위험으로 리뷰어 등급을 계산한다. 규칙은 한 곳에만 둔다:
- * commit task 수가 `REVIEWER_STRONG_MIN_TASKS` 이상이거나 review_risk가 비어 있지 않으면
- * strong, 아니면 standard. 사용자는 `review.min_reviewer_tier`로 하한만 올릴 수 있고
- * 작성자 frontmatter에서 등급을 지정하는 경로는 없다(작성자가 자기 리뷰 강도를 낮추지 못하게).
+ * `review.min_reviewer_tier`를 읽어 하한만 낸다. plan·execute가 신호 계산과 snapshot 수집보다 먼저
+ * 부르는 단일 검증 지점이다. 등급 계산(decideReviewerTier)은 검증을 다시 하지 않는다.
+ * 값이 standard/strong이 아니면(light·오타·비문자열) 하한이 조용히 무시되어 약한 리뷰가 나가지 않도록
+ * 성공 payload 없이 거절한다. 부재만 하한 없음(null)이다.
  *
- * @param {{ taskCount: number, riskFlags: string[], min: ReviewerTier | null }} opts
- *   - taskCount: 리뷰 범위의 commit task 수
- *   - riskFlags: 범위의 review_risk 합집합(plan은 모든 commit task, execute는 risk.flags)
+ * @param {string} repoRoot - 설정을 읽을 저장소 루트
+ * @returns {{ ok: true, min: ReviewerTier | null } | DispatchFail} 하한, 또는 설정 오류
+ *   (`review-min-reviewer-tier-invalid`)
+ */
+function readReviewMinTier(repoRoot: string): { ok: true; min: ReviewerTier | null } | DispatchFail {
+  const cfg = readConfig(repoRoot) ?? {};
+  const review = isRecord(cfg) ? cfg.review : undefined;
+  const rawMin = isRecord(review) ? review.min_reviewer_tier : undefined;
+  if (rawMin !== undefined && rawMin !== 'standard' && rawMin !== 'strong') {
+    return {
+      ok: false,
+      error: 'review config invalid',
+      reason: 'review-min-reviewer-tier-invalid',
+      next: 'review.min_reviewer_tier',
+    };
+  }
+  return { ok: true, min: rawMin === undefined ? null : rawMin };
+}
+
+/**
+ * `complexity` 블록이 무효일 때의 거절이다. 호출부는 git 호출과 snapshot 수집보다 먼저 부른다.
+ * 기본값으로 접으면 운영자가 좁힌 문턱이 조용히 무시되므로 거절한다.
+ *
+ * @returns {DispatchFail} 매번 새 객체를 돌려준다. 호출자가 결과를 고쳐도 다른 호출에 번지지 않게 한다
+ */
+function complexityConfigFail(): DispatchFail {
+  return {
+    ok: false,
+    error: 'complexity config invalid',
+    reason: 'complexity-config-invalid',
+    next: 'complexity',
+  };
+}
+
+/**
+ * 적용된 정책이 기본값과 다르면 reasons에 실을 한 줄을 만든다. 결과가 기본 문턱으로 나온 것인지
+ * payload만 보고 알 수 있게 하려는 것이다. 위험 경로·생성물 목록은 내용이 아니라 개수만 싣는다
+ * (목록 전체는 설정 파일에 있다). 순서만 다른 목록은 기본과 같은 것으로 본다.
+ *
+ * @param {ComplexityPolicy} policy - 적용된 정책
+ * @returns {string | null} `complexity policy non-default: key=value; ...`, 모두 기본값이면 null
+ */
+function describeNonDefaultPolicy(policy: ComplexityPolicy): string | null {
+  const defaults = DEFAULT_COMPLEXITY_POLICY;
+  const parts: string[] = [];
+  // 설정 키 순서대로 싣는다. 사람이 설정 파일과 줄을 나란히 읽을 때 같은 순서가 편하다.
+  if (policy.singleMaxSourceFiles !== defaults.singleMaxSourceFiles) {
+    parts.push(`single_max_source_files=${policy.singleMaxSourceFiles}`);
+  }
+  if (policy.singleMaxSourceLines !== defaults.singleMaxSourceLines) {
+    parts.push(`single_max_source_lines=${policy.singleMaxSourceLines}`);
+  }
+  if (policy.strongMinSourceFiles !== defaults.strongMinSourceFiles) {
+    parts.push(`strong_min_source_files=${policy.strongMinSourceFiles}`);
+  }
+  if (policy.strongMinModules !== defaults.strongMinModules) {
+    parts.push(`strong_min_modules=${policy.strongMinModules}`);
+  }
+  if (policy.strongMinTotalFiles !== defaults.strongMinTotalFiles) {
+    parts.push(`strong_min_total_files=${policy.strongMinTotalFiles}`);
+  }
+  if (!sameAsDefaultList(policy.riskPaths, defaults.riskPaths)) {
+    parts.push(`risk_paths=custom(${policy.riskPaths.length})`);
+  }
+  if (!sameAsDefaultList(policy.generatedPaths, defaults.generatedPaths)) {
+    parts.push(`generated_paths=custom(${policy.generatedPaths.length})`);
+  }
+  return parts.length === 0 ? null : `complexity policy non-default: ${parts.join('; ')}`;
+}
+
+/**
+ * 두 패턴 목록이 순서와 무관하게 같은 원소를 가지는지 본다. 위험 경로의 판정은 순서에 의존하지 않으므로
+ * 순서만 바뀐 목록을 non-default로 보고하면 실제로 다르지 않은 설정을 경고하게 된다.
+ *
+ * @param {readonly string[]} value - 적용된 목록
+ * @param {readonly string[]} fallback - 기본 목록
+ * @returns {boolean} 정렬했을 때 같으면 true
+ */
+function sameAsDefaultList(value: readonly string[], fallback: readonly string[]): boolean {
+  const left = [...value].sort();
+  const right = [...fallback].sort();
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+/**
+ * 동결 snapshot의 파일 목록과 파일별 줄 수로 신호 입력을 만든다. 줄 수 항목이 없는 파일은 `lines`
+ * 키를 생략해 "알 수 없음"으로 둔다. 0으로 채우면 줄 수를 모르는 변경이 single로 새어 나가므로
+ * complexity-signals가 unknown으로 판정하게 한다.
+ *
+ * @param {{ files: Array<{ path: string }>, file_lines?: Array<{ path: string, lines: number }> }} stats
+ *   - 동결 snapshot. file_lines는 이 필드가 생기기 전에 저장된 snapshot에는 없을 수 있다
+ * @returns {SignalFile[]} files 순서를 따른 신호 입력
+ */
+function signalFilesOf(stats: {
+  files: Array<{ path: string }>;
+  file_lines?: Array<{ path: string; lines: number }>;
+}): SignalFile[] {
+  const linesByPath = new Map((stats.file_lines ?? []).map((entry) => [entry.path, entry.lines]));
+  return stats.files.map((file) => {
+    const lines = linesByPath.get(file.path);
+    return lines === undefined ? { path: file.path } : { path: file.path, lines };
+  });
+}
+
+/**
+ * 리뷰어 등급의 근거 목록으로 등급과 reasons 한 줄을 정한다. 근거(causes)는 `strongCauses`가 만든다:
+ * review_risk, 위험 경로, 크기 문턱. 하나라도 있으면 strong이다. `min`이 strong이면 근거에 하한을
+ * 한 줄 더한다. 작성자 frontmatter로 등급을 지정하는 경로는 없다(작성자가 자기 리뷰 강도를 낮추지 못하게).
+ * `complexity: low`는 크기 근거를 `strongCauses`가 이미 건너뛰므로 여기서는 standard 문구만 다르다.
+ *
+ * @param {{ causes: string[], min: ReviewerTier | null, complexity?: 'low' | 'standard' }} opts
+ *   - causes: strongCauses 결과. 비어 있으면 strong 근거가 없다
  *   - min: `review.min_reviewer_tier` 하한. 없으면 null
+ *   - complexity: 선언된 복잡도. standard 사유 문구를 고른다
  * @returns {{ tier: ReviewerTier, reason: string }} 등급과 reasons에 실을 근거 한 줄
  */
-function computeReviewerTier({ taskCount, riskFlags, min, complexity }: {
-  taskCount: number;
-  riskFlags: string[];
+function computeReviewerTier({ causes, min, complexity }: {
+  causes: string[];
   min: ReviewerTier | null;
   complexity?: 'low' | 'standard';
 }): { tier: ReviewerTier; reason: string } {
-  const causes: string[] = [];
-  // low는 task 수 문턱을 평가하지 않는다. standard 결과 문자열은 한 글자도 바꾸지 않는다.
-  if (complexity !== 'low' && taskCount >= REVIEWER_STRONG_MIN_TASKS) {
-    causes.push(`commit task count ${taskCount} >= ${REVIEWER_STRONG_MIN_TASKS}`);
-  }
-  if (riskFlags.length > 0) causes.push(`review_risk ${riskFlags.join(',')}`);
-  if (min === 'strong') causes.push('review.min_reviewer_tier strong');
-  if (causes.length > 0) {
-    return { tier: 'strong', reason: `reviewer tier strong — ${causes.join('; ')}` };
+  const all = min === 'strong' ? [...causes, 'review.min_reviewer_tier strong'] : causes;
+  if (all.length > 0) {
+    return { tier: 'strong', reason: `reviewer tier strong — ${all.join('; ')}` };
   }
   if (complexity === 'low') {
     return {
       tier: 'standard',
-      reason: 'reviewer tier standard — complexity low (no task-count threshold) and review_risk empty',
+      reason: 'reviewer tier standard — complexity low (size thresholds skipped) and no risk signal',
     };
   }
   return {
     tier: 'standard',
-    reason: `reviewer tier standard — commit task count ${taskCount} < ${REVIEWER_STRONG_MIN_TASKS}`
-      + ' and review_risk empty',
+    reason: 'reviewer tier standard — no review_risk, risk path, or size trigger',
   };
 }
 
@@ -1113,41 +1247,27 @@ function applyReviewerTier({ repoRoot, agentName, baseDispatch, tier }: {
 }
 
 /**
- * `review.min_reviewer_tier`를 읽어 등급 계산·적용을 한 번에 한다. reviewer가 있는 경로만 부른다.
- * 값이 standard/strong이 아니면(light·오타·비문자열) 하한이 조용히 무시되어 약한 리뷰가
- * 나가지 않도록 성공 payload 없이 거절한다.
+ * 등급 근거로 등급을 정하고 `agent_dispatch`에 적용한다. 설정 검증은 하지 않는다: 호출부가
+ * `readReviewMinTier`로 min을 먼저 검사해 넘긴다. 검증을 여기 다시 두면 plan과 execute의 거절 순서가
+ * 갈라진다.
  *
  * @param {{ repoRoot: string, agentName: string, baseDispatch: AgentDispatch,
- *   taskCount: number, riskFlags: string[] }} opts
- * @returns {DispatchFail | { ok: true, agent_dispatch, reviewer_tier, reviewer_tier_applied, reasons }}
- *   설정 오류면 `review-min-reviewer-tier-invalid`. 성공의 reasons는 등급 근거 한 줄이고,
- *   strong 미적용이면 미적용 사유 한 줄이 뒤에 붙는다
+ *   causes: string[], min: ReviewerTier | null, complexity?: 'low' | 'standard' }} opts
+ * @returns {{ ok: true, agent_dispatch, reviewer_tier, reviewer_tier_applied, reasons }}
+ *   성공의 reasons는 등급 근거 한 줄이고, strong 미적용이면 미적용 사유 한 줄이 뒤에 붙는다
  */
-function decideReviewerTier({ repoRoot, agentName, baseDispatch, taskCount, riskFlags, complexity }: {
+function decideReviewerTier({ repoRoot, agentName, baseDispatch, causes, min, complexity }: {
   repoRoot: string;
   agentName: string;
   baseDispatch: AgentDispatch;
-  taskCount: number;
-  riskFlags: string[];
+  causes: string[];
+  min: ReviewerTier | null;
   complexity?: 'low' | 'standard';
-}): DispatchFail | {
+}): {
   ok: true; agent_dispatch: AgentDispatch; reviewer_tier: ReviewerTier;
   reviewer_tier_applied: boolean; reasons: string[];
 } {
-  const cfg = readConfig(repoRoot) ?? {};
-  const review = isRecord(cfg) ? cfg.review : undefined;
-  const rawMin = isRecord(review) ? review.min_reviewer_tier : undefined;
-  if (rawMin !== undefined && rawMin !== 'standard' && rawMin !== 'strong') {
-    return {
-      ok: false,
-      error: 'review config invalid',
-      reason: 'review-min-reviewer-tier-invalid',
-      next: 'review.min_reviewer_tier',
-    };
-  }
-  const { tier, reason } = computeReviewerTier({
-    taskCount, riskFlags, min: rawMin === undefined ? null : rawMin, complexity,
-  });
+  const { tier, reason } = computeReviewerTier({ causes, min, complexity });
   const applied = applyReviewerTier({ repoRoot, agentName, baseDispatch, tier });
   return {
     ok: true,
@@ -1248,9 +1368,15 @@ function loadCommitTaskSignals({ repoRoot, blueprintDir }: {
     const number = entry.number != null
       ? String(entry.number).padStart(3, '0')
       : (entry.id || '').replace(/^TASKS-/, '');
+    // affected_paths는 frontmatter에서 읽는다. 문자열 항목만 쓴다: 형태 검사(S7)가 배열 모양을 보고,
+    // 항목이 문자열이 아니면 등급 입력에서 뺀다.
+    const affected = (data as { bouncer?: { affected_paths?: unknown } }).bouncer?.affected_paths;
     tasks.push({
       ...signalsFromBody(number, body),
       id: entry.id || `TASKS-${number}`,
+      affectedPaths: Array.isArray(affected)
+        ? affected.filter((item): item is string => typeof item === 'string')
+        : [],
     });
   }
   return { ok: true, tasks };
@@ -1339,23 +1465,6 @@ function buildClusters(tasks: CommitTaskSignals[]): PlanCluster[] {
 }
 
 /**
- * commit task 개수만 센다.
- *
- * @param {string} repoRoot - 저장소 루트
- * @param {string} blueprintDir - blueprint 상대 경로
- * @returns {number} verification을 제외한 commit task 수
- */
-function countCommitTasks(repoRoot: string, blueprintDir: string): number {
-  const listing = listTasksDocs({ repoRoot, blueprintDir });
-  let count = 0;
-  for (const entry of listing.entries) {
-    if (entry.executionKind === 'verification') continue;
-    count += 1;
-  }
-  return count;
-}
-
-/**
  * `--task` 값을 세 자리 숫자로 정규화한다.
  *
  * @param {string} taskId - `001` 또는 `TASKS-001`
@@ -1415,8 +1524,6 @@ function gitRevParse(exec: ExecFileSyncFn, repoRoot: string, ref: string): strin
 }
 
 export = {
-  EXECUTE_SMALL_MAX_FILES,
-  EXECUTE_SMALL_MAX_LINES,
   REVIEW_RISK_ENUM,
   classifyPlanReview,
   classifyExecuteReview,

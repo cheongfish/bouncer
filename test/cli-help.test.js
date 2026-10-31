@@ -426,6 +426,9 @@ test('config --help/-h → subagents 키를 stdout에 출력하고 다른 argv�
       'model_tiers.<provider>.<tier>', 'roles.<agent>.tier', 'roles.<agent>.effort',
       'strong | standard | light', 'low | medium | high',
       'review.min_reviewer_tier', 'standard | strong', 'review-min-reviewer-tier-invalid',
+      'complexity.single_max_source_files', 'complexity.single_max_source_lines',
+      'complexity.strong_min_source_files', 'complexity.strong_min_modules', 'complexity.strong_min_total_files',
+      'complexity.risk_paths', 'complexity.generated_paths',
       'claude', 'cursor', 'codex', 'antigravity', 'print', 'inherit', ...NAMED_AGENTS]) {
       assert.ok(r.out.includes(v), v);
     }
@@ -489,4 +492,21 @@ test('coordinate revise --help → documents the Do not touch release flag and i
   assert.match(r.out, /--release-do-not-touch <p>/);
   assert.match(r.out, /scope-do-not-touch-conflict/);
   assert.match(r.out, /release-do-not-touch-unknown/);
+});
+
+test('coordinate worker-model --help → lists both review flags and says reviewer-only', () => {
+  const r = capture(['coordinate', 'worker-model', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /--strategy <single\|parallel>/);
+  assert.match(r.out, /--reviewer-tier <standard\|strong>/);
+  // "--perspective is reviewer-only." 는 기존 문장이라 /reviewer-only/ 만으로는 두 review 플래그의
+  // reviewer 전용 설명이 빠져도 통과한다. 새 문장을 직접 묶어 그 설명이 사라지면 실패하게 한다.
+  assert.match(r.out, /--strategy and --reviewer-tier are reviewer-only/);
+});
+
+test('coordinate worker-tokens --help → does not list the review flags', () => {
+  const r = capture(['coordinate', 'worker-tokens', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.doesNotMatch(r.out, /--strategy/);
+  assert.doesNotMatch(r.out, /--reviewer-tier/);
 });

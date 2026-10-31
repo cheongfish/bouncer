@@ -5311,6 +5311,103 @@ test('worker-model implementer with tokens 48200 → records tokens on the decis
   assert.ok(!('tokens' in bare.decision));
 });
 
+test('worker-model with strategy and reviewer tier → records both keys on the ledger', () => {
+  const drive = preparedCommitDrive('bouncer-worker-model-signals-', MODEL_BP);
+  const r = workerModelCall(drive, { role: 'reviewer', model: 'm', strategy: 'parallel', reviewerTier: 'strong' });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.decision, {
+    kind: 'worker-model', role: 'reviewer', model: 'm', strategy: 'parallel', reviewer_tier: 'strong',
+  });
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.decisions.pop(), r.decision);
+  // 두 플래그는 서로 독립이다. 한 쪽만 주면 다른 키는 쓰지 않는다.
+  const onlyStrategy = workerModelCall(drive, { role: 'reviewer', model: 'm', strategy: 'single' });
+  assert.strictEqual(onlyStrategy.ok, true, JSON.stringify(onlyStrategy));
+  assert.strictEqual(onlyStrategy.decision.strategy, 'single');
+  assert.ok(!('reviewer_tier' in onlyStrategy.decision));
+  const onlyTier = workerModelCall(drive, { role: 'reviewer', model: 'm', reviewerTier: 'standard' });
+  assert.strictEqual(onlyTier.ok, true, JSON.stringify(onlyTier));
+  assert.strictEqual(onlyTier.decision.reviewer_tier, 'standard');
+  assert.ok(!('strategy' in onlyTier.decision));
+  // 두 플래그가 없는 호출은 기존 결정 모양 그대로다.
+  const bare = workerModelCall(drive, { role: 'reviewer', model: 'm' });
+  assert.deepStrictEqual(bare.decision, { kind: 'worker-model', role: 'reviewer', model: 'm' });
+});
+
+test('worker-model with a task → appends the same decision to the ledger and the task decisions', () => {
+  const drive = preparedCommitDrive('bouncer-worker-model-signals-task-', MODEL_BP);
+  const r = workerModelCall(drive, {
+    role: 'reviewer', model: 'm', task: '001', strategy: 'parallel', reviewerTier: 'strong',
+  });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.decisions.pop(), r.decision);
+  const task = ledger.tasks[0];
+  assert.deepStrictEqual(task.decisions.pop(), r.decision);
+  assert.strictEqual(r.decision.strategy, 'parallel');
+  assert.strictEqual(r.decision.reviewer_tier, 'strong');
+  // task 없이 부르면 task decisions는 바뀌지 않는다.
+  const before = JSON.stringify(JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8')).tasks[0].decisions);
+  const bare = workerModelCall(drive, { role: 'reviewer', model: 'm', strategy: 'single' });
+  assert.strictEqual(bare.ok, true, JSON.stringify(bare));
+  const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8')).tasks[0].decisions;
+  assert.strictEqual(JSON.stringify(after), before);
+});
+
+test('worker-model with an invalid strategy → rejects with worker-model-strategy-invalid and keeps the ledger bytes', () => {
+  const cases = [
+    { role: 'reviewer', strategy: 'serial' },
+    { role: 'reviewer', strategy: 'Single' },
+    { role: 'reviewer', strategy: '' },
+    { role: 'debugger', strategy: 'single' },
+  ];
+  for (const extra of cases) {
+    const drive = preparedCommitDrive('bouncer-worker-model-strategy-bad-', MODEL_BP);
+    const before = fs.readFileSync(drive.ledgerFile);
+    const r = workerModelCall(drive, { model: 'm', ...extra });
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, 'worker-model-strategy-invalid', JSON.stringify(extra));
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, JSON.stringify(extra));
+  }
+});
+
+test('worker-model with an invalid reviewer tier → rejects with worker-model-reviewer-tier-invalid and keeps the ledger bytes', () => {
+  const cases = [
+    { role: 'reviewer', reviewerTier: 'high' },
+    { role: 'reviewer', reviewerTier: 'Strong' },
+    { role: 'reviewer', reviewerTier: '' },
+    { role: 'implementer', reviewerTier: 'strong' },
+  ];
+  for (const extra of cases) {
+    const drive = preparedCommitDrive('bouncer-worker-model-tier-bad-', MODEL_BP);
+    const before = fs.readFileSync(drive.ledgerFile);
+    const r = workerModelCall(drive, { model: 'm', ...extra });
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, 'worker-model-reviewer-tier-invalid', JSON.stringify(extra));
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, JSON.stringify(extra));
+  }
+});
+
+test('worker-model with several invalid fields → rejects with the first failure in validation order', () => {
+  const cases = [
+    [{ role: 'bogus', model: '', strategy: 'x' }, 'worker-model-role-invalid'],
+    [{ role: 'reviewer', model: '  ', strategy: 'x' }, 'model-invalid'],
+    [{ role: 'reviewer', model: 'm', perspective: 'bogus', strategy: 'x' }, 'worker-model-perspective-invalid'],
+    [{ role: 'reviewer', model: 'm', strategy: 'x', reviewerTier: 'y' }, 'worker-model-strategy-invalid'],
+    [{ role: 'reviewer', model: 'm', reviewerTier: 'y', tokens: 'abc' }, 'worker-model-reviewer-tier-invalid'],
+    [{ role: 'reviewer', model: 'm', tokens: 'abc' }, 'tokens-invalid'],
+    [{ role: 'reviewer', model: 'm', strategy: 'single', task: '999' }, 'task-outside-blueprint'],
+  ];
+  for (const [extra, reason] of cases) {
+    const drive = preparedCommitDrive('bouncer-worker-model-order-', MODEL_BP);
+    const before = fs.readFileSync(drive.ledgerFile);
+    const r = workerModelCall(drive, extra);
+    assert.strictEqual(r.ok, false, JSON.stringify(r));
+    assert.strictEqual(r.reason, reason, JSON.stringify(extra));
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, reason);
+  }
+});
+
 function noteCall(drive, extra) {
   return coordinate({
     command: 'note', repoRoot: drive.repo, blueprint: drive.blueprint,
@@ -5534,6 +5631,21 @@ test('worker-tokens reviewer/security on task 001 → appends the decision to le
   assert.deepStrictEqual(task.dispatch, beforeTask.dispatch);
   assert.deepStrictEqual(task.lease, beforeTask.lease);
   assert.strictEqual(task.status, beforeTask.status);
+});
+
+test('worker-tokens → keeps its decision shape and key scheme', () => {
+  // worker-model에 strategy·reviewer_tier를 남긴 뒤에도 worker-tokens 결정에는 두 키가 섞이지 않아야 한다.
+  // 키 체계(task, role, perspective)는 같은 파일의 worker-tokens-missing 케이스가 이미 덮는다.
+  const drive = preparedCommitDrive('bouncer-worker-tokens-shape-', MODEL_BP);
+  const modeled = workerModelCall(drive, {
+    role: 'reviewer', model: 'm', task: '001', perspective: 'security', strategy: 'parallel', reviewerTier: 'strong',
+  });
+  assert.strictEqual(modeled.ok, true, JSON.stringify(modeled));
+  const r = workerTokensCall(drive, { role: 'reviewer', task: '001', perspective: 'security', tokens: 900 });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(r.decision, {
+    kind: 'worker-tokens', role: 'reviewer', tokens: 900, task: '001', perspective: 'security',
+  });
 });
 
 test('worker-tokens with a bad role, perspective, tokens or task → refuses with the matching reason and keeps the ledger bytes', () => {
