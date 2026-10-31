@@ -104,7 +104,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    resulting `closed` state, `integration` (`complete`, `openTasks`,
    `headVerified`), PR URL or skip/decline, worktree result, pointer result, and
    the next sibling Blueprint or `/bouncer-plan` action.
-   Auto retro: after that output is rendered, only when finalize closed and `release-main` returned `ok:true` (also after the PR was declined or skipped), check the step 1 digest's `drive_issues`. If every counter is 0, print one line `retro 생략 — 수정 문제 없음` and stop. Otherwise read `${BOUNCER_ROOT}/skills/bouncer-retro/SKILL.md` and run it in finalize-call mode. Evidence is this conversation only: no transcript search, no file reopen. Print the result in chat under a `retro` header, add no new ACQ, and do not wait for the user. No evidence means `후보 없음` with its reason, not failure. On a retro failure print one line, `retro: 실행하지 못함 — <이유>. finalize 결과는 그대로임`; never alter the rendered output, `closed`, or the pointer.
+   Auto retro: after that output is rendered, only when finalize closed and `release-main` returned `ok:true` (also after the PR was declined or skipped), check the step 1 digest's `drive_issues`. If every counter is 0, print one line `retro 생략 — 수정 문제 없음` and stop. Otherwise read [retro.md](./references/retro.md) and run it. Evidence is this conversation only: no transcript search, no file reopen. Print the result in chat under a `retro` header, add no new ACQ, and do not wait for the user. No evidence means `후보 없음` with its reason, not failure. On a retro failure print one line, `retro: 실행하지 못함 — <이유>. finalize 결과는 그대로임`; never alter the rendered output, `closed`, or the pointer.
 
 ## ACQ (AskUserQuestion) gates
 

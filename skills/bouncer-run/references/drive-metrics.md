@@ -32,10 +32,12 @@ reason, and totals never count it as 0.
 
    | Host | Final usage source | When to call `metrics end` |
    | --- | --- | --- |
-   | Claude Code | `usage` of the same agent's `<task-notification>` (`subagent_tokens`, `duration_ms`). The hand-back message and intermediate notifications carry none. | When that notification arrives; pass `--tokens <subagent_tokens> --host-duration-ms <duration_ms>`. |
+   | Claude Code | `usage` of the same agent's `<task-notification>` (`subagent_tokens`, `duration_ms`). The hand-back message carries none. | When that notification arrives; pass `--tokens <subagent_tokens> --host-duration-ms <duration_ms>`. |
    | Codex | `usage` object of the agent's final result JSON. | Right after the hand-back; pass only token values that object actually carries, each to the flag of the same meaning, and never guess a key. A result JSON with no `usage` closes with no token flags (missing). |
    | Cursor print | `usage` of the last `type: "result"` event in the raw stream-json stdout artifact (the `stdout` path that `bouncer dispatch print` returns). The wrapper JSON itself (`report`, `stdout`, ...) carries no usage. | Right after `dispatch print` returns; a result event with no `usage` closes with no token flags (missing). |
    | Host with no usage event (for example a Cursor Task subagent or an inline pass) | none | Immediately after the hand-back, `metrics end --id <id>` with no token flags; the session is recorded as missing. |
+
+   On Claude Code the final `<task-notification>` arrives after the coordinator's hand-back, later than any intermediate notification, and an intermediate `subagent_tokens` is smaller than the final one (121778 versus 149495 in one drive), so never call `metrics end` with an intermediate value.
 
    Just before `metrics end`, read the resolution of the same agent (and the same `--tier`, if
    the dispatch used one) with `bouncer subagent-model --agent <name> --json`. This read is for
@@ -68,15 +70,23 @@ reason, and totals never count it as 0.
 
 ## Per root-direct session
 
-A `direct-run.md` drive (start ACQ option D) has no coordinator dispatch. Open one session with
-`bouncer metrics start --kind root-direct-session --blueprint <dir> --label direct` after
-bootstrap and close it with `metrics end` when the drive hands off to the coordinator or reaches
-`done`. A handoff then follows the coordinator steps above, in this order: `metrics end` for the
-root-direct id, `coordinate session-open`, `metrics start --kind coordinator-session`, then a fresh
-`coordinate status --write-input` (the earlier input is stale once `session-open` changes the ledger
-hash), then dispatch. Its session is a separate `coordinator-session`. The `summary` reports both kinds. Run `metrics end` once, at `done` or
-handoff, and alone rather than chained with another command; a second call on a closed session
-returns `metrics-session-ended`.
+A `direct-run.md` drive (start ACQ option D) has no coordinator
+dispatch. Open one session with the same
+`bouncer metrics start --kind root-direct-session --blueprint <dir> --label direct`
+after bootstrap and close it with `metrics end` when the drive hands off to the
+coordinator or reaches `done`. Aggregates that split light from full come from
+`node scripts/measure-drive-records.js` `by_mode` (and `promotions`), not from a
+different metrics kind. A handoff then follows the coordinator steps above, in
+this order: `metrics end` for the root-direct id, `coordinate session-open`,
+`metrics start --kind coordinator-session`, then, for a review round only, one
+`coordinate note` whose text starts with `review-handoff:`, then a fresh
+`coordinate status --write-input` (the earlier input is stale once `session-open`
+or the note changes the ledger hash), then dispatch. Inputs and failure handling
+for each step follow the Handoff table in [direct-run.md](./direct-run.md). Its
+session is a separate `coordinator-session`. The `summary` reports both kinds.
+Run `metrics end` once, at `done` or handoff, and alone rather than chained with
+another command; a second call on a closed session returns
+`metrics-session-ended`.
 
 A direct session's token usage is not measurable: the host table above has no per-session usage for
 the root's own direct work. No agent was dispatched either, so pass no `--tier` or `--effort`.

@@ -231,29 +231,23 @@ body content only; never edits harness-owned frontmatter fields. Used from
        must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
        fail, widen the brief or narrow verify / defer the contract change —
        do not leave the gap for execute to discover.
-     - **Checklist** (behavior assertions): test assertions follow the `Tests` section of `${BOUNCER_ROOT}/references/coding-standards/index.md`.
-     - **tasks on a light blueprint**: when blueprint `bouncer.scale` is
-       `light`, the required sections are **three** — Goal & intent, Touch,
-       Checklist. The scaffolded body has no Interface / Do not touch / Constraints
-       headings and you do not add them; the three are the only required sections. Write
-       them shorter, not vaguer: Goal & intent is one or two sentences that
-       name the acceptance condition, Touch keeps the per-file table rows
-       (it still has to justify every `affected_paths` entry), and the
-       Checklist keeps the failing-test-first ordering. Needing a public interface,
-       a protected path, an error contract, or state changes across multiple modules
-       is the signal to set `scale` back to `full` rather than to smuggle those
-       rules into Goal & intent — a path you must protect has nowhere to live in a
-       light task, and a Do not touch section must exist to protect any path.
-       The scaffolded light plan set (five initial documents) is budgeted at
-       100 lines excluding `context-review.md`
-       (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`). A
-       `scoped_terminal` light plan adds one terminal verification task
-       (verification only, no source Touch) that depends on the one
-       implementation task; that pair of documents sits outside the budget.
+     - **Checklist** (behavior assertions): test assertions follow the `Tests` and `Test trust` sections of `${BOUNCER_ROOT}/references/coding-standards/index.md`. Write each test cell as the contract it protects (cite the blueprint evidence or the approved requirement), the cases chosen by risk (normal, boundary, rejection, state preserved on failure), and the wrong behavior it must catch. An expected value comes from the requirement or an independently computed example, never from what the current code returns; when the evidence cannot decide it, leave it as an open decision.
+     - **Checklist** (branch matrix): Interface가 두 축 이상의 분기 matrix(예: perspective × tier)를
+       제공하면 matrix의 셀마다 Checklist 항목을 하나씩 쓴다. 항목은 그 셀의 입력 값과 기대 결과를
+       literal로 적고, "matrix 전체를 확인한다" 같은 묶음 항목 하나로 셀 단위를 대신하지 않는다.
+     - **Checklist** (doc wording): 문서·help 문구는 피할 수 있으면 단언하지 않고 존재·구조·링크를
+       단언한다. 문구 자체가 계약이면 패턴이 새 문장의 처음부터 끝까지를 묶게 쓰고, 그 문장을 지우면
+       테스트가 실패하는지 확인한다. 기존 문장과 겹치는 낱말 일부만 묶는 패턴은 문장을 지워도 통과한다.
+     - **Checklist** (call form): 같은 결과라도 호출 형태가 다르면 다른 경로를 타는 셀(예: 한 기록에 값을
+       함께 담는 호출과 값을 따로 채우는 두 번째 호출)은 항목에 호출 형태를 literal로 적는다. 형태를
+       적지 않으면 구현자가 가까운 다른 형태로 읽어 테스트가 의도한 경로를 건너뛴다.
+     - **complexity declaration**: record `bouncer.complexity` (`low` |
+       `standard`; absence is `standard`) on the blueprint. It does not shrink
+       task sections — every commit task uses the same eight sections.
    - **terminal verification**: on a `scoped_terminal` blueprint author exactly
      one verification task, last in the DAG, that depends on every commit task
      and holds the full-suite `bouncer.verify`; its Touch declares no source
-     paths. Full and light plans both need it.
+     paths. Every `scoped_terminal` blueprint needs it.
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.

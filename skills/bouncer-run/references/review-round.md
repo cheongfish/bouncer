@@ -65,12 +65,16 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 3 aggregate Verify evidence, merge duplicate fingerprints, record
             severity_changes and origin, then decide must_fix or advisory from
             the brief, evidence, and changed range — never a reviewer vote.
-            In a blueprint with `review_contract: brief` (full blueprints
-            only; light has no mark) the final review judges the approved
+            In a blueprint with `review_contract: brief` and
+            `complexity: standard` the final review judges the approved
             brief's eight sections and the blueprint Contract: perspectives
             are `spec_scope` and `correctness_tests`, plus `security` only
             when `review_risk` has `authentication`, `authorization`, or
-            `credential`. A `must_fix` is limited to a brief violation
+            `credential`. A blueprint with `complexity: low` uses one
+            `single combined` reviewer for that final review even when
+            `review_contract: brief`; those brief perspectives apply to
+            standard only. One repair and one delta still follow the brief
+            values. A `must_fix` is limited to a brief violation
             (change outside Do not touch or `affected_paths`, a violated or
             refused Interface, a Constraints breach, a skipped or looser
             Checklist item, an unmet Contract failure mode, or a defect of
@@ -83,14 +87,14 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 4 fix       In a blueprint with `review_contract: brief` the final review
             allows one repair and one delta: discovery, then (when a
             `must_fix` exists) one `coordinate repair --review-finding`
-            carrying every violation finding inside approved paths (no
-            `newPaths`), terminal re-verification, then `coordinate next`
+            carrying every violation finding inside approved paths (`newPaths`
+            only outside every Do not touch line), terminal re-verification, then `coordinate next`
             returns a delta `final_review` (`--mode delta`, `combined`, one
             reviewer) that ends `accepted` or, when a finding remains,
-            `final-review-blocked`. There is no second repair: a second
+            `final-review-blocked`. In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a `note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, any remaining finding is closed with `review accept-risk` after user approval or stops with `final-review-blocked`. There is no second repair: a second
             `coordinate repair` is refused as `final-review-single-round`
-            (a first repair that declares `newPaths` outside the approved
-            paths is refused separately as `final-review-repair-scope`);
+            (a first repair whose `newPaths` fall under a Do not touch line is
+            refused separately as `final-review-repair-do-not-touch`);
             both are reported as blocked. `advisory` findings are `accepted` or
             `deferred` with a `note` and appear as warnings in the final
             report. In a blueprint without that mark (legacy), under a
@@ -120,7 +124,7 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             user and send them to `/bouncer-plan`.
 5 verify    Re-run latest verify (standalone) or the terminal verification
             (coordinator final review).
-6 certify   Task and light reviews, and the one delta of a
+6 certify   Task reviews, and the one delta of a
             `review_contract: brief` final review (a legacy blueprint's final
             review has no delta): dispatch one delta reviewer with previous findings, resolution,
             revision-origin evidence, and the `Red run` lines (the fix

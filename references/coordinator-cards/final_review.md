@@ -68,11 +68,11 @@ and Procedure step 6 (Close).
   `not-brief-violation` in `severity_changes`; new design or refactoring
   opinions are `advisory`. Order: discovery; when a `must_fix` exists, one
   `coordinate repair --review-finding` carrying every violation finding (inside
-  approved paths, no `newPaths`); terminal re-verification; then `coordinate
+  approved paths; `newPaths` only outside every Do not touch line); terminal re-verification; then `coordinate
   next` returns a delta `final_review` (`--mode delta`, `combined`, one
   reviewer); record it `accepted`, or `final-review-blocked` when a finding
-  remains. There is no second repair: it is refused as `final-review-single-round`
-  (`final-review-repair-scope` only when the first repair declares `newPaths`);
+  remains. In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a `note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, any remaining finding is closed with `review accept-risk` after user approval or stops with `final-review-blocked`. There is no second repair: it is refused as `final-review-single-round`
+  (`final-review-repair-do-not-touch` when the first repair declares `newPaths` under a Do not touch line; other `newPaths` are accepted and recorded as `unexpected_paths`);
   report the refusal as blocked. Record `advisory` findings
   `accepted`, or `deferred` with a `note`, and carry them as warnings in the
   final report. A marker problem surfaces as `review-contract-invalid`.
@@ -161,6 +161,7 @@ Marked blueprint (`review_contract: brief`):
    violation findings, terminal re-verification, then the delta `final_review`
    from `coordinate next`.
 3. Delta round: `accepted`, or `final-review-blocked` when a finding remains.
+   In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a `note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, any remaining finding is closed with `review accept-risk` after user approval or stops with `final-review-blocked`.
    No second repair follows.
 
 Discovery round (`--status accepted`, one `must_fix` carried forward as `deferred`):

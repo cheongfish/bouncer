@@ -32,11 +32,13 @@ against the current HEAD and `computeDiffSha`. Refusals (exit 1, bytes unchanged
 valid entry and keeps `range_from`; it is mutually exclusive with `--confirm-quiz`.
 
 `finalize pr-body` prints a draft PR body (Markdown) to stdout from a saved v2 digest and a
-Korean summary file with `## 배경 · 변경 의도` and `## 주요 변경 내용` sections; `--flow` adds a
-Mermaid `로직 흐름` section. It is read-only: no file writes, Git lookups, ledger reads, or PR
-publishing, and the same inputs give byte-identical output. Unreadable files, invalid JSON, an
-invalid digest shape, or a missing summary section exit 1 with stderr only; a missing `--digest`,
-`--summary`, or a valueless `--flow` exits 2.
+Korean summary file with `## 배경 · 변경 의도` and `## 주요 변경 내용` sections. After 주요 변경
+it always emits `변경 그림`, `변경 전후`, then later `되돌리기 · 영향 범위` before 확인 방법.
+`--flow` fills `변경 그림` with a Mermaid fence; without it that heading still appears with
+`<TODO: 작성 필요>`, as do `변경 전후` and `되돌리기 · 영향 범위`. It is read-only: no file writes,
+Git lookups, ledger reads, or PR publishing, and the same inputs give byte-identical output.
+Unreadable files, invalid JSON, an invalid digest shape, or a missing summary section exit 1 with
+stderr only; a missing `--digest`, `--summary`, or a valueless `--flow` exits 2.
 
 `run preflight` success payloads carry `shape`: `drive_shape` (`serial` when
 every simulated wave has width 1, `parallel` for a single wave of width 2+,
@@ -52,7 +54,7 @@ with `expected` (the pointer blueprint) and `actual` (the `--blueprint` input,
 `toPosix` only) when the `--blueprint` input, normalized to a repo-relative POSIX path with
 no trailing slash, differs from the normalized pointer blueprint, resolves
 outside the repo, or (when it exists) its realpath is outside the repo realpath,
-(4) `delegable:false` from the ledger status: `promotion-stopped`,
+(4) `delegable:false` from the ledger status: `light-mode-removed`,
 `awaiting-confirmation`, `partial-closed`, `run-detached`, (5) `delegable:false` from the
 blueprint document status when it is not `approved`: `blueprint-closed`,
 `blueprint-partial-closed`, `blueprint-draft`, `blueprint-superseded`,
@@ -101,6 +103,14 @@ Wait for the other drive to finalize or detach, or revise the plan to remove
 the overlap before retrying.
 
 `plan inspect` prints next ids, verify signals, and pointer state as JSON.
+With `--blueprint <dir>` it also prints `coupledPaths` as
+`{advisory: true, pairs, candidates}` (`null` without `--blueprint`). `pairs`
+are generated pairs (`codex-agent-toml`, `gitignore-exception`), each with
+`covered`. `candidates` are `path-literal` matches: a file under `test` or
+`tests` whose line names a task path at a path boundary, so a match inside
+another path or an identifier does not count. Each `evidence.text` is cut to
+200 UTF-16 units without splitting a surrogate pair. The result is advisory and
+never decides scope.
 `plan approve --blueprint <dir>` moves epic and blueprint to `approved` and
 tasks to `ready` all-or-nothing; run it only after the user approves the
 plan. Success prints `{ ok: true, changed, unchanged }` (exit 1 on refusal:
@@ -121,9 +131,15 @@ gate report the same `G32` (composite gate `freshness-approval`). Recover by
 fixing the missing reference or the merge result SHA, or by merging/rebasing
 the prerequisite into this checkout, then rerun. A Git lookup error is a
 failure, never a pass. Blueprints without the key are unaffected.
-With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
-module/risk signals and a light/full recommendation); without that flag
-`routing` is `null`. The signal does not select or approve light.
+With `--blueprint <dir>` it also fills advisory `routing`. `modules` and
+`riskPaths` come from the shared complexity signal (generated paths are left out
+of modules). The `low-candidate`/`standard-candidate` recommendation is
+`standard-candidate` only when the module count reaches `complexity.strong_min_modules`
+or a risk path exists; task count and `depends_on` are not grounds. `serial`
+(from the drive shape) is reference only. A malformed `complexity` block adds
+`complexity-config-invalid` to `reasons` and keeps the default policy without
+changing the recommendation. Without that flag `routing` is `null`. The signal
+does not select or approve complexity.
 `validate` decides gate success. `verify` writes the evidence used by G13.
 `execute prepare` creates or reuses the correct standalone worktree; in a
 coordinator drive it reports the assigned worker instead. `commit --yes` is
@@ -170,6 +186,8 @@ snapshot is refused with `metrics-snapshot-invalid`, not read as 0.
 `metrics start --kind` also takes `plan-coordinator-session` and `planner-session` (the plan kinds).
 Only they may omit `--blueprint`: the session is stored with `blueprint: null`, reads no ledger
 snapshot, and `--blueprint <dir>` at start is normalized and stored without ledger resolution.
+A `--blueprint` value that normalizes to an empty string (`/`, `\`, `//`) is refused at start as
+`invalid-metrics-input` (exit 1) before any write, so the file bytes stay unchanged.
 `metrics end --id <m-id> [--tier <strong|standard|light>] [--effort <low|medium|high>]
 [--blueprint <dir>]` stores `tier` and `effort` on any kind (omitted = `null`, case-sensitive,
 empty string refused). `end --blueprint <dir>` binds a `blueprint: null` plan session exactly once
@@ -207,7 +225,7 @@ usage with exit 2. The run coordinator ledger and its reasons are unchanged.
 
 ```sh
 bouncer scaffold epic --name <slug> --description <text>
-bouncer scaffold blueprint --epic-dir <dir> --order <n> --name <slug> [--scale light|full] \
+bouncer scaffold blueprint --epic-dir <dir> --order <n> --name <slug> [--complexity low|standard] \
   [--area <a>] [--attribution <text>]
 bouncer scaffold task --blueprint <dir> --id <NNN> [--execution-kind commit|verification]
 bouncer scaffold task --blueprint <dir> --id <NNN> --execution-kind verification \
@@ -226,6 +244,7 @@ plan under a registry epic`) before writing any file.
 `scaffold epic` accepts only printable ASCII (0x20-0x7E) in the new epic's description and rejects anything else with exit 2.
 `scaffold blueprint` takes optional `--area <a>` (an area registered in `.bouncer/epics.json`) and
 `--attribution <text>` (why the blueprint belongs to this epic).
+`scaffold blueprint --scale light` was removed; declare `--complexity low` instead (exit 2).
 
 ## Epic registry commands
 
@@ -257,16 +276,14 @@ flag, or an unknown flag is exit 2.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--keep-others]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|promote-stop|worker-model|note|uncommit> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|reverify|partial-close|critical-recovery|next|advance|session-open|worker-model|worker-tokens|note|uncommit> --blueprint <dir> ...
 bouncer coordinate status --blueprint <dir> --write-input <file>
+bouncer coordinate prepare --blueprint <dir> [--accept-broken-baseline]
 bouncer coordinate advance --blueprint <dir> [--task <ddd>] [--max-steps <n>]
-bouncer coordinate promote-stop --blueprint <dir> \
-  --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope> \
-  --summary <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> [--verify <argv>] [--new-path <p>]...
 bouncer coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--new-path <p>]... \
-  [--release-do-not-touch <p>]... --reason <text>
+  [--release-do-not-touch <p>]... [--replace] --reason <text>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason> --resume-task <ddd>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
@@ -278,6 +295,9 @@ bouncer coordinate repair --blueprint <dir> --kind supplement --review-finding <
 bouncer coordinate repair --blueprint <dir> --kind supplement --done --summary <text>
 bouncer coordinate reverify --blueprint <dir> --task <terminal ddd>
 ```
+
+`coordinate promote-stop` was removed (exit 2).
+`coordinate bootstrap --promote-light` was removed (exit 2).
 
 `coordinate status` checkpoints carry `executor_observation`
 (`{ state: 'unknown', source: 'unavailable', reason: 'executor-state-not-tracked' }`),
@@ -293,21 +313,43 @@ can show running or terminated.
 no `model` key is written. A valueless or blank `--model` is refused with
 `model-invalid` before any attempt opens. `coordinate worker-model --blueprint
 <dir> --role <implementer|reviewer|debugger> --model <value> --ledger-path <p>
---ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]` runs from
+--ledger-hash <h> [--task <ddd>] [--perspective <name>] [--tokens <n>]
+[--strategy <single|parallel>] [--reviewer-tier <standard|strong>]` runs from
 the integration cwd and appends `{kind: worker-model, role, model, task?,
-perspective?, tokens?}` to the ledger
+perspective?, tokens?, strategy?, reviewer_tier?}` to the ledger
 decisions (and to that task's decisions when `--task` is given) without
 changing dispatch, lease, status, or attempt. `--perspective` is reviewer-only
-and must be an execute review perspective. `--tokens` is the host-reported
+and must be an execute review perspective. `--strategy` and `--reviewer-tier`
+are reviewer-only too. They copy the `strategy` and `reviewer_tier` the
+`review-dispatch` payload gave, as-is, and are written only when the flag is
+given; the coordinator does not recompute them. `reviewer_tier` records the
+computed tier, not whether the model mapping applied (`reviewer_tier_applied`
+is not written). `--strategy` and `--reviewer-tier` are refused as usage (exit 2)
+on `worker-tokens`. `--tokens` is the host-reported
 subagent token count (`/^\d+$/`, safe integer); without it no `tokens` key is
 written and the record counts as missing. `coordinate worker-tokens --blueprint
-<dir> --role <implementer|reviewer|debugger> --tokens <n> --ledger-path <p>
+<dir> --role <implementer|reviewer|debugger> --tokens <n|unreported> --ledger-path <p>
 --ledger-hash <h> [--task <ddd>] [--perspective <name>]` appends
 `{kind: worker-tokens, role, tokens, task?, perspective?}` the same way for a
 completion notice that arrives after the worker-model record (a missing
-`--tokens` is usage, exit 2). Refusals: `worker-model-role-invalid`,
-`worker-model-perspective-invalid`, `tokens-invalid`, `model-invalid` (worker-model
-only), `task-outside-blueprint`; none writes the ledger. The recorded model is
+`--tokens` is usage, exit 2). A `worker-tokens --tokens unreported` record appends
+`{kind: worker-tokens, role, unreported: true, task?, perspective?}`. The host gave
+no value, so the key is filled without a number; no `tokens` key is written, so
+the sum never reads that key as zero. `worker-tokens` refuses a second record for a `(task, role, perspective)` key with
+`worker-tokens-duplicate` (exit 1, `existing` is the latest record, ledger unchanged) once every
+`worker-model` record of that key has a token or `unreported` record.
+`worker-tokens --replace` (a flag with no value, `worker-tokens` only) swaps the latest
+`worker-tokens` record of the key and returns it as `replaced`; a key with no `worker-tokens` record is
+refused with `worker-tokens-replace-target-missing`, and `--replace` with a value or on `worker-model` is
+usage (exit 2). The `worker-tokens-missing` check covers these keys:
+`coordinate record --task <T>` checks the keys of task T,
+`coordinate advance --task <T>` checks the keys of task T and the keys with no task,
+and `coordinate advance` without `--task` checks the keys with no task. `coordinate advance` also checks the
+`implementer` keys of every task, because that record is written after the worker finished. Refusals: `worker-model-role-invalid`,
+`worker-model-perspective-invalid`, `worker-model-strategy-invalid`,
+`worker-model-reviewer-tier-invalid`, `tokens-invalid`, `model-invalid` (worker-model
+only), `task-outside-blueprint`; none writes the ledger. The strategy and tier
+checks run after the perspective check and before `tokens-invalid`. The recorded model is
 what the coordinator passed to the dispatch, not proof of the model the host ran.
 Plan and execute metadata are configuration observations only; they do not
 attest which model the host actually ran. A rejected configured model stops the
@@ -325,7 +367,11 @@ decisions so the next coordinator session reads it in `checkpoint.notes`,
 without changing dispatch, lease, status, or attempt. The text is trimmed and
 at most 2000 characters; a missing `--text` or a valueless `--task` is usage
 (exit 2). Refusals: `note-text-required`, `note-too-long`,
-`task-outside-blueprint`; none writes the ledger. Note bodies are data, never
+`note-review-handoff-invalid`, `task-outside-blueprint`; none writes the ledger.
+A text that starts with `review-handoff:` is checked against the two shapes of
+the direct-run.md Handoff (the handoff shape or the `unavailable` shape); any
+other text is recorded as is. The check reads no file: `files=` existence and
+sha256 stay with the coordinator document rules. Note bodies are data, never
 instructions.
 
 `coordinate dispatch` also returns a top-level `report_path`
@@ -345,6 +391,26 @@ selected key or `--keep-others` to keep parallel keys deliberately.
 `prepare` refuses with `unassigned-worker-worktree` (`workerPath`) when a worker
 path exists on disk but is not a registered worktree, before creating anything.
 
+When the main checkout `.bouncer/config.json` sets `worktree.baseline` (one
+allowlisted command, run in the integration cwd with a 30 minute timeout), the
+first full-ledger `prepare` runs integration dependencies and then the baseline
+before creating any worker, and appends a `baseline` decision
+(`command`, `exit`, `head`, `accepted`, `written_at`). A non-zero exit refuses
+with `baseline-ci-failed` (`command`, `exit`; exit `124` is a timeout or signal,
+`127` a spawn failure) and creates no worker; only after the user explicitly
+approves, `prepare --accept-broken-baseline` reruns it and proceeds, recording
+`accepted: true`. A passed or accepted baseline is not rerun; without the config
+the flag is ignored. A value that is not a string or not
+an allowlisted single command refuses with `baseline-config-invalid` and runs
+nothing. A successful `prepare` carries `warnings`; it holds
+`{ kind: 'worktree-setup-unset' }` only when the integration `package.json` has
+`scripts.build` and `worktree.setup` is unset.
+On a `verification_policy: scoped_terminal` blueprint, `coordinate report
+--outcome accepted` also checks the report `## Tests` like fan-in does and
+refuses with `report-tests-invalid` (`problem`, `expected_command`) before
+writing the ledger when the task `bouncer.verify` command or a passing result
+is missing.
+
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, and repair.
@@ -361,44 +427,76 @@ listed as `report`. A worker with no patch, ref, or report to keep adds no `salv
 a worker holding only a runtime report still gets `salvage` with that `report`. If preserving
 fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
 unchanged.
-`coordinate bootstrap` sets ledger `mode: light` only when blueprint
-`bouncer.scale` is `light` and the blueprint has exactly one commit task with
-an empty `depends_on`; otherwise a light scale is refused with
-`light-requires-single-task`. Light prepare assigns `workerPath` to the
-integration worktree (no worker worktree), `coordinate next` implement carries
-`payload.inline: true`, and integrate records fan-in verified without
-cherry-pick. Light `report --outcome accepted` requires blueprint-root
-`review.md` rounds from `bouncer review record` and document status `accepted`
-(`light-review-required` otherwise). `report --outcome accepted` and `record`
-refuse, before any ledger write, a worker without a confirmed task commit:
-`worker-commit-missing` (HEAD is `integrationHead` or its ancestor),
+`coordinate bootstrap` always writes a full ledger. A `mode: light` ledger is
+refused with `light-mode-removed` regardless of task status; read-only
+`coordinate status` and the finalize digest still read it. `scale: light` on an
+open blueprint is the same refusal. Finish the in-progress drive with the
+previous CLI through `/bouncer-finalize` before upgrading (the normal path).
+If this CLI is already in use, recover in this order: (1) finish with the
+previous CLI and `/bouncer-finalize`; (2) preserve worktrees from the main
+checkout using `git worktree list`, copy commits with `git bundle`, uncommitted
+diff, and the gitignored `coordinator.json`; (3) discard only after
+explicit approval; (4) `git worktree remove --force` for integration and each
+worker; (5) replan with `/bouncer-plan` and declare complexity. To rerun in the
+same directory, step 4 must also delete the integration and worker branches
+after approval, or leftover branches make bootstrap `branch-conflict`; to keep
+the branches, replan under a new blueprint slug.
+Prepare assigns `workerPath` under the integration sibling `workers/<ddd>`;
+`coordinate next` implement carries no `inline` key. `report --outcome accepted` and
+`record` refuse, before any ledger write, a worker without a confirmed task
+commit: `worker-commit-missing` (HEAD is `integrationHead` or its ancestor),
 `worker-commit-stamp-mismatch` (`commit_sha` absent or not HEAD's first 8
 characters), `worker-scope-dirty` (a dirty path inside the current scope, even
 if dirty at dispatch); the output carries `head`, `integration_head`, `stamp`,
-`dirty_paths`, and `next` points at `coordinate advance`. A resume bootstrap against the opposite
-mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
-`coordinate promote-stop` (light only) records `status: promotion_stopped` and
-a `promotion` snapshot (`reason`, `summary`, open task, `diff_sha`, optional
-evidence ids). Reasons are `security-risk`, `out-of-scope`, `task-split`,
-`interface-semantics`, `reviewer-wider-scope`. Same reason+summary is
-idempotent; afterward `prepare`/`dispatch`/`report`/`record`/`integrate` and
-`run preflight` delegation fail with `promotion-stopped`. There is no resume —
-full replan needs a new `bootstrap` and `current --set`.
-After the main checkout has an approved full blueprint, `coordinate bootstrap --promote-light` archives a promotion-stopped light ledger and saves integration dirty changes to `.bouncer/runtime/light-promoted.patch`. It resets those changes, seeds the full plan, and creates a full ledger on the same integration branch. The response and ledger include `promoted_from`; `coordinate next` passes its patch path as `promoted_patch` in the implement payload. Rejections are `promote-light-requires-stopped`, `promote-light-scale-light`, `promote-light-archive-exists`, and `promotion-diff-drift`. A failed partial promotion reports `promote-light-incomplete` and whether rollback completed.
+`dirty_paths`, and `next` points at `coordinate advance`. In a full ledger,
+`report --outcome accepted` also judges the worker commit's paths outside the
+ledger scope (candidates from `git diff --name-only --no-renames
+<base_head>..HEAD`, both sides of a rename): a path under a Do not touch line of
+the integration copy of the task document is refused as
+`scope-do-not-touch-violation`, an unreadable document as
+`scope-do-not-touch-unreadable`, and a path without a usable
+``- `path` — reason`` line under the report's `## Unexpected paths` (1 to 200
+characters) as `unexpected-path-reason-missing` with `paths`. Accepted deviations
+are stored as `ReportDecision.unexpected_paths` (`[{ path, reason }]`, path order)
+and `overlaps` lists the other unintegrated tasks of the drive whose scope covers
+one of them; both keys are absent when nothing deviated. `commit --yes` in a full
+ledger drive likewise allows a path outside the ledger scope that no Do not touch
+line covers and reports it as `unexpected_paths` (key absent when none); a
+Do not touch hit is `scope-do-not-touch-violation` and an unreadable line is
+`scope-do-not-touch-unreadable`, both with `recovery.action` `coordinator-revise`
+(composite gate `commit-scope`). Commits without a ledger keep
+`out-of-scope`. Ledgers without `mode` read as full.
+`coordinate promote-stop` was removed (exit 2).
+`coordinate bootstrap --promote-light` was removed (exit 2).
+`coordinate next` may still pass a stored `promoted_patch` for an already
+promoted full ledger. `drive_record` (metrics snapshot / finalize digest)
+carries `mode` (`light`|`full`) and `promotion` (`{ reason, task }` or `null`);
+`reviewer.strategies` and `reviewer.tiers` are the sorted unique `strategy` and
+`reviewer_tier` values of the reviewer `worker-model` decisions (`coordinate
+worker-model`, role `reviewer`); an absent key reads as an old snapshot.
+`tiers` is the computed tier recorded in the payload, not whether the model
+mapping applied (`reviewer_tier_applied` is not recorded here), so a dispatch
+computed as `strong` with no mapping still counts as `strong`.
+`node scripts/measure-drive-records.js` splits aggregates under `by_mode` and
+counts under `promotions`.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
 (`repeated-failure`, `unclear-result`, `advance-argv-invalid`, or the
-automatic action's reason).
-`run preflight` also reports `direct_eligible` (delegable, `full`, serial shape,
-`1 <= commit_tasks <= coordinator.direct_max_commit_tasks`); `/bouncer-run`
-offers root-direct execution only when it is true. `bouncer metrics start
---kind root-direct-session` records that session (no `--target-digest`).
+automatic action's reason). Before running any action, `coordinate advance` refuses
+with `worker-tokens-missing` (exit 1, no `executed`) while a checked worker key has
+no token record. The refusal runs before the automatic action so that no argv runs
+against a ledger whose worker usage is still unrecorded.
+`run preflight` also reports `direct_eligible` (delegable, serial shape,
+`1 <= commit_tasks <= coordinator.direct_max_commit_tasks`). `/bouncer-run`
+offers root-direct execution only when `direct_eligible` is true.
+`bouncer metrics start --kind root-direct-session` records that session
+(no `--target-digest`).
 `yield` is a session boundary with no argv: the coordinator returns `continue`.
 The root runs `coordinate session-open --blueprint <dir> --ledger-path <p>
 --ledger-hash <h>` from the integration cwd before each coordinator dispatch;
 it appends a `{kind: session, opened_at, integration_head, waves_cap}` decision
-and returns a fresh checkpoint (`ok: false` with `ledger-mode-mismatch` or
+and returns a fresh checkpoint (`ok: false` with
 `ledger-not-active` otherwise). `coordinator.waves_per_session` caps the waves
 per session (`docs/configuration.md`).
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
@@ -413,8 +511,11 @@ matched as plain text, never expanded. On a `scoped_terminal` blueprint `repair`
 also needs `--verify <argv>`, one command that checks only the failing files:
 `repair-verify-required` when missing, `repair-verify-not-single-argv` for shell
 operators or an empty value, `repair-verify-is-terminal` when it equals the
-terminal command. A legacy blueprint keeps the terminal verify unless `--verify`
-is given (then only the single-argv check applies). `--verify` cannot be
+terminal command, `repair-verify-not-allowed` when argv0's basename is outside
+the repository `verify_allowlist` (same basename rule as S12, so `/usr/bin/node`
+is allowed when `node` is listed). A legacy blueprint keeps the terminal verify
+unless `--verify` is given (then the single-argv and allowlist checks apply).
+`--verify` cannot be
 combined with `--resume-task`, and a valueless `--verify` or `--new-path`
 exits 2. All of these refuse before the ledger or task documents change.
 A `coordinate revise` refusal is written to stdout as JSON
@@ -428,6 +529,16 @@ removes that entry from the brief. A release value that is not an overlapping
 entry is refused with `release-do-not-touch-unknown`, and a valueless
 `--release-do-not-touch` exits 2. Both refusals leave the document and ledger
 unchanged.
+A `coordinate revise` widens the scope by default: the new scope is the previous
+scope plus `--paths` and `--new-path`, with duplicates removed by normalized path
+(a trailing `/` and a leading `./` do not make a new entry). A previous path is
+never dropped by a call without `--replace`, so a narrower `--paths` value does
+not shrink the scope. `--replace` (valueless, a boolean) swaps the scope for
+exactly `--paths` plus `--new-path`; each previous path that the new set does not
+cover is reported in `warnings` as `scope-paths-dropped`, and only a replace emits
+that warning. `--replace <value>` exits 2 with `coordinate revise: --replace takes
+no value`. Empty `--paths` and `--new-path` are refused with `scope-paths-required`
+whether or not `--replace` is given.
 `coordinate next` returns `commit` when the task worktree has scope changes to
 commit; on a clean tree whose commit stamp is stale it returns a `blocked`
 action with reason `worker-commit-stamp-mismatch` instead.
@@ -460,10 +571,14 @@ bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha> [--mode discovery|delta]
   # --mode delta → strategy single / perspectives [combined] (delta certification, any blueprint;
   # discovery perspectives and security are never listed for a delta)
-  # review_contract: brief, scale full, no --task (final review): strategy parallel, perspectives
+  # review_contract: brief, complexity standard, no --task (final review): strategy parallel, perspectives
   # spec_scope, correctness_tests; security only when review_risk has authentication|authorization|credential
-  # legacy (unmarked), light, or --task review: light or a small diff → single [combined]; else parallel
-  # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk appends security
+  # complexity low: single [combined] regardless of size; standard (unmarked or --task): single [combined] only when
+  # source files <= 2, source lines <= 200 and no review_risk or risk path (complexity-signals); else parallel
+  # spec_scope, correctness_tests, minimality_maintainability; any non-empty review_risk or a security-kind risk path appends security
+  # a non-default complexity policy adds "complexity policy non-default: ..." after the tier reason
+  # rejected before any git call: invalid review.min_reviewer_tier (review-min-reviewer-tier-invalid), then invalid
+  # complexity config (complexity-config-invalid, next: complexity)
   # --mode delta is allowed for the one delta after the single repair of a brief final review
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
@@ -497,7 +612,11 @@ flags; with `--json` it prints one line `{ provider, role, tier, model, effort,
 source }`; on a resolution error (for example `tier-unmapped` or
 `role-config-invalid`) it exits 1. Pass only the model into named dispatch;
 omit the model argument when it is `inherit`. The value is configuration metadata,
-not evidence of the model the host ran. A model rejection stops dispatch and
+not evidence of the model the host ran. The selected provider (`--provider`, else
+`subagents.provider`) must be `claude`, `cursor`, `codex`, or `antigravity`; any
+other value exits 1 with `role-config-invalid` on one stderr line naming the key to fix
+(`--provider` or `subagents.provider`) without echoing the raw value, and a valid
+`--provider` overrides an invalid configured one. A model rejection stops dispatch and
 must be reported with provider, role, configured name, exact host reason, and
 config correction location. `subagent-model --agent <name> --tier <tier>`
 resolves the model for that call-level tier (for example `--tier strong`)
@@ -505,7 +624,13 @@ instead of the role's own tier; the usage line above stays unchanged. A reviewer
 call uses it to keep the tier of its `review-dispatch` payload
 (`reviewer_tier`). `codex-agents check` is read-only: it
 prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
-`next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
+`next: "bouncer init --seed-codex-agents"` (exit 1). The expected TOML carries
+`model_reasoning_effort` from `roles.<agent>.effort` (absent or null is `medium`),
+so changing an effort turns a synced TOML into `mismatch` until init reseeds it.
+When any named agent's `roles.<agent>.effort` is not `low`, `medium`, or `high`,
+check prints `reason: "role-config-invalid"` with the config `key`, `message`,
+and a `next` that asks the user before fixing that key (exit 1); init with Codex
+seeding rejects the same config before writing any file. Compact a named
 implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
 other than `check` is exit 2.
 
@@ -519,12 +644,21 @@ Plan (`single`, `perspectives`) and Execute (`discovery`, `delta`) reviewer
 `review-dispatch` payloads carry `reviewer_tier` and `reviewer_tier_applied`.
 Re-resolution before dispatch follows `${BOUNCER_ROOT}/rules/subagent-model.md` item 1.
 
-`review-dispatch` is read-only. It returns JSON for Plan (`skip | single`, or
+`review-dispatch` is read-only. It returns JSON for Plan (`single`, or
 `perspectives` for a `review_contract: brief` blueprint; older stored `clustered`
-payloads are still read) or Execute (`single | parallel`; `security` joins a general, light, or task-scoped review when
-`review_risk` is non-empty, and a brief final review only for authentication, authorization, or credential risk). Plan of an unmarked blueprint: light is `skip`, full is `single`. A marked
-(`review_contract: brief`) blueprint is `perspectives`: full gets the four plan
-perspectives, light gets `verifiability` only (never `skip`). Plan `single` also includes
+payloads are still read) or Execute (`single | parallel`; `security` joins a
+general or task-scoped review when `review_risk` is non-empty or a security-kind risk path is touched, and a brief
+final review only for authentication, authorization, or credential risk). Plan
+of an unmarked blueprint is `single`. A marked (`review_contract: brief`)
+blueprint is `perspectives`: standard gets the four plan perspectives; low is
+`verifiability` and, when any commit task declares `review_risk`, also
+`risk_security`. There is no Plan `skip`. The reviewer tier is `strong` when the
+union of commit tasks' `affected_paths` (plan) or the scoped `review_risk` /
+risk paths hit a strong cause (source files, modules, total files); `complexity:
+low` skips only the size causes and keeps the risk causes. Execute for
+`complexity: low` is `single` combined regardless of size; standard is `single`
+only when the frozen snapshot passes the source-file, source-line, and risk
+checks, else `parallel`. Plan `single` also includes
 `snapshot_version` (2), `parts` (per-document body sha256), `scope_parts`
 (per-`tasks.md` scope sha256; observation only, never a `follow_up` input),
 `structure_parts` (per-document structure sha256; the `follow_up` input),
@@ -538,8 +672,8 @@ changed_documents, revision_diff, related_documents, cwd}`. Pass
 valid only for a first classification of a blueprint with no review evidence
 (`follow_up: full`; `changed_documents` lists every current document with
 `before: null`); once a cycle or recorded
-rounds/findings exist, `previous` is required. Those fields are absent on `skip`
-(light never checks `previous`) and on failures. Failures are
+rounds/findings exist, `previous` is required. Those fields are absent on
+failures. Failures are
 `{ ok: false, reason, cause, next }` (exit 1) with `previous-payload-required`
 (missing), `previous-payload-invalid` (not JSON, wrong shape, another blueprint,
 unreadable stored reference), or `previous-payload-stale` (differs from the
@@ -584,7 +718,7 @@ Success is `{ ok: true, path, round, status, findings }` (exit 0), plus `warning
 `{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
 `reason` is `review-target-missing`, `review-task-required`,
 `review-task-not-allowed`, `review-input-invalid`,
-`review-round-out-of-sequence`, or `review-ledger-invalid`. Follow `next`; do
+`review-round-out-of-sequence`, or `review-ledger-invalid`. In a `review_contract: brief` blueprint final review, `review-input-invalid` also covers a finding whose `first_seen_round` differs from the stored value (cause `finding <id> first_seen_round changed: <stored> -> <incoming>`), so a discovery finding cannot be restated as a later delta finding. Follow `next`; do
 not edit YAML by hand or read validator sources to invent a passing
 frontmatter. Invalid argv (`record` missing, `--blueprint`/`--round` missing,
 duplicate options, `--task` not three digits, `--status` outside
@@ -607,7 +741,7 @@ any file read), `review-accept-risk-task-scope` (the review is not
 `review_scope: blueprint`), `review-target-missing`, `review-finding-missing`,
 `review-finding-not-open`, `review-note-required` (blank `--note`), or
 `review-ledger-invalid`. A missing or duplicate `--blueprint`/`--finding`/
-`--note`, or any `--task`, is exit 2.
+`--note`, or any `--task`, is exit 2. In a brief blueprint, a remaining `minor` or `nit` `must_fix` is recorded as `deferred` with a `note` when the delta round is first recorded with `--status accepted`; once the delta round is stored, any remaining finding is closed with `review accept-risk` after user approval or stops with `final-review-blocked`.
 
 ```sh
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator|planner|plan-coordinator> \
@@ -622,7 +756,7 @@ accepts an in-scope test-evidence gap without a new task or repair wave (test
 paths inside an integrated task's `affected_paths`, no delta round yet);
 `--done` verifies it. In a `review_contract: brief` blueprint the final review
 allows one `--review-finding` repair (all violation findings, approved paths,
-no `newPaths`) before the one delta. A legacy blueprint (no marker) allows no
+`newPaths` allowed unless they hit a Do not touch line; accepted ones are recorded as `unexpected_paths` on the repair decision) before the one delta. A legacy blueprint (no marker) allows no
 repair after the discovery round; its `must_fix` findings are carried as
 `deferred` and only a `blocked` finding stops for `review accept-risk`. The
 CLI refuses a review-caused repair or supplement with one of these reasons
@@ -631,7 +765,8 @@ CLI refuses a review-caused repair or supplement with one of these reasons
 | Condition | Reason |
 | --- | --- |
 | Legacy blueprint after discovery, any supplement after discovery, or a brief blueprint whose repair or delta already ran | `final-review-single-round` |
-| First brief repair that declares `newPaths` outside the approved paths | `final-review-repair-scope` |
+| First brief repair that declares `newPaths` under a Do not touch line of any ledger task | `final-review-repair-do-not-touch` |
+| First brief repair with `newPaths` while a ledger task document cannot be read | `scope-do-not-touch-unreadable` |
 
 A second repair therefore returns `final-review-single-round` only; a still
 open finding after the delta is reported `final-review-blocked`.

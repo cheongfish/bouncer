@@ -16,8 +16,8 @@ user directly: an open decision goes back to the coordinator as a question.
 Your only inputs are what the plan coordinator passed in the dispatch payload:
 
 - the ledger id (for reference only), the write cwd (`PROJECT_ROOT`), the
-  Discover result, the confirmed candidate path set, and the evidence the
-  coordinator collected
+  Discover result, unconfirmed candidate paths and evidence for drafting; after
+  scope confirmation, the exact per-task paths confirmed by the user
 - on a review-fix request, the must_fix findings and the documents they name
 
 You receive no other conversation. Do not infer scope from anything outside
@@ -31,16 +31,24 @@ this payload and the repo files you read.
 - Write only inside the write cwd the coordinator gave you (`AGENTS.md` hard
   rule 4), and only plan documents under `.bouncer/context/epics/**`. Never
   edit source, test, or config files.
-- A task's `affected_paths` may hold only values from the confirmed candidate
-  path set. A path outside that set is a stop condition, not a judgment call.
+- During the draft use unconfirmed candidate paths in Touch and keep every task's
+  `affected_paths: []`; missing scope confirmation must not block drafting.
+- After scope confirmation write only the exact paths confirmed for each task.
+  A necessary path outside that set requires a new user confirmation.
 
 ## Procedure
 
 1. Create each document with `bouncer scaffold` inside the write cwd, then
-   write its body following `references/spec-authoring/index.md`.
-2. Fill the task `affected_paths` only from the confirmed candidate path set.
-3. When you need a path outside that set, or an open decision appears, stop
-   writing and return `needs_user` with the questions. Do not guess.
+   write its body following `references/spec-authoring/index.md`. When a
+   Checklist names tests, read the `Tests` and `Test trust` sections of
+   `${BOUNCER_ROOT}/references/coding-standards/index.md` and write each test
+   cell as the protected contract, the cases chosen by risk, and the wrong
+   behavior it must catch.
+2. Draft task bodies and report candidate paths with evidence; leave
+   `affected_paths: []` until the root confirms scope.
+3. After confirmation, write only the confirmed per-task paths. If another path
+   is needed, report it to the coordinator for confirmation; never insert it by
+   inference. Return `needs_user` for unresolved behavior decisions.
 4. On a review-fix request, fix every must_fix target document in one pass.
 5. Report with the Output contract below.
 

@@ -47,79 +47,23 @@ recovery re-verification and the finalize remainder verification are separate
 runs. An unknown `verification_policy` value is a **G20** failure, never read
 as legacy.
 
-## Lightweight cycle
+## Complexity declaration
 
-A **lightweight cycle** is in
-effect only when the user **declares** a narrow-scope change at `/bouncer-plan`
-and the plan changes blueprint `index.md` `bouncer.scale` from the scaffold
-default `full` to `light`. There is no automatic sizing from diff size, path
-count, or file count. `bouncer plan inspect --blueprint` may emit an advisory
-`routing` recommendation, but that signal is evidence only — there is no
-automatic light selection or approval from it. Without that declaration
-(`scale` absent or not `light`), the default path applies.
-선언은 작성 전, 최종 승인은 작성 뒤이며 선언은 승인이 아니다.
+`bouncer.complexity` is `low` or `standard`; absence reads as `standard`. Plan
+recommends from discovery handoff and `plan inspect` routing; the user confirms
+at the `plan.complexity` ACQ. The declaration is not approval. Do not auto-select
+from path count, diff size, or task count.
 
-The same declaration is the only way to reach the shrunken document set:
-`bouncer scaffold blueprint --scale light`. Omitting `--scale`, or passing
-`full`, scaffolds the unchanged five plan documents; an unknown value is
-refused with exit code 2 before a single file is written.
+`low` changes only plan-review perspectives (`verifiability`, plus
+`risk_security` when any commit task declares `review_risk`), execute-review
+`single`/`combined`, and the reviewer-tier size thresholds (source files, source
+lines, modules, total files). Risk signals (`review_risk`, risk paths) stay on. A declared
+`review_risk` still adds the security perspective, and a strong reviewer tier
+stays strong on `low`. Document set, task sections, epic assignment, quiz, and
+execution path stay the same as `standard`.
 
-What shrinks (five things only):
-
-1. **Plan documents** — a newly scaffolded `--scale light` blueprint carries the
-   `bouncer.review_contract: brief` marker and gets five initial documents:
-   blueprint `index.md`, `tasks/001/{tasks,verification}.md`, root `review.md`,
-   and `context-review.md`. It receives one `verifiability` plan review (no
-   delta beyond that single perspective). Every document except
-   `context-review.md` totals **100 lines or fewer**; `context-review.md` is
-   outside the budget. An existing light blueprint without the marker has only
-   the four documents (no `context-review.md`), so `/bouncer-plan` runs no
-   context review on it. The run-side final review of a marked light blueprint
-   stays the same as an unmarked light one.
-2. **Task sections** — a light task body requires only `Goal & intent`, `Touch`,
-   and `Checklist` as an authoring rule. `Interface` and `Do not touch` are
-   neither templated nor demanded. Approved scope is untouched: **G3–G5**
-   (G4 is retired) judge an ordinary commit task exactly as they judge a
-   full one, so an empty `affected_paths` still fails.
-3. **Epic allocation** — do not open a new epic. Stack the blueprint under the
-   registry epic by attribution, chosen with the rules in `## Epic attribution`
-   below. Never create or pick a shared catch-all epic for light work.
-4. **Agent round-trips** — light implement routing (inline vs named) is owned
-   by `skills/bouncer-run/references/agent-dispatch.md`. A light ledger
-   `/bouncer-run` drive follows
-   `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
-5. **Quiz size** — light quiz sizing is owned by
-   `${BOUNCER_ROOT}/references/explain-diff/index.md`.
-
-The shrunken **scaffold** is five initial documents on a new light blueprint,
-and a light blueprint that
-declares `bouncer.verification_policy: scoped_terminal` (every newly scaffolded
-blueprint does) is not complete there: it needs exactly one independent
-implementation task plus one terminal verification task that depends on it
-(`bouncer scaffold task --execution-kind verification --depends-on TASKS-001
---verify <full command>`, two more documents, outside the 100-line scaffold
-budget). The implementation task carries its own task-only `bouncer.verify`;
-the terminal task carries the full-suite command. An existing light blueprint
-without the marker keeps the legacy single-task contract and its four documents.
-
-What stays the same:
-
-- Task document set: when `review_scope` is `blueprint`, `tasks/<NNN>/{tasks,verification}.md` plus root `review.md` and `explain.md` are still authored and gated; when `review_scope` is absent, `tasks/<NNN>/{tasks,verification,review}.md` and `explain.md` are still authored and gated.
-- Ordinary commit-task gate judgments **G1–G8** and **G13–G17** that remain are unchanged in the light path
-  (G16 comprehension at finalize; G17 staged scope at commit).
-  G4 and G15 are retired. Only the missing `context-review.md` (an unmarked
-  existing light blueprint) and the three-section task body differ, and both differences follow from the document
-  set above rather than from any agent judgment.
-
-Returning to `full` on an already-scaffolded light blueprint
-means authoring the missing sections and running
-`bouncer scaffold context-review --blueprint <dir>` before the plan gate.
-If the separation between writer and named reviewer feels too thin, set
-`scale` back to `full` and return to the named-agent path for implement too —
-inline implement limits stay in
-`skills/bouncer-run/references/agent-dispatch.md`, and a light ledger
-`/bouncer-run` path stays in
-`${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
+Closed documents may still read `scale: light` as a historical value.
+Structural validation refuses a new `scale: light` declaration.
 
 ## Task DAG and approved scope
 
@@ -171,7 +115,7 @@ yet and in old commit trailers.
 
 ## Epic attribution
 
-Every blueprint, full or light, joins one epic from the registry
+Every blueprint joins one epic from the registry
 (`registry.epics` in `bouncer plan inspect`). Apply these rules in order and
 stop at the first that holds:
 

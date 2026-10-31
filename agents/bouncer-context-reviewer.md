@@ -29,7 +29,7 @@ each changed document's `before` and `after`, and `related_documents` with
 their current contract text), and the read-only cwd; these are this role's
 complete call input. A blueprint without a `review_contract` marker gets one `combined` call; a
 marked blueprint gets one call per assigned perspective (`consistency`, `scope_minimality`,
-`verifiability`, `risk_security`; a marked light blueprint gets `verifiability` only). A recorded
+`verifiability`, `risk_security`; complexity low: verifiability, plus `risk_security` when any commit task declares `review_risk`). A recorded
 legacy `local` call named a CLI cluster id whose task documents were in the list.
 
 Judge only the document list the controller attached. For `combined` and
@@ -155,6 +155,7 @@ with no observable outcome. Also judge task Checklist red steps: flag a
 `red step` that omits the `expected failing assertion` or failure point. A
 criterion is verifiable when a later reader can say yes or no from a command,
 a file, or a gate result.
+Also flag a Checklist test step whose input an earlier guard of the same command refuses before the target branch, citing that guard as `file:line`.
 
 ### Out of judgment
 
@@ -172,7 +173,7 @@ already check those. Do not re-litigate G1–G5.
 A marked blueprint (`review_contract: brief`) is reviewed by one call per perspective. The four
 judgment ranges below do not overlap: report a finding only when it sits in the assigned
 perspective's range, even if another range would also catch it. The delta pass is a single call
-(`combined` on a full blueprint, `verifiability` on a light one) and keeps the Delta rules above.
+(`combined` on a standard blueprint, `verifiability` on complexity low) and keeps the Delta rules above.
 
 ### consistency
 
@@ -208,6 +209,8 @@ that cannot be reached: when a structural failure comes first (such as a marker
 `other` rejected earlier), the target assertion's failure cannot be claimed from
 that state. Judge the red by its command, input, first failure point, and target
 assertion. Report each omission under one perspective only, never twice.
+Also judge reachability of every Checklist test step, not only the red: its input must pass every guard the same command checks before the target branch. Read the handler the step calls and flag a step whose input an earlier guard refuses (for example a `coordinate report` test on a verification task, refused as `dispatch-commit-task-required` before the report branch), citing that guard as `file:line`.
+Also judge that each Checklist test cell names the contract it protects, the cases chosen by risk, and the wrong behavior it must catch, with the expected value taken from the plan evidence rather than from what the current code returns (the `Tests` section of `${BOUNCER_ROOT}/references/coding-standards/index.md`). Flag a cell that only says a result is returned, a function is called, or a mock replies.
 
 ### risk_security
 

@@ -13,7 +13,7 @@ Use the debugger path when the first fix was already used, the cause is unclear 
 When dispatching `bouncer-debugger` or applying its fallback, read
 [agent-dispatch](./agent-dispatch.md): its `## Debugger dispatch` section owns
 the named payload, the whole-role generic or inline fallback, and the rule that
-debugger dispatch stays named even on the light path; its `## Worker model and
+debugger dispatch stays named; its `## Worker model and
 token records` section owns the debugger model and token records.
 
 The debugger must not edit files, commit, or flip status. It returns a root-cause

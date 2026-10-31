@@ -54,7 +54,8 @@ read code/tests/repo context needed to implement.
 - Do **not** move the pointer (`bouncer current --set`) or edit the
   coordinator ledger (`.bouncer/runtime/coordinator.json`); both stay with the
   controller.
-- Do **not** edit paths outside Touch / `affected_paths`.
+- Do **not** edit paths outside Touch / `affected_paths`, except as the Scope
+  section allows for a full coordinator drive. Never edit a Do not touch path.
 - Write only inside the worktree the controller gave you as cwd. A coordinator
   drive assigns one worktree per task; another task's worktree, the integration
   worktree, and the main checkout are never yours to edit.
@@ -77,10 +78,19 @@ read code/tests/repo context needed to implement.
   the controller — no speculative scope expansion, and do not shrink the brief
   in code. The controller decides what happens next; under a coordinator drive
   that decision is a scope revision, rework, a task change, or a terminal
-  blocked outcome, never your own detour.
+  blocked outcome, never your own detour. When a brief sentence and a Checklist
+  fixture or assertion support different interpretations, do not pick one: quote
+  both and stop with **Needs planning**.
 - When the work needs a path the current `affected_paths` does not carry, name
   that path in **Scope impact** and stop there. Only the coordinator revises
   scope, with `bouncer coordinate revise`.
+- Exception, full coordinator drive only: a required change that falls outside
+  Touch / `affected_paths` but under no Do not touch line (a generated pair of
+  a touched file, a test that pins the changed output) may be made. Report each
+  such path in an optional `## Unexpected paths` section, one line each:
+  ``- `<path>` — <reason, 1 to 200 characters>``. `coordinate report` refuses an
+  accepted report that omits the line. A path under a Do not touch line is never
+  an exception: name it in **Scope impact** and stop.
 
 ## Procedure
 
@@ -141,6 +151,14 @@ read code/tests/repo context needed to implement.
 - Before you report, run `npx eslint <changed ts/js files>` on only the files
   you changed and fix every finding; never bypass with `eslint-disable`; this
   does not replace the task `verify` command.
+- Before you report, run the task `bouncer.verify` command in your worker cwd and
+  write that command and its result in `## Tests`. An accepted report without it
+  is refused as `report-tests-invalid` on a `scoped_terminal` blueprint.
+- In `## Tests`, write only the assigned command and a pass line such as
+  `12 pass, 0 fail (exit 0)`; any other word starting with `fail`, the whole
+  word `error` or `errors`, `실패`, `오류`, or a non-zero `exit` code, even in
+  prose like "fails before the change", is refused as `report-tests-invalid`,
+  so put failure narration in `## Red run`.
 - Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
   unfinished task, not a smaller diff.
 - Never simplify away: input validation at trust boundaries, error handling
@@ -183,6 +201,9 @@ report file and rejects a missing or malformed `## Brief revision`,
 - Deviations, Scope impact, and Needs planning are optional in the report
   file: write each one only when it has a value, in that order between
   `## Red run` and `## Open choices`, and omit an empty one.
+- `## Unexpected paths` is optional too (see Scope): write it, before `## Brief
+  revision`, only when a full-drive commit carries a path outside the approved
+  scope, and omit it when empty.
 
 ```markdown
 ## Changed files
@@ -214,7 +235,9 @@ task_brief_hash: <64 hex you received>
 - **Changed files** — every touched path with a one-line purpose, the path in
   backticks. All paths must be inside Touch / `affected_paths`.
 - **Checklist coverage** — each Checklist item mapped to `done` / `not done`
-  plus where it landed. When an item asks you to compare with or cite an
+  plus where it landed. Add one line per brief `Constraints` bullet: `done` /
+  `not done` plus the test `file:line` that asserts it, or `해당 없음: <reason>`
+  when no test can assert it. When an item asks you to compare with or cite an
   external source, name its URL and the date you opened it; a source you did not
   open is `not done`, and the document must not claim the comparison.
 - **Tests** — the exact task-assigned command and its result of the last run,

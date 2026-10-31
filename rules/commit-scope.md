@@ -51,6 +51,78 @@ the current task scope, its `revision`, and an append-only decision log.
   revision, or with the ledger missing. A completed commit records the paths it
   actually carried back into the ledger beside the initial estimate.
 
+### Three layers of path policy
+
+The same staged path is judged by three layers, and which one blocks depends on
+the ledger mode:
+
+1. **Expected scope** — the ledger scope (coordinator drive) or the approved
+   `affected_paths` (anywhere else). A path inside it is always allowed.
+2. **Recorded deviation** — a path outside the expected scope that no Do not
+   touch line covers. In a **full** ledger drive it is allowed and recorded: the
+   commit result carries `unexpected_paths`, and `coordinate report --outcome
+   accepted` stores each such path with the worker's reason (see below). A
+   generated pair or a pinned test that the task had to edit no longer needs a
+   scope revision first.
+3. **Do not touch line** — the only blocking line for a path outside the
+   expected scope in a full drive: `scope-do-not-touch-violation` when the path
+   overlaps a line, `scope-do-not-touch-unreadable` when the line cannot be
+   read. Overlap is the shared `pathsOverlap` rule: the same path or a segment
+   ancestor, so the slash-less token `agents` covers every path under the
+   `agents` directory but not the sibling `agents-extra` directory.
+
+A commit with no coordinator ledger (standalone) keeps the
+old rule: any path outside the expected scope is `out-of-scope`. The order in
+the full drive is verification node, worktree/revision boundary, Do not touch
+(read failure included), recorded deviation, then the cross-drive check; the
+cross-drive comparison uses every allowed path (in scope plus recorded).
+
+- **Where the line is read** — only from the task document in the
+  **integration checkout**, never from the worker's copy: a worker that deletes
+  the line in its own copy changes nothing. A missing document, broken
+  frontmatter, or read error means the line is unknown, and an unknown line is
+  never treated as empty (fail closed). The line is read only when a path
+  outside the expected scope exists, so an in-scope commit does not depend on it.
+  A dynamic repair task's own document carries only the `.git/` and `.bouncer/`
+  lines, so for it the set is the union of the lines of every ledger task, the
+  same set the final-review repair check uses. Otherwise the plan's lines would
+  not apply to a repair that touches another task's territory.
+- **Releasing a line** — `coordinate revise --release-do-not-touch` edits the
+  task document in the working directory it runs from. Run it from the
+  integration checkout after the user approves, so the canonical copy changes.
+  Run from another checkout, the canonical copy stays and the block stays.
+- **Deviation reasons** — the worker lists each deviating path under
+  `## Unexpected paths` in its report as ``- `path` — reason`` (reason
+  1 to 200 characters). `coordinate report --outcome accepted` takes the
+  candidates from `git diff --name-only --no-renames <base_head>..HEAD` in the
+  worker (a rename counts both paths), drops runtime artifacts, and refuses with
+  `unexpected-path-reason-missing` when a deviating path has no usable reason. It
+  also re-checks the Do not touch line (a commit that bypassed the hook), so a
+  hit is `scope-do-not-touch-violation`. It also records `overlaps`: the ids of
+  other tasks of the same drive, not yet `integrated`, whose scope overlaps a
+  deviating path.
+- **Final-review repair** — a `--new-path` of the one brief-contract repair is
+  accepted unless it overlaps the union of the Do not touch lines of every
+  ledger task (`final-review-repair-do-not-touch`; an unreadable task document is
+  `scope-do-not-touch-unreadable`). An accepted repair records the paths as
+  `unexpected_paths`.
+
+### Parallel conflicts: detection and recovery
+
+A deviating path can collide with a task running in parallel. The conflict is
+caught at three moments:
+
+1. **At commit** — the cross-drive check refuses a path or exclusive resource that
+   another drive's started task holds (`cross-drive-conflict`).
+2. **At report** — `overlaps` records a same-drive overlap with an unintegrated
+   task. The coordinator reads it before accepting the next step.
+3. **At fan-in** — a cherry-pick conflict revokes only that task
+   (`fanin-conflict`).
+
+Recovery never rewrites history: commits that are already integrated stay. A
+conflicting task is revoked, its worktree is salvaged, and it is dispatched again
+from the new integration HEAD, which raises its lease generation.
+
 Without a coordinator ledger nothing above applies: plan and commit gates treat
 the approved `affected_paths` as the change boundary exactly as before.
 
