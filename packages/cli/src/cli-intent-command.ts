@@ -35,6 +35,7 @@ type BundleArgs = {
 
 type SectionsArgs = {
   mode: 'sections';
+  tasks: string[];
   error?: string;
   task: string | null;
   role: 'implementer' | 'reviewer' | 'debugger' | null;
@@ -297,13 +298,14 @@ function parseBundleArgs(rest: string[]): BundleArgs {
  */
 function parseSectionsArgs(rest: string[]): SectionsArgs {
   let task: string | null = null;
-  let taskSeen = false;
+  const tasks: string[] = [];
   let role: SectionsArgs['role'] = null;
   let roleSeen = false;
   let repo: string | undefined;
   let repoSeen = false;
   const fail = (message: string): SectionsArgs => ({
     mode: 'sections',
+    tasks,
     error: `intent: ${message}\n`,
     task,
     role,
@@ -313,8 +315,6 @@ function parseSectionsArgs(rest: string[]): SectionsArgs {
   for (let i = 0; i < rest.length; i += 1) {
     const token = rest[i];
     if (token === '--task') {
-      if (taskSeen) return fail('duplicate option: --task');
-      taskSeen = true;
       const value = rest[++i];
       if (value === undefined || value.startsWith('--') || value.trim().length === 0) {
         return fail('--task requires a non-empty tasks.md path');
@@ -322,6 +322,7 @@ function parseSectionsArgs(rest: string[]): SectionsArgs {
       // 비어 있지 않은 값만 확인한다. 절대경로·`..`·비정규 layout은
       // loadExecutionTask가 던지고 cmdIntentSections가 exit 1 JSON으로 낸다.
       task = value.trim();
+      tasks.push(task);
       continue;
     }
     if (token === '--role') {
@@ -349,13 +350,13 @@ function parseSectionsArgs(rest: string[]): SectionsArgs {
     return fail(`unexpected argument: ${token}`);
   }
 
-  if (!taskSeen || task === null) {
+  if (tasks.length === 0 || task === null) {
     return fail('--task <tasks.md> is required');
   }
   if (!roleSeen || role === null) {
     return fail('--role <implementer|reviewer|debugger> is required');
   }
-  return { mode: 'sections', task, role, repo };
+  return { mode: 'sections', task: tasks[0], tasks, role, repo };
 }
 
 /**
@@ -484,6 +485,34 @@ function cmdIntentSections(parsed: SectionsArgs, io: CliIo): number {
   const intentBundle = require('./intent-bundle') as typeof import('./intent-bundle');
   const { projectRoleIntentSections } = intentBundle;
   const repoRoot = (parsed.repo || process.cwd()) as string;
+  if (parsed.tasks.length > 1) {
+    if (parsed.role !== 'reviewer') {
+      io.out(`${JSON.stringify({ ok: false, reason: 'intent-task-invalid' }, null, 2)}\n`);
+      return 1;
+    }
+    const seen = new Set<string>();
+    const tasks: { task: string; sections: unknown }[] = [];
+    const failures: { task: string; reason: string }[] = [];
+    for (const task of parsed.tasks) {
+      if (seen.has(task)) {
+        failures.push({ task, reason: 'intent-task-duplicate' });
+        continue;
+      }
+      seen.add(task);
+      try {
+        const sections = projectRoleIntentSections({ repoRoot, taskFile: task, role: 'reviewer' });
+        tasks.push({ task, sections });
+      } catch (error) {
+        const reason = (error as { reason?: string }).reason;
+        if (typeof reason !== 'string' || !SECTIONS_FAIL_REASONS.has(reason)) throw error;
+        failures.push({ task, reason });
+      }
+    }
+    const result = failures.length ? { ok: false, reason: 'intent-sections-partial', failures, tasks }
+      : { ok: true, tasks };
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return failures.length ? 1 : 0;
+  }
   try {
     const result = projectRoleIntentSections({
       repoRoot,

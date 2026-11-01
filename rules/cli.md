@@ -483,7 +483,7 @@ counts under `promotions`.
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, `yield`, or a failure
 (`repeated-failure`, `unclear-result`, `advance-argv-invalid`, or the
-automatic action's reason). Before running any action, `coordinate advance` refuses
+automatic action's reason, or `advance-status-unavailable`). Successful responses include `status`, the final `coordinate status` object; status failure retains `executed`. Before running any action, `coordinate advance` refuses
 with `worker-tokens-missing` (exit 1, no `executed`) while a checked worker key has
 no token record. The refusal runs before the automatic action so that no argv runs
 against a ledger whose worker usage is still unrecorded.
@@ -594,7 +594,7 @@ Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
 `intent bundle` creates or reuses the task intent cache; `--no-symbols` records an empty function list for tasks without function symbols and cannot be combined with `--symbol`/`--candidate`. The result is `reused` only when a valid previous cache has the same brief hash, function set, each resolved entry's `function_ref` and blob hash, and section hashes (`bundle_id` and `revision` unchanged); otherwise it is `created` with `revision` = previous valid `revision` + 1, or 1 when the previous cache is missing or invalid. A brief-only change or a switch to `--no-symbols` is a miss, and an empty bundle with a different brief hash also increments. The first call is not a reselection; an `ambiguous` result allows one evidence-based reselection, after which `--no-symbols` is used (see `skills/bouncer-run/references/agent-dispatch.md`). `coordinate note` (C1) already covers note use, checkpoint `notes`, and the fence above; no separate note feature is added. `intent sections` is
-read-only: it projects role-specific section bodies from that cache. Successful
+read-only: it projects role-specific section bodies from that cache. For reviewer, repeat `--task` to get ordered `tasks: [{ task, sections }]`; duplicates and individual failures appear in `failures` with `intent-sections-partial` (exit 1). Multiple tasks for other roles return `intent-task-invalid` (exit 1). Single-task responses are unchanged. Successful
 implementer responses also include `symbol_locations`, copied in bundle order
 from resolved (including historical) and unlinked entries; unresolved and
 unselected ambiguous entries have no location. Reviewer and debugger responses
@@ -681,7 +681,15 @@ cycle `latest_dispatch`). `--previous` without a path or a repeated
 `--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|close|restart|route`
 owns cycle state (`start|record|restart|route` take `--blueprint <dir> --dispatch <json>`;
 `record` also takes `--round <json>`, `--status`, `--accept-risk`, and its success may carry `warnings` (`finding-merge-candidate`: findings of the round that share `file` and `symbol` under different categories; key omitted when none, never blocks), but it rejects with `context-review-input-invalid` a round whose merged findings share a fingerprint under different ids, at any `--status`, leaving state and report files unchanged (merge them and record the same round again);
-`close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk`;
+`close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk` and
+`--contract-links <json-file>`. Links are an array of `{ finding_id, path, sections }` for changed
+blueprint task documents; sections are `Interface` or `Touch`. Every changed task must link to an
+accepted `must_fix` finding for that same path and an explicitly approved `--accept-risk` ID.
+The entire task scope digest is accepted without rereview, with before/after digests and
+`accepted_without_rereview: true` recorded in closure and document. Invalid links are
+`context-review-input-invalid`; changed structure, missing links or mismatched consent are
+`context-review-state-conflict`; advisory IDs in `--accept-risk` are `context-review-unresolved-findings`;
+
 `restart` takes `--reason`, at most once); run `bouncer context-review --help`. The path that closes the cycle (`close` or `record --status accepted`) writes `context-review.md` and returns `written`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),
 `restart` (delta used or structural, `restart_count` below 1) or `user`

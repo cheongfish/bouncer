@@ -235,7 +235,7 @@ const LEGACY_SCAFFOLD_COMMENT_BODIES: readonly string[] = Object.freeze([
   'rules/planning.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.\n이 칸을 못 채우겠으면 blueprint를 쪼갤 신호입니다.',
   'explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다.',
   '구현자가 다른 문서 없이 시작할 수 있게.\n수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다.',
-  'bouncer.commit_intent와 bouncer.commit_summary는 각각 1~2개의 한국어\n종결 문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다.',
+  'bouncer.commit_intent와 bouncer.commit_summary는 각각 1~2개의 한국어\n문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다.',
   'DAG frontmatter (author-written):\nexecution_kind: commit | verification. 부재 = commit.\n' +
     'verification은 source 변경·review.md·commit 없이 종단 CI 증적만 남긴다.\ndepends_on: TASKS-NNN id 배열. 부재·[] = 의존 없음.\n' +
     'parallel_safe: boolean. false/부재 = 순차 wave 입력.\ndependency_gate: integrated. 부재 = integrated.\n' +
@@ -354,24 +354,23 @@ function normalizeAuthoredLines(raw: unknown, field: string): string[] {
   // YAML `field: 한 문장`은 리스트가 아니다. 한 항목으로 접으면 잘못된
   // 작성이 커밋에 그대로 실리므로, plan S32와 같이 리스트 형태만 받는다.
   if (typeof raw === 'string') {
-    throw new Error(`${field} must be a YAML list of 1-2 Korean terminal sentences`);
+    throw new Error(`${field} must be a YAML list of 1-2 Korean sentences`);
   }
   if (!Array.isArray(raw) || raw.length < 1 || raw.length > 2) {
-    throw new Error(`${field} must contain 1-2 Korean terminal sentences`);
+    throw new Error(`${field} must contain 1-2 Korean sentences`);
   }
   const lines = raw.map((value) => {
     if (typeof value !== 'string') {
-      throw new Error(`${field} must contain 1-2 Korean terminal sentences`);
+      throw new Error(`${field} must contain 1-2 Korean sentences`);
     }
     const line = value.trim();
-    // 판정은 형식만 본다: 빈 문장, 줄바꿈, 한글 부재, 한국어 종결형 부재.
+    // 판정은 형식만 본다: 빈 문장, 줄바꿈, 한글 부재.
     // 영문 식별자·경로·패키지 이름·backtick 인용은 받는다. 계약 용어
     // (예: `integrationBranch 값을 재계산 없이 사용함.`)를 막으면 정확한
     // 한국어 문장까지 커밋 직전에 거절되고, 저자는 용어를 뭉개 쓰게 된다.
     // Epic·Blueprint id를 넣지 말라는 권고는 문서 몫이며 여기서 강제하지 않는다.
-    if (!line || line.includes('\n') || !/[가-힣]/u.test(line)
-      || !/(?:함|임|음|됨|줌|둠|남|김|씀|듦|림|움|춤|짐|감|앰|냄|꿈|뜀|다|요|죠|까|네|지)[.!?]?$/u.test(line)) {
-      throw new Error(`${field} must contain 1-2 Korean terminal sentences (한국어 종결 문장)`);
+    if (!line || line.includes('\n') || !/[가-힣]/u.test(line)) {
+      throw new Error(`${field} must contain 1-2 Korean sentences (한국어 문장)`);
     }
     return line;
   });
@@ -433,7 +432,7 @@ function parseIntentBody(body: unknown): string[] {
     lines.push(content);
   }
   if (lines.length === 0) {
-    throw new Error('blueprint Intent must contain 1-2 Korean terminal sentences');
+    throw new Error('blueprint Intent must contain 1-2 Korean sentences');
   }
   return normalizeAuthoredLines(lines, 'blueprint Intent');
 }

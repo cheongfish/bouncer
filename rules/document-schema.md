@@ -162,25 +162,25 @@ display and default sort order — not execution authority.
   `affected_paths`, document status, or a gate.
 
 Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
-YAML lists of 1–2 Korean terminal sentences (each item a `- ` line). A scalar
+YAML lists of 1–2 Korean sentences (each item a `- ` line). A scalar
 string such as `commit_intent: 문장함` fails structural validation as `S32`.
-On the plan gate, an item that fails the commit-time Korean terminal sentence
-check (for example `…시킴.`) fails as `S34` (`commit_intent invalid: …` or
+On the plan gate, an item that fails the commit-time Korean sentence
+check (empty, multiline, or without Korean text) fails as `S34` (`commit_intent invalid: …` or
 `commit_summary invalid: …`), so the error surfaces before approval; a list-shape
 error stays `S32` only.
 Absent or `[]` keeps drafts and older tasks readable, and `bouncer commit` treats
 `[]` like an absent field by omitting that body line. `bouncer commit` renders present
 fields in that order and rejects malformed values without partial omission;
 missing fields keep older task documents readable. `/bouncer-finalize` renders
-1–2 Korean terminal sentences parsed from the blueprint `## Intent` section and
+1–2 Korean sentences parsed from the blueprint `## Intent` section and
 rejects an absent or malformed section. Code fences under `## Intent` (including
 mermaid diagrams) are skipped when collecting those sentences — keep only the
-1–2 Korean terminal lines there and put diagrams under a separate `##` heading.
+1–2 Korean lines there and put diagrams under a separate `##` heading.
 Plan and finalize gates report a broken Intent (heading present, content invalid)
 as `S33`; draft status and a missing `## Intent` heading do not raise `S33`.
 Authored intent and summary may name
-identifiers, paths, and packages inside a Korean terminal sentence; the check
-covers only line count, Korean text, and the Korean terminal ending. Keep Epic /
+identifiers, paths, and packages inside a Korean sentence; the check
+covers only line count, nonempty single lines, and Korean text. Keep Epic /
 Blueprint ids out of them, and do not add dependencies or trailers.
 
 **Generated evidence fields.** verification, review,
@@ -202,6 +202,12 @@ and sha256. `restart_count` is also anchored in the blueprint-root
 `state.json`, `start` and `restart` refuse, and a state count below the marker is
 corrupt. Only an accepted record or close returns the canonical `rounds`/`findings`
 projection (`resolved` or `accepted` with a note; accepted must_fix findings carry `accepted_risk: true`). `close` and an accepted record also certify the current snapshot: the runtime
+When a user explicitly accepts changed task contracts without rereview,
+`closure.contract_acceptances` and `bouncer.context_review.contract_acceptances` hold entries with
+`finding_id`, `path`, `sections`, `before_digest`, and `after_digest`. Both closure and frontmatter
+also carry `accepted_without_rereview: true`. Each digest covers the complete task scope, not only
+its listed sections.
+
 `closure.closure_target_digest` and `bouncer.context_review.closure_target_digest`
 hold the same 64 lowercase hex value, a context review record check compares it before the last round
 digest, and a document without it falls back to the round digest. A malformed

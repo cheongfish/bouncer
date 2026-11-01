@@ -150,13 +150,12 @@ any accepted-risk consent stay with the root.
    - body-only edit of the target section → `close`: set the fixed finding to
      `resolved` and run `bouncer context-review close`;
    - the edit also changed the contract or structure (Interface/Touch) →
-     `restart` while `restart_count` is below 1: run
-     `bouncer context-review restart`, rerun discovery, and re-approve the
-     changed plan;
+     `restart` while `restart_count` is below 1, or offer explicitly approved
+     accepted-risk contract links for eligible task contracts: a restart reruns
+     discovery and re-approves the changed plan;
    - the target section was not fixed, or only unrelated sections changed →
-     `user`: offer the user only an accepted-risk close (restore the reviewed
-     baseline documents, then close with `--accept-risk`, and edit after
-     approval) or stopping. Only the user's accepted-risk note may record the
+     `user`: offer an explicitly approved accepted-risk close with contract links
+     for changed task contracts, or stopping. Only the user's accepted-risk note may record the
      finding `accepted`.
 
    Leave `context-review` unaccepted until then. Run `bouncer context-review close`
@@ -179,12 +178,12 @@ It is read-only, derives `follow_up` from the payload and prints `next_action`
   add no round and overwrite no recorded report;
 - no round is recorded yet, or a `must_fix` finding is still open after the
   delta and its target section was not fixed → `user`: stop and report; offer
-  only an accepted-risk close (then edit after approval) or stopping. A fixed
+  an explicitly approved accepted-risk close with contract links, or stopping. A fixed
   target section routes to `close` or `restart` by the items below;
 - the structure and the Interface/Touch contract equal the reviewed baseline
   and only a body changed → `close`: run `bouncer context-review close` again
   (new `closure_target_digest`, no new round), even on an already closed cycle.
-  `close` refuses a changed structure or contract;
+  `close` refuses structural changes; a task contract change needs explicit risk acceptance and links;
 - only discovery is recorded, the cycle is open and only the Interface/Touch
   contract changed (`partial`) → `delta` with the allowlist above (do not
   restart discovery);
@@ -244,8 +243,15 @@ note. `--status accepted` closes the cycle only when every finding is
 `resolved` or `accepted` with a note; a `must_fix` finding is accepted only
 with `--accept-risk <id>` after the user explicitly approved that risk.
 Alternatively, close an open cycle after the last round using
-`bouncer context-review close --blueprint <dir> --dispositions <json> [--accept-risk <id[,id...]>]`
+`bouncer context-review close --blueprint <dir> --dispositions <json> [--accept-risk <id[,id...]>] [--contract-links <json-file>]`
 with explicit user approval. `--dispositions` takes a JSON array of `{ id, status, note }`.
+For a task contract changed after review, `--contract-links` takes an array of
+`{ "finding_id": "CR-12345678", "path": "<blueprint>/tasks/001/tasks.md", "sections": ["Interface", "Touch"] }`.
+Link every changed task to an accepted `must_fix` finding on that exact path, with its ID in
+`--accept-risk`. The whole task scope digest (Interface, Touch, affected paths and dependencies)
+is accepted without rereview; sections describe the human rationale, not a narrower digest.
+The result and both closure records mark `accepted_without_rereview: true` and retain before/after digests.
+A structural change or a contract in an index document cannot be linked.
 The `close` and `record --status accepted` calls that close the cycle write
 the blueprint-root `context-review.md` themselves (`bouncer.context_review`,
 body `## Findings`, `status: accepted`) and return `written`; do not copy the

@@ -21,7 +21,7 @@ import schema = require('./schema');
 const { PLAN_FULL_PERSPECTIVES, planDeltaPerspectiveOf } = schema;
 const {
   inputFindingIds, normalizeProjection, projectClosure, contentOf, openMustFixesFixed,
-  compareShape, sameStructureAndScope, applyDispositions, prepareFindings,
+  compareShape, applyDispositions, prepareFindings,
   recordState, closeState, restartState, restartArchive,
 } = transitions;
 import projection = require('./context-review-projection');
@@ -42,7 +42,7 @@ const {
 
 const RESTART_LIMIT = 1;
 
-import type { Fail, Ref, ReportRef, Finding, Cycle, State, Legacy, Ctx, ReportInput }
+import type { Fail, Ref, ReportRef, Finding, Cycle, State, Legacy, Ctx, ReportInput, Closure, ContractAcceptance }
   from './context-review-contracts';
 
 /**
@@ -119,10 +119,12 @@ function prepareMarker(repoRoot: string, bp: string, count: number): { abs: stri
  * @param {string} bp - blueprint 경로
  * @param {State['projection']} projection - null이 아닌 닫힘 투영
  * @param {string} [closureTargetDigest] - 인증 digest
+ * @param {Closure} [closure] - 재검토 없는 계약 수용 기록
  * @returns {{ abs: string; text: string; rel: string } | Fail} 쓰기 후보 또는 거절; 쓰지는 않는다
  */
 function prepareClosureDoc(
   repoRoot: string, bp: string, projection: NonNullable<State['projection']>, closureTargetDigest?: string,
+  closure?: Closure, restartCount?: number,
 ): { abs: string; text: string; rel: string } | Fail {
   const rel = `${bp}/context-review.md`;
   const abs = path.join(repoRoot, bp, 'context-review.md');
@@ -137,7 +139,7 @@ function prepareClosureDoc(
     if (!(error instanceof Error)) throw error;
     return fail('context-review-legacy-evidence', error.message, 'fix context-review.md frontmatter, then retry');
   }
-  const projected = projectClosureDoc(parsed, projection, closureTargetDigest);
+  const projected = projectClosureDoc(parsed, projection, closureTargetDigest, closure, restartCount);
   return isFail(projected) ? projected : { abs, rel, ...projected };
 }
 
@@ -368,7 +370,9 @@ function recordReport(input: {
       let written: string | undefined;
       const projection = state.projection ? normalizeProjection(state.projection) : null;
       if (status === 'accepted' && projection) {
-        const doc = prepareClosureDoc(repoRoot, ctx.bp, projection, state.closure?.closure_target_digest);
+        const doc = prepareClosureDoc(
+          repoRoot, ctx.bp, projection, state.closure?.closure_target_digest, state.closure,
+        );
         if (isFail(doc)) return doc;
         const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
         if (isFail(wrote)) return wrote;
@@ -479,6 +483,7 @@ function recordReport(input: {
  */
 function closeCycle(input: {
   repoRoot: string; blueprintDir: string; dispositionsFile: string; acceptRisk?: string[];
+  contractLinksFile?: string;
 }): Record<string, unknown> {
   const { repoRoot } = input;
   // 중복을 제거하고 정렬해 전이 키와 closure 원장의 결정론적 형식을 보장한다.
@@ -522,38 +527,16 @@ function closeCycle(input: {
     if (!state) return fail('context-review-state-conflict', 'no cycle started', 'run context-review start first');
     const evidence = readLegacy(repoRoot, ctx.bp);
     if (isFail(evidence)) return evidence;
-    const mismatch = reconcileMarker(ctx, repoRoot, state, evidence);
-    if (mismatch) return mismatch;
+    // 실패하는 close가 표식 복구로 문서를 먼저 바꾸지 않도록 표식은 최종 투영에만 반영한다.
+    if (evidence.marker > state.cycle.restart_count) {
+      return corrupt(`restart_count marker ${evidence.marker} exceeds state ${state.cycle.restart_count}`);
+    }
+    const markerUpdate = evidence.marker < state.cycle.restart_count ? state.cycle.restart_count : undefined;
     const cycle = state.cycle;
 
     // 0. 인증 대상: 지금 디스크의 계획 snapshot. close는 dispatch를 받지 않으므로 현재 내용이 곧 대상이다.
     const snap = computePlanSnapshot({ repoRoot, blueprintDir: ctx.bp });
     if (!snap.ok) return targetInvalid(snap.error, 'fix the plan documents, then retry close');
-
-    // 1. 전이 키: cycle id, restart count, 'close', dispositions 원본 바이트 sha256, 정렬된 accept-risk,
-    //    인증 대상 digest. digest를 넣어야 닫힌 뒤 본문을 고친 재close가 같은 처분 파일로도
-    //    no-op으로 삼켜지지 않는다.
-    const key = transitionKey([cycle.id, cycle.restart_count, 'close', sha256(dispBytes), acceptRisk.join(','),
-      snap.digest]);
-    if (state.transitions.includes(key)) {
-      // 이미 반영된 close 전이이므로 closure 결과(status: 'accepted')를 돌려주되, 문서는
-      // 투영 상태로 다시 쓴다(첫 성공 뒤 변경·쓰기 실패 복구).
-      // 저장 projection은 정규화 전 기록일 수 있어 파생 사본을 정규화해 쓴다.
-      let written: string | undefined;
-      const projection = state.projection ? normalizeProjection(state.projection) : null;
-      if (projection) {
-        const doc = prepareClosureDoc(repoRoot, ctx.bp, projection, snap.digest);
-        if (isFail(doc)) return doc;
-        const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
-        if (isFail(wrote)) return wrote;
-        written = doc.rel;
-      }
-      return {
-        ok: true, noop: true, cycle, status: 'accepted', closed: state.closed,
-        ...(projection ? { projection } : {}),
-        ...(written ? { written } : {}),
-      };
-    }
 
     // 2. 상태 충돌 검사: 아직 기록된 round가 없으면 거절. 이미 닫힌 cycle은 인증한 digest와
     //    현재 snapshot이 같을 때만 거절한다 — 다르면 본문 수정 뒤 재close 후보다(3-1에서 계약 대조).
@@ -562,29 +545,82 @@ function closeCycle(input: {
     const baseline = JSON.parse(latestText) as Record<string, unknown>;
     const baselineTarget = isRecord(baseline.target) ? baseline.target : {};
     const certified = state.closure?.closure_target_digest ?? baselineTarget.digest;
-    if (state.closed && certified === snap.digest) {
-      return fail('context-review-state-conflict', 'cycle is already closed', 'restart only when the plan changed');
-    }
     if (cycle.active_reports.length === 0) {
       return fail('context-review-state-conflict', 'no round has been recorded in this cycle',
         'record at least one round before close');
     }
-    // 2-1. 구조·계약 대조: 리뷰한 baseline과 digest가 다르면 문서 집합·structure_parts·scope_parts가
-    //      모두 같은 본문 수정만 인증한다. 다른 변경은 route의 delta/restart 몫이다.
-    if (baselineTarget.digest !== snap.digest) {
-      const parts = computePlanParts({ repoRoot, blueprintDir: ctx.bp });
-      if (!parts.ok) return targetInvalid(parts.error, 'fix the plan documents, then retry close');
-      if (!sameStructureAndScope(baseline, { documents: snap.documents, ...parts })) {
-        return fail('context-review-state-conflict',
-          'plan structure or contract differs from the reviewed baseline; close cannot certify it',
-          'run context-review route with a fresh review-dispatch plan: delta for an Interface/Touch change, '
-          + 'restart for a structure change');
+    // 구조는 어떤 동의로도 넘길 수 없다. scope는 문서 단위로 비교해 명시 링크로만 수용한다.
+    const parts = computePlanParts({ repoRoot, blueprintDir: ctx.bp });
+    if (!parts.ok) return targetInvalid(parts.error, 'fix the plan documents, then retry close');
+    const shape = baselineTarget.digest === snap.digest && !input.contractLinksFile
+      ? { structure: true, scope: true } : compareShape(baseline, { documents: snap.documents, ...parts });
+    if (!shape.structure) return fail('context-review-state-conflict', 'plan structure changed', 'run restart');
+    const oldScope = isRecord(baseline.scope_parts) ? baseline.scope_parts : {};
+    const changed = Object.keys(parts.scope_parts).filter((p) => oldScope[p] !== parts.scope_parts[p]);
+    if (!shape.scope && !input.contractLinksFile) {
+      return fail('context-review-state-conflict', 'plan contract changed without links', 'supply contract links');
+    }
+
+    const folded = foldReports(ctx, repoRoot, cycle.active_reports);
+    if (isFail(folded)) return folded;
+    let linksBytes: Buffer | undefined;
+    const links: Array<{ finding_id: string; path: string; sections: string[] }> = [];
+    if (input.contractLinksFile) {
+      try {
+        linksBytes = readInputFile(input.contractLinksFile);
+      } catch (error) {
+        return fail('context-review-input-invalid', isRecord(error) ? error.code : String(error),
+          'pass a readable --contract-links JSON file');
+      }
+      let raw: unknown;
+      try {
+        raw = JSON.parse(linksBytes.toString('utf8'));
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        return fail('context-review-input-invalid', error.message, 'pass valid contract links JSON');
+      }
+      const invalid = () => fail('context-review-input-invalid', 'invalid contract links',
+        'link each changed task path to an existing finding and Interface or Touch sections');
+      if (!Array.isArray(raw)) return invalid();
+      const seen = new Set<string>();
+      for (const entry of raw) {
+        if (!isRecord(entry) || typeof entry.finding_id !== 'string'
+          || !/^CR-[0-9a-f]{8}$/.test(entry.finding_id)
+          || !folded.findings.some((f) => f.id === entry.finding_id)
+          || typeof entry.path !== 'string' || !entry.path.startsWith(`${ctx.bp}/tasks/`)
+          || !/^\d{3}\/tasks\.md$/.test(entry.path.slice(`${ctx.bp}/tasks/`.length))
+          || !Array.isArray(entry.sections) || entry.sections.length === 0
+          || !entry.sections.every((v: unknown) => v === 'Interface' || v === 'Touch')
+          || seen.has(entry.path) || !changed.includes(entry.path)) return invalid();
+        seen.add(entry.path);
+        links.push({ finding_id: entry.finding_id, path: entry.path, sections: entry.sections as string[] });
+      }
+      if (changed.some((p) => !seen.has(p))) {
+        return fail('context-review-state-conflict', 'changed contract has no link', 'link every changed task');
       }
     }
 
-    // 3. active 보고들을 fold하여 기존 finding 목록을 취합한다
-    const folded = foldReports(ctx, repoRoot, cycle.active_reports);
-    if (isFail(folded)) return folded;
+    // 원본 링크 바이트를 키에 넣되 미지정 경로는 기존 키와 동일하게 유지한다.
+    const keyParts = [cycle.id, cycle.restart_count, 'close', sha256(dispBytes), acceptRisk.join(','), snap.digest];
+    if (linksBytes) keyParts.push(sha256(linksBytes));
+    const key = transitionKey(keyParts);
+    if (state.transitions.includes(key)) {
+      const projection = state.projection ? normalizeProjection(state.projection) : null;
+      let written: string | undefined;
+      if (projection) {
+        const doc = prepareClosureDoc(repoRoot, ctx.bp, projection, snap.digest, state.closure, markerUpdate);
+        if (isFail(doc)) return doc;
+        const wrote = guardWrites(() => writeAtomic(doc.abs, doc.text));
+        if (isFail(wrote)) return wrote;
+        written = doc.rel;
+      }
+      return { ok: true, noop: true, cycle, status: 'accepted', closed: state.closed,
+        ...(projection ? { projection } : {}), ...(written ? { written } : {}),
+        ...(state.closure?.accepted_without_rereview ? { accepted_without_rereview: true } : {}) };
+    }
+    if (state.closed && certified === snap.digest) {
+      return fail('context-review-state-conflict', 'cycle is already closed', 'restart only when the plan changed');
+    }
 
     // 4. dispositions 항목 유효성 검사 및 합성. folded는 이미 정규화돼 있어 처분은 정규화 후 id에
     //    적용된다(생략 id로 기록한 finding도 `CR-<8hex>`로 지정한다).
@@ -593,10 +629,32 @@ function closeCycle(input: {
 
     // 5. projectClosure 검증: open finding 잔존 여부, note 없는 accepted, --accept-risk 매칭을 확인
     const projected = projectClosure(merged, acceptRisk);
-    if (isFail(projected)) return projected;
+    // projectClosure를 먼저 평가하되 링크의 승인·처분·파일 불일치는 별도 충돌 코드로 돌린다.
+    const mismatchLink = links.some((link) => {
+      const finding = merged.find((f) => f.id === link.finding_id);
+      // 과거 finding의 accepted 상태만으로 이번 계약 변경의 명시적 처분을 대신할 수 없다.
+      const currentAcceptance = parsed.some((item) => isRecord(item)
+        && item.id === link.finding_id && item.status === 'accepted');
+      return !finding || !acceptRisk.includes(link.finding_id) || finding.file !== link.path
+        || finding.status !== 'accepted' || !currentAcceptance;
+    });
+    if (isFail(projected)) {
+      if (mismatchLink && links.every((link) => merged.find((f) => f.id === link.finding_id)
+        ?.actionability === 'must_fix')) {
+        return fail('context-review-state-conflict', 'linked finding is not accepted for this task',
+          'accept the linked finding and risk for its own task');
+      }
+      return projected;
+    }
+    if (mismatchLink) return fail('context-review-state-conflict', 'linked finding does not match acceptance',
+      'accept the linked finding and risk for its own task');
+    const contractAcceptances: ContractAcceptance[] = links.map((link) => ({ ...link,
+      before_digest: oldScope[link.path] as string, after_digest: parts.scope_parts[link.path] }));
+    const closure: Closure | undefined = contractAcceptances.length ? { accept_risk: acceptRisk,
+      contract_acceptances: contractAcceptances, accepted_without_rereview: true } : undefined;
     const projection = { findings: projected, rounds: folded.rounds };
     // 5-1. state를 바꾸기 전에 문서를 렌더·검증한다(부재·검증 실패는 무변경 거절).
-    const closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection, snap.digest);
+    const closureDoc = prepareClosureDoc(repoRoot, ctx.bp, projection, snap.digest, closure, markerUpdate);
     if (isFail(closureDoc)) return closureDoc;
 
     // 6. 쓰기: immutable dispositions 저장 후 state.json 원자적 교체
@@ -610,7 +668,7 @@ function closeCycle(input: {
     if (isFail(stored)) return stored;
 
     const next = closeState(
-      state, key, dispRef, acceptRisk, snap.digest, projection,
+      state, key, dispRef, acceptRisk, snap.digest, projection, contractAcceptances,
     );
     const saved = guardWrites(() => saveState(ctx, next));
     if (isFail(saved)) return saved;
@@ -622,6 +680,7 @@ function closeCycle(input: {
     return {
       ok: true, noop: false, cycle: next.cycle, status: 'accepted', closed: next.closed,
       projection: next.projection, written: closureDoc.rel,
+      ...(contractAcceptances.length ? { accepted_without_rereview: true } : {}),
     };
   }) as Record<string, unknown>;
 }

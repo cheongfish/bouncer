@@ -6,6 +6,11 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 
+test('finalize introduction → recommends a new session when context is long', () => {
+  const skill = fs.readFileSync(path.join(root, 'skills/bouncer-finalize/SKILL.md'), 'utf8');
+  assert.ok(skill.includes('컨텍스트가 길어졌다면 새 세션에서 /bouncer-finalize를 시작한다.'));
+});
+
 // PR 본문 절 순서와 필수 절이 계약이다. 템플릿(lib·GitHub·GitLab)과 draft-pr 참조가 같은 절을
 // 같은 순서로 가져야 PR 생성 결과가 일관된다. 절 이름·필수 표시는 문서 형식 자체가 계약이다.
 const sectionOrder = [

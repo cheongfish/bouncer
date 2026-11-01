@@ -103,8 +103,8 @@ const MAX_PATTERN_STARS = 3;
 const DEFAULT_MAX_PARALLEL = 2;
 
 // `waves_per_session`의 "auto"·부재 상한과 설정 가능한 최댓값. 세션이 길수록 compaction
-// 위험이 커지므로 상한을 8로 닫고, auto는 그 절반인 4에서 끊는다.
-const AUTO_WAVES_PER_SESSION = 4;
+// 위험이 커지므로 상한을 8로 닫고, auto는 2에서 끊는다.
+const AUTO_WAVES_PER_SESSION = 2;
 
 // root 직접 실행의 기본 상한. 짧은 직렬 체인(세 task 이하)만 coordinator 기동 비용을 아낄
 // 만큼 작다고 본다. 0으로 설정하면 직접 실행이 꺼진다.

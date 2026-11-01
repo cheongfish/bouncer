@@ -3,17 +3,20 @@
     "acq-gate-ids.test.js",
     "agents.test.js",
     "canonical-json.test.js",
+    "config-help.test.js",
+    "context-review-state.test.js",
+    "coordinate-advance.test.js",
     "dependency-boundaries.test.js",
     "frontmatter.test.js",
     "plugin-doc-cites.test.js",
     "plugin-wiring.test.js",
     "schema.test.js",
-    "symbol-index.test.js",
     "skill-bouncer-finalize.test.js",
     "skill-bouncer-run.test.js",
     "skill-bouncer-surface.test.js",
     "skill-context-review.test.js",
     "skill-spec-authoring.test.js",
+    "symbol-index.test.js",
     "workflow-responsibility-boundaries.test.js"
   ],
   "integration": [
@@ -33,6 +36,7 @@
     "public-name-regression.test.js",
     "terminal-intent-provenance.test.js",
     "typescript-module-contract.test.js",
-    "master-rules.test.js"
+    "master-rules.test.js",
+    "intent-bundle.test.js"
   ]
 }

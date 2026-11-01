@@ -61,6 +61,26 @@ test('run skill → runs the coordinator model check before the named dispatch',
   assert.ok(!/same coordinator brief/.test(paragraph), 'fallback must not use the same-brief label');
 });
 
+test('run handoff → recommends a new session when context is long', () => {
+  assert.ok(readRunSkill().includes('컨텍스트가 길어졌다면 새 세션에서 /bouncer-finalize를 시작한다.'));
+});
+
+test('plan handoff → recommends starting run in a new session', () => {
+  const plan = fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-plan/SKILL.md'), 'utf8');
+  assert.ok(plan.includes('/bouncer-run은 새 세션에서 시작한다.'));
+});
+
+test('run metrics handoff → delegates end timing and usage to the host table', () => {
+  const paragraph = paragraphContaining(readRunSkill(), 'Run `metrics start`/`end`');
+  assert.match(paragraph, /drive-metrics\.md/);
+  assert.match(paragraph, /when to call `metrics end` and which usage to pass are fixed per host by its host usage table/);
+  const metrics = fs.readFileSync(
+    path.join(__dirname, '..', 'skills/bouncer-run/references/drive-metrics.md'), 'utf8',
+  );
+  assert.match(metrics, /Only then read the final usage[\s\S]*close the session once/);
+  assert.match(metrics, /never call `metrics end` with an intermediate value/);
+});
+
 // 호스트마다 usage가 실리는 곳이 다르다. Claude Code 전용 task-notification 대기를
 // 모든 호스트에 걸면 usage 이벤트가 없는 호스트에서 session이 영영 닫히지 않는다.
 // 그래서 대응표 하나(drive-metrics.md)가 호스트별 출처와 종료 시점을 소유하고,
@@ -287,4 +307,14 @@ test('run docs → implementer model is the resolver line, not the coordinator i
     '`<value>` is the line `bouncer subagent-model --agent bouncer-implementer` printed '
     + 'for this dispatch, not the coordinator\'s own model.',
   ));
+});
+
+test('multiple reviewer tasks → both dispatch references describe one batch and partial failures', () => {
+  for (const file of ['review-round.md', 'agent-dispatch.md']) {
+    const body = fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-run/references', file), 'utf8');
+    const normalized = body.replace(/\s+/g, ' ');
+    assert.match(normalized, /--task <p1> --task <p2> --role reviewer/);
+    assert.match(normalized, /intent-sections-partial/);
+    assert.match(normalized, /tasks\[\]\.sections/);
+  }
 });

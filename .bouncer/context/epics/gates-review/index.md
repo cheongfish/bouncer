@@ -17,7 +17,7 @@ bouncer:
 
 ## Intent
 - 문제: 기능 영역이 같은 작업이 legacy epic 63개에 흩어져 있고, 등록부 도입 뒤 이 저장소에는 새 blueprint를 만들 활성 epic이 없다.
-- 목표: 이 epic이 `gates-review` 영역의 새 blueprint를 받는다. 포함: 검증과 리뷰: `bouncer validate` gate 코드, verify 증적과 재사용, 리뷰 관점·디스패치·라운드, 코딩·테스트 표준
+- 목표: 이 epic이 `gates-review` 영역의 새 blueprint를 받는다. 포함: 검증과 리뷰: `bouncer validate` gate 코드, verify 증적과 재사용, 리뷰 관점·디스패치·라운드, 코딩·테스트 표준, 리뷰 close 계약 수용·S34 문장 게이트·drive 효율(wave 상한, advance status, reviewer 입력 일괄 조회, 세션 안내)
 
 ## Success criteria
 1. `gates-review` 영역에 속하는 새 계획은 이 epic 아래 blueprint로 만든다.
@@ -50,6 +50,10 @@ bouncer:
 27. `node scripts/check-task.js <test files>`는 넘긴 파일의 테스트 이름 위반·tier 미등록·unit tier 프로세스 생성 위반에서 exit 1, 인자 없음에서 exit 2, 모두 통과하면 exit 0을 낸다.
 28. `skills/bouncer-plan/SKILL.md`와 `references/spec-authoring/index.md`는 commit task 전용 verify에 종단 CI의 저비용 정적 검사를 포함하고 여러 명령은 프로젝트 스크립트 하나로 감싸라고 서술하며, 이 변경의 종단 `npm run ci`가 통과한다.
 29. `model_tiers.<provider>.strong`이 `"inherit"`이면 provider와 관계없이 `review-dispatch` plan·execute가 `reviewer_tier: strong`에서 `reviewer_tier_applied: false`를 내고, `agent_dispatch`를 등급 적용 전 해석으로 두며, `reasons`에 `reviewer tier strong not applied: tier-inherit (fix: model_tiers.<provider>.strong)`를 싣는다. 모델 slug 매핑의 `reviewer_tier_applied: true`는 그대로이고 이 변경의 종단 `npm run ci`가 통과한다.
+30. `context-review close --contract-links`는 baseline과 구조가 같고 계약만 바뀐 계획을, 바뀐 모든 문서가 링크되고 해당 finding이 `--accept-risk`로 수용됐을 때만 close하며 전후 `scope_parts` digest와 `accepted_without_rereview: true`를 closure와 `context-review.md`에 남긴다. 링크 없는 계약 변경과 구조 변경은 거절하고 상태를 바꾸지 않으며 링크 없는 기존 close는 같은 결과를 낸다.
+31. 한국어 종결형 정규식은 `normalizeAuthoredLines`에서 제거돼 허용 어미 밖 문장이 S34·`bouncer commit`·S33을 통과하고, 빈 문장·줄바꿈·한글 없음·원소 수 위반은 계속 거절한다.
+32. `coordinator.waves_per_session` 자동·부재 상한이 2이고 명시값은 유지되며, `coordinate advance` 성공 응답이 `status`를 싣고 `intent sections --role reviewer`가 반복 `--task`를 `tasks[]`로 돌려준다.
+33. drive·finalize·plan skill 문서가 다음 단계를 새 세션에서 시작하도록 안내하고, 이 변경의 종단 `npm run ci`가 통과한다.
 
 ## Out of scope
 - 이번 drive 후속 계획은 기존 closed blueprint를 재개하지 않으며, 이미 충족된 항목은 새 구현 대신 현재 코드·테스트 근거로 닫는다.
@@ -86,3 +90,4 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [adversarial-review-tiering](blueprints/adversarial-review-tiering/index.md) — 리뷰어를 적대적 자세와 필수 수정 보고 기준으로 개정하고, 규모·위험으로 reviewer_tier를 계산해 모델에 적용하며 훅이 상향만 허용한다.
 - [test-tiers-plan-gate](blueprints/test-tiers-plan-gate/index.md) — 신규 테스트의 `test/tiers.json` 누락을 plan gate `G33`으로 막고, task verify용 `scripts/check-task.js`와 제품 문서의 verify 구성 지침을 더한다.
 - [strong-inherit-not-applied](blueprints/strong-inherit-not-applied/index.md) — `review-dispatch.ts`의 `applyReviewerTier`가 `inherit`인 strong 매핑을 미적용(`tier-inherit`)으로 보고하고 `docs/configuration.md` 설명을 맞춘다.
+- [review-close-drive-efficiency](blueprints/review-close-drive-efficiency/index.md) — context-review close와 S34 판정을 조정하고 drive 세션·조회·metrics 흐름을 개선한다.

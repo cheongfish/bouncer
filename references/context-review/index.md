@@ -97,7 +97,11 @@ Do not merge or split the returned perspectives.
    current digest. When `follow_up: full`, or when the delta is already used, use `bouncer
    context-review restart` (at most once per cycle) and run round 1 discovery
    instead of opening a delta; an open `must_fix` after the delta or a spent
-   restart stops for the user.
+   restart stops for the user. A user may explicitly accept a changed task contract using
+   `context-review close --contract-links <json-file> --accept-risk <ids>`: link every changed
+   task path to its accepted `must_fix` finding. The whole task scope digest is accepted without
+   rereview; `sections` describes the acceptance, and closure records retain before/after digests
+   and `accepted_without_rereview: true`. Structural changes cannot be accepted this way.
    The scope bodies, the delta origin rule, what each scope excludes, and the
    severity mapping are canonical in the named agent
    `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` (`## Review modes`,

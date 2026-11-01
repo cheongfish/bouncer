@@ -249,9 +249,9 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    lists (`- ` items), not a single scalar. The internal `bouncer commit` turns each task
    `title` into that task's commit subject (falls back to blueprint `title`),
    uses that task's `commit_intent` then `commit_summary` (each 1–2 Korean
-   terminal sentences; no verification-title fallback), following
+   sentences; no verification-title fallback), following
    `.gitmessage`. `/bouncer-finalize` remainder uses the blueprint `## Intent`
-   (1–2 Korean terminal sentences) as its body and the blueprint `title` as
+   (1–2 Korean sentences) as its body and the blueprint `title` as
    subject.
    `commit_type` participates in the shared branch helper: standalone and
    integration branches are `<type>/<epic-slug>-<blueprint-slug>-<slug>`; worker
@@ -378,6 +378,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
    cause, path, and recovery action. The root runs `plan-ledger close` only after `validate --gate plan` passes; a rejected approval or a failed gate leaves the ledger open.
+   /bouncer-run은 새 세션에서 시작한다.
    Then point the user at `/bouncer-run` — it
    drives implement, verify, review, and task commit until the blueprint's tasks run out, and
    `config.autonomy` (`auto` | `interactive`) already decides how often they are

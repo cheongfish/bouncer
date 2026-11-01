@@ -426,6 +426,18 @@ function loadState(ctx: Ctx): State | null | Fail {
       || !parsed.closure.accept_risk.every((x) => typeof x === 'string')) {
       return corrupt('closure shape');
     }
+    const acceptances = parsed.closure.contract_acceptances;
+    if (acceptances !== undefined && (!Array.isArray(acceptances) || acceptances.length === 0
+      || !acceptances.every((entry) => isRecord(entry) && typeof entry.finding_id === 'string'
+        && typeof entry.path === 'string' && Array.isArray(entry.sections) && entry.sections.length > 0
+        && entry.sections.every((section: unknown) => section === 'Interface' || section === 'Touch')
+        && typeof entry.before_digest === 'string' && SHA256_RE.test(entry.before_digest)
+        && typeof entry.after_digest === 'string' && SHA256_RE.test(entry.after_digest)))) {
+      return corrupt('closure contract acceptances shape');
+    }
+    if ((acceptances !== undefined) !== (parsed.closure.accepted_without_rereview === true)
+      || (parsed.closure.accepted_without_rereview !== undefined
+        && parsed.closure.accepted_without_rereview !== true)) return corrupt('closure acceptance marker shape');
     // 손상된 digest를 현재 내용으로 대체 인증하지 않는다: 형식이 틀리면 state 손상이다.
     const digest = parsed.closure.closure_target_digest;
     if (digest !== undefined && (typeof digest !== 'string' || !SHA256_RE.test(digest))) {

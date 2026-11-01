@@ -261,7 +261,7 @@ same mutation argv right away.
    `--task <NNN>` when driving one prepared task). The stop's `next` is the
    frozen `coordinate next` response: its `checkpoint.ledger` is the same fence
    as the `coordinate status` `checkpoint`. For open-task judgment keep using
-   that `coordinate status` checkpoint's `active_tasks` and `completed_tasks`
+   the successful `advance` response's `status.checkpoint` `active_tasks` and `completed_tasks`
    summaries: read the blueprint and the open task briefs the checkpoint still
    lists; leave completed tasks as their checkpoint summary only. Do not load
    the raw ledger, completed task documents, prior worker report bodies, or past
