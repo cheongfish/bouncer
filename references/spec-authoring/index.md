@@ -138,6 +138,12 @@ body content only; never edits harness-owned frontmatter fields. Used from
        seam when Checklist does not assert those probes.
      - **Interface** (throw vs miss): write immediate `throw` input errors and
        `cache miss` or `fallback` states as `separate lists`.
+     - **Interface** (error contract): when Target behavior and Interface both
+       name an error code for the same input, the two sections give the same
+       code. When two rejection conditions can hold at once, Interface states
+       their check order and Target behavior states the same order, because
+       the first failing guard decides the code the caller sees. Write the
+       order in both sections, not in one and by implication in the other.
      - **Domain terms**: define each `domain term` used in a rejection rule
        inside the section that uses it (Interface, etc.) with one `shape` and
        one `example`.
@@ -172,6 +178,15 @@ body content only; never edits harness-owned frontmatter fields. Used from
        (for example the `migrate-context-slugs` test) is missing from Touch is
        a consumer-test omission; a changed behavior description whose related
        document is not surveyed is a document-survey omission.
+     - **Touch** (new test tier): when a commit task creates a
+       `test/<name>.test.js` (a `Create` row, or an `affected_paths` entry that
+       Touch does not `Modify`) in a repository that has `test/tiers.json`,
+       record in that test's Touch `근거` the tier it joins (`unit` or
+       `integration`) and the registration path: `test/tiers.json` listed in
+       both Touch and `affected_paths`. The plan gate G33 fails a missing
+       registration; the `근거` is the basis the initial scope confirmation
+       keeps. A task that only modifies an existing test, or a repository
+       without `test/tiers.json`, needs no tier note.
      - **Touch** (size or shape contract): before planning an addition to a Touch
        path, check whether a test or lint script pins that file's
        size, headings, or step shape (`rg` the path in the project's test and script directories). If

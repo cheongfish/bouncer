@@ -304,6 +304,12 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    (`${BOUNCER_ROOT}/references/minimality/index.md`) (advisory, not a gate) to challenge new
    dependencies, abstractions, or files and record the rationale.
 
+   **Test tier (at the same confirmation).** For each new `test/<name>.test.js` a commit task creates,
+   the confirmation records its tier (`unit` or `integration`) and the registration path in that test's
+   Touch `근거`. In a repository with `test/tiers.json`, the path is `test/tiers.json` in the task's
+   `affected_paths`; the plan gate G33 checks that it is listed. A task that only modifies an existing
+   test, or a repository without the manifest, needs no tier note.
+
    **Coupled paths (after scope confirmation).** After confirmed paths are written, the plan coordinator runs
    `bouncer plan inspect --blueprint <dir>` once and reads `coupledPaths`. A `pairs` entry with
    `covered: false` (a generated counterpart such as `.codex/agents/<name>.toml` or a `.gitignore`

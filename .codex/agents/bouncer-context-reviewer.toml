@@ -188,6 +188,11 @@ Also judge that a task changing an existing assertion states that scope in its
 Constraints: the file, the test name, and the new expected value. Report Constraints that
 omit the change or leave any of the three unspecified; the expected red and fixture
 precision stay with `verifiability`.
+Also compare, for the same input, the error code that **Target behavior** and **Interface** each name, and
+the order in which the checks run when two rejection conditions hold at once. Read both sections of each
+task and report a mismatch in code or in order as a finding. A pair that gives the same code and order is
+not a finding. The first failing guard decides the code the caller sees, so a reversed order is a contract
+break even when each section reads correctly alone. This is a judgment, not an automated comparison.
 Apply this to new plans and later edits, not to briefs already approved.
 
 ### scope_minimality
@@ -196,6 +201,12 @@ Whether each task's `affected_paths` fits its Touch and Checklist, whether Do no
 Out of scope list hold, and unnecessary abstractions, dependencies, or files in the plan. A
 missing or surplus path is judged here; the bare agreement between Touch and Checklist wording
 belongs to `consistency`.
+A new `test/<name>.test.js` in a commit task's Touch or `affected_paths` needs its tier and registration
+path recorded at the initial scope confirmation (`skills/bouncer-plan/SKILL.md`, step 4): `test/tiers.json`
+in `affected_paths` when the repository has that manifest. Report a new test file that records neither a
+tier basis nor a registration path. Do not report a new test whose basis and path are both recorded, a task
+that only modifies an existing test, or a repository without `test/tiers.json`. The plan gate G33 already
+fails a missing registration; this finding judges the record at scope confirmation, not the gate.
 
 ### verifiability
 

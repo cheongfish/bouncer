@@ -67,3 +67,15 @@ test('spec-authoring Checklist rules → carry the branch matrix and doc wording
   }
   assert.doesNotMatch(md, /\blight/i);
 });
+
+// 신규 테스트의 tier 등록 경로는 최초 범위 확인에서 기록한다. 작성 지침과 계획 skill은 그 경로인
+// test/tiers.json을 가리키고, 가리키는 파일이 저장소에 실제로 있어야 한다. 등록 누락 판정은 기존 G33
+// (plan gate)이 맡으므로 여기서는 링크만 보고 판정 로직은 다시 검사하지 않는다.
+test('spec-authoring tier rule → links test/tiers.json and the file exists', () => {
+  assert.ok(readSkill('spec-authoring').includes('test/tiers.json'));
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'test', 'tiers.json')));
+});
+
+test('bouncer-plan scope confirm → links test/tiers.json for each new test file', () => {
+  assert.ok(readSkill('bouncer-plan').includes('test/tiers.json'));
+});
