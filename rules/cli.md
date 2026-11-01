@@ -560,7 +560,6 @@ bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <
 bouncer intent bundle --task <tasks.md> --symbol <name>... [--candidate <qualified-ref>]...
 bouncer intent bundle --task <tasks.md> --no-symbols
 bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
-bouncer intent diff --snapshot <path> --history-ref <sha> [--repo <dir>]
 bouncer graphify-bin
 bouncer graph-sync
 bouncer subagent-model --agent <name> [--provider <name>] [--json]
@@ -607,16 +606,6 @@ follow `next` and run `bouncer intent bundle --task <path> --symbol <name>...`
 to rebuild, then retry sections. For `intent-task-invalid`, do not rebuild the
 bundle; correct `--task` to the canonical `tasks.md` path shown in `next` and
 retry sections. Do not assemble `intent_sections` by reading bundle sources.
-
-`intent diff` reads one frozen review snapshot and prints changed-function intent
-evidence JSON judged against `--history-ref`, which must name the snapshot's
-`target.base` commit. It writes nothing (no source, index, branch, review state,
-or snapshot artifact). Success prints one `{ ok: true, ... }` document and exits 0;
-a lookup failure prints one `{ ok: false, reason, cause, next }` document and
-exits 1 with empty stderr. Usage errors exit 2 with an `intent: ...` line on
-stderr and nothing on stdout. Lookup reasons are `snapshot-path-invalid`, the
-snapshot loader reasons, `history-unreadable`, `history-ref-mismatch`, and
-`collect-failed`. Zero candidates or missing evidence is still exit 0.
 
 `subagent-model` prints one model slug, or `inherit`, as a single line without
 flags; with `--json` it prints one line `{ provider, role, tier, model, effort,

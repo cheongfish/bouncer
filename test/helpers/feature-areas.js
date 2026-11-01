@@ -5,10 +5,7 @@ const path = require('node:path');
 // 이름이 바뀌면 이 표 한 곳만 고치면 되고, 테스트 본문은 영역 이름만 본다.
 // 값은 `scripts/lib`의 확장자 없는 모듈 basename이다.
 const FEATURE_AREAS = Object.freeze({
-  intent: Object.freeze([
-    'intent-bundle', 'intent-provenance', 'intent-revision', 'symbol-index', 'review-diff-intent',
-    'cli-intent-command', 'cli-intent-diff-command',
-  ]),
+  intent: Object.freeze(['intent-bundle', 'intent-provenance', 'symbol-index', 'cli-intent-command']),
   execution: Object.freeze([
     'coordinator', 'coordinator-commands', 'coordinator-worker', 'coordinator-repair', 'coordinator-input',
     'coordinator-prepare', 'coordinator-fanin', 'coordinator-command-contracts', 'coordinate-next',

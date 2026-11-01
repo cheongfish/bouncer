@@ -211,18 +211,15 @@ to your `Decision required` judgment, never a second brief.
   item 7 opt-in (Cursor `subagents.dispatch: "print"`), every worker is a
   foreground `bouncer dispatch print` process per `rules/cursor-print-dispatch.md`,
   never a Task subagent or an ad hoc shell launch.
-- Commit ownership — workers report; only the coordinator revises scope,
-  records lease-bound judgments, and owns wave fan-in. It does not move the
-  pointer per task.
+- Commit ownership — workers report; only the coordinator revises scope, records
+  lease-bound judgments, and owns wave fan-in. It does not move the pointer per task.
 - Before a `bouncer-implementer` edits a commit task, require it to read
   `${BOUNCER_ROOT}/references/coding-standards/index.md`.
-- In every implementer payload, name each `affected_paths` entry that does not
-  exist at the worker's HEAD as a new file the task creates. A worker must not
-  treat a missing target or test file as a blocker.
-- Launching a ready wave in parallel stays allowed. A handle or "started"
-  notice is not a report: wait for it, and do not return until every worker's
-  final report is collected. Never return `blocked` or `continue` while a
-  worker is still running or a report is outstanding.
+- In every implementer payload, name each `affected_paths` entry that does not exist at the
+  worker's HEAD as a new file the task creates. A worker must not treat a missing target or test file as a blocker.
+- Launching a ready wave in parallel stays allowed. A handle or "started" notice is not a report:
+  wait for it, and do not return until every worker's final report is collected.
+  Never return `blocked` or `continue` while a worker is still running or a report is outstanding.
 - Per-action rules come from each `coordinate next` `card`. To dispatch a worker,
   apply its fallback, or record its model or tokens, read `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md`;
   host usage per `${BOUNCER_ROOT}/skills/bouncer-run/references/drive-metrics.md`.
