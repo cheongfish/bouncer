@@ -1059,14 +1059,31 @@ function ambiguousWorkerKeyMarker(
 }
 
 /**
- * 가장 최근 `worker-tokens-ambiguous` 표시가 덮은 행을 뺀 사본을 만든다. 표시는 키별로 기록 당시의
- * worker-model 수와 worker-tokens 수를 적어, 배열에서 그 수만큼의 앞쪽 같은 키 행을 덮는다. 행은 배열
- * 끝에만 덧붙고 `--replace`는 키의 가장 나중 worker-tokens 행만 같은 자리에서 바꾸므로 앞쪽 순번이 안정하다.
- * 같은 키 표시가 여럿이면 수가 늘어난 쪽이 앞 집합을 포함하므로 키마다 가장 큰 수를 쓴다.
- * 표시가 없으면 입력과 같은 내용의 배열을 돌려준다. 입력은 바꾸지 않는다.
+ * 키별 replay 상태. 행을 기록 순서대로 읽으며 토큰 행을 호출 하나에 붙인다.
+ * `models`·`tokens`는 지금까지 본 worker-model·worker-tokens 행 수다. `openFresh`·`openCovered`는 아직
+ * 토큰이 붙지 않은 worker-model 행의 인덱스로, 앞이 덮인 집합(`openCovered`)이고 뒤가 표시 뒤의 호출
+ * (`openFresh`)이다. `unattached`는 붙을 호출이 없던 토큰 행의 인덱스다.
+ */
+type AmbiguousReplay = {
+  models: number; tokens: number; openFresh: number[]; openCovered: number[]; unattached: number[];
+};
+
+/**
+ * 가장 최근 `worker-tokens-ambiguous` 표시가 덮은 호출과 토큰 행을 뺀 사본을 만든다. 표시는 키별로
+ * 기록 당시의 worker-model 수(`model_rows`)와 worker-tokens 수(`token_rows`)를 적는다. 행은 배열 끝에만
+ * 덧붙으므로 앞쪽 순번이 그 집합이다. 같은 키 표시가 여럿이면 키마다 가장 큰 수를 쓴다.
+ *
+ * 판정을 호출 단위로 한다. 키별 model 수와 tokens 수를 따로 세어 덮으면 덮인 호출의 늦은 tokens가
+ * 표시 뒤에 생긴 미기록 호출을 대신 채워 guard를 통과시킨다. 그래서 토큰 행을 기록 순서대로 호출에 붙인다.
+ * - 표시 집합의 토큰 행(순번 < `token_rows`)은 열린 덮인 호출에 붙여 함께 뺀다. 붙을 곳이 없으면 버린다.
+ * - 표시 뒤의 토큰 행은 기록 당시 열린 호출에 붙는다. 표시 뒤의 열린 호출을 먼저 찾고, 없을 때만 덮인
+ *   호출을 찾는다. 덮인 호출은 표시 시점에 이미 떠났으니 늦은 값이 그쪽 몫이기 때문이다.
+ * - 붙을 호출이 없는 표시 뒤 토큰 행은 다음에 올 model을 채우도록 남긴다.
+ * 덮인 model 행은 항상 뺀다(예외 집합). 덮인 호출에 붙은 토큰 행도 뺀다.
+ * 표시가 없는 키의 행은 그대로 둔다. 입력은 바꾸지 않는다.
  *
  * @param {unknown[]} decisions - 원장 decisions
- * @returns {unknown[]} 덮인 행을 뺀 새 배열. 판정은 drive-metrics의 기존 규칙을 그대로 쓴다
+ * @returns {unknown[]} 덮인 호출과 그 토큰 행을 뺀 새 배열. 판정은 drive-metrics의 기존 규칙을 그대로 쓴다
  */
 function withoutAmbiguousRows(decisions: unknown[]): unknown[] {
   const cover = new Map<string, { models: number; tokens: number }>();
@@ -1082,23 +1099,57 @@ function withoutAmbiguousRows(decisions: unknown[]): unknown[] {
     });
   }
   if (cover.size === 0) return decisions;
-  // 키별로 지금까지 본 행 순번을 센다. 순번이 덮은 수 안이면 예외 집합의 행이다.
-  const seenModels = new Map<string, number>();
-  const seenTokens = new Map<string, number>();
+  const replay = new Map<string, AmbiguousReplay>();
+  const drop = new Set<number>();
   // 판정 대상 kind는 두 개뿐이라 넓은 타입으로 읽는다. 표시 행 타입으로 좁히면 비교가 항상 거짓이 된다.
-  return decisions.filter((d) => {
-    if (typeof d !== 'object' || d === null) return true;
-    const row = d as { kind?: unknown; task?: unknown; role?: unknown; perspective?: unknown };
-    if (row.kind !== 'worker-model' && row.kind !== 'worker-tokens') return true;
-    const isModel = row.kind === 'worker-model';
+  decisions.forEach((d, i) => {
+    if (typeof d !== 'object' || d === null) return;
+    const row = d as { kind?: unknown; task?: unknown; role?: unknown; perspective?: unknown; tokens?: unknown };
+    if (row.kind !== 'worker-model' && row.kind !== 'worker-tokens') return;
     const key = JSON.stringify([row.task ?? '', row.role, row.perspective ?? '']);
     const covered = cover.get(key);
-    if (!covered) return true;
-    const seen = isModel ? seenModels : seenTokens;
-    const ordinal = seen.get(key) ?? 0;
-    seen.set(key, ordinal + 1);
-    return ordinal >= (isModel ? covered.models : covered.tokens);
+    if (covered === undefined) return;
+    let state = replay.get(key);
+    if (state === undefined) {
+      state = { models: 0, tokens: 0, openFresh: [], openCovered: [], unattached: [] };
+      replay.set(key, state);
+    }
+    if (row.kind === 'worker-model') {
+      const isCovered = state.models < covered.models;
+      state.models += 1;
+      if (isCovered) drop.add(i);
+      // 숫자 tokens가 달린 호출은 자기 값으로 이미 채워져 열린 호출이 아니다.
+      if (typeof row.tokens === 'number') return;
+      // 붙을 곳 없이 남은 토큰 행이 있으면 이 호출이 그 행의 몫이다. 덮인 호출이면 그 행도 같이 뺀다.
+      const orphan = state.unattached.shift();
+      if (orphan !== undefined) {
+        if (isCovered) drop.add(orphan);
+        return;
+      }
+      (isCovered ? state.openCovered : state.openFresh).push(i);
+      return;
+    }
+    const isCovered = state.tokens < covered.tokens;
+    state.tokens += 1;
+    if (isCovered) {
+      // 표시 집합의 토큰 행은 덮인 열린 호출을 채우고 뺀다. 새 호출에는 붙이지 않는다. 새 호출의 토큰이
+      // 표시 집합에서 빌려온 것이 되면 미기록 호출이 통과하기 때문이다.
+      state.openCovered.shift();
+      drop.add(i);
+      return;
+    }
+    if (state.openFresh.length > 0) {
+      state.openFresh.shift();
+      return;
+    }
+    if (state.openCovered.length > 0) {
+      state.openCovered.shift();
+      drop.add(i);
+      return;
+    }
+    state.unattached.push(i);
   });
+  return decisions.filter((_, i) => !drop.has(i));
 }
 
 /**
@@ -1392,7 +1443,7 @@ function pendingWorkerTokensIn(
   decisions: unknown[],
   keep: (task: string | null, role: string | null) => boolean,
 ): WorkerTokensPendingKey[] {
-  // ambiguous 표시가 덮은 기록 당시 행은 예외로 뺀다. 표시 뒤에 추가된 행은 덮이지 않아 그대로 판정된다.
+  // ambiguous 표시가 덮은 호출과 그 토큰 행은 예외로 뺀다. 표시 뒤의 미기록 호출은 덮이지 않아 그대로 판정된다.
   const scoped = withoutAmbiguousRows(decisions).filter((d) => {
     // 객체가 아닌 원소는 worker 기록이 아니므로 범위와 무관하게 pendingWorkerTokenKeys가 무시한다.
     if (typeof d !== 'object' || d === null) return false;

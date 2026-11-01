@@ -12,6 +12,7 @@ const { execFileSync } = require('node:child_process');
 const { coordinate } = require('./helpers/coordinator-fence');
 const { advance } = require('../packages/cli/dist/coordinate-advance');
 const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
+const driveMetrics = require('../packages/cli/dist/drive-metrics');
 
 const BLUEPRINT = '.bouncer/context/epics/drive-execution/blueprints/drive-recovery-contracts';
 const TASK = '001';
@@ -81,6 +82,17 @@ function decisionsOf(drive) {
   return JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8')).decisions;
 }
 
+// 통계(metrics summary의 worker_tokens)를 제품 summarize로 읽는다. 메트릭 파일은 없어도 되고 원장만 본다.
+function workerStats(drive) {
+  const summary = driveMetrics.summarize({
+    file: path.join(drive.repo, '.bouncer', 'runtime', 'no-metrics.json'),
+    blueprint: BLUEPRINT,
+    resolveLedger: () => drive.ledgerFile,
+  });
+  assert.equal(summary.ok, true);
+  return summary.worker_tokens;
+}
+
 // 토큰 guard 판정을 advance 경로로 본다. 막히면 next를 부르기 전에 거절되고, 통과하면 next의 done으로 끝난다.
 function advanceOnce(drive) {
   return advance({ repoRoot: drive.repo, blueprint: BLUEPRINT, task: TASK, deps: {
@@ -139,10 +151,20 @@ test('모호한 model 두 건과 unreported 한 건 → advance가 막힌 뒤 am
   assert.equal(marked.decision.kind, 'worker-tokens-ambiguous');
   assert.equal(marked.decision.tokens, undefined, 'an ambiguous marker never carries a numeric token value');
   assert.equal(marked.decision.unreported, undefined, 'an ambiguous marker never counts as unreported');
+  // coordinator 알림: 반환 행이 기록 당시 두 경계(model 2, tokens 1)를 담고 원장에 그대로 남아야 한다.
+  assert.deepEqual(marked.decision, {
+    kind: 'worker-tokens-ambiguous', role: ROLE, task: TASK, model_rows: 2, token_rows: 1,
+  });
 
   const after = decisionsOf(drive);
   assert.equal(after.length, prior.length + 1);
   assert.deepEqual(after.slice(0, prior.length), prior);
+  assert.deepEqual(after[after.length - 1], marked.decision);
+
+  // 표시는 기존 행을 바꾸지 않으므로 통계는 여전히 미측정이다. 두 호출이 모두 누락으로 남아야 한다.
+  const stats = workerStats(drive);
+  assert.equal(stats.by_role.implementer.missing, 2);
+  assert.equal(stats.missing, 2);
 
   const resumed = advanceOnce(drive);
   assert.equal(resumed.ok, true);
@@ -174,6 +196,23 @@ test('ambiguous 뒤 새 model과 새 tokens가 모두 채워짐 → advance가 �
   assert.equal(recordModel(drive).ok, true);
   assert.equal(recordTokens(drive, '900').ok, true);
   assert.equal(advanceOnce(drive).ok, true);
+});
+
+test('ambiguous 뒤 늦게 온 tokens는 표시된 호출에 붙어 이후 추가된 미기록 model을 통과시키지 않는다 → advance가 worker-tokens-missing으로 막는다', () => {
+  const drive = createDrive();
+  recordModel(drive);
+  recordModel(drive);
+  assert.equal(recordTokens(drive, 'ambiguous').ok, true);
+
+  // 표시 시점에 토큰 행이 없어 두 model이 모두 예외 집합이다. 뒤에 온 tokens는 그중 이미 떠난 호출의 늦은 값이다.
+  assert.equal(recordTokens(drive, '900').ok, true);
+  // 새 model은 표시 뒤에 생긴 호출이라 예외 밖이다. 토큰 없이 추가됐으니 앞선 tokens가 대신 채우면 안 된다.
+  assert.equal(recordModel(drive).ok, true);
+
+  const blocked = advanceOnce(drive);
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.reason, 'worker-tokens-missing');
+  assert.deepEqual(blocked.pending, [{ task: TASK, role: ROLE, perspective: null }]);
 });
 
 test('같은 당시 집합에 ambiguous를 두 번 기록 → worker-tokens-ambiguous-duplicate로 거절하고 원장 bytes를 보존한다', () => {
