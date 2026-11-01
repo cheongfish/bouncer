@@ -632,8 +632,11 @@ function closeCycle(input: {
     // projectClosure를 먼저 평가하되 링크의 승인·처분·파일 불일치는 별도 충돌 코드로 돌린다.
     const mismatchLink = links.some((link) => {
       const finding = merged.find((f) => f.id === link.finding_id);
+      // 과거 finding의 accepted 상태만으로 이번 계약 변경의 명시적 처분을 대신할 수 없다.
+      const currentAcceptance = parsed.some((item) => isRecord(item)
+        && item.id === link.finding_id && item.status === 'accepted');
       return !finding || !acceptRisk.includes(link.finding_id) || finding.file !== link.path
-        || finding.status !== 'accepted';
+        || finding.status !== 'accepted' || !currentAcceptance;
     });
     if (isFail(projected)) {
       if (mismatchLink && links.every((link) => merged.find((f) => f.id === link.finding_id)

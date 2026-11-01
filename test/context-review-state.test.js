@@ -16,7 +16,7 @@ const id = 'CR-12345678';
 const timestamp = '2026-01-01T00:00:00Z';
 
 // 공개 전이를 이용해 실제 cycle을 만들고 각 테스트가 자기 작업 트리 안에서 독립적으로 실행된다.
-function fixture(t, actionability = 'must_fix', findingId = id) {
+function fixture(t, actionability = 'must_fix', findingId = id, findingStatus = 'open') {
   const parent = path.join(__dirname, '../.bouncer/runtime');
   fs.mkdirSync(parent, { recursive: true });
   const root = fs.mkdtempSync(path.join(parent, 'contract-test-'));
@@ -33,8 +33,8 @@ function fixture(t, actionability = 'must_fix', findingId = id) {
   fs.writeFileSync(dispatch, JSON.stringify({ ok: true, phase: 'plan', strategy: 'single', blueprint: bp,
     target: snap, snapshot_version: snapshot.SNAPSHOT_VERSION, ...parts }));
   assert.equal(state.startCycle({ repoRoot: root, blueprintDir: bp, dispatchFile: dispatch }).ok, true);
-  const finding = { id: findingId, severity: 'major', status: 'open', category: 'scope', brief_clause: 'touch', file: task,
-    symbol: 'touch', actionability, origin: 'discovery', first_seen_round: 1, last_seen_round: 1 };
+  const finding = { id: findingId, severity: 'major', status: findingStatus, category: 'scope', brief_clause: 'touch', file: task,
+    symbol: 'touch', ...(findingStatus === 'accepted' ? { note: 'Risk explicitly accepted.' } : {}), actionability, origin: 'discovery', first_seen_round: 1, last_seen_round: 1 };
   const report = path.join(root, 'round.json');
   fs.writeFileSync(report, JSON.stringify({ round: { round: 1, mode: 'discovery', target: { digest: snap.digest },
     perspectives: [{ name: 'combined', target_digest: snap.digest }], severity_changes: [] }, findings: [finding] }));
@@ -85,6 +85,13 @@ test('accepted linked contract change → records both digests and acceptance wi
   assert.equal(result.accepted_without_rereview, true);
   assert.equal(saved.accepted_without_rereview, true);
   assert.equal(projected.accepted_without_rereview, true);
+});
+
+test('previously accepted finding without current disposition → rejects and preserves evidence', (t) => {
+  const f = fixture(t, 'must_fix', id, 'accepted');
+  changeContract(f);
+  fs.writeFileSync(f.dispositions, '[]');
+  unchanged(f, 'context-review-state-conflict');
 });
 
 test('malformed contract links → reject without changing review evidence', async (t) => {
@@ -161,8 +168,8 @@ test('record with contract links → rejects the close-only flag', () => {
   let error = '';
   const code = runCli(['context-review', 'record', '--blueprint', 'example', '--dispatch', 'dispatch.json',
     '--round', 'round.json', '--contract-links', 'links.json'], { out: () => {}, err: (s) => { error += s; } });
-  assert.equal(code, 2);
   assert.match(error, /--contract-links is only valid for close/);
+  assert.equal(code, 2);
 });
 
 // 변경이 없거나 본문만 바뀐 경우는 기존 동작 보호이므로 red가 필요하지 않다.
