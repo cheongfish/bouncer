@@ -48,8 +48,11 @@ user.
      session as `continued` (`fresh` when the host cannot, and after a context
      review restart). The ledger has no cap on fixes: record the mode the fix
      actually used and do not stop because of a count.
-     Never run `plan-ledger recover`; the root does, once, for a ledger that
-     stopped at the former revision cap.
+     Never run `plan-ledger recover`; the root may run this recommended audit
+     for a ledger that stopped at the former revision cap. The same ledger can
+     continue without it. If chosen, it records the reason and returns a new
+     checkpoint without changing answers, blueprint, planner counts, phase, or
+     review documents; it is neither approval nor review.
    - `ask` for every question that needs the user.
 3. Metrics: for each planner dispatch open `metrics start --kind
    planner-session` without a blueprint and close it when the planner returns.
