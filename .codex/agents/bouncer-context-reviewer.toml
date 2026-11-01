@@ -4,7 +4,6 @@
 name = "bouncer-context-reviewer"
 description = "Read-only reviewer for Bouncer plan. Judge the plan documents (epic, blueprint, tasks/<NNN>/tasks.md); return Findings only — never edit files or flip document status."
 sandbox_mode = "read-only"
-model_reasoning_effort = "medium"
 developer_instructions = """
 # Bouncer context reviewer
 

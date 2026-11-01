@@ -31,10 +31,10 @@ limits.
    is a configuration snapshot, not proof of the host model.
    Pass the role effort by host. On Claude Code, pass the role effort as the Agent effort argument; the hook corrects it.
    On Codex, pass the role effort as the spawn reasoning_effort.
-   (The custom agent TOML field is named `model_reasoning_effort`.)
-   `bouncer init` seeds that TOML field from `roles.<agent>.effort` (absent or null seeds `medium`).
-   The spawn `reasoning_effort` wins over the seeded TOML value for that call.
-   On Codex, when `codex-agents check` reports `mismatch` after an effort change, rerun `bouncer init --seed-codex-agents`; the check and this reseed apply only to Codex.
+   Generated Codex TOML omits `model_reasoning_effort`; when role effort is
+   null, omit the spawn argument and let the host choose its default.
+   On Codex, when `codex-agents check` reports `mismatch`, rerun
+   `bouncer init --seed-codex-agents` to synchronize the role definition.
    On Cursor, do not pass the role effort; tell the user the configured effort was not applied because the model slug carries it.
    Every new dispatch starts without conversation history, whether the resolved
    model is a slug or `inherit`; this covers `bouncer-coordinator`,

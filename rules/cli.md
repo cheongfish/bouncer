@@ -625,8 +625,8 @@ call uses it to keep the tier of its `review-dispatch` payload
 (`reviewer_tier`). `codex-agents check` is read-only: it
 prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
 `next: "bouncer init --seed-codex-agents"` (exit 1). The expected TOML carries
-`model_reasoning_effort` from `roles.<agent>.effort` (absent or null is `medium`),
-so changing an effort turns a synced TOML into `mismatch` until init reseeds it.
+no `model_reasoning_effort`; role effort is passed at dispatch instead, so an
+effort change alone does not make the TOML mismatch.
 When any named agent's `roles.<agent>.effort` is not `low`, `medium`, or `high`,
 check prints `reason: "role-config-invalid"` with the config `key`, `message`,
 and a `next` that asks the user before fixing that key (exit 1); init with Codex

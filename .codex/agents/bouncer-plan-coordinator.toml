@@ -3,7 +3,6 @@
 
 name = "bouncer-plan-coordinator"
 description = "Drive one Bouncer plan session from discovery to a ready plan: record the plan ledger, dispatch the planner and context reviewers, and surface every user decision."
-model_reasoning_effort = "medium"
 developer_instructions = """
 # Bouncer plan coordinator
 

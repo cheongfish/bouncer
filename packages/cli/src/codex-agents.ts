@@ -31,9 +31,7 @@ type CodexEffort = 'low' | 'medium' | 'high';
 // `subagent-model`(subagents.ts ROLE_EFFORTS)과 같은 허용 집합이다. 두 곳이 갈라지면
 // 같은 설정을 한쪽은 받고 한쪽은 거절한다.
 const CODEX_EFFORTS: readonly string[] = ['low', 'medium', 'high'];
-// TOML은 키를 생략할 수 없다: 생략하면 Codex가 자기 기본값을 쓰고, 그 값은 Codex 버전마다
-// 달라 check가 설정과 실제 실행 effort의 일치를 보증하지 못한다. 그래서 부재·null은
-// 이 값으로 고정해 쓴다. `subagent-model --json`의 effort:null 의미와는 별개다.
+// 역할 설정 검증에 쓰는 기본값이며, 생성된 TOML에는 기록하지 않는다.
 const DEFAULT_CODEX_EFFORT: CodexEffort = 'medium';
 
 type CodexEffortsOk = { ok: true; efforts: Record<string, CodexEffort> };
@@ -112,15 +110,13 @@ function pluginAgentsDir(): string {
 
 /**
  * Claude/Cursor/Antigravity용 `agents/*.md`를 Codex custom-agent TOML로 바꾼다.
- * `model: inherit`는 키를 생략해 부모 세션 모델을 쓰게 한다. effort는 항상
- * `model_reasoning_effort`로 쓴다 — 값 검증은 호출자가 `resolveCodexEfforts`로 먼저 끝낸다.
+ * 모델과 effort는 디스패치 시 전달하므로 TOML에 기록하지 않는다.
  *
  * @param {string} markdown - YAML frontmatter가 있는 에이전트 문서
- * @param {CodexEffort} [effort='medium'] - 이 역할의 설정 effort. 생략하면 roles 미설정 기본값
  * @returns {string} Codex가 `.codex/agents/`에서 읽는 TOML
  * @throws frontmatter가 mapping이 아니거나 name·description이 비면 Error
  */
-function mdToCodexToml(markdown: string, effort: CodexEffort = DEFAULT_CODEX_EFFORT): string {
+function mdToCodexToml(markdown: string): string {
   const { data, body } = parseFrontmatter(markdown);
   if (!isRecord(data)) {
     throw new Error('agent frontmatter must be a mapping');
@@ -143,7 +139,6 @@ function mdToCodexToml(markdown: string, effort: CodexEffort = DEFAULT_CODEX_EFF
   if (data.readonly === true) {
     lines.push('sandbox_mode = "read-only"');
   }
-  lines.push(`model_reasoning_effort = ${JSON.stringify(effort)}`);
   const instructions = String(body).replace(/^\n+/, '').replace(/\n+$/, '');
   lines.push('developer_instructions = """');
   lines.push(instructions.replace(/"""/g, '\\"""'));
@@ -180,7 +175,7 @@ type CodexAgentCheckConfigFail = {
 };
 
 /**
- * 로컬 `.codex/agents/<name>.toml`이 소비 저장소 설정 기준 생성본과 바이트 일치하는지
+ * 로컬 `.codex/agents/<name>.toml`이 역할 문서 기준 생성본과 바이트 일치하는지
  * 읽기만으로 판정한다. 파일을 만들지 않고, 마커 없는 사용자 파일은
  * mismatch가 아니라 not-generated로 돌려 seed가 덮을 대상이 아님을 드러낸다.
  * `roles.<agent>.effort`가 하나라도 잘못되면 파일 상태보다 먼저 role-config-invalid로
@@ -228,7 +223,6 @@ function checkCodexAgent({
   const srcDir = agentsDir ?? pluginAgentsDir();
   const next = mdToCodexToml(
     fs.readFileSync(path.join(srcDir, `${agentName}.md`), 'utf8'),
-    resolved.efforts[agentName],
   );
   if (existing !== next) {
     return { ok: false, in_sync: false, reason: 'mismatch', path: rel };
@@ -301,7 +295,7 @@ function ensureCodexAgents({
   for (const name of NAMED_AGENTS) {
     const src = path.join(srcDir, `${name}.md`);
     if (!fs.existsSync(src)) continue;
-    const next = mdToCodexToml(fs.readFileSync(src, 'utf8'), resolved.efforts[name]);
+    const next = mdToCodexToml(fs.readFileSync(src, 'utf8'));
     const rel = `${CODEX_AGENTS_DIR}/${name}.toml`;
     const dest = path.join(repoRoot, rel);
     if (fs.existsSync(dest)) {

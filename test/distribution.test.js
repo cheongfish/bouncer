@@ -256,15 +256,13 @@ test('every named agent → has one Markdown source, one NAMED_AGENTS entry, and
   );
 });
 
-// check-emit.js와 같은 fixture 설정({ roles: {} })으로 만든다. 저장소 .bouncer/config.json은
-// 개발자 개인 설정이라 읽지 않는다. 줄바꿈을 정규화하지 않고 체크인 바이트를 그대로 비교한다.
+// 줄바꿈을 정규화하지 않고 체크인 바이트를 그대로 비교한다.
 test('every checked-in Codex TOML → equals the fixture-generated TOML', () => {
-  const { NAMED_AGENTS, mdToCodexToml, resolveCodexEfforts } = require('../packages/cli/dist/codex-agents');
-  const { efforts } = resolveCodexEfforts({ roles: {} });
+  const { NAMED_AGENTS, mdToCodexToml } = require('../packages/cli/dist/codex-agents');
   for (const name of NAMED_AGENTS) {
     const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
     const checkedIn = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
-    assert.strictEqual(checkedIn, mdToCodexToml(md, efforts[name]), `${name}.toml differs from its generated form`);
+    assert.strictEqual(checkedIn, mdToCodexToml(md), `${name}.toml differs from its generated form`);
   }
 });
 
@@ -276,13 +274,11 @@ test('coordinator Markdown and generated Codex TOML → share the checkpoint led
   const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
   const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
   const checkedIn = fs.readFileSync(tomlPath, 'utf8');
-  // 체크인 생성본은 roles 미설정 기본값(medium) 기준이다. 저장소 개인 설정에 따라 바뀌면
-  // 배포 parity가 개발자마다 달라진다.
-  const generated = mdToCodexToml(md, 'medium');
+  const generated = mdToCodexToml(md);
 
   assert.strictEqual(checkedIn.split(/\r?\n/, 1)[0], GENERATED_MARKER);
   assert.strictEqual(checkedIn, generated);
-  assert.ok(checkedIn.includes('\nmodel_reasoning_effort = "medium"\n'));
+  assert.doesNotMatch(checkedIn, /^model_reasoning_effort\s*=/m);
   for (const needle of [
     'checkpoint',
     '--ledger-path <checkpoint.ledger.path>',

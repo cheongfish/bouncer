@@ -88,13 +88,8 @@ function rejectUnignoredLib(root) {
   }
 }
 
-// 체크인 `.codex/agents/*.toml`을 만드는 명시적 fixture 설정. roles가 비어 전 역할이
-// 기본 effort(medium)다. 저장소 `.bouncer/config.json`은 개발자 개인 설정이라 그것을 읽으면
-// 같은 커밋이 사람마다 다른 생성본을 정본으로 삼는다.
-const CODEX_FIXTURE_CONFIG = { roles: {} };
-
 /**
- * index에 스테이징된 `.codex/agents/<name>.toml`이 fixture 설정 기준 생성본과 바이트
+ * index에 스테이징된 `.codex/agents/<name>.toml`이 생성본과 바이트
  * 일치하는지 검사한다. 워킹트리가 아니라 index를 보는 이유는 pre-commit이 커밋될 바이트를
  * 막아야 하기 때문이다(CI에서는 index가 HEAD와 같다). 빌드 뒤에만 호출한다 — 변환기는
  * `packages/cli/dist`에서 읽는다.
@@ -108,10 +103,9 @@ const CODEX_FIXTURE_CONFIG = { roles: {} };
  */
 function rejectStaleCodexAgents(root) {
   if (!fs.existsSync(path.join(root, 'agents'))) return;
-  const { NAMED_AGENTS, mdToCodexToml, resolveCodexEfforts } = require(
+  const { NAMED_AGENTS, mdToCodexToml } = require(
     path.join(root, 'packages/cli/dist/codex-agents'),
   );
-  const { efforts } = resolveCodexEfforts(CODEX_FIXTURE_CONFIG);
   const stale = [];
   for (const name of NAMED_AGENTS) {
     const rel = `.codex/agents/${name}.toml`;
@@ -121,12 +115,12 @@ function rejectStaleCodexAgents(root) {
     });
     const markdown = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
     // 추적되지 않은 파일도 git show가 0이 아니다. 누락도 생성본 불일치로 같이 보고한다.
-    if (staged.status !== 0 || staged.stdout !== mdToCodexToml(markdown, efforts[name])) {
+    if (staged.status !== 0 || staged.stdout !== mdToCodexToml(markdown)) {
       stale.push(rel);
     }
   }
   if (stale.length > 0) {
-    process.stderr.write('check-emit: staged .codex/agents toml differs from the fixture-generated toml\n');
+    process.stderr.write('check-emit: staged .codex/agents toml differs from the generated toml\n');
     process.stderr.write(`${stale.join('\n')}\n`);
     process.exit(1);
   }

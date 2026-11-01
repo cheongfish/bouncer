@@ -3,7 +3,6 @@
 
 name = "bouncer-planner"
 description = "Write or revise Bouncer plan documents (epic, blueprint, tasks) for one plan session from the inputs the plan coordinator hands you; never touch the plan ledger."
-model_reasoning_effort = "medium"
 developer_instructions = """
 # Bouncer planner
 

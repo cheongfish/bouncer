@@ -3,7 +3,6 @@
 
 name = "bouncer-coordinator"
 description = "Drive one approved Bouncer blueprint to completion from its integration worktree: dispatch role workers, judge their reports, and record every decision in the coordinator ledger."
-model_reasoning_effort = "medium"
 developer_instructions = """
 # Bouncer coordinator
 

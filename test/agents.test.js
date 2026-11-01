@@ -50,21 +50,6 @@ test('agent doc bodies → use English headings', () => {
   }
 });
 
-// 일곱 역할 문서는 named Codex dispatch가 받는 generated TOML과 바이트 단위로 같아야
-// 두 운반 경로(TOML, fallback 본문)가 같은 본문을 전달한다. fallback payload 계약
-// 자체는 test/subagents.test.js가 검사한다. 체크인 생성본은 저장소 개인 설정이 아니라
-// roles가 빈 fixture(전 역할 medium) 기준이다.
-test('all seven role briefs → keep TOML parity with their Markdown source', () => {
-  const { mdToCodexToml, resolveCodexEfforts } = require('../packages/cli/dist/codex-agents');
-  const { efforts } = resolveCodexEfforts({ roles: {} });
-  for (const name of AGENTS) {
-    const markdown = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
-    const toml = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
-    assert.strictEqual(efforts[name], 'medium', name);
-    assert.strictEqual(toml, mdToCodexToml(markdown, efforts[name]), name);
-  }
-});
-
 test('mdToCodexToml given a role doc → preserves name description body and readonly sandbox', () => {
   const { mdToCodexToml, GENERATED_MARKER } = require('../packages/cli/dist/codex-agents');
   for (const name of AGENTS) {
@@ -123,11 +108,10 @@ function effortLines(toml) {
   return toml.split('\n').filter((line) => line.startsWith('model_reasoning_effort'));
 }
 
-test('mdToCodexToml without an effort → emits model_reasoning_effort medium once', () => {
+test('mdToCodexToml → omits model_reasoning_effort', () => {
   const { mdToCodexToml } = require('../packages/cli/dist/codex-agents');
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
-  assert.deepStrictEqual(effortLines(mdToCodexToml(md)), ['model_reasoning_effort = "medium"']);
-  assert.deepStrictEqual(effortLines(mdToCodexToml(md, 'high')), ['model_reasoning_effort = "high"']);
+  assert.deepStrictEqual(effortLines(mdToCodexToml(md)), []);
 });
 
 test('resolveCodexEfforts with high, null, absent and invalid efforts → maps defaults and names the bad key', () => {
@@ -157,16 +141,16 @@ test('resolveCodexEfforts with high, null, absent and invalid efforts → maps d
   assert.strictEqual(resolveCodexEfforts({ roles: { 'bouncer-reviewer': 'high' } }).key, 'roles.bouncer-reviewer');
 });
 
-test('ensureCodexAgents with roles effort high → writes high to that role and medium to the rest', () => {
+test('ensureCodexAgents with roles effort high → omits effort from generated TOML', () => {
   const { ensureCodexAgents } = require('../packages/cli/dist/codex-agents');
   const repo = codexRepo({ roles: { 'bouncer-reviewer': { effort: 'high' }, 'bouncer-debugger': { effort: null } } });
   try {
     const result = ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
     assert.deepStrictEqual(result, { ok: true });
     const read = (name) => fs.readFileSync(path.join(repo, '.codex/agents', `${name}.toml`), 'utf8');
-    assert.deepStrictEqual(effortLines(read('bouncer-reviewer')), ['model_reasoning_effort = "high"']);
-    assert.deepStrictEqual(effortLines(read('bouncer-debugger')), ['model_reasoning_effort = "medium"']);
-    assert.deepStrictEqual(effortLines(read('bouncer-implementer')), ['model_reasoning_effort = "medium"']);
+    assert.deepStrictEqual(effortLines(read('bouncer-reviewer')), []);
+    assert.deepStrictEqual(effortLines(read('bouncer-debugger')), []);
+    assert.deepStrictEqual(effortLines(read('bouncer-implementer')), []);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -210,31 +194,6 @@ test('an unmarked TOML with roles effort high → remains user-owned', () => {
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
-
-test('checkCodexAgent after a roles effort change → reports mismatch then in_sync after resync', () => {
-  const { ensureCodexAgents, checkCodexAgent } = require('../packages/cli/dist/codex-agents');
-  const repo = codexRepo({ roles: {} });
-  const write = (config) => fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(config));
-  const check = () => checkCodexAgent({ repoRoot: repo, agentName: 'bouncer-reviewer', agentsDir });
-  try {
-    ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
-    assert.strictEqual(check().ok, true);
-    write({ roles: { 'bouncer-reviewer': { effort: 'high' } } });
-    assert.strictEqual(check().reason, 'mismatch');
-    ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
-    assert.strictEqual(check().ok, true);
-    write({ roles: { 'bouncer-debugger': { effort: 'extreme' } } });
-    const before = fs.readFileSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml'));
-    const invalid = check();
-    assert.strictEqual(invalid.ok, false);
-    assert.strictEqual(invalid.reason, 'role-config-invalid');
-    assert.strictEqual(invalid.key, 'roles.bouncer-debugger.effort');
-    assert.deepStrictEqual(fs.readFileSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml')), before);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
 
 // Worker dispatch는 카드로 넘긴 뒤 짧은 안내만 남긴다.
 test('bouncer-coordinator Worker dispatch body → stays at most 20 lines', () => {
