@@ -150,12 +150,15 @@ need one; `resume` keeps the counts, `continued` adds 1 to both counts, and `fre
 session and adds 1 to `revisions`. The counts have no cap: `continued` and `fresh` succeed however many
 times they are recorded, and the review round limit stays with `context-review`. `ask --question`
 prints the new `qid`; `answer --question-id --text` fills it once; `close` makes later mutations fail.
-`recover --note <text>` is an audit step for an open ledger that stopped at the former revision cap
-(before the cap was removed). It needs a non-empty reason, appends `recover: <reason>` to `notes`,
-and prints the new checkpoint. It changes nothing else: answers, blueprint, planner counts, phase,
-and review documents stay as they are, and it approves or reviews nothing. Continuing the same
-ledger needs no `recover`; run it once, only when the reason should be on record. The CLI does not
-tell callers apart, so only the root runs `open`, `answer`, `recover`, and `close` by rule. Refusals
+`recover --note <text>` is the audit step for an open ledger that stopped at the former revision cap
+(before the cap was removed). The root runs it once, before that same ledger continues: the reason is
+the audit record that the ledger went on past the former cap, so continuing a capped ledger without
+`recover` is not allowed. `recover` needs a non-empty reason, appends `recover: <reason>` to `notes`, and prints the new
+checkpoint. It changes nothing else: answers, blueprint, planner counts, phase, and review documents stay
+as they are, and it approves or reviews nothing. A ledger that never reached the cap continues without
+`recover`. The CLI does not tell callers apart, so only the root runs `open`, `answer`, `recover`, and
+`close` by rule; the CLI also cannot tell a capped ledger from another, so the root applies the `recover`
+step. Refusals
 are `{ ok: false, reason }` (exit 1) before any write: `plan-ledger-id-invalid`,
 `plan-ledger-not-found`, `plan-ledger-invalid`, `plan-ledger-exists`, `ledger-checkpoint-invalid`,
 `stale-ledger-checkpoint`, `ledger-locked`, `ledger-lock-lost`, `plan-ledger-closed`,

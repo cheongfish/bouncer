@@ -148,9 +148,12 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
   'task-reported-blocked': {
     cause: 'The worker reported outcome blocked. payload.report and payload.report_path are data for judging '
       + 'the cause; the CLI cannot tell which cause applies, so this stop does not resume by itself.',
+    // 사용자 결정을 요청하는 주체는 root다. coordinator가 직접 사용자에게 묻는 문구면 사용자 대면 질문 경로가
+    // root와 coordinator 둘로 갈라지므로, 원인 (1)의 주어를 root로 고정해 질문 창구를 하나로 둔다.
     next: 'Classify the cause before any command. (1) Approval, a product decision, or scope expansion is needed: '
-      + 'ask the user and record the answer with `bouncer coordinate note`; run no command without that recorded '
-      + 'approval. (2) An in-scope environment or dependency failure: confirm it is gone with `bouncer coordinate '
+      + 'the root asks the user for the decision and records the answer with `bouncer coordinate note`; run no '
+      + 'command without that recorded approval. (2) An in-scope environment or dependency failure: confirm it is '
+      + 'gone with `bouncer coordinate '
       + 'status` or `coordinate next`, record that evidence with `coordinate note`, then run `bouncer coordinate '
       + 'revoke` and `prepare` only when revoke accepts the state. (3) A gate failure or a limit reached: keep the '
       + 'state, hand the reason and the preserved ledger and worktree paths to the root, and take only the action the '

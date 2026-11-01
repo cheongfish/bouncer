@@ -126,6 +126,40 @@ function nextFor(drive) {
   return coordinateNext({ repoRoot: drive.repo, blueprint: BLUEPRINT, cwd: drive.integration, task: TASK });
 }
 
+// coordinate note로 판단을 남긴다. 승인 기록이나 해소 증거를 뜻하며, 그 자체는 명령 권한이 아니다.
+function noteOn(drive, text) {
+  const noted = coordinate({
+    command: 'note', repoRoot: drive.repo, blueprint: BLUEPRINT, cwd: drive.integration, task: TASK, text,
+  });
+  assert.equal(noted.ok, true);
+}
+
+// task-reported-blocked 문구에서 원인 (1) 절만 떼어 낸다. 문구 전체로 보면 "root가 묻는다"와
+// "coordinator가 묻는다"를 구분할 수 없어서 원인별 행위자는 절 단위로 본다.
+function causeOneClause(text) {
+  const match = text.match(/\(1\)([\s\S]*?)\(2\)/);
+  return match ? match[1] : '';
+}
+
+// 원인을 나누기 전에 revoke·prepare·advance를 조건 없이 다음 행동으로 권하는 문장을 모은다.
+// 명령을 언급하는 문장은 금지("never", "do not", "no command") 또는 해소 조건("only when")을 함께 가져야 한다.
+// 문장은 마침표와 "(n)" 원인 표지로 나눈다. argv 부재와 같이 봐서 실행 권고가 없음을 두 면에서 확인한다.
+function unconditionalRetryClauses(text) {
+  return text.split(/\.\s+|\s+(?=\(\d\))/)
+    .filter((clause) => /\b(revoke|prepare|advance)\b/.test(clause))
+    .filter((clause) => !/\b(never|do not|no command|only when)\b/i.test(clause));
+}
+
+// tasks/002 Interface가 정지 next에 싣기로 한 판단 항목(원인, 결정, 해소 증거, 주체)과
+// 해소 전 revoke·prepare·advance 무조건 권고 금지를 함께 단언한다.
+function assertBlockedGuidance(next) {
+  assert.match(next.next, /cause/i);
+  assert.match(next.next, /decision/i);
+  assert.match(next.next, /evidence/i);
+  assert.match(next.next, /\broot\b/i);
+  assert.deepEqual(unconditionalRetryClauses(next.next), []);
+}
+
 test.after(() => {
   for (const dir of CLEANUP) fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -216,6 +250,7 @@ test('blocked report → next stops at task-reported-blocked with the report pat
   assert.equal(next.payload.report.summary, summary);
   // 원인·결정·해소 증거·주체를 텍스트로 안내하고, 판단은 coordinate note로 남기게 한다.
   assert.match(next.next, /coordinate note/);
+  assertBlockedGuidance(next);
 });
 
 const BLOCKED_CLASSES = {
@@ -234,8 +269,93 @@ for (const [cls, summary] of Object.entries(BLOCKED_CLASSES)) {
     assert.equal(next.action, 'blocked');
     assert.equal(next.argv, undefined);
     assert.equal(next.payload.report.summary, summary);
+    assertBlockedGuidance(next);
   });
 }
+
+test('blocked report classed as approval or product decision needed → next makes root the actor that asks the user', () => {
+  const drive = createDrive({ blockedSummary: BLOCKED_CLASSES['approval or product decision needed'] });
+  drive.writeReport(2);
+
+  const next = nextFor(drive);
+  // 사용자에게 묻고 답을 note로 남기는 주체는 root다. coordinator나 worker가 사용자에게 직접 묻는 안내면 안 된다.
+  const clauseOne = causeOneClause(next.next);
+  assert.match(clauseOne, /\broot\b/i);
+  assert.match(clauseOne, /\buser\b/i);
+  assert.match(clauseOne, /coordinate note/);
+});
+
+test('retry-clause check → flags an unconditional revoke recommendation and passes a gated one', () => {
+  // 음성 대조: 조건 없는 실행 권고는 잡히고, 해소 조건이나 금지가 붙은 문장은 통과해야 검사가 의미를 가진다.
+  assert.deepEqual(
+    unconditionalRetryClauses('Run `bouncer coordinate revoke` now.'),
+    ['Run `bouncer coordinate revoke` now.'],
+  );
+  assert.deepEqual(unconditionalRetryClauses('Run `bouncer coordinate revoke` only when evidence exists.'), []);
+});
+
+for (const cls of ['approval or product decision needed', 'gate failure or limit reached']) {
+  test(`blocked report classed as ${cls}, resolution noted but no command run → next still stops at task-reported-blocked`, () => {
+    const drive = createDrive({ blockedSummary: BLOCKED_CLASSES[cls] });
+    drive.writeReport(2);
+    // 판단 기록은 해소 증거일 수 있지만 정지를 스스로 풀지 않는다. CLI가 명령을 고르지 않기 때문이다.
+    noteOn(drive, `${cls}: the coordinator noted the decision, no command has been run`);
+
+    const next = nextFor(drive);
+    assert.equal(next.action, 'blocked');
+    assert.equal(next.reason, 'task-reported-blocked');
+    assert.equal(next.argv, undefined);
+    assertBlockedGuidance(next);
+  });
+}
+
+test('blocked approval report, approval noted then revoke accepted → task leaves the block and waits for re-prepare', () => {
+  const drive = createDrive({ blockedSummary: BLOCKED_CLASSES['approval or product decision needed'] });
+  drive.writeReport(2);
+  // 사용자 승인을 note에 먼저 남긴 뒤에만 CLI가 허용하는 revoke로 배정을 회수한다. 회수 뒤에는 정지가 아니라 pending이다.
+  noteOn(drive, 'user approved the auth provider choice; revoking the blocked dispatch to re-prepare');
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: drive.repo, blueprint: BLUEPRINT, cwd: drive.integration, task: TASK,
+    reason: 'user approval recorded',
+  });
+  assert.equal(revoked.ok, true);
+
+  const after = nextFor(drive);
+  assert.equal(after.action, 'none');
+  assert.equal(after.reason, 'pending');
+});
+
+test('repeated blocked report with only a ledger hash change → next stays blocked and advance stops without a commit run', () => {
+  // 같은 보고 아래 원장 바이트만 바뀌는 재시도는 해소 증거가 아니다. 무진척 판정은 root의 no-progress 규칙
+  // (skills/bouncer-run/SKILL.md step 4의 "hash-only change" 행)이 맡고, CLI는 blocked에서 되풀이 없이 멈춘다.
+  const drive = createDrive({ blockedSummary: 'the verify gate failed twice on the same assertion' });
+  drive.writeReport(2);
+  const first = nextFor(drive);
+  noteOn(drive, 'retrying the same blocked attempt');
+  const second = nextFor(drive);
+  // 원장 hash만 바뀌었다는 전제를 먼저 확인해야 이 테스트가 hash-only 재개를 가리킨다.
+  assert.notEqual(second.checkpoint.ledger.sha256, first.checkpoint.ledger.sha256);
+  assert.equal(second.reason, 'task-reported-blocked');
+  assert.equal(second.argv, undefined);
+
+  // advance를 두 번 불러도 commit argv는 한 번도 실행되지 않고 매번 blocked에서 멈춘다.
+  let runs = 0;
+  const deps = {
+    next: (opts) => coordinateNext({ ...opts, cwd: drive.integration }),
+    runArgv: () => {
+      runs += 1;
+      return { stdout: '{"ok":true,"committed":false,"staged":[]}', status: 0 };
+    },
+    status: () => ({ ok: true }),
+  };
+  for (let round = 0; round < 2; round += 1) {
+    const result = advance({ repoRoot: drive.repo, blueprint: BLUEPRINT, task: TASK, deps });
+    assert.equal(result.stop.reason, 'blocked');
+    assert.equal(result.stop.next.reason, 'task-reported-blocked');
+    assert.deepEqual(result.executed, []);
+  }
+  assert.equal(runs, 0);
+});
 
 test('blocked report, environment failure noted as resolved → revoke clears the block and the task is pending', () => {
   const drive = createDrive({ blockedSummary: 'dependency install failed' });
