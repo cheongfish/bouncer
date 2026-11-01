@@ -334,24 +334,35 @@ function sha256Hex(bytes) {
  * @returns {object} 비교용 상태 객체
  */
 function repoState(repo) {
-  const runtime = [];
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const abs = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(abs);
-      else runtime.push([path.relative(repo, abs), sha256Hex(fs.readFileSync(abs))]);
-    }
-  };
-  const runtimeDir = path.join(repo, '.bouncer', 'runtime');
-  if (fs.existsSync(runtimeDir)) walk(runtimeDir);
   return {
     head: git(repo, ['rev-parse', 'HEAD']).trim(),
     symref: git(repo, ['symbolic-ref', 'HEAD']).trim(),
     // optional lock을 피해 읽기 명령이 index를 다시 쓰지 않게 한다.
     status: git(repo, ['--no-optional-locks', 'status', '--porcelain']),
     index: sha256Hex(fs.readFileSync(path.join(repo, '.git', 'index'))),
-    runtime: runtime.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)),
+    runtime: treeState(repo, path.join(repo, '.bouncer', 'runtime')),
   };
+}
+
+/**
+ * `start` 아래 모든 파일의 `base` 기준 상대 경로와 내용 해시를 경로순으로 모은다. `start`가 없으면 빈 목록이다.
+ * Git 저장소 밖의 디렉터리도 같은 방식으로 재므로, 호출 전후 파일 바이트 비교는 Git 유무와 무관하다.
+ *
+ * @param {string} base - 상대 경로를 만들 기준 디렉터리
+ * @param {string} start - 순회를 시작할 디렉터리
+ * @returns {Array<[string, string]>} [상대 경로, 내용 SHA-256] 목록, 경로순
+ */
+function treeState(base, start) {
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(abs);
+      else files.push([path.relative(base, abs), sha256Hex(fs.readFileSync(abs))]);
+    }
+  };
+  if (fs.existsSync(start)) walk(start);
+  return files.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 }
 
 // 1. 성공 경로. 상대 경로 snapshot과 기준 SHA B로 exit 0, 빈 stderr, ok:true JSON 하나이고 linked 근거가 P1이다.
@@ -612,19 +623,39 @@ test('collectDiffIntent가 Error boom을 던짐 → collect-failed, cause는 boo
   assert.equal(doc.cause, 'boom');
 });
 
-// 6. 읽기 전용. 성공과 조회 실패 호출 전후로 HEAD·symbolic ref·status·index 바이트·runtime 파일이 같아야 한다.
+// 6. 읽기 전용. 성공, 조회 실패, 로더 실패, Git 없는 디렉터리의 기준 실패 호출 전후로 상태와 파일 바이트가 같아야 한다.
 test('성공과 조회 실패 호출 전후 → 저장소 상태와 runtime 파일 바이트가 같다', () => {
   const fx = fixture();
-  const calls = [
-    successArgs(fx),
-    ['intent', 'diff', '--repo', fx.repo, '--snapshot', fx.snapshotRel, '--history-ref', fx.later],
-    ['intent', 'diff', '--repo', fx.repo, '--snapshot', 'copy.json', '--history-ref', fx.base],
-    ['intent', 'diff', '--repo', fx.repo, '--snapshot', fx.snapshotRel, '--history-ref', '1'.repeat(40)],
+  // 로더 실패용: artifact 바이트는 그대로 두고 디렉터리 이름만 내용 해시와 다른 64자 hex로 둔다.
+  // 이름과 내용이 어긋나 로더가 snapshot-corrupt로 거절해야 하며, 그 거절도 파일을 쓰면 안 된다.
+  const badIdTail = `.bouncer/runtime/review-snapshots/${'2'.repeat(64)}/snapshot.json`;
+  writeText(fx.repo, badIdTail, fs.readFileSync(artifactAbs(fx), 'utf8'));
+  // Git 없는 디렉터리용: 다른 base를 적은 변조 artifact를 두면 로더는 통과하고 기준 조회에서 history-unreadable이 난다.
+  const altered = { ...fx.snapshot, target: { ...fx.snapshot.target, base: '1'.repeat(40) } };
+  const plain = tmpDir('bouncer-intent-diff-plain-');
+  const plainTail = `.bouncer/runtime/review-snapshots/${sha256Canonical(altered)}/snapshot.json`;
+  writeText(plain, plainTail, `${JSON.stringify(altered, null, 2)}\n`);
+  // reason이 null이면 성공 호출이고, 문자열이면 그 reason으로 실패해야 한다. 어느 쪽이든 상태는 같아야 한다.
+  const probes = [
+    { dir: fx.repo, tail: ['--snapshot', fx.snapshotRel, '--history-ref', fx.base], reason: null },
+    { dir: fx.repo, tail: ['--snapshot', fx.snapshotRel, '--history-ref', fx.later], reason: 'history-ref-mismatch' },
+    { dir: fx.repo, tail: ['--snapshot', 'copy.json', '--history-ref', fx.base], reason: 'snapshot-path-invalid' },
+    {
+      dir: fx.repo,
+      tail: ['--snapshot', fx.snapshotRel, '--history-ref', '1'.repeat(40)],
+      reason: 'history-unreadable',
+    },
+    { dir: fx.repo, tail: ['--snapshot', badIdTail, '--history-ref', fx.base], reason: 'snapshot-corrupt' },
+    { dir: plain, tail: ['--snapshot', plainTail, '--history-ref', '1111111'], reason: 'history-unreadable' },
   ];
-  for (const argv of calls) {
-    const before = repoState(fx.repo);
-    capture(argv);
-    assert.deepEqual(repoState(fx.repo), before, argv.join(' '));
+  // Git 저장소는 HEAD·symbolic ref·status·index·runtime을 재고, Git이 없는 디렉터리는 파일 전체를 잰다.
+  const stateOf = (dir) => (fs.existsSync(path.join(dir, '.git')) ? repoState(dir) : treeState(dir, dir));
+  for (const probe of probes) {
+    const before = stateOf(probe.dir);
+    const res = capture(['intent', 'diff', '--repo', probe.dir, ...probe.tail]);
+    if (probe.reason === null) assert.equal(res.code, 0, res.err);
+    else assertFailure(res, probe.reason);
+    assert.deepEqual(stateOf(probe.dir), before, probe.tail.join(' '));
   }
 });
 
@@ -636,18 +667,30 @@ test('기존 intent --symbol 질의 → exit 0, status resolved', () => {
   assert.equal(parseOnlyJson(res.out).status, 'resolved');
 });
 
-// 8. --repo 처리. 중복·빈 값·옵션 자리는 exit 2이고, 없는 경로·일반 파일은 stderr 문구로 가른다.
-test('--repo가 중복·빈 값·옵션 자리이면 → exit 2, stdout 빈 값', () => {
+// 8. --repo 처리. 중복·빈 값·옵션 자리는 exit 2이고 stderr는 그 guard의 문구다. 없는 경로·일반 파일은 따로 가른다.
+// 옵션 자리 케이스는 --repo 뒤 나머지를 유효한 --snapshot·--history-ref로 채운다. 그래서 --repo guard가 아니면
+// 다른 사용법 오류로 거절될 수 없고, stderr 문구가 guard가 거절했다는 증거가 된다.
+test('--repo가 중복·빈 값·옵션 자리이면 → exit 2, stdout 빈 값이고 stderr는 해당 guard 문구', () => {
   const fx = fixture();
   const cases = [
-    ['--repo', fx.repo, '--repo', fx.repo, '--snapshot', fx.snapshotRel, '--history-ref', fx.base],
-    ['--repo', '', '--snapshot', fx.snapshotRel, '--history-ref', fx.base],
-    ['--repo', '--snapshot', '--history-ref', fx.base],
+    {
+      tail: ['--repo', fx.repo, '--repo', fx.repo, '--snapshot', fx.snapshotRel, '--history-ref', fx.base],
+      err: 'intent: duplicate option: --repo\n',
+    },
+    {
+      tail: ['--repo', '', '--snapshot', fx.snapshotRel, '--history-ref', fx.base],
+      err: 'intent: --repo requires a directory\n',
+    },
+    {
+      tail: ['--repo', '--snapshot', fx.snapshotRel, '--history-ref', fx.base],
+      err: 'intent: --repo requires a directory\n',
+    },
   ];
-  for (const tail of cases) {
-    const res = capture(['intent', 'diff', ...tail]);
-    assert.equal(res.code, 2, tail.join(' '));
-    assert.equal(res.out, '', tail.join(' '));
+  for (const item of cases) {
+    const res = capture(['intent', 'diff', ...item.tail]);
+    assert.equal(res.code, 2, item.tail.join(' '));
+    assert.equal(res.out, '', item.tail.join(' '));
+    assert.equal(res.err, item.err, item.tail.join(' '));
   }
 });
 

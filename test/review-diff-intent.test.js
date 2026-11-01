@@ -759,6 +759,14 @@ test('snapshot 일관성 위반 목록 → 각각 throw하고 원본 snapshot �
     ['deleted인데 diff에 + 줄', (s) => {
       s.files = s.files.map((f) => (f.path === M_PATH ? { ...f, kind: 'deleted', content: '' } : f));
     }],
+    ['kind deleted 항목의 deleted 섹션에 + 줄 → 본문이 남은 모순이라 throw', (s) => {
+      // src/gone.ts는 deleted 섹션 하나다. 헤더를 +1,1로 바꾸고 + 줄 하나를 더하면 줄 수는 맞지만 본문이 남는다.
+      // 기존 deleted 케이스와 달리 kind와 섹션 종류가 모두 deleted라서, 거절 이유는 + 줄 하나뿐이다.
+      const parts = s.diff.split(/(?=^diff --git )/m);
+      s.diff = parts.map((part) => (part.startsWith('diff --git a/src/gone.ts ')
+        ? `${part.replace(/^@@ -(\d+),(\d+) \+0,0 @@/m, '@@ -$1,$2 +1,1 @@')}+x\n`
+        : part)).join('');
+    }],
     ['text인데 diff가 deleted file mode', (s) => {
       s.files = s.files.map((f) => (f.path === 'src/gone.ts' ? { ...f, kind: 'text', content: '' } : f));
     }],
