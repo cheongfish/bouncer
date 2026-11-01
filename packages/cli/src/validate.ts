@@ -4,7 +4,7 @@ const { catchMessage } = guards;
 const fs = require('node:fs');
 const path = require('node:path');
 import schema = require('./schema');
-const { detectLegacyFormat, isValidAuthoredLineList } = schema;
+const { detectLegacyFormat } = schema;
 import layout = require('./layout');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir, blueprintPathProblem } = layout;
 import contextIds = require('./context-ids');
@@ -39,7 +39,7 @@ import templates = require('./templates');
 import compositeGates = require('./composite-gates');
 import type { CompositeGateSummary } from './composite-gates';
 const { summarizeCompositeGates } = compositeGates;
-const { parseIntentBody, normalizeAuthoredLines } = templates;
+const { parseIntentBody } = templates;
 
 // public-name: legacy-input-detector
 // 오케스트레이션 + 공개 배럴. validateBlueprint는 이 파일에 남긴다 —
@@ -105,14 +105,6 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     // 스택으로 터지던 경로다. 문장만 남기고 펜스는 다른 ## 절로 옮기라고 안내한다.
     next: 'Keep only 1-2 Korean sentences under `## Intent`, move code '
       + 'fences and diagrams under a separate `##` heading, then rerun the gate.',
-  },
-  {
-    code: 'S34',
-    match: /^(commit_intent|commit_summary) invalid: /,
-    // hint 표는 정적이라 필드 이름을 못 끼운다. 어느 필드가 틀렸는지는 메시지가
-    // 말하므로 next는 두 필드 공통 문구로 둔다.
-    next: 'Rewrite each failing commit_intent/commit_summary item as one Korean '
-      + 'sentence containing Korean text without line breaks, then rerun the plan gate.',
   },
   {
     code: 'S35',
@@ -345,35 +337,6 @@ function validateBlueprint({
           message: `blueprint Intent invalid: ${catchMessage(error)}`,
           file: rels.blueprintIndex || docs.blueprintIndex.rel,
         });
-      }
-    }
-  }
-
-  // S34: plan gate만. S32(목록 형태)는 checkStructural이 gate를 몰라 그대로 두고,
-  // 문장 형식 검사는 `bouncer commit`이 쓰는 normalizeAuthoredLines를 그대로 불러
-  // 두 시점의 답이 갈라지지 않게 한다. 형태 오류는 S32 소관이라 건너뛰고, 부재·[]는
-  // 작성 전 scaffold라 통과시킨다. 필드당 한 번만 보고한다.
-  if (gate === 'plan') {
-    const hasTaskUnitsForS34 = Array.isArray(docs.taskUnits) && docs.taskUnits.length > 0;
-    const taskLeaves: DocLeaf[] = hasTaskUnitsForS34
-      ? (docs.taskUnits || []).flatMap((unit) => (unit.tasks ? [unit.tasks] : []))
-      : (docs.tasksDocs || (docs.tasks ? [docs.tasks] : []));
-    for (const leaf of taskLeaves) {
-      const data = leaf.data as { bouncer?: Record<string, unknown> } | null;
-      const bouncerFm = (data && data.bouncer) || {};
-      for (const field of ['commit_intent', 'commit_summary'] as const) {
-        const value = bouncerFm[field];
-        if (!isValidAuthoredLineList(value) || value === undefined) continue;
-        if (Array.isArray(value) && value.length === 0) continue;
-        try {
-          normalizeAuthoredLines(value, field);
-        } catch (error) {
-          failures.push({
-            code: 'S34',
-            message: `${field} invalid: ${catchMessage(error)}`,
-            file: leaf.rel,
-          });
-        }
       }
     }
   }

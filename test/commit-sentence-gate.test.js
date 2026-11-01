@@ -107,16 +107,6 @@ test('commit_intent with disallowed ending on execute and commit gates → no S3
   }
 });
 
-test('only commit_summary empty on plan gate → exactly one S34 for commit_summary', () => {
-  const res = run({
-    commit_intent: ['검사를 추가함.'],
-    commit_summary: [''],
-  }, 'plan');
-  const found = s34(res);
-  assert.strictEqual(found.length, 1, JSON.stringify(res.failures));
-  assert.match(found[0].message, /^commit_summary invalid: /);
-});
-
 test('absent, empty list, or valid sentences on plan gate → no S34', () => {
   for (const extra of [
     {},
@@ -142,10 +132,13 @@ test('malformed list shapes on plan gate → S32 without S34', () => {
   }
 });
 
-test('empty, multiline, or non-Korean sentence on plan gate → S34', () => {
+test('empty, multiline, or non-Korean sentence on plan gate → no S34, rejected at commit', () => {
   for (const value of ['', '첫 줄\n둘째 줄', 'English only.']) {
     const res = run({ commit_intent: [value] }, 'plan');
-    assert.strictEqual(s34(res).length, 1, JSON.stringify(res.failures));
+    assert.deepStrictEqual(s34(res), [], JSON.stringify(res.failures));
+    assert.throws(() => buildCommitMessage({ blueprintIndex: { data: { title: '제목', bouncer: {} } } }, {
+      tasks: { data: { title: '작업', bouncer: { epic_id: '001', blueprint_id: '001', id: 'TASKS-001', commit_intent: [value] } } },
+    }), /commit_intent must contain 1-2 Korean sentences/);
   }
 });
 
