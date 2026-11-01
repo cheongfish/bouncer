@@ -23,6 +23,7 @@ type AdvanceDeps = {
     blueprint: string;
     task?: string;
   }) => NextShape;
+  status: (opts: { repoRoot: string; blueprint: string }) => { ok: boolean; [key: string]: unknown };
   runArgv: (argv: string[], cwd: string) => { stdout: string; status: number };
 };
 
@@ -33,6 +34,7 @@ type StopReason = 'judge' | 'worker' | 'blocked' | 'done' | 'none' | 'max-steps'
 type AdvanceOk = {
   ok: true;
   executed: ExecutedStep[];
+  status: object;
   stop: { reason: StopReason; next: object };
 };
 
@@ -249,6 +251,26 @@ function advance(opts: {
   const nextFn = opts.deps?.next ?? defaultNext;
   const runArgv = opts.deps?.runArgv ?? defaultRunArgv;
   const executed: ExecutedStep[] = [];
+  const statusFn = opts.deps?.status ?? ((args: { repoRoot: string; blueprint: string }) => {
+    const { coordinate } = require('./coordinator-commands') as typeof import('./coordinator-commands');
+    return coordinate({ command: 'status', ...args, cwd: process.cwd() }) as { ok: boolean; [key: string]: unknown };
+  });
+  // 이미 실행한 argv를 재실행하지 않도록 상태 조회 실패에도 executed를 보존한다.
+  const stopped = (reason: StopReason, step: NextShape): AdvanceOk | AdvanceErr => {
+    let status: ReturnType<AdvanceDeps['status']>;
+    try {
+      status = statusFn({ repoRoot: opts.repoRoot, blueprint: opts.blueprint });
+    } catch (error) {
+      // 조회 예외도 결과 실패와 동일하게 처리해 이미 실행한 단계를 보존한다.
+      return failAdvance('advance-status-unavailable', `coordinate status unavailable: ${String(error)}`,
+        'Read coordinate status before continuing.', executed);
+    }
+    if (!status || status.ok !== true) {
+      return failAdvance('advance-status-unavailable', 'coordinate status unavailable',
+        'Read coordinate status before continuing.', executed);
+    }
+    return { ok: true, executed, status, stop: { reason, next: step } };
+  };
   const nextOpts = {
     repoRoot: opts.repoRoot,
     blueprint: opts.blueprint,
@@ -280,26 +302,22 @@ function advance(opts: {
 
     // 2. 단말 행동·판단·worker는 실행 없이 정지. stop.next에 이 next 전체를 담는다.
     if (TERMINAL_ACTIONS.has(action)) {
-      return {
-        ok: true,
-        executed,
-        stop: { reason: action as 'blocked' | 'done' | 'none' | 'yield', next: step },
-      };
+      return stopped(action as StopReason, step);
     }
     if (step.judge !== undefined && step.judge !== null) {
-      return { ok: true, executed, stop: { reason: 'judge', next: step } };
+      return stopped('judge', step);
     }
 
     const argv = Array.isArray(step.argv) ? step.argv : undefined;
     const isAuto = AUTO_ACTIONS.has(action) && argv !== undefined && argv.length > 0;
     if (!isAuto) {
       // drive_tasks(argv 없음)·implement(inline 포함)·그 밖 worker 위임.
-      return { ok: true, executed, stop: { reason: 'worker', next: step } };
+      return stopped('worker', step);
     }
 
     // 3. 한도에 닿으면 이번 argv는 실행하지 않는다. executed 길이가 곧 단계 수다.
     if (executed.length >= maxSteps) {
-      return { ok: true, executed, stop: { reason: 'max-steps', next: step } };
+      return stopped('max-steps', step);
     }
 
     if (argv[0] !== 'bouncer') {

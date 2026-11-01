@@ -7,7 +7,10 @@ the same `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`
 from the controller's single preflight `bouncer intent bundle` resolve, plus a
 role-specific `intent_sections` projection from
 `bouncer intent sections --task <current.task.path> --role <role>`. Named and
-fallback receive identical identifiers and the same role section set. Do not
+fallback receive identical identifiers and the same role section set. For multiple
+reviewer tasks, collect projections once with `bouncer intent sections --task <p1>
+--task <p2> --role reviewer`; use each ordered `tasks[].sections` and handle
+`intent-sections-partial` failures per task. Do not
 pass the full Explain body, another task's bundle, or another role's report.
 
 Under a coordinator drive, every implementer dispatch — named or fallback —
@@ -151,7 +154,7 @@ then `security`). Named, generic fallback, and inline paths all walk that same
 `perspectives` sequence — never a different fan-out per host. Each discovery prompt contains only its assigned perspective,
 the eight brief sections (Goal & intent, Current behavior, Target behavior,
 Interface, Touch, Do not touch, Constraints, Checklist; an absent optional
-behavior section is omitted), the reviewer's `intent_sections` projection from
+behavior section is omitted), the reviewer's `intent_sections` projection from the batch above, or for a single task from
 `bouncer intent sections --task <current.task.path> --role reviewer`, the frozen
 target (including the shared bundle identifiers), `strategy`, and `risk_flags`,
 and never another reviewer's findings or the full Explain body. After
@@ -362,3 +365,4 @@ latest record of that key instead of appending another. `coordinate record --tas
 ## Worker hand-back
 
 Every worker returns its Output contract to the controller — the coordinator during a drive. The implementer is the one exception: with `report_path` it writes the full Output contract to that file and hands back only the short form in its role document's Output contract **Hand-back** subsection (summary, `report_path`, and Needs planning / Scope impact when they have a value); without `report_path` it returns the full contract inline. Other workers' output contracts are unchanged. Each worker's **Scope impact** / **Scope/task impact** line is an input to one coordinator decision (scope revision through `bouncer coordinate revise`, rework, a task change, or terminal blocked), never a licence for the worker to widen its own scope or move the pointer.
+

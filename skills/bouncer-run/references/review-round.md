@@ -43,6 +43,11 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             (blueprint review mode), stop — do not open a review round and
             do not mark the review accepted.
 
+            For multiple tasks, collect reviewer inputs once with `bouncer intent sections
+            --task <p1> --task <p2> --role reviewer`; use each ordered
+            `tasks[].sections` and handle `intent-sections-partial` failures per task.
+            For a single task use the single-task command below.
+
             Dispatch discovery reviewers by walking the CLI `perspectives`
             array in order — that list is the only fan-out. Do not also branch
             on `strategy` to invent calls, and do not append `security` from
@@ -56,7 +61,7 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             and `snapshot_path`, which reviewers read instead of re-running
             `git diff`; the artifact is a runtime file, source and index stay
             untouched), brief hash / bundle identifiers,
-            intent_sections from
+            intent_sections from the batch above, or for a single task from
             `bouncer intent sections --task <current.task.path> --role reviewer`,
             latest verify, and the `Red run` lines (one `TASKS-NNN: <value>`
             per task in scope, from each task's latest-attempt report; see
@@ -151,7 +156,7 @@ absent pass `--task <NNN>` for `<pointer task directory>/review.md`. Every
 new round JSON records its frozen `target`
 (`base`, `head`, and the dispatch `snapshot_id`), `task_brief_hash` or `task_brief_hashes`,
 `intent_bundle_id` / `intent_bundle_revision` or `intent_bundles`,
-`intent_sections` from
+`intent_sections` from the batch above, or for a single task from
 `bouncer intent sections --task <current.task.path> --role reviewer`,
 `previous_finding_ids`, `new` / `resolved` / `regressed`
 counts, revision, and latest verify result. Each reviewer perspective records
@@ -200,3 +205,4 @@ new design, dependency, public Interface, or scope requirement, is `blocked`;
 under a drive, hand the coordinator the open findings to disposition.
 Never repeat full discovery after delta certification or split findings into
 separate implementer dispatches.
+

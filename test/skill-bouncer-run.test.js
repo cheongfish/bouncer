@@ -288,3 +288,13 @@ test('run docs → implementer model is the resolver line, not the coordinator i
     + 'for this dispatch, not the coordinator\'s own model.',
   ));
 });
+
+test('multiple reviewer tasks → both dispatch references describe one batch and partial failures', () => {
+  for (const file of ['review-round.md', 'agent-dispatch.md']) {
+    const body = fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-run/references', file), 'utf8');
+    const normalized = body.replace(/\s+/g, ' ');
+    assert.match(normalized, /--task <p1> --task <p2> --role reviewer/);
+    assert.match(normalized, /intent-sections-partial/);
+    assert.match(normalized, /tasks\[\]\.sections/);
+  }
+});
