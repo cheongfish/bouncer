@@ -86,8 +86,9 @@ test('uncommitted agent marker in fixture checkout → reaches every seeded TOML
         }
         const coordinator = install.seededAgents['.codex/agents/bouncer-coordinator.toml'];
         assert.ok(coordinator.includes(MARKER), `${install.kind} coordinator carries uncommitted marker`);
-        // 변경된 coordinator 계약(보고 기반 blocked, empty-commit 정지)이 양쪽 설치의 생성 역할까지 닿아야 한다.
-        for (const code of ['unchanged-worker-report', 'empty-commit']) {
+        // 변경된 coordinator 계약(보고 기반 blocked, empty-commit 정지, 역할 파일 복구 명령)이
+        // 양쪽 설치의 생성 역할까지 닿아야 한다.
+        for (const code of ['unchanged-worker-report', 'empty-commit', 'codex-agents check']) {
           assert.ok(coordinator.includes(code), `${install.kind} coordinator carries ${code}`);
         }
       }

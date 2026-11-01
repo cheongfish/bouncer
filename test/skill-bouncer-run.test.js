@@ -318,3 +318,38 @@ test('multiple reviewer tasks → both dispatch references describe one batch an
     assert.match(normalized, /tasks\[\]\.sections/);
   }
 });
+
+// 역할 파일이 in_sync가 아니면 그 파일로 named 디스패치를 시작하면 안 된다. stale 본문을 역할로 읽기 때문이다.
+// check가 돌려주는 reason 코드(기계 값)별 분기가 Named implementer 절에 모두 있어야 한다.
+const readRunRef = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+
+test('Named implementer section → routes every non-in_sync check reason to a coordinator note, resync or fallback', () => {
+  const named = sectionBetween(
+    readRunRef('skills/bouncer-run/references/agent-dispatch.md'),
+    '## Named implementer',
+    '## Implementer fallback',
+  ).replace(/\s+/g, ' ');
+  for (const reason of ['missing', 'mismatch', 'not-generated', 'role-config-invalid']) {
+    assert.ok(named.includes(`\`${reason}\``), `Named implementer must name the ${reason} check result`);
+  }
+  assert.ok(named.includes('coordinate note'), 'a non-in_sync check result must be noted to the coordinator');
+});
+
+// fallback은 역할 본문 전체와 함께 실제 cwd·role effort·쓰기 경계를 실어야 권한이 넓어지지 않는다.
+test('implementer fallback → carries the entire role body with the actual cwd, reasoning effort and write boundary', () => {
+  const fallback = sectionBetween(
+    readRunRef('skills/bouncer-run/references/agent-dispatch.md'),
+    '## Implementer fallback',
+    '### Implementer file payload',
+  ).replace(/\s+/g, ' ');
+  assert.ok(fallback.includes('entire body of `${BOUNCER_ROOT}/agents/bouncer-implementer.md`'));
+  assert.ok(fallback.includes('cwd'), 'fallback must carry the actual worktree cwd');
+  assert.ok(fallback.includes('reasoning_effort'), 'fallback must pass the role effort as spawn reasoning_effort');
+  assert.ok(fallback.includes('affected_paths'), 'fallback must keep the affected_paths write boundary');
+});
+
+test('subagent-model codex-agents check item → names the not-generated and role-config-invalid results', () => {
+  const item = paragraphContaining(readRunRef('rules/subagent-model.md'), 'codex-agents check');
+  assert.ok(item.includes('`not-generated`'), 'user-owned role file result must be named');
+  assert.ok(item.includes('`role-config-invalid`'), 'config error result must be named');
+});

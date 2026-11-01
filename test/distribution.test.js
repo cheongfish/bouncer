@@ -296,3 +296,17 @@ test('coordinator Markdown and generated Codex TOML → share the checkpoint led
     assert.ok(generated.includes(needle), `generated toml missing: ${needle}`);
   }
 });
+
+// 비치명 역할 파일 복구 절차의 명령 문자열이 체크인 TOML과 md→TOML 변환 결과 양쪽에 실려야 한다.
+// 체크인 바이트는 위 테스트가 이미 변환 결과와 맞추므로, 여기서는 계약 전달 여부만 본다.
+test('coordinator recovery contract → reaches the checked-in and generated Codex TOML', () => {
+  const { mdToCodexToml } = require('../packages/cli/dist/codex-agents');
+  const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
+  const checkedIn = fs.readFileSync(path.join(root, '.codex/agents/bouncer-coordinator.toml'), 'utf8');
+  const generated = mdToCodexToml(md);
+  for (const needle of ['codex-agents check', 'bouncer init --seed-codex-agents']) {
+    assert.ok(md.includes(needle), `coordinator md missing: ${needle}`);
+    assert.ok(checkedIn.includes(needle), `checked-in toml missing: ${needle}`);
+    assert.ok(generated.includes(needle), `generated toml missing: ${needle}`);
+  }
+});

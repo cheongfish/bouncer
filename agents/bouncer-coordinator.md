@@ -176,6 +176,13 @@ to your `Decision required` judgment, never a second brief.
   `integration-source-mutated`: revert them and move the change to a worker task.
   Governance changes such as an epic migration are committed on main before the
   drive, never in the integration checkout.
+- A non-fatal Codex role-file defect is yours to recover, but a model rejection is not. When `codex-agents check`
+  (see `agent-dispatch.md`) reports a generated file as `missing` or `mismatch`, first record a `bouncer coordinate
+  note` naming the reason and path, then run `bouncer init --seed-codex-agents` and check again. Resume the task when
+  the check reports `in_sync: true`, or when the full-body fallback is dispatched with the role body, cwd, effort,
+  and permissions it carries. A user-owned `not-generated` file is never overwritten, and a `role-config-invalid`
+  result is stopped and reported. A host model rejection stops that dispatch and is reported with no automatic
+  fallback (`rules/subagent-model.md`). Recovery edits no source file, and no user approval or gate is skipped.
 - A final-review `must_fix` that is only an in-scope gap in test evidence (test
   paths inside an integrated task's `affected_paths`; product behavior already
   correct) is closed in place with `bouncer coordinate repair --kind
