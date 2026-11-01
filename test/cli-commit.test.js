@@ -64,7 +64,8 @@ function recordHarnessVerify(repo) {
   });
 }
 
-function fullBlueprint(repo, { tasksStatus = 'verified' } = {}) {
+// affectedPaths는 승인된 task 범위다. 생성 설정을 명시 포함하는 사례만 기본값과 다르게 준다.
+function fullBlueprint(repo, { tasksStatus = 'verified', affectedPaths = ['src/auth/'] } = {}) {
   initGitWithChange(repo);
   const epicDir = '.bouncer/context/epics/001-auth';
   writeDoc(repo, `${epicDir}/index.md`, {
@@ -86,7 +87,7 @@ function fullBlueprint(repo, { tasksStatus = 'verified' } = {}) {
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: tasksStatus,
-      affected_paths: ['src/auth/'],
+      affected_paths: affectedPaths,
     },
   });
   writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
@@ -346,6 +347,60 @@ test('commit --yes with an out-of-scope change before staging and no host hook �
   });
   assert.match(dirty, /src\/payments/);
   assert.match(dirty, /src\/auth\/login\.ts/);
+});
+
+test('commit --yes with a generated Codex TOML outside affected_paths → rejects it with the file, reason and next action and commits nothing', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const headBefore = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+  // 재시드를 task worker 안에서 실행하면 생기는 파일이다. 승인 범위(src/auth/)에 없으므로 커밋 전에 거절돼야 한다.
+  fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml'), '# bouncer-generated\n');
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.notStrictEqual(code, 0);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'out-of-scope');
+  // 파일명은 violations로, 사유는 reason과 recovery.detail로, 다음 행동은 recovery.action으로 나온다.
+  assert.deepStrictEqual(parsed.violations, ['.codex/agents/bouncer-reviewer.toml']);
+  assert.match(parsed.recovery.detail, /hard abort with nothing staged/);
+  assert.strictEqual(parsed.recovery.action, 'return-to-plan');
+  const staged = execFileSync('git', ['diff', '--cached', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim();
+  assert.strictEqual(staged, '');
+  const headAfter = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+  assert.strictEqual(headAfter, headBefore);
+});
+
+test('commit --yes with a generated Codex TOML listed in affected_paths → commits it with the task source', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  // 생성 설정을 승인 범위에 명시한 task만 그 파일을 같이 담을 수 있다.
+  fullBlueprint(repo, { affectedPaths: ['src/auth/', '.codex/agents/bouncer-reviewer.toml'] });
+  fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml'), '# bouncer-generated\n');
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.committed, true);
+  const committed = execFileSync('git', ['show', '--format=', '--name-only', 'HEAD'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim().split('\n').filter(Boolean).sort();
+  assert.deepStrictEqual(committed, ['.codex/agents/bouncer-reviewer.toml', 'src/auth/login.ts']);
 });
 
 test('commit --yes with a tracked finalization remainder → leaves it while committing task source', () => {

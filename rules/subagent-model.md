@@ -34,7 +34,9 @@ limits.
    Generated Codex TOML omits `model_reasoning_effort`; when role effort is
    null, omit the spawn argument and let the host choose its default.
    On Codex, when `codex-agents check` reports `mismatch`, rerun
-   `bouncer init --seed-codex-agents` to synchronize the role definition.
+   `bouncer init --seed-codex-agents` to synchronize the role definition. Run that resync from the integration
+   checkout, outside any task worktree: a generated file rewritten inside a task's worktree is out of scope for
+   that task's commit unless its path is in `affected_paths`.
    A `missing` result gets the same resync. A `not-generated` result (a user-owned file
    without the generated marker) is never overwritten; item 4's fallback applies instead.
    A `role-config-invalid` result is a configuration error: report its `key`, `message`,

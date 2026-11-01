@@ -5,7 +5,13 @@ rendering or a Promotion, Gitignore, or Branch consent decision.
 
 Render `already-initialized`, created canonical-context targets, and any
 Codex-agent paths from the returned fields. Root `context/` is legacy and is
-not input. For `graphifyInstall`, report the recorded binary on success. On
+not input.
+
+Codex role files have two lists. `created` holds new files; `updated` holds
+existing generated files the seed rewrote because their content was stale.
+Render `updated` as refreshed, apart from `created`. `reason: codex-agents-updated`
+means only refreshes happened, and `codex-agents-seeded` with both lists filled
+means a mix. Both lists empty with `skipped: true` means nothing changed. For `graphifyInstall`, report the recorded binary on success. On
 failure, Graphify remains disabled: report the cause and direct the user to
 install it manually, then recover later with `bouncer init --promote-graphify`.
 Do not edit Graphify config directly. To change `subagents` keys in

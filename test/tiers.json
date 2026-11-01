@@ -8,6 +8,7 @@
     "coordinate-advance.test.js",
     "dependency-boundaries.test.js",
     "frontmatter.test.js",
+    "init-seed-recovery.test.js",
     "plugin-doc-cites.test.js",
     "plugin-wiring.test.js",
     "schema.test.js",

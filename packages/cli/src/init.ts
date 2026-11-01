@@ -494,11 +494,14 @@ function init({
     // 파생 memory·config seed는 하지 않는다. 이미 있는 파일은 그대로 두고
     // context bundle과 Graphify 상태만 다룬다.
     const created: string[] = [];
+    // 갱신 배열을 created와 분리한다. 기존 TOML을 고쳐 쓴 재시드는 created가 비어 보이므로
+    // 이 배열 없이는 실제 변경이 already-initialized로 가려진다.
+    const updated: string[] = [];
     if (registryPlan) {
       applyRegistryPlan(repoRoot as string, registryPlan.plan, timestamp as string, created);
     }
     if (wantSeedCodex) {
-      const seeded = ensureCodexAgents({ repoRoot: repoRoot as string, created });
+      const seeded = ensureCodexAgents({ repoRoot: repoRoot as string, created, updated });
       if (!seeded.ok) return roleConfigFailure(seeded);
     }
 
@@ -570,12 +573,17 @@ function init({
       }
     }
 
+    // reason 우선순위는 기존과 같다: 등록부 추가 > 생성 파일 > 갱신 파일 > 변경 없음.
+    // 생성과 갱신이 섞이면 기존 계약대로 codex-agents-seeded를 쓰고, 두 배열로 내역을 드러낸다.
+    const codexReason = created.length ? 'codex-agents-seeded'
+      : (updated.length ? 'codex-agents-updated' : 'already-initialized');
     return {
       ok: true,
       created,
-      skipped: created.length === 0,
-      reason: registryPlan ? 'epic-registry-added'
-        : (created.length ? 'codex-agents-seeded' : 'already-initialized'),
+      updated,
+      // 갱신만 있어도 실제 쓰기가 일어났으므로 skipped가 아니다.
+      skipped: created.length === 0 && updated.length === 0,
+      reason: registryPlan ? 'epic-registry-added' : codexReason,
       gitignoreSuggestions: suggestions,
       gitignoreWritten,
       ...(graphifyPromotion ? { graphifyPromotion } : {}),
@@ -592,6 +600,8 @@ function init({
 
   // 신규 부트스트랩
   const created: string[] = [];
+  // 신규 경로도 기존 TOML을 고쳐 쓸 수 있어 갱신 배열을 같이 돌려준다. reason은 기존 값 그대로다.
+  const updated: string[] = [];
   const config = defaultConfig(repoRoot as string);
   let graphifyInstall: GraphifySetupResult | undefined;
   let graphifyUpgrade: GraphifySetupResult | undefined;
@@ -640,7 +650,7 @@ function init({
     applyRegistryPlan(repoRoot as string, registryPlan.plan, timestamp as string, created);
   }
   if (wantSeedCodex) {
-    const seeded = ensureCodexAgents({ repoRoot: repoRoot as string, created });
+    const seeded = ensureCodexAgents({ repoRoot: repoRoot as string, created, updated });
     if (!seeded.ok) return roleConfigFailure(seeded);
   }
   // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
@@ -648,7 +658,7 @@ function init({
   // opt-in하지 않게 함. dir을 찾았으면 생략.
   // base_branch도 같다 — 미해결이면 키를 쓰지 않고 신호만 실어 /bouncer-init이 묻는다.
   return {
-    ok: true, created, skipped: false, reason: 'initialized',
+    ok: true, created, updated, skipped: false, reason: 'initialized',
     gitignoreSuggestions: suggestions,
     gitignoreWritten,
     ...(graphifyInstall ? { graphifyInstall } : {}),
