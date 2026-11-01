@@ -7,7 +7,7 @@ const path = require('node:path');
 const FEATURE_AREAS = Object.freeze({
   intent: Object.freeze([
     'intent-bundle', 'intent-provenance', 'intent-revision', 'symbol-index', 'review-diff-intent',
-    'cli-intent-command',
+    'cli-intent-command', 'cli-intent-diff-command',
   ]),
   execution: Object.freeze([
     'coordinator', 'coordinator-commands', 'coordinator-worker', 'coordinator-repair', 'coordinator-input',
