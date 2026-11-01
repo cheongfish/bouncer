@@ -37,6 +37,7 @@
     "terminal-intent-provenance.test.js",
     "typescript-module-contract.test.js",
     "master-rules.test.js",
-    "intent-bundle.test.js"
+    "intent-bundle.test.js",
+    "coordinate-next-recovery.test.js"
   ]
 }

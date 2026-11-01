@@ -297,7 +297,16 @@ same mutation argv right away.
    `worker-commit-stamp-mismatch`, `worker-scope-dirty`) before touching the
    ledger: call `advance` so `commit` runs, then retry. When `advance` stops `blocked` with
    `worker-commit-untrailered`, run `bouncer coordinate uncommit` for that task,
-   then `advance` again; do not rerun `commit` by hand. Dispatch a task runner at once (at most `checkpoint.ready`
+   then `advance` again; do not rerun `commit` by hand. When `advance` stops `blocked` with
+   `unchanged-worker-report`, the current attempt's report exists, verify and review passed, and the worker
+   HEAD and porcelain still match the dispatch baseline, so there is nothing to commit. Do not run `commit`:
+   it would return `committed:false` and repeat. Read the report at `stop.next.payload.report_path` and
+   compare it with the task brief. If more implementation is needed, record `rework` for the current attempt
+   with `bouncer coordinate report --outcome rework` (check flags with `--help`), then `advance` dispatches a
+   new attempt. If the worker has since changed files, call `advance` again: the existing verify, review, and
+   commit path resumes. If nothing changed and no rework is needed, keep the blocked state and report it to
+   the user with the report path. When `advance` stops with `empty-commit`, do not rerun `commit` either;
+   call `coordinate next` and act on the blocked reason it names. Dispatch a task runner at once (at most `checkpoint.ready`
    count, inside the configured parallel ceiling). The coordinator does not
    move the pointer per task. Each runner works in its worker cwd under that
    task's `effectiveTask`. `implement` and `review` dispatch workers through

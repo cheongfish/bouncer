@@ -108,6 +108,14 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
     next: 'Run `bouncer coordinate uncommit --blueprint <dir> --task <ddd>` (with the ledger fence), then ' +
       '`coordinate advance` to rerun commit. Do not just rerun commit.',
   },
+  'unchanged-worker-report': {
+    cause: 'The current attempt report exists, verify and review passed, and the worker HEAD and porcelain still '
+      + 'match the dispatch baseline with no commit stamp. A commit would have nothing to record.',
+    next: 'Do not rerun commit: it would return committed:false and repeat. Read the report at payload.report_path '
+      + 'and compare it with the brief. If more implementation is needed, redispatch this worker. If the worker '
+      + 'changed files, run `bouncer coordinate next` again to resume verify, review, and commit. If nothing changed, '
+      + 'keep this state and report the reason to the user.',
+  },
   'partial-closed': {
     cause: 'This drive was partial-closed after the repair-wave limit.',
     next: 'Report the preserved drive to the user; do not retry coordinate mutations on this blueprint.',
@@ -1053,6 +1061,18 @@ function taskNext(ctx: {
 
   const stamped = tasksBlock ? tasksBlock.commit_sha : undefined;
   if (stamped === undefined || stamped === null || stamped === '') {
+    // 현재 attempt 보고가 있고 HEAD·porcelain이 dispatch 기준 그대로면 worker는 아무 변경도 남기지 않은 채
+    // 끝난 것이다. 여기서 commit을 고르면 `bouncer commit`이 committed:false로 끝나 stamp를 못 쓰고,
+    // advance가 같은 commit을 되풀이한다. 그래서 commit 대신 blocked로 세우고 보고 경로를 실어 coordinator가
+    // 보고와 brief를 대조해 재배정하거나 보고를 사용자에게 올리게 한다. 상태가 조금이라도 바뀌면
+    // 이 조건이 풀려 기존 commit 경로로 돌아간다.
+    if (reportDone && workerHead === item.dispatch.base_head
+      && porcelainText === item.dispatch.initial_worktree_state) {
+      return ok({
+        scope: 'task', action: 'blocked', reason: 'unchanged-worker-report', cwd,
+        payload: { report_path: reportPathFor(cwd, task, item.dispatch.attempt) },
+      });
+    }
     // worker가 트레일러 없이 직접 커밋했으면 `bouncer commit`은 빈 커밋 금지로 stamp를 못 쓴다.
     // commit을 다시 내면 advance가 max-steps까지 같은 행동을 반복하므로 uncommit 안내로 끊는다.
     const untrailered = untraileredWorkerCommits(exec, cwd, ledger, expectedTaskRef(tasksBlock));

@@ -287,6 +287,10 @@ test('coordinator Markdown and generated Codex TOML → share the checkpoint led
     'coordinate advance',
     'payload.evidence',
     'payload.report',
+    // 현재 attempt 보고가 빈 commit을 막는 판정과 committed:false 정지는 기계가 읽는 reason 코드다.
+    'unchanged-worker-report',
+    'payload.report_path',
+    'empty-commit',
   ]) {
     assert.ok(md.includes(needle), `coordinator md missing: ${needle}`);
     assert.ok(generated.includes(needle), `generated toml missing: ${needle}`);
