@@ -38,7 +38,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
    - **blueprint**: what this unit delivers as one review / PR. Set `title`
      (and `bouncer.commit_type` if not `feat`) for the finalize remainder
      subject and shared standalone/integration branch (`<type>/<epic-slug>-<blueprint-slug>-<slug>`). Write the
-     blueprint `## Intent` as 1–2 Korean terminal sentences; finalize uses it
+     blueprint `## Intent` as 1–2 Korean sentences; finalize uses it
      as the remainder body. Do **not** set task-only authored fields on the
      blueprint. The Contract is contract only — no implementation code.
      Signatures, types, and pseudocode stay within 20 lines per block. Ban
@@ -54,9 +54,9 @@ body content only; never edits harness-owned frontmatter fields. Used from
      Target behavior are optional on the template; when absent, execution
      passes only the sections that exist. Set `title` as the
      **task commit subject** (the internal `bouncer commit` copies it). Set
-     `bouncer.commit_intent` to 1–2 Korean terminal sentences (배경·의도) drawn
+     `bouncer.commit_intent` to 1–2 Korean sentences (배경·의도) drawn
      from Goal & intent, and optionally `bouncer.commit_summary` to 1–2 Korean
-     terminal sentences (변경 요약) — not the subject noun phrase. For a flow change, show only
+     sentences (변경 요약) — not the subject noun phrase. For a flow change, show only
      the implementation branch already present in the parent chart.
      Section-specific rules:
      - **description**: epic은 사람이 저술한 frontmatter `description`만 정본으로
@@ -68,7 +68,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        값이 없어도 된다는 뜻이 아니다.
      - **commit_intent / commit_summary**: 두 필드는 커밋 메시지 생성
        전용이다. 브리프 서술과 겹치면 `## Goal & intent`가 SSOT다. 각 필드는
-       1–2개의 한국어 종결 문장이고 task 문서에만 둔다. 필드가 없으면 기존
+       1–2개의 한국어 문장이고 task 문서에만 둔다. 필드가 없으면 기존
        task 호환을 위해 생략하고, 형식이 틀리면 메시지 생성을 거부한다.
      - **depends_on / parallel_safe / dependency_gate / exclusive_resources**:
        task 실행 순서는 번호가 아니라 이 frontmatter 필드가 결정한다.
@@ -342,11 +342,11 @@ setting these fields:
 | blueprint `## Intent` (1–2 Korean sentences) | finalize remainder body bullets; malformed Intent with a heading fails as `S33` on plan/finalize and on `finalize prepare` |
 
 `commit_intent` and `commit_summary` must each be a YAML list of 1–2 Korean
-terminal sentences, written on the **task** document only. A missing field is
+sentences, written on the **task** document only. A missing field is
 compatible with existing tasks and contributes no bullets; a present malformed
 field rejects message generation rather than being partly omitted. Finalize
 reads only the blueprint `## Intent` section, which must contain 1–2 Korean
-terminal sentences. Put mermaid or other code fences under a separate `##`
+sentences. Put mermaid or other code fences under a separate `##`
 heading (for example `## Contract` or `## Diagram`) — fences inside `## Intent`
 are skipped when collecting sentences, and a fence-only or otherwise invalid
 Intent raises `S33` once the blueprint is past `draft`.
@@ -357,7 +357,7 @@ Leave Epic / Blueprint identifiers out of titles,
 `commit_intent`, and `commit_summary` — they belong in the blueprint docs and PR body, not the commit
 message. Keep file paths, module names, and package names out of titles too. Inside `commit_intent` and
 `commit_summary`, English identifiers, file paths, package names, and backtick
-quotes are allowed as long as the line stays one Korean terminal sentence
+quotes are allowed as long as the line stays one Korean sentence
 (`integrationBranch 값을 재계산 없이 사용함.`). Replace
 scaffold defaults like `001 slug` / `001 tasks` before approval; otherwise
 those placeholders ship as the commit subject and body.

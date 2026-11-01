@@ -95,7 +95,7 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
   {
     code: 'S32',
     match: /must be a YAML list/,
-    next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '
+    next: 'Rewrite the field as a YAML list of 1-2 Korean sentences '
       + '(each item on its own `- ` line), then rerun the plan gate.',
   },
   {
@@ -103,7 +103,7 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     match: /blueprint Intent invalid/,
     // Intent에 다이어그램·코드 펜스를 두면 문장 검사에 걸려 finalize가
     // 스택으로 터지던 경로다. 문장만 남기고 펜스는 다른 ## 절로 옮기라고 안내한다.
-    next: 'Keep only 1-2 Korean terminal sentences under `## Intent`, move code '
+    next: 'Keep only 1-2 Korean sentences under `## Intent`, move code '
       + 'fences and diagrams under a separate `##` heading, then rerun the gate.',
   },
   {
@@ -112,7 +112,7 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     // hint 표는 정적이라 필드 이름을 못 끼운다. 어느 필드가 틀렸는지는 메시지가
     // 말하므로 next는 두 필드 공통 문구로 둔다.
     next: 'Rewrite each failing commit_intent/commit_summary item as one Korean '
-      + 'terminal sentence (e.g. …함, …임, …됨, …다), then rerun the plan gate.',
+      + 'sentence containing Korean text without line breaks, then rerun the plan gate.',
   },
   {
     code: 'S35',
@@ -350,7 +350,7 @@ function validateBlueprint({
   }
 
   // S34: plan gate만. S32(목록 형태)는 checkStructural이 gate를 몰라 그대로 두고,
-  // 종결어미 판정은 `bouncer commit`이 쓰는 normalizeAuthoredLines를 그대로 불러
+  // 문장 형식 검사는 `bouncer commit`이 쓰는 normalizeAuthoredLines를 그대로 불러
   // 두 시점의 답이 갈라지지 않게 한다. 형태 오류는 S32 소관이라 건너뛰고, 부재·[]는
   // 작성 전 scaffold라 통과시킨다. 필드당 한 번만 보고한다.
   if (gate === 'plan') {

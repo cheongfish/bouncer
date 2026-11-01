@@ -348,7 +348,7 @@ function scaffoldTask({
         dependency_gate: DEFAULT_DEPENDENCY_GATE,
         affected_paths: [],
         // 빈 YAML 리스트로 자리를 잡아 `commit_intent: 문장` 스칼라를 쓰지 않게 한다.
-        // 승인 전에 `- ` 항목 1–2개를 채운다. 커밋은 한국어 종결형을 그때 검사한다.
+        // 승인 전에 `- ` 항목 1–2개를 채운다. 커밋은 문장 형식을 그때 검사한다.
         commit_intent: [],
         commit_summary: [],
       }),

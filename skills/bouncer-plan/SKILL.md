@@ -249,9 +249,9 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    lists (`- ` items), not a single scalar. The internal `bouncer commit` turns each task
    `title` into that task's commit subject (falls back to blueprint `title`),
    uses that task's `commit_intent` then `commit_summary` (each 1–2 Korean
-   terminal sentences; no verification-title fallback), following
+   sentences; no verification-title fallback), following
    `.gitmessage`. `/bouncer-finalize` remainder uses the blueprint `## Intent`
-   (1–2 Korean terminal sentences) as its body and the blueprint `title` as
+   (1–2 Korean sentences) as its body and the blueprint `title` as
    subject.
    `commit_type` participates in the shared branch helper: standalone and
    integration branches are `<type>/<epic-slug>-<blueprint-slug>-<slug>`; worker

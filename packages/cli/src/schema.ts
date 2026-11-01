@@ -285,7 +285,7 @@ function isValidExclusiveResources(value: unknown): boolean {
  * 부재는 통과 — 옛 tasks.md를 소급하지 않기 위함. 값은 YAML 리스트여야 한다.
  * 스칼라 문자열은 js-yaml이 `commit_intent: 문장`으로 읽어 커밋 직전에야
  * 거절되던 구멍을 여기서 막는다. 줄 수 0–2·원소가 문자열인지만 본다.
- * 한국어 종결형은 `normalizeAuthoredLines`가 커밋 때 판정한다.
+ * 문장 형식은 `normalizeAuthoredLines`가 커밋 때 판정한다.
  *
  * @param {unknown} value - 프론트매터 값. 키가 없으면 undefined
  * @returns {boolean} 허용 형태면 true, 스칼라·3개 초과·비문자열 원소면 false
