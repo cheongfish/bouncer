@@ -681,7 +681,15 @@ cycle `latest_dispatch`). `--previous` without a path or a repeated
 `--blueprint`/`--previous` is exit 2. `bouncer context-review start|record|close|restart|route`
 owns cycle state (`start|record|restart|route` take `--blueprint <dir> --dispatch <json>`;
 `record` also takes `--round <json>`, `--status`, `--accept-risk`, and its success may carry `warnings` (`finding-merge-candidate`: findings of the round that share `file` and `symbol` under different categories; key omitted when none, never blocks), but it rejects with `context-review-input-invalid` a round whose merged findings share a fingerprint under different ids, at any `--status`, leaving state and report files unchanged (merge them and record the same round again);
-`close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk`;
+`close` takes `--blueprint <dir> --dispositions <json>` and optional `--accept-risk` and
+`--contract-links <json-file>`. Links are an array of `{ finding_id, path, sections }` for changed
+blueprint task documents; sections are `Interface` or `Touch`. Every changed task must link to an
+accepted `must_fix` finding for that same path and an explicitly approved `--accept-risk` ID.
+The entire task scope digest is accepted without rereview, with before/after digests and
+`accepted_without_rereview: true` recorded in closure and document. Invalid links are
+`context-review-input-invalid`; changed structure, missing links or mismatched consent are
+`context-review-state-conflict`; advisory IDs in `--accept-risk` are `context-review-unresolved-findings`;
+
 `restart` takes `--reason`, at most once); run `bouncer context-review --help`. The path that closes the cycle (`close` or `record --status accepted`) writes `context-review.md` and returns `written`. A stale target after the delta
 is routed `reuse` (same target), `delta` (only discovery recorded, partial),
 `restart` (delta used or structural, `restart_count` below 1) or `user`

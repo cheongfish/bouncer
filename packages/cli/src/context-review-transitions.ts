@@ -1,7 +1,7 @@
 'use strict';
 
 const { isDeepStrictEqual } = require('node:util');
-import type { Finding, Fail, State, Ref, Dispatch, ReportInput } from './context-review-contracts';
+import type { Finding, Fail, State, Ref, Dispatch, ReportInput, ContractAcceptance } from './context-review-contracts';
 import guards = require('./guards');
 const { isRecord } = guards;
 import validateSections = require('./validate-sections');
@@ -347,13 +347,15 @@ function recordState(
  */
 function closeState(
   state: State, key: string, dispRef: Ref, acceptRisk: string[], digest: string,
-  projection: State['projection'],
+  projection: State['projection'], contractAcceptances?: ContractAcceptance[],
 ): State {
   return {
     ...state,
     transitions: [...state.transitions, key],
     closed: true,
-    closure: { dispositions: dispRef, accept_risk: acceptRisk, closure_target_digest: digest },
+    closure: { dispositions: dispRef, accept_risk: acceptRisk, closure_target_digest: digest,
+      ...(contractAcceptances?.length ? { contract_acceptances: contractAcceptances,
+        accepted_without_rereview: true as const } : {}) },
     projection,
   };
 }

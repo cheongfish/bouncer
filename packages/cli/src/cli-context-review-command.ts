@@ -27,7 +27,7 @@ const USAGE = 'usage: bouncer context-review start --blueprint <dir> --dispatch 
   + '       bouncer context-review record --blueprint <dir> --dispatch <json> --round <json> '
   + '[--status <requested|addressed|accepted>] [--accept-risk <id[,id...]>] [--repo <dir>]\n'
   + '       bouncer context-review close --blueprint <dir> --dispositions <json> '
-  + '[--accept-risk <id[,id...]>] [--repo <dir>]\n'
+  + '[--accept-risk <id[,id...]>] [--contract-links <json-file>] [--repo <dir>]\n'
   + '       bouncer context-review restart --blueprint <dir> --dispatch <json> --reason <text> [--repo <dir>]\n'
   + '       bouncer context-review route --blueprint <dir> --dispatch <json> [--repo <dir>]\n'
   + '       (each accepts --repo <dir>)\n'
@@ -92,6 +92,10 @@ const HELP = `${USAGE}
 --dispatch is the JSON printed by \`review-dispatch plan --blueprint <dir>\`.
 --round is { "round": object, "findings": object[] } (discovery, then delta).
 --dispositions is a JSON array of [{ id, status, note }] to dispose folded findings.
+--contract-links is a JSON array of [{ finding_id, path, sections }] for changed blueprint task
+contracts, each linked to an accepted must_fix for the same path and --accept-risk ID. The entire
+task scope is accepted without rereview; sections may contain Interface and Touch. For example:
+[{ "finding_id": "CR-12345678", "path": "<blueprint>/tasks/001/tasks.md", "sections": ["Interface", "Touch"] }]
 
 Each example below is a complete file. Replace only <target.digest> with the
 target.digest from the \`review-dispatch plan\` JSON.
@@ -158,7 +162,8 @@ close means the structure and the Interface/Touch contract equal the reviewed ba
 the body changed: run close to certify the current snapshot (no new round). delta is a contract-only
 change after discovery; restart is a structure change. close and an accepted record write
 closure_target_digest (64 lowercase hex) to the runtime closure and the context-review.md frontmatter;
-a closed cycle may be closed again after a body-only edit, and close refuses a changed structure or contract.
+a closed cycle may be closed again after a body-only edit. Structural changes are rejected; changed
+task contracts require explicitly approved --accept-risk and --contract-links.
 `;
 
 type Parsed = { error: string } | {
@@ -167,6 +172,7 @@ type Parsed = { error: string } | {
   dispatch: string | null;
   round: string | null;
   dispositions: string | null;
+  contractLinks: string | null;
   status: string | null;
   acceptRisk: string[];
   reason: string | null;
@@ -188,7 +194,8 @@ function parseArgs(rest: string[]): Parsed {
     return fail('command must be start, record, close, restart or route');
   }
   const flags = rest.slice(1);
-  for (const name of ['blueprint', 'dispatch', 'round', 'dispositions', 'status', 'accept-risk', 'reason', 'repo']) {
+  for (const name of ['blueprint', 'dispatch', 'round', 'dispositions', 'status', 'accept-risk',
+    'contract-links', 'reason', 'repo']) {
     if (flags.filter((t) => t === `--${name}`).length > 1) return fail(`--${name} specified more than once`);
   }
   const f = parseFlags(flags);
@@ -203,6 +210,11 @@ function parseArgs(rest: string[]): Parsed {
   const dispositions = text('dispositions');
   const round = text('round');
   const reason = text('reason');
+  const contractLinks = text('contract-links');
+  if (verb !== 'close' && f['contract-links'] !== undefined) return fail('--contract-links is only valid for close');
+  if (verb === 'close' && f['contract-links'] !== undefined && !contractLinks) {
+    return fail('--contract-links requires a JSON file');
+  }
 
   if (verb === 'close') {
     if (f.dispatch !== undefined) return fail('--dispatch is not valid for close');
@@ -236,6 +248,7 @@ function parseArgs(rest: string[]): Parsed {
     dispatch,
     round,
     dispositions,
+    contractLinks,
     status,
     acceptRisk: (text('accept-risk') || '').split(',').map((s) => s.trim()).filter(Boolean),
     reason,
@@ -275,7 +288,7 @@ function cmdContextReview(rest: string[], io: CliIo): number {
   } else if (parsed.verb === 'close') {
     result = state.closeCycle({
       repoRoot, blueprintDir: parsed.blueprint, dispositionsFile: parsed.dispositions as string,
-      acceptRisk: parsed.acceptRisk,
+      acceptRisk: parsed.acceptRisk, contractLinksFile: parsed.contractLinks || undefined,
     });
   } else if (parsed.verb === 'route') {
     result = state.routeFollowUp({ repoRoot, blueprintDir: parsed.blueprint, dispatchFile: parsed.dispatch as string });

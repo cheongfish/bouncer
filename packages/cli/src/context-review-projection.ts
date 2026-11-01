@@ -1,7 +1,7 @@
 'use strict';
 
 const { isDeepStrictEqual } = require('node:util');
-import type { Finding, Fail } from './context-review-contracts';
+import type { Finding, Fail, Closure } from './context-review-contracts';
 import guards = require('./guards');
 const { isRecord } = guards;
 import render = require('./render');
@@ -124,7 +124,7 @@ function rewriteFindingsSection(body: string, generated: string[]): string {
  */
 function projectClosureDoc(
   parsed: { data: unknown; body: string }, projection: { findings: Finding[]; rounds: unknown[] },
-  closureTargetDigest?: string,
+  closureTargetDigest?: string, closure?: Closure, restartCount?: number,
 ): { text: string } | Fail {
   const data: Record<string, unknown> = isRecord(parsed.data)
     ? JSON.parse(JSON.stringify(parsed.data)) : {};
@@ -137,6 +137,14 @@ function projectClosureDoc(
   // runtime closure와 같은 값을 frontmatter에 투영한다. 과거 closed state는 digest가 없으므로
   // 그 경우 기존 값을 건드리지 않아 기록 검사가 round digest 폴백으로 판정하게 둔다.
   if (closureTargetDigest !== undefined) cr.closure_target_digest = closureTargetDigest;
+  if (closure?.accepted_without_rereview) {
+    cr.contract_acceptances = closure.contract_acceptances;
+    cr.accepted_without_rereview = true;
+  } else {
+    delete cr.contract_acceptances;
+    delete cr.accepted_without_rereview;
+  }
+  if (restartCount !== undefined) cr.restart_count = restartCount;
   bouncer.context_review = cr;
   const body = rewriteFindingsSection(parsed.body, findingLines(projection.findings));
   const messages = collectFindingFailures({

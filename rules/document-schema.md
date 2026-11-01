@@ -202,6 +202,12 @@ and sha256. `restart_count` is also anchored in the blueprint-root
 `state.json`, `start` and `restart` refuse, and a state count below the marker is
 corrupt. Only an accepted record or close returns the canonical `rounds`/`findings`
 projection (`resolved` or `accepted` with a note; accepted must_fix findings carry `accepted_risk: true`). `close` and an accepted record also certify the current snapshot: the runtime
+When a user explicitly accepts changed task contracts without rereview,
+`closure.contract_acceptances` and `bouncer.context_review.contract_acceptances` hold entries with
+`finding_id`, `path`, `sections`, `before_digest`, and `after_digest`. Both closure and frontmatter
+also carry `accepted_without_rereview: true`. Each digest covers the complete task scope, not only
+its listed sections.
+
 `closure.closure_target_digest` and `bouncer.context_review.closure_target_digest`
 hold the same 64 lowercase hex value, a context review record check compares it before the last round
 digest, and a document without it falls back to the round digest. A malformed

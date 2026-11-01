@@ -3,6 +3,7 @@
     "acq-gate-ids.test.js",
     "agents.test.js",
     "canonical-json.test.js",
+    "context-review-state.test.js",
     "dependency-boundaries.test.js",
     "frontmatter.test.js",
     "plugin-doc-cites.test.js",

@@ -47,3 +47,17 @@ test('context-review help → lists close among the route next_action values', (
   assert.strictEqual(code, 0);
   assert.ok(out.includes('reuse | close | delta | restart | user'));
 });
+
+// 문서는 링크된 범위 전체가 재검토 없이 수용됨을 사용자에게 알리는 공개 절차다.
+test('contract acceptance guidance → explains links and acceptance without rereview', () => {
+  const docs = [
+    'skills/bouncer-plan/references/context-review.md',
+    'references/context-review/index.md',
+  ];
+  for (const doc of docs) {
+    const text = fs.readFileSync(path.join(root, doc), 'utf8');
+    assert.match(text, /--contract-links/);
+    assert.match(text, /without\s+rereview/);
+    assert.match(text, /before\/after digests/);
+  }
+});
