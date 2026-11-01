@@ -203,29 +203,23 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    real host handle for the actual invocation (an incomplete worker inventory is
    `unknown`); re-check `status` once per `continue`:
 
-   | observation | report / progress | root action |
-   | --- | --- | --- |
-   | running | none yet | wait on the same real handle, then re-check |
-   | unknown | report present (`report.path`), no new integrated task | recovery re-dispatch once |
-   | unknown | report absent | stop `worker-state-unknown` |
-   | terminated | none | stop `worker-report-missing` |
-   | all terminated | new integrated task | continue the loop |
-   | all terminated | undecided raw report, no new integrated task | recovery re-dispatch once |
-   | all terminated | none, hash-only change, or after recovery | stop `no-progress` |
+   Call `bouncer coordinate progress --baseline-ids <json> --current-ids <json>
+   --observation <running|unknown|terminated> --report <present|absent>
+   --recovery-used <true|false>`. Pass the baseline set captured before dispatch and
+   the new checkpoint `completed_tasks` ids as JSON arrays. Pass the actual host
+   handle observation and raw report existence, plus whether recovery was already
+   used for this baseline. A CLI input rejection stops the loop.
 
-   Hand a raw report to the coordinator as data; never judge, verify, integrate, or edit active metadata.
-   `report present`: that file is the raw report; same recovery.
-   `worker-state-unknown` and `worker-report-missing` stops preserve ledger, worktrees, and pointer.
-   If `completed_tasks` holds an id missing from the baseline, dispatch a new coordinator
-   with the same payload plus that checkpoint (no ACQ). A new id counts as progress even when the
-   count is unchanged (for example a task reopened by `--resume-task` while another one integrated). Wait in the foreground
-   for that new coordinator and apply the same continue / no-progress / terminal-stop rules again.
-   If it holds no such id, stop here
-   — except the table's single recovery re-dispatch; a second `continue` without a new integrated task goes to `no-progress` —
-   (not step 5) with `blocked` cause `no-progress`, emit
-   `중단: <blueprint> · no-progress · …`, and preserve ledger, worktrees,
-   and pointer. Do not re-dispatch on `completed`, `blocked`, or
-   `partial_closed`; those stop.
+   - `wait`: wait on the same real handle, then re-check status and call again.
+   - `continue`: an id missing from the baseline is progress even if counts match;
+     dispatch a new coordinator with the same payload and new checkpoint, then wait.
+   - `recovery`: hand the undecided raw report to the coordinator as data and
+     re-dispatch once for the same baseline; never judge or edit active metadata.
+   - `worker-state-unknown`, `worker-report-missing`, or `no-progress`: stop with
+     that blocked cause and preserve ledger, worktrees, and pointer.
+
+   A hash-only change is not progress. Do not call progress or re-dispatch on
+   `completed`, `blocked`, or `partial_closed`; those follow their terminal paths.
 
 5. **Report.** `continue` is not terminal. Render progress lines and a
    terminal outcome through `${BOUNCER_ROOT}/rules/output.md`: `completed` with the

@@ -130,7 +130,7 @@ function main(argv, io, deps = { spawnSync: childProcess.spawnSync }) {
   }
   step('tiers', tierOk ? 'ok' : 'fail');
 
-  // 4. 고정 검사(guard 없음: test-tiers.test.js가 프로세스를 띄운다)
+  // 4. 고정 검사는 unit guard를 추가하지 않지만, 호출 환경의 NODE_OPTIONS는 그대로 상속한다.
   step('fixed checks', spawn(FIXED_CHECKS) ? 'ok' : 'fail');
   // 5. unit 파일은 no-spawn guard 아래에서 실행해 tier 규칙을 그대로 강제한다.
   step('unit', unit.length === 0 ? 'skip' : (spawn(unit, unitNodeOptions()) ? 'ok' : 'fail'));

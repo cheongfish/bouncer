@@ -389,3 +389,13 @@ test('subagent-model codex-agents check item → names the not-generated and rol
   assert.ok(item.includes('`not-generated`'), 'user-owned role file result must be named');
   assert.ok(item.includes('`role-config-invalid`'), 'config error result must be named');
 });
+
+// root가 host의 실제 관찰을 판정 명령에 넘기고 종결 결과를 다시 보내지 않는 계약이다.
+test('coordinator continuation → use progress decision and preserve terminal outcomes', () => {
+  const skill = readRunSkill().replace(/\s+/g, ' ');
+  assert.match(skill, /bouncer coordinate progress --baseline-ids <json> --current-ids <json>/);
+  assert.match(skill, /actual host handle observation and raw report existence/);
+  for (const decision of ['wait', 'continue', 'recovery', 'worker-state-unknown',
+    'worker-report-missing', 'no-progress']) assert.ok(skill.includes(`\`${decision}\``));
+  assert.match(skill, /Do not call progress or re-dispatch on `completed`, `blocked`, or `partial_closed`/);
+});
