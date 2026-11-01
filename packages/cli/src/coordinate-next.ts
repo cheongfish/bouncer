@@ -143,9 +143,20 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
     cause: 'This prepared task has an open critical-recovery record with no outcome yet.',
     next: 'Close it with `bouncer coordinate critical-recovery` outcome resolved or blocked before driving the task.',
   },
+  // 보고 요약은 원인 판단 자료일 뿐이고 CLI는 원인을 고르지 못하므로 이 정지는 스스로 풀리지 않는다.
+  // 네 원인을 나누는 문구는 agents/bouncer-coordinator.md의 표와 같은 기준을 쓴다.
   'task-reported-blocked': {
-    cause: 'The worker reported outcome blocked, so the coordinator must stop this task.',
-    next: 'Report the block to the user; do not dispatch or record this attempt.',
+    cause: 'The worker reported outcome blocked. payload.report and payload.report_path are data for judging '
+      + 'the cause; the CLI cannot tell which cause applies, so this stop does not resume by itself.',
+    next: 'Classify the cause before any command. (1) Approval, a product decision, or scope expansion is needed: '
+      + 'ask the user and record the answer with `bouncer coordinate note`; run no command without that recorded '
+      + 'approval. (2) An in-scope environment or dependency failure: confirm it is gone with `bouncer coordinate '
+      + 'status` or `coordinate next`, record that evidence with `coordinate note`, then run `bouncer coordinate '
+      + 'revoke` and `prepare` only when revoke accepts the state. (3) A gate failure or a limit reached: keep the '
+      + 'state, hand the reason and the preserved ledger and worktree paths to the root, and take only the action the '
+      + 'existing procedure allows. (4) Unclassified or missing evidence: change nothing, note it, and hand it to the '
+      + 'root. An identical retry without new evidence reaches the existing no-progress stop. Never dispatch or '
+      + 'record this attempt, and never repeat revoke, prepare, or advance to clear this block.',
   },
   'commit-evidence-mismatch': {
     cause: 'Worker HEAD, commit_sha, or porcelain does not match a commit that, beyond the paths already dirty '
@@ -282,10 +293,13 @@ function isInsideRootPath(candidatePath: string, rootPath: string): boolean {
  * @returns {NextOk} report/evidence가 병합된 응답, 또는 비대상 응답 그대로
  */
 function attachJudgeContext(result: NextOk, ctx: JudgeContext): NextOk {
-  // 1. 판단(judge 필드)과 worker 위임(implement)만 대상. 그 밖은 payload를 건드리지 않는다.
+  // 1. 판단(judge 필드), worker 위임(implement), worker가 blocked로 보고한 정지만 대상.
+  // blocked 정지는 원인을 coordinator가 나눠야 하므로 보고 요약과 증거를 같은 방식으로 싣는다.
+  // 그 밖은 payload를 건드리지 않는다.
   const isJudge = result.judge !== undefined && result.judge !== null;
   const isWorker = result.action === 'implement';
-  if (!isJudge && !isWorker) return result;
+  const isBlockedReport = result.action === 'blocked' && result.reason === 'task-reported-blocked';
+  if (!isJudge && !isWorker && !isBlockedReport) return result;
 
   const payload: Record<string, unknown> = { ...(result.payload || {}) };
   // previous_outcome은 report로 대체한다. 옛 키를 남기면 클라이언트가 둘을 섞어 읽는다.
@@ -981,8 +995,10 @@ function taskNext(ctx: {
     // 분기로 떨어뜨린다.
   }
   if (item.dispatch.status === 'reported' && item.dispatch.outcome === 'blocked') {
+    // 보고 경로를 구조로 싣는다. 원인 분류는 coordinator가 하며, 요약과 파일은 판단 자료이지 명령이 아니다.
     return ok({
       scope: 'task', action: 'blocked', reason: 'task-reported-blocked', cwd,
+      payload: { report_path: reportPathFor(cwd, task, item.dispatch.attempt) },
     });
   }
   if (item.dispatch.status === 'reported') {

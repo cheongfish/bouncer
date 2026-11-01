@@ -13,6 +13,7 @@ const { coordinateNext } = require('../packages/cli/dist/coordinate-next');
 const { advance } = require('../packages/cli/dist/coordinate-advance');
 const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
 const { reportPathFor } = require('../packages/cli/dist/coordinator-worker');
+const { coordinate } = require('./helpers/coordinator-fence');
 
 const BLUEPRINT = '.bouncer/context/epics/drive-execution/blueprints/drive-recovery-contracts';
 const TASK = '001';
@@ -45,11 +46,13 @@ function tempDir(prefix) {
  * 실제 저장소·integration worktree·worker worktree·원장 파일을 만든다. dispatch 기준(base_head,
  * initial_worktree_state)은 worker가 아무 일도 하기 전 상태로 찍는다.
  *
+ * @param {{ blockedSummary?: string }} [options] - 있으면 worker가 outcome blocked로 보고한 상태를 만든다.
+ *   summary는 `coordinate report`가 원장 decisions에 남기는 보고 요약과 같은 자리에 들어간다
  * @returns {{ repo: string, integration: string, worker: string, base: string,
  *   initial: string, ledgerFile: string, writeReport: (attempt: number) => string }}
  *   fixture 경로와 기준값. writeReport는 worker 보고 파일을 쓰고 경로를 돌려준다
  */
-function createDrive() {
+function createDrive(options = {}) {
   const repo = tempDir('bouncer-next-recovery-');
   git(repo, ['init', '-q', '-b', 'main']);
   git(repo, ['config', 'user.email', 'test@example.com']);
@@ -74,23 +77,31 @@ function createDrive() {
   fs.writeFileSync(path.join(taskDir, 'verification.md'), VERIFICATION_MD);
   const initial = porcelain(paths.workerPath);
 
+  // blocked 보고는 dispatch를 reported로 바꾸고, 요약을 task decisions의 report 항목으로 남긴다.
+  // 요약 없이 active로 두면 기존 unchanged·commit 판정 fixture와 그대로 같다.
+  const dispatch = {
+    attempt: 2,
+    status: 'active',
+    base_head: base,
+    initial_worktree_state: initial,
+    task_brief_hash: BRIEF_HASH,
+  };
+  const task = { id: TASK, status: 'prepared', workerPath: paths.workerPath, dispatch };
+  if (options.blockedSummary !== undefined) {
+    dispatch.status = 'reported';
+    dispatch.outcome = 'blocked';
+    task.decisions = [{
+      kind: 'report', outcome: 'blocked', summary: options.blockedSummary, attempt: 2,
+      task_brief_hash: BRIEF_HASH,
+    }];
+  }
+  // note는 active 원장만 받으므로 fixture도 active다. next는 running과 active를 같게 읽는다.
   const ledger = {
     leaseSeq: 0,
-    status: 'running',
+    status: 'active',
     integrationHead: base,
     decisions: [],
-    tasks: [{
-      id: TASK,
-      status: 'prepared',
-      workerPath: paths.workerPath,
-      dispatch: {
-        attempt: 2,
-        status: 'active',
-        base_head: base,
-        initial_worktree_state: initial,
-        task_brief_hash: BRIEF_HASH,
-      },
-    }],
+    tasks: [task],
   };
   fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
   fs.writeFileSync(paths.ledgerFile, JSON.stringify(ledger, null, 2));
@@ -183,4 +194,84 @@ test('report from an earlier attempt with unchanged worker → next dispatches i
   assert.equal(next.ok, true);
   assert.equal(next.action, 'implement');
   assert.equal(next.reason, undefined);
+});
+
+// worker가 outcome blocked로 보고한 상태의 next. 요약은 원인 판단 자료이며 명령 권한이 아니다.
+// 네 원인(승인·제품 결정, 범위 내 환경 장애, gate 실패·제한, 미분류)을 같은 입력으로 준다.
+// CLI는 요약에서 원인을 고르지 않으므로, 어떤 원인이든 자동 행동(argv)을 고르면 안 된다.
+test('blocked report → next stops at task-reported-blocked with the report path and the summary as data', () => {
+  const summary = 'needs a user decision to pick the auth provider';
+  const drive = createDrive({ blockedSummary: summary });
+  const reportFile = drive.writeReport(2);
+
+  const next = nextFor(drive);
+  assert.equal(next.ok, true);
+  assert.equal(next.action, 'blocked');
+  assert.equal(next.reason, 'task-reported-blocked');
+  // 원인을 분류하기 전에는 revoke·prepare·dispatch 어느 것도 argv로 권하지 않는다.
+  assert.equal(next.argv, undefined);
+  // coordinator가 판단 자료를 특정할 수 있도록 보고 경로와 요약을 구조 필드로 싣는다.
+  assert.equal(next.payload.report_path, reportFile);
+  assert.equal(next.payload.report.outcome, 'blocked');
+  assert.equal(next.payload.report.summary, summary);
+  // 원인·결정·해소 증거·주체를 텍스트로 안내하고, 판단은 coordinate note로 남기게 한다.
+  assert.match(next.next, /coordinate note/);
+});
+
+const BLOCKED_CLASSES = {
+  'approval or product decision needed': 'needs a product decision to choose the auth provider',
+  'in-scope environment failure': 'the dependency install failed in the worker environment',
+  'gate failure or limit reached': 'the verify gate failed twice on the same assertion',
+  'unclassified input': 'something unexpected happened without evidence',
+};
+for (const [cls, summary] of Object.entries(BLOCKED_CLASSES)) {
+  test(`blocked report classed as ${cls} → next selects no action and keeps the summary as data`, () => {
+    const drive = createDrive({ blockedSummary: summary });
+    drive.writeReport(2);
+
+    const next = nextFor(drive);
+    assert.equal(next.ok, true);
+    assert.equal(next.action, 'blocked');
+    assert.equal(next.argv, undefined);
+    assert.equal(next.payload.report.summary, summary);
+  });
+}
+
+test('blocked report, environment failure noted as resolved → revoke clears the block and the task is pending', () => {
+  const drive = createDrive({ blockedSummary: 'dependency install failed' });
+  drive.writeReport(2);
+  // 해소 증거와 판단을 note로 먼저 남긴 뒤에만 revoke로 배정을 회수한다.
+  const noted = coordinate({
+    command: 'note', repoRoot: drive.repo, blueprint: BLUEPRINT, cwd: drive.integration, task: TASK,
+    text: 'dependency install re-run passed; revoking the blocked dispatch',
+  });
+  assert.equal(noted.ok, true);
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: drive.repo, blueprint: BLUEPRINT, cwd: drive.integration, task: TASK,
+    reason: 'environment failure resolved',
+  });
+  assert.equal(revoked.ok, true);
+
+  // 회수된 task는 blocked가 아니라 재준비를 기다리는 pending이다.
+  const after = nextFor(drive);
+  assert.equal(after.action, 'none');
+  assert.equal(after.reason, 'pending');
+});
+
+test('revoke refused for an empty reason → ledger bytes and worker worktree stay unchanged and blocked remains', () => {
+  const drive = createDrive({ blockedSummary: 'dependency install failed' });
+  drive.writeReport(2);
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  const worktreeBefore = porcelain(drive.worker);
+
+  const refused = coordinate({
+    command: 'revoke', repoRoot: drive.repo, blueprint: BLUEPRINT, cwd: drive.integration, task: TASK,
+    reason: '   ',
+  });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.reason, 'decision-reason-required');
+  assert.ok(fs.readFileSync(drive.ledgerFile).equals(ledgerBefore), 'refused revoke must not change the ledger');
+  assert.equal(porcelain(drive.worker), worktreeBefore, 'refused revoke must not change the worker worktree');
+  // 거절 뒤에도 같은 blocked 판정이 남아야 coordinator가 원인을 다시 분류할 수 있다.
+  assert.equal(nextFor(drive).reason, 'task-reported-blocked');
 });

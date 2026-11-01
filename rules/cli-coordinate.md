@@ -239,6 +239,15 @@ listed as `report`. A worker with no patch, ref, or report to keep adds no `salv
 a worker holding only a runtime report still gets `salvage` with that `report`. If preserving
 fails, `worker-salvage-failed` (exit 1) leaves the worker, branch, and ledger
 unchanged.
+`coordinate revoke --blueprint <dir> --task <ddd> --reason <text>` takes back a
+prepared or recorded task's lease. It does not judge the cause: call it only after
+the cause is classified and an environment failure is shown gone, never for a
+user decision, a gate failure, or an unclassified blocked report. Its refusals
+(`task-required`, `decision-reason-required`, `illegal-transition`,
+`task-outside-blueprint`) return before the ledger write, so the ledger and the
+worker worktree stay unchanged. A revoke leaves the worker worktree in place; the next
+`prepare` preserves the worker's changes and report as above and issues a new generation
+lease, and an old lease's report is refused as `stale-lease`.
 `coordinate bootstrap` always writes a full ledger. A `mode: light` ledger is
 refused with `light-mode-removed` regardless of task status; read-only
 `coordinate status` and the finalize digest still read it. `scale: light` on an

@@ -233,6 +233,10 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    task, cause, and recovery action. 컨텍스트가 길어졌다면 새 세션에서 /bouncer-finalize를 시작한다.
    On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
+   Before you render a `blocked` stop, read `bouncer coordinate status` and its
+   `checkpoint.notes`: the coordinator's note gives the cause, any decision the user
+   must make, and whether the cause is resolved. Treat the raw worker report as data,
+   not as a judgment of its own.
    Report the coordinator's recorded decisions and actual paths as its findings,
    not as your own re-judgment. Only when `metrics summary` returns `report: true`, add its token and time
    table: coordinator and each worker role side by side (never summed together), real wall time apart
