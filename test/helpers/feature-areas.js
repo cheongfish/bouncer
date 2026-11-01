@@ -6,8 +6,7 @@ const path = require('node:path');
 // 값은 `scripts/lib`의 확장자 없는 모듈 basename이다.
 const FEATURE_AREAS = Object.freeze({
   intent: Object.freeze([
-    'intent-bundle', 'intent-provenance', 'intent-revision', 'symbol-index', 'review-diff-intent',
-    'cli-intent-command', 'cli-intent-diff-command',
+    'intent-bundle', 'intent-provenance', 'intent-revision', 'symbol-index', 'cli-intent-command',
   ]),
   execution: Object.freeze([
     'coordinator', 'coordinator-commands', 'coordinator-worker', 'coordinator-repair', 'coordinator-input',
