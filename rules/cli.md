@@ -341,7 +341,16 @@ the sum never reads that key as zero. `worker-tokens` refuses a second record fo
 `worker-tokens --replace` (a flag with no value, `worker-tokens` only) swaps the latest
 `worker-tokens` record of the key and returns it as `replaced`; a key with no `worker-tokens` record is
 refused with `worker-tokens-replace-target-missing`, and `--replace` with a value or on `worker-model` is
-usage (exit 2). The `worker-tokens-missing` check covers these keys:
+usage (exit 2). `worker-tokens --tokens ambiguous` is the non-blocking recovery for a key whose host
+completion cannot be tied to one call. It appends `{kind: worker-tokens-ambiguous, role, task?, perspective?,
+model_rows, token_rows}`, where the two counts are the key's worker-model and worker-tokens records at that
+moment. Those earlier rows become a frozen unattributed set. The marker writes no `tokens` and no `unreported`,
+never changes an existing row, and assigns no value to any call. The `worker-tokens-missing` check (advance and
+record) exempts only the frozen rows, so advance resumes; rows added to the key later are checked as usual.
+The sum still counts the frozen rows as missing, so their tokens stay unmeasured. A key with no worker-model or
+worker-tokens record is refused with `worker-tokens-ambiguous-target-missing`, a second marker over the same
+rows with `worker-tokens-ambiguous-duplicate`, and `--replace` combined with `--tokens ambiguous` with
+`worker-tokens-ambiguous-replace`; each is exit 1 with the ledger unchanged. The `worker-tokens-missing` check covers these keys:
 `coordinate record --task <T>` checks the keys of task T,
 `coordinate advance --task <T>` checks the keys of task T and the keys with no task,
 and `coordinate advance` without `--task` checks the keys with no task. `coordinate advance` also checks the

@@ -362,6 +362,15 @@ estimated. To correct a recorded value, repeat the same `worker-tokens` call wit
 latest record of that key instead of appending another. `coordinate record --task <NNN>` and `coordinate advance` refuse with
 `worker-tokens-missing` while a finished worker key has neither record.
 
+When one key has several calls and the completion notice cannot name which call it belongs to, do not guess
+which call the value is for. Record `--tokens ambiguous` with the same `--role`, `--task`, `--perspective`, and the
+fence from the latest status. The marker freezes the key's rows recorded so far as an unattributed set, leaves
+every existing row unchanged, and lets `coordinate advance` resume without blocking. The tokens of those calls
+then stay unmeasured. A later call on the same key is recorded normally and is not part of the frozen set. Attribute a
+value to a call only when the host identifiers and the dispatch order point at that one call; then record its
+missing worker-model and its value with the normal commands. Use `--replace` only to correct a wrong value of that
+same call, never to move a value to another call.
+
 ## Worker hand-back
 
 Every worker returns its Output contract to the controller — the coordinator during a drive. The implementer is the one exception: with `report_path` it writes the full Output contract to that file and hands back only the short form in its role document's Output contract **Hand-back** subsection (summary, `report_path`, and Needs planning / Scope impact when they have a value); without `report_path` it returns the full contract inline. Other workers' output contracts are unchanged. Each worker's **Scope impact** / **Scope/task impact** line is an input to one coordinator decision (scope revision through `bouncer coordinate revise`, rework, a task change, or terminal blocked), never a licence for the worker to widen its own scope or move the pointer.
