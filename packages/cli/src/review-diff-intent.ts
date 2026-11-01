@@ -1,15 +1,17 @@
 'use strict';
 
-// 동결된 review snapshot 하나에서 "어떤 함수가 바뀌었는지"를 줄 단위로 뽑는다.
-// 입력은 snapshot의 diff·files와 base 커밋뿐이다. base 쪽 정의와 blob은 intent-revision이 고정 SHA에서 읽고,
-// snapshot 쪽 정의는 files[].content에서만 얻는다. 작업 트리는 다시 읽지 않으므로 같은 입력은 같은 답을 낸다.
-// 쓰기는 하지 않는다(소스·index·branch·snapshot artifact 모두). 이 모듈은 아직 어떤 기존 모듈에도 연결되지 않는다.
-// 근거 조회·순위·예산·CLI는 다음 task가 맡는다.
+// 동결된 review snapshot 하나에서 "어떤 함수가 바뀌었는지"를 줄 단위로 뽑고, collectDiffIntent로 그 후보에
+// 기준 SHA의 intent 근거를 붙여 리뷰 입력용 슬롯을 만든다.
+// 입력은 snapshot의 diff·files와 base 커밋, 그리고 고정 SHA 조회뿐이다. base 쪽 정의와 blob은 intent-revision이
+// 고정 SHA에서 읽고, snapshot 쪽 정의는 files[].content에서만 얻는다. 작업 트리는 다시 읽지 않으므로 같은 입력은 같은 답을 낸다.
+// 쓰기는 하지 않는다(소스·index·branch·snapshot artifact 모두). CLI 출력 연결은 다음 task가 맡는다.
 
 import intentRevision = require('./intent-revision');
 import symbolIndex = require('./symbol-index');
 import canonicalJson = require('./canonical-json');
+import intentProvenance = require('./intent-provenance');
 const { createHash } = require('node:crypto');
+const { sha256Canonical } = canonicalJson;
 
 type FileDefinitions = ReturnType<typeof symbolIndex.listDefinitionsInText>;
 type ParsedFile = Extract<FileDefinitions, { status: 'parsed' }>;
@@ -89,6 +91,59 @@ const SNAPSHOT_KINDS: ReadonlySet<unknown> = new Set<unknown>(['text', 'binary',
 const C_ESCAPES: Readonly<Record<string, number>> = {
   a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, '\\': 92,
 };
+
+// 근거 조회 결과는 resolveIntentAtRevision의 반환 형태를 그대로 빌린다. 이 모듈이 필드를 따로 정의하면 두 벌이 갈라진다.
+type LookupResult = ReturnType<typeof intentProvenance.resolveIntentAtRevision>;
+type LookupCandidate = LookupResult['candidates'][number];
+type Lookup = (input: { repoRoot: string; historyRef: string; symbolRef: SymbolRef; limit?: number }) => LookupResult;
+// base_ref가 있어 근거를 조회할 수 있는 후보다. 짝 없는 added와 snapshot 쪽 ambiguous는 base_ref가 없어 여기 들지 않는다.
+type Queryable = Candidate & { base_ref: SymbolRef };
+type Evidence = 'linked' | 'unlinked' | 'added_no_history' | 'not_queried';
+type Delivery = 'selected' | 'omitted_by_count' | 'omitted_by_bytes' | 'manifest_only';
+// 조회 대상 중 슬롯 시험을 통과했는지만 정한다. 나머지 전달 상태는 순위 밖이나 base_ref 없음으로 정해진다.
+type PackDelivery = 'selected' | 'omitted_by_bytes';
+type Section = { name: string; body: string };
+type EntryCandidate = Omit<LookupCandidate, 'sections'> & { sections: Section[]; sections_omitted: number };
+type Entry = {
+  rank: number;
+  mapping: Mapping;
+  base_ref: SymbolRef | null;
+  snapshot_ref: SymbolRef | null;
+  added_lines: number;
+  deleted_lines: number;
+  touched_by_nested: boolean;
+  evidence: 'linked' | 'unlinked';
+  explain_docs: number;
+  total_linked: number;
+  candidates: EntryCandidate[];
+};
+type ManifestCandidate = Candidate & { rank: number | null; evidence: Evidence; delivery: Delivery };
+type Summary = {
+  changed_files: number;
+  files_not_covered: number;
+  candidates_total: number;
+  queryable: number;
+  selected: number;
+  omitted_by_count: number;
+  omitted_by_bytes: number;
+  added_no_history: number;
+  ambiguous_mapping: number;
+  unlinked: number;
+};
+// 조회 전에도 정해지는 요약 값이다. selected와 omitted_by_bytes만 슬롯 시험 중에 달라진다.
+type SummaryBase = Omit<Summary, 'selected' | 'omitted_by_bytes'>;
+type Slot = { summary: Summary; entries: Entry[]; manifest_digest: string; bundle_dedupe: 'not_applied' };
+// 순위 순서의 조회 행 하나. rank는 1부터 센 queryable 순위다.
+type Row = { rank: number; candidate: Queryable; result: LookupResult };
+
+// 조회 대상 상한과 전달 예산. budget_policy 'intent-diff-budget/1'의 값이며 외부에 노출하지 않는다.
+const MAX_ENTRIES = 8;
+const BODY_BYTES = 3072;
+const SLOT_BYTES = 12288;
+const BUDGET_POLICY = 'intent-diff-budget/1';
+const PROJECTION_VERSION = 'intent-diff/1';
+// 슬롯 시험 직렬화에서 manifest_digest 자리에 넣는 값이다. sha256 hex는 항상 64자라 길이만 맞으면 크기가 정확하다.
+const DIGEST_PLACEHOLDER = '0'.repeat(64);
 
 /**
  * 동결된 snapshot에서 base 대비 바뀐 함수 후보와 파일별 coverage를 뽑는다.
@@ -863,4 +918,282 @@ function compareStrings(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
-export = { extractChangedFunctions };
+/**
+ * 변경 함수 후보에 기준 SHA의 intent 근거를 붙이고, 순위와 바이트 예산을 적용한 전달 슬롯을 만든다.
+ * 추출은 한 번만 하고, 근거 조회는 queryable 후보 중 상위 8개에만 후보마다 한 번 부른다. 전체 후보는 manifest에
+ * 순위·근거 상태·전달 상태와 함께 남아 생략된 후보도 확인할 수 있다. 조회가 던진 오류는 unlinked로 접지 않고 그대로 올린다.
+ *
+ * @param {object} input - 입력
+ * @param {string} input.repoRoot - 저장소 루트. Git 읽기의 cwd다
+ * @param {DiffSnapshot} input.snapshot - 동결된 review snapshot의 target·diff·files
+ * @param {string} input.historyRef - base 커밋을 가리키는 ref. snapshot.target.base와 같아야 한다
+ * @param {{ resolveIntentAtRevision?: Lookup }} [input.deps] - 조회 주입. 호출 횟수와 실패를 테스트가 보려고 쓴다.
+ *   운영 호출자는 넘기지 않으면 intent-provenance의 resolveIntentAtRevision을 쓴다
+ * @returns {object} schema_version·projection_version·budget_policy, snapshot_id, base, history_ref, slot
+ *   (summary·entries·manifest_digest·bundle_dedupe), manifest(files·candidates), digest(digest 키를 뺀 객체의 해시).
+ *   후보가 없으면 entries는 빈 배열이다
+ * @throws {Error} extractChangedFunctions의 거절 조건, 조회 함수가 던진 오류, 헤더만으로 슬롯 상한을 넘는 경우에 던진다
+ */
+function collectDiffIntent(input: {
+  repoRoot: string;
+  snapshot: DiffSnapshot;
+  historyRef: string;
+  deps?: { resolveIntentAtRevision?: Lookup };
+}) {
+  // 1. 추출은 한 번만 한다. 형태·historyRef·diff 거절이 조회보다 먼저 일어나 잘못된 입력이 Git 조회를 만들지 않는다.
+  const extracted = extractChangedFunctions({
+    repoRoot: input.repoRoot,
+    snapshot: input.snapshot,
+    historyRef: input.historyRef,
+  });
+  // 2. queryable 후보를 순위로 정렬한다. 순위가 manifest rank와 조회 대상을 함께 정하므로 정렬 키를 모두 고정한다.
+  const queryable = extracted.candidates.filter(hasBaseRef).sort(compareRank);
+  const rankOf = new Map<Candidate, number>(queryable.map((candidate, index) => [candidate, index + 1]));
+  // 3. 상위 8개만 근거를 조회한다. 9위 이하는 부르지 않아 조회 호출 수가 후보 수와 무관하게 최대 8이다.
+  // 조회 범위는 historyRef가 확정한 SHA로 넘긴다. 같은 ref 문자열이 다른 커밋을 가리키게 두지 않는다.
+  const lookup = input.deps?.resolveIntentAtRevision ?? intentProvenance.resolveIntentAtRevision;
+  const rows: Row[] = queryable.slice(0, MAX_ENTRIES).map((candidate, index) => ({
+    rank: index + 1,
+    candidate,
+    result: lookup({ repoRoot: input.repoRoot, historyRef: extracted.history_ref, symbolRef: candidate.base_ref }),
+  }));
+  // 4. 조회 전에도 정해지는 요약 값을 모은다. 슬롯 크기 시험에도 이 값을 쓴다.
+  const counts: SummaryBase = {
+    changed_files: extracted.files.length,
+    files_not_covered: extracted.files.filter((file) => file.status !== 'covered').length,
+    candidates_total: extracted.candidates.length,
+    queryable: queryable.length,
+    omitted_by_count: Math.max(0, queryable.length - MAX_ENTRIES),
+    added_no_history: extracted.candidates.filter((candidate) => candidate.mapping === 'added').length,
+    ambiguous_mapping: extracted.candidates.filter((candidate) => candidate.mapping === 'ambiguous_mapping').length,
+    unlinked: rows.filter((row) => row.result.status !== 'resolved').length,
+  };
+  // 5. 상위 후보부터 슬롯에 하나씩 넣는다. 넘치면 그 항목의 절을 마지막부터 줄여 본다.
+  const { entries, deliveries } = packEntries(rows, counts);
+  // 6. 최종 요약과 manifest, digest를 확정한다. manifest는 슬롯에 들어가지 않고 digest로만 가리킨다.
+  const summary: Summary = {
+    ...counts,
+    selected: entries.length,
+    omitted_by_bytes: deliveries.filter((delivery) => delivery === 'omitted_by_bytes').length,
+  };
+  const manifest = {
+    files: extracted.files,
+    candidates: manifestCandidates(extracted.candidates, rankOf, rows, deliveries),
+  };
+  const slot: Slot = {
+    summary,
+    entries,
+    manifest_digest: sha256Canonical(manifest),
+    bundle_dedupe: 'not_applied',
+  };
+  // 7. 시험 직렬화는 manifest_digest 자리에 같은 길이의 값을 넣었으므로 최종 크기와 같아야 한다. 어긋나면 계산이 틀린 것이라
+  // 조용히 넘기지 않고 던진다.
+  if (Buffer.byteLength(canonicalJson.canonicalJson(slot), 'utf8') > SLOT_BYTES) {
+    throw new Error('intent diff slot exceeds its byte budget after packing');
+  }
+  const body = {
+    schema_version: 1 as const,
+    projection_version: PROJECTION_VERSION,
+    budget_policy: BUDGET_POLICY,
+    snapshot_id: extracted.snapshot_id,
+    base: extracted.base,
+    history_ref: extracted.history_ref,
+    slot,
+    manifest,
+  };
+  // 8. digest는 digest 키를 뺀 객체의 canonical JSON 해시다. 같은 입력이면 같은 바이트를 낸다.
+  return { ...body, digest: sha256Canonical(body) };
+}
+
+/**
+ * base_ref가 있는 후보인지 본다. 이 조건이 근거 조회 대상이다.
+ *
+ * @param {Candidate} candidate - 추출 후보
+ * @returns {boolean} base_ref가 있으면 true이며, 타입 가드로 Queryable을 좁힌다
+ */
+function hasBaseRef(candidate: Candidate): candidate is Queryable {
+  return candidate.base_ref !== null;
+}
+
+/**
+ * 두 queryable 후보의 순위를 정한다. 줄 수 내림차순, 같으면 base 쪽 path·qualified_name·kind 오름차순,
+ * 그래도 같으면 base 시작 줄 오름차순이다. 모든 비교는 `<` 문자열 비교라 로케일이 순서를 바꾸지 못한다.
+ *
+ * @param {Queryable} left - 왼쪽 후보
+ * @param {Queryable} right - 오른쪽 후보
+ * @returns {number} 음수·0·양수
+ */
+function compareRank(left: Queryable, right: Queryable): number {
+  const lines = (right.added_lines + right.deleted_lines) - (left.added_lines + left.deleted_lines);
+  return lines
+    || compareStrings(left.base_ref.path, right.base_ref.path)
+    || compareStrings(left.base_ref.qualified_name, right.base_ref.qualified_name)
+    || compareStrings(left.base_ref.kind, right.base_ref.kind)
+    || left.base_ref.start_line - right.base_ref.start_line;
+}
+
+/**
+ * 조회한 상위 행을 순위대로 슬롯에 넣는다. 한 항목은 본문 상한을 통과한 절 수에서 시작해, 넘치면 마지막 절을 하나씩
+ * 빼 본다. 절이 하나도 없어도 넘으면 그 항목은 바이트 상한으로 생략하고 다음 순위를 계속 시험한다. 생략이 9위 이하를
+ * 끌어올리지는 않는다. 헤더만으로 상한을 넘으면 어떤 항목도 들어갈 수 없으므로 던진다.
+ *
+ * @param {Row[]} rows - 순위 순서의 조회 행(최대 8개)
+ * @param {SummaryBase} counts - 조회 전에도 정해지는 요약 값
+ * @returns {{ entries: Entry[], deliveries: PackDelivery[] }} 선택 항목(순위 순서)과 rows와 같은 순서의 전달 상태
+ * @throws {Error} 항목이 하나도 없는 슬롯이 SLOT_BYTES를 넘으면 던진다
+ */
+function packEntries(rows: Row[], counts: SummaryBase): { entries: Entry[]; deliveries: PackDelivery[] } {
+  // 1. 헤더 검사. 요약과 빈 항목만으로 상한을 넘으면 어떤 항목을 빼도 맞지 않으므로 조용히 생략하지 않는다.
+  if (slotBytes(counts, 0, 0, []) > SLOT_BYTES) {
+    throw new Error('intent diff slot header exceeds its byte budget');
+  }
+  const entries: Entry[] = [];
+  const deliveries: PackDelivery[] = [];
+  let omitted = 0;
+  for (const row of rows) {
+    // 2. 가장 많은 절을 가진 형태부터 시험한다. 실패하면 마지막 절을 하나 줄이고 다시 잰다. 0개까지 가도 안 들어가면 생략이다.
+    let placed: Entry | null = null;
+    for (let kept = bodyPrefixLength(row.result); kept >= 0 && placed === null; kept -= 1) {
+      const trial = makeEntry(row, kept);
+      if (slotBytes(counts, entries.length + 1, omitted, [...entries, trial]) <= SLOT_BYTES) placed = trial;
+    }
+    if (placed === null) {
+      deliveries.push('omitted_by_bytes');
+      omitted += 1;
+    } else {
+      entries.push(placed);
+      deliveries.push('selected');
+    }
+  }
+  return { entries, deliveries };
+}
+
+/**
+ * 슬롯 하나의 canonical JSON 바이트 수를 잰다. manifest_digest 자리에는 길이가 같은 placeholder를 둔다.
+ * selected와 omitted_by_bytes는 조회 개수 상한 8 이하의 한 자리 수라, 시험 중 값과 최종 값의 길이가 같다.
+ *
+ * @param {SummaryBase} counts - 조회 전에도 정해지는 요약 값
+ * @param {number} selected - 시험 중 선택 항목 수
+ * @param {number} omitted - 시험 중 바이트 상한 생략 수
+ * @param {Entry[]} entries - 시험할 항목 목록
+ * @returns {number} UTF-8 바이트 수
+ */
+function slotBytes(counts: SummaryBase, selected: number, omitted: number, entries: Entry[]): number {
+  const slot: Slot = {
+    summary: { ...counts, selected, omitted_by_bytes: omitted },
+    entries,
+    manifest_digest: DIGEST_PLACEHOLDER,
+    bundle_dedupe: 'not_applied',
+  };
+  return Buffer.byteLength(canonicalJson.canonicalJson(slot), 'utf8');
+}
+
+/**
+ * 조회 행 하나를 슬롯 항목으로 바꾼다. 절은 앞에서부터 kept개만 남기고 나머지는 sections_omitted로 센다.
+ *
+ * @param {Row} row - 순위와 후보, 조회 결과
+ * @param {number} kept - 남길 절 수(후보 순서·절 순서로 센 앞쪽)
+ * @returns {Entry} 슬롯 항목
+ */
+function makeEntry(row: Row, kept: number): Entry {
+  const { candidate, result } = row;
+  return {
+    rank: row.rank,
+    mapping: candidate.mapping,
+    base_ref: candidate.base_ref,
+    snapshot_ref: candidate.snapshot_ref,
+    added_lines: candidate.added_lines,
+    deleted_lines: candidate.deleted_lines,
+    touched_by_nested: candidate.touched_by_nested,
+    // 조회 상태가 resolved가 아니면 근거가 없다는 뜻이다. 조회 실패는 여기 오지 않고 호출 단계에서 이미 던져졌다.
+    evidence: result.status === 'resolved' ? 'linked' : 'unlinked',
+    explain_docs: result.explain_docs,
+    total_linked: result.total_linked,
+    candidates: keepSections(result.candidates, kept),
+  };
+}
+
+/**
+ * 근거 후보들의 절을 후보 순서·절 순서의 앞에서부터 kept개만 남긴다. 남은 개수가 0이 되면 그 뒤 절은 모두 생략한다.
+ * 절 하나를 잘라 쓰지 않는다. 절이 모두 빠진 후보도 commit·task 같은 식별 필드는 남겨 출처를 알 수 있게 한다.
+ *
+ * @param {LookupCandidate[]} candidates - 조회가 준 근거 후보
+ * @param {number} kept - 남길 절 수
+ * @returns {EntryCandidate[]} 절이 줄어든 후보 목록
+ */
+function keepSections(candidates: LookupCandidate[], kept: number): EntryCandidate[] {
+  let remaining = kept;
+  return candidates.map((item) => {
+    const sections: Section[] = [];
+    for (const section of item.sections) {
+      if (remaining === 0) break;
+      sections.push({ name: section.name, body: section.body });
+      remaining -= 1;
+    }
+    return {
+      relation: item.relation,
+      commit: item.commit,
+      task: item.task,
+      explain: item.explain,
+      explain_blob_sha: item.explain_blob_sha,
+      freshness: item.freshness,
+      sections,
+      sections_omitted: item.sections.length - sections.length,
+    };
+  });
+}
+
+/**
+ * 한 항목의 본문 상한 안에 들어가는 절 수를 센다. 후보 순서·절 순서로 본문 UTF-8 바이트를 더해 BODY_BYTES를 넘기 전까지
+ * 세고, 넘는 절이 나오면 그 절과 뒤 절을 모두 뺀다. 절 중간을 자르지 않으므로 Buffer.byteLength로 잰다.
+ *
+ * @param {LookupResult} result - 한 queryable 후보의 조회 결과
+ * @returns {number} 본문 상한 안에서 남길 절 수(앞쪽부터)
+ */
+function bodyPrefixLength(result: LookupResult): number {
+  let used = 0;
+  let count = 0;
+  for (const item of result.candidates) {
+    for (const section of item.sections) {
+      const bytes = Buffer.byteLength(section.body, 'utf8');
+      if (used + bytes > BODY_BYTES) return count;
+      used += bytes;
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * 추출 순서의 모든 후보에 rank·evidence·delivery를 더한다. rank는 queryable만 가지고, 나머지는 null이다.
+ * 조회하지 않은 이유는 셋이다. 기준 SHA에 이력이 없는 added, 조회 대상이 아닌 snapshot 쪽 ambiguous,
+ * 그리고 상위 8개 밖의 queryable(omitted_by_count)이다.
+ *
+ * @param {Candidate[]} candidates - 추출 순서의 모든 후보
+ * @param {Map<Candidate, number>} rankOf - queryable 후보와 그 rank
+ * @param {Row[]} rows - 조회한 상위 행(rank 순서)
+ * @param {PackDelivery[]} deliveries - rows와 같은 순서의 전달 상태
+ * @returns {ManifestCandidate[]} manifest 후보 목록(추출 순서)
+ */
+function manifestCandidates(
+  candidates: Candidate[],
+  rankOf: Map<Candidate, number>,
+  rows: Row[],
+  deliveries: PackDelivery[],
+): ManifestCandidate[] {
+  return candidates.map((candidate): ManifestCandidate => {
+    const rank = rankOf.get(candidate);
+    if (rank === undefined) {
+      const evidence: Evidence = candidate.mapping === 'added' ? 'added_no_history' : 'not_queried';
+      return { ...candidate, rank: null, evidence, delivery: 'manifest_only' };
+    }
+    if (rank > MAX_ENTRIES) {
+      return { ...candidate, rank, evidence: 'not_queried', delivery: 'omitted_by_count' };
+    }
+    const row = rows[rank - 1];
+    const evidence: Evidence = row.result.status === 'resolved' ? 'linked' : 'unlinked';
+    return { ...candidate, rank, evidence, delivery: deliveries[rank - 1] };
+  });
+}
+
+export = { extractChangedFunctions, collectDiffIntent };
