@@ -511,3 +511,33 @@ test('coordinator doc without the unawaitable-report paragraph → fails; with i
   assert.doesNotMatch(flat(roleSection(md, 'Worker dispatch')), /cannot be awaited/);
   assert.match(flat(roleSection(md, 'Task round')), EXIT_PARAGRAPH);
 });
+
+/**
+ * 절 본문을 `- ` 목록 항목 단위로 나눠 needle을 가진 첫 항목을 공백 접은 문자열로 돌려준다.
+ *
+ * @param {string} section - 절 본문
+ * @param {string} needle - 항목에 들어 있어야 할 문자열
+ * @returns {string} 항목 본문. 없으면 빈 문자열
+ */
+function bulletContaining(section, needle) {
+  const item = section.split(/\n(?=- )/).find((chunk) => chunk.includes(needle)) || '';
+  return flat(item);
+}
+
+// 생성 역할 파일이 어긋난 비치명 결함은 coordinator가 공개 CLI로만 고치고 재개한다. 모델 거절은 이 복구에
+// 들어가지 않고 멈춘다. 이 항목은 기계 값(명령·check 필드·문서 링크)만 고정하고 문장은 고정하지 않는다.
+test('coordinator Hard guards → recovers a non-fatal Codex role-file defect through the CLI and resumes', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const bullet = bulletContaining(roleSection(md, 'Hard guards'), 'codex-agents check');
+  assert.ok(bullet, 'Hard guards must carry the Codex role-file recovery bullet');
+  for (const needle of [
+    'bouncer init --seed-codex-agents',
+    'in_sync',
+    'coordinate note',
+    'agent-dispatch.md',
+    'rules/subagent-model.md',
+    'rejection',
+  ]) {
+    assert.ok(bullet.includes(needle), `recovery bullet missing: ${needle}`);
+  }
+});

@@ -31,3 +31,23 @@ test('status throws after an executed step → unavailable result retains execut
   assert.equal(result.reason, 'advance-status-unavailable');
   assert.deepEqual(result.executed, [{ action: 'prepare', exit: 0 }]);
 });
+
+test('commit returns committed:false → advance stops with empty-commit and does not rerun commit', () => {
+  // 변경 없는 commit은 ok:true에 committed:false로 끝난다. next는 여전히 commit을 고르므로 advance가
+  // 다시 실행하면 max-steps까지 같은 빈 commit을 반복한다. 한 번 실행한 뒤 바로 멈춰야 한다.
+  const commitArgv = ['bouncer', 'commit', '--blueprint', 'missing', '--yes'];
+  let runs = 0;
+  const result = advance({ repoRoot: process.cwd(), blueprint: 'missing', deps: {
+    next: () => ({ ok: true, action: 'commit', cwd: process.cwd(), argv: commitArgv }),
+    runArgv: () => {
+      runs += 1;
+      return { stdout: '{"ok":true,"committed":false,"staged":[]}', status: 0 };
+    },
+    status: () => ({ ok: true }),
+  } });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'empty-commit');
+  assert.equal(runs, 1);
+  // 실제로 실행한 commit은 executed에 남겨 호출자가 다시 돌리지 않도록 한다.
+  assert.deepEqual(result.executed, [{ action: 'commit', exit: 0 }]);
+});

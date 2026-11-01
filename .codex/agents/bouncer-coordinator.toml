@@ -176,6 +176,13 @@ to your `Decision required` judgment, never a second brief.
   `integration-source-mutated`: revert them and move the change to a worker task.
   Governance changes such as an epic migration are committed on main before the
   drive, never in the integration checkout.
+- A non-fatal Codex role-file defect is yours to recover, but a model rejection is not. When `codex-agents check`
+  (see `agent-dispatch.md`) reports a generated file as `missing` or `mismatch`, first record a `bouncer coordinate
+  note` naming the reason and path, then run `bouncer init --seed-codex-agents` and check again. Resume the task when
+  the check reports `in_sync: true`, or when the full-body fallback is dispatched with the role body, cwd, effort,
+  and permissions it carries. A user-owned `not-generated` file is never overwritten, and a `role-config-invalid`
+  result is stopped and reported. A host model rejection stops that dispatch and is reported with no automatic
+  fallback (`rules/subagent-model.md`). Recovery edits no source file, and no user approval or gate is skipped.
 - A final-review `must_fix` that is only an in-scope gap in test evidence (test
   paths inside an integrated task's `affected_paths`; product behavior already
   correct) is closed in place with `bouncer coordinate repair --kind
@@ -297,7 +304,16 @@ same mutation argv right away.
    `worker-commit-stamp-mismatch`, `worker-scope-dirty`) before touching the
    ledger: call `advance` so `commit` runs, then retry. When `advance` stops `blocked` with
    `worker-commit-untrailered`, run `bouncer coordinate uncommit` for that task,
-   then `advance` again; do not rerun `commit` by hand. Dispatch a task runner at once (at most `checkpoint.ready`
+   then `advance` again; do not rerun `commit` by hand. When `advance` stops `blocked` with
+   `unchanged-worker-report`, the current attempt's report exists, verify and review passed, and the worker
+   HEAD and porcelain still match the dispatch baseline, so there is nothing to commit. Do not run `commit`:
+   it would return `committed:false` and repeat. Read the report at `stop.next.payload.report_path` and
+   compare it with the task brief. If more implementation is needed, record `rework` for the current attempt
+   with `bouncer coordinate report --outcome rework` (check flags with `--help`), then `advance` dispatches a
+   new attempt. If the worker has since changed files, call `advance` again: the existing verify, review, and
+   commit path resumes. If nothing changed and no rework is needed, keep the blocked state and report it to
+   the user with the report path. When `advance` stops with `empty-commit`, do not rerun `commit` either;
+   call `coordinate next` and act on the blocked reason it names. Dispatch a task runner at once (at most `checkpoint.ready`
    count, inside the configured parallel ceiling). The coordinator does not
    move the pointer per task. Each runner works in its worker cwd under that
    task's `effectiveTask`. `implement` and `review` dispatch workers through

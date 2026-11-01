@@ -110,6 +110,15 @@ type WorkerTokensDecision = {
   kind: 'worker-tokens'; role: WorkerRecordRole; tokens?: number; unreported?: true;
   task?: string; perspective?: string;
 };
+// `--tokens ambiguous`의 표시 행. 호출 귀속을 입증할 수 없을 때 키의 미귀속 행 집합을 고정한다.
+// 숫자 tokens나 unreported를 쓰지 않아 합산과 미충족 집계는 이 행을 "값이 왔다"로 세지 않는다. 그래서
+// 해당 행은 여전히 누락으로 남고 통계는 미측정으로 보인다. `model_rows`·`token_rows`는 기록 당시 이 키의
+// worker-model·worker-tokens 행 수다. 행은 배열 끝에만 덧붙으므로 이 수만큼의 앞쪽 행이 그 집합이다.
+// 이후 같은 키에 추가되는 행은 이 수 밖이라 예외 집합에 들지 않는다(withoutAmbiguousRows).
+type WorkerTokensAmbiguousDecision = {
+  kind: 'worker-tokens-ambiguous'; role: WorkerRecordRole; task?: string; perspective?: string;
+  model_rows: number; token_rows: number;
+};
 
 /**
  * `--tokens` 값을 안전한 0 이상 정수로 검증한다. CLI는 문자열을, 직접 호출은 숫자를 줄 수 있어
@@ -875,6 +884,8 @@ function coordinateNote(ctx: LockedCtx): CoordinateResult {
 /**
  * `worker-model`·`worker-tokens`: 기록 전용 명령. dispatch·lease·status·attempt를 바꾸지 않고
  * decision만 덧붙이므로 검증을 모두 통과한 뒤에만 commitWrite()를 부른다.
+ * `worker-tokens --tokens ambiguous`는 값 대신 미귀속 행 집합의 표시를 덧붙이고, 기존 행은 바꾸지 않는다.
+ * 거절(중복 키 포함)은 모두 원장을 바꾸지 않는다.
  *
  * @param {LockedCtx} ctx - 공통 준비가 끝난 handler 문맥
  * @returns {CoordinateResult} 명령 결과. 거절은 `ok: false`와 reason
@@ -915,8 +926,10 @@ function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
   // `unreported`는 worker-tokens 전용 값이다. worker-model에 오면 숫자 검사로 떨어져 tokens-invalid가 된다.
   // 대소문자를 바꾸지 않고 정확히 일치할 때만 받는다. 호스트 표기 흔들림을 조용히 수용하지 않으려는 것이다.
   const unreported = command === 'worker-tokens' && tokens === 'unreported';
-  const parsedTokens = tokens === undefined || unreported ? null : parseWorkerTokens(tokens);
-  if ((tokens !== undefined || command === 'worker-tokens') && !unreported && parsedTokens === null) {
+  // `ambiguous`는 worker-tokens 전용 표시다. 숫자 검사를 거치면 tokens-invalid로 떨어져 표시를 남길 수 없다.
+  const ambiguous = command === 'worker-tokens' && tokens === 'ambiguous';
+  const parsedTokens = tokens === undefined || unreported || ambiguous ? null : parseWorkerTokens(tokens);
+  if ((tokens !== undefined || command === 'worker-tokens') && !unreported && !ambiguous && parsedTokens === null) {
     return { ok: false, reason: 'tokens-invalid' };
   }
   let owner: Task | undefined;
@@ -928,6 +941,18 @@ function coordinateWorkerRecord(ctx: LockedCtx): CoordinateResult {
     ...(task !== undefined ? { task } : {}),
     ...(perspective !== undefined ? { perspective } : {}),
   };
+  // ambiguous는 값을 쓰지 않고 표시만 남긴다. 기존 행을 바꾸거나 어느 호출에도 붙이지 않으므로 아래의
+  // 교체·중복 판정과 값 행 기록을 타지 않고 여기서 끝낸다. 거절은 commitWrite() 앞에서 반환한다.
+  if (ambiguous) {
+    const verdict = ambiguousWorkerKeyMarker(ledger.decisions, task, recordRole, perspective, replace === true);
+    if (verdict.ok === false) return verdict;
+    if (owner) owner.decisions = [...(owner.decisions || []), verdict.decision];
+    ledger.decisions.push(verdict.decision);
+    { const lost = commitWrite(); if (lost) return lost; }
+    return withCheckpoint({
+      ok: true as const, command, decision: verdict.decision,
+    }, ledger, integration.ledgerFile);
+  }
   const recorded: WorkerModelDecision | WorkerTokensDecision = command === 'worker-model'
     ? {
       kind: 'worker-model', role: recordRole, model: (model as string).trim(), ...scope,
@@ -986,6 +1011,145 @@ function removeLatestWorkerTokens(
       return;
     }
   }
+}
+
+/**
+ * `--tokens ambiguous`의 판정과 표시 행을 만든다. 경계는 키의 worker-model·worker-tokens 행 수다.
+ * 키에 행이 하나도 없으면 표시할 미귀속 행이 없으므로 거절한다. 같은 수의 표시가 이미 있으면 같은 집합을
+ * 두 번 고정하는 것이라 거절한다. 행 수가 늘었으면 새 집합이라 허용한다. `--replace`와 함께 오면 표시와
+ * 값 교체가 섞여 어떤 행이 바뀌었는지 알 수 없으므로 거절한다. 거절은 원장을 바꾸지 않는다.
+ *
+ * @param {unknown[]} decisions - 원장 decisions. 읽기만 한다
+ * @param {string | undefined} task - 키의 task. 없으면 blueprint 범위 키
+ * @param {WorkerRecordRole} role - 키의 role
+ * @param {string | undefined} perspective - 키의 perspective. 없으면 관점 없는 키
+ * @param {boolean} replace - `--replace` 지정 여부
+ * @returns {{ ok: true, decision: WorkerTokensAmbiguousDecision } | { ok: false, reason: string }}
+ *   기록할 표시 행, 또는 거절 사유
+ */
+function ambiguousWorkerKeyMarker(
+  decisions: unknown[], task: string | undefined, role: WorkerRecordRole, perspective: string | undefined,
+  replace: boolean,
+): { ok: true; decision: WorkerTokensAmbiguousDecision } | { ok: false; reason: string } {
+  // 교체 의도는 값을 고치는 명령에만 맞다. 표시와 섞으면 교체된 행이 집합에 속하는지 원장만으로 알 수 없다.
+  if (replace) return { ok: false, reason: 'worker-tokens-ambiguous-replace' };
+  const state = driveMetrics.workerKeyState(decisions, task, role, perspective);
+  const modelRows = state.runs;
+  const tokenRows = state.tokensRecords;
+  if (modelRows + tokenRows === 0) return { ok: false, reason: 'worker-tokens-ambiguous-target-missing' };
+  const wanted = JSON.stringify([task ?? '', role, perspective ?? '']);
+  // 같은 키에 같은 행 수의 표시가 있으면 같은 집합이다. 행 수가 다르면 그 뒤에 쌓인 행이 있다는 뜻이라 새 집합이다.
+  const duplicate = decisions.some((d) => {
+    if (typeof d !== 'object' || d === null) return false;
+    const row = d as Partial<WorkerTokensAmbiguousDecision>;
+    return row.kind === 'worker-tokens-ambiguous'
+      && JSON.stringify([row.task ?? '', row.role, row.perspective ?? '']) === wanted
+      && row.model_rows === modelRows && row.token_rows === tokenRows;
+  });
+  if (duplicate) return { ok: false, reason: 'worker-tokens-ambiguous-duplicate' };
+  return {
+    ok: true,
+    decision: {
+      kind: 'worker-tokens-ambiguous', role,
+      ...(task !== undefined ? { task } : {}),
+      ...(perspective !== undefined ? { perspective } : {}),
+      model_rows: modelRows, token_rows: tokenRows,
+    },
+  };
+}
+
+/**
+ * 키별 replay 상태. 행을 기록 순서대로 읽으며 토큰 행을 호출 하나에 붙인다.
+ * `models`·`tokens`는 지금까지 본 worker-model·worker-tokens 행 수다. `openFresh`·`openCovered`는 아직
+ * 토큰이 붙지 않은 worker-model 행의 인덱스로, 앞이 덮인 집합(`openCovered`)이고 뒤가 표시 뒤의 호출
+ * (`openFresh`)이다. `unattached`는 붙을 호출이 없던 토큰 행의 인덱스다.
+ */
+type AmbiguousReplay = {
+  models: number; tokens: number; openFresh: number[]; openCovered: number[]; unattached: number[];
+};
+
+/**
+ * 가장 최근 `worker-tokens-ambiguous` 표시가 덮은 호출과 토큰 행을 뺀 사본을 만든다. 표시는 키별로
+ * 기록 당시의 worker-model 수(`model_rows`)와 worker-tokens 수(`token_rows`)를 적는다. 행은 배열 끝에만
+ * 덧붙으므로 앞쪽 순번이 그 집합이다. 같은 키 표시가 여럿이면 키마다 가장 큰 수를 쓴다.
+ *
+ * 판정을 호출 단위로 한다. 키별 model 수와 tokens 수를 따로 세어 덮으면 덮인 호출의 늦은 tokens가
+ * 표시 뒤에 생긴 미기록 호출을 대신 채워 guard를 통과시킨다. 그래서 토큰 행을 기록 순서대로 호출에 붙인다.
+ * - 표시 집합의 토큰 행(순번 < `token_rows`)은 열린 덮인 호출에 붙여 함께 뺀다. 붙을 곳이 없으면 버린다.
+ * - 표시 뒤의 토큰 행은 기록 당시 열린 호출에 붙는다. 표시 뒤의 열린 호출을 먼저 찾고, 없을 때만 덮인
+ *   호출을 찾는다. 덮인 호출은 표시 시점에 이미 떠났으니 늦은 값이 그쪽 몫이기 때문이다.
+ * - 붙을 호출이 없는 표시 뒤 토큰 행은 다음에 올 model을 채우도록 남긴다.
+ * 덮인 model 행은 항상 뺀다(예외 집합). 덮인 호출에 붙은 토큰 행도 뺀다.
+ * 표시가 없는 키의 행은 그대로 둔다. 입력은 바꾸지 않는다.
+ *
+ * @param {unknown[]} decisions - 원장 decisions
+ * @returns {unknown[]} 덮인 호출과 그 토큰 행을 뺀 새 배열. 판정은 drive-metrics의 기존 규칙을 그대로 쓴다
+ */
+function withoutAmbiguousRows(decisions: unknown[]): unknown[] {
+  const cover = new Map<string, { models: number; tokens: number }>();
+  for (const d of decisions) {
+    if (typeof d !== 'object' || d === null) continue;
+    const row = d as Partial<WorkerTokensAmbiguousDecision>;
+    if (row.kind !== 'worker-tokens-ambiguous') continue;
+    const key = JSON.stringify([row.task ?? '', row.role, row.perspective ?? '']);
+    const prev = cover.get(key) ?? { models: 0, tokens: 0 };
+    cover.set(key, {
+      models: Math.max(prev.models, row.model_rows ?? 0),
+      tokens: Math.max(prev.tokens, row.token_rows ?? 0),
+    });
+  }
+  if (cover.size === 0) return decisions;
+  const replay = new Map<string, AmbiguousReplay>();
+  const drop = new Set<number>();
+  // 판정 대상 kind는 두 개뿐이라 넓은 타입으로 읽는다. 표시 행 타입으로 좁히면 비교가 항상 거짓이 된다.
+  decisions.forEach((d, i) => {
+    if (typeof d !== 'object' || d === null) return;
+    const row = d as { kind?: unknown; task?: unknown; role?: unknown; perspective?: unknown; tokens?: unknown };
+    if (row.kind !== 'worker-model' && row.kind !== 'worker-tokens') return;
+    const key = JSON.stringify([row.task ?? '', row.role, row.perspective ?? '']);
+    const covered = cover.get(key);
+    if (covered === undefined) return;
+    let state = replay.get(key);
+    if (state === undefined) {
+      state = { models: 0, tokens: 0, openFresh: [], openCovered: [], unattached: [] };
+      replay.set(key, state);
+    }
+    if (row.kind === 'worker-model') {
+      const isCovered = state.models < covered.models;
+      state.models += 1;
+      if (isCovered) drop.add(i);
+      // 숫자 tokens가 달린 호출은 자기 값으로 이미 채워져 열린 호출이 아니다.
+      if (typeof row.tokens === 'number') return;
+      // 붙을 곳 없이 남은 토큰 행이 있으면 이 호출이 그 행의 몫이다. 덮인 호출이면 그 행도 같이 뺀다.
+      const orphan = state.unattached.shift();
+      if (orphan !== undefined) {
+        if (isCovered) drop.add(orphan);
+        return;
+      }
+      (isCovered ? state.openCovered : state.openFresh).push(i);
+      return;
+    }
+    const isCovered = state.tokens < covered.tokens;
+    state.tokens += 1;
+    if (isCovered) {
+      // 표시 집합의 토큰 행은 덮인 열린 호출을 채우고 뺀다. 새 호출에는 붙이지 않는다. 새 호출의 토큰이
+      // 표시 집합에서 빌려온 것이 되면 미기록 호출이 통과하기 때문이다.
+      state.openCovered.shift();
+      drop.add(i);
+      return;
+    }
+    if (state.openFresh.length > 0) {
+      state.openFresh.shift();
+      return;
+    }
+    if (state.openCovered.length > 0) {
+      state.openCovered.shift();
+      drop.add(i);
+      return;
+    }
+    state.unattached.push(i);
+  });
+  return decisions.filter((_, i) => !drop.has(i));
 }
 
 /**
@@ -1279,7 +1443,8 @@ function pendingWorkerTokensIn(
   decisions: unknown[],
   keep: (task: string | null, role: string | null) => boolean,
 ): WorkerTokensPendingKey[] {
-  const scoped = decisions.filter((d) => {
+  // ambiguous 표시가 덮은 호출과 그 토큰 행은 예외로 뺀다. 표시 뒤의 미기록 호출은 덮이지 않아 그대로 판정된다.
+  const scoped = withoutAmbiguousRows(decisions).filter((d) => {
     // 객체가 아닌 원소는 worker 기록이 아니므로 범위와 무관하게 pendingWorkerTokenKeys가 무시한다.
     if (typeof d !== 'object' || d === null) return false;
     const { task: t, role: r } = d as { task?: unknown; role?: unknown };
@@ -1668,7 +1833,7 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
       + 'then rerun.',
   },
   // 같은 호출의 값을 겹쳐 쌓으면 합계가 어긋난다. 정정 경로는 --replace 하나뿐이고, 새 호출의 자리는
-  // worker-model 기록이 연다. 문구는 rules/cli.md·usage와 함께 계약이라 바꾸면 문서 테스트가 깨진다.
+  // worker-model 기록이 연다. 문구는 rules/cli-coordinate.md·usage와 함께 계약이라 바꾸면 문서 테스트가 깨진다.
   'worker-tokens-duplicate': {
     cause: 'This worker key already has a worker-tokens record for every worker-model call recorded for it.',
     next: 'Use `--replace` only to correct the wrongly recorded value of the same call. '
@@ -1679,6 +1844,19 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'No worker-tokens record exists for this key, so --replace has nothing to swap.',
     next: 'Drop `--replace` and append the record with `bouncer coordinate worker-tokens`; '
       + '`--replace` only corrects a record that already exists.',
+  },
+  // ambiguous는 호출 귀속을 입증하지 못했을 때만 쓴다. 표시는 기존 행을 바꾸지 않고 advance 예외 집합만 고정한다.
+  'worker-tokens-ambiguous-duplicate': {
+    cause: 'This key already has an ambiguous marker for the same worker-model and worker-tokens rows.',
+    next: 'Do not mark it again. Record the worker-model or worker-tokens for the new call, then rerun.',
+  },
+  'worker-tokens-ambiguous-target-missing': {
+    cause: 'No worker-model or worker-tokens record exists for this key, so there are no rows to mark.',
+    next: 'Record the worker-model for the call first; mark ambiguous only rows that already exist.',
+  },
+  'worker-tokens-ambiguous-replace': {
+    cause: '--tokens ambiguous marks rows and never swaps a value, so it cannot combine with --replace.',
+    next: 'Drop --replace to mark the rows, or use --replace with a numeric or unreported value to fix one value.',
   },
   'bootstrap-requires-main-checkout': {
     cause: 'Bootstrap must run from the main checkout, not an integration or worker worktree.',

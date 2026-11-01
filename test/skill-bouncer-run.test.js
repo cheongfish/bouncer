@@ -26,6 +26,42 @@ test('run start ACQ → direct 가능 여부에 따라 시작 방식을 권장�
   assert.ok(fs.existsSync(path.join(root, 'skills/bouncer-run/references/direct-run.md')));
 });
 
+// CLI 계약은 색인(rules/cli.md)과 단계별 세부 문서로 나뉜다. run 스킬의 단계는 자기가 부르는 명령을
+// 정의한 세부 문서를 같은 문단에서 가리켜야 한다. 색인만 읽고 실행하면 명령 계약이 빠진 채 진행된다.
+// 문장이 아니라 명령 이름과 링크 대상 경로만 본다.
+const DIRECT_RUN = 'skills/bouncer-run/references/direct-run.md';
+const RUN_CLI_STAGE_LINKS = [
+  { doc: 'skills/bouncer-run/SKILL.md', command: 'bouncer run preflight', target: 'rules/cli-coordinate.md' },
+  { doc: 'skills/bouncer-run/SKILL.md', command: 'bouncer coordinate bootstrap', target: 'rules/cli-coordinate.md' },
+  { doc: 'skills/bouncer-run/SKILL.md', command: 'light-mode-removed', target: 'rules/cli-migration.md' },
+  { doc: DIRECT_RUN, command: 'bouncer coordinate advance', target: 'rules/cli-coordinate.md' },
+  { doc: DIRECT_RUN, command: 'light-mode-removed', target: 'rules/cli-migration.md' },
+];
+
+test('run step naming a CLI command → its paragraph links the detail contract that defines it', () => {
+  const root = path.join(__dirname, '..');
+  for (const { doc, command, target } of RUN_CLI_STAGE_LINKS) {
+    const markdown = fs.readFileSync(path.join(root, doc), 'utf8');
+    const paragraph = paragraphContaining(markdown, command);
+    assert.ok(paragraph, `${doc}: no paragraph names ${command}`);
+    assert.ok(paragraph.includes(`\${BOUNCER_ROOT}/${target}`), `${doc}: the ${command} paragraph must link ${target}`);
+  }
+});
+
+test('run skill CLI contract links → every linked rules/cli file exists', () => {
+  const root = path.join(__dirname, '..');
+  const linked = new Set();
+  for (const doc of ['skills/bouncer-run/SKILL.md', 'skills/bouncer-run/references/direct-run.md']) {
+    const markdown = fs.readFileSync(path.join(root, doc), 'utf8');
+    for (const match of markdown.matchAll(/\$\{BOUNCER_ROOT\}\/(rules\/cli[\w.-]*\.md)/g)) linked.add(match[1]);
+  }
+  assert.ok(linked.has('rules/cli-coordinate.md'), 'run skill must link the coordinator CLI contract');
+  assert.ok(linked.has('rules/cli-migration.md'), 'run skill must link the removed-mode recovery contract');
+  for (const rel of linked) {
+    assert.ok(fs.existsSync(path.join(root, rel)), `${rel} is linked from the run skill but does not exist`);
+  }
+});
+
 /**
  * 빈 줄로 나눈 블록 중 `needle`을 가진 첫 블록을 찾는다.
  * 단계 번호·제목으로 구간을 자르면 제목이 바뀔 때 빈 구간으로 오해를 부르는 메시지가
@@ -317,4 +353,39 @@ test('multiple reviewer tasks → both dispatch references describe one batch an
     assert.match(normalized, /intent-sections-partial/);
     assert.match(normalized, /tasks\[\]\.sections/);
   }
+});
+
+// 역할 파일이 in_sync가 아니면 그 파일로 named 디스패치를 시작하면 안 된다. stale 본문을 역할로 읽기 때문이다.
+// check가 돌려주는 reason 코드(기계 값)별 분기가 Named implementer 절에 모두 있어야 한다.
+const readRunRef = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+
+test('Named implementer section → routes every non-in_sync check reason to a coordinator note, resync or fallback', () => {
+  const named = sectionBetween(
+    readRunRef('skills/bouncer-run/references/agent-dispatch.md'),
+    '## Named implementer',
+    '## Implementer fallback',
+  ).replace(/\s+/g, ' ');
+  for (const reason of ['missing', 'mismatch', 'not-generated', 'role-config-invalid']) {
+    assert.ok(named.includes(`\`${reason}\``), `Named implementer must name the ${reason} check result`);
+  }
+  assert.ok(named.includes('coordinate note'), 'a non-in_sync check result must be noted to the coordinator');
+});
+
+// fallback은 역할 본문 전체와 함께 실제 cwd·role effort·쓰기 경계를 실어야 권한이 넓어지지 않는다.
+test('implementer fallback → carries the entire role body with the actual cwd, reasoning effort and write boundary', () => {
+  const fallback = sectionBetween(
+    readRunRef('skills/bouncer-run/references/agent-dispatch.md'),
+    '## Implementer fallback',
+    '### Implementer file payload',
+  ).replace(/\s+/g, ' ');
+  assert.ok(fallback.includes('entire body of `${BOUNCER_ROOT}/agents/bouncer-implementer.md`'));
+  assert.ok(fallback.includes('cwd'), 'fallback must carry the actual worktree cwd');
+  assert.ok(fallback.includes('reasoning_effort'), 'fallback must pass the role effort as spawn reasoning_effort');
+  assert.ok(fallback.includes('affected_paths'), 'fallback must keep the affected_paths write boundary');
+});
+
+test('subagent-model codex-agents check item → names the not-generated and role-config-invalid results', () => {
+  const item = paragraphContaining(readRunRef('rules/subagent-model.md'), 'codex-agents check');
+  assert.ok(item.includes('`not-generated`'), 'user-owned role file result must be named');
+  assert.ok(item.includes('`role-config-invalid`'), 'config error result must be named');
 });

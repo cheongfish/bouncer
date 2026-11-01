@@ -257,17 +257,17 @@ for (const [card, triggers] of Object.entries(MIGRATED_CARD_TRIGGERS)) {
   });
 }
 
-// rules/cli.md의 거절 표(조건·reason 두 열)는 coordinator-repair가 export한 지원 reason과
+// rules/cli-coordinate.md의 거절 표(조건·reason 두 열)는 coordinator-repair가 export한 지원 reason과
 // 일치해야 한다. 사본 끝에 표를 덧붙여 표 검사만 분리하고, 실제 문서 표는 별도 통과 단언이 지킨다.
 function cliDocWithRejectionTable(rows) {
-  const rel = 'rules/cli.md';
+  const rel = 'rules/cli-coordinate.md';
   const { dir, abs, markdown } = copyDocToTmp(rel);
   const table = ['', '| Condition | Reason |', '| --- | --- |', ...rows.map(([c, r]) => `| ${c} | \`${r}\` |`), ''];
   fs.writeFileSync(abs, `${markdown}${table.join('\n')}`);
   return { rel, dir };
 }
 
-test('rules/cli.md rejection table with an unsupported reason → exit 1 naming the file and code', () => {
+test('rules/cli-coordinate.md rejection table with an unsupported reason → exit 1 naming the file and code', () => {
   const { rel, dir } = cliDocWithRejectionTable([
     ['second repair', 'final-review-single-round'],
     ['new path', 'final-review-repair-do-not-touch'],
@@ -283,7 +283,7 @@ test('rules/cli.md rejection table with an unsupported reason → exit 1 naming 
   }
 });
 
-test('rules/cli.md rejection table missing a required reason row → exit 1 naming the missing code', () => {
+test('rules/cli-coordinate.md rejection table missing a required reason row → exit 1 naming the missing code', () => {
   const { rel, dir } = cliDocWithRejectionTable([['second repair', 'final-review-single-round']]);
   try {
     const { code, err } = runInTmp([rel], dir);
@@ -294,7 +294,7 @@ test('rules/cli.md rejection table missing a required reason row → exit 1 nami
   }
 });
 
-test('rules/cli.md with a correct rejection table and other backticked words → exit 0', () => {
+test('rules/cli-coordinate.md with a correct rejection table and other backticked words → exit 0', () => {
   const { rel, dir } = cliDocWithRejectionTable([
     ['second repair', 'final-review-single-round'],
     ['new path', 'final-review-repair-do-not-touch'],

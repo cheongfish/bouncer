@@ -7,7 +7,7 @@ D is offered only when `bouncer run preflight` reports `direct_eligible: true`.
 This session never reads or fixes code, and never implements, reviews, or
 debugs inline; workers are always subagents. After the one start ACQ, open no
 per-task ACQ. When a command returns `light-mode-removed`, follow the recovery
-in `${BOUNCER_ROOT}/rules/cli.md`: finish the in-progress drive with the
+in `${BOUNCER_ROOT}/rules/cli-migration.md`: finish the in-progress drive with the
 previous CLI through `/bouncer-finalize` before upgrading.
 
 ## Procedure
@@ -15,7 +15,8 @@ previous CLI through `/bouncer-finalize` before upgrading.
 1. Run step 3 (bootstrap) of `SKILL.md`, then from `integrationPath` open
    metrics: `bouncer metrics start --kind root-direct-session --blueprint <dir>
    --label direct`. `ok: false` is reported but never blocks the drive.
-2. Call `bouncer coordinate advance --blueprint <dir>` and act on its stop:
+2. Call `bouncer coordinate advance --blueprint <dir>` (command contract:
+   `${BOUNCER_ROOT}/rules/cli-coordinate.md`) and act on its stop:
 
    | stop | root action |
    | --- | --- |

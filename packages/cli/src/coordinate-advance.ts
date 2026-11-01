@@ -52,7 +52,7 @@ type WorkerTokensGuardFail = Exclude<
 >;
 
 type RunOutcome =
-  | { kind: 'success'; exit: number }
+  | { kind: 'success'; exit: number; body: Record<string, unknown> }
   | { kind: 'failure'; body: Record<string, unknown>; reason: string }
   | { kind: 'unclear'; detail: string };
 
@@ -173,7 +173,8 @@ function classifyRun(attempt: { stdout: string; status: number }): RunOutcome {
     };
   }
   if (body.ok === true && attempt.status === 0) {
-    return { kind: 'success', exit: attempt.status };
+    // 본문을 같이 실어 commit 응답의 committed 값을 호출부가 읽게 한다.
+    return { kind: 'success', exit: attempt.status, body };
   }
   return {
     kind: 'unclear',
@@ -373,6 +374,18 @@ function advance(opts: {
     const entry: ExecutedStep = { action, exit: outcome.exit };
     if (typeof step.task === 'string' && step.task !== '') entry.task = step.task;
     executed.push(entry);
+
+    // 5. commit이 committed:false로 끝나면 변경이 없었다는 뜻이다. stamp는 그대로라 next가 같은 commit을
+    // 다시 고르고, 재실행하면 max-steps까지 빈 commit이 되풀이된다. 이번 실행은 executed에 남기고 멈춘다.
+    if (action === 'commit' && outcome.body.committed === false) {
+      return failAdvance(
+        'empty-commit',
+        'bouncer commit returned committed:false, so no commit was made and the worker stamp is still missing.',
+        'Do not rerun commit. Run `bouncer coordinate next` and read its blocked reason; if the worker has '
+          + 'changes, next names that action, otherwise report the state to the user.',
+        executed,
+      );
+    }
   }
 }
 

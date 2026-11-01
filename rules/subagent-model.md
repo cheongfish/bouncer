@@ -35,6 +35,10 @@ limits.
    null, omit the spawn argument and let the host choose its default.
    On Codex, when `codex-agents check` reports `mismatch`, rerun
    `bouncer init --seed-codex-agents` to synchronize the role definition.
+   A `missing` result gets the same resync. A `not-generated` result (a user-owned file
+   without the generated marker) is never overwritten; item 4's fallback applies instead.
+   A `role-config-invalid` result is a configuration error: report its `key`, `message`,
+   and `next`, and neither resync nor fall back.
    On Cursor, do not pass the role effort; tell the user the configured effort was not applied because the model slug carries it.
    Every new dispatch starts without conversation history, whether the resolved
    model is a slug or `inherit`; this covers `bouncer-coordinator`,
@@ -89,7 +93,10 @@ limits.
    `bouncer-debugger`, or `bouncer-reviewer`, read
    `${BOUNCER_ROOT}/skills/bouncer-run/references/agent-dispatch.md` for that
    role's controller input, dispatch metadata, fallback payload, and worker
-   model and token records; this rule does not restate them.
+   model and token records; this rule does not restate them. A Codex
+   `codex-agents check` that stays non-`in_sync` after its one resync, or that
+   reports `not-generated`, leaves the named agent unavailable for that dispatch,
+   so this fallback applies. It is never a model rejection.
 5. `/bouncer-run` resolves `bouncer-coordinator` through steps 1-4 like any
    other named agent, and its `subagents.<provider>` slot carries the same
    `inherit` meaning. The unsupported-host fallback for that dispatch is one
