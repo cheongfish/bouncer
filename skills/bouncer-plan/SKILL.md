@@ -378,6 +378,7 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
    cause, path, and recovery action. The root runs `plan-ledger close` only after `validate --gate plan` passes; a rejected approval or a failed gate leaves the ledger open.
+   /bouncer-run은 새 세션에서 시작한다.
    Then point the user at `/bouncer-run` — it
    drives implement, verify, review, and task commit until the blueprint's tasks run out, and
    `config.autonomy` (`auto` | `interactive`) already decides how often they are

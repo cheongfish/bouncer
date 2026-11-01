@@ -228,7 +228,8 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
 5. **Report.** `continue` is not terminal. Render progress lines and a
    terminal outcome through `${BOUNCER_ROOT}/rules/output.md`: `completed` with the
    integration head and verification result, then tell the user to run `/bouncer-finalize` from `integrationPath`, including any draft PR; `blocked` with the failing
-   task, cause, and recovery action. On `blocked`, preserve the ledger, the
+   task, cause, and recovery action. 컨텍스트가 길어졌다면 새 세션에서 /bouncer-finalize를 시작한다.
+   On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
    not as your own re-judgment. Only when `metrics summary` returns `report: true`, add its token and time

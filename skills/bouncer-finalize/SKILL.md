@@ -4,6 +4,8 @@ description: "Use only when the user explicitly asks /bouncer-finalize; it close
 ---
 # /bouncer-finalize
 
+컨텍스트가 길어졌다면 새 세션에서 /bouncer-finalize를 시작한다.
+
 **Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
