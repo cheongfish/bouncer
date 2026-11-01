@@ -52,5 +52,3 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [legacy-epic-merge](blueprints/legacy-epic-merge/index.md) — legacy epic blueprint를 도메인 epic 아래로 옮기는 `migrate merge-legacy-epics`와 옛 trailer 해석(`moved_to`), v2 `plan inspect` 요약을 고친다.
 - [moved-slug-stable-ids](blueprints/moved-slug-stable-ids/index.md) — 병합 이관이 옮긴 문서의 slug 형식 stable ID(`task_commits`·`### ` 제목)를 `moved_to`를 따라 도메인 epic 위치로 다시 쓴다.
 - [ontology-output-and-rename-lookup](blueprints/ontology-output-and-rename-lookup/index.md) — `bouncer ontology`의 파이프 출력 절단, 기본 경고 개수 요약(`--warnings`), `file`·`impact`의 git rename 이력 추적을 고친다. (이후 `bouncer ontology` 명령과 `bouncer.supersedes` 필드는 폐기·삭제됐다.)
-- [intent-revision-lookup](blueprints/intent-revision-lookup/index.md) — 하나의 기준 SHA 트리만 읽는 함수 열거(`symbol-index`)와 `intent-revision`, `intent-provenance`의 고정 SHA intent 조회 API를 더하고, task·BP 검증용 `package.json` 스크립트를 추가한다.
-- [intent-diff-cli](blueprints/intent-diff-cli/index.md) — 리뷰 snapshot에서 변경 함수를 추출해 기준 SHA의 intent 근거와 coverage를 붙이는 읽기 전용 `bouncer intent diff`를 `review-diff-intent`·`cli-intent-diff-command`와 `rules/cli.md`에 더한다.
