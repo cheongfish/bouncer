@@ -23,6 +23,7 @@ const FLAGS: Record<string, string[]> = {
   record: [...FENCE, 'phase', 'blueprint', 'planner-session', 'planner-mode', 'note'],
   ask: [...FENCE, 'question'],
   answer: [...FENCE, 'question-id', 'text'],
+  recover: [...FENCE, 'note'],
   close: FENCE,
 };
 // 값 없이 오면 각자 전용 reason(id-invalid, checkpoint-invalid)으로 거절하는 플래그.
@@ -92,6 +93,12 @@ function cmdPlanLedger(rest: string[], io: CliIo, deps?: { randomId?: () => stri
     const qid = str('question-id');
     if (text === null || qid === undefined || qid === '') return emit(io, invalid);
     return emit(io, planLedger.answerLedger(root, fence, qid, text));
+  }
+  if (sub === 'recover') {
+    // 복구 사유는 감사 기록이라 누락과 공백만 있는 값을 같은 입력 오류로 거절한다. 빈 사유를 허용하면
+    // 왜 다시 열었는지 남지 않는다.
+    const note = planLedger.cleanText(str('note'));
+    return emit(io, note === null ? invalid : planLedger.recoverLedger(root, fence, note));
   }
   return emit(io, planLedger.closeLedger(root, fence));
 }

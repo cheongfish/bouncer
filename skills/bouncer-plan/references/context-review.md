@@ -102,7 +102,9 @@ any accepted-risk consent stay with the root.
    one pass are fine), so the revision is one pass over each document. Record each `advisory` finding as
    `accepted` with a note instead of editing for it. When no `must_fix`
    exists, skip the revision and the delta; the round sequence stays
-   `discovery`. A body-only edit (no frontmatter structure, Interface or Touch
+   `discovery`. The ledger no longer refuses a revision mode by count (`continued` or `fresh` is recorded
+   however many fixes came before); the review round limit in the `context-review` cycle state is the only
+   cap on fixes, and this step does not change it. A body-only edit (no frontmatter structure, Interface or Touch
    change) needs no further review round: certify it with `close` (step 7).
    Editing a task's `affected_paths`, `depends_on`,
    `parallel_safe`, `dependency_gate`, `exclusive_resources` or

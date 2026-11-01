@@ -18,10 +18,8 @@ const ID_RE = /^pl-[a-f0-9]{16}$/;
 const SESSION_RE = /^[A-Za-z0-9._:-]{1,200}$/;
 const TEXT_MAX = 2000;
 const BLUEPRINT_PREFIX = '.bouncer/context/epics/';
-// continued는 같은 세션 이어 쓰기라 한 번이면 충분하고, 전체 수정은 context review 최초 cycle과
-// restart 1회에 각 1회씩 합쳐 2회가 상한이다.
-const CONTINUED_MAX = 1;
-const REVISIONS_MAX = 2;
+// planner 수정 횟수(continued·revisions)에는 상한이 없다. 옛 gate(continued 1회, revisions 2회)는 제거했고,
+// 두 카운터는 감사·호환을 위해 계속 기록만 한다. 검토 라운드 상한은 context-review가 따로 판정한다.
 
 type Question = { qid: string; text: string; answer: { text: string } | null };
 type PlanLedger = {
@@ -270,6 +268,7 @@ function mutate(
     const next = JSON.parse(JSON.stringify(parsed.ledger)) as PlanLedger;
     const applied = apply(next);
     if (!applied.ok) return applied;
+    // revision은 planner 수정 횟수와 다른 동시성 버전이다. 성공한 mutation마다 1 올라 checkpoint가 된다.
     next.revision = parsed.ledger.revision + 1;
     // 쓰기 직전 소유 재확인: 도중에 lock을 뺏겼다면 다른 writer와 겹칠 수 있어 쓰지 않는다.
     if (!owns()) return { ok: false, reason: 'ledger-lock-lost' } as Fail;
@@ -281,7 +280,15 @@ function mutate(
   return result as { ok: true; checkpoint: Checkpoint } | Fail;
 }
 
-/** record의 planner 규칙. 세션 유무 위반은 입력 오류, 횟수 상한은 revision-limit이다. */
+/**
+ * record의 planner 규칙. 세션 유무 위반만 입력 오류로 거절하고, 수정 횟수에는 상한을 두지 않는다.
+ * 상한을 없앤 이유: 옛 gate가 context review 재시도 중인 원장을 멈춰 plan을 막았다. 리뷰 라운드 상한은
+ * context-review가 판정하므로 ledger가 따로 막을 필요가 없다.
+ *
+ * @param {PlanLedger} ledger - 복제본 ledger(mutate가 넘긴다). 여기서 바꾼 값만 저장된다
+ * @param {{ session: string, mode: PlannerMode }} planner - parseRecordInput을 통과한 planner 입력
+ * @returns {Applied} 세션 유무가 mode와 맞으면 ok, 아니면 invalid-plan-ledger-input
+ */
 function applyPlanner(ledger: PlanLedger, planner: { session: string; mode: PlannerMode }): Applied {
   const state = ledger.planner;
   const hasSession = state.session !== null;
@@ -291,10 +298,7 @@ function applyPlanner(ledger: PlanLedger, planner: { session: string; mode: Plan
     state.session = planner.session;
     return { ok: true };
   }
-  const limit: Fail = { ok: false, reason: 'plan-ledger-revision-limit' };
-  if (state.revisions >= REVISIONS_MAX) return limit;
   if (planner.mode === 'continued') {
-    if (state.continued >= CONTINUED_MAX) return limit;
     state.continued += 1;
   } else {
     // fresh는 새 planner라 세션 handle이 바뀐다.
@@ -343,6 +347,23 @@ function askLedger(projectRoot: string, fence: Fence, text: string) {
   });
 }
 
+/**
+ * 옛 상한에서 멈춘 열린 원장에 복구 사유를 감사 기록으로 남긴다. notes에 `recover: ` 접두 항목 하나만 붙이고
+ * 답변·blueprint·planner 카운터·phase·질문·검토 증거는 건드리지 않는다. 승인이나 검토를 대신하지 않는다.
+ * 접두는 일반 `record --note`와 구분하려고 붙인다. 닫힌 원장과 stale hash는 mutate가 거절한다.
+ *
+ * @param {string} projectRoot - main worktree 절대 경로
+ * @param {Fence} fence - id와 checkpoint
+ * @param {string} note - cleanText를 통과한 복구 사유(trim, 비어 있지 않음)
+ * @returns mutate의 결과. 성공이면 새 checkpoint를 돌려준다
+ */
+function recoverLedger(projectRoot: string, fence: Fence, note: string) {
+  return mutate(projectRoot, fence, (ledger) => {
+    ledger.notes.push(`recover: ${note}`);
+    return { ok: true };
+  });
+}
+
 /** 질문 하나에 답을 채운다. 없는 qid는 question-unknown, 이미 답한 질문은 question-answered. */
 function answerLedger(projectRoot: string, fence: Fence, qid: string, text: string) {
   return mutate(projectRoot, fence, (ledger) => {
@@ -364,5 +385,5 @@ function closeLedger(projectRoot: string, fence: Fence) {
 
 export = {
   isLedgerId, cleanText, parseRecordInput,
-  openLedger, statusLedger, recordLedger, askLedger, answerLedger, closeLedger,
+  openLedger, statusLedger, recordLedger, askLedger, answerLedger, closeLedger, recoverLedger,
 };
