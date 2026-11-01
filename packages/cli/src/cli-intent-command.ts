@@ -363,12 +363,19 @@ function parseSectionsArgs(rest: string[]): SectionsArgs {
  * query의 resolved가 아닌 상태 JSON도 exit 0이다 — Plan이 코드 탐색을
  * 이어가려면 ambiguous/unresolved/unlinked가 사용법 오류가 아니어야 한다.
  * bundle도 ambiguous면 record를 쓰지 않고 opaque candidate만 돌려 exit 0이다.
+ * `diff`는 snapshot 기반 읽기 전용 하위 명령이라 자체 파서와 적재 경계를 가진다.
  *
  * @param {string[]} rest - `intent` 뒤 argv
  * @param {CliIo} io - stdout은 JSON 하나만, 진단은 stderr
  * @returns {number} 상태 JSON 0, Git/filesystem 조회 실패 1, 사용법 2
  */
 function cmdIntent(rest: string[], io: CliIo): number {
+  // diff는 query 파서를 거치면 안 된다. 여기서 먼저 빠져나가 query·bundle·sections 경로가 diff 모듈을
+  // 적재하지 않게 하고, diff 모듈 자신이 argv를 검증한 뒤에만 resolver를 부른다.
+  if (rest[0] === 'diff') {
+    const intentDiff = require('./cli-intent-diff-command') as typeof import('./cli-intent-diff-command');
+    return intentDiff.run(rest.slice(1), io);
+  }
   const parsed = parseIntentArgs(rest);
   if (parsed.error) {
     io.err(parsed.error);

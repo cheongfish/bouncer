@@ -34,6 +34,8 @@
     "terminal-intent-provenance.test.js",
     "typescript-module-contract.test.js",
     "master-rules.test.js",
-    "intent-revision.test.js"
+    "intent-revision.test.js",
+    "review-diff-intent.test.js",
+    "intent-diff-command.test.js"
   ]
 }
