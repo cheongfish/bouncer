@@ -45,7 +45,7 @@ continue with `rg`.
 `bouncer plan-ledger open --request <request>` (the original request text, taken
 from the invocation or `plan.request`; resume an open ledger from
 `bouncer plan-ledger status` instead of opening a second one) and delegates the
-plan work to the named `bouncer-plan-coordinator`. The root runs every ACQ, `plan-ledger open`, `plan-ledger answer`, `plan-ledger close`, `context-review close`, `plan approve`, `current --set`, and `validate --gate plan`; the plan coordinator and planner never do. Outside the fallback the root does not run discovery, author plan documents, or dispatch reviewers. The numbered steps below describe the plan work itself: the coordinator
+plan work to the named `bouncer-plan-coordinator`. The root runs every ACQ, `plan-ledger open`, `plan-ledger answer`, `plan-ledger recover`, `plan-ledger close`, `context-review close`, `plan approve`, `current --set`, and `validate --gate plan`; the plan coordinator and planner never do. An open ledger that stopped at the former revision cap (the cap was removed, so a resumed fix is no longer refused) resumes under the same id: the root first runs `bouncer plan-ledger recover --id <id> --ledger-path <path> --ledger-hash <sha256> --note <reason>` once with the checkpoint from `plan-ledger status`, so the audit trail records why it resumed, and then hands the same ledger to the coordinator with the new checkpoint. Recovery changes no answer, blueprint, planner count, or review document. Outside the fallback the root does not run discovery, author plan documents, or dispatch reviewers. The numbered steps below describe the plan work itself: the coordinator
 (and the `bouncer-planner` it dispatches) performs it, and the root only adds
 the checkpoint questions, approval, and gate named in each step.
 
@@ -304,6 +304,12 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    (`${BOUNCER_ROOT}/references/minimality/index.md`) (advisory, not a gate) to challenge new
    dependencies, abstractions, or files and record the rationale.
 
+   **Test tier (at the same confirmation).** For each new `test/<name>.test.js` a commit task creates,
+   the confirmation records its tier (`unit` or `integration`) and the registration path in that test's
+   Touch `근거`. In a repository with `test/tiers.json`, the path is `test/tiers.json` in the task's
+   `affected_paths`; the plan gate G33 checks that it is listed. A task that only modifies an existing
+   test, or a repository without the manifest, needs no tier note.
+
    **Coupled paths (after scope confirmation).** After confirmed paths are written, the plan coordinator runs
    `bouncer plan inspect --blueprint <dir>` once and reads `coupledPaths`. A `pairs` entry with
    `covered: false` (a generated counterpart such as `.codex/agents/<name>.toml` or a `.gitignore`
@@ -321,7 +327,8 @@ fix the reference or SHA, or merge the prerequisite first, then rerun.
    after the delta. The first `must_fix` fix continues the planner's own
    session (`plan-ledger record --planner-mode continued`); a host that cannot
    continue and any fix after a context review restart use a new planner
-   (`--planner-mode fresh`). When accepted-risk or a `context-review close` needs
+   (`--planner-mode fresh`). The ledger puts no cap on these fixes; the review round limit is decided by
+   `context-review` alone, so a revision mode never stops the review by itself. When accepted-risk or a `context-review close` needs
    user consent, the coordinator writes the dispositions to
    `.bouncer/runtime/plan-ledgers/<id>.dispositions.json`, asks, and returns
    `needs_user`. Before it asks for consent, the root reads the dispositions

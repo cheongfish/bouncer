@@ -256,19 +256,26 @@ function shouldEnsureCodexAgents(repoRoot: string, optIn = false): boolean {
  * 쓰기 전에 실패 변형을 돌려준다(부분 갱신 금지). 마커 없는 사용자 파일은 설정과 무관하게
  * 건드리지 않는다.
  *
- * @param {{ repoRoot: string, created: string[], agentsDir?: string }} opts
+ * 새로 만든 파일은 `created`, 기존 생성본의 내용이 실제로 달라 다시 쓴 파일은 `updated`에
+ * 나눠 담는다. 둘을 합치면 "갱신만 있었던 재시드"가 변경 없음으로 보여 호출자가 결과를
+ * 믿지 못한다. 내용이 같으면 쓰지 않으므로 `updated`는 바이트가 바뀐 파일만 가리킨다.
+ *
+ * @param {{ repoRoot: string, created: string[], updated: string[], agentsDir?: string }} opts
  * @param {string} opts.repoRoot - 소비 저장소 루트(`.bouncer/config.json`도 여기서 읽는다)
  * @param {string[]} opts.created - 새로 만든 파일의 상대 경로를 덧붙일 목록
+ * @param {string[]} opts.updated - 기존 생성본을 실제로 고쳐 쓴 파일의 상대 경로를 덧붙일 목록
  * @param {string} [opts.agentsDir] - md 소스 디렉터리. 생략 시 플러그인 agents/
  * @returns {{ ok: true } | CodexEffortsFail} 시드·no-op이면 ok, 설정 오류면 key·message·next
  */
 function ensureCodexAgents({
   repoRoot,
   created,
+  updated,
   agentsDir,
 }: {
   repoRoot: string;
   created: string[];
+  updated: string[];
   agentsDir?: string;
 }): { ok: true } | CodexEffortsFail {
   // 1. 쓰기 전에 전 역할 설정을 검증한다. 자산 해석보다 앞에 두어, 플러그인 자산이 없어
@@ -302,6 +309,8 @@ function ensureCodexAgents({
       const existing = fs.readFileSync(dest, 'utf8');
       if (!shouldRefresh(existing, next)) continue;
       fs.writeFileSync(dest, next);
+      // shouldRefresh가 내용 차이를 확인한 뒤에만 여기 오므로 updated는 실제 변경만 담는다.
+      updated.push(rel);
       continue;
     }
     fs.mkdirSync(destDir, { recursive: true });

@@ -12,6 +12,7 @@ const { execFileSync } = require('node:child_process');
 const { coordinate } = require('./helpers/coordinator-fence');
 const { advance } = require('../packages/cli/dist/coordinate-advance');
 const { coordinatorPathsFor } = require('../packages/cli/dist/runtime-state');
+const { ensureEpicIndexEntry } = require('../packages/cli/dist/epic-index');
 const driveMetrics = require('../packages/cli/dist/drive-metrics');
 
 const BLUEPRINT = '.bouncer/context/epics/drive-execution/blueprints/drive-recovery-contracts';
@@ -254,4 +255,136 @@ test('ambiguous와 --replace를 함께 주면 → worker-tokens-ambiguous-replac
   assert.equal(mixed.ok, false);
   assert.equal(mixed.reason, 'worker-tokens-ambiguous-replace');
   assert.ok(ledgerBytes(drive).equals(before), 'a rejected ambiguous marker must leave the ledger bytes unchanged');
+});
+
+// --- lease salvage ----------------------------------------------------------
+// revoke 뒤 prepare가 옛 worker의 변경·커밋·보고를 보존하고 새 generation lease를 주는지, 그리고 옛 lease의 보고가
+// 거절되는지를 실제 prepare·dispatch·report 명령으로 확인한다. 이 경로는 coordinator가 지원하는 재배정이다.
+const SALVAGE_BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
+const SALVAGE_EPIC = '.bouncer/context/epics/001-auth';
+const DOC_STAMP = "timestamp: '2026-07-01T00:00:00+09:00'";
+
+function writeText(repo, rel, text) {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, text);
+}
+
+/**
+ * 실제 저장소에 승인된 epic·blueprint·task 문서를 놓고 bootstrap·prepare로 task 001 worker를 배정한다.
+ * worker에는 기준 커밋 이후 아무 변경도 없다. 원장과 worktree는 실제 파일이다.
+ *
+ * @returns {{ repo: string, integration: string, worker: string, lease: { id: string, generation: number } }}
+ *   fixture 경로와 첫 배정의 lease
+ */
+function createPreparedDrive() {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-salvage-')));
+  CLEANUP.push(repo);
+  git(repo, ['init', '-q', '-b', 'work']);
+  git(repo, ['config', 'user.email', 'test@example.com']);
+  git(repo, ['config', 'user.name', 'test']);
+  fs.writeFileSync(path.join(repo, '.gitignore'), '.bouncer/runtime/\n.worktrees/\n');
+  writeText(repo, 'src/auth/login.ts', 'export {}\n');
+  writeText(repo, `${SALVAGE_EPIC}/index.md`, [
+    '---', 'type: bouncer.epic', 'title: Auth', 'description: d', `resource: ${SALVAGE_EPIC}/index.md`,
+    'tags:', '  - bouncer', DOC_STAMP, 'bouncer:', "  id: '001'", "  epic_id: '001'", '  status: approved',
+    '---', '# Auth', '',
+  ].join('\n'));
+  writeText(repo, `${SALVAGE_BP}/index.md`, [
+    '---', 'type: bouncer.blueprint', 'title: Login', 'description: d', `resource: ${SALVAGE_BP}/index.md`,
+    'tags:', '  - bouncer', DOC_STAMP, 'bouncer:', "  id: '001'", "  epic_id: '001'", "  blueprint_id: '001'",
+    '  status: approved', '---', '# Login', '',
+  ].join('\n'));
+  writeText(repo, `${SALVAGE_BP}/tasks/001/tasks.md`, [
+    '---', 'type: bouncer.tasks', 'title: Impl login', 'description: d', `resource: ${SALVAGE_BP}/tasks/001/tasks.md`,
+    'tags:', '  - bouncer', DOC_STAMP, 'bouncer:', '  id: TASKS-001', "  epic_id: '001'", "  blueprint_id: '001'",
+    '  status: ready', '  affected_paths:', '    - src/auth/', '---', '# Impl login', '',
+  ].join('\n'));
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: '001', name: 'auth', description: 'd' });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-q', '-m', 'base']);
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: SALVAGE_BP });
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint: SALVAGE_BP, cwd: boot.integrationPath });
+  assert.equal(prepared.ok, true, 'fixture prepare must succeed');
+  const entry = prepared.tasks[0];
+  return {
+    repo,
+    integration: boot.integrationPath,
+    worker: entry.workerPath,
+    lease: { id: entry.lease.id, generation: entry.lease.generation },
+  };
+}
+
+/**
+ * 첫 배정 lease로 dispatch하고, worker에 커밋 하나와 커밋되지 않은 변경 하나, 보고 파일 하나를 남긴 뒤
+ * revoke하고 prepare로 다시 배정한다.
+ *
+ * @param {ReturnType<typeof createPreparedDrive>} drive - 첫 배정이 끝난 fixture
+ * @returns {{ prep: object, lease: { id: string, generation: number }, reportText: string, committedHead: string }}
+ *   재배정 결과, 옛 lease, 보고 원문, 옛 worker가 커밋한 HEAD. 원문은 revoke 전에 읽어 둔 값이다
+ *   (prepare가 옛 worker worktree를 지우므로 경로로 다시 읽을 수 없다)
+ */
+function revokeAndReprepare(drive) {
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint: SALVAGE_BP, cwd: drive.worker,
+    task: TASK, leaseId: drive.lease.id, generation: drive.lease.generation,
+  });
+  assert.equal(dispatched.ok, true, 'fixture dispatch must succeed');
+
+  // 커밋은 보존 ref로, 커밋 뒤 변경은 patch로 남아야 한다. 보고 파일은 원문 그대로 복사돼야 한다.
+  fs.appendFileSync(path.join(drive.worker, 'src/auth/login.ts'), 'export const committed = 1;\n');
+  git(drive.worker, ['-c', 'user.email=w@example.com', '-c', 'user.name=w', 'commit', '-q', '-am', 'worker']);
+  const committedHead = git(drive.worker, ['rev-parse', 'HEAD']);
+  fs.appendFileSync(path.join(drive.worker, 'src/auth/login.ts'), 'export const uncommitted = 2;\n');
+  const reportText = '## Changed files\n- src/auth/login.ts\n';
+  writeText(drive.worker, `.bouncer/runtime/reports/${TASK}-1.md`, reportText);
+
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: drive.repo, blueprint: SALVAGE_BP, cwd: drive.integration, task: TASK,
+    reason: 'environment failure resolved',
+  });
+  assert.equal(revoked.ok, true, 'fixture revoke must succeed');
+  const prep = coordinate({ command: 'prepare', repoRoot: drive.repo, blueprint: SALVAGE_BP, cwd: drive.integration });
+  return { prep, lease: drive.lease, reportText, committedHead };
+}
+
+test('revoked worker with commit, dirty change and report → prepare keeps all three and issues a new lease', () => {
+  const drive = createPreparedDrive();
+  const { prep, committedHead, reportText } = revokeAndReprepare(drive);
+  assert.equal(prep.ok, true);
+
+  // 보존 항목은 salvage 목록에 task별로 한 번 실린다. 커밋 ref와 patch·보고 경로가 모두 있어야 한다.
+  const salvage = prep.salvage.find((entry) => entry.task === TASK);
+  assert.ok(salvage, 'salvage must list the revoked task');
+  const patchText = fs.readFileSync(salvage.patch, 'utf8');
+  assert.match(patchText, /\+export const uncommitted = 2;/, 'the uncommitted change must survive as a patch');
+  assert.doesNotMatch(patchText, /\+export const committed = 1;/,
+    'a committed change must not be duplicated in the patch');
+  assert.equal(git(drive.repo, ['rev-parse', salvage.ref]), committedHead,
+    'the salvage ref must keep the worker commit');
+  assert.equal(fs.readFileSync(salvage.report, 'utf8'), reportText, 'the report must be kept verbatim');
+
+  // 재배정은 새 generation의 새 lease다. 옛 lease와 id·generation이 모두 달라야 한다.
+  const next = prep.tasks.find((entry) => entry.id === TASK).lease;
+  assert.equal(next.generation, drive.lease.generation + 1);
+  assert.notEqual(next.id, drive.lease.id);
+});
+
+test('report under the revoked lease after re-prepare → refused as stale-lease and the new lease is named', () => {
+  const drive = createPreparedDrive();
+  const { prep, lease } = revokeAndReprepare(drive);
+  assert.equal(prep.ok, true);
+  const current = prep.tasks.find((entry) => entry.id === TASK).lease;
+
+  const stale = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint: SALVAGE_BP, cwd: drive.worker, task: TASK,
+    attempt: 1, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'late report from the old lease',
+    leaseId: lease.id, generation: lease.generation,
+  });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.reason, 'stale-lease');
+  // 거절 응답이 현재 lease를 가리켜야 coordinator가 옛 보고를 새 배정으로 착각하지 않는다.
+  assert.equal(stale.expected.lease_id, current.id);
+  assert.equal(stale.expected.generation, current.generation);
 });

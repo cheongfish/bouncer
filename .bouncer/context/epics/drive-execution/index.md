@@ -93,3 +93,5 @@ Epic 기능 분류의 매핑이다. △는 일부 blueprint가 다른 영역에 
 - [retro-dispatch-model-tokens-deferred](blueprints/retro-dispatch-model-tokens-deferred/index.md): 구현자 모델 전달 문서, brief delta 라운드의 경미 지적 이연 기록, 계획 리뷰의 테스트 도달 가능성 판정, `worker-tokens --tokens unreported`와 `worker-tokens-missing` 거절을 더한다.
 - [worker-tokens-duplicate-guard](blueprints/worker-tokens-duplicate-guard/index.md): `coordinate worker-tokens`가 같은 키의 중복 기록을 거절하고 `--replace`로만 교체하게 하며, coordinator 문서에 worker 보고 대기 불가 종료 문단을, 계획 작성 규칙에 Checklist 분기 matrix 행 규칙과 문서 문구 단언 규칙을 더한다.
 - [retro-implementer-docs-advance-tokens](blueprints/retro-implementer-docs-advance-tokens/index.md): 구현자 `## Tests` 낱말 제약, 구현자 worker-model 기록 값, `metrics end` 중간 알림 금지 문서 문장을 더하고, `coordinate advance`가 모든 task의 구현자 토큰 누락을 `worker-tokens-missing`으로 거절하게 한다.
+
+- [drive-plan-recovery](blueprints/drive-plan-recovery/index.md): 생성 설정 커밋 경계와 drive 정지 및 plan 상한 복구 경로를 정의한다.

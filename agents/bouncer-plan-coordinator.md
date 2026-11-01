@@ -44,9 +44,12 @@ user.
    - `record --blueprint` once, with the blueprint path the planner reported.
    - `record --planner-session <handle> --planner-mode <mode>` for each
      planner dispatch. The first authoring is `initial`; resuming after a
-     `needs_user` during authoring is `resume`; the first review fix continues
-     the same session as `continued` (`fresh` when the host cannot); a fix
-     after a context review restart is `fresh`.
+     `needs_user` during authoring is `resume`; a review fix continues the same
+     session as `continued` (`fresh` when the host cannot, and after a context
+     review restart). The ledger has no cap on fixes: record the mode the fix
+     actually used and do not stop because of a count.
+     Never run `plan-ledger recover`; the root does, once, for a ledger that
+     stopped at the former revision cap.
    - `ask` for every question that needs the user.
 3. Metrics: for each planner dispatch open `metrics start --kind
    planner-session` without a blueprint and close it when the planner returns.

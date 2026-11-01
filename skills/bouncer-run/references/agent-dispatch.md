@@ -50,8 +50,9 @@ A named dispatch loads the role file on disk, so it never starts from a file the
 `in_sync: true`: a stale file would hand the implementer an old role. The check's `reason` picks the route:
 
 - `missing` or `mismatch` (a generated file that is absent or stale): notify, run `bouncer init --seed-codex-agents`
-  once, and check again. `in_sync: true` starts the compact named dispatch; any other result goes to the
-  implementer fallback. An already-running agent is never treated as refreshed.
+  once, and check again. Run the seed from the integration checkout, never from this task's worktree, so the
+  rewritten file stays out of the task commit. `in_sync: true` starts the compact named dispatch; any other result
+  goes to the implementer fallback. An already-running agent is never treated as refreshed.
 - `not-generated` (a user-owned file with no generated marker): never overwrite it. Notify and go straight to the
   implementer fallback; the seed would leave the file unchanged, so it is not run.
 - `role-config-invalid` (a `roles.<agent>.effort` setting is invalid): a configuration error the seed also refuses.

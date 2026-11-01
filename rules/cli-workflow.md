@@ -133,7 +133,7 @@ unchanged. `metrics summary` adds `by_tier: {strong, standard, light, unknown}` 
 `{sessions, tokens_total, cost_total}` over ended sessions only; a missing or `null` tier is
 `unknown`. A `null` blueprint is valid only on a plan kind; elsewhere it is `metrics-file-invalid`.
 
-`bouncer plan-ledger open|status|record|ask|answer|close` keeps the plan coordinator session state
+`bouncer plan-ledger open|status|record|ask|answer|recover|close` keeps the plan coordinator session state
 (request, phase, user questions and answers, planner session and revision counts) in the main
 worktree at `.bouncer/runtime/plan-ledgers/pl-<16hex>.json`; every subcommand takes `[--repo <dir>]`
 and an unresolvable main worktree is `non-git-root`. `open --request <text>` creates the file
@@ -145,14 +145,24 @@ checkpoint sha256), runs under the ledger lock, adds 1 to `revision`, and prints
 `record` needs at least one of `--phase` (`discovery|checkpoint|authoring|review|ready`, forward
 or same only), `--blueprint` (stored once, normalized to `/` without a trailing slash, must sit
 under `.bouncer/context/epics/`), `--planner-session` with `--planner-mode`
-(`initial|resume|continued|fresh`; `continued` is allowed once and total revisions are capped at 2),
-and `--note`. `ask --question` prints the new `qid`; `answer --question-id --text` fills it once;
-`close` makes later mutations fail. The CLI does not tell callers apart, so only the root runs
-`open`, `answer`, and `close` by rule. Refusals are `{ ok: false, reason }` (exit 1) before any
-write: `plan-ledger-id-invalid`, `plan-ledger-not-found`, `plan-ledger-invalid`,
-`plan-ledger-exists`, `ledger-checkpoint-invalid`, `stale-ledger-checkpoint`, `ledger-locked`,
-`ledger-lock-lost`, `plan-ledger-closed`, `plan-ledger-phase-backward`,
-`plan-ledger-blueprint-bound`, `plan-ledger-revision-limit`, `plan-ledger-question-unknown`,
+(`initial|resume|continued|fresh`), and `--note`. `initial` needs no session yet and the other modes
+need one; `resume` keeps the counts, `continued` adds 1 to both counts, and `fresh` replaces the
+session and adds 1 to `revisions`. The counts have no cap: `continued` and `fresh` succeed however many
+times they are recorded, and the review round limit stays with `context-review`. `ask --question`
+prints the new `qid`; `answer --question-id --text` fills it once; `close` makes later mutations fail.
+`recover --note <text>` is the audit step for an open ledger that stopped at the former revision cap
+(before the cap was removed). The root runs it once, before that same ledger continues: the reason is
+the audit record that the ledger went on past the former cap, so continuing a capped ledger without
+`recover` is not allowed. `recover` needs a non-empty reason, appends `recover: <reason>` to `notes`, and prints the new
+checkpoint. It changes nothing else: answers, blueprint, planner counts, phase, and review documents stay
+as they are, and it approves or reviews nothing. A ledger that never reached the cap continues without
+`recover`. The CLI does not tell callers apart, so only the root runs `open`, `answer`, `recover`, and
+`close` by rule; the CLI also cannot tell a capped ledger from another, so the root applies the `recover`
+step. Refusals
+are `{ ok: false, reason }` (exit 1) before any write: `plan-ledger-id-invalid`,
+`plan-ledger-not-found`, `plan-ledger-invalid`, `plan-ledger-exists`, `ledger-checkpoint-invalid`,
+`stale-ledger-checkpoint`, `ledger-locked`, `ledger-lock-lost`, `plan-ledger-closed`,
+`plan-ledger-phase-backward`, `plan-ledger-blueprint-bound`, `plan-ledger-question-unknown`,
 `plan-ledger-question-answered`, `invalid-plan-ledger-input`. An unknown subcommand or flag is
 usage with exit 2. The run coordinator ledger and its reasons are unchanged.
 

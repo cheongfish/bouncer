@@ -317,6 +317,34 @@ function severityEnum(body) {
   return m ? m[1].split('|').map((s) => s.trim()) : [];
 }
 
+// rubric 본문 하나를 잘라낸다. 다음 `###`·`##` 제목 전까지가 그 관점의 판정 범위다.
+function rubricBody(md, perspective) {
+  const heading = `### ${perspective}\n`;
+  const start = md.indexOf(heading);
+  assert.ok(start >= 0, `missing rubric ${perspective}`);
+  // 제목 줄 다음부터 잘라야 자기 제목이 종료 경계로 잡히지 않는다.
+  const rest = md.slice(start + heading.length);
+  const end = rest.search(/^#{1,3} /m);
+  return end < 0 ? rest : rest.slice(0, end);
+}
+
+test('context reviewer consistency rubric → names the Target behavior and Interface sections it compares', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-context-reviewer.md'), 'utf8');
+  const spec = fs.readFileSync(path.join(root, 'references/spec-authoring/index.md'), 'utf8');
+  const body = rubricBody(md, 'consistency');
+  for (const section of ['Target behavior', 'Interface']) {
+    assert.ok(body.includes(section), `consistency rubric must name ${section}`);
+    // 리뷰어가 대조하는 절 이름은 작성 지침이 정의한 이름과 같아야 한다.
+    assert.ok(spec.includes(`**${section}**`), `spec-authoring must define ${section}`);
+  }
+});
+
+test('context reviewer scope_minimality rubric → names the test manifest that new test files register in', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-context-reviewer.md'), 'utf8');
+  assert.ok(rubricBody(md, 'scope_minimality').includes('test/tiers.json'));
+  assert.ok(fs.existsSync(path.join(root, 'test', 'tiers.json')));
+});
+
 test('reviewer dispatch documents → list the eight-section brief allowlist', () => {
   for (const rel of REVIEW_BRIEF_DOCS) {
     assert.ok(flatDoc(rel).includes(REVIEW_BRIEF_SECTIONS), `${rel} must list the eight brief sections`);
