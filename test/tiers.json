@@ -8,7 +8,6 @@
     "coordinate-advance.test.js",
     "dependency-boundaries.test.js",
     "frontmatter.test.js",
-    "init-seed-recovery.test.js",
     "plugin-doc-cites.test.js",
     "plugin-wiring.test.js",
     "schema.test.js",
@@ -18,6 +17,7 @@
     "skill-context-review.test.js",
     "skill-spec-authoring.test.js",
     "symbol-index.test.js",
+    "test-tiers.test.js",
     "workflow-responsibility-boundaries.test.js"
   ],
   "integration": [
@@ -41,6 +41,7 @@
     "intent-bundle.test.js",
     "coordinate-next-recovery.test.js",
     "coordinator-worker-recovery.test.js",
-    "plan-ledger-recovery.test.js"
+    "plan-ledger-recovery.test.js",
+    "init-seed-recovery.test.js"
   ]
 }
