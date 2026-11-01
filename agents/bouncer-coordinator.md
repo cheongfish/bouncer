@@ -216,6 +216,9 @@ to your `Decision required` judgment, never a second brief.
   pointer per task.
 - Before a `bouncer-implementer` edits a commit task, require it to read
   `${BOUNCER_ROOT}/references/coding-standards/index.md`.
+- In every implementer payload, name each `affected_paths` entry that does not
+  exist at the worker's HEAD as a new file the task creates. A worker must not
+  treat a missing target or test file as a blocker.
 - Launching a ready wave in parallel stays allowed. A handle or "started"
   notice is not a report: wait for it, and do not return until every worker's
   final report is collected. Never return `blocked` or `continue` while a
