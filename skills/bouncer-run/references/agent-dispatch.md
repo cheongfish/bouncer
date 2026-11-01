@@ -121,9 +121,9 @@ projection and its identifiers. Reviewer and debugger projections do not carry
 The fallback runs when the check does not reach `in_sync: true` after its one resync, for a `not-generated` file, or
 when named agents are unavailable. Its permissions are the role's own, and it is never a way around them. It carries
 the actual worktree cwd, the role effort as the spawn `reasoning_effort` (omit the argument when the role effort is
-null, per `rules/subagent-model.md` item 1), and the role's write boundary: `affected_paths`, no commit, and no
+null, per `${BOUNCER_ROOT}/rules/subagent-model.md` item 1), and the role's write boundary: `affected_paths`, no commit, and no
 status or pointer change. On Codex it starts without conversation history (`fork_turns: "none"`). A model rejection is
-not this fallback: stop and report it under `rules/subagent-model.md` item 3. A drive resumes only after the check
+not this fallback: stop and report it under `${BOUNCER_ROOT}/rules/subagent-model.md` item 3. A drive resumes only after the check
 reports `in_sync: true` or this fallback is dispatched with the payload described above.
 
 ### Implementer file payload

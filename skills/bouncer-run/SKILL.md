@@ -33,7 +33,7 @@ coordinator execution (A) share this path regardless of complexity;
 preflight `direct_eligible` (delegable, serial,
 `1 <= commit_tasks <= coordinator.direct_max_commit_tasks`) decides whether
 D is offered. When a command returns `light-mode-removed`, follow the
-recovery in `${BOUNCER_ROOT}/rules/cli.md`.
+recovery in `${BOUNCER_ROOT}/rules/cli-migration.md`.
 
 Task-by-task implement, verify, review, and commit, scope revision, worker dispatch, and
 coordinator output fields belong to `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
@@ -98,7 +98,8 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    Compact output follows that result; emit raw JSON only on `debug`. The payload
    holds the pointer, remaining-task fields (including `affected_paths`), DAG,
    reporting cadence, and `direct_eligible`. Follow its status and `delegable` result; read
-   `${BOUNCER_ROOT}/rules/cli.md` for result handling and `${BOUNCER_ROOT}/rules/current-pointer.md` for
+   `${BOUNCER_ROOT}/rules/cli-coordinate.md` for the `run preflight` contract,
+   `${BOUNCER_ROOT}/rules/cli.md` for result handling, and `${BOUNCER_ROOT}/rules/current-pointer.md` for
    pointer return values. When preflight returns `ok: false` with `reason:
    legacy-review-scope`, the blueprint has no `review_scope`: show its `next`
    command to the user and stop. Run it only when the user explicitly asks, then
@@ -149,8 +150,9 @@ preflight (`legacy-review-scope`) until `bouncer migrate review-scope` converts 
    ```
    This is the one command run against the main checkout; it writes no source there. Keep `integrationPath` from the JSON result. On
    `ok: false`, report the reason and stop — do not retry into a different path.
-   `coordinate bootstrap` always writes a full ledger. On `light-mode-removed`,
-   follow `${BOUNCER_ROOT}/rules/cli.md`.
+   `coordinate bootstrap` always writes a full ledger; its command contract is in
+   `${BOUNCER_ROOT}/rules/cli-coordinate.md`. On `light-mode-removed`, follow
+   `${BOUNCER_ROOT}/rules/cli-migration.md`.
 
 4. **Coordinator dispatch.** Just before dispatch, run
    `bouncer subagent-model --agent bouncer-coordinator` and report its output

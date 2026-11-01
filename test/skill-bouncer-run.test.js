@@ -26,6 +26,42 @@ test('run start ACQ → direct 가능 여부에 따라 시작 방식을 권장�
   assert.ok(fs.existsSync(path.join(root, 'skills/bouncer-run/references/direct-run.md')));
 });
 
+// CLI 계약은 색인(rules/cli.md)과 단계별 세부 문서로 나뉜다. run 스킬의 단계는 자기가 부르는 명령을
+// 정의한 세부 문서를 같은 문단에서 가리켜야 한다. 색인만 읽고 실행하면 명령 계약이 빠진 채 진행된다.
+// 문장이 아니라 명령 이름과 링크 대상 경로만 본다.
+const DIRECT_RUN = 'skills/bouncer-run/references/direct-run.md';
+const RUN_CLI_STAGE_LINKS = [
+  { doc: 'skills/bouncer-run/SKILL.md', command: 'bouncer run preflight', target: 'rules/cli-coordinate.md' },
+  { doc: 'skills/bouncer-run/SKILL.md', command: 'bouncer coordinate bootstrap', target: 'rules/cli-coordinate.md' },
+  { doc: 'skills/bouncer-run/SKILL.md', command: 'light-mode-removed', target: 'rules/cli-migration.md' },
+  { doc: DIRECT_RUN, command: 'bouncer coordinate advance', target: 'rules/cli-coordinate.md' },
+  { doc: DIRECT_RUN, command: 'light-mode-removed', target: 'rules/cli-migration.md' },
+];
+
+test('run step naming a CLI command → its paragraph links the detail contract that defines it', () => {
+  const root = path.join(__dirname, '..');
+  for (const { doc, command, target } of RUN_CLI_STAGE_LINKS) {
+    const markdown = fs.readFileSync(path.join(root, doc), 'utf8');
+    const paragraph = paragraphContaining(markdown, command);
+    assert.ok(paragraph, `${doc}: no paragraph names ${command}`);
+    assert.ok(paragraph.includes(`\${BOUNCER_ROOT}/${target}`), `${doc}: the ${command} paragraph must link ${target}`);
+  }
+});
+
+test('run skill CLI contract links → every linked rules/cli file exists', () => {
+  const root = path.join(__dirname, '..');
+  const linked = new Set();
+  for (const doc of ['skills/bouncer-run/SKILL.md', 'skills/bouncer-run/references/direct-run.md']) {
+    const markdown = fs.readFileSync(path.join(root, doc), 'utf8');
+    for (const match of markdown.matchAll(/\$\{BOUNCER_ROOT\}\/(rules\/cli[\w.-]*\.md)/g)) linked.add(match[1]);
+  }
+  assert.ok(linked.has('rules/cli-coordinate.md'), 'run skill must link the coordinator CLI contract');
+  assert.ok(linked.has('rules/cli-migration.md'), 'run skill must link the removed-mode recovery contract');
+  for (const rel of linked) {
+    assert.ok(fs.existsSync(path.join(root, rel)), `${rel} is linked from the run skill but does not exist`);
+  }
+});
+
 /**
  * 빈 줄로 나눈 블록 중 `needle`을 가진 첫 블록을 찾는다.
  * 단계 번호·제목으로 구간을 자르면 제목이 바뀔 때 빈 구간으로 오해를 부르는 메시지가

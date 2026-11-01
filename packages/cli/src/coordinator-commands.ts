@@ -1782,7 +1782,7 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
       + 'then rerun.',
   },
   // 같은 호출의 값을 겹쳐 쌓으면 합계가 어긋난다. 정정 경로는 --replace 하나뿐이고, 새 호출의 자리는
-  // worker-model 기록이 연다. 문구는 rules/cli.md·usage와 함께 계약이라 바꾸면 문서 테스트가 깨진다.
+  // worker-model 기록이 연다. 문구는 rules/cli-coordinate.md·usage와 함께 계약이라 바꾸면 문서 테스트가 깨진다.
   'worker-tokens-duplicate': {
     cause: 'This worker key already has a worker-tokens record for every worker-model call recorded for it.',
     next: 'Use `--replace` only to correct the wrongly recorded value of the same call. '

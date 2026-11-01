@@ -199,7 +199,6 @@ const INTERNAL_PATH_EXAMPLES = new Set([
   'references/coordinator-cards/final_review.md',
   'references/spec-authoring/review-rounds.md',
   'references/spec-authoring/tasks.md',
-  'rules/cli.md',
 ]);
 
 // planning 문서는 버전 문서 목록 때문에 이 한 줄만 허용한다. 줄 전체가 정확히 일치해야 하므로

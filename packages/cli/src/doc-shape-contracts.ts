@@ -131,9 +131,10 @@ const PATH_CONTRACTS: Record<string, DocContract> = {
     links: [{ href: 'references/verification/index.md', resolve: true }],
   },
   // 제품 규칙 문서: 소유 절 제목.
-  // coordinate repair의 거절 표(조건·reason 두 열)는 runCli가 coordinator-repair의 지원 reason과
-  // 대조한다. 필수 행은 두 거절 경로를 각각 설명하는 reason이다.
-  'rules/cli.md': {
+  // coordinate repair의 거절 표(조건·reason 두 열)는 정본 rules/cli-coordinate.md에 산다. 색인 rules/cli.md에는
+  // 표가 없으므로 표 검사를 따로 두지 않는다. runCli는 이 표를 coordinator-repair의 지원 reason과 대조한다.
+  // 필수 행은 두 거절 경로를 각각 설명하는 reason이다.
+  'rules/cli-coordinate.md': {
     rejectionTable: { required: ['final-review-single-round', 'final-review-repair-do-not-touch'] },
   },
   'rules/commit-scope.md': {
