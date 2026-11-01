@@ -239,6 +239,13 @@ body content only; never edits harness-owned frontmatter fields. Used from
        its own task-only `bouncer.verify` (the plan gate rejects a missing or
        empty one, and a full-suite command copied from the terminal node).
        The task-only `bouncer.verify` also runs the cheap static checks the project's terminal CI applies to the files the task touches, wrapped in one project script when several commands are needed.
+       In this repository, a commit task that adds test files uses
+       `node scripts/check-task.js <test files>` as its task-only verify command.
+       `bouncer.verify` accepts a single argv, so this wrapper combines the
+       checks without `&&`; it also rejects tests missing from `test/tiers.json`,
+       preventing a new test from being omitted from its tier. This convention
+       does not apply to tasks that only modify existing tests or to the full CI
+       fan-in command.
        The Checklist's last item names that command so the worker report can
        echo it under `## Tests`.
      - **Checklist** (verify vs paths): if the verify command is the full
