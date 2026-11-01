@@ -39,6 +39,7 @@
     "typescript-module-contract.test.js",
     "master-rules.test.js",
     "intent-bundle.test.js",
+    "coordinate-progress.test.js",
     "coordinate-next-recovery.test.js",
     "coordinator-worker-recovery.test.js",
     "plan-ledger-recovery.test.js",

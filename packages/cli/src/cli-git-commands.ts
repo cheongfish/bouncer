@@ -448,7 +448,7 @@ const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'reverify', 'partial-close', 'critical-recovery', 'revoke', 'next',
   'advance', 'session-open', 'worker-model', 'worker-tokens',
-  'note', 'uncommit',
+  'note', 'uncommit', 'progress',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -915,6 +915,13 @@ function coordinateCall(
  * @returns {number} 성공 0, 런타임 거절 1, usage 오류 2
  */
 function cmdCoordinate(rest: string[], io: CliIo) {
+  // progress는 독립적인 엄격 입력 계약을 가지므로 일반 플래그 파서보다 먼저 처리한다.
+  if (rest[0] === 'progress') {
+    const { progress } = require('./coordinate-progress') as typeof import('./coordinate-progress');
+    const result = progress(rest.slice(1));
+    io.out(`${JSON.stringify(result)}\n`);
+    return result.ok ? 0 : 2;
+  }
   // 제거된 호출은 --repo 해석·플래그 검증·core보다 앞에서 거절한다.
   if (rest[0] === 'promote-stop') {
     io.err('coordinate promote-stop was removed; replan with /bouncer-plan and declare complexity\n');
