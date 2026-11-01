@@ -350,8 +350,9 @@ sentences. Put mermaid or other code fences under a separate `##`
 heading (for example `## Contract` or `## Diagram`) — fences inside `## Intent`
 are skipped when collecting sentences, and a fence-only or otherwise invalid
 Intent raises `S33` once the blueprint is past `draft`.
-A malformed sentence ending (for example `…시킴.`) is caught on the plan gate as
-`S34`, so fix it before approval instead of after dispatch.
+The plan gate checks only the form of each item (empty, multiline, or without
+Korean text fails as `S34`), so fix it before approval instead of after dispatch.
+Sentence endings are not checked.
 
 Leave Epic / Blueprint identifiers out of titles,
 `commit_intent`, and `commit_summary` — they belong in the blueprint docs and PR body, not the commit
